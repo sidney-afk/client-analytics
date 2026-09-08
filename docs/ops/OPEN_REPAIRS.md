@@ -14088,6 +14088,99 @@ client filter. A trap worth naming: the native view's batch arm emits `native_ki
 1,366 batch rows and reports 1,403 instead of 37. Filter `native_kind is not null`
 first. Full detail and receipts in the coordinator's own ledger entry.
 
+### Codex round 2 on #1344 — a warning that reached state but never reached a person, and one more identifier-only route (2026-09-08)
+
+Codex re-reviewed `996d61f5` and returned two more P1s. Both are against the
+previous pass's own fixes, and neither was caught by a green suite — the same
+shape as the one that caused the outage above.
+
+**1. The dropped-plan warning, third pass. `index.html:18303` / `16807`.**
+OPEN_REPAIRS 177's fix drops a plan whose stored client no longer matches its
+owner, and returns `plans_dropped` so a person can see that a saved work day
+vanished. Pass 1 counted it into a field nothing read. Pass 2 carried the count
+through `wlFetchNativeSnapshot` and wrote an explanatory sentence into
+`wlState.backgroundError`. It still reached nobody, for two independent reasons:
+
+- `renderWorkloadPlanStatus` replaces every `backgroundError` value except the
+  exact legacy-team sentinel with the generic "Workload could not check for
+  newer changes" text, so the explanation was discarded at render time;
+- `wlManualRefresh` clears `backgroundError` outright whenever `legacyTeams` is
+  empty — so pressing the refresh button erased it.
+
+Fixed by giving the condition its own state (`wlState.nativePlansDropped`) and
+its own rendered branch, which is the mechanism the legacy-team message uses to
+survive. A refresh-failure sentence and a dropped-day sentence can now both be
+true and both are rendered; a clean snapshot clears the count, because a warning
+that never goes away stops being read.
+
+**The lesson is about the test, again.** Both earlier passes shipped with a
+check asserting `wlState` held the right string, which is precisely the check
+that cannot see either failure. The replacement drives the shipped composition —
+the gateway's own `projectNativeSnapshot`, then the real `wlLoadSnapshot`, then
+the real `renderWorkloadPlanStatus` against a real element — and asserts on
+rendered text. `test/workload-native-membership.js` no longer stubs the
+renderer at all. Counterfactual: reverting only the renderer branch turns 4
+checks red; reverting only the loader change turns 4 red; the file also carries
+an executed negative control that runs `996d61f5`'s renderer against the same
+state and shows the sentence it threw away.
+
+**2. The sole-item popover header still routed by Linear identifier.
+`index.html:19792`.** The previous pass fixed the popover ROW link; the header
+resolves independently and derived `soleSubIdent` from `soleSub.identifier`
+alone, falling through to `parentIdent`. For a post-outbound deliverable with no
+Linear identifier, the most prominent action on a one-video popover therefore
+opened the synthetic batch parent — whose status is hardcoded `todo`, i.e. the
+one value guaranteed to contradict the pill just clicked — or disappeared when
+no parent identifier resolved either. Now `nativeId || identifier`, matching the
+rows below it. Reverting only that line turns 5 checks red.
+
+### The sweep this earns: every identifier-only route in the Workload regions
+
+Three P1s in two rounds are one class — a row created AFTER the outbound flip,
+which cannot exist today, so it ships invisibly green and breaks on cutover day.
+So every remaining `.identifier` / `linear_issue_url` read in this lane was
+checked by hand against a row carrying neither.
+
+**Correct already, verified rather than assumed.** The popover row link and the
+loose-strip chip link (`nativeId || identifier`); the loose-strip parent button,
+which branches on `nativeBatchId` to `?prod=1&batch=`; the plan/day lookup keys,
+which read `id` first; `wlIssueBusinessFingerprint`, the automatic-placement
+sort and `wlSortSubIssues`, all of which tie-break on `id` so an identifier-less
+row stays deterministic; every label, which reads `title` first; and every
+`s.url ? … : ''` Linear icon, which is omitted rather than aimed elsewhere — a
+native row has no Linear issue, and no link is the honest answer.
+
+**Found, left open, named here rather than fixed.**
+
+1. **The content-calendar button on every popover row passes an identifier
+   only.** `wlOpenInContentCalendar` stores `identifier: ''` for a native row and
+   `_calApplyFocusRequest` returns silently on the empty key; the match itself is
+   against `linear_issue_id`, so even a non-empty native key would not resolve.
+   The reader lands on the right client's calendar with nothing focused. Closing
+   it means teaching the calendar's focus resolution a deliverable-id key, which
+   is the calendar's region and not this lane's.
+2. **The "now working" / overview client chips build `href` from
+   `wlParentUrl`,** which is Linear-only at both ends, so a native row yields
+   `href=""` / `href="#"`. The primary click is intercepted and opens the
+   popover — which routes correctly after this pass — and only a
+   cmd/ctrl/shift-click follows the href, where it is documented as the Linear
+   escape hatch. Deliberately left: it is the same call as the header's
+   `openLinearUrl`, which the suite already blesses as "omitted, not aimed
+   elsewhere". If the owner wants it live, the fix is a `?prod=1&batch=`
+   fallback at both chip call sites.
+3. **The popover's sub-issue ordering tie-breaks on `identifier` with no `id`
+   fallback,** so a group of native rows loses the deliberate ordering the rest
+   of the board has. `Array.prototype.sort` is stable, so nothing shuffles
+   between renders. Cosmetic.
+4. **`wlDebug()` prints and searches by `identifier`,** so native rows print
+   blank and are unfindable by its search. Developer-only surface.
+
+**Not verified by any of this.** No database access in this lane, so nothing
+here is evidence about `workload_plan`, about `workload_native_snapshot_v1`
+against the real table, or about what the deployed `workload-plan` function
+serves. Item 177 is what a green CI on a lane with no data access is worth.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

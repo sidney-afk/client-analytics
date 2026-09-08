@@ -201,6 +201,41 @@ ok(one.openLabel === 'Open SyncView →' && one.openIsParent === false,
 ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-9001',
   'the Linear escape hatch follows the primary target instead of pointing elsewhere');
 
+/* A. THE SAME PILL, AFTER THE OUTBOUND FLIP. Codex P1 on #1344, second finding.
+ *
+ * The row link above was fixed to route by `nativeId`; the HEADER resolves
+ * independently and still derived `soleSubIdent` from `soleSub.identifier`
+ * alone. A deliverable created after the outbound flip has no Linear
+ * identifier at all, so the most prominent action on a one-video popover fell
+ * through to `parentIdent` -- the synthetic batch node whose status is
+ * hardcoded `todo`, i.e. guaranteed to contradict the pill just clicked -- or
+ * vanished entirely when no parent identifier resolved either.
+ *
+ * This row cannot exist today, which is exactly why it needs a check: it ships
+ * invisibly green and breaks on cutover day.
+ */
+const NATIVE_CHILD = { nativeId: NATIVE_ROW_ID, identifier: '', url: '',
+                       parentIdentifier: 'VID-9000' };
+const oneNative = resolveLinks(withParent, PARENT_ID, 'A Client', [NATIVE_CHILD], loc);
+ok(oneNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a post-flip single-video pill opens the DELIVERABLE, by native id');
+ok(oneNative.parentSyncUrl !== '/?prod=1&d=VID-9000',
+  'it does NOT fall through to the synthetic batch parent -- the exact reported defect');
+ok(oneNative.openIsParent === false && oneNative.openLabel === 'Open SyncView →',
+  'and the button says what it opens, rather than mislabelling a video as the parent');
+ok(oneNative.openLinearUrl === '',
+  'a post-flip row has no Linear issue, so the escape hatch is omitted rather than aimed at the parent');
+
+const orphanNative = resolveLinks(noParent, PARENT_ID, 'A Client',
+  [{ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }], loc);
+ok(orphanNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'with no parent identifier recoverable either, the button is still aimed at the deliverable instead of disappearing');
+
+const mixedNative = resolveLinks(withParent, PARENT_ID, 'A Client',
+  [{ ...CHILD, nativeId: NATIVE_ROW_ID }], loc);
+ok(mixedNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row that still carries an identifier routes by the NATIVE id, matching the rows below it');
+
 // A. several sub-issues: no single row is "the video", so guessing is refused.
 const many = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
 ok(many.parentSyncUrl === '/?prod=1&d=VID-9000' && many.openIsParent === true,

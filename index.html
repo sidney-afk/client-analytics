@@ -14019,6 +14019,15 @@
         loading: false,
         refreshing: false,
         backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
+        // How many saved work days the gateway refused to attach to their card
+        // (OPEN_REPAIRS 177). Its OWN state rather than a sentence stuffed into
+        // backgroundError, because backgroundError is the transient
+        // refresh-failure channel: the renderer rewrites anything it does not
+        // recognise, and a successful manual refresh clears it. A dropped plan
+        // is neither transient nor a refresh problem -- it is a work day a
+        // person dragged and can no longer see, and it stays true until the
+        // stored client is repaired.
+        nativePlansDropped: 0,
         error: null
     };
 
@@ -15487,6 +15496,9 @@
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
         wlState.linearMetadataWithheldOnly = 0;
         wlState.backgroundError = null;
+        // No plans are loaded at all now, so "some of them were dropped" is no
+        // longer a true statement about what is on screen.
+        wlState.nativePlansDropped = 0;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
         }
@@ -15517,14 +15529,15 @@
             wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
             wlApplyData(value.issues, value.fetchedAt);
             wlState.nativeLegacyTeams = value.legacyTeams;
-            // Both are non-destructive warnings over a board that painted fine.
-            // The dropped-plan one names a COUNT rather than the cards, because
-            // the gateway drops the plan without telling the browser which row
-            // owned it; a number a person can act on beats a silence they cannot.
-            wlState.backgroundError = value.plansDropped
-                ? 'Some saved work days could not be shown because their client no longer matches the card. Those cards are placed automatically; check them before planning around them.'
-                : value.legacyTeams.length
-                    ? 'Some teams still use the legacy Workload source.' : null;
+            // Two non-destructive warnings over a board that painted fine, and
+            // they are kept in SEPARATE state on purpose. Writing the
+            // dropped-plan sentence into backgroundError (the previous pass)
+            // put it in a channel the renderer overwrites and a manual refresh
+            // clears, so it never reached anybody. The count is authoritative
+            // per response: a fresh snapshot with nothing dropped clears it.
+            wlState.nativePlansDropped = Number(value.plansDropped) || 0;
+            wlState.backgroundError = value.legacyTeams.length
+                ? 'Some teams still use the legacy Workload source.' : null;
             wlState.planLoading = false;
             return value;
         } catch (error) {
@@ -18300,17 +18313,47 @@
         return lead + parts.join(', and ') + '.';
     }
 
+    /* A saved work day the gateway refused to attach to its card, said out loud.
+
+       The count is the only thing the browser is given -- the gateway drops the
+       plan without naming the row that owned it -- so the sentence names a
+       number and what to do about it rather than pretending to point at cards.
+
+       This is the THIRD pass on the same defect and the first two both died in
+       the plumbing: the count went into a field nothing read, then into
+       `backgroundError`, which renderWorkloadPlanStatus rewrites for every
+       string but one sentinel and wlManualRefresh clears outright. So it is now
+       rendered from its own state, on its own branch, and no refresh-failure
+       path can overwrite or clear it. */
+    function wlDroppedPlanWarningText(count) {
+        const dropped = Number(count) || 0;
+        if (dropped <= 0) return '';
+        return (dropped === 1
+            ? 'One saved work day is not shown'
+            : dropped + ' saved work days are not shown')
+            + ' because the client stored with that work day no longer matches the card.'
+            + ' Those cards are placed automatically; check them before planning around them.';
+    }
+
     function renderWorkloadPlanStatus() {
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
         const status = wlState.planStatus;
         const metadataStatus = wlState.linearMetadataStatus;
-        if (wlState.backgroundError) {
+        const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
+        if (droppedText || wlState.backgroundError) {
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
-            el.textContent = wlState.backgroundError === 'Some teams still use the legacy Workload source.'
-                ? 'Some teams still use the legacy Workload source.'
-                : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            // Both can be true at once -- a board can be missing saved days AND
+            // have failed its last refresh -- and dropping either sentence on
+            // the floor is how the first two passes at this got lost. The
+            // dropped days lead: they are a standing fact about what is on
+            // screen, where a failed refresh is a transient one about its age.
+            const refreshText = !wlState.backgroundError ? ''
+                : wlState.backgroundError === 'Some teams still use the legacy Workload source.'
+                    ? 'Some teams still use the legacy Workload source.'
+                    : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            el.textContent = [droppedText, refreshText].filter(Boolean).join(' ');
             return;
         }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
@@ -19737,7 +19780,16 @@
            guess -- so the button stays on the parent and says so, and the
            rows below remain the way to each individual video. */
         const soleSub = subs.length === 1 ? subs[0] : null;
-        const soleSubIdent = String(soleSub?.identifier || '');
+        /* Route by the NATIVE id first, exactly as the rows below and the loose
+           strips do. A deliverable created after the outbound flip carries no
+           `linear_identifier` at all, so keying the primary action on
+           `identifier` alone sends the most prominent button on a one-video
+           popover to the SYNTHETIC batch parent -- whose status is hardcoded
+           `todo` and is the one value guaranteed to contradict the pill the
+           reader just clicked -- or renders no button at all when the parent
+           has no identifier either. `?prod=1&d=` resolves a `del_…` id because
+           _prodIssue() matches on `id` OR `displayId`. */
+        const soleSubIdent = String(soleSub?.nativeId || soleSub?.identifier || '');
         const openIdent = soleSubIdent || parentIdent;
         const openIsParent = !soleSubIdent && !!parentIdent;
         const parentSyncUrl = openIdent

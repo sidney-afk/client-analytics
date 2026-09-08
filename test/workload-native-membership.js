@@ -42,13 +42,26 @@ function browser(response=fixture()) {
   if(Array.isArray(issues)&&!(options&&options.skipIssueCacheWrite))context.cacheWrites.push({issues,fetchedAt});},
  wlBackgroundBusinessFingerprint:()=>JSON.stringify([state.issueSnapshot,state.planStatus]),
  wlPlanEditingEnabled:()=>state.planStatus==='ready',wlLinearEditingEnabled:()=>state.linearMetadataStatus==='ready',
- document:{querySelector:()=>({})},renderWorkloadAll:()=>{context.renders++;},renderWorkloadPlanStatus:()=>{},renders:0,
+ // A REAL status element and the REAL renderer. The two previous passes at the
+ // dropped-plan warning both died between wlLoadSnapshot and the screen, and
+ // both had a green check asserting wlState. A stubbed renderer is what made
+ // that possible, so it is gone: every check in this file now runs the shipped
+ // renderWorkloadPlanStatus against a real element it can be read out of.
+ planStatusEl:{id:'wlPlanStatus',hidden:true,className:'',textContent:''},
+ document:{querySelector:()=>({}),
+  getElementById:id=>id==='wlPlanStatus'?context.planStatusEl:null},
+ // Mirrors the shipped renderWorkloadAll, which calls renderWorkloadPlanStatus
+ // unconditionally once past its popover-defer guard. Pinned in source below so
+ // this stub cannot quietly stop being true.
+ renderWorkloadAll:()=>{context.renders++;context.renderWorkloadPlanStatus();},renders:0,
+ wlSpinnerOn:()=>{},wlSpinnerOff:()=>{},
  fetch:async(url,init)=>{calls.push({url,body:JSON.parse(init.body)});if(typeof response==='function')return response(url,init);
  return {ok:true,status:200,json:async()=>copy(response)};}};
  vm.createContext(context);
  ['_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
- 'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh']
+ 'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
+ 'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh']
  .forEach(name=>vm.runInContext(extract(html,name),context));
  return {context,state,calls};
 }
@@ -86,21 +99,87 @@ function browser(response=fixture()) {
  ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');}
  const b=browser();await b.context.wlLoadSnapshot(false,null);
  ok(b.state.planByIssueId.get('del_fixture')==='2030-01-08'&&b.state.planStatus==='ready','actual plan adoption retains historical pin');
- // A dropped plan is a work day somebody dragged and can no longer see: the card
- // reverts to automatic placement. Counting it in the gateway and reading it
- // nowhere is the same silence in a new place, which is what Codex caught here.
- // A board that painted fine must still SAY it is missing saved days.
- // Fed through the gateway's OWN projection rather than a hand-written body, so
- // this proves the composition that was broken: the gateway counted a drop and
- // the browser read nothing.
+ // ---- The dropped-plan warning REACHES A PERSON -----------------------------
+ //
+ // A dropped plan is a work day somebody DRAGGED and can no longer see: the card
+ // silently reverts to automatic placement, so staff plan against the wrong day
+ // believing it is current.
+ //
+ // This is the THIRD pass on one defect and both earlier ones shipped green:
+ //   pass 1 counted the drop into a field nothing read;
+ //   pass 2 wrote an explanatory sentence into wlState.backgroundError, which
+ //          renderWorkloadPlanStatus replaces with the generic "could not check
+ //          for newer changes" text for every string but one legacy sentinel,
+ //          and which wlManualRefresh clears outright when legacyTeams is empty.
+ // Both passes had a check asserting wlState held the right string. That check
+ // is exactly what let this through twice, so it is NOT what is asserted here.
+ //
+ // Everything below drives the shipped composition end to end -- the gateway's
+ // own projectNativeSnapshot, then the real wlLoadSnapshot, then the real
+ // renderWorkloadPlanStatus -- and reads the RENDERED TEXT off the element.
+ ok(/renderWorkloadPlanStatus\(\);/.test(extract(html,'renderWorkloadAll')),
+  'harness fidelity: the shipped renderWorkloadAll really does call renderWorkloadPlanStatus');
  {const drift=fixture();drift.plans[0].client='other';
-  const d=browser(projectNativeSnapshot(drift,s=>s.toLowerCase()));
+  const projectedDrift=projectNativeSnapshot(drift,s=>s.toLowerCase());
+  ok(projectedDrift.plans_dropped===1&&projectedDrift.legacy_teams.length===0,
+   'the fixture under test is the reported one: a drop, and NO legacy teams');
+  const d=browser(projectedDrift);
   await d.context.wlLoadSnapshot(false,null);
-  ok(d.state.backgroundError&&/saved work days/i.test(d.state.backgroundError),'a dropped plan warns on a board that otherwise painted');
+  d.context.renderWorkloadPlanStatus();
+  ok(/saved work day/i.test(d.context.planStatusEl.textContent),
+   'a dropped plan is VISIBLE in the rendered status, not just held in state');
+  ok(d.context.planStatusEl.hidden===false&&/is-warning/.test(d.context.planStatusEl.className),
+   'the dropped-plan status is shown, and shown as a warning');
+  ok(!/could not check for newer changes/.test(d.context.planStatusEl.textContent),
+   'it is NOT replaced by the generic refresh-failure sentence -- the exact Codex finding');
   ok(d.state.issueSnapshot.length,'the dropped-plan warning never blanks the board');
+
+  // 2. ACROSS A MANUAL REFRESH WITH legacyTeams EMPTY. wlManualRefresh clears
+  //    backgroundError on exactly this condition, which is how pass 2's sentence
+  //    vanished the moment a person pressed the refresh button they were told to
+  //    press. The whole path runs: refresh -> load -> renderWorkloadAll -> render.
+  const m=browser(projectedDrift);
+  await m.context.wlManualRefresh();
+  ok(m.context.renders>0,'the manual refresh really repainted (harness is not vacuous)');
+  ok(/saved work day/i.test(m.context.planStatusEl.textContent),
+   'a manual refresh with no legacy teams KEEPS the dropped-plan warning on screen');
+
+  // 3. A refresh failure on top of a drop must not swallow either sentence.
+  const both=browser(projectedDrift);
+  await both.context.wlLoadSnapshot(false,null);
+  both.state.backgroundError='Workload could not refresh. Previously loaded work is shown; retry to update it.';
+  both.context.renderWorkloadPlanStatus();
+  ok(/saved work day/i.test(both.context.planStatusEl.textContent)
+   &&/could not check for newer changes/.test(both.context.planStatusEl.textContent),
+   'a stale board that is ALSO missing saved days says both things');
+
+  // 4. And it clears when the snapshot is clean -- a warning that never goes
+  //    away is the next way to make it unreadable.
   const clean=browser(projectNativeSnapshot(fixture(),s=>s.toLowerCase()));
   await clean.context.wlLoadSnapshot(false,null);
-  ok(!clean.state.backgroundError,'a clean snapshot raises no dropped-plan warning');}
+  clean.context.renderWorkloadPlanStatus();
+  ok(!clean.state.backgroundError&&clean.state.nativePlansDropped===0,
+   'a clean snapshot raises no dropped-plan warning');
+  ok(!/saved work day/i.test(clean.context.planStatusEl.textContent),
+   'and nothing about missing work days is rendered');
+  // 5. THE COUNTERFACTUAL, against the actual pre-fix source. Same drift, same
+  //    state, the renderer as it shipped at 996d61f5 -- and the sentence the
+  //    board showed instead. This is the negative control for the whole block.
+  const prefix=execFileSync('git',['show','996d61f5:index.html'],{cwd:root,encoding:'utf8',maxBuffer:8e6});
+  const before={wlState:{backgroundError:null,planStatus:'ready',linearMetadataStatus:'ready',
+   linearMetadataWithheldOnly:0,excluded:null},
+   el:{hidden:true,className:'',textContent:''},Number,String};
+  before.document={getElementById:()=>before.el};
+  vm.createContext(before);
+  ['wlExcludedSummaryText','wlVisibleSubCount','renderWorkloadPlanStatus']
+   .forEach(name=>vm.runInContext(extract(prefix,name),before));
+  const p2=browser(projectedDrift);
+  await p2.context.wlLoadSnapshot(false,null);
+  before.wlState.backgroundError='Some saved work days could not be shown because their client no longer matches the card. Those cards are placed automatically; check them before planning around them.';
+  before.renderWorkloadPlanStatus();
+  ok(/could not check for newer changes/.test(before.el.textContent)
+   &&!/saved work day/i.test(before.el.textContent),
+   'exact baseline negative control: the pre-fix renderer threw the explanation away and said "could not check for newer changes"');}
  b.context._wlPlanWriteGeneration=2;b.context._wlPlanLastWriteGeneration.set('del_fixture',2);b.state.planByIssueId.set('del_fixture','2030-01-09');
  b.context.wlAdoptPlanRows({rows:[],readGeneration:1});ok(b.state.planByIssueId.get('del_fixture')==='2030-01-09','late snapshot cannot erase newer saved pin');
  for(const mutate of [v=>v.count--,

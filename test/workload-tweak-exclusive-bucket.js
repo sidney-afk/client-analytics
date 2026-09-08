@@ -1216,6 +1216,11 @@ const planStatusState = { planStatus: 'loading' };
 const paintPlanStatus = compile('renderWorkloadPlanStatus', {
   document: { getElementById: () => loadingPlanStatus },
   wlState: planStatusState,
+  // The dropped-plan warning (OPEN_REPAIRS 177) renders from its own helper on
+  // its own branch, so the renderer no longer compiles without it. The real one
+  // is supplied rather than a stub: this block asserts the LOADING states, and
+  // a stub returning '' would hide a regression that made every state warn.
+  wlDroppedPlanWarningText: compile('wlDroppedPlanWarningText', {}),
 });
 paintPlanStatus();
 planStatusState.planStatus = 'refreshing';

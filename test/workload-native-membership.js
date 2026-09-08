@@ -10,6 +10,39 @@ const extract=(source,name)=>(source.includes('async function '+name+'(')?'async
 let checks=0;
 function ok(value,message){assert.ok(value,message);checks++;}
 const copy=v=>JSON.parse(JSON.stringify(v));
+/* Slice a top-level `const NAME = ...;` by balancing brackets to its terminator.
+   These tables are data, not functions, so extractFunction cannot reach them. */
+function constSrc(name){
+ const at=html.indexOf('const '+name+' ');
+ if(at<0)throw Error('const seam drift: '+name);
+ let depth=0;
+ for(let i=at;i<html.length;i++){
+  const c=html[i];
+  if(c==='('||c==='['||c==='{')depth++;
+  else if(c===')'||c===']'||c==='}')depth--;
+  else if(c===';'&&depth===0)return html.slice(at,i+1);
+ }
+ throw Error('unterminated const: '+name);
+}
+/* The transitive closure of wlApplyData, computed rather than listed, so a new
+   dependency cannot silently fall back to a stub. */
+function closureOf(root){
+ const seen=[],pending=[root];
+ while(pending.length){
+  const name=pending.shift();
+  if(seen.includes(name))continue;
+  let src;
+  try{src=extract(html,name);}catch(e){continue;}
+  seen.push(name);
+  for(const m of new Set(src.match(/\b(wl[A-Z]\w*|_wl[A-Za-z]\w*)\s*\(/g)||[]))
+   pending.push(m.replace(/\s*\($/,''));
+ }
+ return seen.map(n=>extract(html,n)).join('\n');
+}
+const WL_CONSTS=['WL_PARKED_STATUSES','WL_WORKLOAD_TIME_ZONE','WL_PLACEMENT_WALK_LIMIT',
+ 'WL_INACTIVE_EDITORS','WL_ALLOWED_EDITORS','WL_ALLOWED_GRAPHICS',
+ 'WL_CLIENT_NAMES','WL_CLIENT_CANONICAL'].map(constSrc).join('\n');
+const WL_BUCKETER=closureOf('wlApplyData');
 function fixture(){return {ok:true,contract:'workload-native-snapshot-v1',complete:true,count:2,
  authority:{video:'syncview',graphics:'syncview'},legacy_teams:[],rows:[
  {id:'bat_fixture',source:'native',is_sub_issue:false,active:true,title:'Fixture batch'},
@@ -40,22 +73,9 @@ function browser(response=fixture()) {
  // (Codex round 9, the same defect as round 8 one level down).
  wlFetchForeignLinearMetadata:async()=>{throw Error('unexpected provider read');},
  _syncviewStaffIdentityClear:()=>{context.identity=null;},wlPurgePlanSensitiveState:()=>{state.planByIssueId.clear();},
- // Models the shipped wlApplyData's ADMISSION rule for the status renderer:
- // a row reaches a bucket only if it is a sub-issue, active, and its client is
- // allowed. Batch parents, completed/parked rows and rows off the roster land
- // in issueSnapshot and render nowhere, which is why `boardShown` counts
- // rendered rows rather than snapshot length (Codex round 7).
- //
- // The predicates are the REAL extracted ones, not hand-written copies. Codex
- // round 8 caught the copy: the first version admitted every sub-issue, so a
- // fixture that the shipped bucketer would have dropped on the floor still made
- // a capacity assertion pass. Reproducing a predicate is how a harness starts
- // lying; calling it is how it stops. The source pin below fails if wlApplyData
- // ever gates on something else.
- wlApplyData:(issues,time)=>{state.issueSnapshot=issues;state.fetchedAt=time;
-  state.planned=(issues||[]).filter(i=>i&&i.isSubIssue
-   &&context.wlIsActiveStatus(i)&&context.wlIssueClientAllowed(i));
-  state.nowWorking=[];state.tweaksNeeded=[];state.overdue=[];state.undated=[];state.unassigned=[];},
+ // NO wlApplyData STUB. The real one is compiled below and overwrites anything
+ // put here; three rounds of Codex findings were all a model of it admitting
+ // rows the shipped code drops.
  LINEAR_ISSUES_TTL_MS:5*60*1000,cacheWrites:[],
  wlAdoptLinearMetadata:(rows,issues,fetchedAt,options)=>{
   state.workloadByIssueId=new Map(rows.map(r=>[r.issue_id,r.workload]));state.linearMetadataStatus='ready';
@@ -78,13 +98,16 @@ function browser(response=fixture()) {
  fetch:async(url,init)=>{calls.push({url,body:JSON.parse(init.body)});if(typeof response==='function')return response(url,init);
  return {ok:true,status:200,json:async()=>copy(response)};}};
  vm.createContext(context);
- // The parked-status table is a const, not a function, so it is sliced rather
- // than extracted -- and it must land before the predicate that reads it.
- const parkedStart=html.indexOf('const WL_PARKED_STATUSES = new Set([');
- const parkedSrc=html.slice(parkedStart,html.indexOf(']);',parkedStart)+3);
- if(parkedStart<0)throw Error('WL_PARKED_STATUSES seam drift');
- vm.runInContext(parkedSrc,context);
- ['wlNormStatus','wlIsActiveStatus','_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
+ // THE REAL BUCKETER, not a model of it. Codex rounds 8, 9 and 10 were three
+ // successive failures of the same shape: a stub admitted rows the shipped
+ // wlApplyData drops, so `boardShown` assertions passed against boards that do
+ // not exist. Each round I patched one predicate and left the rest modelled,
+ // and each round the next gap was found in the patch. The closure turns out to
+ // be self-contained -- 29 functions and a handful of const tables, every
+ // dependency resolvable from source -- so it is compiled and executed whole,
+ // and the modelling stops.
+ vm.runInContext(WL_CONSTS+'\n'+WL_BUCKETER,context);
+ ['_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
  'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
  'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh']
@@ -96,8 +119,14 @@ function browser(response=fixture()) {
    exactly how the round-7 fixture ({id, isSubIssue:true}) passed a capacity
    assertion the shipped bucketer would never have reached. A native row carries
    its membership on the row itself. */
+/* A cached row the REAL wlApplyData renders. Every field here is load-bearing:
+   drop the assignee or the date and the shipped bucketer moves it to
+   excluded.noAssigneeNoDate, which is how the round-10 fixture claimed a
+   capacity warning for a board showing nothing. */
 const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
- nativeClientActive:true,nativeAssigneeEligible:true,statusType:'unstarted',status:'Todo'};
+ nativeClientActive:true,nativeAssigneeEligible:true,assigneeId:'member-fixture',
+ assigneeName:'Fixture Editor',clientName:'Fixture',teamKey:'VID',teamName:'Video',
+ statusType:'unstarted',status:'Todo',dueDate:'2030-01-10'};
 (async()=>{
  const {projectNativeSnapshot,legacyPlanAliases}=await import(pathToFileURL(path.join(root,'supabase/functions/workload-plan/native-snapshot.mjs')).href);
  const raw=fixture();raw.plans[0].issue_id='old-fixture';
@@ -176,24 +205,34 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
  {const apply=extract(html,'wlApplyData');
   ok(/wlIsActiveStatus\(/.test(apply)&&/wlIssueClientAllowed\(/.test(apply),
    'harness fidelity: the shipped bucketer still admits rows on active status and client membership');
+  // Driven through the REAL wlApplyData. `live()` is a row the shipped bucketer
+  // will actually render: a sub-issue, active, client-allowed, with an eligible
+  // assignee and a date. Codex round 10: the previous fixture had neither an
+  // assignee nor a date, so the real bucketer would have put it in
+  // excluded.noAssigneeNoDate while the harness claimed it was planned.
   const live=(id,extra)=>({id,isSubIssue:true,workloadSource:'native',
-   nativeClientActive:true,statusType:'unstarted',status:'Todo',...extra});
+   nativeClientActive:true,nativeAssigneeEligible:true,assigneeId:'member-fixture',
+   assigneeName:'Fixture Editor',clientName:'Fixture',teamKey:'VID',teamName:'Video',
+   statusType:'unstarted',status:'Todo',dueDate:'2030-01-10',...extra});
   const probe=browser();
   probe.context.wlApplyData([
    live('a'),
    live('b',{nativeClientActive:false}),
    live('c',{statusType:'completed'}),
    live('d',{isSubIssue:false}),
-   {id:'e',isSubIssue:true,clientName:'Someone'},
-   // The three the hand-written lambda used to admit. Codex round 9: a cached
-   // fallback holding only one of these bucketed in the harness and rendered
-   // nothing in the app, so the capacity assertions could pass against a board
-   // that does not exist.
+   {id:'e',isSubIssue:true,clientName:'Someone',assigneeId:'x',dueDate:'2030-01-10'},
    live('f',{statusType:'backlog'}),
    live('g',{statusType:'triage'}),
    live('h',{status:'For SMM approval'})],Date.now());
-  ok(probe.state.planned.map(r=>r.id).join(',')==='a',
-   'harness fidelity: the stub drops off-roster, completed, parent, legacy-unallowed, BACKLOG, TRIAGE and PARKED rows exactly as the real one would');}
+  const rendered=probe.context.wlVisibleSubCount();
+  const bucketed=[...probe.state.planned,...probe.state.nowWorking,...probe.state.tweaksNeeded,
+   ...probe.state.overdue,...probe.state.undated,...probe.state.unassigned].map(r=>r.id);
+  ok(bucketed.join(',')==='a'&&rendered===1,
+   'the REAL bucketer renders the live row and drops off-roster, completed, parent, legacy-unallowed, backlog, triage and parked rows');
+  const excludedIds=[...(probe.state.excluded.noAssigneeNoDate||[]),
+   ...(probe.state.excluded.offTeamAssignee||[])].map(r=>r.id);
+  ok(!excludedIds.includes('a'),
+   'and the live row is genuinely renderable, not merely admitted and then excluded -- the round-10 defect');}
  {const drift=fixture();drift.plans[0].client='other';
   const projectedDrift=projectNativeSnapshot(drift,s=>s.toLowerCase());
   ok(projectedDrift.plans_dropped===1&&projectedDrift.legacy_teams.length===0,

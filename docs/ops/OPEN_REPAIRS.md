@@ -14507,6 +14507,49 @@ owns.** Extract it, or the test is asserting the behaviour you wished for rather
 than the behaviour you have.
 
 
+### Codex round 10 — the modelling stops: the real bucketer is executed (2026-09-08)
+
+One P2, and it is the gap this lane named itself in rounds 8 and 9 and then did
+not close twice. Codex supplied the concrete consequence: the fidelity probe's
+`live('a')` had neither an `assigneeId` nor a date, so the shipped `wlApplyData`
+puts it in `excluded.noAssigneeNoDate` — while the harness asserted it was
+`planned`. The status probes added in round 9 therefore covered only first-stage
+admission, and the `boardShown` checks could stay green while the real board had
+a different visible-versus-excluded state.
+
+**Three rounds were spent patching one predicate at a time, and each round the
+next gap was found inside the patch.** Round 8 replaced a hand-written admission
+filter with two real predicates; round 9 found one of those two was still a
+lambda; round 10 found the stages *after* admission were never modelled at all.
+That is the signature of fixing instances instead of the class.
+
+So the modelling stops. `test/workload-native-membership.js` now compiles and
+executes the **real `wlApplyData`**, whole. The refusal in rounds 8 and 9 —
+"185 lines over 14 dependencies, too fragile to stand up" — was simply wrong, and
+measuring instead of estimating settled it in one command: the transitive
+closure is **29 functions, 433 lines, with every dependency resolvable from
+source** and no external it cannot reach. It needed eight const tables sliced
+alongside (`WL_PARKED_STATUSES`, the roster sets, the client canon, the timezone
+and walk-limit).
+
+The closure is **computed, not listed**, so a new dependency cannot silently
+fall back to a stub — the walk simply picks it up. The probe now asserts through
+the real buckets: one live row renders, and off-roster, completed, parent,
+legacy-unallowed, backlog, triage and parked rows reach no bucket at all; a
+second check asserts the live row is genuinely renderable rather than admitted
+and then excluded, which is precisely the round-10 defect. Every fixture that
+feeds a `boardShown` assertion is now a row the shipped code will actually draw.
+
+Proven red against the round-9 fixture: 2 checks.
+
+**Six for six, and the correction that matters.** The rule written in round 9 —
+a harness may not re-implement a predicate the shipped code owns — was right and
+insufficient. The stronger form, which the last three rounds paid for: **when a
+harness is modelling the code under test, measure the cost of executing the real
+thing before deciding it is too expensive.** Two rounds were spent defending an
+estimate that took thirty seconds to disprove.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

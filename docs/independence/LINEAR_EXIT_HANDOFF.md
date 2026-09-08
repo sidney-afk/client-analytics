@@ -18,10 +18,19 @@ rather than re-deriving the programme.
 this is important to make sure that we always do a checkup on what we're doing."*
 
 That is not a formality. On the night this was written, an independent reviewer
-returned **eleven findings, eight of them P1, on four pull requests the previous
-session had already judged ready to merge** — three of them against that
-session's own fixes. The single most valuable thing you can do first is look hard
-at work that has already been called done.
+returned **twenty-one findings across two rounds, fifteen of them P1**, on work
+the previous session had already judged ready. Eleven landed on four pull
+requests that were minutes from merging. Six more landed on the *fixes* for
+those. Four landed on this very handoff and its sibling coordination documents,
+including one that would have cost an owner deploy window. The single most
+valuable thing you can do first is look hard at work that has already been
+called done.
+
+**A session was already spawned to start this**, tagged `health-check`, pointed
+at the four PRs that merged to `main` during the night and are therefore live:
+#1348 (monitoring), #1349 (exporter and naming mint), #1345 (media rescue
+preparation), #1342 (samples self-completion). Nobody had re-read those after
+they shipped. Look for its report on PR #1351 before repeating that work.
 
 ### Where to point the health check
 

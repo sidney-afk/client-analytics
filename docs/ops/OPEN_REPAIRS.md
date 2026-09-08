@@ -17556,3 +17556,947 @@ nine from reading them myself against the documents that constrain them.** The
 method is written up in this ledger and in the runbook's own handover section
 rather than left as a habit, because the next session will not have watched it
 work.
+
+### Addendum, 2026-09-08 — there is a SECOND Linear exit programme, and the document that spans every lane did not know
+
+The master sequence merged as PR #1357 an hour before this was found. Its stated
+purpose is to be the one document carrying the order across every lane. It
+carried the order across **this programme's** lanes and was silent about the
+other one. That is the defect this file exists to prevent, committed by this
+file, which is the reason it is recorded at this length rather than quietly
+patched.
+
+**What exists.** Three open drafts from an earlier effort, authored 2026-09-04 to
+2026-09-07 and last touched hours before this programme's lanes started:
+PR #1268 (draft, base `main`, docs only, its release packet is the reviewable
+status), PR #1326 (draft, **base `main`**, all eight hosted jobs green at
+`5bcc03bd`, a combined runtime candidate for the whole exit) and PR #1341 (draft,
+on the integration branch, stacked on #1326, **a native urgent-alert
+replacement**).
+
+**Correction inside the hour, because the first version of this entry understated
+the finding.** It said #1326 was based on an integration branch. It is based on
+`main`. Only #1341 is on the integration branch. The difference is the finding: a
+green draft on `main` covering native intake, card and feedback recovery and the
+Workload cutoff is a **live alternative** to lanes A, D and F, not a stranded
+experiment. Two independently-CI-green attempts at the same exit now exist, built
+without knowledge of each other, and which one wins is an owner decision with a
+second model rather than a session's call. The only factual argument available
+without that review: #1326 preserves `main` at `70715496a` and is many merges
+behind today's tip, so it needs a substantial re-merge before it can be weighed
+at all, while this programme's four PRs are current. That is freshness, not
+design quality.
+
+**Four things it holds that this programme does not.**
+
+1. **A live n8n inventory where ours is source-derived.** `N8N_REPLACEMENT_PLAN.md`
+   (item 181) states plainly that no live n8n workflow was inspected and its
+   readbacks are eight weeks old. The release packet reports a fresh read-only
+   inventory over **129 of 129 current workflow IDs, 93 active**, every active
+   published binding verified. Where they disagree about what exists, the measured
+   one wins. The counts are **not** a contradiction and must not be reported as
+   one: ours counts 56 browser-reached webhook endpoints, theirs counts 129
+   workflows in the account. Different units. The real difference is measured
+   versus inferred.
+2. **"Two legacy write fences currently query Linear before refusing mutation, so
+   native authority alone does not eliminate their reads."** Nothing in this
+   programme's documents says this. It does not automatically make the
+   "staff writes are safe" row wrong, but it means that row rests on a fence
+   behaviour nobody here checked. The degradation table now carries the caveat
+   rather than the flat claim.
+3. **A different decomposition of the remaining n8n work** into seven finite
+   groups, including one this programme never named: queues that refuse **before**
+   the provider lookup rather than after.
+4. **Independent corroboration of `send-urgent-slack`.** PR #1341 exists because
+   the Slack workflow resolves the editor through Linear — reached from a
+   different direction, days before PR #1356 re-derived it from source. Two
+   independent derivations agreeing is the strongest evidence either has.
+
+**A decision the owner may not know is on the table.** The release packet says a
+short Linear extension targeting 2026-10-15 was prepared for review, with
+2026-09-15 cancellation still scheduled meanwhile. The owner has said he cannot
+extend, so this is recorded and not recommended. But it was prepared, and a
+prepared option nobody is told about is the same as no option. If extension is
+genuinely foreclosed, that belongs written down, because that packet is currently
+planning around an availability it may not have.
+
+**Why it was missed, which matters more than the miss.** Every lane was scoped
+from `main` and from documents on `main`. **All three PRs are unmerged drafts, so
+none of their content is on `main`** — that is the whole shared reason, and it is
+the same for all three. (#1268 and #1326 target `main`; only #1341 is on the
+integration branch. The base branch had nothing to do with why they were missed.)
+The open-PR list would have named them. No lane read it, this coordinator included.
+
+**Corrected within the hour, and the correction is itself an instance.** The first
+version of this paragraph said "two are based on an integration branch". That count
+was fixed in the master sequence and left standing here, which is exactly the
+"you fixed the line I cited and left its siblings" defect that took three review
+rounds on PR #1351 to stamp out. Doing it again, in the entry recording the
+programme's coordination failures, while claiming to have learned it. **A wrong
+count is bad; a wrong count inside a causal explanation is worse**, because it
+teaches the next reader the wrong lesson about how the miss happened.
+
+**The rule earned:** *a document claiming to span every lane must enumerate the
+lanes from the PR list, not from the branch it is standing on.* Sibling to the
+rule from item 178 about comparing failure sets rather than colours: in both
+cases the cheap complete source was available and a convenient partial one was
+used instead.
+
+**The completion figure stays at ~60%.** Finding that more work exists than was
+credited is not progress. It changes the honesty of the denominator, not the
+numerator.
+
+### Addendum, 2026-09-08 — Create Post reads Linear twice before it writes, and none of the four held PRs fixes it
+
+> **SUPERSEDED IN PART, same day — read the correction addendum below before
+> acting on anything here.** The heading's "reads Linear twice" describes the
+> `create` operation, which is **closed** and never reaches a Linear read. The
+> conclusion survives via `intake_create`; the trace below does not. Annotated in
+> place rather than rewritten, per the append-only rule and the disambiguation
+> precedent set by the 175/176 collision.
+
+The most consequential finding of the day, and it contradicts a line the master
+sequence carried for most of it. That document said staff writes are safe on
+2026-09-15. True of status, comment and edit writes. **False of creating a post**,
+which is the write staff make most.
+
+**Source, on today's `main`.** `supabase/functions/production-write/index.ts`:
+`operation === "create"` dispatches to `handleProductionCreate`, which calls
+`productionCreateScope`, whose first substantive step is `projectForIntake`. Every
+branch of that function that returns successfully calls `readLinearProject`, a
+live `POST https://api.linear.app/graphql`. A real client with no tagged project is
+refused `409` anyway and one with several is refused `409 ambiguous`, so **there is
+no path to a successful create that does not read Linear.** Then
+`handleProductionCreate` reads it a second time through `linearStateIdForCreate`,
+for the status state id. Unreachable provider throws
+`GatewayError(503, "project_mapping_validation_unavailable")` — **fails closed**,
+so nothing is corrupted, and the create is refused.
+
+**Two orderings make it worse than it first looks.**
+
+1. **The provider read precedes the authority check.** `projectForIntake` runs
+   before `authorityFor`/`authorityLane`, so a client whose authority is fully
+   `syncview` still pays it, and flipping authority native does not avoid it. This
+   is the shape the other programme's release packet describes as *"legacy write
+   fences query Linear before refusing mutation, so native authority alone does
+   not eliminate their reads"* — confirmed from source, and narrower and more
+   actionable than that sentence.
+2. **Neither read is flag-gated.** The third Linear-reading fence in the same file,
+   the assignee eligibility pool, **is** flag-gated
+   (`production_assignee_eligibility`) with a documented retirement path. The two
+   on the create path have none, so this cannot be fixed by a flag flip at cutoff
+   time.
+
+**Held-PR coverage, checked directly rather than assumed.**
+`claude/lx-a-workload-native`, `claude/lx-c-endpoints` and `claude/lx-d-feedback`
+change **zero** lines of `production-write/index.ts`. Merging this programme's
+entire held set leaves Create Post dependent on Linear.
+
+**PR #1326 fixes it**, at `5bcc03bd`, by threading a `nativeEpoch` through
+`projectForIntake` that short-circuits both branches before the provider read. That
+is the strongest concrete argument for the other programme's work, and it is a gap
+rather than a preference.
+
+**What is NOT verified, stated because the distinction has burned this programme
+twice.** This is a reading of **repo source, not of the deployed function**.
+`production-write` reaches production only through the fingerprint-pinned F27
+Section 4 lane, so live could differ. Two things settle it: the
+`SYNCVIEW_QA_LINEAR_DEAD` rehearsal, now promoted to the **first** Phase 2 action
+rather than the fourth, and a create attempted on the TEST client with the provider
+unreachable. Until one runs, this is a strongly-evidenced source finding and not a
+measured fact about the live system.
+
+**Method note worth keeping.** This was found by verifying one sentence borrowed
+from another team's document instead of citing it. The sentence was true, vaguer
+than the truth, and pointed at something bigger than it claimed. **Checking a
+borrowed claim against source is how a citation becomes a finding**, and it is the
+opposite of the failure logged earlier the same day, where a true sentence was
+quoted into a scope its source did not have.
+
+**Follow-up the same hour: `create` is not the only affected operation.** Every
+Linear read in `production-write` traced to the operation reaching it:
+
+> **SUPERSEDED TABLE — corrected below.** `create` is unreachable, and
+> `component_fill` is **Always**, not "Sometimes". Kept for the record.
+
+| Operation | Reads Linear? | Behind a flag? |
+|---|---|---|
+| `create` | Yes, twice (`projectForIntake`, `linearStateIdForCreate`), plus parent validation | **No** |
+| `intake_create` | Yes (`projectForIntake`, `parentRouteForAppend`) | **No** |
+| `component_fill` | Sometimes — `parentRouteForAppend` validates externally by default, so a batch with an existing Linear parent reads it; a native batch whose parent outbox row is not `written` does not | **No** |
+| **Changing a card's assignee** | Yes (`validateAssignee` → `assigneeProviderPool`) — an everyday action on an existing card, not only a create-time check | **Yes**, `production_assignee_eligibility` |
+| `status`, `due`, `description` | No | n/a |
+| `comment`, `attachment`, `labels` | No | n/a |
+| `batch_description`, `batch_asset` | No | n/a |
+
+**The safe rows are verified forward.** Tracing callers backwards shows only what
+reaches a Linear read; it cannot establish that a path is clean, and the
+reassuring half of a table is the more dangerous half to get wrong. So
+`handleEntityOperation` was read forward: `status`, `due` and `description` each
+take their own branch and none calls `validateAssignee`, which is reached only in
+the final `else`. That branch is the mutate path's entire Linear exposure, and it
+is flag-gated.
+
+**The `component_fill` row hides a trap.** It degrades gracefully for natively
+created batches and fails for batches that already have a Linear parent, which is
+every card in existence today. So the graceful path applies only to cards that
+cannot be created, because `create` is blocked by the row above it. **The two
+defects conceal each other**: fix either alone and the other becomes visible, which
+is why they were not caught by any lane looking at one surface at a time.
+
+**The assignee row is the shape the other two should have had.** Same dependency,
+but behind a flag, with a comment naming the pre-retirement state and a deliberate
+choice that an absent flag row means strictest rather than a 503. The create-path
+reads are not remarkable for reading Linear; they are remarkable because **nothing
+can turn them off**.
+
+### Addendum, 2026-09-08 — Route A verified from source, and the guard has a third disjunct
+
+Applying the day's own lesson to the claim the entire cutoff plan rests on. The
+runbook's §0 says that with `linear_outbound_enabled = off` and
+`linear_legacy_parity_enabled = false`, the outbound worker's provider block is
+skipped entirely. **Checked rather than quoted, and it holds.**
+
+`linear-outbound/index.ts` guards the block with
+`if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue)`. `rows` is
+declared empty at the top and assigned only inside that block, so it stays empty;
+`readViewer()` is inside the block and is skipped; and **every** other Linear call
+in the file (`readIssue`, `readTeam`, `readLinearComment`, `readCommentByMarker`,
+`readAttachmentRevisionPresent`, `currentControl`, and the mutation execution)
+runs inside `for (const candidate of rows)`, which never executes an iteration.
+Nothing reaches `api.linear.app`. The flag really is sufficient and Route A is
+safe as described.
+
+**The refinement: that guard has THREE disjuncts and the runbook's wording carries
+two.** The third is `f27ReplayRequestValue` — an F27 replay request re-opens the
+provider path with the flag still `off`. That is a deliberate recovery and drill
+mechanism, not a leak, and it requires an explicit owner action, so it cannot
+happen by accident. It is recorded because "with outbound off, nothing reaches
+Linear" is true of normal operation and not of a replay dispatch, and the person
+reading the short version during an incident is exactly the person who might issue
+one.
+
+**Two verifications of borrowed claims today, opposite results.** The other
+programme's write-fence sentence was true and *understated* what it pointed at,
+and became this ledger's largest finding. This programme's own runbook sentence
+was true and *slightly over-general*, and checking it cost minutes and produced a
+caveat rather than a defect. Both were worth doing, and the asymmetry is the point:
+**the check is cheap and its value is not predictable in advance**, so "the source
+is trustworthy" is not a reason to skip it.
+
+### Addendum, 2026-09-08 — CORRECTION: the Create Post finding traced dead code, and component_fill is worse than recorded
+
+Three review findings on PR #1360, all correct, all against the entry above. The
+conclusion survives; the trace supporting it did not.
+
+**1. `create` never reaches a Linear read.** `production-write/index.ts:3592`
+throws `GatewayError(403, "production_create_closed")` unconditionally, before
+`productionCreateScope` on the very next line, under an owner ruling of 2026-08-23
+that *"nothing is created from the Production tab."* **Everything after that throw
+is dead code**, including both reads counted in the entry above.
+
+**I traced a path without first checking it was reachable.** On the same day this
+ledger recorded three variants of "a document correct about what it says and wrong
+about where it points", this is a fourth and worse one: **correct about what the
+code says, wrong that the code runs.** Reachability is the first question, not a
+detail, and it is cheaper to answer than any of the tracing done after it. The
+finding was reached by a method that would have produced the same confident writeup
+had the conclusion been false.
+
+**The conclusion survives** because the browser never sends `create`. The Calendar
+Create Post flow sends **`intake_create`** (`index.html:42155`), and
+`handleIntakeCreate` is not closed and calls `projectForIntake` **unconditionally,
+once per team**, in the loop the source itself labels read-only validation before
+the first native row write. So Create Post really does depend on Linear, by a path
+this ledger had not looked at.
+
+**2. `component_fill` is ALWAYS Linear-dependent, not "sometimes".**
+`handleComponentFill:6008` calls `projectForIntake` unconditionally, **before**
+`parentRouteForAppend` at `:6038`. The entry above said a native batch with an
+unwritten parent takes a graceful path; it does not, it merely avoids the extra
+parent-validation read. **The "two defects conceal each other" observation is
+withdrawn** — it was a satisfying story resting on a false premise, and satisfying
+is exactly when to check harder. The practical cost of the error would have been
+real: "sometimes" invites leaving `component_fill` out of the cutoff repair scope,
+and every fill would then fail after provider access ends.
+
+**3. The replay caveat over-generalised.** An F27 **drill** provably cannot reach
+Linear even with outbound off: `readViewer()` is skipped when `isDrill === true`,
+and the row loop calls `executeF27DrillReplay` and `continue`s before
+`currentControl` or any mutation, under a source comment saying exactly that. Only
+a **non-drill recovery replay** re-opens the provider path. Telling an incident
+operator that the drill mechanism reaches Linear is worse than saying nothing,
+because the drill is the safe thing they should feel free to run.
+
+**One thing the correction improved.** #1326's `nativeEpoch` fix is threaded into
+exactly the two **reachable** call sites, `handleComponentFill` and
+`handleIntakeCreate`, and deliberately not into the dead `create` one. A more
+precisely targeted fix than the earlier entry credited, and evidence its authors
+knew which paths run.
+
+**Unchanged:** the four held PRs still change zero lines of `production-write`, and
+the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal stays the first Phase 2 action. It is now
+the *only* thing that should settle this, because this analysis has already been
+wrong once about which code runs, and a second source reading is not the remedy for
+a source reading that missed a `throw`.
+
+**Corrected twice: TWO request-construction sites, FOUR flows.** The first attempt
+at this claimed three senders; it invented one and omitted a whole surface.
+
+| Built at | Surface | Flows |
+|---|---|---|
+| `index.html:42155` | derived at `:42056`, `state.surface === 'sxr' ? 'sxr' : 'calendar'` | Calendar Create Post **and Samples/SXR**, whose entry calls `_calOpenNativePost(..., 'sxr')` at `:66086` |
+| `index.html:48263` | `'submission'` | staff submission from the normal tab, and **the client link** (credential-less caller admitted for `intake_create` on `submission` only, behind a default-off flag, rate-limited, `public-intake`) |
+
+`index.html:47372` is **not** a sender. It is inside `_linearIntakeRecoveryCopy`,
+which builds a scrubbed `recovery_only`/`suspended` copy of an already-committed
+job, and `_runNativeIntakeJob` skips its gateway fetch whenever `job.result`
+exists.
+
+**The omission mattered more than the invention.** Missing Samples/SXR left a live
+surface out of the cutoff blast radius, and Samples is where a client's first
+deliverables come from. Counting a recovery copy as a sender merely inflated a
+number. The two errors do not cancel, and only the inflated count would have been
+caught by anyone checking the total, which is the argument against treating a
+table as "roughly right".
+
+**Third borrowed claim checked today, third time it paid.** The other programme's
+write-fence sentence understated its subject; this programme's runbook sentence
+was slightly over-general; and a reviewer's line citation was correct but pointed
+at one of three call sites. None of the three outcomes was predictable before
+checking, which is the whole argument for checking.
+
+**The sweep that should have happened after each correction, and the two siblings
+it found.** Having just been caught leaving a stale count in this file after fixing
+it in the master sequence, the obvious next move was to grep the *claims* rather
+than the cited lines. It found two more, both in this ledger, both left behind by
+earlier corrections in this same entry:
+
+1. The addendum heading still asserted *"Create Post reads Linear twice before it
+   writes"* — the superseded claim, in a **heading**, which is the worst place for
+   one because headings are what a hurried reader trusts.
+2. The operation table still carried `create` as a live row and `component_fill` as
+   "Sometimes".
+
+Both are **annotated in place with a pointer to the correction**, not rewritten:
+the ledger is append-only, and the precedent for annotating rather than editing was
+set today by the 175/176 disambiguation notes.
+
+**The rule, stated so it is executable rather than aspirational:** after correcting
+a claim, grep the *claim's words* across every document, including the ones you
+already corrected, and including headings and tables rather than prose alone. A
+correction that lands in the body while the heading still asserts the old thing is
+not a correction; it is a contradiction with a timestamp.
+
+Three rounds of review on this entry have now each found the same shape: the fix
+landed where the reviewer pointed and not where the claim also lived.
+
+### Addendum, 2026-09-08 — the sequence permitted reaching the cutoff with intake broken
+
+Two P1s on PR #1360, both correct, and the second is the sharpest finding of the
+day because it is about the document's **function** rather than its facts.
+
+**1. Assignee changes were in the "safe writes" row and do not belong there.**
+Changing a card's assignee runs `validateAssignee` → `assigneeProviderPool`, and
+`docs/truth/APP.md:652-653` is explicit that a **missing or malformed**
+`production_assignee_eligibility` flag *stays strictest* — only the exact
+`{"provider_mapping_required": false}` value drops the provider requirement. So
+doing nothing is not neutral: it leaves every assignee change dependent on a
+provider about to stop answering, and the blanket word "edits" in that row hid it.
+The row is now split, and **the flag is a numbered owner action (P6)** rather than a
+detail inside a table. It is the only Linear-dependent write path whose author built
+in an off switch; not using it would be the avoidable kind of failure.
+
+**2. The sequence let a reader reach Phase 3 with every intake path refusing.**
+#1326 was described only as an alternative programme's work. It appeared in no Phase
+1 merge and no Phase 2 action. So a reader could do everything this document listed,
+have the dead-Linear rehearsal **confirm** the refusals, read that as a pass —
+because "fails cleanly" is what a rehearsal normally looks for — and turn the cutoff
+on with post creation, Samples/SXR intake, staff submission and component fill all
+already broken.
+
+**On the intake paths, failing cleanly is the defect, not the proof.** That
+sentence is now in the document, because the whole trap depends on the reader
+applying the usual reading of a rehearsal result to a case where it is inverted.
+
+Added: **P7, an explicit gate** requiring an owner-chosen `production-write` repair
+(adopt #1326's `nativeEpoch` approach, or an equivalent minimal change) with a
+**behavioural** acceptance criterion — with Linear dead, a Calendar post, a
+Samples/SXR post and a component fill must all **succeed** on the TEST client, not
+merely refuse cleanly. Plus a four-row **entry gate** at the head of Phase 3.
+
+**And a claim of mine is retracted.** This document said merging the four held PRs
+"converts an uncontrolled degradation into a controlled cutover". **False as
+stated.** None of the four touches `production-write`. The four merges are
+necessary and not sufficient; a controlled cutover needs them **plus** P6 **plus**
+P7.
+
+**The lesson, and it is different from the day's earlier ones.** Those were errors
+of fact: a wrong line, an unreachable path, a stale count. This was an error of
+**structure** — every individual statement in the sequence was true, and the order
+they were written in still permitted an outcome the document elsewhere calls
+unacceptable. A document that is the ordered list has a second correctness property
+beyond its facts: **following it must not be able to produce a state it forbids.**
+Nothing in a fact-check catches that. It is caught by asking what a reader who obeys
+every line ends up doing.
+
+**Follow-up: the gate was put in the wrong document, and saying so is part of the
+fix.** The structural finding above was repaired by adding a gate to
+`LINEAR_EXIT_MASTER_SEQUENCE.md`. That is the weakest available enforcement, and
+noticing it matters more than the paragraph: the failure being repaired was that a
+reader could satisfy every listed step and still reach a forbidden state, so a
+second gate in prose, in a document the operator does not have open at cutoff time,
+is a second thing to walk past.
+
+`LINEAR_CUTOFF_RUNBOOK.md` is where the operator actually looks, and it lives on PR
+#1350's branch, held. Rather than touch another lane's finished work, the
+precondition was handed to that lane as a comment on #1350 in its existing
+P-numbered style, with the load-bearing sentence spelled out: **with Linear dead, a
+Calendar post, a Samples/SXR post and a component fill must all SUCCEED on the TEST
+client; refusing cleanly is a FAIL, not a pass.** Plus the assignee flag literal.
+
+The master sequence now says outright that its own gate is a note rather than a real
+gate until #1350 carries it. **A document admitting where its enforcement is weak is
+more useful than one that reads as though it has none** — and pretending otherwise
+would repeat, in the repair, the defect the repair is for.
+
+### Addendum, 2026-09-08 — labels are not safe either, and the enumeration that was supposed to fix generalising did not
+
+Four more findings on PR #1360, three P1. The first one stings.
+
+**1. Labels reach Linear, and I had just listed them as safe.** `handleLabelsRead`
+calls `linearLabelSnapshot` unconditionally at `production-write:4947`, and the
+`labels` write does the same at `:5491`; both go on to `linearLabelCatalog`, which
+**pages the Linear API**. Neither is flag-gated.
+
+**Why this one is worse than a missed row.** One round earlier, the fix for the
+assignee error was to stop saying "edits" and **enumerate** the safe operations, on
+the reasoning that a list cannot silently absorb a new member. The list I wrote
+included `labels`. **I replaced a generalisation with an enumeration and then did
+not verify the enumeration**, which produces a *more* confident wrong statement than
+the vague one it replaced: "edits" invites a reader to check, a named list does not.
+A remedy applied without doing the work the remedy exists to force is worse than the
+defect.
+
+The safe set, now verified per operation against an exhaustive map of every
+Linear-reaching call site in the file: `status`, `due`, `description`, `comment`,
+`attachment`, `batch_description`, `batch_asset`. Not safe: intake, component fill,
+assignee changes, **labels (read and write)**, and the `create_options` action.
+
+**2. The behavioural gate did not test the second request site.** It required a
+Calendar post and a Samples/SXR post — which are built at **the same** browser site,
+`index.html:42155`, differing only in a surface value. The staff submission is built
+at `:48263`. So a surface-scoped repair could have passed every listed check while
+normal staff submissions still refused after cutoff. **My own table two sections
+above says there are two sites**; the gate I derived from it tested one twice. The
+criteria are now six checks with a column saying what each one covers that the
+others do not.
+
+**3. Setting the assignee flag was not proof that it worked.** The document insists
+elsewhere that deployed `production-write` may differ from repo source, then treated
+an exact flag readback as sufficient. A readback proves what the flags table holds.
+It is now check 6 of the behavioural gate: with Linear dead and the flag set, open
+the picker and change an assignee, and see it succeed.
+
+**4. "#1350 is merged" does not satisfy the gate.** The preconditions have to be
+*in* the runbook the operator opens. Row 1 of the entry gate now reads "merged **and**
+its runbook carries the P6/P7 preconditions", because merging it with the old text
+leaves the enforcement exactly where it was.
+
+**The pattern across today, stated once.** Every fix of mine has been applied at the
+depth the reviewer pointed at, and the defect has lived one level deeper each time:
+fix the line → fix the claim → fix the claim everywhere → fix the *kind* of claim.
+Enumerating instead of generalising was right; enumerating without checking each
+member was the same defect wearing the remedy's clothes.
+
+**Closing my own three flagged uncertainties, and one of them was wrong.** After
+the labels correction I listed three claims in the master sequence as unverified
+and asked the reviewer to attack them. Checking them myself instead:
+
+1. **`create_options` is NOT reachable, and I had listed it as reachable.** The
+   handler does reach `projectForIntake`, and the browser does contain three
+   references to the action, but its only two entry points are the New-issue button
+   and Add-sub-issue, and both render `disabled` because `_prodCreateGateText`
+   returns `PROD_CREATE_CLOSED_TEXT` as its **first statement**, above code the
+   source labels *"kept, unreachable, as the exact undo if the ruling is ever
+   revisited."*
+2. **`batch_description` and `batch_asset` are genuinely clean** — both handlers
+   read forward, neither reaches a provider call. They were in the safe set on the
+   caller map alone, which after the labels error was not good enough.
+3. The exhaustive call-site map stands as the basis for the rest.
+
+**The fact about the codebase worth extracting**, rather than only the fact about
+me: **the 2026-08-23 create closure is enforced in two independent places** — the
+server's `production_create_closed` throw and the browser's `_prodCreateGateText`
+— and **neither references the other**. I was caught by each separately on the same
+PR, hours apart, having already learned the lesson from the first. Tracing one
+teaches you nothing about the second, and both are guarded by early returns above
+live-looking code that is deliberately retained as the undo.
+
+Anyone assessing "is this surface reachable" in this repo needs to check both
+halves. That belongs in the record as a navigation hazard, not as a confession.
+
+### Addendum, 2026-09-08 — the summary-drops-the-list defect, third instance, this time in the gate
+
+Five more findings on PR #1360, two P1. One (`create_options` unreachable) had
+already been fixed independently. The rest:
+
+**1. The Phase 3 entry gate named three of the six P7 checks**, and the three it
+named covered one request site twice while omitting the staff submission, labels
+and the assignee proof. Its row 3 also accepted the assignee **flag readback**,
+which the same document says four screens earlier is not proof of effect.
+
+**This is the third instance of one defect: a summary that drops members of the
+list it summarises.** First the word "edits" absorbing assignee changes; then the
+enumeration written to fix that, which included `labels` without checking; now a
+four-row gate compressing six criteria. **A summary that drops members is not a
+summary, it is a second and weaker specification**, and a reader working a checklist
+uses the short one. The gate now repeats all six in full, which costs four lines.
+
+**2. The minimal-repair option could not satisfy the gate it was offered under.**
+P7 lets the owner choose a fresh minimal change instead of #1326's approach.
+Short-circuiting `projectForIntake` fixes intake and component fill and does
+**nothing** for labels, which reach the provider through `linearLabelSnapshot` →
+`linearLabelCatalog` and never touch `projectForIntake`. That repair would deploy,
+look complete, and still fail check 5 — **after an F27 Section 4 deploy had already
+been spent**, which is the expensive kind of wrong. Now stated as a separate
+required repair.
+
+**3. The mint's step order contradicted its own table.** The proof said to enable
+`video`, prove it, and do this "before seeding the second team" — but the numbered
+table seeds **both** teams at steps 2 and 3. Anyone following the order had already
+seeded graphics. The per-team caution belongs on the **flag transition**, not the
+seeding, since a seed row is inert without the flag. Rewritten as four ordered
+sub-steps.
+
+**4. The F27 Section 4 deploy lane was named without its direct Actions URL**,
+which `AGENTS.md:18-23` requires and which this programme has now been corrected on
+four separate times.
+
+**The pattern, and it is not the same as "I make mistakes".** Every one of these is
+a *derived* artefact disagreeing with the source it was derived from, in the same
+file, with the source still correct: the gate against P7's criteria, the repair
+option against the operations table, the mint proof against the mint table. **The
+facts have been right and the restatements wrong**, consistently, which means the
+risk in this document is concentrated in exactly the places a hurried reader will
+use: the tables, the checklists, the summaries.
+
+**The sweep, run on this document's own derived statements rather than waiting to
+be told.** Review established that the recurring defect on PR #1360 is a
+restatement drifting from a source that stayed correct, so the two tables that had
+never been re-read against their sources were swept. Both migration rows in Phase 0
+had drifted, and both in the direction that overstates what this programme knows:
+
+- *"`EXECUTION_LOG.md` 2026-09-08, recorded late"* — 2026-09-08 is when the **log
+  entry** was written. The **application date is unrecorded**, and the log says it
+  was *"discovered applied by measurement, not by record"* (item 176 read
+  `workload_issues_native_v1` live over REST). "Recorded late" reads as a
+  bookkeeping lapse; the truth is that nobody knows when it was applied, and it is
+  only known to be applied because someone measured it.
+- *"Same entry"* for the membership migration — flattening two different
+  provenances. That one was **applied by the owner on 2026-09-07**, in the window
+  before the `workload-plan` deploy that caused that night's outage. Known day,
+  known actor, different kind of evidence entirely.
+
+**Neither error changed a conclusion, and that is why they are worth recording.**
+Both made the evidence sound better than it is, in a programme that has already
+been wrong in **both directions** about which migrations are live. Overstating the
+record on the two it is sure about is precisely the wrong direction to be sloppy in.
+
+Also re-verified in the same sweep, and these held: all four merged PRs named in
+Phase 0 (#1345, #1348, #1349, #1351) have real merge commits on `main`'s
+first-parent history; and `NATIVE_IDENTIFIER_MINT.md:89-91` does say *"Do it per
+team, video first"* of **step 4**, confirming that the per-team caution belongs on
+the flag transition rather than the seeding.
+
+**Two of three self-flagged uncertainties held; one did not.** That ratio is the
+argument for sweeping rather than for confidence: the sweep is cheap, and which
+items fail is not predictable in advance.
+
+### Addendum, 2026-09-08 — the minimal repair had a second hole, and the acceptance checks had the matching one
+
+Two findings, one P1, and the P1 also settles a question left open twice above.
+
+**1. Short-circuiting `projectForIntake` does not fix component fill or appends.**
+`parentRouteForAppend` reaches `validateLinearBatchParent`, a live provider read,
+by a path that never touches `projectForIntake`:
+
+- `handleComponentFill:6038` passes **seven** arguments, so `validateExternal`
+  takes its default `true`.
+- `handleIntakeCreate:6701` and `:6721`, the append-into-an-existing-batch paths,
+  pass `validateExternal = !exactRowRetry` — **true on any normal append**.
+
+That also closes the `validateExternal` positional-argument question this ledger
+flagged twice and never resolved: seven at the fill, eight at the appends.
+
+**2. The acceptance checks had the matching hole.** They said "create a post"
+without distinguishing a **new** batch from an **append to an existing** one, and
+**only the append reaches `parentRouteForAppend`**. So the minimal repair could have
+passed all six checks while every append stayed broken — and **appends are the
+common case**, since most posts join a batch that already exists. Added as check
+3b; the gate is now seven checks.
+
+**The shape, again, and it is getting specific enough to be actionable.** A repair
+option and an acceptance criterion, both derived by me from the same finding, shared
+one blind spot: I had traced *one* provider read on the intake path and then wrote
+both the fix and the test for that read. **A test derived from the same reading as
+the fix cannot catch what the reading missed.** That is a structural reason my
+acceptance criteria keep needing widening, and it argues for deriving the checks
+from the *surface inventory* — every operation a person performs — rather than from
+the code path I happened to trace.
+
+**3. The F27 order was abbreviated in the failing direction.** I wrote "the sealed
+capture before the dispatch", which omits the **upload to the `SyncView Backups/`
+Shared Drive root** between them. The lane does not receive the bundle, it fetches
+it from Drive by content-addressed name, so skipping the upload fails in about 20
+seconds with `OBJECT_MISSING` and deploys nothing. **This is the exact abbreviation
+that failed run #37 on 2026-09-05**, and it is written out in `CLAUDE.md` in
+capitals. I had the file in front of me and compressed three steps to two.
+
+### Addendum, 2026-09-08 — the client link is LIVE, so the cutoff is client-facing, and I read a code default as a live value
+
+One finding, P1, and unlike the last several rounds it is **not** a restatement
+defect. It changes what breaks on 2026-09-15 and who sees it.
+
+**`public_intake_enabled` = `{"enabled":true}` since 2026-08-25 03:22Z**, turned on
+by the owner after the `production-write` deploy that made the path safe to admit.
+It is written in `docs/truth/BRIEFING.md:133-134`, this repo's designated
+current-truth file.
+
+I described the client-link intake as *"behind a default-off runtime flag"* and
+then as *"conditional on a flag whose live value this lane has not read"*. **The
+first is the CODE's default; the second was false — the live value is recorded in
+the repo and I did not look.** I read a source comment describing a default and
+carried it as a statement about production.
+
+**That is a distinct error class from the day's others**, and worth separating from
+them. The rest have been restatements drifting from a source that stayed correct.
+This one is **a code default read as a live value**, when the live value was
+written down in the one file whose entire job is to hold live values. The remedy is
+specific: *a flag's default in code is never evidence about its live state; the
+live state lives in `docs/truth/BRIEFING.md` and `ROLLBACK.md`, and
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 is the authority on expected values.*
+
+**Consequence, which is the reason this is the most important finding since the
+intake dependency itself:** at the cutoff, **clients** submitting through
+`?intake=1` fail, not only staff. Every other surface in this document is internal.
+This one is the one a client sees.
+
+It also could not have been caught by the seven existing checks: the client link
+takes a **distinct authentication branch** — `production-write` admits it
+credential-less after a `credentials_required` failure, where the staff path
+authenticates — so all seven could pass as staff while client submissions refuse.
+Added as **check 8, mandatory**, and carried into the Phase 3 gate row, the
+degradation table as its only client-facing row, and the #1350 runbook handoff.
+
+**The sweep that finding earned, run immediately rather than waiting for the next
+round.** If a code default had been read as a live value once, every other flag
+claim in the master sequence deserved the same check against
+`docs/truth/BRIEFING.md` and `ROLLBACK.md`. Results:
+
+- `prod_authority`, `write_ui_reroute_clients`, `linear_outbound_enabled`
+  (`{"mode":"live"}` — **not** off; the cutoff is what changes it) and
+  `linear_legacy_parity_enabled` all **match** what this document says.
+- **`production_assignee_eligibility` and `production_native_identifier_mint` appear
+  in NEITHER live-state doc.** For the mint that is consistent with its SOURCE ONLY
+  status. For the assignee flag it means **its live value is genuinely unknown to
+  this repo** — which does not change P6, since the instruction is to set the exact
+  literal either way, but nobody should claim to know what it is now.
+- **One number was removed rather than corrected.** The staff-writes row said "all
+  43 active clients are enrolled". BRIEFING gives **41** at the video flip and **38**
+  for the Track-A allowlists on 2026-08-25; item 175 measured **43** on 2026-09-07.
+  Those are not contradictions: BRIEFING says membership *"tracks the `*_ef_clients`
+  rosters by equality"* and *"the count moves with onboarding"*.
+
+**The lesson from that last one is worth more than the fix.** The number was never
+the load-bearing fact — **the equality is**. Quoting a snapshot as though it were a
+property is how three separately-true numbers come to look like a disagreement, and
+it guarantees the claim rots the next time a client onboards. The row now states the
+mechanism and cites no count.
+
+That generalises past this document: **prefer the invariant to the measurement
+whenever the invariant is what makes the claim true.** A count is evidence for a
+mechanism; publishing it in the mechanism's place trades something permanent for
+something that expires.
+
+**Non-flag live claims, swept the same way. One check falls out.** Today's
+`workload-plan` deploy from `d4b2365e` is properly recorded in
+`EXECUTION_LOG.md:5-8`, so that Phase 0 row is sourced. The label-catalog capture is
+sourced to item 170; it is a capture artefact rather than live database state, so
+its absence from the live-state docs is correct rather than a gap.
+
+**But `ROLLBACK.md:322` still names "the prior exact `workload-plan` v2 closure from
+`fd3e0eaa`" as the restore target, and nobody has confirmed that is still the
+correct prior version after today's deploy.** It may well be. This is deliberately
+recorded as a **check, not a defect** — asserting it stale would be the same
+source-vs-live error the round above just corrected, in the opposite direction.
+
+**Why it is worth recording at all:** a deploy changes what "the prior version"
+means, and a rollback target is read exactly once, during an incident, by someone
+who has no time to verify it. The PR template asks whether `ROLLBACK.md` needs
+updating when rollback scope changes; a deploy changes rollback scope by definition,
+and today's deploy did not come with that check. **A minute of the owner's time
+before the cutoff, not a blocker.**
+
+### Addendum, 2026-09-08 — P7 would have caused a live outage, and the sweep that "found agreement" read one source
+
+Two findings, one P1, and the P1 is the worst instruction defect on this PR because
+following it would have taken a live surface down.
+
+**1. Deploying #1326's gateway before its SQL takes Create Post DOWN.** The
+candidate's `production-write` calls `production_native_intake_epochs`
+**unconditionally** and refuses `503` when the RPC is absent — recorded in this
+ledger at `16663-16666`, from lane D hitting exactly this. So a SHA carrying lane
+B's writers, dispatched before lane B's SQL window has closed, takes Create Post and
+Submit down immediately, from a deploy that looks like it only touches an Edge
+Function.
+
+**P7 went from "choose #1326" straight to "F27 dispatch" with nothing in between.**
+`LINEAR_EXIT_BRIEF_B.md:173-200,220-231` lists the real dependency set: three intake
+migrations plus the composed atomic artifact, the existing-assignment migration
+(which seeds `native_assignment_epochs` **disabled**), two label migrations **plus** a
+staged `version_id` without which `production_label_catalog_capability()` never
+reports native, and the matching browser plumbing including a new
+`intake_editor_options` endpoint.
+
+**The structural point.** This document's acceptance checks run **after** a deploy.
+That is fine when the risk is "the fix did not work" and useless when the risk is
+"the deploy itself is the outage". **A post-deploy check cannot protect a
+pre-deploy hazard**, and P7 was relying on it to. The constraint is now stated as an
+ordering precondition — migrations applied and staged, capabilities reporting
+native, *then* dispatch — with brief B named as the authority on the per-item order,
+since it has the SHAs and file lists and this document does not.
+
+**2. The live-state sweep reported "the sources match" having read one of the two
+authorities it named.** `BRIEFING.md:124-127` says the reroute cohort is the **full
+roster**, wave 3, 2026-08-14. `ROLLBACK.md:146` still says *"cohort UPDATED
+2026-08-07: the TEST fixture plus enrollment wave 1 — two real clients"*.
+
+BRIEFING is a week newer and is almost certainly current. **But `ROLLBACK.md` is the
+rollback law**, and its row names the wave-1 cohort as the captured prior value to
+restore — so an operator rolling back from it would restore a **two-client** cohort
+onto a full-roster estate. Its own *"always read the live value fresh"* is the
+mitigation and the only reason this is not worse.
+
+**Not corrected here**: fixing the rollback law needs the live value read, which is
+an owner action. Recorded so the conflict is visible rather than hidden behind a
+sweep that claimed agreement.
+
+**The sweep's own defect is the one worth keeping.** It was run *because* a
+source-vs-live error had just been found, it named three authorities, it consulted
+one, and it reported agreement. **Checking against one source and reporting
+agreement with several is a stronger claim than the work supports** — the same shape
+as every restatement defect on this PR, committed inside the correction for them.
+
+**Applying the round's lesson to P1, unprompted, and it lands.** The finding above
+was that a control sat on the wrong side of the risk. Asked of the naming mint, the
+same question gives a real answer, and it inverts which step is dangerous.
+
+`NATIVE_IDENTIFIER_MINT.md`'s undo column: **step 4, the flag flip, is reversible**
+— it stops minting and renames nothing. **Steps 2 and 3, the seeds, are undoable
+*"only while no name has been handed out for that team. Once one has, deleting the
+cursor and re-seeding re-issues names."***
+
+**So the proof step locks the seed.** The sequence is flip `video`, create a TEST
+post, read back the minted name — and that read-back *is* the first handed-out name.
+After it, the video cursor cannot be corrected without re-issuing names already
+printed on cards.
+
+**What that makes load-bearing.** `production_native_identifier_seed` derives the
+prefix from live provider data and sets the cursor to
+`observed_provider_max + gap + 1`. The **prefix** has a guard: it refuses with
+`native_identifier_prefix_ambiguous` rather than guessing. **`observed_provider_max`
+has none.** A degraded provider or a partial page during seeding returns a maximum
+that is too low, the native band sits lower than it should, nothing reports it, and
+it becomes visible only once names are being handed out — which is exactly when it
+stops being fixable.
+
+So P1 now says: **read and sanity-check the three returned values before flipping**,
+not merely record them. The mint runbook says to record them; this says why the
+recording must be a check and must precede step 4.
+
+**The general form, which is the third distinct control-placement lesson today:**
+*the reversible step is not always the later one.* Everyone treats "apply and seed"
+as the safe preamble to a risky "flip", because installs feel provisional and
+enablements feel committal. Here it is backwards, and the document was ordered on
+the feeling rather than on the undo column that was sitting in the source the whole
+time.
+
+### Addendum, 2026-09-08 — the ordering fix over-corrected, and three more on the same section
+
+Four findings, three P1. The first is the one worth leading with because it is a
+correction **to a correction made an hour earlier**.
+
+**1. I over-corrected the install order.** The first version went straight from
+"choose #1326" to "dispatch" — gateway before SQL, an outage. The fix put **runtime
+activation before the dispatch**, which is also wrong.
+`LINEAR_EXIT_BRIEF_B.md:282-290` — the authority this document delegates to — orders
+capture/upload, **the Section 4 deploy**, and *then* the intake, assignment and
+label flips. Activating while the old closure is still live leaves the caller
+without the native epoch and payload routing those flags enable.
+
+**Correct: SQL and the label CAPTURE before; all runtime activation after.** Naming
+an authority and then contradicting it in the same paragraph is a worse failure than
+the original gap, because a reader who checks the citation finds the opposite of
+what the text says.
+
+**2. A second, independent hazard on the same side, and SQL-first does not fix it.**
+Merging the browser half **publishes `index.html` immediately** via Pages, while
+`production-write` only moves on the dispatch. Brief B's own adversarial review at
+`:368-370` records it: the new browser calls `intake_editor_options`, the **old
+gateway answers `400 unknown_action`**, and the Create Post picker is broken for the
+entire capture → upload → dispatch interval. Needs a fallback in the browser hunk,
+or the browser hunk held until the gateway is live.
+
+**3. Recording the reroute conflict was not resolving it.** The previous entry noted
+that BRIEFING and ROLLBACK disagree and stopped there. **If ROLLBACK's value is
+live**, only the TEST fixture and two real clients are rerouted, every other client
+still takes the legacy Linear lane, the "staff writes are safe" row is wrong, and
+**every behavioural check passes on TEST while normal staff writes fail after
+cutoff**. It is now **row 0** of the Phase 3 entry gate: the owner reads the value
+live and confirms equality with the current writer rosters, before anything else is
+judged. Carried into the #1350 handoff.
+
+**4. I used `production_label_catalog_capability()` as proof of staging.** It reads
+**only its runtime flag** and will report `native` for an arbitrary UUID with
+nothing staged, then 503 one call later. **This document's own P1 section says
+exactly that**, contrasting it with the mint capability's self-guarding — and I used
+it as evidence two sections later. The gate now requires a staged-and-attested row
+or a successful `production_label_catalog_read_attested`.
+
+**The lesson from this round is narrower and more useful than "be careful".** Three
+of these four are *the same document contradicting itself across a few screens* —
+the delegated authority, the capability's own caveat, the conflict it had just
+recorded. **Internal consistency is not something a document has by default; it is a
+property that has to be checked for, the same way facts are.** Nothing about being
+correct in each section makes the sections agree.
+
+**The internal-consistency pass, run unprompted because the last round established
+the document needs one. It found a gap the size of four surfaces.**
+
+Reading the master sequence against itself rather than against source: **the eight
+behavioural checks are all WRITE paths**, because they were derived from the intake
+finding and grew by widening. The degradation table at the top of the same document
+lists four more surfaces that fail at the cutoff, and **no gate row verifies any of
+them**:
+
+| Surface | Gate required | Should require |
+|---|---|---|
+| Workload board | #1344 merged | board **read with Linear dead**, checked against known-changed data |
+| Kasper → Editors subtab | #1346 merged | the native panel **rendering a real week** with Linear dead |
+| Tweak comments | #1346 merged | a Tweak-Needed row **showing its comment** with Linear dead |
+| Urgent Slack alerts | **nothing at all** | see below |
+
+**"Merged" is the standard this document explicitly rejects for the intake repair**,
+and then applies to four surfaces three screens later. If merging were sufficient
+evidence that a surface works, P7 would not exist. That is the same
+one-standard-here-another-there defect as the round before, found this time by the
+pass rather than by a reviewer.
+
+**The Workload row needed its own warning.** Its failure mode is **freezing, not
+emptying**, so "I opened it and it looked right" is the single form of evidence that
+cannot distinguish pass from fail. It must be checked against data known to have
+changed since the reconcile stopped.
+
+**And one surface cannot be gated at all.** `send-urgent-slack`'s native
+replacement is **PR #1341, a draft**, on the integration branch, stacked on #1326.
+Nothing on `main` replaces it. So it is now written as an **owner decision** — ship
+a replacement before the cutoff, or accept that urgent editor alerts are down and
+tell the staff who use them. **A gate requiring something nobody has built is not a
+gate, it is a way of making the sequence unfinishable**, and quietly omitting the
+surface, which is what the document did until now, is worse than either.
+
+**Method note.** This is the first finding on this PR produced by a pass whose only
+input was the document itself. Every previous one came from checking the document
+against source, a live-state doc, or a reviewer. Both are needed, and they find
+different things: source checks catch wrong facts, self-checks catch **one section
+being held to a standard another section rejects**.
+
+### Addendum, 2026-09-08 — the read checks could PASS FROM CACHE, and the handoff dropped them
+
+Three findings, two P1. The first invalidates checks written one round earlier.
+
+**1. Both new read checks were unsound.** In a browser that opened either surface
+before the rehearsal:
+
+- **`_kasperLoadEditors(false)`** hits `_kedLoadEditorsCache()` first and, on a hit,
+  paints and **returns with no network call at all** — its own comment says *"Last
+  week's data never changes — hit localStorage first unless the user explicitly hit
+  Refresh."*
+- **`wlFetchTweakComments`** skips the fetch for any issue id cached inside a
+  **five-minute TTL**.
+
+So "I set dead mode and the panel rendered a real week" proves **nothing**. It
+replays pre-rehearsal Linear data while the native path is broken, and it looks
+exactly like a pass. Each check now requires an explicit Refresh or a cold cache
+**plus a correlated successful native request** — the render is not the evidence,
+the request is.
+
+**This is the mirror of "failing cleanly is the defect, not the proof".** There the
+trap was reading a clean refusal as a pass; here it is reading a successful render
+as one. Both come from **checking the surface instead of the path**, and this
+document has now produced one in each direction. The generalisation worth keeping:
+*a check that observes the UI can be satisfied by anything that paints the UI,
+including a cache, a stale store, or a fixture.*
+
+**2. The #1350 handoff dropped the read checks** one screen after they were added to
+the gate — the same summary-drops-members defect, again, inside the same commit that
+fixed an instance of it. The handoff now carries the three read checks and the
+`send-urgent-slack` decision alongside the eight write checks and the reroute read.
+
+**3. The F48 order was two steps short.** It read merge #1346 → confirm the panel →
+deactivate. `N8N_REPLACEMENT_PLAN.md:260-273,515-516` adds two prerequisites: the
+**event-time-assignee migration** (without it the panel attributes historical
+transitions to the *current* assignee, so the report renders convincingly and is
+wrong) and the **`deliverable_events` anon revoke** before the replacement is
+served. Following the old order would have deactivated the legacy endpoint with both
+problems live — trading a known-broken surface for a plausible-looking wrong one and
+an open PostgREST read.
+
+**A wrong report that renders is worse than an endpoint that fails**, because
+failure is legible and a confident wrong number is not. That is the same reason the
+Workload board's freeze is rated above the surfaces that die visibly.
+
+**Addendum, 2026-09-08, after merging main (`b42f702`) — PR #1360 merged and hands
+this lane a precondition, correctly.** The coordination lane's own words, now on
+main: its entry gate *"is a note in a coordination document rather than an enforced
+precondition"* until this runbook carries it, because **the operator at cutoff time
+has `LINEAR_CUTOFF_RUNBOOK.md` open, not that file.** That reasoning is right and
+the handoff is accepted in full: **P7, P7a, P7b, P7c**, gating STEP 3.
+
+**The finding underneath it is a real defect in this lane's rehearsal, and it is
+the sharpest one of the day.** My result form R1-R12 checks that surfaces render,
+that two writes commit, and that the harness did its job. **Not one row requires a
+post to be creatable.** So a rehearsal in which Calendar post, Samples/SXR post,
+staff submission, append, component fill, label, assignee and client-link
+submission **all refused cleanly** would have completed the form and been read as a
+pass — because "fails cleanly" is what a rehearsal is usually looking for.
+
+**On the intake paths, failing cleanly is the DEFECT, not the proof.** Those
+surfaces read Linear through `production-write`, and none of the held PRs changes
+that file. This is not a wording problem: the rehearsal is this lane's answer to
+"does the app survive Linear being unreachable", and it was capable of answering
+yes while every write path was dead.
+
+Both documents now carry the eight checks as behaviour that must **succeed**, with
+`3b` (append into an existing batch) and `4` (component fill) as separate rows
+because `projectForIntake` alone does not cover them — `parentRouteForAppend`
+reaches `validateLinearBatchParent` independently, which this lane confirmed at
+`handleComponentFill:6038` and `handleIntakeCreate:6701`/`:6721` before the handoff
+arrived. **P7a** carries the live `write_ui_reroute_clients` read, without which all
+eight can pass on TEST while real clients still take the legacy lane, and which the
+two live-state docs disagree about. **P7b** carries the three read checks with the
+cache defeats each requires: `_kasperLoadEditors(false)` returns **with no network
+call at all** on a cache hit, and `wlFetchTweakComments` skips inside a five-minute
+TTL, so "I set dead mode and the panel rendered a real week" proves nothing.
+**P7c** requires the `send-urgent-slack` decision to be recorded either way.
+
+**The pair worth keeping, because this lane has now produced one of each.** A clean
+refusal read as a pass (the write trap) and a cached render read as a pass (the read
+trap). **Both come from checking the surface instead of the path** — and both were
+invisible to me while I was checking that my documents agreed with each other,
+because the documents did agree. They were agreeing about the wrong question.
+
+**Running total: fifteen findings from sweeping my own documents and from other
+lanes reading them, plus this one — the first that no amount of internal
+consistency-checking could have surfaced.**

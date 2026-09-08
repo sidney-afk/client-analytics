@@ -222,6 +222,49 @@ Fill in `observed` and `verdict`. **A blank row is not a pass.**
 | R11 | **Each shape was run PINNED across the probe manifest** — four runs, not one rotating run | four separate `SYNCVIEW_QA_LINEAR_DEAD=<shape>` invocations, each recorded here | | |
 | R12 | The status-and-comment write flows survived `ok_lie` specifically | the pinned `ok_lie` run, read as a person: a 200 that carried nothing must not be reported anywhere as success | | |
 
+
+> **⚠️ R1-R12 CAN ALL PASS WHILE EVERY INTAKE PATH IS BROKEN. Added 2026-09-08.**
+> The rows above check that surfaces *render*, that two writes commit, and that the
+> harness did its job. **None of them requires a post to be creatable.** A rehearsal
+> in which Calendar post, Samples/SXR post, staff submission, append, component fill,
+> label, assignee and client-link submission all **refused cleanly** would complete
+> this form and read as a pass — because "fails cleanly" is what a rehearsal usually
+> looks for.
+>
+> **On the intake paths, failing cleanly is the DEFECT, not the proof.** Those
+> surfaces read Linear through `production-write`, and none of the held PRs changes
+> that file. The rows below are therefore stated as behaviour that must **succeed**;
+> a clean refusal is a FAIL. They are `LINEAR_CUTOFF_RUNBOOK.md`'s **P7**, restated
+> here because this is the form somebody fills in.
+
+| # | Must SUCCEED with Linear dead, on `sidneylaruel` | a clean refusal is a FAIL | pass/fail | notes |
+|---|---|---|---|---|
+| W1 | Calendar post created | ☐ | | |
+| W2 | Samples/SXR post created | ☐ | | |
+| W3 | Staff submission accepted | ☐ | | |
+| W3b | **Append into an EXISTING batch** — the common case, and the one `projectForIntake` alone does not cover (`handleIntakeCreate:6701`/`:6721`, `validateExternal = !exactRowRetry`) | ☐ | | |
+| W4 | **Component fill** — reaches `validateLinearBatchParent` independently (`handleComponentFill:6038`, seven args, `validateExternal` defaults `true`) | ☐ | | |
+| W5 | Set a label AND open the picker | ☐ | | |
+| W6 | Change an assignee **after** the flag flip — the flag readback proves what the flags table holds, not what the deployed function does | ☐ | | |
+| W8 | A **client-link** submission | ☐ | | |
+
+**And three READ checks that must defeat their caches**, because a cached render
+looks exactly like a pass:
+
+| # | Must be true | why the obvious check is unsound |
+|---|---|---|
+| D1 | Workload board read with Linear dead **against known-changed data** | it FREEZES rather than empties, so a board that looks fine is not evidence |
+| D2 | Editors subtab after an **explicit Refresh** | `_kasperLoadEditors(false)` hits `_kedLoadEditorsCache()` and returns **with no network call at all** on a hit |
+| D3 | Tweak comments in a browser where that row's comments were **not fetched in the last 5 minutes** | `wlFetchTweakComments` skips the fetch inside a 5-minute TTL |
+
+**Each read check also needs a correlated successful native request in the network
+panel. Rendering is not evidence; the request is.** D1-D3 are the inverse of the
+write trap: there, a clean refusal read as a pass; here, a cached render does. Both
+come from checking the surface instead of the path.
+
+**Also record, either way: the `send-urgent-slack` decision.** It is shaped like a
+pure Slack write but resolves the issue's current Linear assignee to pick the
+mention, so it dies with the account and has no merged replacement.
 > **⚠️ `dead` in the log does not by itself mean dead mode ran.** The
 > `api.linear.app` / `uploads.linear.app` guard writes
 > `{path:"api.linear.app", dead:"refused"}` **in every mode, healthy included** —

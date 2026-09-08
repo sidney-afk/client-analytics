@@ -49350,6 +49350,11 @@
             gatewayReads: null,
             descriptions: new Map(),
             descriptionRequestTokens: new Map(),
+            /* Per-batch read state for the ONE-row description read, keyed by
+               batch id: 'loading' | 'ready' | 'error'. It is what stops the
+               batch-detail view re-asking on every render, and what lets that
+               view say the read failed instead of holding a skeleton forever. */
+            batchDescriptionReads: new Map(),
             createDraft: null,
             createCatalog: [],
             createAssignees: [],
@@ -56774,6 +56779,10 @@
             _prodState.linearRaw.clear();
         }
         function _prodMarkDescriptionsStale() {
+            /* Including the batch-detail read states: a manual refresh is the
+               retry for a batch description that failed to load, and leaving
+               'error' behind would make that failure permanent for the session. */
+            _prodState.batchDescriptionReads.clear();
             _prodState.descriptions.forEach((state, id) => {
                 if (!state || state.saving) return;
                 _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
@@ -57115,6 +57124,72 @@
                 } catch (e) {}
             }, 0);
         }
+        /* The ONE-row batch description read, in one place because two surfaces
+           need it: the synthetic batch parent's panel (through
+           _prodEnsureDescription) and the direct batch-detail view (through
+           _prodEnsureBatchDescription). Both render from `_prodState.batches`,
+           so both are fixed by writing the column back onto that row.
+
+           The page size is 1000, not 1, and that is load-bearing rather than
+           arbitrary: _prodRestRows only RETURNS when a page comes back shorter
+           than the page size, so asking for 1 row with pageSize 1 fills the
+           only page and falls out of the loop into
+           `batches read exceeded pagination cap` -- an exact match throws
+           instead of answering. Raised by Codex review on #1364, where it made
+           every batch-parent description read fail. `id=eq.<uuid>` can return
+           at most one row, so any size above 1 terminates; 1000 matches the
+           sibling id-list read in _prodDeepLinkRowQuery rather than inventing a
+           second convention. */
+        async function _prodReadBatchDescriptionRow(batchId) {
+            const rows = await _prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.' + encodeURIComponent(batchId), 1000, 1);
+            const row = Array.isArray(rows) ? rows.find(item => String(item && item.id || '') === String(batchId)) : null;
+            if (!row) throw new Error('batch_description_read_failed');
+            return row;
+        }
+        /* The direct batch-detail view (`?batch=<id>`, view 'batch') renders
+           `batch.description` straight off the row and has no deliverable and
+           no description state machine, so _prodEnsureDescription cannot serve
+           it -- that one is reached only from view 'detail' with an openId.
+           Without this the view sat on its loading skeleton forever once the
+           column left the boot read. Raised by Codex review on #1364.
+
+           Terminating, like _prodEnsureLabels: a row that HAS the column
+           returns before the read, and a failed read is remembered, so the
+           _prodRender -> ensure -> _prodRender cycle cannot spin. */
+        async function _prodEnsureBatchDescription(batchId, force) {
+            batchId = String(batchId || '');
+            if (!batchId) return;
+            const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+            if (!row) return;
+            if (!force && _prodHasOwn(row, 'description')) return;
+            const readState = _prodState.batchDescriptionReads.get(batchId);
+            if (readState === 'loading' || (!force && readState === 'error')) return;
+            _prodState.batchDescriptionReads.set(batchId, 'loading');
+            const generation = _prodState.projectionGeneration;
+            try {
+                const fresh = await _prodReadBatchDescriptionRow(batchId);
+                if (generation !== _prodState.projectionGeneration) {
+                    _prodState.batchDescriptionReads.delete(batchId);
+                    return;
+                }
+                const live = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                if (!live) {
+                    _prodState.batchDescriptionReads.delete(batchId);
+                    return;
+                }
+                live.description = fresh.description == null ? '' : String(fresh.description);
+                if (fresh.updated_at) live.updated_at = fresh.updated_at;
+                _prodState.adapter = null;
+                _prodState.batchDescriptionReads.set(batchId, 'ready');
+            } catch (error) {
+                if (generation !== _prodState.projectionGeneration) {
+                    _prodState.batchDescriptionReads.delete(batchId);
+                    return;
+                }
+                _prodState.batchDescriptionReads.set(batchId, 'error');
+            }
+            if (document.getElementById('prodRoot')) _prodRender();
+        }
         async function _prodEnsureDescription(id, force) {
             id = String(id || '');
             const issue = _prodIssue(id);
@@ -57157,10 +57232,9 @@
                 state.status = state.hasValue ? 'stale' : 'loading';
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 try {
-                    const rows = await _prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.' + encodeURIComponent(batchId), 1, 1);
+                    const row = await _prodReadBatchDescriptionRow(batchId);
                     if (!batchStillCurrent()) return null;
-                    const row = Array.isArray(rows) ? rows.find(item => String(item && item.id || '') === batchId) : null;
-                    if (!row) throw new Error('batch_description_read_failed');
+                    _prodState.batchDescriptionReads.set(batchId, 'ready');
                     _prodSyncBatchDescriptionRow(id, row.description, row.updated_at);
                     _prodAdoptDescriptionValue(id, row.description, row.updated_at);
                     const adoptedBatch = _prodState.descriptions.get(id);
@@ -61700,6 +61774,9 @@
         function _prodMarkBatchDescriptionsStale(batchIds) {
             const targets = new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
             if (!targets.size) return;
+            // The batch-detail view's read state for the same rows: the merge
+            // dropped their description, so its next render must re-read.
+            targets.forEach(batchId => _prodState.batchDescriptionReads.delete(batchId));
             _prodState.descriptions.forEach((state, id) => {
                 if (!state || state.saving) return;
                 const issue = _prodIssue(id);
@@ -61983,6 +62060,11 @@
                 const painted = _prodPaintedDetailKey(root);
                 if (painted && painted === _prodState.detailScrollKey) detailPane.scrollTop = _prodState.detailScrollTop;
             }
+            if (_prodState.view === 'batch' && _prodState.openBatchId) {
+                // The batch view renders batch.description off the row, and the
+                // boot read no longer carries it. See _prodEnsureBatchDescription.
+                _prodEnsureBatchDescription(_prodState.openBatchId, false);
+            }
             if (_prodState.view === 'detail' && _prodState.openId) {
                 const openRowId = _prodOpenRowId();
                 _prodComments.ensure(openRowId);
@@ -61990,8 +62072,8 @@
                 _prodEnsureLabels(openRowId, false);
                 _prodEnsureDescription(openRowId, false);
                 _prodEnsureAssets(openRowId, false);
-                /* A batch parent returns from the call above without a network
-                   read -- it has no deliverable row to authorize against. The
+                /* A batch parent takes its own one-row read inside the call
+                   above (it has no deliverable row to authorize against). The
                    panel it paints is the CHILD row, so the read that fills it
                    has to be asked for by id. Ensure is idempotent and cached
                    per row, so opening the parent and then the child costs one
@@ -62831,8 +62913,13 @@
             const rows = _prodBatchRows(batch.id);
             const descField = _prodHasOwn(batch, 'description') ? 'description' : _prodHasOwn(batch, 'desc') ? 'desc' : '';
             const desc = descField ? (batch[descField] == null ? '' : batch[descField]) : '';
+            /* An absent column means "not read yet" and paints a skeleton, which
+               is honest only while a read is actually coming. Once the read has
+               failed, the same skeleton becomes a promise the view cannot keep,
+               so it says so instead. */
+            const descReadFailed = !descField && _prodState.batchDescriptionReads.get(String(batch.id || '')) === 'error';
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
-                + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField, 'No batch description.', false) + '</div>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField || descReadFailed, descReadFailed ? 'Description could not load.' : 'No batch description.', false) + '</div>'
                 + (rows[0] ? _prodAssetsPanelHTML(rows[0], { slots: ['filming_plan','raw_footage','delivery_folder'], readOnly: true }) : '')
                 + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'

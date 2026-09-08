@@ -17815,3 +17815,35 @@ shipped source and executes the two merges and the return listener.
 updated for the renamed batch merge. The mocked browser gate
 (`docs/syncview-design/tests/prod-write-gateway-browser.js`) and the boot budget
 were run before push.
+
+### 182a. Two defects the first draft shipped, both caught by Codex review on #1364
+
+Recorded because the wiring tests passed while both were live, which is the
+transferable lesson: an assertion that the call EXISTS is not an assertion that
+it WORKS.
+
+**P1 — the one-row read could not terminate.** The first draft called
+`_prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.<id>', 1, 1)`.
+That helper only returns when a page comes back SHORTER than the page size, so
+an exact one-row match filled the only page, fell out of the loop, and threw
+`batches read exceeded pagination cap`. **Every batch-parent description would
+have rendered "Description could not load."** The page size is now 1000 (an
+`id=eq.<uuid>` returns at most one row, and 1000 matches the sibling id-list
+read rather than inventing a second convention). `test/prod-boot-payload-diet.js`
+now EXECUTES the real pager with both argument sets: it asserts the old ones
+throw — so the test can fail for the reason it names — and the shipped ones
+return.
+
+**P2 — the direct batch view was never served.** `?batch=<id>` is view `batch`
+with `openBatchId`, and `_prodBatchDetail` renders `batch.description` straight
+off the row. The on-demand loader was reached only from view `detail` with an
+`openId`, so that view sat on its loading skeleton forever once the column left
+the boot read. The read now lives in one shared function
+(`_prodReadBatchDescriptionRow`) with a second entry point
+(`_prodEnsureBatchDescription`) called from the render pass for the batch view,
+terminating the same way `_prodEnsureLabels` does: a row that already has the
+column returns before the read, and a failed read is remembered, so
+render → ensure → render cannot spin. A failed read now says
+**Description could not load.** rather than holding the skeleton, and both the
+manual refresh and a delta that moves the batch's stamp clear the remembered
+failure so it is not permanent for the session.

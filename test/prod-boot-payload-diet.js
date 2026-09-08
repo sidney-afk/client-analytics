@@ -19,6 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
@@ -39,6 +40,7 @@ function constValue(decl) {
   return html.slice(start + decl.length, html.indexOf(';', start)).trim().replace(/^'|'$/g, '');
 }
 
+void (async () => {
 // ---- 1. the boot select, and the one-row read that replaces it ------------
 const bootSelect = constValue("const PROD_BATCH_SELECT = ").split(',');
 ok(bootSelect.length > 5 && !bootSelect.includes('description') && !bootSelect.includes('desc'),
@@ -48,7 +50,7 @@ ok(constValue("const PROD_BATCH_DESCRIPTION_SELECT = ") === 'id,description,upda
 
 const ensure = grabFunc('async function _prodEnsureDescription(id, force)');
 const branchAt = ensure.indexOf('if (issue.syntheticBatchParent === true) {');
-const readAt = ensure.indexOf("_prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.' + encodeURIComponent(batchId), 1, 1)");
+const readAt = ensure.indexOf('_prodReadBatchDescriptionRow(batchId)');
 const identityAt = ensure.indexOf('_syncviewStaffIdentityForHeaders()');
 ok(branchAt > 0 && readAt > branchAt && readAt < identityAt,
   'a batch parent reads its own row inside the synthetic branch, before any staff-identity read');
@@ -122,5 +124,109 @@ vm.runInContext('const _prodHasOwn = (row, key) => !!row && Object.prototype.has
   ok(ctx.merge([]).length === 0 && ctx.merge(null).length === 0, 'delta: an empty or absent answer changes nothing');
 }
 
+// ---- 4. the one-row read TERMINATES (Codex #1364, P1) --------------------
+/* The first version of this change called _prodRestRows with pageSize 1 and
+   maxPages 1. The helper only returns when a page comes back SHORTER than the
+   page size, so an exact one-row match filled the only page and fell out of the
+   loop into `read exceeded pagination cap` — every batch-parent description
+   read threw, and the panel said "Description could not load." The wiring
+   assertions above all passed while that was true, which is exactly why this
+   section EXECUTES the real pager instead of reading it. */
+const restRowsSrc = grabFunc('async function _prodRestRows(table, select, params, pageSize, maxPages, options)');
+function runPager(pageSize, maxPages, rowCount) {
+  const ctx = {
+    CAL_SUPABASE_URL: 'https://x', CAL_SUPABASE_ANON_KEY: 'k', console, Promise, Array, String, Number, Math, encodeURIComponent,
+    _prodRestPage: async () => Array.from({ length: rowCount }, (_, i) => ({ id: 'b' + i })),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(restRowsSrc + '\nthis.run = _prodRestRows;', ctx);
+  return ctx.run('batches', 'id,description,updated_at', 'id=eq.b0', pageSize, maxPages);
+}
+{
+  let threw = '';
+  try { await runPager(1, 1, 1); } catch (e) { threw = String(e && e.message || e); }
+  ok(/exceeded pagination cap/.test(threw),
+    'HARNESS: the old arguments (pageSize 1, maxPages 1) really do throw on an exact one-row match — this test can fail for the reason it names');
+}
+{
+  const rows = await runPager(1000, 1, 1);
+  ok(Array.isArray(rows) && rows.length === 1,
+    'the shipped arguments (pageSize 1000, maxPages 1) RETURN the single row instead of throwing');
+}
+const readRow = grabFunc('async function _prodReadBatchDescriptionRow(batchId)');
+ok(/_prodRestRows\('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq\.' \+ encodeURIComponent\(batchId\), 1000, 1\)/.test(readRow),
+  'and the shipped call site uses exactly those arguments');
+ok(grabFunc('async function _prodEnsureDescription(id, force)').includes('_prodReadBatchDescriptionRow(batchId)'),
+  'the synthetic parent panel goes through the one shared reader, so it cannot drift from the batch view');
+
+// ---- 5. the direct batch view is served too (Codex #1364, P2) ------------
+/* `?batch=<id>` renders batch.description straight off the row through
+   _prodBatchDetail, and is view 'batch' with openBatchId — never view 'detail'
+   with an openId, so _prodEnsureDescription is not reached for it. Dropping the
+   column left that view on its skeleton forever. */
+/* Anchored on the ensure call, not on the view test: `view === 'batch' &&
+   openBatchId` also opens _prodVisibleRowOrder, and slicing from the first
+   match asserted against the wrong block. */
+const ensureBatchAt = html.indexOf('_prodEnsureBatchDescription(_prodState.openBatchId, false);');
+ok(ensureBatchAt > 0, 'the render pass loads the description for the direct batch view');
+const guardAt = html.lastIndexOf("if (_prodState.view === 'batch' && _prodState.openBatchId) {", ensureBatchAt);
+ok(guardAt > 0 && ensureBatchAt - guardAt < 400,
+  '...guarded on that view, so no other view pays for the read');
+ok(html.indexOf("if (_prodState.view === 'detail' && _prodState.openId) {", ensureBatchAt) > ensureBatchAt,
+  '...and it sits beside the detail-view ensure block, which is the render pass');
+{
+  const ensureBatch = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  const renders = [];
+  const ctx = {
+    console, Promise, Array, String, Number, JSON,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => ({}) },
+    _prodRender: () => renders.push(1),
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), projectionGeneration: 3, adapter: {} },
+    _prodReadBatchDescriptionRow: async () => ctx.__answer(),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(ensureBatch + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+
+  ctx.__answer = () => ({ id: 'b1', description: 'the plan', updated_at: 't2' });
+  await ctx.ensure('b1', false);
+  ok(ctx._prodState.batches[0].description === 'the plan' && ctx._prodState.batches[0].updated_at === 't2',
+    'a successful read writes the column back onto the batch row the view renders');
+  ok(ctx._prodState.adapter === null && renders.length === 1,
+    'and invalidates the adapter and repaints exactly once');
+
+  await ctx.ensure('b1', false);
+  ok(renders.length === 1,
+    'TERMINATION: a row that already has the column does not read again, so render -> ensure -> render cannot spin');
+
+  ctx._prodState.batches = [{ id: 'b2', updated_at: 't1' }];
+  ctx.__answer = () => { throw new Error('boom'); };
+  await ctx.ensure('b2', false);
+  ok(ctx._prodState.batchDescriptionReads.get('b2') === 'error' && renders.length === 2,
+    'a failed read is remembered and repaints once');
+  await ctx.ensure('b2', false);
+  ok(renders.length === 2, 'TERMINATION: and is not retried on every render');
+  ctx.__answer = () => ({ id: 'b2', description: 'later', updated_at: 't9' });
+  await ctx.ensure('b2', true);
+  ok(ctx._prodState.batches[0].description === 'later', 'but force (the Retry path) does read again');
+
+  ctx._prodState.batches = [{ id: 'b3', updated_at: 't1' }];
+  ctx._prodState.batchDescriptionReads.clear();
+  ctx.__answer = () => { ctx._prodState.projectionGeneration = 99; return { id: 'b3', description: 'stale', updated_at: 't2' }; };
+  await ctx.ensure('b3', false);
+  ok(!Object.prototype.hasOwnProperty.call(ctx._prodState.batches[0], 'description')
+    && !ctx._prodState.batchDescriptionReads.has('b3'),
+    'an answer that lands after the projection moved on is discarded, not written onto a row from another generation');
+}
+const batchDetail = grabFunc('function _prodBatchDetail(');
+ok(/descReadFailed \? 'Description could not load\.' : 'No batch description\.'/.test(batchDetail)
+  && /batchDescriptionReads\.get\(String\(batch\.id \|\| ''\)\) === 'error'/.test(batchDetail),
+  'and a failed read says so, instead of holding the loading skeleton forever');
+ok(/_prodState\.batchDescriptionReads\.clear\(\);/.test(grabFunc('function _prodMarkDescriptionsStale()')),
+  'a manual refresh clears the read states, so a failure is not permanent for the session');
+ok(/batchDescriptionReads\.delete\(batchId\)/.test(grabFunc('function _prodMarkBatchDescriptionsStale(batchIds)')),
+  'and a batch whose stamp moved in the delta drops its read state so the view re-reads');
+
 if (failures) { console.error(`\n${failures} boot payload diet check(s) failed`); process.exit(1); }
 console.log('\nprod-boot-payload-diet: all ok');
+})();

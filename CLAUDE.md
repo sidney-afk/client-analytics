@@ -118,9 +118,18 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 ## Things that will waste a cycle if you forget them
 
 - `npm test` is the full suite and takes several minutes. `npm run test:prod-polish`
-  **cannot pass in a sandbox with no route to the live backend** — all 8 lanes
-  fail identically on `origin/main`, so verify against `main` before calling it a
-  regression. Its heavy lanes only run post-merge (`if: github.event_name != 'pull_request'`).
+  **cannot pass WHOLE in a sandbox with no route to the live backend** — the
+  live-read lanes fail identically on `origin/main`, so verify against `main`
+  before calling one a regression. Its heavy lanes only run post-merge
+  (`if: github.event_name != 'pull_request'`).
+  **But two fast-lane suites DO run offline, and one of them is the browser
+  gate for Create Post** (measured 2026-09-08):
+  `node docs/syncview-design/tests/prod-write-gateway-browser.js` is fully
+  mocked and drives the Calendar dialog end to end, and
+  `prod-boot-budget.js` runs too. Run the first before pushing any
+  `index.html` change to the Calendar or Production write surfaces. This line
+  used to say all lanes fail here; reading that as "none of it runs" is what
+  put a red `production-polish` on #1353.
 - `docs/ops/OPEN_REPAIRS.md` is the ledger and the owner cares about it. Append,
   never rewrite. **Check for duplicate `## N.` headers after any merge** —
   concurrent branches routinely claim the same number.

@@ -15017,3 +15017,46 @@ second pass and remain unread.
 **Neither audit changed a line.** Both were scoped read-only precisely so they
 could not collide with the four branches being actively pushed to, and that was
 the right call: five sessions were pushing while these ran.
+
+### Addendum, 2026-09-08 05:15 — the comment-count P1 is real but its fix is a CONTRACT decision, not a deletion
+
+The 04:15 addendum recorded the audit's P1 at
+`supabase/functions/production-comments/index.ts:366` and said the fix looked
+easy because `total` has no consumer. A session was dispatched to delete or
+guard it. **It root-caused the defect, declined to implement, and it was right
+to stop.**
+
+The defect is confirmed and unchanged: an unbounded exact count is paired
+all-or-nothing with a fixed 26-row page read, so a count timeout blanks the
+comment thread. What is not simple is the repair. Both directions that session
+identified change the endpoint's contract:
+
+- **`include_total` per caller** — callers that want a count opt in; everyone
+  else stops paying for a full-table scan.
+- **Derive completeness from the page** — drop the count entirely and let
+  `has_more` carry the meaning it already carries.
+
+**The decision taken here, so the defect does not sit open waiting for a
+contract argument: make the count FAIL OPEN and keep the field nullable.** On a
+count error return `total: null` and serve the page anyway. This is deliberately
+the smallest possible change:
+
+- It removes the failure mode completely. The page read stays fatal, which is
+  correct, because comments that cannot be read should say so.
+- It breaks no caller that works today. Any reader of `total` must already cope
+  with a number it cannot verify; `null` is an honest answer where a 500 was a
+  lie about the whole thread.
+- It does **not** settle whether the endpoint should offer an exact count at
+  all. That is a real question about cost on a hot path and it belongs to the
+  owner, not to a 5am session.
+
+**Owner decision owed, and it is not urgent:** should `production-comments` keep
+an exact count? It scans every comment row on a deliverable, on every open, to
+produce a number nothing currently displays. Removing it is a latency win. Left
+open rather than taken.
+
+**Not dispatched yet, and the reason is discipline, not capacity.** Another
+session was still pushing to `claude/lx-d-feedback` at the time of this entry.
+Two sessions on one branch is how region ownership gets violated, and that
+convention is the reason six concurrent sessions never collided on a 79,418-line
+file tonight. It waits for the branch to go quiet.

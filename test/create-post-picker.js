@@ -679,6 +679,27 @@ console.log('6) the post-count read is one bounded projection query that counts 
   }
 
   // -------------------------------------------------------------------------
+  console.log('8e) an active query always renders the box that can clear it');
+  {
+    /* Codex P2 on PR 1353, the fourth in this chain. CAL_NATIVE_BATCH_FILTER_MIN
+       decides when a search is WORTH offering; it must not decide whether an
+       existing search can be UNDONE. A mode change dropping the compatible
+       count below the threshold left a persisted query filtering the list with
+       nothing on screen able to clear it. */
+    const oneBatch = [batchFixture({ id: 'bat-a', name: 'Evergreen' })];
+    const belowThreshold = renderPrev(oneBatch, null, 'Client A', { batchFilter: 'nothing matches this' });
+    ok(/id="calNativeBatchFilter"/.test(belowThreshold),
+      'a short list still renders the search box while a query is active, so the query can be cleared');
+    ok(/id="calNativeBatchFilter"[^>]*value="nothing matches this"/.test(belowThreshold),
+      'with the query kept rather than silently discarded — it is the user\'s text');
+
+    /* The threshold still does its own job: no query, short list, no box. */
+    const quiet = renderPrev(oneBatch, null, 'Client A', {});
+    ok(!/id="calNativeBatchFilter"/.test(quiet),
+      'while a short list with no query renders no box, which is what the threshold is for');
+  }
+
+  // -------------------------------------------------------------------------
   console.log('9) picking from the dropdown selects the card and re-aims the radio');
   {
     const radio = { dataset: {}, checked: false };

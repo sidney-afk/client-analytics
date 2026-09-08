@@ -41508,8 +41508,18 @@
            user had not picked. The radios themselves live in the tab strip, so
            every read of `calNativeBatchChoice` -- submit included -- is
            untouched by this. */
+        /* THE BOX RENDERS WHENEVER A QUERY EXISTS, not only when the list is
+           long (Codex P2 on PR 1353). The threshold decides when a search is
+           WORTH offering; it must not decide whether an existing search can be
+           UNDONE. A mode change that drops the compatible count below it left
+           a persisted query filtering the list with nothing on screen able to
+           clear it -- the same dead end as the previous round, reached by a
+           different door. The query is the user's, so it is kept and made
+           editable rather than silently discarded. */
+        const showBatchFilter = compatible.length > CAL_NATIVE_BATCH_FILTER_MIN
+            || !!String(state.batchFilter || '').trim();
         const prevBatchHtml = compatible.length ? `
-                        ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                        ${showBatchFilter ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
                             placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
                             autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
                             oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}

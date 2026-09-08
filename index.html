@@ -41241,7 +41241,16 @@
         if (empty) empty.style.display = shown.length ? 'none' : '';
         // Keep the radio pointing at whatever the select now shows, so a
         // filtered-then-submitted post cannot append to a batch nobody sees.
-        if (shown.length) _calNativePrevBatchPick(select, false);
+        if (shown.length) { _calNativePrevBatchPick(select, false); _calNativeSyncReceipt(); return; }
+        /* ZERO MATCHES LEFT A LIVE TARGET (Codex P1 on PR 1353). Disabling the
+           select was not enough: the radio kept the id of the last batch the
+           list showed and stayed checked, so Create still appended the post to
+           a batch the no-match line said was not there. Clearing the id is the
+           safety half -- the submit path's own guard then refuses, because it
+           resolves the batch by that id before it writes anything. */
+        const stale = document.getElementById('calNativePrevBatchRadio');
+        if (stale) stale.dataset.batchId = '';
+        _calNativeSyncReceipt();
     }
     /* Below this many batches the list is short enough to read at a glance and
        a search box is just another control in the way. Above it, scanning is
@@ -41801,6 +41810,18 @@
         const latest = selected.value === 'batch'
             ? (state.batchOptions || []).find(batch => String(batch && batch.id || '') === String(selected.dataset.batchId || ''))
             : null;
+        /* NO BATCH AIMED AT is not the same as an incompatible one, and the
+           message below would have said "that batch" about a batch that does
+           not exist. Reached when a search matched nothing and cleared the
+           target (Codex P1 on PR 1353); it names the way out rather than
+           leaving Create looking broken. */
+        if (selected.value === 'batch' && !String(selected.dataset.batchId || '')) {
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.textContent = 'No batch is chosen — your search matches none of them. Clear the search to pick a batch, or start a new batch instead.';
+            }
+            return;
+        }
         if (selected.value === 'batch' && (!_calNativeBatchCompatible(latest, mode))) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept this post. Choose another batch or create a new one.'; }
             return;

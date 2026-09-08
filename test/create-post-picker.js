@@ -597,6 +597,54 @@ console.log('6) the post-count read is one bounded projection query that counts 
   }
 
   // -------------------------------------------------------------------------
+  console.log('8c) a live search matching nothing leaves no batch aimed at');
+  {
+    /* Codex P1 on PR 1353, the live twin of 8b. Disabling the select was not
+       enough: the radio kept the id of the last batch the list showed and
+       stayed checked, so Create appended the post to a batch the no-match line
+       said was not there. */
+    const radio = { id: 'calNativePrevBatchRadio', dataset: { batchId: 'bat-visible' }, checked: true };
+    const select = { value: 'bat-visible', innerHTML: '', disabled: false };
+    const emptyLine = { style: { display: 'none' } };
+    let receiptSyncs = 0;
+    const ctx = {
+      console,
+      document: {
+        querySelector: sel => sel === '.cal-native-batch-select' ? select : null,
+        getElementById: id => id === 'calNativeBatchFilterEmpty' ? emptyLine
+          : id === 'calNativePrevBatchRadio' ? radio : null,
+      },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(PICKER_SOURCES, ctx);
+    /* Not in PICKER_SOURCES: that list is what the RENDER needs, and the live
+       filter is a different entry point. Pulled in by name here. */
+    vm.runInContext(extract('_calNativeBatchFilter'), ctx);
+    vm.runInContext('function _calNativeSyncReceipt(){ receiptSyncs++; }', ctx);
+    /* The render assigns this; nothing renders in this world, and the option
+       MARKUP is not what is under test here — the radio, the select and the
+       no-match line are. */
+    vm.runInContext('var _calNativeBatchOptionsHtml = function () { return ""; };', ctx);
+    ctx.receiptSyncs = 0;
+    ctx.__options = [batchFixture({ id: 'bat-visible', name: 'Evergreen' })];
+    vm.runInContext('_calNativePostState = { mode: "both", batchFilter: "", batchPostCounts: null, batchOptions: __options };', ctx);
+
+    vm.runInContext('_calNativeBatchFilter({ value: "nothing matches this" })', ctx);
+    ok(select.disabled === true, 'a zero-match query disables the dropdown');
+    ok(emptyLine.style.display === '', 'and shows the no-match line');
+    ok(radio.dataset.batchId === '',
+      'and clears the batch the radio was aiming at, so Create cannot append to a batch the list no longer shows');
+
+    /* Inversion: a query that DOES match must leave a live target, or the
+       assertion above would pass on a function that always cleared it. */
+    radio.dataset.batchId = 'stale';
+    vm.runInContext('_calNativeBatchFilter({ value: "ever" })', ctx);
+    ok(radio.dataset.batchId === 'bat-visible',
+      'while a query that matches re-aims the radio at the match rather than clearing it');
+    ok(select.disabled === false, 'and re-enables the dropdown');
+  }
+
+  // -------------------------------------------------------------------------
   console.log('9) picking from the dropdown selects the card and re-aims the radio');
   {
     const radio = { dataset: {}, checked: false };

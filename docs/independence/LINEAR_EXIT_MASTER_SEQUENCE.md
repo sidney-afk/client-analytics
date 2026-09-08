@@ -29,13 +29,34 @@ Nothing below is "in progress". If it is not DONE it is not relied upon.
 |---|---|
 | Both teams are SyncView-authoritative | `prod_authority = {video: syncview, graphics: syncview}`, flipped 2026-08-16 (graphics) and 2026-08-28 (video) |
 | The Linear label catalog is captured | 2026-09-08 01:24Z. 46 labels reconciled against an independent second walk; 5,437 cards classified; the 5 one-way rows all re-read. **This was the only item in the programme that required Linear to be alive.** Item 170 |
-| `2026-09-02-workload-native-view.sql` applied | `EXECUTION_LOG.md` 2026-09-08, recorded late; proven by the RPC answering over the view |
-| `2026-09-05-workload-native-membership.sql` applied | Same entry; `workload_native_snapshot_v1()` is one of its functions and it answers |
+| `2026-09-02-workload-native-view.sql` applied | **Applied on an unrecorded date before 2026-09-07**, and **discovered applied by measurement rather than by record**: item 176 read `workload_issues_native_v1` live over REST. `EXECUTION_LOG.md:56-61`. The log entry is dated 2026-09-08; the application is not |
+| `2026-09-05-workload-native-membership.sql` applied | **Applied by the owner on 2026-09-07**, in the window before the `workload-plan` deploy that caused that night's outage. `EXECUTION_LOG.md:62-69`. Different provenance from the row above, not the same entry |
 | `workload-plan` Edge Function deployed | From exact SHA `d4b2365e`, 2026-09-08. Verified twice: `POST {"action":"native_snapshot"}` returns 401 where the pre-incident function returned `400 invalid_action`, **and the owner opened the Workload board and read real dates on every pill** |
 | Monitoring survives the cutoff | PR #1348, merged |
 | The label exporter and the naming mint SOURCE | PR #1349, merged. **Source only — see P1 below** |
 | Media rescue preparation | PR #1345, merged. The lane shrank on evidence: `uploads.linear.app` URLs carry 300-second signatures and have rendered broken for months |
 | The coordination set | PR #1351, merged 2026-09-08 |
+
+**Two rows in the table above were corrected on 2026-09-08 by a sweep of this
+document's own derived statements**, after review established that the recurring
+defect here is a restatement drifting from a source that stayed correct.
+
+Both migration rows had drifted. The first said "`EXECUTION_LOG.md` 2026-09-08,
+recorded late" — but 2026-09-08 is when the *log entry* was written; the
+application date is **unrecorded**, and the log says it was **discovered applied by
+measurement, not by record**. The second said "same entry", which flattened two
+genuinely different provenances: one migration nobody can date and which was found
+by reading the live database, one applied by the owner on a known day.
+
+**Neither error changed a conclusion, and both weakened the evidence quality a
+reader would infer.** "Recorded late" sounds like a bookkeeping lapse; "nobody
+knows when this was applied, and we only know it was because someone measured it"
+is a different statement about how much this programme knows about its own live
+database. This document has been wrong in both directions about which migrations
+are live, so overstating the record on the two it is sure about is exactly the
+wrong error.
+
+---
 
 ## Deadline status — corrected, because the earlier wording was too strong
 

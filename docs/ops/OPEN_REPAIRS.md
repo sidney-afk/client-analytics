@@ -17376,3 +17376,35 @@ option against the operations table, the mint proof against the mint table. **Th
 facts have been right and the restatements wrong**, consistently, which means the
 risk in this document is concentrated in exactly the places a hurried reader will
 use: the tables, the checklists, the summaries.
+
+**The sweep, run on this document's own derived statements rather than waiting to
+be told.** Review established that the recurring defect on PR #1360 is a
+restatement drifting from a source that stayed correct, so the two tables that had
+never been re-read against their sources were swept. Both migration rows in Phase 0
+had drifted, and both in the direction that overstates what this programme knows:
+
+- *"`EXECUTION_LOG.md` 2026-09-08, recorded late"* — 2026-09-08 is when the **log
+  entry** was written. The **application date is unrecorded**, and the log says it
+  was *"discovered applied by measurement, not by record"* (item 176 read
+  `workload_issues_native_v1` live over REST). "Recorded late" reads as a
+  bookkeeping lapse; the truth is that nobody knows when it was applied, and it is
+  only known to be applied because someone measured it.
+- *"Same entry"* for the membership migration — flattening two different
+  provenances. That one was **applied by the owner on 2026-09-07**, in the window
+  before the `workload-plan` deploy that caused that night's outage. Known day,
+  known actor, different kind of evidence entirely.
+
+**Neither error changed a conclusion, and that is why they are worth recording.**
+Both made the evidence sound better than it is, in a programme that has already
+been wrong in **both directions** about which migrations are live. Overstating the
+record on the two it is sure about is precisely the wrong direction to be sloppy in.
+
+Also re-verified in the same sweep, and these held: all four merged PRs named in
+Phase 0 (#1345, #1348, #1349, #1351) have real merge commits on `main`'s
+first-parent history; and `NATIVE_IDENTIFIER_MINT.md:89-91` does say *"Do it per
+team, video first"* of **step 4**, confirming that the per-team caution belongs on
+the flag transition rather than the seeding.
+
+**Two of three self-flagged uncertainties held; one did not.** That ratio is the
+argument for sweeping rather than for confidence: the sweep is cheap, and which
+items fail is not predictable in advance.

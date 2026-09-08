@@ -320,6 +320,14 @@ code changed; check that the changed code reaches a user.
   briefs are `LINEAR_EXIT_BRIEF_A..F.md`, both in `docs/independence/`. They were
   stranded on an unmerged branch for the whole night and merged with this file;
   that is why a session reported them missing.
+- **THE SIX BRIEFS ARE TRUNCATED. 333 lines stop mid-sentence**, including
+  owner-executable migration prohibitions and `undo:` rollback steps. The workflow
+  that generated them capped each field at a fixed budget and the clipped text was
+  never restored; each brief now opens with a warning. Treat them as a map of what
+  each lane covers, **not as a runbook**. If a line stops mid-sentence, go to the
+  source it names and re-derive the instruction; never guess the rest. A truncated
+  `undo:` is the dangerous case, because it reads like a complete recovery
+  procedure and is not one.
 - **`index.html` region ownership (item 166) is the reason six sessions never
   collided.** If you spawn sessions, keep it.
 - **Do not merge to `main` casually.** It deploys the live site instantly.

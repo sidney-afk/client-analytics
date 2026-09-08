@@ -14911,3 +14911,44 @@ these owes the distinction, not just the try/catch.
 
 Recorded as a class rather than three findings because the next instance will not
 look like any of these three, and the grep will find it anyway.
+
+### Addendum, 2026-09-08 03:45 — the six lane briefs are truncated, 333 lines, including rollback steps
+
+Found by Codex on PR #1351, on the third review pass of documents I had already
+corrected twice. **333 lines across `docs/independence/LINEAR_EXIT_BRIEF_A..F.md`
+stop mid-sentence.** Not prose that trails off: instructions that end without
+their object.
+
+- Brief B, a migration prohibition ending `Never apply
+  2026-09-05-native-only-intake.sql ` with no statement of what to do instead.
+- Brief B, a rollback ending on the incomplete identifier `dropping production_`.
+- Brief C's owner steps and brief F's irreversible-cutoff recovery, both cut
+  mid-word.
+
+**Cause.** The scoping workflow that generated the briefs capped each field at a
+fixed character budget and nothing restored the remainder. The truncation lengths
+cluster at 254, 264, 315, 329, 331 and 705, which is what proves it systematic
+rather than incidental damage. I wrote these briefs, handed them to six sessions
+as their instructions, and never read one end-to-end.
+
+**Why it was invisible.** A clipped line still reads as a complete thought unless
+you look for the terminal punctuation. I saw several of these in my own `grep`
+output earlier the same night and read them as grep's own truncation.
+
+**What was done now.** Every brief opens with a warning naming the defect and the
+rule: if a line stops mid-sentence, do not execute it and do not guess the rest;
+go to the source it names and re-derive. The handoff says the same. The briefs
+stay useful as a map of what each lane covers and are explicitly NOT a runbook
+until the clipped fields are restored.
+
+**What is NOT done.** The 333 lines are not restored. The generating workflow's
+structured output is gone, so restoring means re-deriving each field from the
+repo. The dangerous subset is small and identifiable: the `- [migration]`,
+`- [edge-function-deploy]`, `undo:` and `mitigate:` lines in the LIVE ACTIONS
+sections, which are what an owner or a lane actually executes. That subset should
+be restored before any brief is used for production work.
+
+**The general lesson, which is the same one as items 177 and 178 in a third
+costume:** a document that is *partly* right is more dangerous than one that is
+missing, because it is trusted. A missing brief got reported by a session within
+hours. A truncated brief was read by six sessions and reported by none.

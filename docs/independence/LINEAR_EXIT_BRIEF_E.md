@@ -1,3 +1,26 @@
+⚠️ ⚠️  READ THIS BEFORE EXECUTING ANYTHING FROM THIS FILE  ⚠️ ⚠️
+
+**333 lines across the six briefs are TRUNCATED MID-SENTENCE, and some of them are
+owner-executable migration and rollback steps.** This is a defect in how the briefs
+were generated: the scoping workflow that produced them capped each field at a fixed
+character budget (clusters at 254, 264, 315, 329, 331 and 705 characters), and the
+clipped text was never restored. Codex found it on 2026-09-08; nobody had noticed.
+
+Real examples from this set: a prohibition that ends at `Never apply
+2026-09-05-native-only-intake.sql ` without saying what to do instead, and a rollback
+that ends at the incomplete identifier `dropping production_`.
+
+**The rule, and it is not optional: if a line stops mid-sentence, DO NOT EXECUTE IT
+and do not guess the rest.** Go to the source it names — the migration file, the
+workflow, `docs/ops/`, `EXECUTION_LOG.md`, `ROLLBACK.md` — and re-derive the full
+instruction there. A truncated `undo:` is the worst case, because it reads like a
+complete recovery procedure and is not one.
+
+These briefs remain useful as a map of what each lane covers and where to look. They
+are NOT safe as a runbook until the clipped fields are restored.
+
+---
+
 SESSION NAME: LX-E Media rescue
 KEEP THIS EXACT SESSION TITLE. Do not rename it. The owner tracks six parallel sessions by title.
 

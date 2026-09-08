@@ -149,8 +149,15 @@ Verified on a clean `origin/main` checkout in this environment, 2026-09-07.
    "freshness commit resolves" and "is an ancestor of HEAD". The session clone is
    **shallow** (`git rev-parse --is-shallow-repository` = true, 348 commits), so the
    commits those freshness stamps name are simply not present. Baseline is
-   **515 passed, 14 failed**. If you see exactly that, you changed nothing. If the
-   count moves, you did.
+   **the freshness-ancestry class, and ONLY that class.** This file used to pin
+   "515 passed, 14 failed" and say a moved count meant you broke something. **That
+   rule was wrong and it contradicted the handoff beside it.** The number varies
+   with clone depth, not with your change: the same tree has produced 515/14,
+   517/10 and 522/7 on shallow clones and **529/0 on a full clone**, all with an
+   identical failure set. **Compare the failure SET, never the count.** Every
+   failure reading `docs/truth/*.md freshness commit is an ancestor of HEAD` is the
+   environment. A failure outside that wording is yours, even if the total went
+   down.
 2. **`npm run test:prod-polish` cannot pass here at all** — all 8 lanes fail
    identically on `origin/main` because there is no route to the live backend.
 

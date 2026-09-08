@@ -1,3 +1,26 @@
+⚠️ ⚠️  READ THIS BEFORE EXECUTING ANYTHING FROM THIS FILE  ⚠️ ⚠️
+
+**333 lines across the six briefs are TRUNCATED MID-SENTENCE, and some of them are
+owner-executable migration and rollback steps.** This is a defect in how the briefs
+were generated: the scoping workflow that produced them capped each field at a fixed
+character budget (clusters at 254, 264, 315, 329, 331 and 705 characters), and the
+clipped text was never restored. Codex found it on 2026-09-08; nobody had noticed.
+
+Real examples from this set: a prohibition that ends at `Never apply
+2026-09-05-native-only-intake.sql ` without saying what to do instead, and a rollback
+that ends at the incomplete identifier `dropping production_`.
+
+**The rule, and it is not optional: if a line stops mid-sentence, DO NOT EXECUTE IT
+and do not guess the rest.** Go to the source it names — the migration file, the
+workflow, `docs/ops/`, `EXECUTION_LOG.md`, `ROLLBACK.md` — and re-derive the full
+instruction there. A truncated `undo:` is the worst case, because it reads like a
+complete recovery procedure and is not one.
+
+These briefs remain useful as a map of what each lane covers and where to look. They
+are NOT safe as a runbook until the clipped fields are restored.
+
+---
+
 SESSION NAME: LX-A Workload native
 KEEP THIS EXACT SESSION TITLE. Do not rename it. The owner tracks six parallel sessions by title.
 
@@ -78,7 +101,7 @@ DONE WHEN
   - A `deliverables` row created natively AFTER outbound is off (so `linear_issue_uuid is null` and `linear_raw` carries no `issue.labels`) appears on the board at weight 1x. Today that row makes `wlFetchNativeSnapshot` throw `Native Workload deadlines or weights are incomplete.` and blanks the WHOLE board — this is the release gate.
   - A plan day saved BEFORE the cutover (keyed on the Linear uuid in `workload_plan.issue_id`) still renders on its row after the cutover, and re-dragging it updates the same storage row rather than creating a second one. `workload_native_plan_set_v1` returns `plan.issue_id = <native del_ id>` with `storage_issue_id = <linear uuid>`.
   - A plan-day write on a never-mirrored native deliverable (no `linear_issue_uuid`) succeeds and returns `updated:1` — the case that made a swap unsafe before.
-  - OPEN_REPAIRS item 95's 40 rows: `window.wlNativeDiff()` reports them under `nativeOnly` (present natively, absent from `workload_issues`), and after the cutover they are visible on the board for their 10 active-roster clients.
+  - OPEN_REPAIRS item 95's rows are visible on the board after the cutover. **Two different numbers, and this gate used to conflate them, so a CORRECT harness result would have failed it.** `window.wlNativeDiff()` has no client or status filter, so its `nativeOnly.count` is the unfiltered population, roughly **195** (see this brief's own adversarial verification below). The roster-filtered actionable census is a different measurement and it MOVES: item 95 measured 40 active-roster rows on 2026-09-01; item 176 measured **37** live tasks across 11 active-roster clients on 2026-09-07, of which 33 are active-roster client work and 4 are the TEST client. Assert `nativeOnly.count` against the unfiltered figure, and take the census separately with item 176's query rather than expecting the harness to produce it.
   - OPEN_REPAIRS item 160's 12 status-drift rows show the NATIVE status on Workload, matching SyncLinear — the two surfaces stop disagreeing.
   - Tweak Needed popover renders feedback from `production-comments` for a native row with comments, and renders the explicit empty state (not a Linear error) for one without. Zero requests to `…/webhook/linear-tweak-comments`.
   - `WL_V2_REALTIME = true` with the channel bound to `public.deliverables` + `public.batches`, and an edit made in another browser appears on an open board within ~2s without a manual Refresh.
@@ -88,8 +111,8 @@ DONE WHEN
 ALREADY BUILT — LIFT THESE, DO NOT REBUILD
   * `public.workload_issues_native_v1` — the native replacement view, answering all 20 `_wlV2MapRow` fields as two `union all` arms (one per deliverable, one per batch carrying at least one). Total status map with a fail-the-transaction guard, `security_barrier`, anon+authenticated select. It is on ORIGIN/MAIN, not on the candidate.
     where: origin/main, `migrations/2026-09-02-workload-native-view.sql` (376 lines)
-    confirmed: `cat migrations/2026-09-02-workload-native-view.sql` — read in full. Status CASE covers exactly the 13 values in the `deliverables.status` CHECK at `migrations/2026-07-06-b1-linear-data-model.sql:39-41`. Publishes `native_sort_key`, not `sort_order`. Not in EXECUTION_LOG → NOT APPLIED.
-    lift: Nothing to lift — it is already in the tree. It must be APPLIED (owner, Supabase SQL editor). Zero code change needed to `_wlV2MapRow` because the view was shaped to that mapper.
+    confirmed: `cat migrations/2026-09-02-workload-native-view.sql` — read in full. Status CASE covers exactly the 13 values in the `deliverables.status` CHECK at `migrations/2026-07-06-b1-linear-data-model.sql:39-41`. Publishes `native_sort_key`, not `sort_order`. ~~Not in EXECUTION_LOG → NOT APPLIED.~~ **THAT INFERENCE WAS WRONG AND IT IS APPLIED.** Absence from a log is absence of a record, not of the change; `EXECUTION_LOG.md` now carries both applications, recorded late. See A1.
+    lift: Nothing to lift and nothing to apply — it is in the tree AND already live. Zero code change needed to `_wlV2MapRow` because the view was shaped to that mapper.
   * `workload_native_snapshot_v1()`, `workload_native_plan_target_v1(text)`, `workload_native_plan_set_v1(...)` — the SECURITY DEFINER RPCs that serve one complete staff snapshot (native rows + explicit-legacy rows + every `workload_plan` row) and perform the alias-safe plan write under row locks.
     where: candidate 5bcc03bd, `migrations/2026-09-05-workload-native-membership.sql`
     confirmed: `git show 5bcc03bd…:migrations/2026-09-05-workload-native-membership.sql` — read in full. `workload_native_snapshot_v1` reads `workload_issues_native_v1` under one snapshot, refuses on duplicate/blank ids or >50000 rows with `workload_population_incomplete`, and joins `production_deliverables_browse

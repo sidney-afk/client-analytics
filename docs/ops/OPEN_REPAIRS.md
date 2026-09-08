@@ -14543,3 +14543,76 @@ they are silently dropped rather than fatal, which is better but is not a repair
 Deciding whether they should be re-pointed at their current owners (as OPEN_REPAIRS
 156 did for the crosswalk) or cleared is a separate owner decision, and the
 `plans_dropped` count is what will keep it visible.
+
+### The repair, prepared and NOT run — six work days a person actually saved
+
+After the fix above those six rows are dropped rather than fatal, which stops the
+outage and does not undo the loss: an editor who dragged one of those cards to a
+day no longer sees that day. Six real work days, silently gone. So the repair is
+worth having ready even though it is not urgent.
+
+**What drifted.** `workload_plan.client` is written once, at save time, from the
+client the card belonged to then. Nothing rewrites it when a deliverable moves
+between client accounts, and these six moved. The plan day itself is still
+correct; only the client label on it is stale.
+
+**Owner-run, in the SQL editor. Read the count before committing.** The temp
+function replicates `normalizeWriteClient`
+(`supabase/functions/_shared/browser-write-auth-policy.mjs:9`) closely enough for
+these rows; it does not strip accents, which none of them need. Verify that
+assumption on the SELECT before running the UPDATE.
+
+```sql
+create or replace function pg_temp.nc(v text) returns text language sql immutable as $$
+  select regexp_replace(
+           regexp_replace(
+             regexp_replace(lower(coalesce(v,'')), '^dr\.?\s+', ''),
+             '\s+(and|&)\s+', '&', 'g'),
+           '[^a-z0-9&]+', '', 'g');
+$$;
+
+-- 1. LOOK FIRST. Expect exactly the drifted rows, and read every `expected`
+--    before trusting the update to write it.
+select p.issue_id, p.client as stored, pg_temp.nc(n.client_name) as expected,
+       p.plan_date, p.updated_at
+from public.workload_plan p
+join public.workload_issues_native_v1 n
+  on n.is_sub_issue and (n.id = p.issue_id or n.linear_id = p.issue_id)
+where p.client is distinct from pg_temp.nc(n.client_name)
+order by p.issue_id;
+
+-- 2. REPAIR, guarded on the exact count seen in step 1. Change the 6 if the
+--    count has moved; a different number means the population changed and step 1
+--    should be re-read rather than the guard relaxed.
+begin;
+do $$
+declare n integer;
+begin
+  update public.workload_plan p
+     set client = pg_temp.nc(v.client_name)
+    from (select n2.id, n2.linear_id, n2.client_name
+            from public.workload_issues_native_v1 n2 where n2.is_sub_issue) v
+   where (v.id = p.issue_id or v.linear_id = p.issue_id)
+     and p.client is distinct from pg_temp.nc(v.client_name);
+  get diagnostics n = row_count;
+  if n <> 6 then
+    raise exception 'workload_plan client repair refused: expected 6 rows, updated %', n;
+  end if;
+end $$;
+commit;
+```
+
+**Undo.** There is none from the ledger: `workload_plan` keeps no history and the
+prior `client` value is recorded nowhere this repo can read. Before running step
+2, save step 1's result — it *is* the undo, and restoring means writing those
+`stored` values back by `issue_id`. This is the same shape as item 156's
+before-image gap and earns the same follow-up: the sidecar should record what it
+overwrote.
+
+**Do not run this to fix an outage.** It repairs six work days; it does not
+protect the board. The board is protected by the code change above, which holds
+whether or not these rows are ever touched, and holds for the next six rows that
+drift.
+
+**Not exercised.** Written from the live SELECT the owner ran, never executed.
+The guard makes a wrong count refuse rather than write.

@@ -219,6 +219,33 @@ deterministic id derivation, and `productionCreateReplay`, whose every database
 call is a `.select(...)`. The 503 is therefore raised before any row is written,
 and a refused create leaves no partial state behind.
 
+### The full map, because "create" is not the only affected operation
+
+Every Linear read in `production-write` traced to the operation that reaches it.
+`create` is the worst case but not the only one:
+
+| Operation | Reads Linear? | Behind a flag? |
+|---|---|---|
+| `create` | **Yes, twice** — `projectForIntake`, `linearStateIdForCreate`, plus parent validation via `productionCreateParentRoute` | **No** |
+| `intake_create` | **Yes** — `projectForIntake`, and `parentRouteForAppend` | **No** |
+| `component_fill` | **Sometimes** — `parentRouteForAppend` validates externally by default, so a batch with an existing Linear parent reads it; a native batch whose parent outbox row is not `written` does not | **No** |
+| Assignee eligibility | **Yes** — `assigneeProviderPool` | **Yes**, `production_assignee_eligibility`, and its comment describes a retirement path |
+| `status`, `description`, `comment`, `attachment`, `due`, `labels` | **No** | n/a |
+| `batch_description`, `batch_asset` | **No** | n/a |
+
+**The `component_fill` row contains a trap worth naming.** It degrades gracefully
+for natively-created batches and fails for batches that already have a Linear
+parent — which is every card that exists today. So the graceful path is the one
+that only applies to cards that cannot be created, because `create` is blocked by
+the row above it. The two defects protect each other from being noticed
+separately.
+
+**The assignee row is the shape the other two should have.** Same dependency, but
+behind a flag, with an explicit comment about the pre-retirement state and a
+deliberate choice that an absent flag row means strictest rather than a 503. That
+is what a retirable provider dependency looks like, and it is why the create-path
+reads stand out: not that they read Linear, but that nothing can turn them off.
+
 ### Two orderings that make this worse than it first looks
 
 **The Linear read happens before the authority check.** `projectForIntake` runs,

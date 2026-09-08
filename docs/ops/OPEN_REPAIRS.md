@@ -16990,3 +16990,28 @@ than the truth, and pointed at something bigger than it claimed. **Checking a
 borrowed claim against source is how a citation becomes a finding**, and it is the
 opposite of the failure logged earlier the same day, where a true sentence was
 quoted into a scope its source did not have.
+
+**Follow-up the same hour: `create` is not the only affected operation.** Every
+Linear read in `production-write` traced to the operation reaching it:
+
+| Operation | Reads Linear? | Behind a flag? |
+|---|---|---|
+| `create` | Yes, twice (`projectForIntake`, `linearStateIdForCreate`), plus parent validation | **No** |
+| `intake_create` | Yes (`projectForIntake`, `parentRouteForAppend`) | **No** |
+| `component_fill` | Sometimes — `parentRouteForAppend` validates externally by default, so a batch with an existing Linear parent reads it; a native batch whose parent outbox row is not `written` does not | **No** |
+| Assignee eligibility | Yes (`assigneeProviderPool`) | **Yes**, `production_assignee_eligibility` |
+| `status`, `description`, `comment`, `attachment`, `due`, `labels` | No | n/a |
+| `batch_description`, `batch_asset` | No | n/a |
+
+**The `component_fill` row hides a trap.** It degrades gracefully for natively
+created batches and fails for batches that already have a Linear parent, which is
+every card in existence today. So the graceful path applies only to cards that
+cannot be created, because `create` is blocked by the row above it. **The two
+defects conceal each other**: fix either alone and the other becomes visible, which
+is why they were not caught by any lane looking at one surface at a time.
+
+**The assignee row is the shape the other two should have had.** Same dependency,
+but behind a flag, with a comment naming the pre-retirement state and a deliberate
+choice that an absent flag row means strictest rather than a 503. The create-path
+reads are not remarkable for reading Linear; they are remarkable because **nothing
+can turn them off**.

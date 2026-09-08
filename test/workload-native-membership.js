@@ -61,8 +61,22 @@ function browser(response=fixture()) {
  ok(legacyPlanAliases(projected).map(p=>p.issue_id).sort().join(',')==='del_fixture,old-fixture','old bundle and native bundle both see one stored plan');
  const mutations=[v=>v.count++,v=>v.rows.push(v.rows[1]),v=>v.complete=false,v=>delete v.authority,
  v=>v.authority.video='linear',v=>delete v.rows[1].native_client_active,v=>v.rows[1].linear_id='bat_fixture',
- v=>v.plans.push({...v.plans[0],issue_id:'del_fixture'}),v=>v.plans[0].client='other',v=>v.plans[0].plan_date='bad',v=>delete v.legacy_teams];
+ v=>v.plans.push({...v.plans[0],issue_id:'del_fixture'}),v=>v.plans[0].plan_date='bad',v=>delete v.legacy_teams];
  for(const mutate of mutations){const value=copy(raw);mutate(value);assert.throws(()=>projectNativeSnapshot(value,s=>s.toLowerCase()));checks++;}
+ // A drifted plan client USED TO be in the throw list above, and that is the
+ // defect this test now pins instead. On 2026-09-08 six real rows saved under a
+ // retired client name blanked a 5,241-row board for every editor: raw due dates
+ // everywhere, editing disabled. A mismatch must still never attach a saved work
+ // day to another client's card, so the row is dropped -- but only that row.
+ const drift=copy(raw);drift.plans[0].client='other';
+ const drifted=projectNativeSnapshot(drift,s=>s.toLowerCase());
+ ok(drifted.plans_dropped===1,'a drifted plan client drops exactly one plan');
+ ok(!drifted.plans.some(p=>p.storage_issue_id===drift.plans[0].issue_id),'the drifted plan is not projected onto its owner');
+ ok(drifted.rows.length===raw.rows.length,'every row still projects when a plan drifts');
+ const many=copy(raw);many.plans.push({issue_id:'retired-drift',client:'nobody',plan_date:'2026-09-08'});
+ many.plans[0].client='other';
+ ok(projectNativeSnapshot(many,s=>s.toLowerCase()).plans_dropped===1,'an unowned plan is kept, not counted as dropped');
+ ok(projectNativeSnapshot(copy(raw),s=>s.toLowerCase()).plans_dropped===0,'a clean snapshot drops nothing');
  const history=copy(raw);history.plans.push({issue_id:'retired-fixture',client:'fixture',plan_date:null});
  ok(projectNativeSnapshot(history,s=>s.toLowerCase()).plans.length===2,'completed/cleared history retained');
  for(const force of [false,true]){const b=browser();const result=await b.context.loadLinearIssues(force);

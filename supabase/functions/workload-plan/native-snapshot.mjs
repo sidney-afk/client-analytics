@@ -39,7 +39,7 @@ export function projectNativeSnapshot(value, normalizeClient) {
       aliases.set(row.linear_id,row);
     }
   }
-  const planKeys = new Set(), projectedKeys = new Set(), plans=[];
+  const planKeys = new Set(), projectedKeys = new Set(), plans=[], dropped=[];
   for (const plan of value.plans) {
     if (!plan || typeof plan.issue_id !== 'string' || !plan.issue_id
         || planKeys.has(plan.issue_id) || typeof plan.client !== 'string'
@@ -47,13 +47,29 @@ export function projectNativeSnapshot(value, normalizeClient) {
     planKeys.add(plan.issue_id);
     const owner = aliases.get(plan.issue_id) || identities.get(plan.issue_id);
     const bound = owner && ((owner.source === 'native' && owner.is_sub_issue) || owner.native_plan_id);
-    if (bound && normalizeClient(owner.native_plan_client_name || owner.client_name) !== plan.client) fail();
+    // A stored plan whose client no longer matches its owner's must NOT be
+    // re-keyed onto that owner -- that would move a saved work day onto another
+    // client's card, which is the thing this check exists to prevent. But it
+    // must not take the board down for everyone either, and failing here did:
+    // on 2026-09-08 six drifted rows (saved under `kasperhytonen`, owners since
+    // moved to `kasperads` and `djkasper`) threw away a 5,241-row snapshot and
+    // every pill on every editor's board fell back to its raw due date with
+    // editing disabled. Ordinary historical drift, total outage.
+    // So: drop the row, count it, and let every other plan project. The safety
+    // property is unchanged -- a mismatched plan is still never attached to an
+    // owner -- and the blast radius stops at the row that actually drifted.
+    if (bound && normalizeClient(owner.native_plan_client_name || owner.client_name) !== plan.client) {
+      dropped.push(plan.issue_id);
+      continue;
+    }
     const id = bound ? owner.id : plan.issue_id;
     if (projectedKeys.has(id)) fail();
     projectedKeys.add(id);
     plans.push({...plan,issue_id:id,storage_issue_id:plan.issue_id});
   }
-  return {...value,plans};
+  // Surfaced, not silent: a dropped plan is a saved work day the board stops
+  // showing, so the count has to be observable by whoever reads the response.
+  return {...value,plans,plans_dropped:dropped.length};
 }
 
 export function legacyPlanAliases(snapshot) {

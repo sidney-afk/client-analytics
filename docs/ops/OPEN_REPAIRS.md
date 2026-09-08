@@ -14458,3 +14458,83 @@ here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.m
 rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
+
+## 177. [2026-09-08, LIVE INCIDENT, CAUSED BY US, ROLLED BACK AND FIXED IN SOURCE] Six drifted plan rows blanked a 5,241-row Workload board, because one stale row was allowed to reject the whole snapshot
+
+**What the owner saw.** Every pill on the Workload calendar reading
+**"Deadline fallback"**, on every day, for every editor and every client. Not a
+subset: all of them. Saved work days invisible, drag-to-plan disabled.
+
+**What it actually was.** Not a per-card fault at all. One failed request.
+`wlPlacementMode` (`index.html`) returns `'fallback'` when `planHasSnapshot` is
+false and nothing is loading, so a single failed `workload-plan` `list` call
+degrades *every* pill at once. The board was showing raw due dates, honestly
+labelled, which is the designed degradation — the defect is that it degraded at
+all.
+
+**Sequence.** The owner applied `2026-09-05-workload-native-membership.sql` and
+deployed `workload-plan` from the unmerged lane-A branch, on the coordinator's
+instruction, deliberately BEFORE merging the browser half — backend-first, so
+the old browser would keep working against the new function. The old browser
+does still call `action:'list'`, and the new function still answers that shape
+(`{ok:true,complete:true,plans:[...]}`). What changed underneath is that `list`
+stopped being a table read and became `workload_native_snapshot_v1` passed
+through `projectNativeSnapshot`, an all-or-nothing validator.
+
+**Root cause, in one line of `supabase/functions/workload-plan/native-snapshot.mjs`:**
+
+```js
+if (bound && normalizeClient(owner.native_plan_client_name || owner.client_name) !== plan.client) fail();
+```
+
+`fail()` throws away the ENTIRE snapshot. So any single `workload_plan` row whose
+stored client no longer matches its owner's current client takes down the board
+for everyone.
+
+**The data, measured live by the owner in the SQL editor.** Exactly six rows,
+all the same shape: stored client `kasperhytonen`, owners since moved to
+`kasperads` (4) and `djkasper` (2). `workload_plan.client` is a snapshot taken
+when the day was saved; owners move between client accounts; the two drift. This
+is ordinary historical drift, not corruption — and six such rows were enough.
+
+**What was ruled out first, read-only against live data, before touching code:**
+6,848 combined source rows against a 50,000 cap; 0 duplicate ids; 0 blank ids;
+0 native sub-issue rows with a `team_key` outside VID/GRA; 0 `linear_id`s claimed
+by two rows; 0 sub-issue rows with an empty `client_slug`/`client_name`; 0 client
+slugs absent from the roster. The failing condition was the one anon cannot read,
+because `workload_plan` returns 42501 — so the owner ran the query.
+
+**The fix, and what it deliberately does NOT change.** The mismatch check exists
+to stop a saved work day being re-keyed onto another client's card, and that
+safety property is untouched: a mismatched plan is still never attached to an
+owner. What changes is the blast radius. The row is dropped, counted, and every
+other plan projects. The count is returned as `plans_dropped` rather than
+swallowed, because a dropped plan is a work day the board stops showing and
+somebody has to be able to see that it happened.
+
+**The test was the actual defect.** `test/workload-native-membership.js:64`
+listed `v=>v.plans[0].client='other'` among the mutations that MUST throw. The
+lane wrote a test asserting the brittleness was correct, and CI was green on
+this PR the whole time — 9/9 checks, including `production-polish` and
+`synthetic-browser`. Unit fixtures cannot find this class of bug; only real data
+can. That assertion is now inverted and pinned by four checks, and the new test
+was proven to go red against the old `fail()` before being kept.
+
+**Rollback.** Redeploy `workload-plan` from `main`, one command, no migration
+reversal needed: the applied migration is additive and nothing calls its RPCs
+once the old function is back. `docs/ops/EF_DEPLOY_MANIFEST.md:58` is right that
+this function has no CI lane; a manual deploy is also a manual rollback.
+
+**Owner-facing lesson, recorded because it will recur.** "Backend first" is the
+correct order and it was not sufficient. The new backend was never executed
+against the real `workload_plan` table before it served the live board — the lane
+had no live access, and the coordinator did not create any. The rule this earns:
+**a deliberate-manual Edge Function that changes how an EXISTING action is served
+must be proven against production data before it is deployed, not merely against
+fixtures.** A green CI on a lane with no data access is not evidence about data.
+
+**Still open.** The six drifted rows are untouched and still drift; after this fix
+they are silently dropped rather than fatal, which is better but is not a repair.
+Deciding whether they should be re-pointed at their current owners (as OPEN_REPAIRS
+156 did for the crosswalk) or cleared is a separate owner decision, and the
+`plans_dropped` count is what will keep it visible.

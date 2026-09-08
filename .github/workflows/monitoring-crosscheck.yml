@@ -1,0 +1,81 @@
+name: Monitoring dead-man's switch (crosscheck host)
+
+# THE SECOND HOST. This workflow exists for one reason: a checker cannot report
+# its own death, so the `--check` has to run from two independent workflows that
+# read each other's `monitoring_watchdog` heartbeat.
+#
+# That second host used to be `linear-deliverables-reconcile.yml`, which was
+# convenient (it already ran every 10 minutes) and is now a liability: the Linear
+# exit disables it, and disabling it would silently remove the only reason the
+# dead-man's switch can be reported dead. `monitoring-deadman.yml` would keep
+# running and nothing on earth would notice if it stopped.
+#
+# So the second host is re-homed here, into a workflow that holds no Linear
+# credential, dispatches no Linear reconciler, and survives 2026-09-15 untouched.
+# It is deliberately a near-duplicate of `monitoring-deadman.yml`: the value is
+# in the INDEPENDENCE (a separate file, a separate schedule, a separate
+# concurrency group), not in doing anything different. See OPEN_REPAIRS 174 and
+# docs/ops/MONITORING.md.
+#
+# Until the reconciler is disabled there are three hosts, not two. That is
+# harmless — a stale lane latches once regardless of how many hosts observe it —
+# and it means the re-home can merge well before the cutoff instead of racing it.
+#
+# NOTE: `schedule` fires only from the default branch, so this lane goes live at
+# merge. Until then it can be exercised by hand (workflow_dispatch).
+
+on:
+  schedule:
+    # 20 minutes, deliberately NOT 15: an offset schedule keeps the two hosts
+    # from landing in the same GitHub Actions queue window every hour.
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Evaluate lane freshness without paging or writing markers'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-crosscheck
+  cancel-in-progress: false
+
+jobs:
+  crosscheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+      MONITORING_WATCHDOG_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require watchdog credentials
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report a green dead-man's switch."
+            missing=1
+          fi
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::error::Missing SLACK_ALERT_WEBHOOK; a watchdog that cannot page is not a watchdog."
+            missing=1
+          fi
+          exit "$missing"
+
+      # A stale lane leaves this run red on purpose, so GitHub's failed-run
+      # email backs the Slack page up rather than the page being the only hop.
+      - name: Check every lane for a fresh heartbeat
+        run: node scripts/monitoring-watchdog.js --check

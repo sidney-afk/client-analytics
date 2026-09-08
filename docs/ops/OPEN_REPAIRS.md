@@ -17914,3 +17914,150 @@ applied live** under that filename, so two texts exist for one applied migration
 **The general rule this earns:** *when two long-lived branches both rewrite one large
 file, a clean auto-merge is a red flag rather than a green light.* Conflicts are what
 you get when git can see the disagreement. Silence is what you get when it cannot.
+
+## 183. [2026-09-08, DUPLICATE-WORK AUDIT — six new instances, two of them mine, and the one that has been sitting on main for six weeks] What got built twice, and the two commands that would have prevented most of it
+
+Run at the owner's request: *"can you do kind of an audit of past commits to see if
+there's other parts PR that are already done before that we did again?"* Read-only,
+across 75 first-parent merges, ~200 PRs (#1162-#1361) and 63 remote branches.
+
+### The headline: the Linear media rescue was built TWICE, six weeks apart, and neither copy has ever run
+
+| | **F34** | **LX-E** |
+|---|---|---|
+| Code | `scripts/f34-linear-asset-rescue.js`, 1,012 lines | `scripts/linear-media-rescue.mjs`, 463 lines |
+| Doc | `docs/ops/F34_LINEAR_ASSET_RESCUE.md` | `docs/ops/LINEAR_MEDIA_RESCUE.md` |
+| Landed | migration dated 2026-07-23; doc via #1219 | **PR #1345, merged 2026-09-08** |
+| Scans | `deliverables.brief`, `production_comments.body`, **`production_comments.attachments`**, archived issue descriptions | `deliverables.brief`, `production_comments.body` |
+| Destination | private Drive folder + private sidecar table | Supabase `syncview-description-images` bucket |
+| Ever run | **no** | **no** |
+
+Same problem, same source columns, different vocabulary ("asset" vs "media"), different
+destination, **zero cross-references in either direction**.
+
+**And the overlap is not merely wasteful, it is instructive.** Ledger item 164 lists
+what LX-E deliberately will *not* save; item 4 on that list is
+`production_comments.attachments` — **exactly the column F34 already handles**
+(`scripts/f34-linear-asset-rescue.js:132-141`, `source_kind: 'comment_attachment'`).
+A stated gap in the new lane was a solved problem in the old one, on `main`, for six
+weeks.
+
+**Why it was invisible:** `REPO_MAP.md` has a row for LX-E and **no row for F34's
+script**. `docs/FIND_ANYTHING.md` mentions neither. The only discovery path was
+`grep -rl 'uploads\.linear\.app' scripts/`. **One missing REPO_MAP row is the whole
+cause.**
+
+### Four more, in open PRs
+
+- **#1274 vs #1293** — `scripts/native-intake-reliability/` and
+  `scripts/native-intake-manifest/` contain **byte-identical blobs** for `harness.js`
+  and `supabase-shim.mjs`, created 16 hours apart on 2026-09-05. #1293 propagated into
+  22 branches; **#1274 is stranded**, ~3,351 lines. The copied file's own header reads
+  *"Reused rather than forked on purpose: a second copy of the schema bootstrap is how
+  a proof drifts from the thing it proves."*
+- **#1282 vs #1304** — `qa/card-lifecycle/` and `qa/feedback-drafts/`, byte-identical
+  `ui.js` and `mock-backend.js`, same day. Both still open.
+- **#1316 is stranded by its own success.** Its
+  `2026-09-05-native-label-catalog-foundation.sql` landed on `main` via **#1349**
+  byte-identical, but **nobody closed #1316** — so 608 lines of merged work still show
+  as outstanding, polluting the very open-PR list the other rules depend on.
+- **Four workload comparators**, three in open PRs (#1279, #1321, #1344) plus
+  `scripts/workload-native-visibility-check.js` already on `main` from #1218. Nobody
+  has ruled which survives.
+
+### Two documents both claim to be the canonical exit sequence, and one of them is this programme's
+
+`GO_LIVE_CHECKLIST.md` (93 KB): *"the single canonical, owner-facing sequence."*
+`LINEAR_EXIT_MASTER_SEQUENCE.md` (70 KB, written 2026-09-08): *"the only document that
+spans every lane."* Neither mentions the other; each one's dependents point only at
+their own. **Ruled in this commit**, in the master sequence's own opening: it is
+authoritative for the order across lanes, the checklist is the earlier programme's plan
+and not updated for anything found on 2026-09-08, and neither is authoritative about
+live state.
+
+### Two ledger duplicates, and the second is a correction of a correction I made today
+
+- **Items 29 and 115 are the same PTO focus flake** under two numbers, both open. Item
+  115 re-derived item 29's reasoning **from the test file's own comments** rather than
+  from the register 11 days above it. Then PR #1275 found the real mechanism
+  (`_ptoCalShiftMonth`'s `requestAnimationFrame` racing the harness) and fixed it in 51
+  lines — **adding no ledger entry and closing neither item.** One bug, two open
+  numbers, three sessions, zero closure.
+- **Items 113 and 176 are the same measurement, five days apart.** Item **113**'s
+  header, written 2026-09-02, reads *"STEP 1 APPLIED BY THE OWNER, 2026-09-02"*. Item
+  176 re-measured it live on 2026-09-07 and reported it as a discovery without citing
+  113. The wrong belief then propagated into `LINEAR_EXIT_BRIEF_A.md`, item 165, and
+  `EXECUTION_LOG.md`.
+
+  **And today I made it worse.** Sweeping my own Phase 0 table, I "corrected" that row
+  to say the application date was **unrecorded** and the fact **discovered by
+  measurement, not by record** — and wrote that overstating the record was the wrong
+  direction to err. The record existed, in this ledger, in a header. **I corrected a
+  true-ish claim into a false one while congratulating myself on rigour.** Both
+  `EXECUTION_LOG.md` and the master sequence row are fixed in this commit.
+
+### The two commands that would have prevented most of it
+
+Neither is in `AGENTS.md` or `CLAUDE.md`'s session-opening procedure. Both are cheap.
+
+1. **`git grep` the distinguishing STRING, not the lane's name.** `uploads.linear.app`
+   would have found F34 in one command. A session searching for "media rescue" finds
+   only its own lane, because the other programme called it "asset rescue".
+2. **Enumerate work from the OPEN-PR LIST, not from a branch tip.** A tip proves
+   nothing about what is stacked on it — which is exactly how #1341's finished
+   urgent-alert work stayed invisible to a programme that had diffed #1326 dozens of
+   times.
+
+Plus one gate worth automating: **identical blobs at two paths** is a five-line
+`git ls-tree -r HEAD | sort | uniq -d -w40` check, and it would have caught #1274/#1293
+and #1282/#1304 the day they landed.
+
+**And one hygiene rule with outsized effect:** when a PR's content lands via another
+PR, **close the original naming the PR that absorbed it**. Otherwise the open-PR list
+fills with already-merged work, and rule 2 above degrades.
+
+### Not duplicates, checked and cleared
+
+LX-B/LX-D/LX-A lifting from #1326 and #1297 is **deliberate adoption** with file-level
+citations. `track-b-recovery-*` is an extension, not a rewrite. The Samples cluster is
+one stacked lane. The deep-link, crosswalk, description-image and reconciler item
+chains all cross-reference correctly.
+
+### Addendum, 2026-09-08 — two workers in one checkout, caught within minutes, recorded because it nearly ate an entry
+
+While the duplicate-work audit above was being written, a build session was dispatched
+to lift the native write gateway. **It branched the shared checkout to its own branch
+while this session was still editing files in it.** Three edits — the `EXECUTION_LOG.md`
+correction, the canonical-document ruling, and item 183 itself — were written on top of
+**the build session's branch** rather than this one.
+
+**How it surfaced:** a routine `grep -o '^## 18[0-9]\.'` after appending 183 returned
+**181 and 183 but not 182**. Item 182 had been committed minutes earlier and could not
+have vanished; what had actually happened is that the working tree was no longer on the
+branch that carried it.
+
+**Recovery, and the part worth copying.** The build session's own work was already in
+the tree (`production-write/index.ts`, `policy.mjs`, a new `_shared/native-brief-media.mjs`).
+The wrong move would have been to stash, reset, or switch branches — any of which
+disturbs a session that is mid-task. Instead: `git diff` only the three files this
+session had touched, save the patch, `git checkout --` **only those three paths**, and
+re-apply them on the correct branch **in a separate `git worktree`**. The build session
+never saw an interruption.
+
+**Why the ledger hunk did not re-apply, and why that is reassuring.** The patch failed
+on `OPEN_REPAIRS.md` because the correct branch already had item 182 and the binding-
+constraint addendum, so the line numbers had moved. **That failure is the append-only
+rule doing its job** — a patch that had applied cleanly would have meant the two
+branches' ledgers were identical, which would itself have been the bug. Item 183's text
+was recovered from the added lines of the patch and appended fresh.
+
+**The rule, and this file has said a version of it before:** *one branch, one worker.*
+`LINEAR_EXIT_LANES.md` records that region ownership is why six concurrent sessions
+never collided in one night. The convention held for six sessions and broke the first
+time a coordinator kept editing the shared checkout after dispatching a builder into
+it. **Dispatching a session that owns a branch means giving up the working tree** — the
+coordinator's own edits belong in a worktree from that moment on.
+
+Cost this time: about four minutes and no lost work, because the missing header was
+noticed immediately. Had item 183 been appended and committed on the build branch, it
+would have arrived inside an unrelated PR, or been lost when that branch was force-updated.

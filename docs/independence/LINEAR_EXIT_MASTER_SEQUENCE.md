@@ -2,6 +2,35 @@
 
 **Written 2026-09-08. This is the only document that spans every lane.**
 
+### Ruling on `GO_LIVE_CHECKLIST.md`, because two documents cannot both be canonical
+
+`docs/independence/GO_LIVE_CHECKLIST.md` opens by calling itself *"the single
+canonical, owner-facing sequence for cutting production over from Linear to
+SyncView."* This file opens by calling itself the only document that spans every lane.
+**Both are on `main`, neither mentions the other, and each one's dependents point only
+at their own** — `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md` still routes readers to
+the checklist while `LINEAR_EXIT_LANES.md` and `LINEAR_EXIT_HANDOFF.md` route them
+here. That is not a documentation nit; it is two master plans, and a reader following
+either will believe they have the whole picture.
+
+**The ruling, so a reader is never choosing between them:**
+
+- **This file is authoritative for the ORDER ACROSS LANES** — what must precede what,
+  which steps only the owner can take, and the Phase 3 entry gate.
+- **`GO_LIVE_CHECKLIST.md` is the other programme's plan**, written before this one
+  and not updated for anything found on 2026-09-08: the intake dependency, the
+  client-facing `?intake=1` breakage, the labels and assignee paths, the install-order
+  hazards, or the reroute value the owner read live. **Where the two differ, this file
+  wins on sequence.** Where it carries detail this one does not, it is still worth
+  reading as reference — it is 93 KB and not all of it is superseded.
+- **Neither is authoritative about live state.** That is `docs/truth/BRIEFING.md`,
+  `ROLLBACK.md`, and `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4.
+
+**The rule this earns:** *a document may claim to be canonical only if it deprecates,
+by name, every other document making the same claim.* This file made the claim on
+2026-09-08 and did not check whether anything else already had. It took a duplicate-work
+audit to notice, which is the point of running one.
+
 Each lane has its own runbook and each is good. What none of them carries is the
 order across all of them: which merge must precede which migration, which deploy
 must precede which flag, and which of those the owner performs personally. That
@@ -29,7 +58,7 @@ Nothing below is "in progress". If it is not DONE it is not relied upon.
 |---|---|
 | Both teams are SyncView-authoritative | `prod_authority = {video: syncview, graphics: syncview}`, flipped 2026-08-16 (graphics) and 2026-08-28 (video) |
 | The Linear label catalog is captured | 2026-09-08 01:24Z. 46 labels reconciled against an independent second walk; 5,437 cards classified; the 5 one-way rows all re-read. **This was the only item in the programme that required Linear to be alive.** Item 170 |
-| `2026-09-02-workload-native-view.sql` applied | **Applied on an unrecorded date before 2026-09-07**, and **discovered applied by measurement rather than by record**: item 176 read `workload_issues_native_v1` live over REST. `EXECUTION_LOG.md:56-61`. The log entry is dated 2026-09-08; the application is not |
+| `2026-09-02-workload-native-view.sql` applied | **Applied by the owner on 2026-09-02**, recorded that day in `OPEN_REPAIRS.md` item **113**'s own header. Re-measured live 2026-09-07 by item 176, which reported it as a discovery without citing 113. **An earlier version of this row said the date was unrecorded and the fact discovered by measurement; both were wrong, and the register held the answer the whole time** |
 | `2026-09-05-workload-native-membership.sql` applied | **Applied by the owner on 2026-09-07**, in the window before the `workload-plan` deploy that caused that night's outage. `EXECUTION_LOG.md:62-69`. Different provenance from the row above, not the same entry |
 | `workload-plan` Edge Function deployed | From exact SHA `d4b2365e`, 2026-09-08. Verified twice: `POST {"action":"native_snapshot"}` returns 401 where the pre-incident function returned `400 invalid_action`, **and the owner opened the Workload board and read real dates on every pill** |
 | Monitoring survives the cutoff | PR #1348, merged |

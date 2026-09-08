@@ -53,12 +53,17 @@ window re-doing installed work. **Absence from this log is absence of a record,
 not absence of the change**, and this file is the deployment ledger a future
 session will consult first.
 
-- **`migrations/2026-09-02-workload-native-view.sql`** — applied on an unrecorded
-  date before 2026-09-07. Creates the read-only view
-  `public.workload_issues_native_v1` and grants select to anon and authenticated.
-  Writes nothing, drops nothing, re-running is a no-op (the file says so at
-  :28-29). Discovered applied by measurement, not by record: OPEN_REPAIRS 176
-  read it live over REST while the n8n Workload reconcile was still running.
+- **`migrations/2026-09-02-workload-native-view.sql`** — **applied by the owner on
+  2026-09-02.** Creates the read-only view `public.workload_issues_native_v1` and
+  grants select to anon and authenticated. Writes nothing, drops nothing, re-running
+  is a no-op (the file says so at :28-29).
+  **CORRECTED 2026-09-08: the date was recorded all along.** This entry previously
+  said "applied on an unrecorded date" and "discovered applied by measurement, not by
+  record". Both were wrong. `OPEN_REPAIRS.md` item **113** carries it in its own
+  header — *"STEP 1 APPLIED BY THE OWNER, 2026-09-02"* — written on the day it
+  happened. Item 176 re-measured it live on 2026-09-07 and reported it as a discovery
+  without citing 113; this log then repeated 176's framing. **The register held the
+  answer for five days and three documents said it did not.**
 - **`migrations/2026-09-05-workload-native-membership.sql`** — applied by the
   owner on 2026-09-07, in the window before the `workload-plan` deploy that
   caused that night's outage. Creates three SECURITY DEFINER functions

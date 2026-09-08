@@ -500,7 +500,28 @@ for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
    Driven against the REAL scenario data rather than asserted about: the selector is imported
    and run over `qa/scenarios.js`'s actual output, so a future scenario that starts asserting
    on the retired lane is counted, and one that stops is too. */
-const ENGINE = require(path.join(ROOT, 'qa', 'scenario_engine.js'));
+/* `qa/scenario_lane.js`, NOT `qa/scenario_engine.js`. The engine requires the courier
+   harness, which resolves Playwright, shells out to curl and creates a temp directory at
+   module load — every one of those a way for this offline suite to fail for a reason that has
+   nothing to do with what it checks. The rule lives in a dependency-free module so this can
+   test it directly; the engine re-exports it for its own callers. */
+/* AND NO SUITE HERE MAY REQUIRE THE BROWSER HARNESS.
+   This is why: the first version of section 1d required `qa/scenario_engine.js`, which pulls
+   `qa/sxr_courier_lib.js`, whose Playwright resolution is
+   `try { require('playwright') } catch { require('/opt/node22/lib/node_modules/playwright') }`.
+   The `unit` CI job runs `node test/run-all.js` with NO `npm install`, so the first branch
+   fails and the fallback names a path that exists only inside the agent container — it throws
+   on a GitHub runner. The suite passed locally for exactly the reason it failed in CI: this
+   sandbox is the one environment where that hardcoded path exists.
+   A guard that only works where its author ran it. Same shape as the six before it, one layer
+   further out — in the test harness rather than in a detector.
+   Pinned so no future edit reintroduces it. */
+const SELF = fs.readFileSync(__filename, 'utf8');
+ok(!/require\([^)]*scenario_engine\.js|require\([^)]*sxr_courier_lib\.js|require\([^)]*golden_lib\.js|require\([^)]*probes[\/\\]lib\.js/.test(SELF),
+  'this offline suite requires no browser-harness module — the `unit` job installs no '
+  + 'dependencies, and those modules resolve Playwright through a container-only fallback path');
+
+const ENGINE = require(path.join(ROOT, 'qa', 'scenario_lane.js'));
 const SCENARIOS = require(path.join(ROOT, 'qa', 'scenarios.js'));
 
 const allScenarios = SCENARIOS.base();
@@ -535,6 +556,9 @@ ok(treeLegacy.length < treePaths.length,
   '  · and not every path is forced onto the retired lane, which is what the blanket wiring '
   + 'did to all of them');
 
+ok(/require\('\.\/scenario_lane\.js'\)/.test(fs.readFileSync(path.join(ROOT, 'qa', 'scenario_engine.js'), 'utf8')),
+  'and the ENGINE takes the rule from that same module rather than keeping its own copy, so '
+  + 'what this suite proves is what the engine runs');
 ok(ENGINE.scenarioUsesLegacyLane({ steps: [] }) === false
   && ENGINE.scenarioUsesLegacyLane(undefined) === false,
   '  · CONTROL: a scenario with no steps, and no scenario at all, default to PRODUCTION — a '

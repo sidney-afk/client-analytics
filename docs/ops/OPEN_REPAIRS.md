@@ -14677,6 +14677,37 @@ it. Codex challenged three lanes and left these; that is the line between "about
 the legacy path" and "happens to contain a legacy assertion", and the first
 version of this wiring did not draw it.
 
+**A SEVENTH, and this one turned CI RED — the first red on this PR.**
+`test/probes-assert-native-write-lane.js` required `qa/scenario_engine.js` to
+drive the lane selector. That pulls `qa/sxr_courier_lib.js`, whose Playwright
+resolution is
+`try { require('playwright') } catch { require('/opt/node22/lib/node_modules/playwright') }`.
+The `unit` CI job runs `node test/run-all.js` with **no `npm install`**, so the
+first branch fails and the fallback names a path that exists only inside the
+agent container. It throws on a GitHub runner.
+
+**The suite passed locally for exactly the reason it failed in CI**: this sandbox
+is the one environment where that hardcoded path exists. A guard that only works
+where its author ran it — the same shape as the six before it, one layer further
+out, in the harness rather than in a detector.
+
+Root-caused from the mechanism, not guessed: the `qa/**/*.js` file set was proven
+identical between the commit and the working tree (so the tracked-set scan was
+not the cause), the workflow was read to confirm it installs nothing, and the fix
+was verified by making both `playwright` and the container path unresolvable —
+the old form throws `Cannot find module '/opt/node22/lib/node_modules/playwright'`,
+the new one loads.
+
+The rule lives in `qa/scenario_lane.js` now, a module with no dependencies, which
+the engine requires and re-exports. The suite asserts it requires no
+browser-harness module at all, so the coupling cannot come back.
+
+**The hardcoded fallback in `qa/sxr_courier_lib.js` is left alone** and is worth
+knowing about: it is correct for probe runs, where that container path is real,
+and changing module resolution in a shared harness without being able to run the
+probes is the risk this PR has spent six findings learning not to take. What
+changed is that no offline suite depends on it any more.
+
 **A SIXTH, in the wiring for the fix above, found by applying the rule instead
 of trusting it.** The `legacyOptIn` check asked whether the opt-in token appeared
 ANYWHERE in the file. `ot4_t0_client_edge_conditions.js` opens seven client

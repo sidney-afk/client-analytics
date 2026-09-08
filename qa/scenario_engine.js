@@ -91,20 +91,10 @@ async function eventMatch(id, action, want, ms = 15000) {
 }
 
 // ---------- tab manager ----------
-/* DOES THIS SCENARIO ASSERT ON THE RETIRED LANE?
-   Per SCENARIO, not per file. The first version of this wiring opened every actor with the
-   legacy roster because the DSL *has* an `expectLinear` verb — but only 4 of the 84 base
-   scenarios use it, so the other 80 (ordinary approve, request and comment journeys, plus
-   every compiled tree path) stopped exercising the native route production clients take.
-   Green coverage that no longer covers the shipped lane is the same defect this whole repair
-   is about, one level up. Codex finding on 638ff37; measured 4/84 before fixing.
-   `expectNoLinear` counts too: on the native lane it would pass vacuously, so a scenario
-   using it keeps the world its assertion was written against. */
-function scenarioUsesLegacyLane(scn) {
-  let text = '';
-  try { text = JSON.stringify(scn && scn.steps ? scn.steps : scn); } catch (e) { return false; }
-  return /expectLinear|expectNoLinear/.test(text || '');
-}
+/* Which lane a scenario needs lives in `qa/scenario_lane.js` — a module with no
+   dependencies — so the offline suite can check the rule without loading this file and the
+   browser harness underneath it. Re-exported below for callers that already import it here. */
+const { scenarioUsesLegacyLane } = require('./scenario_lane.js');
 
 class Actors {
   constructor(browser, legacyLane) {

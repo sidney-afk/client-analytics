@@ -227,7 +227,7 @@ wrong, which is the least useful way to be right.
 | `status`, `due`, `description` | Yes | **No** | n/a |
 | `comment`, `attachment` | Yes | **No** | n/a |
 | **`labels` (write) and the `labels_read` action** | Yes | **Yes** — `linearLabelSnapshot` → `linearLabelCatalog` pages the provider | **No** |
-| `create_options` action | Yes — the browser calls it | Yes — via `productionCreateScope` → `projectForIntake` | **No** |
+| `create_options` action | **No** — its only two UI entry points are permanently disabled | Moot. The handler does reach `projectForIntake`, but `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` unconditionally at its first line, under the same 2026-08-23 owner ruling that closed `create`, so both buttons render `disabled` and `_prodLoadCreateOptions` is never called | n/a |
 | `batch_description`, `batch_asset` | Yes | **No** | n/a |
 
 **A withdrawn claim.** The first version called `component_fill` "sometimes"
@@ -239,6 +239,23 @@ always reaches Linear regardless of its parent. There is no graceful path to
 conceal. The row is **Always**, and `component_fill` belongs in the cutoff repair
 scope; leaving it as "sometimes" would have let it be skipped, and every fill would
 fail after provider access ends.
+
+**`create_options` was in this table as reachable, on my own say-so, one commit
+ago.** I flagged it as unverified and then checked it: the two controls that would
+call it (`_prodOpenCreate` from the New-issue button and from Add-sub-issue) both
+render `disabled`, because `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT`
+as its first statement, above code the source itself labels *"kept, unreachable, as
+the exact undo if the ruling is ever revisited"*.
+
+**That is the fifth time the 2026-08-23 create closure has caught me on this PR,
+and the second time on reachability specifically.** The closure has a server half
+(`production_create_closed`) and a browser half (`_prodCreateGateText`), and I was
+caught by each separately, days of code apart. Worth stating as a fact about the
+codebase rather than only about me: **that ruling is enforced in two places and
+neither mentions the other**, so anyone tracing one will not learn of the second.
+
+`batch_description` and `batch_asset` were also in the safe set on the caller map
+alone; both handlers are now read forward and reach no provider call.
 
 **The safe rows are verified forward, not by absence.** Tracing callers backwards
 shows only what reaches a provider call and can never establish that a path is

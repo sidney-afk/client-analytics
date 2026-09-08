@@ -17304,3 +17304,30 @@ depth the reviewer pointed at, and the defect has lived one level deeper each ti
 fix the line → fix the claim → fix the claim everywhere → fix the *kind* of claim.
 Enumerating instead of generalising was right; enumerating without checking each
 member was the same defect wearing the remedy's clothes.
+
+**Closing my own three flagged uncertainties, and one of them was wrong.** After
+the labels correction I listed three claims in the master sequence as unverified
+and asked the reviewer to attack them. Checking them myself instead:
+
+1. **`create_options` is NOT reachable, and I had listed it as reachable.** The
+   handler does reach `projectForIntake`, and the browser does contain three
+   references to the action, but its only two entry points are the New-issue button
+   and Add-sub-issue, and both render `disabled` because `_prodCreateGateText`
+   returns `PROD_CREATE_CLOSED_TEXT` as its **first statement**, above code the
+   source labels *"kept, unreachable, as the exact undo if the ruling is ever
+   revisited."*
+2. **`batch_description` and `batch_asset` are genuinely clean** — both handlers
+   read forward, neither reaches a provider call. They were in the safe set on the
+   caller map alone, which after the labels error was not good enough.
+3. The exhaustive call-site map stands as the basis for the rest.
+
+**The fact about the codebase worth extracting**, rather than only the fact about
+me: **the 2026-08-23 create closure is enforced in two independent places** — the
+server's `production_create_closed` throw and the browser's `_prodCreateGateText`
+— and **neither references the other**. I was caught by each separately on the same
+PR, hours apart, having already learned the lesson from the first. Tracing one
+teaches you nothing about the second, and both are guarded by early returns above
+live-looking code that is deliberately retained as the undo.
+
+Anyone assessing "is this surface reachable" in this repo needs to check both
+halves. That belongs in the record as a navigation hazard, not as a confession.

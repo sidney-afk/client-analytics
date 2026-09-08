@@ -47479,20 +47479,19 @@
         ].filter(Boolean).join('\n');
         return [notes, assets].filter(Boolean).join('\n\n');
     }
-    /* The thumbnail child gets NO brief from this note (fixed 2026-09-08). It
-       used to get the SAME note as the video, on the theory that a designer is
-       briefed by the ask rather than by camera files -- but forwarding it here
-       also outranks the server's generated thumbnail text (the brief
-       precedence is existing -> caller-supplied -> generated), so an ordinary
-       editing note silently blocked AI thumbnail generation for that card. The
-       Submit tab has only ever offered ONE note box per video, labelled as
-       that video's own description -- never as a graphics brief -- so a note
-       written for the editor should not be able to pass as one. A real
-       graphics brief still wins when someone writes one directly on the
-       Linear sub-issue; this function just stops manufacturing one from notes
-       that were never meant as a thumbnail override. */
-    function _linearThumbnailBrief(_video) {
-        return '';
+    /* The thumbnail child gets the SAME note as the video (restored
+       2026-09-08). It briefly returned nothing at all, because forwarding it
+       used to outrank the server's generated thumbnail text outright (the
+       note alone became the whole description, and the generator was never
+       even asked to run) -- but the owner does not want the note dropped
+       either; he wants BOTH, the note as a baseline the designer always sees,
+       with a generated title appended below it when one is available. The
+       server now owns combining the two (see THUMBNAIL_TEXT_AI_LABEL and the
+       brief expression in handleIntakeCreate): a caller-supplied note no
+       longer blocks generation, it is joined with a labelled generated line
+       instead of being replaced by or replacing it. */
+    function _linearThumbnailBrief(video) {
+        return String(video && video.notes || '').trim();
     }
 
     function _linearIntakeBatchTitle(clientName, surface) {

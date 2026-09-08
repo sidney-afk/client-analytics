@@ -329,16 +329,17 @@ const result = {
      generator on 2026-08-17 and the gateway ranked a caller-supplied brief
      ABOVE the generated text, so on 2026-08-21 he asked for the per-video note
      to land on the thumbnail sub-issue as well as the video one.
-     Reverted 2026-09-08: that note was never authored as a graphics brief,
-     but a non-empty caller-supplied brief makes the gateway skip AI
-     thumbnail-title generation outright, so an ordinary editing note silently
-     produced the "AI never wrote a title" symptom the owner reported. The
-     wiring below is unchanged — the graphics item's `brief` still comes from
-     calling `_linearThumbnailBrief` — but that function itself now always
-     returns empty (test/submit-video-notes-and-tab-icons.js pins its body),
-     so what matters here is only that the graphics child is wired to it and
-     never to the video composer, whose camera/audio lines belong to the
-     editor regardless. */
+     2026-09-08: a non-empty caller-supplied brief used to make the gateway
+     skip AI thumbnail-title generation outright, so an ordinary editing note
+     silently produced the "AI never wrote a title" symptom the owner
+     reported. The note still rides the same `_linearThumbnailBrief` wiring
+     below (test/submit-video-notes-and-tab-icons.js pins that function's
+     body), but the gateway no longer treats its presence as a reason to skip
+     generation — it combines the note with a generated line instead of
+     either one excluding the other. What this suite pins is only the wiring:
+     the graphics child's `brief` comes from `_linearThumbnailBrief` and never
+     from the video composer, whose camera/audio lines belong to the editor
+     regardless. */
   ok(/team: 'graphics'[\s\S]{0,180}brief: _linearThumbnailBrief\(/.test(intakeItems),
   'the graphics child brief is still wired through _linearThumbnailBrief, which now always withholds the note');
   ok(!/team: 'graphics'[\s\S]{0,180}_linearVideoBrief\(/.test(intakeItems),

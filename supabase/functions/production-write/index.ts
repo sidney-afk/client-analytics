@@ -2803,11 +2803,15 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
  *     2026-08-17 came from surface "calendar" (the create-thumbnail dialog), so
  *     the owner's own constraint excludes the exact surface that failed.
  *  2. NEW BATCHES ONLY -- appends belong to the calendar/samples dialogs.
- *  3. GRAPHICS CHILDREN ONLY, and only where no brief exists. The result is
- *     consumed inside the existing `team === "graphics"` branch. The batch row
- *     is built afterwards from intakePlan alone and never reads an item brief,
- *     and the video item's brief expression is untouched -- so the parent issue
- *     and the video issue are unreachable from here by construction.
+ *  3. GRAPHICS CHILDREN ONLY, and only where no brief already exists from a
+ *     PRIOR ATTEMPT (a resumed submission is never regenerated or reworded).
+ *     A caller-supplied NOTE no longer excludes an item (2026-09-08): the note
+ *     and the generated line are additive, combined by the caller of this
+ *     function rather than filtered here. The result is consumed inside the
+ *     existing `team === "graphics"` branch. The batch row is built afterwards
+ *     from intakePlan alone and never reads an item brief, and the video
+ *     item's brief expression is untouched -- so the parent issue and the
+ *     video issue are unreachable from here by construction.
  *  4. A REAL, SERVER-RESOLVED PLAN -- planStatus must be "resolved_server": a
  *     protected server mapping matched, not a link somebody pasted.
  *  5. A SUBSTANTIVE PLAN -- the exported text must clear MIN_PLAN_CHARS. This
@@ -2908,11 +2912,15 @@ async function submissionThumbnailText(
   if (gate.appendToBatch === true) return empty;
   if (clean(gate.planStatus) !== "resolved_server") return empty;
 
-  // Gate 3: graphics children with no brief from either the caller or a prior
-  // attempt. A caller-supplied brief always wins; the server never overwrites.
+  // Gate 3: graphics children with no brief from a PRIOR attempt. A row this
+  // request already committed a brief to (a resumed submission) is never
+  // regenerated or reworded -- the server does not overwrite its own earlier
+  // output. A caller-supplied NOTE no longer excludes an item here (owner
+  // ruling 2026-09-08): the note is a baseline the designer always sees, not
+  // a signal to skip generation, so it is combined with the generated line
+  // by the caller of this function rather than filtered out here.
   const needed = items.map((item, index) => ({ item, index }))
     .filter(({ item }) => normalizeTeam(item.team) === "graphics")
-    .filter(({ item }) => !clean(item.brief))
     .filter(({ index }) => !clean(existingById.get(deliverableIds[index])?.brief));
   if (!needed.length) return empty;
 
@@ -6423,9 +6431,17 @@ async function handleIntakeCreate(
    * which is how an SMM ends up writing the real brief in Linear instead, the
    * exact detour that produced today's duplicate thumbnails.
    *
-   * It stays retired. The 2026-08-20 restore below never overwrites a
-   * caller-supplied brief -- it only fills one that is empty, and only on the
-   * Submit tab. A human who writes a brief always wins.
+   * It stays retired. The 2026-08-20 restore below never overwrote a
+   * caller-supplied brief outright -- it only filled one that was empty, and
+   * only on the Submit tab.
+   *
+   * 2026-09-08: a caller-supplied NOTE no longer excludes an item from
+   * generation either. The note used to make the whole field the note alone
+   * (which is what silently disabled generation whenever a per-video Submit
+   * Tab note existed), and the owner does not want the note dropped to make
+   * room for a generated title -- he wants both: the note as a baseline the
+   * designer always sees, with a generated line appended below it when one
+   * exists. See the brief expression below and the comment on it.
    */
   const graphicBatchContext = appendToBatch && appendBatch
     ? { name: appendBatch.name, notes: appendBatch.description }
@@ -6591,14 +6607,23 @@ async function handleIntakeCreate(
         : (team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle);
     const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
-    // The generated line is LAST, so a prior attempt's brief and a
-    // caller-supplied brief both outrank it. It is empty for every item on
-    // every path except a Submit-tab graphics child whose plan cleared all
-    // eight gates, which is why the video child and the batch parent -- neither
-    // of which reads this expression -- cannot be reached from here.
+    /*
+     * A prior attempt's brief always wins outright (existingBrief) -- a
+     * resumed submission must not regenerate or reword what it already
+     * committed. Short of that, the note and the generated line are
+     * ADDITIVE rather than a precedence order (owner ruling 2026-09-08): the
+     * note is a baseline the designer always sees even when generation is
+     * skipped or produces nothing, and a generated line, when one exists,
+     * is appended below it on its own line -- never substituted for it and
+     * never blocked by it. generatedThumbnailTitle is empty for every item
+     * on every path except a Submit-tab graphics child whose plan cleared
+     * all eight gates in submissionThumbnailText, which is why the video
+     * child and the batch parent -- neither of which reads this expression
+     * -- cannot be reached from here.
+     */
     const generatedThumbnailTitle = team === "graphics" ? clean(thumbnailText.get(index)) : "";
-    const brief = existingBrief || sourceBrief
-      || (generatedThumbnailTitle ? `${THUMBNAIL_TEXT_AI_LABEL}${generatedThumbnailTitle}` : "");
+    const generatedLine = generatedThumbnailTitle ? `${THUMBNAIL_TEXT_AI_LABEL}${generatedThumbnailTitle}` : "";
+    const brief = existingBrief || [sourceBrief, generatedLine].filter(Boolean).join("\n");
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
     const sortKey = item.sort_key == null ? index : Number(item.sort_key);
     const plannedStatus = intakeCreateStatus(item.status, principal.testOnly, startedAtCreate);

@@ -282,15 +282,15 @@ jobs:
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
       # Re-pinned 2026-09-08: a Submit-tab note written for the video editor
-      # can no longer suppress or stand in for AI thumbnail-title generation
-      # (previously any non-empty note forwarded as the graphics child's
-      # brief made Gate 3 in submissionThumbnailText skip generation
-      # outright), and a generated title is now prefixed with
-      # THUMBNAIL_TEXT_AI_LABEL so it cannot be mistaken for a human-authored
-      # brief. See test/f27-section4-deploy-lane.js CANDIDATES for the full
-      # note. No migration, no new import, file count unchanged at 5.
+      # can no longer suppress or stand in for AI thumbnail-title generation.
+      # A caller-supplied note and a generated title (labelled with
+      # THUMBNAIL_TEXT_AI_LABEL) are additive -- joined by a newline -- rather
+      # than one excluding or replacing the other; only a PRIOR ATTEMPT's
+      # brief still wins outright. See test/f27-section4-deploy-lane.js
+      # CANDIDATES for the full note. No migration, no new import, file count
+      # unchanged at 5.
       # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: c3d88287db059c0e6a5d0fb26c87e6f327fc74bc3b30d95fc29dd1ae0d3be760
+      PRODUCTION_WRITE_SOURCE_SHA256: eba247f26e6b8528229e67bf0a8c257a0c8530966d7dcbed89ac36a9e82fac6c
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

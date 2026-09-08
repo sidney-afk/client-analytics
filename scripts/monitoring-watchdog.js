@@ -117,11 +117,24 @@ const LANES = Object.freeze([
    * alarm-fatigue failure this whole file exists to prevent — the next reader
    * discounts it, and the page that matters arrives looking identical.
    *
-   * 360 clears the worst observed combined gap (274m) by about a third and
-   * still pages within six hours of a genuine stop. THE COST IS REAL and is
-   * stated rather than buried: detection latency for a true monitoring death
-   * goes from three hours to six. That is the honest price of a cadence the
-   * platform will not deliver, and it is better than a signal nobody reads.
+   * 360 clears the worst observed combined gap (274m) by about a third.
+   *
+   * WHAT THAT DOES AND DOES NOT BUY, stated as arithmetic because the first
+   * version of this comment got it wrong and said "pages within six hours":
+   * freshness is only evaluated when a host actually runs, so the real
+   * detection deadline is max_age_minutes PLUS the observation interval, not
+   * max_age_minutes alone. A lane that stops right after a beat is seen at
+   * age 274 by the next host (healthy) and only at age 548 by the one after,
+   * so the worst case here is 360 + 274 = 634 minutes, about ten and a half
+   * hours. Typical is nearer nine.
+   *
+   * There is no threshold that fixes this, and that is the point worth
+   * carrying: no-false-positives requires max_age above the 274-minute
+   * observation gap, which by the same arithmetic puts the floor on worst-case
+   * detection at about 548 minutes whatever number is chosen. Trading 360 down
+   * to 300 buys roughly an hour of deadline and spends most of the false-alarm
+   * margin to get it. The bind is the observation interval, not the threshold,
+   * so only a host that actually runs on time can shorten this materially.
    *
    * Two things would let this come back down, and neither is a code change
    * here: dispatching a host on a reliable external timer the way the

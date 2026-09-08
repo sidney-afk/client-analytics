@@ -19336,7 +19336,27 @@
     // A failure is never cached — remembering "we could not ask" as an answer is
     // the one thing this popover must not do — and a hit is served only to the
     // staff identity that took it.
-    const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, rows }
+    // A CACHED READ CANNOT REVALIDATE A BINDING, so it must not outlive the
+    // client's own evidence that the binding still holds. The endpoint reads the
+    // linked card before AND after building this projection and answers
+    // `link_changed` when the deliverable no longer names that card
+    // (`feedbackCardMatches` in production-comments/feedback.mjs) — a refusal
+    // that exists precisely to withhold the previous card's notes. Serving a
+    // cached response skips that refusal, and a deliverable re-linked to a
+    // different client's card would put THAT client's notes under this one.
+    // No client-side check can prove a binding without spending the read this
+    // cache exists to avoid, so the entry is instead pinned to the two things
+    // the browser can prove: a short life of its own, and the exact snapshot row
+    // the read was made for. `wlApplyData` replaces `issueSnapshot` with fresh
+    // row objects on every refresh, so a hit dies the moment the board learns
+    // anything new about that deliverable — the same identity signal
+    // `_wlNativeTweakComments` already uses to refuse a read whose row moved.
+    // Residual, stated rather than hidden: a re-link the browser has not yet
+    // refreshed into can still be served for up to this TTL. It is minutes
+    // shorter than the legacy lane's, and it is the reason this constant is
+    // separate from WL_TWEAK_COMMENTS_TTL_MS rather than borrowing it.
+    const WL_NATIVE_TWEAK_COMMENTS_TTL_MS = 60 * 1000;
+    const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, issue, scope, rows }
     // The completed-value cache above cannot help two popovers that overlap:
     // reopening a rollup before its first reads land means both generations miss
     // it and both send a request for the same deliverable, so a slow popover
@@ -19385,31 +19405,39 @@
             if (typeof onRow === 'function') { try { onRow(id, rows); } catch (e) {} }
         };
         const stale = () => typeof shouldStop === 'function' && shouldStop();
-        const cached = nativeId => {
+        const cached = (nativeId, issue) => {
             const hit = _wlNativeTweakCommentsCache.get(nativeId);
             if (!hit) return null;
             // A cache entry belongs to the staff identity that took it. Serving
             // it to another one is the same failure the mid-read identity check
             // exists to prevent, just deferred by up to a TTL.
-            if (hit.owner !== owner || (Date.now() - hit.fetchedAt) >= WL_TWEAK_COMMENTS_TTL_MS) {
+            // It also belongs to the snapshot row it was read for: once the board
+            // refreshes, `issue` is a different object and the binding this
+            // response was verified against is no longer one this browser can
+            // vouch for.
+            if (hit.owner !== owner || hit.issue !== issue
+                || (Date.now() - hit.fetchedAt) >= WL_NATIVE_TWEAK_COMMENTS_TTL_MS) {
                 _wlNativeTweakCommentsCache.delete(nativeId);
                 return null;
             }
             return hit.rows;
         };
-        const remember = (nativeId, rows) => {
+        const remember = (nativeId, issue, rows) => {
             // Expired entries are dropped on write, so the map is bounded by one
             // TTL window rather than by how long the tab has been open.
             for (const [key, hit] of _wlNativeTweakCommentsCache) {
-                if ((Date.now() - hit.fetchedAt) >= WL_TWEAK_COMMENTS_TTL_MS) _wlNativeTweakCommentsCache.delete(key);
+                if ((Date.now() - hit.fetchedAt) >= WL_NATIVE_TWEAK_COMMENTS_TTL_MS) _wlNativeTweakCommentsCache.delete(key);
             }
-            _wlNativeTweakCommentsCache.set(nativeId, { fetchedAt: Date.now(), owner, rows });
+            // The scope the endpoint verified is recorded with the answer, so a
+            // stored response always says which card binding it was true for.
+            _wlNativeTweakCommentsCache.set(nativeId, { fetchedAt: Date.now(), owner, issue,
+                scope: (rows && rows.scope) || null, rows });
         };
         for (const id of ids) {
             const issue = issues.get(id);
             const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
             if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
-            native.push({ id, issue, nativeId, hit: cached(nativeId) });
+            native.push({ id, issue, nativeId, hit: cached(nativeId, issue) });
         }
         // Cached rows first. They cost no request and no wait, so there is no
         // reason for one to queue behind a neighbour that is going to hang.
@@ -19438,7 +19466,7 @@
                     // every time.
                     flight.promise = _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline,
                         () => flight.wanted.size === 0 || [...flight.wanted].every(want => want()));
-                    flight.promise.then(rows => { remember(row.nativeId, rows); }, () => {}).then(() => {
+                    flight.promise.then(rows => { remember(row.nativeId, row.issue, rows); }, () => {}).then(() => {
                         if (_wlNativeTweakCommentsInFlight.get(key) === flight) _wlNativeTweakCommentsInFlight.delete(key);
                     });
                 } else {
@@ -19565,6 +19593,10 @@
         // missing projection as complete presents the canonical comments as the
         // whole record and silently drops every card-only note.
         shown.sourceComplete = !!feedback && feedback.complete === true;
+        // The card binding this answer was verified against. Carried so a stored
+        // response can always say which link it was true for, rather than being
+        // a set of notes with no stated provenance.
+        shown.scope = (feedback && feedback.scope) || null;
         return shown;
     }
     async function _wlLegacyFetchTweakComments(ids, deadline) {

@@ -99,10 +99,24 @@ five-minute window and is principal-wide, so exhausting it from this popover als
 stops SyncLinear's comment panel for the rest of that window; a 20-row rollup is
 20+ requests, and the pool compressed six such opens from about sixteen minutes
 across four windows into two minutes of one. A whole, verified read is therefore
-cached per deliverable for `WL_TWEAK_COMMENTS_TTL_MS` — the same TTL the legacy
-lane has always used on this surface — and a read still queued when the popover
-closes or reopens elsewhere is abandoned rather than having only its paint
-suppressed, between pages as well as between rows. A failure is never cached:
+cached per deliverable, and a read still queued when the popover closes or
+reopens elsewhere is abandoned rather than having only its paint suppressed,
+between pages as well as between rows.
+
+That cache carries its own TTL (`WL_NATIVE_TWEAK_COMMENTS_TTL_MS`, one minute)
+rather than borrowing the legacy lane's five, because a cached native read cannot
+revalidate a card binding. The endpoint reads the linked card before and after
+building the projection and answers `link_changed` when the deliverable no longer
+names it; serving a cached response skips that refusal, and a deliverable
+re-linked to another client's card would put that client's notes under this one.
+No browser-side check can prove a binding without spending the read the cache
+exists to avoid, so an entry is pinned to the two things the browser can prove:
+that short life, and the exact snapshot row the read was made for — `wlApplyData`
+replaces `issueSnapshot` with fresh row objects on every refresh, so a hit dies
+the moment the board learns anything new about that deliverable. The verified
+scope travels with the answer, so a stored response always states which binding
+it was true for. Residual, stated rather than hidden: a re-link the browser has
+not yet refreshed into can still be served for up to that minute. A failure is never cached:
 remembering "we could not ask" as an answer would turn one aborted read into five
 minutes of false outage on a healthy row. A cache entry is served only to the
 staff identity that took it, since serving it to another is the mid-read identity

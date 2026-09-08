@@ -80,6 +80,15 @@ const ROW_TIMEOUT_MS = valueOf((source.match(/^ *const WL_PLAN_READ_TIMEOUT_MS =
 // without it still runs and fails on the measurement.
 const NATIVE_CACHE_DECL = (source.match(/^ *const _wlNativeTweakCommentsCache = new Map\(\);/m) || [''])[0].trim();
 const IN_FLIGHT_DECL = (source.match(/^ *const _wlNativeTweakCommentsInFlight = new Map\(\);/m) || [''])[0].trim();
+// The native lane's own TTL. Deliberately NOT WL_TWEAK_COMMENTS_TTL_MS: a cached
+// native read cannot revalidate the card binding the endpoint checks on every
+// live read, so it is given a much shorter life of its own.
+const NATIVE_TTL_DECL = (source.match(/^ *const WL_NATIVE_TWEAK_COMMENTS_TTL_MS = .*$/m) || [''])[0].trim();
+const NATIVE_TTL_MS = (() => {
+  const match = NATIVE_TTL_DECL.match(/= (.+);$/);
+  if (!match) return 0;
+  try { return Function('"use strict";return (' + match[1] + ')')(); } catch (e) { return 0; }
+})();
 // The actor-wide read budget, read out of the migration that enforces it rather
 // than retyped here — the number this popover has to stay under.
 const READ_BUDGET = Number((fs.readFileSync(path.join(__dirname, '..',
@@ -221,6 +230,7 @@ function build(options = {}) {
     DEADLINE_DECL,
     NATIVE_CACHE_DECL,
     IN_FLIGHT_DECL,
+    NATIVE_TTL_DECL,
     extract('wlFetchTweakComments'),
     extract('_wlNativeTweakComments'),
     extract('_wlLegacyFetchTweakComments'),
@@ -808,7 +818,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       page([canonical('b')], complete([])),
     ] } });
     await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
-    clock.jump(TTL_MS - 1);
+    clock.jump(NATIVE_TTL_MS - 1);
     await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
     ok(nativeCalls(calls) === 1, 'a read inside the TTL is still served from cache');
     clock.jump(2);
@@ -873,6 +883,55 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'and its partial rows are discarded rather than shown as the thread');
     ok(!/No feedback is available here/.test(rendered),
       'never as an empty one — an abandoned read is not evidence a client said nothing');
+  }
+
+  // ── A cached read cannot vouch for a card binding (finding 6) ───────
+  {
+    // The endpoint reads the linked card before AND after building the
+    // projection and answers `link_changed` when the deliverable no longer names
+    // it — a refusal that exists to withhold the previous card's notes. A cached
+    // response skips that refusal entirely, and a deliverable re-linked to a
+    // different CLIENT's card would put that client's notes under this one.
+    ok(NATIVE_TTL_MS > 0 && NATIVE_TTL_MS < TTL_MS,
+      'the native lane has a TTL of its own, shorter than the legacy lane’s ('
+        + NATIVE_TTL_MS + 'ms vs ' + TTL_MS + 'ms)');
+    ok(/feedbackCardMatches/.test(fs.readFileSync(path.join(__dirname, '..',
+      'supabase/functions/production-comments/feedback.mjs'), 'utf8')),
+      'and the binding check it cannot perform is real, on the endpoint side');
+  }
+  {
+    // `wlApplyData` replaces issueSnapshot with fresh row OBJECTS on every
+    // refresh, so row identity is the browser's own evidence that nothing it can
+    // see about this deliverable has moved. A hit must not outlive it.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+      page([canonical('after-relink')], complete([])),
+    ] } });
+    await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 1, 'the first open reads the deliverable');
+    await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 1, 'an immediate reopen on the SAME snapshot row is served from cache');
+    // The board refreshes: same ids, new objects, exactly as wlApplyData leaves it.
+    context.wlState.issueSnapshot = snapshot.map(row => ({ ...row }));
+    const after = await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 2,
+      'once the board refreshes, the cached answer is no longer one this browser can vouch for and the deliverable is read again');
+    ok(!!after['wl-1'] && (after['wl-1'][0] || {}).body === 'canonical after-relink',
+      'so a re-linked deliverable shows the feedback of the card it is bound to NOW');
+  }
+  {
+    // The answer records which binding it was verified against, so a stored
+    // response is never a set of notes with no stated provenance.
+    const snapshot = nativeRows(1);
+    const scope = { surface: 'calendar', card_id: 'card-one', component: 'video',
+      client_slug: 'fixture-client', deliverable_id: 'del-1' };
+    const { context } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], { feedback: { version: 1, status: 'complete', complete: true, scope, rows: [] } }),
+    ] } });
+    const out = await context.wlFetchTweakComments(['wl-1']);
+    ok(!!out['wl-1'].scope && out['wl-1'].scope.card_id === 'card-one',
+      'the verified card scope travels with the answer');
   }
 
   // ── Overlapping popovers share a read rather than racing it ─────────

@@ -14998,3 +14998,51 @@ Proof: `node test/component-feedback-read.js` — **33 pass**, red against
 `7329a64` on `video_tweaks with updated_at only`. Like the `is_tweak` check
 beside it, the test runs BOTH real functions and compares their answers rather
 than restating the rule, so the pair cannot drift apart a third time.
+
+### Fourth follow-up: a cached read cannot vouch for a card binding (Codex P1 on `4baa587`)
+
+The cache added two follow-ups above bought its own correctness failure, and this
+one is worse in kind than the quota problem it was solving.
+
+`production-comments` reads the linked Calendar/Samples card **before and after**
+building the feedback projection and returns `link_changed` when the deliverable
+no longer names that card (`feedbackCardMatches`,
+`supabase/functions/production-comments/feedback.mjs`). That refusal exists
+precisely to withhold the previous card's notes. A cached response skips it
+entirely — so a deliverable re-linked within the TTL showed the **former card's**
+notes, and because `feedbackCardMatches` also checks `card.client`, a re-link
+across clients would put one client's notes under another client's deliverable.
+On a public repo with client-confidential content that is the wrong direction to
+be wrong in.
+
+**There is no complete browser-side fix, and that is the honest finding.**
+Validating a binding requires reading it, which is the request the cache exists to
+avoid. So the entry is pinned to the two things the browser can actually prove:
+
+1. **A short life of its own.** `WL_NATIVE_TWEAK_COMMENTS_TTL_MS` is one minute,
+   declared separately rather than borrowing the legacy lane's five. It still
+   covers the burst this cache was added for — six opens of a rollup in quick
+   succession — while cutting the staleness window fivefold.
+2. **The exact snapshot row the read was made for.** `wlApplyData` replaces
+   `issueSnapshot` with fresh row objects on every refresh, so a hit dies the
+   moment the board learns anything new about that deliverable. This is the same
+   identity signal `_wlNativeTweakComments` already uses to refuse a read whose
+   row moved under it, reused rather than invented.
+
+The verified `scope` now travels with the answer and is recorded with the cache
+entry, so a stored response always states which binding it was true for instead
+of being a set of notes with no provenance.
+
+**Residual risk, for the owner rather than buried in a comment:** a re-link the
+browser has not yet refreshed into can still be served for up to one minute.
+Removing that last window means removing the cross-open cache, which puts the
+120-request actor-wide budget back in reach (six opens of a 20-row rollup). That
+is a product call between a one-minute stale-binding window and a five-minute
+comment blackout across two surfaces, and it is recorded here so it can be taken
+deliberately. `WL_NATIVE_TWEAK_COMMENTS_TTL_MS` is the single place to change it,
+and setting it to `0` disables cross-open caching entirely.
+
+Proof: **159 green**, **6 red against `4baa587`**, including `once the board
+refreshes, the cached answer is no longer one this browser can vouch for and the
+deliverable is read again` and `so a re-linked deliverable shows the feedback of
+the card it is bound to NOW`.

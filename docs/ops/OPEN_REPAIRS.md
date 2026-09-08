@@ -15211,3 +15211,39 @@ duplicate is accepted; the suppression is kept.
 Proof: **35 pass**; red against `6e799b2` with the matrix naming all seventeen
 shapes divergent there — the resolver-name row plus the full sixteen-member
 truthy family it had not been enumerating.
+
+### Ninth follow-up: a set derived from source literals is not derived from behaviour (Codex P2 on `eae7b31`)
+
+The previous follow-up replaced a hand-listed exception set with a *derived* one
+and called that the structural fix. It derived the set by **parsing `truthy`'s
+source literals**. But `truthy` normalises its input —
+`clean(value).toLowerCase()` — so `" TRUE "`, `"Yes"`, `"YES"` and `" yes "` are
+accepted by the projection and appeared in none of them. Ten accepted values
+exist where the scrape found four, so **twenty-four divergent shapes across the
+four flag fields were still outside the "exact" set** the commit claimed was
+tight.
+
+This is the third time in this sequence the same mistake has been made at a
+different altitude: hand-list → sample of a family → scrape of a source → and
+only now, execute the thing itself. Reading an implementation is not the same as
+running it, and each time the gap was invisible precisely because the artefact
+*looked* derived.
+
+The matrix now imports the real `clean` from `policy.mjs`, extracts the shipped
+`truthy` expression and **executes it** against a candidate pool that deliberately
+includes case and whitespace variants and falsy values. Membership of the
+deliberate family is whatever the predicate actually accepts and the importer's
+literal `true` does not. Two guards keep the pool honest: it must exercise the
+accepting branch, and it must exercise the rejecting one — and the rejected
+values are asserted to stay **covered**, which confines the exception to the
+accepting branch rather than to flag fields in general.
+
+Counterfactual, run rather than reasoned: swapping the executed predicate back for
+the literal scrape turns the matrix red, naming `"TRUE"`, `" true "`, `" TRUE "`
+and the rest as unnamed divergences.
+
+Coverage: 10 accepted values × 4 flag fields = 40 deliberate shapes, plus 8
+rejected values × 4 fields = 32 shapes proven still covered, where the previous
+version pinned 16 and proved none of the rejecting branch.
+
+Proof: **35 pass**.

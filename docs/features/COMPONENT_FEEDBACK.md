@@ -170,13 +170,15 @@ Two places the mirror deliberately stops, both named in the matrix so they are
 visible rather than assumed. An entry with no timestamp at all, where the importer
 defaults to the epoch: the projection reports an honest absence instead, because
 printing a 1970 date beside a tweak note invents a fact. And an entry whose deleted/resolved flag is any value
-`truthy` accepts but the importer does not — `1`, `"1"`, `"true"`, `"yes"`,
-across `done`, `resolved`, `deleted` and `is_deleted`. The importer counts only a
-literal `true`, so mirroring would make the projection strict, and the identical
-predicate governs `deleted`, so it would start showing the body of a note the
-card marked deleted. The matrix DERIVES that set from the shipped `truthy`
-helper, so widening the helper widens the matrix rather than quietly widening the
-exception. Both keep a visible duplicate rather than trade it for a
+`truthy` accepts but the importer does not, across `done`, `resolved`, `deleted`
+and `is_deleted`. The importer counts only a literal `true`, so mirroring would
+make the projection strict, and the identical predicate governs `deleted`, so it
+would start showing the body of a note the card marked deleted. The matrix
+decides that set by EXECUTING the shipped predicate against a candidate pool, not
+by reading its source: `truthy` trims and lower-cases, so `" TRUE "` and `"Yes"`
+are accepted too and a set scraped from its literals named neither. Values the
+predicate rejects are asserted to stay covered, which is what confines the
+exception to the accepting branch rather than to flag fields in general. Both keep a visible duplicate rather than trade it for a
 note hidden by a loosened match or for content that should stay suppressed.
 
 The popover's three-row preview is ordered newest-first across both sources.

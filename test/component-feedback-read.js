@@ -19,20 +19,17 @@ const target = { id: 'feedback-deliverable', client_slug: 'fixture-feedback', te
 // that is what the F42 importer WRITES for anything it read out of a `*_tweaks`
 // cell — a canonical row imported from `video_tweaks` cannot be `false`.
 const note = (id, extra = {}) => ({ id, author: 'Fixture reviewer', role: 'smm', body: 'Same text', created_at: now, updated_at: now, ...extra });
-// The flag fields whose predicate diverges from the importer, and every value
-// the shipped `truthy` helper accepts beyond the literal `true` the importer
-// requires. Read out of feedback.mjs so widening `truthy` widens the parity
-// matrix with it instead of silently widening the exception it names.
+// The flag fields whose predicate diverges from the importer.
 const FLAG_FIELDS = ['done', 'resolved', 'deleted', 'is_deleted'];
-const TRUTHY_VALUES = (() => {
-  const helper = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/feedback.mjs'), 'utf8')
-    .match(/^const truthy = .*$/m);
-  if (!helper) throw new Error('missing truthy helper');
-  const numeric = [...helper[0].matchAll(/value === (\d+)/g)].map(match => Number(match[1]));
-  const listed = (helper[0].match(/\[([^\]]*)\]/) || [, ''])[1]
-    .split(',').map(part => part.trim().replace(/^'|'$/g, '')).filter(Boolean);
-  return [...numeric, ...listed];
-})();
+// Candidate values a historical card could plausibly hold in one of them. The
+// pool is deliberately wider than what `truthy` accepts: which of these are
+// divergent is decided by EXECUTING the shipped predicate, not by reading it.
+// Scraping its source literals was the previous version of this and it missed
+// every normalised form — `truthy` trims and lower-cases, so " TRUE " and "Yes"
+// are accepted too and were silently outside the "exact" set.
+const FLAG_CANDIDATES = [true, 1, '1', 'true', 'TRUE', ' true ', ' TRUE ', 'yes', 'Yes', 'YES', ' yes ',
+  false, 0, '0', 'false', 'no', '', null, undefined];
+const label = value => value === undefined ? 'undefined' : JSON.stringify(value);
 const canonical = (id, extra = {}) => ({ id, deliverable_id: target.id, native_comment_id: id, author_name: 'Fixture reviewer', role: 'smm', body: 'Same text', component: 'video', is_tweak: true, round: null, source_created_at: now, source_updated_at: now, created_at: now, updated_at: now, version: 1, audience: 'internal', ...extra });
 let db, reads, handler, hook, failures, auditAllowed;
 function reset(notes = [note('source-one')]) {
@@ -260,14 +257,12 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { label: 'done true with both done_at and resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
         { label: 'resolved_at alone, no boolean', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
         { label: 'both done_by and resolved_by_name', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_by: 'Fixture Reviewer', resolved_by_name: 'Someone Else' } },
-        // EVERY representation `truthy` accepts, read out of the shipped helper
-        // rather than hand-listed, for every flag it governs. The importer
-        // recognises only a literal `true`, so each of these is a deliberate
-        // divergence — and naming only `done: "true"` left the exception family
-        // unpinned, which is the same half-done job as leaving a shape out of
-        // the matrix entirely.
-        ...FLAG_FIELDS.flatMap(field => TRUTHY_VALUES.map(value => ({
-          label: 'truthy ' + field + ' = ' + JSON.stringify(value),
+        // Every candidate value against every flag it governs. The ACCEPTED ones
+        // are the deliberate divergences; the rejected ones must still be
+        // covered, which is what proves the exception is confined to the
+        // accepting branch rather than to flag fields in general.
+        ...FLAG_FIELDS.flatMap(field => FLAG_CANDIDATES.map(value => ({
+          label: 'truthy ' + field + ' = ' + label(value),
           raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, [field]: value },
         }))),
         { label: 'author_name rather than author', raw: { ...base, author_name: 'Fixture reviewer', role: 'smm', created_at: now } },
@@ -277,20 +272,29 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { label: 'zero round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: 0 } },
         { label: 'edited', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, edited_at: now } },
       ];
-      // One family diverges DELIBERATELY, and the matrix enumerates it rather
-      // than naming a sample of it. The importer treats only a literal `true` as
-      // deleted/resolved (`raw.done === true`), while this projection uses
-      // `truthy`, which also accepts 1, "1", "true" and "yes". Every one of
-      // those is suppressed here and was imported as unresolved/undeleted.
-      // Mirroring the importer would mean making the projection strict — and the
-      // identical predicate governs `deleted`, so it would start SHOWING the
-      // body of a note the card marked deleted. That trades a duplicate for
-      // exposed content, the one direction this lane never goes. The duplicate
-      // is accepted; the suppression is kept. The set is DERIVED from the
-      // shipped helper below, so widening `truthy` cannot quietly widen the
-      // exception.
+      // One family diverges DELIBERATELY, and the matrix decides its membership
+      // by RUNNING the shipped predicate rather than reading it. The importer
+      // treats only a literal `true` as deleted/resolved (`raw.done === true`);
+      // this projection uses `truthy`, which also normalises its input, so
+      // " TRUE " and "Yes" are accepted as well as 1, "1", "true" and "yes".
+      // Every accepted-but-not-literal-true value is suppressed here and was
+      // imported as unresolved/undeleted. Mirroring the importer would mean
+      // making the projection strict — and the identical predicate governs
+      // `deleted`, so it would start SHOWING the body of a note the card marked
+      // deleted. That trades a duplicate for exposed content, the one direction
+      // this lane never goes. The duplicate is accepted; the suppression kept.
+      const policy = await import(pathToFileURL(path.join(root, 'supabase/functions/production-comments/policy.mjs')).href);
+      const helperSource = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/feedback.mjs'), 'utf8')
+        .match(/^const truthy = (.*);$/m);
+      assert(helperSource, 'the truthy helper must be readable so this matrix can execute it');
+      const truthy = new Function('clean', 'return (' + helperSource[1] + ');')(policy.clean);
+      // Accepted by the projection, rejected by the importer's literal `true`.
+      const divergentValues = FLAG_CANDIDATES.filter(value => truthy(value) && value !== true);
+      assert(divergentValues.length >= 4, 'the candidate pool must actually exercise the accepting branch');
+      assert(FLAG_CANDIDATES.some(value => !truthy(value)),
+        'and the rejecting branch too, so a benign value is proven to stay covered');
       const deliberate = FLAG_FIELDS.flatMap(field =>
-        TRUTHY_VALUES.map(value => 'truthy ' + field + ' = ' + JSON.stringify(value)));
+        divergentValues.map(value => 'truthy ' + field + ' = ' + label(value)));
       const divergent = [];
       for (const shape of shapes) {
         const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null);

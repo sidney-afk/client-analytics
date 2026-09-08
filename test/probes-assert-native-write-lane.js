@@ -168,21 +168,34 @@ const OUTSIDE_MANIFEST = {
   'qa/ef-writepath/12-samples.js': 'present',
   'qa/ef-writepath/13-settings.js': 'zero',                  // already asserts no push; correct as-is
   'qa/ef-writepath/lib.js': 'zero',                          // harness plumbing, asserts nothing
-  'qa/sxr_courier_lib.js': 'zero'                            // harness plumbing, asserts nothing
+  'qa/sxr_courier_lib.js': 'zero',                           // harness plumbing, asserts nothing
+  // Deliberately legacy, and NOT affected: the fully synthetic boot harness pins the legacy
+  // world on purpose (it serves its own flag rows and never the production roster fixture)
+  // because its subject is the resume lease and the BFCache stale release, not routing. Its
+  // `legacyQueueWrites` are the outbox drain's, which item 175 pinned as NOT flipped.
+  'qa/boot/client-entry-sequence.js': 'deliberate-legacy'
 };
 
-const scanned = [];
-for (const dir of ['qa', 'qa/probes', 'qa/ef-writepath']) {
-  const abs = path.join(ROOT, dir);
-  if (!fs.existsSync(abs)) continue;
-  for (const file of fs.readdirSync(abs)) {
-    if (!file.endsWith('.js')) continue;
-    const rel = dir + '/' + file;
-    if (rel === 'qa/native_work_item_fixture.js' || rel === 'qa/write_ui_reroute_fixture.js') continue;
-    if (MANIFEST.includes(file) && dir === 'qa/probes') continue;
-    const src = fs.readFileSync(path.join(abs, file), 'utf8');
-    if (/linear-set-status|linear-add-comment|linearCalls\s*\(/.test(src)) scanned.push(rel);
+/* WALK THE WHOLE TREE, not a list of directories somebody remembered.
+   The first version of this scan hard-coded `qa`, `qa/probes` and
+   `qa/ef-writepath` and therefore missed `qa/boot/client-entry-sequence.js`
+   entirely — a guard that only looks where its author looked, which is the same
+   defect one level up from the one this file exists to prevent. */
+function walkJs(dir, out) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) { walkJs(abs, out); continue; }
+    if (entry.isFile() && entry.name.endsWith('.js')) out.push(abs);
   }
+  return out;
+}
+const scanned = [];
+for (const abs of walkJs(path.join(ROOT, 'qa'), [])) {
+  const rel = path.relative(ROOT, abs).split(path.sep).join('/');
+  if (rel === 'qa/native_work_item_fixture.js' || rel === 'qa/write_ui_reroute_fixture.js') continue;
+  if (rel.startsWith('qa/probes/') && MANIFEST.includes(path.basename(rel))) continue;
+  const src = fs.readFileSync(abs, 'utf8');
+  if (/linear-set-status|linear-add-comment|linearCalls\s*\(/.test(src)) scanned.push(rel);
 }
 const tracked = Object.keys(OUTSIDE_MANIFEST).sort();
 const found = scanned.sort();

@@ -14465,7 +14465,18 @@ affected and owed:
 | `qa/probes/cal_linear_deep.js`, `qa/probes/sxr_linear_deep.js` | one present-assertion each; the rest of both files already asserts zero |
 | `qa/ef-writepath/10-status-linear.js`, `qa/ef-writepath/12-samples.js` | the ef-writepath harness, which this session could not run |
 
-`qa/ef-writepath/13-settings.js` asserts NO push and is correct as it stands.
+`qa/ef-writepath/13-settings.js` asserts NO push and is correct as it stands, as
+do the two harness plumbing files. A tenth file,
+`qa/boot/client-entry-sequence.js`, records legacy queue writes deliberately: it
+is the fully synthetic boot harness, it serves its own flag rows rather than the
+production roster fixture, and its subject is the resume lease and the BFCache
+stale release rather than routing — the writes it records are the outbox
+drain's, which item 175 pinned as NOT flipped.
+
+**The first version of this scan missed that tenth file**, because it walked
+three hard-coded directories instead of the tree: a guard that only looks where
+its author looked, which is the same defect one level up from the one it exists
+to prevent. It walks `qa/` recursively now.
 
 That list is pinned in the suite as a tracked set: the test fails if a new file
 joins it OR if one leaves without its line being deleted. The point is not that

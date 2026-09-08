@@ -2,6 +2,84 @@
 
 All times are UTC unless noted.
 
+## 2026-09-08 — Deployed: workload-plan native snapshot, verified live
+
+**The redeploy that yesterday's outage earned.** `workload-plan` deployed by the
+owner from the exact SHA `d4b2365eab03302b88953a63a610399643fc71ec` on branch
+`claude/lx-a-workload-native`, with `--no-verify-jwt`, per
+`docs/ops/EF_DEPLOY_MANIFEST.md:58` (NO CI DEPLOY PATH, deliberate-manual).
+Five assets uploaded including `native-snapshot.mjs`.
+
+**Verified two ways, which is the whole point of this entry.**
+
+1. *Which code is live.* POST `{"action":"native_snapshot"}` returned **401**.
+   Action validation runs before auth, so a 401 proves the isolate recognises
+   the action; the pre-incident function answered `400 invalid_action`.
+2. *Whether it works.* The owner opened the Workload board and read it. Every
+   pill carries a real date and a real editor. No "Deadline fallback" anywhere,
+   across five day columns and every team on screen.
+
+**The second check is the one that matters and it is the one that was skipped
+before.** Yesterday CI was green on nine checks and the board was blank for
+every editor. A person looking at the surface is not a formality here; it is
+the only evidence that has ever caught this class of failure.
+
+**Preconditions, both met before the deploy rather than after.**
+`workload_native_snapshot_v1()` had already answered whole (`ok`, `complete`,
+`count` = `rows_len` = 6450, both teams `syncview`), and the drifted-plan census
+was re-run and returned the same six rows as 2026-09-07 — unchanged, so nothing
+regressed in the interval. Those six saved work days are now DROPPED rather than
+fatal: the board paints, and six days are missing instead of all of them.
+
+**One process note worth keeping.** Three deploys ran in sequence. The middle
+one was issued from `main`, which does not carry `native-snapshot.mjs`, and it
+briefly restored the pre-incident function (visible in the CLI output as four
+assets uploaded instead of five). The third deploy, from the exact SHA, is the
+one that stands. Net state is correct and the intermediate state was simply the
+previously working code, but it is a reminder that **the SHA in the checkout is
+the whole safety property** of a deliberate-manual lane.
+
+**Rollback**, unchanged and unused: the same command run from `main`. The applied
+migrations are additive and were not reversed.
+
+## 2026-09-08 — Applied, recorded late: the two Workload native migrations
+
+**Recorded after the fact, which is the whole point of this entry.** Both
+migrations below were applied to production and neither was logged here. The
+omission had a real cost: `docs/independence/LINEAR_EXIT_BRIEF_A.md` inferred
+from their absence in this file that the view had never been applied, and told
+lane A and the owner to apply it, which would have spent an owner migration
+window re-doing installed work. **Absence from this log is absence of a record,
+not absence of the change**, and this file is the deployment ledger a future
+session will consult first.
+
+- **`migrations/2026-09-02-workload-native-view.sql`** — applied on an unrecorded
+  date before 2026-09-07. Creates the read-only view
+  `public.workload_issues_native_v1` and grants select to anon and authenticated.
+  Writes nothing, drops nothing, re-running is a no-op (the file says so at
+  :28-29). Discovered applied by measurement, not by record: OPEN_REPAIRS 176
+  read it live over REST while the n8n Workload reconcile was still running.
+- **`migrations/2026-09-05-workload-native-membership.sql`** — applied by the
+  owner on 2026-09-07, in the window before the `workload-plan` deploy that
+  caused that night's outage. Creates three SECURITY DEFINER functions
+  (`workload_native_snapshot_v1`, `workload_native_plan_target_v1`,
+  `workload_native_plan_set_v1`), `service_role` execute only, revoked from
+  public/anon/authenticated. No table, row, flag, or grant on an existing object
+  changed.
+
+**Proof both are live, taken 2026-09-08 in the SQL editor.** `select
+public.workload_native_snapshot_v1()` returned `ok=true`, `complete=true`,
+`contract=workload-native-snapshot-v1`, `count=6450`, `rows_len=6450`,
+`plans_len=262`, `authority={"video":"syncview","graphics":"syncview"}`. The
+function is from the membership migration and it reads the view, so one answer
+establishes both. `count` equalling `rows_len` says the snapshot is whole rather
+than truncated.
+
+**Nothing was deployed or reverted by this entry.** It is a record of state that
+already existed. The outage of 2026-09-07 was caused by the `workload-plan` Edge
+Function deployed alongside these, not by either migration; both are additive and
+neither was rolled back when that function was. OPEN_REPAIRS 176, 177 and 178.
+
 ## 2026-09-08 — Built: Create Post explains itself once, in a receipt, instead of four times
 
 Owner, on the dialog as it stood: *"I just want to make this create post menu more UI

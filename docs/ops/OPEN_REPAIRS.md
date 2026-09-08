@@ -14838,3 +14838,36 @@ programme is roughly **55-60% complete** toward "staff and clients work without
 Linear, and the account can be cancelled safely"; the source work is near 80%
 and the execution work near 25%. The next session's first job is a health check,
 not more building — see `docs/independence/LINEAR_EXIT_HANDOFF.md`.
+
+### Addendum, 2026-09-08 03:40 — the skipped gate, run at last, and it passes
+
+The owner ran `public.workload_native_snapshot_v1()` in the SQL editor. This is
+the step that was skipped before the deploy that caused the outage, and it is now
+taken:
+
+```
+ok=true  complete=true  contract=workload-native-snapshot-v1
+count=6450  rows_len=6450  plans_len=262
+authority={"video":"syncview","graphics":"syncview"}
+```
+
+`count` equals `rows_len`, so the snapshot is whole rather than truncated;
+`complete=true` and the contract string is the expected one; both teams read
+`syncview`, which is the authority flip already being live. **The first of the
+two gates on PR #1344 is satisfied**, and it cost twenty seconds of an owner's
+time, which is the whole argument for running it before a deploy rather than
+after an incident.
+
+**What it does not answer, stated so nobody reads more into it than it says.**
+This is the Postgres RPC. The drop-instead-of-fail projection that both caused
+and then fixed the outage lives in
+`supabase/functions/workload-plan/native-snapshot.mjs`, runs in Deno over these
+rows, and is covered only by unit fixtures. So the open question is how many of
+the 262 plans that projection drops. The step-1 SELECT of the repair in item 177
+answers it; this query cannot.
+
+Item 176 measured 5,056 active task rows in `workload_issues_native_v1` on
+2026-09-07 against 6,450 snapshot rows here. The two are different populations
+(that measurement filtered to active task rows; this is the whole snapshot
+envelope), so the numbers are not comparable and neither refutes the other. Noted
+because a future reader will otherwise try to reconcile them.

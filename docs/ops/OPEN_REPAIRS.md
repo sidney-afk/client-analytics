@@ -15200,3 +15200,43 @@ from what its referent actually does. A selector, a function count, a byte
 count, four absence claims. The clipped text was never the hard part; the
 verification was, and this entry is the record of getting that wrong repeatedly
 and only catching it under review.
+
+### SELF-AUDIT of the remaining `undo:` scope claims, prompted by the third correction
+
+Rather than wait for a third review round to find the next one, I swept every
+restored `undo:` in the six briefs against the one question the last two rounds
+kept answering: **does the scope, selector or object list this sentence asserts
+match what its referent actually does?** Prose was not the target; scope was.
+
+Verified and already correct, each against the file it names: brief B's manifest
+undo (RLS and grants as stated), its composed-artifact undo (the epoch-read and
+component-fill signatures), its reconcile undo (eight RPCs, three helpers, table,
+index, two triggers), its label undo (the 09-06 object set plus the added
+column), its assignment undo (five functions, not three); brief C's closure
+restore and both n8n version restores; brief F's cutoff undo (seven functions,
+found earlier) and its activation undo.
+
+**One real gap found and fixed: brief E's bucket-limit undo.** Two problems, both
+of the same kind the reviews have been finding.
+
+1. Its load-bearing claim — "objects already stored above the old limit stay
+   readable; the limit only gates new writes" — was inherited from the clipped
+   fragment and my marker cited the migration, `policy.mjs` and the test, none of
+   which establish it. The actual source is **item 173 point 2 of this very
+   file**, which states it in the same parenthetical that supplies the undo. Now
+   cited. A restoration that cites the wrong source is not verified, however true
+   the sentence happens to be.
+2. **Reversing E4 is three constants, not two.** Item 173 says the change is "one
+   statement plus two constants" and names `MAX_DIMENSION = 8000` as one that
+   "would have to move with it or large captures still refuse". My line carried
+   the bucket row and `MAX_BYTES` only. `test/description-image-upload.js` pins
+   `MAX_BYTES` (:169) and the migration's `file_size_limit` (:170), so CI catches
+   a half-reversal of those two and would NOT catch a stranded `MAX_DIMENSION`.
+   The line now names all three and says the test does not cover the third.
+
+The sweep's own lesson, which is narrower than the last two and more useful: **a
+citation is part of the claim.** Two of the three defects the reviews found were
+sentences whose stated source did not contain the thing being stated, and this
+one was a third. When a restored line's marker names files that do not settle its
+load-bearing sentence, that is the tell, and it is greppable in a way "is this
+sentence true" is not.

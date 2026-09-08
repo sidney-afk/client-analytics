@@ -138,7 +138,7 @@ six sessions will be finished.
 | P4 | **STEP 0's census has been read by a human** | You cannot classify debt you have not counted. **Gates STEP 3**: after outbound goes off the queue stops being consumed, so whatever the census would have shown you is what you are freezing in place. *(Added 2026-09-08 — this row named no step, the only precondition in the table that gated nothing. A precondition no step references is decoration, and the reader who notices that is entitled to conclude the same about its neighbours.)* | owner |
 | P5 | Lane B has removed production-write's Linear call sites | Only gates STEP 7, not the earlier steps. See STEP 7. | coordinator |
 | P6 | **The Linear-dead rehearsal has been RUN and its result form completed** | `docs/audits/2026-09-15-linear-dead-rehearsal.md`, four pinned runs (R11). **Gates STEP 3 and the nightly flip in STEP 6.** *(Added 2026-09-08: the rehearsal was this lane's answer to "does the app survive Linear being unreachable" and no step required it — the same defect as P4, in the deliverable the session brief called the thing that converts the deadline from a hope into a test.)* **It also protects the monitoring estate:** `samples_e2e_nightly` and `calendar_e2e_nightly` are REGISTERED dead-man lanes (`monitoring-watchdog.js:135-138`, `max_age_minutes: 2160`). Flip them to dead mode before the rehearsal has proven the app survives it and they fail nightly — latching `failing` and emailing a red run every day, which is precisely the harm this lane's part 1 (#1348) existed to remove for the four Linear-credentialed lanes. Doing it in the wrong order re-creates it with two different lanes. | owner |
-| P7 | **With Linear dead, on the TEST client `sidneylaruel`, EIGHT write surfaces SUCCEED — and refusing cleanly is a FAIL, not a pass** | (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee **after** the flag flip, (8) a **client-link** submission. **Any subset, or any of them refusing cleanly, is a FAIL.** *(Handed to this lane by the coordination lane and accepted 2026-09-08; `LINEAR_EXIT_MASTER_SEQUENCE.md` states outright that its own entry gate is "a note in a coordination document rather than an enforced precondition" until this runbook carries it, because **the operator at cutoff time has this file open, not that one.**)* **Why this is not what P6 already asks.** P6 requires the rehearsal to have been RUN. It does not require these surfaces to WORK — and my result form R1-R12 covered reads plus two writes, so **a rehearsal in which every intake path refused cleanly would have completed the form and been read as a pass.** On the intake paths, failing cleanly is the defect, not the proof: post creation, Samples/SXR intake, staff submission and component fill all read Linear through `production-write`, and none of the held PRs changes that file. **`projectForIntake` alone does not cover it** — `parentRouteForAppend` reaches `validateLinearBatchParent` independently, at `handleComponentFill:6038` (seven args, `validateExternal` defaults `true`) and `handleIntakeCreate:6701`/`:6721` (eight args, `!exactRowRetry`), which is why 3b and 4 are separate rows. | owner |
+| P7 | **With Linear dead, on the TEST client `sidneylaruel`, EIGHT write surfaces SUCCEED — and refusing cleanly is a FAIL, not a pass** | (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee **after** the flag flip, (8) a **client-link** submission. **Any subset, or any of them refusing cleanly, is a FAIL.** *(Handed to this lane by the coordination lane and accepted 2026-09-08; `LINEAR_EXIT_MASTER_SEQUENCE.md` states outright that its own entry gate is "a note in a coordination document rather than an enforced precondition" until this runbook carries it, because **the operator at cutoff time has this file open, not that one.**)* **Why this is not what P6 already asks.** P6 requires the rehearsal to have been RUN. It does not require these surfaces to WORK — and my result form R1-R12 covered reads plus two writes, so **a rehearsal in which every intake path refused cleanly would have completed the form and been read as a pass.** On the intake paths, failing cleanly is the defect, not the proof: post creation, Samples/SXR intake, staff submission and component fill all read Linear through `production-write`, and none of the held PRs changes that file. **`projectForIntake` alone does not cover it** — `parentRouteForAppend` reaches `validateLinearBatchParent` independently, at `handleComponentFill:6065` (seven args, `validateExternal` defaults `true`) and `handleIntakeCreate:6746`/`:6766` (eight args, `!exactRowRetry`), which is why 3b and 4 are separate rows. | owner |
 | P7a | **`write_ui_reroute_clients` read LIVE, and equal to the current writer rosters** | Entry-gate row 0. **Without it every one of P7's eight can pass on TEST while real clients still take the legacy lane.** The two live-state docs disagree — `BRIEFING.md` says the full roster, `ROLLBACK.md` says TEST plus wave 1, two real clients — and **nothing else resolves it.** Neither document's written value substitutes for the live read. | owner |
 | P7b | **THREE read checks, each defeating its cache** | (a) the **Workload board** read with Linear dead **against known-changed data** — "freezes rather than empties" is the failure mode, so a board that looks fine is not evidence; (b) the **Editors subtab** after an **explicit Refresh** — `_kasperLoadEditors(false)` hits `_kedLoadEditorsCache()` and returns **with no network call at all** on a hit; (c) **tweak comments** in a browser where that row's comments were **not fetched in the last five minutes** — `wlFetchTweakComments` skips the fetch inside a 5-minute TTL. **Each also needs a correlated successful native request observed in the network panel: rendering is not evidence, the request is.** This is "failing cleanly is the defect" inverted — there the trap is reading a clean refusal as a pass, here it is reading a cached render as one. Both come from checking the surface instead of the path. | owner |
 | P7c | **The `send-urgent-slack` decision is RECORDED, either way** | It is shaped like a pure Slack write and resolves the issue's **current Linear assignee** to choose the mention, so it dies with the account and **no merged replacement exists**. The gate does not require a repair; it requires the owner's decision to exist in writing rather than be discovered on the day. | owner |
@@ -519,6 +519,22 @@ Revoke `LINEAR_MIRROR_API_KEY`, `LINEAR_API_KEY`, `LINEAR_READ_API_KEY`,
 removed and deployed first**, not two. The exit scoping says two; the adversarial
 review counted four and it is right about the helpers (OPEN_REPAIRS 165 point 3).
 
+> **⚠️ THESE LINE NUMBERS DECAY, AND THEY ALREADY HAVE ONCE.** PR #1361 merged
+> 2026-09-08 and moved `production-write/index.ts` by 89 lines; **ten of the
+> citations below shifted in a single merge** (`handleCreateOptions` 3335→3362,
+> `handleProductionCreate` 3523→3550, the `production_create_closed` throw
+> 3592→3619, the create-path Linear reads 3604/3605→3631/3632, the label snapshots
+> 4947→4974 and 5491→5518, component fill 6038→6065, the appends 6701/6721→6746/6766,
+> plus two in `index.html`). They are corrected here against `2c87a94`.
+>
+> **So read the SYMBOL, not the number.** Every citation names a function or a
+> literal precisely so it can be re-found: `grep -n 'function handleComponentFill'`
+> costs one command and cannot go stale. This is the failure OPEN_REPAIRS 181
+> records against `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`, where *every* line
+> number is now dead — it is not a hypothetical, it is what happens to this table
+> if nobody re-verifies it before acting on it. **Re-run the symbol greps at cutoff
+> time; do not trust these numbers.**
+
 **Say what is being counted, because "four call sites" was wrong and got fixed
 here on 2026-09-08.** There are **four HELPER FUNCTIONS that reach
 `api.linear.app`**, through **nine direct call sites**, depended on by **five
@@ -532,10 +548,10 @@ and this row used to give one figure for both:
 
 | Linear-reaching helper | direct call sites | code | staff-visible failure |
 |---|---|---|---|
-| `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`) | 3 — `:871`, `:918`, `:946` | 503 `label_catalog_unavailable` | cannot pick a label **on create** (`handleCreateOptions` `:3345`), cannot **read** a card's labels (`handleLabelsRead` `:4947`), and cannot **write** one on an existing card (`handleEntityOperation` `:5491`) — three surfaces, one helper. This row previously named only the first. |
+| `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`) | 3 — `:871`, `:918`, `:946` | 503 `label_catalog_unavailable` | cannot pick a label **on create** (`handleCreateOptions` `:3372`), cannot **read** a card's labels (`handleLabelsRead` `:4974`), and cannot **write** one on an existing card (`handleEntityOperation` `:5518`) — three surfaces, one helper. This row previously named only the first. |
 | `linearRead` (throws `:2325`, code default `:2285`) | 4 — `:2326`, `:2345`, `:2540`, `:2587` | 503 `project_mapping_validation_unavailable` | reaches via `readLinearProject` and `validateLinearBatchParent`. **The create path that used to head this row is CLOSED — see below.** |
-| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3604` | 503 `linear_team_mapping_unavailable` / 409 / 409 `status_mapping_unavailable` | **not staff-visible today**: its only call site is inside `handleProductionCreate`, below the `production_create_closed` throw — see below |
-| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead — **live**, reached from `handleAssigneeOptions` (`index.html:50116`), which is not behind the create gate |
+| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3631` | 503 `linear_team_mapping_unavailable` / 409 / 409 `status_mapping_unavailable` | **not staff-visible today**: its only call site is inside `handleProductionCreate`, below the `production_create_closed` throw — see below |
+| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead — **live**, reached from `handleAssigneeOptions` (`index.html:50122`), which is not behind the create gate |
 
 **WHICH OF THESE IS ACTUALLY STAFF-VISIBLE TODAY — corrected 2026-09-08, because
 this row overstated it.** Production create has been closed since the owner's
@@ -543,21 +559,21 @@ this row overstated it.** Production create has been closed since the owner's
 not reference each other**:
 
 - **Server:** `handleProductionCreate` throws `403 production_create_closed` at
-  `:3592`, which is **above** its Linear reaches at `:3604`/`:3605`. So that
+  `:3619`, which is **above** its Linear reaches at `:3631`/`:3632`. So that
   handler never touches Linear.
 - **Browser:** `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` as its
-  *first statement* (`index.html:53854`), above code the source labels *"kept,
+  *first statement* (`index.html:53860`), above code the source labels *"kept,
   unreachable, as the exact undo if the ruling is ever revisited"*.
 
 | surface | live today? |
 |---|---|
-| read a card's labels (`handleLabelsRead` `:4947`) | **YES** — no create gate on this handler |
-| write labels on an existing card (`handleEntityOperation` `:5491`) | **YES** |
+| read a card's labels (`handleLabelsRead` `:4974`) | **YES** — no create gate on this handler |
+| write labels on an existing card (`handleEntityOperation` `:5518`) | **YES** |
 | assignee picker (`handleAssigneeOptions` → `assigneeProviderPool`) | **YES** |
-| **component fill** (`handleComponentFill` `:6038`) | **YES** — reaches `parentRouteForAppend`, which calls `validateLinearBatchParent` → `linearRead`. That call passes **seven** positional arguments, so `validateExternal` takes its default `true`. |
-| **append into an existing batch** (`handleIntakeCreate` `:6701`, `:6721`) | **YES, and this is the COMMON CASE** — both pass **eight** arguments with `validateExternal = !exactRowRetry`, which is `true` on any normal append. Most posts join a batch that already exists, so this is the surface most staff hit most often. |
+| **component fill** (`handleComponentFill` `:6065`) | **YES** — reaches `parentRouteForAppend`, which calls `validateLinearBatchParent` → `linearRead`. That call passes **seven** positional arguments, so `validateExternal` takes its default `true`. |
+| **append into an existing batch** (`handleIntakeCreate` `:6746`, `:6766`) | **YES, and this is the COMMON CASE** — both pass **eight** arguments with `validateExternal = !exactRowRetry`, which is `true` on any normal append. Most posts join a batch that already exists, so this is the surface most staff hit most often. |
 | create a deliverable (`handleProductionCreate`) | **no** — server-closed above the Linear reach |
-| `create_options` (`handleCreateOptions` `:3345`) | **no, but only because the UI is disabled.** The handler itself has **no closure check** — it validates surface and goes straight to `linearLabelCatalog` + `mappedCreateAssignees`. It is a live endpoint behind a dead UI, and it becomes staff-visible the moment the create ruling is revisited. |
+| `create_options` (`handleCreateOptions` `:3372`) | **no, but only because the UI is disabled.** The handler itself has **no closure check** — it validates surface and goes straight to `linearLabelCatalog` + `mappedCreateAssignees`. It is a live endpoint behind a dead UI, and it becomes staff-visible the moment the create ruling is revisited. |
 
 **So anyone assessing reachability in this repo must check both halves.** One
 handler is unreachable because the *server* refuses; the other because the

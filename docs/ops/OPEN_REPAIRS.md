@@ -18500,3 +18500,34 @@ because the documents did agree. They were agreeing about the wrong question.
 **Running total: fifteen findings from sweeping my own documents and from other
 lanes reading them, plus this one — the first that no amount of internal
 consistency-checking could have surfaced.**
+
+**Addendum, 2026-09-08, after merging main (`2c87a94`) — the decaying-citation
+failure arrived on schedule, one merge after I wrote about it.** PR #1361 changed
+`supabase/functions/production-write/index.ts` by 89 lines. **Ten of this
+runbook's line citations shifted in that single merge:** `handleCreateOptions`
+3335→3362, `handleProductionCreate` 3523→3550, the `production_create_closed`
+throw 3592→3619, the create-path Linear reads 3604/3605→3631/3632, the label
+snapshots 4947→4974 and 5491→5518, component fill 6038→6065, the appends
+6701/6721→6746/6766, plus `_prodCreateGateText` 53854→53860 and the
+`assignee_options` caller 50116→50122 in `index.html`. Eighteen occurrences
+corrected against `2c87a94`.
+
+**This is exactly what OPEN_REPAIRS 181 records against
+`LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`** — *"not one range still points at its
+code"* — happening to a document written by a session that had read that finding
+the same day and used it as an example. The gap between knowing a failure mode and
+being subject to it is apparently one merge.
+
+**The fix is a convention, not a correction.** STEP 7's table now opens with a
+warning that these numbers decay, lists which ones already did, and instructs the
+reader to **read the symbol, not the number**: every citation names a function or a
+literal precisely so `grep -n 'function handleComponentFill'` re-finds it in one
+command. A line number is a cache of a lookup, with no invalidation; the symbol is
+the lookup itself. The numbers stay because they are useful when fresh, and are now
+labelled with the commit they were fresh at.
+
+**What this says about the cutoff, and it is the reason this is a ledger entry
+rather than a commit note:** the runbook will be read on a day when `main` has
+moved again, by an operator following it literally, on the surfaces that break
+clients. **Every `production-write` citation in it must be re-verified by symbol at
+cutoff time.** That instruction is now in the document rather than only here.

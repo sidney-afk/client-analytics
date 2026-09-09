@@ -6896,3 +6896,35 @@ still holding the value this repair wrote. Not exercised.
 now that the two columns agree, and the owner ruled to leave it that way rather
 than add a `retired_identifier` column, a browser-view migration and an adapter
 read. Recorded in OPEN_REPAIRS 161; that decision is now closed.
+
+## 2026-09-09 — the twelve seconds a native card spends unattributed (browser, copy only)
+
+An SMM reported a thumbnail he had just filed from the content calendar refusing
+every edit under "Client attribution needs repair", naming a client whose roster
+row and project mapping were both healthy.
+
+**Measured, live, read-only.** `deliverable_events` has the row created from the
+calendar at **19:28:29.255Z** (`action: create`, `source: ui`, `surface:
+calendar`) and the mirror stamping it `resolved` / `direct_project` at
+**19:28:41.440Z**: twelve seconds, with the right `client_slug` on the row the
+whole time. The browser projection reads the row resolved today;
+`scripts/attribution-stuck-check.js` puts it in no stuck bucket, and that client
+has zero live rows with a missing project or an unresolved stamp. Both ends were
+confirmed by running the shipped `_prodResolveAttributions` out of `index.html`
+against the live row: `resolved` / `direct_project` as it stands, and
+`needs_attribution` / `no_mapped_project_or_explicit_classification` with its
+mirrored fields stripped.
+
+**Cause.** Native creation writes the deliverable row first and mirrors it into
+Linear after, and the resolver reads only the mirrored fields, never the
+`client_slug` column SyncView itself wrote. The gate was right for those
+seconds; its wording was not.
+
+**Shipped: copy only.** The syncing shape now reads "Syncing to Linear" in the
+neutral muted key. No verdict, gate, read, or authority path moves; the write is
+still refused. Ledger OPEN_REPAIRS 187, parity WIRED-PARITY 2026-09-09.
+
+**Left open, owner call.** Attribution still ignores the row's own
+`client_slug`, so a mirror that fails outright rather than lagging leaves a card
+read-only until somebody notices. Measured the same day: **139 live rows** carry
+no `raw_project_id`.

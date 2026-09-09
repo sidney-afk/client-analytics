@@ -18319,6 +18319,295 @@ debugging a future failure would have read it and set about restoring the
 mechanism this PR deliberately removed. It now states the ten-minute batch
 staleness as the ACCEPTED behaviour rather than a gap to close.
 
+## 184. [2026-09-09] The archive was re-downloaded six times an hour, and a background tick could land mid-keystroke
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `184`. **This one is the archive re-download and background-tick finding (2026-09-09, main).** The other `184` is the Linear exit's record of the two native write gateway review findings (2026-09-08, coordinator lane). Concurrent branches claimed the same number and neither was renumbered, for the same reason the `175`/`176` and `182`/`183` pairs were not: these numbers are already cited in commit messages and PR comments that cannot be edited. **Cite these by DATE and subject, never by number alone.**
+
+Owner-approved follow-up to item 182, from the same report ("as fast and as
+smooth as it can be"). Two independent changes, both browser-only.
+
+**The archive.** `_prodLoadTerminalTail` read every terminal row on every full
+reconcile. Measured live 2026-09-09 against the deployed backend: **4,098
+terminal rows**, 182 KB compressed per page of 1,000, **five strictly
+sequential pages**, so ~0.9 MB and several seconds. `PROD_FULL_RECONCILE_MS` is
+ten minutes, so an open tab re-downloaded the finished work **six times an
+hour** — roughly 43 MB across an eight-hour day, for rows that by definition
+are not moving.
+
+It never needed that cadence. The 30-second delta reads `updated_at >=
+watermark` with **no status filter**, so a row that CHANGES — including one that
+has just become approved or posted — already arrives on the next tick. The only
+thing a full re-read adds is convergence for a hard DELETE, which no watermark
+read can see. So the full pass survives at `PROD_TERMINAL_FULL_MS` (one hour),
+on the first tail of a projection, and on anything the reader asked for (boot
+and Refresh both reach `_prodLoadData` non-silently); the ten-minute reconcile
+takes a watermarked read instead.
+
+Two details that are easy to get wrong and are pinned in
+`test/prod-terminal-tail-and-busy-guard.js`:
+
+- The watermark is over the **terminal rows only** (`_prodTerminalWatermark`).
+  The whole-projection watermark is almost always newer, because the live half
+  moves constantly, and using it would skip the very rows this is for.
+- The incremental read **updates in place** (`_prodMergeDeliverableRows`). The
+  full read may append only ids it has never seen, because the live half it
+  joins is the fresher of the two; this read is the opposite — every row it
+  returns moved *after* the copy held here.
+
+**The tick, while someone is typing.** `_prodRefreshBusy` already deferred a
+background tick for an open menu layer and for an in-flight write. It did not
+defer for a caret in a field. `_prodRender()` rebuilds `#prodRoot` wholesale, so
+a tick landing mid-keystroke replaces the node being typed into and takes the
+caret and selection with it; the board's own filter and search inputs had
+nothing protecting them at all. Workload has guarded its search input this way
+since it shipped and Calendar defers on the same condition. Scoped to the board,
+so a field focused on another surface cannot freeze this one.
+
+### 184a. The correction that cost two browser-gate runs
+
+The first draft added a SEPARATE mechanism: a `_prodIsBusy` / `_prodRenderWhenIdle`
+pair that did the read and deferred the *paint*, and it routed the
+batch-description arrival through it. That starved the arrival: the description
+panel's editor is focused as a matter of course, so the repaint that panel was
+waiting for never landed. `inplace_link` in the mocked browser gate timed out
+twice, passed on `43b1455`, and passed again the moment the guard alone was
+neutered — which is how it was narrowed to that one line.
+
+Two rules came out of it, both now pinned:
+
+1. **A repaint that IS the answer to a read the visible panel asked for must
+   never be deferred.** Deferral is for UNSOLICITED repaints landing on a reader
+   who is mid-interaction.
+2. **Extend the guard that exists rather than adding a second one.** The draft
+   duplicated the menu-layer check that `_prodRefreshBusy` already performed,
+   which is how the two mechanisms could disagree about what "busy" meant.
+
+Also recorded because it was stated wrongly to the owner first: Production was
+**not** unguarded. Menus and in-flight writes were already covered, and
+`_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
+was the one real gap.
+
+### 184b. The incremental read was a no-op, and the test could not see it
+
+Codex on #1366, P2, and it was right about both halves.
+
+`_prodLoadData` replaces `_prodState.deliverables` with the **live-only**
+`PROD_LIVE_FILTER` result and only afterwards calls `_prodLoadTerminalTail`. So
+by the time the tail computed `_prodTerminalWatermark()` there were no terminal
+rows left to compute it from: the watermark was always `''`, the filter fell
+back to the unwatermarked `PROD_TERMINAL_FILTER`, and the browser downloaded
+all 4,098 rows on every reconcile exactly as before. **The change did nothing,
+and every test passed.**
+
+It could not be fixed by moving the watermark alone. An incremental read cannot
+rebuild the archive, so if phase one drops the finished rows there is nothing
+for phase two to add to. The archive has to survive phase one instead:
+
+- `_prodTerminalTailFullDue(silent)` decides the mode **before** the projection
+  is replaced, and the same value is handed to the tail rather than re-derived
+  there. One rule, one place.
+- `_prodCarryTerminalRows(live, previous)` carries the finished rows across the
+  replacement when the next tail is incremental, with the **live half winning
+  every collision** — a row that just left a terminal status appears in `live`
+  with its new value, and the held copy is by definition older.
+- On a full pass nothing is carried, so the full read's fresh rows are not
+  shadowed by held copies. Boot and Refresh are always full passes, so the
+  two-phase boot is byte-for-byte what it was.
+- The in-memory carry cannot grow the cache: `_prodCacheProject` already drops
+  terminal rows before writing.
+
+**The test lesson is the sharper one.** `test/prod-terminal-tail-and-busy-guard.js`
+seeded terminal rows straight into its sandbox and called the tail, so it
+exercised the reader in a state the real caller never produces. It asserted the
+mechanism worked while the mechanism was disconnected. A unit test that
+constructs its own preconditions proves the function, not the feature; where a
+caller establishes the precondition, the test has to establish it the same way.
+The suite now runs the phase-one replacement first and asserts the watermark
+survives it, and pins that the decision and the carry both precede the
+replacement.
+
+### 184c. A late incremental tail could revert a row that had moved on
+
+Codex on #1366, second round, P2, and also right.
+
+`_prodMergeDeliverableRows` replaces a held row whenever the incoming
+`updated_at` *differs* — it never checks that the incoming one is NEWER. That is
+safe for the 30-second delta, whose watermark is the maximum over the whole
+projection, so no response it returns can predate a row already held. It is not
+safe for the incremental tail, whose watermark is the **archive's** (routinely
+older than any live row) and whose read spans several seconds across pages.
+
+The case that bites is a row **leaving** the archive. The tail selects it while
+it is still `approved`; a delta tick or a user write moves it to `in_progress`
+while the read is in flight; the late response reverts the row's status in the
+open tab until a later refresh — and someone can then act against that stale
+state, which is the same shape as the reverts item 101 exists for.
+
+`_prodDropSupersededRows(rows, previous)` filters the tail response against the
+copies currently held before the merge sees it. An identical stamp is kept (a
+same-second echo is not stale), and a row with no parseable stamp on either
+side is kept, because absence of proof that it is stale is not proof. The full
+pass needs none of this: it appends only ids it has never seen, so it cannot
+overwrite anything.
+
+Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
+merge refuse older rows would be a no-op for the delta by the argument above,
+so it would buy nothing there while quietly changing the contract of the path
+that every write already depends on.
+
+## 185. [2026-09-09] The pixel lane has been red for ten days without naming a single failing check
+
+`production-polish-heavy` has failed on `main` on every run since 2026-08-30,
+and every one of those runs reported the same public line:
+
+```
+Production heavy gate failed at: Production pixel parity [error_generic]
+```
+
+Nobody has looked at it, which is the correct response to a message that says
+nothing. **The block was never the divergence; it was that the divergence could
+not be seen.**
+
+`pixel-wired.js` throws `${gaps.length} pixel parity gap(s) found` and prints
+each gap to stderr. A gap's `message` is live-derived — computed CSS values,
+element counts, console text — so it stays on the ephemeral runner by design in
+a public repository, and nothing in the thrown message matched a classifier
+signature, so `classifyFailure` fell through to the error-type fallback.
+
+A gap's `state` is a different kind of thing: every one is a **string literal at
+its call site in that same public file** (plus the two `<theme> palette` labels
+built from its own closed theme list). So the labels can be published while the
+messages cannot. `pixel-wired.js` now emits them on a `PIXEL_WIRED_FAILED_STATES`
+marker line, and the gate matches each against `PIXEL_WIRED_STATES`, harvested
+from pixel-wired.js's own source, before emitting `pixel_wired:topbar+icons`.
+
+This is the mechanism the behaviour lane already uses (`BEHAV_WIRED_CHECKS`,
+item 125, which records the identical blackout and the identical fix), reused
+rather than reinvented, including the 24-name cap so a wide breakage summarises
+instead of dumping.
+
+Two properties are pinned in `test/pixel-parity-failure-is-nameable.js`, and the
+second matters more than the first:
+
+1. A known label is published.
+2. **A label that is not a literal in pixel-wired.js is dropped entirely** —
+   tested by feeding the matcher a fabricated client name and asserting it
+   produces nothing, and by asserting a known label beside an unknown one
+   publishes only the known one. The marker is also built from `state` only,
+   never `message`, and that is asserted against the source.
+
+**This makes the failure diagnosable. It does not fix it.** Whatever `main` is
+actually diverging on is still diverging; the next run will simply say which
+part. That is the prerequisite for anyone doing something about it.
+
+## 186. [2026-09-09, FIXED in `production-write`; NEEDS A SECTION 4 DEPLOY] A client whose approve had already landed was told, permanently, that her account was not permitted to approve
+
+**Reported by the owner from a client's screenshot**: the dialog said *"Your
+account is not permitted to make this change on this item. Retrying will not
+change that — ask an SMM or the owner to make it, quoting this code"* with
+`operation_forbidden`, on a card she was trying to approve. It was not a
+permission problem, no SMM could have helped, and the retry advice was correct
+only by accident: the row was already sitting on the exact status she was
+asking for.
+
+**MEASURED, one active client slug, card `p_mrb65aeu_cjq0m`, 2026-09-09.**
+
+| Where | What it says |
+|---|---|
+| `deliverable_events` 19:18:09 | `status_change`, role `client`, `client_approval → approved`, source `ui` |
+| `deliverables` (video) | `approved`, `status_at` 19:18:12 |
+| `calendar_posts` | `video_status` = **`Client Approval`**, `client_video_approved_at` = **null** |
+
+Her approve **committed server-side**. The source row never followed. The
+client Review tab reads the sheet, not the canonical row, so the card kept
+showing "Awaiting your approval" with a live Approve button — and every click
+after 19:18 asked `approved → approved`.
+
+**The refusal.** `clientOperationAllowed` (`policy.mjs`) admitted a client
+status write only when the CURRENT status was one a client may act from
+(`client_approval` or `tweak`). A no-op — the row already on the value asked
+for — fell through to the same `403 operation_forbidden` as a client trying to
+jump a row out of `kasper_approval`, and `WRITE_UI_FAILURE_CODE_CLASS` maps
+that code to the `access` class, whose text is the accusation above. So a
+half-committed write presented itself to a paying client as a permission
+problem, permanently, with no path out that did not involve staff.
+
+**The fix (this PR).** The no-op is admitted. A client can still only ever name
+`approved` or `tweak` — `CLIENT_STATUSES` is checked first and unchanged — and
+the new arm fires only when the row already holds the value requested, so
+nothing previously unreachable becomes reachable; the write is idempotent by
+construction. What it buys is **self-healing**: the retry now succeeds, the
+source-row upsert behind it runs, and the sheet catches up on the client's own
+next click. `tweak → tweak` was already admitted by the transition arm; only
+the `approved` case was stranded.
+
+**What this does NOT fix, and it is the deeper item.** *Why* the
+`calendar_posts` write did not follow its own committed gateway write at
+19:18 is not established here. The gateway leg is acknowledged and the source
+leg is not, which is precisely the shape `_writeUiRetrySourceAt` /
+`checkpointCommittedSource` exist to hold — so either the checkpoint did not
+take or the rollback in `_calReviewApplyApprove` ran anyway. Worth noting that
+per item 101 a refused write leaves no server-side trace, so the browser-side
+half of this is only recoverable from the client's own `localStorage` ring, in
+her browser, which we do not have. **The client-visible symptom is closed; the
+half-commit is not.**
+
+**Live blast radius at the time of writing**: one card on one slug (one
+component, video). Any client on any slug whose approve half-commits lands
+in the same trap until this deploys.
+
+---
+---
+
+## 187. [2026-09-09, FIXED — copy only] A card SyncView had just created said "Client attribution needs repair" for the twelve seconds before Linear answered
+
+An SMM reported that a thumbnail he had just filed from the content calendar
+refused every edit and accused the client of a broken mapping. The client was
+fine. The report was a race with our own mirror, dressed as a data defect.
+
+**Measured on the live row.** `GRA-7437` / `del_56236b60…`, graphics, an active
+roster client. `deliverable_events` has it created from the calendar at
+**19:28:29.255Z** (`action: create`, `source: ui`, `surface: calendar`) and the
+mirror stamping it at **19:28:41.440Z**: twelve seconds. The stored row carried
+the right `client_slug` throughout, and the browser view read
+`raw_attribution_state: resolved` / `direct_project` on the far side of the gap.
+`attribution-stuck-check.js` reports the row in no stuck bucket, and the client
+has zero live rows with a missing project or an unresolved stamp.
+
+**Mechanism.** Native creation writes the deliverable row first and mirrors it
+into Linear after. `_prodResolveAttributions` derives the client from the
+MIRRORED fields only — the row's own Linear project, then its ancestors, then
+the persisted stamp — and never from the `client_slug` column SyncView itself
+wrote at creation. So before the mirror answers there is no evidence at all and
+the row resolves `needs_attribution` / `repair_required`. Run against the live
+row with its mirrored fields stripped, the shipped resolver returns exactly
+that; run against the row as it stands, it returns `resolved` / `direct_project`.
+
+The gate was RIGHT for those twelve seconds — nothing had confirmed who owned
+the row — but it announced itself as a repair, so a transient sync read as a
+broken client and cost a round trip. **The fix is copy, not verdict.** A row in
+the narrow syncing shape (no persisted stamp, no project from any source, no
+Linear issue yet, and a stored slug that is a currently ACTIVE roster client)
+now reads "Syncing to Linear" in its chip, its notice, its side-card project row
+and its gate text, in the neutral muted key rather than the amber repair one.
+The write is still refused, the row still groups under the needs-attribution
+sentinel, and every other unresolved state — a stamp Linear invalidated, an
+unmapped project, a conflict, a slug that is not on the active roster — keeps
+the repair banner it has always had.
+
+`test/prod-attribution-sync-pending-copy.js` executes the real functions out of
+the shipped file and pins both halves: the softer wording for the syncing shape,
+and each of the six ways out of it keeping its own banner.
+
+**What this does NOT fix,** and is the owner's call: attribution still ignores
+the row's own `client_slug`, so if the mirror ever fails outright rather than
+lagging, the card stays read-only until somebody notices. Resolving a native,
+pre-mirror row from its stored active-roster slug would close that, and is a
+verdict change rather than a copy change. Measured today: **139 live rows**
+carry no `raw_project_id`, so this read path reaches further than the one card.
+
+- Done when: shipped (copy). The verdict question above stays open.
+
 ## 182. [2026-09-08, OWNER DECISIONS + THE PROGRAMME COMPARISON — the ledger entry the owner asked for by name] What Sidney decided on 2026-09-08 evening, and which exit programme wins
 
 > **⚠️ DUPLICATE NUMBER.** Two entries claim `182`. **This one is the Linear-exit owner-decisions and programme-comparison entry (2026-09-08, coordinator lane).** The other `182` is the SyncLinear slowness / boot payload finding (2026-09-08, PR #1364). Concurrent branches claimed the same number and neither was renumbered, for the same reason the `175`/`176` pair above was not: these numbers are already cited in commit messages and PR comments that cannot be edited. **Cite these by DATE and subject, never by number alone.**
@@ -18635,6 +18924,8 @@ would have arrived inside an unrelated PR, or been lost when that branch was for
 ---
 
 ## 184. [2026-09-08, lane LX-BUILD, FIXED and PUSHED] Two review findings on the native write gateway PR, one of which would have broken a live button by merging, and the disposable PostgreSQL 16 this container turns out to be able to run
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `184`. **This one is the Linear exit's record of the two native write gateway review findings (2026-09-08, coordinator lane).** The other `184` is the archive re-download and background-tick finding (2026-09-09, main). Concurrent branches claimed the same number and neither was renumbered, for the same reason the `175`/`176` and `182`/`183` pairs were not: these numbers are already cited in commit messages and PR comments that cannot be edited. **Cite these by DATE and subject, never by number alone.**
 
 **In one sentence for the owner: the last two problems Codex found on the big build PR
 (#1362) are fixed, tested and pushed, and one of them was a real "merging this would

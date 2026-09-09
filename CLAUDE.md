@@ -105,8 +105,17 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 ## Standing constraints
 
 - **The repo is PUBLIC.** No secrets, tokens, client display names or share-link
-  tokens in code, comments, commit messages, test fixtures or CI output. Client
-  **slugs** are fine; prefer counts over names.
+  tokens in code, comments, commit messages, test fixtures or CI output.
+  **Client slugs are NOT fine either** — this line used to say they were, and
+  that cost a red `identity-exposure` on #1371 on 2026-09-09. The gate
+  (`scripts/repo-identity-exposure-check.js`) checks the live roster's client
+  slugs alongside staff full names and fails on any slug a change ADDS, so a
+  slug in a code comment, a ledger entry or a test comment is a blocked merge.
+  Record the measurement by card/deliverable id and say "one active client
+  slug"; prefer counts over names. Run it before pushing:
+  `node scripts/repo-identity-exposure-check.js --diff="origin/main"` — it
+  reads the diff of your COMMITTED work, so commit first, and it prints file
+  counts only, never what it matched.
 - **Mutate only the test client `sidneylaruel`** unless the owner names another.
 - **Never edit an n8n workflow** without the owner's explicit go-ahead in that
   same request. They are production sales automation.

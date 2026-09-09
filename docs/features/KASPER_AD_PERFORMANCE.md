@@ -15,7 +15,10 @@
 > leads. The superseded revisions (`CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf`) are both archived. The
 > UI also gained a phone column (`tel:` link) next to email. See `ROLLBACK.md`'s "Kasper Ad
 > Performance panel" row for the exact current live state and `docs/truth/N8N.md` for the
-> workflow's current shape and the full bug writeup.
+> workflow's current shape and the full bug writeup. **2026-09-09:** the follow-up column was
+> corrected to show email and text status independently rather than as alternatives — both can
+> now legitimately be sent to the same lead. Pure display fix, no backend/table change. See the v3
+> section's dated update and `ROLLBACK.md` for the exact change. Merged via #1365.
 
 Read-only ad-performance dashboard for Kasper (the owner) inside his existing staff-only Kasper
 tab — daily Meta spend, landing page views, conversion rate, and cost-per-booking for his own
@@ -208,8 +211,20 @@ The panel adds an "Unfinished leads" section below "Booked leads" (kept separate
 merged into one table — the two carry genuinely different columns: a booking has `ad_name`/
 `call_date`/`cancelled`/HubSpot lifecycle stage, an unfinished lead has `iclosed_status`/
 `follow_up_due_at`/`email_sent_at`). Columns: captured date, name, email, phone (`tel:` link),
-status (Potential/Qualified), and a follow-up column showing "Email sent \<date\>" / "SMS sent
-\<date\>" / "Not yet — due \<date\>" depending on what the recovery pipeline has actually done.
+status (Potential/Qualified), and a follow-up column showing email and text status
+**independently**, not as alternatives — "Email sent \<date\>" and/or "Text sent \<date\>", each on
+its own line, or the per-channel due/pending state, depending on what the recovery pipeline has
+actually done for that channel.
+
+**2026-09-09 update — dual channel, not mutually exclusive.** The original v3 display treated
+`email_sent_at`/`sms_sent_at` as alternatives, as if a lead got one message or the other. Since
+2026-09-04 the recovery pipeline sends **both** an email and a text to every non-finisher who holds
+both an email and a phone (owner decision; see `docs/booking-recovery/README.md` in the
+`synchrosocial` repo), so a lead can legitimately have both timestamps set. `_kadUnfinishedLeadFollowUpHtml()`
+previously returned on the first truthy channel — `email_sent_at`, then `sms_sent_at` — so a lead
+who got both only ever showed "Email sent," silently hiding the text. Fixed to report each channel
+independently. No backend or table change: `kasper-ad-performance-read` already selected and
+returned `sms_sent_at`; this was a pure display bug. Merged via #1365.
 
 **n8n workflow id (live pull, v3):** rebuilt twice same-week. First as `CdCYzye6Khp6x5A6`
 (superseding `BKl9OFVMb4VS2IHf`) — the owner wired credentials on all 8 HTTP Request nodes

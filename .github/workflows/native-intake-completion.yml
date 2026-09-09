@@ -1,0 +1,50 @@
+name: Native intake safe completion
+
+# Source-only prepared lane. GitHub cron is best-effort and has no prompt
+# recovery SLO; a protected repository variable keeps mutation dormant until
+# the exact recovery SQL and its disposable proof have been accepted.
+on:
+  schedule:
+    - cron: '5,20,35,50 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-intake-completion
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NATIVE_INTAKE_COMPLETION_ENABLED: ${{ vars.NATIVE_INTAKE_COMPLETION_ENABLED || 'false' }}
+      NATIVE_INTAKE_COMPLETION_MAX_BACKLOG_AGE_SECONDS: ${{ vars.NATIVE_INTAKE_COMPLETION_MAX_BACKLOG_AGE_SECONDS || '3600' }}
+      NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED: ${{ vars.NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED || '0' }}
+      NATIVE_INTAKE_COMPLETION_CONFIRM: RECONCILE_NATIVE_INTAKE_APPLY
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Complete only proven-safe intake obligations
+        shell: bash
+        run: |
+          if [ "$NATIVE_INTAKE_COMPLETION_ENABLED" != 'true' ]; then
+            echo 'native intake completion is DORMANT; protected activation has not been enabled.'
+            exit 0
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo '::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing completion.'
+            exit 1
+          fi
+          node scripts/native-intake-completion/run.js --apply --strict --limit=100 \
+            --max-backlog-age-seconds="$NATIVE_INTAKE_COMPLETION_MAX_BACKLOG_AGE_SECONDS" \
+            --max-requests-owed="$NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED"
+      - name: Record completion scheduler heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=native_intake_completion --ok=${{ job.status == 'success' }}

@@ -35,6 +35,7 @@ const forbidden = Object.values(CANARY).flatMap(v => String(v).match(/CANARY_[A-
 
 function respond(name, mode) {
   if (mode === 'error') return { status: 500, body: CANARY.errorBody };
+  if (mode === 'malformed_summary' && name === 'production_intake_reconcile_summary') return { status: 200, body: JSON.stringify({ owed: {} }) };
   const bodies = {
     production_intake_reconcile_backlog: {
       items: [{ request_id: CANARY.request, client_slug: CANARY.client, surface: 'calendar',
@@ -176,6 +177,16 @@ function leaks(text) { return forbidden.filter(word => String(text || '').includ
     fs.rmSync(outsideDir, { recursive: true, force: true });
   } finally {
     server.close();
+  }
+
+  const malformed = await startServer('malformed_summary');
+  try {
+    const refused = await runCli(malformed.port, ['--limit=5'], {});
+    ok(refused.status === 1 && /^reconcile_protocol_summary\s*$/m.test(refused.stderr)
+      && leaks(refused.stdout).length === 0 && leaks(refused.stderr).length === 0,
+      'a malformed aggregate summary fails closed instead of becoming zero debt');
+  } finally {
+    malformed.server.close();
   }
 
   const failing = await startServer('error');

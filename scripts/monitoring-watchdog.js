@@ -242,6 +242,14 @@ const LANES = Object.freeze([
     hosts: ['workload-source-freshness.yml'], retired: null },
   { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
     hosts: ['outbox-debt-census.yml'], retired: null },
+  // Prepared native intake repair is dormant until the protected repository
+  // variable enables it. Both scheduled hosts still heartbeat while dormant;
+  // once enabled, a mutator and an independent read-only summary monitor give
+  // the watchdog two distinct failure signals. GitHub cron is best-effort.
+  { key: 'native_intake_completion', label: 'native intake safe completion', cadence: 'schedule 15m (best effort)', max_age_minutes: 120,
+    hosts: ['native-intake-completion.yml'], retired: null },
+  { key: 'native_intake_completion_monitor', label: 'native intake completion monitor', cadence: 'schedule 15m offset (best effort)', max_age_minutes: 120,
+    hosts: ['native-intake-completion-monitor.yml'], retired: null },
   /*
    * The admission gate is dormant until its explicit SQL activation RPC runs.
    * This lane starts before that activation and reports DORMANT as healthy;

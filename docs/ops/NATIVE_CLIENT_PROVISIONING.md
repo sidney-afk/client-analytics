@@ -8,4 +8,4 @@ The request id is idempotent only with the same canonical slug and display name.
 
 Do not log the display name or review token. The RPC response intentionally omits both. The receipt table is service-inaccessible and immutable; use approved, protected SQL inspection for operator diagnosis.
 
-This migration does not activate native intake completion monitoring. The completion runner remains a manual dry-run/apply tool. Before any operational use, an owner must install and verify the recovery SQL, establish an alert consumer for the runner’s bounded debt report, and document the authorized apply path. No automatic mutation schedule is included here.
+This migration does not activate native intake completion on its own. The prepared completion and monitor workflows remain dormant until the protected `NATIVE_INTAKE_COMPLETION_ENABLED` variable is deliberately enabled after SQL and disposable recovery proof. Their bounds and residual GitHub-schedule limit are in `docs/ops/NATIVE_INTAKE_COMPLETION.md`.

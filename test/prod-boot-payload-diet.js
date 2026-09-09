@@ -107,6 +107,10 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodRender: () => renders.push(1),
     Set, Map,
     _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchPartialRows: new Set(), projectionGeneration: 3, adapter: {} },
+    /* The owner now asks whether the batch it just loaded is what the reader is
+       LOOKING at before repainting; these two feed that question. */
+    _prodOpenRowId: () => '',
+    _prodIssue: () => null,
     _prodReadBatchDescriptionRow: async () => ctx.__answer(),
   };
   vm.createContext(ctx);
@@ -114,32 +118,40 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
     + ensureBatch + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
 
+  /* Ensure with the batch ON SCREEN. The owner repaints only for the batch the
+     reader is looking at, so a test that left the view elsewhere would assert
+     "repaints once" against a path that correctly repaints zero times. */
+  const ensureVisible = async (batchId, force) => {
+    ctx._prodState.view = 'batch';
+    ctx._prodState.openBatchId = batchId;
+    return ctx.ensure(batchId, force);
+  };
   ctx.__answer = () => ({ id: 'b1', description: 'the plan', updated_at: 't2' });
-  await ctx.ensure('b1', false);
+  await ensureVisible('b1', false);
   ok(ctx._prodState.batches[0].description === 'the plan' && ctx._prodState.batches[0].updated_at === 't2',
     'a successful read writes the column back onto the batch row the view renders');
   ok(ctx._prodState.adapter === null && renders.length === 1,
     'and invalidates the adapter and repaints exactly once');
 
-  await ctx.ensure('b1', false);
+  await ensureVisible('b1', false);
   ok(renders.length === 1,
     'TERMINATION: a row that already has the column does not read again, so render -> ensure -> render cannot spin');
 
   ctx._prodState.batches = [{ id: 'b2', updated_at: 't1' }];
   ctx.__answer = () => { throw new Error('boom'); };
-  await ctx.ensure('b2', false);
+  await ensureVisible('b2', false);
   ok(ctx._prodState.batchDescriptionReads.get('b2') === 'error' && renders.length === 2,
     'a failed read is remembered and repaints once');
-  await ctx.ensure('b2', false);
+  await ensureVisible('b2', false);
   ok(renders.length === 2, 'TERMINATION: and is not retried on every render');
   ctx.__answer = () => ({ id: 'b2', description: 'later', updated_at: 't9' });
-  await ctx.ensure('b2', true);
+  await ensureVisible('b2', true);
   ok(ctx._prodState.batches[0].description === 'later', 'but force (the Retry path) does read again');
 
   ctx._prodState.batches = [{ id: 'b3', updated_at: 't1' }];
   ctx._prodState.batchDescriptionReads.clear();
   ctx.__answer = () => { ctx._prodState.projectionGeneration = 99; return { id: 'b3', description: 'stale', updated_at: 't2' }; };
-  await ctx.ensure('b3', false);
+  await ensureVisible('b3', false);
   ok(!Object.prototype.hasOwnProperty.call(ctx._prodState.batches[0], 'description'),
     'an answer that lands after the projection moved on is discarded, not written onto a row from another generation');
   ok(!ctx._prodState.batchDescriptionReads.has('b3'),
@@ -228,6 +240,10 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
       batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
     },
+    /* The owner now asks whether the batch it just loaded is what the reader is
+       LOOKING at before repainting; these two feed that question. */
+    _prodOpenRowId: () => '',
+    _prodIssue: () => null,
     _prodReadBatchDescriptionRow: async () => ctx.__answer(),
   };
   vm.createContext(ctx);
@@ -405,6 +421,59 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(missing.length === 0,
     'every _prod* helper _prodLoadData calls is mirrored in the fast-paint sandbox'
       + (missing.length ? ' — MISSING: ' + missing.join(', ') : ''));
+}
+
+
+// ---- 5i. the owner repaints only for a batch someone is looking at ---------
+/* The single-owner redesign first repainted on EVERY completed read, for any
+   batch, open or not. A repaint rebuilds the surface, and the description editor
+   is a contenteditable — so a background read for an unrelated batch destroyed an
+   in-progress edit on the open row along with its caret and focus. The mocked
+   browser gate caught it twice at the step that hovers a link in a deliverable's
+   editor and expects focus back; the commit before the redesign passes that step
+   in the same sandbox, which is how it was told apart from the known flake there.
+   A real bug for anyone typing, not a test artifact. */
+{
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  ok(/const visible = \(_prodState\.view === 'batch' && String\(_prodState\.openBatchId \|\| ''\) === batchId\)/.test(owner)
+    && /openIssue\.syntheticBatchParent === true && String\(openIssue\.batchId \|\| ''\) === batchId/.test(owner),
+    'the owner repaints only for the direct batch view of THIS batch, or a synthetic parent of it');
+  ok(/if \(visible && document\.getElementById\('prodRoot'\)\) _prodRender\(\);/.test(owner),
+    '...and the visibility test gates the repaint rather than merely being computed');
+
+  const renders = [];
+  const ctx = {
+    Map, Set, String, Number, Promise, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => ({}) },
+    _prodRender: () => renders.push(1),
+    _prodOpenRowId: () => 'open-row',
+    _prodIssue: () => ({ id: 'open-row', syntheticBatchParent: false, batchId: 'other' }),
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 't1' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
+      view: 'detail', openId: 'open-row', openBatchId: '',
+    },
+    _prodReadBatchDescriptionRow: async () => ({ id: 'b1', description: 'x', updated_at: 't2' }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+
+  await ctx.ensure('b1', true);
+  ok(ctx._prodState.batches[0].description === 'x',
+    'a read for a batch nobody has open still writes its state');
+  ok(renders.length === 0,
+    'THE REGRESSION: but does NOT repaint, so it cannot destroy an in-progress edit on the open row');
+
+  ctx._prodState.batches = [{ id: 'b2', updated_at: 't1' }];
+  ctx._prodIssue = () => ({ id: 'open-row', syntheticBatchParent: true, batchId: 'b2' });
+  ctx._prodReadBatchDescriptionRow = async () => ({ id: 'b2', description: 'y', updated_at: 't2' });
+  await ctx.ensure('b2', true);
+  ok(renders.length === 1,
+    'and a read for the batch whose synthetic parent IS open does repaint, so the panel still fills');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

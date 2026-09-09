@@ -57274,7 +57274,23 @@
                 if (!stillCurrent()) { release(); return; }
                 _prodState.batchDescriptionReads.set(batchId, 'error');
             }
-            if (document.getElementById('prodRoot')) _prodRender();
+            /* Repaint ONLY when this batch's description is what the reader is
+               looking at. Repainting unconditionally rebuilt the whole surface
+               for a batch nobody had open -- and a rebuild replaces the
+               contenteditable description editor, so it destroyed an in-progress
+               edit on an UNRELATED row along with the caret and focus. Caught by
+               the mocked browser gate on #1364, twice, at the step that hovers a
+               link in a deliverable's editor and expects focus to come back:
+               40e9dda passes that step in the same sandbox, this did not.
+               The panel that delegated here does its own repaint afterwards, and
+               a batch nobody is looking at needs none -- the state is written
+               either way, and the next natural render picks it up. */
+            const openIssue = _prodState.view === 'detail' && _prodState.openId
+                ? _prodIssue(_prodOpenRowId())
+                : null;
+            const visible = (_prodState.view === 'batch' && String(_prodState.openBatchId || '') === batchId)
+                || !!(openIssue && openIssue.syntheticBatchParent === true && String(openIssue.batchId || '') === batchId);
+            if (visible && document.getElementById('prodRoot')) _prodRender();
         }
         async function _prodEnsureDescription(id, force) {
             id = String(id || '');

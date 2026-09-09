@@ -18032,3 +18032,40 @@ this PR passed while a read that could never terminate and a view that never
 loaded were both live. And when a second reader of the same row starts needing a
 token to coordinate with the first, the reader is the thing to remove, not the
 token to refine.
+
+### 182g. The redesign's own regression: a background read destroyed an open editor
+
+The single-owner collapse in 182f shipped with a defect the unit suite could not
+see, and it is the most user-visible thing found on #1364.
+
+`_prodEnsureBatchDescription` repainted on EVERY completed read, for any batch,
+open or not. `_prodRender` rebuilds the surface, and the description editor is a
+`contenteditable` — so a background read for an unrelated batch tore out an
+in-progress edit on the row the user actually had open, along with the caret and
+focus. Anyone typing a description while a batch read landed would have lost it.
+
+**How it was caught, which is the transferable part.** The mocked browser gate
+failed at `inplace_link` — hover a link in a deliverable's editor, apply an edit,
+expect focus back. That same step had genuinely flaked earlier in the session, so
+the tempting read was "known flake, re-run". It failed twice. The decisive test
+was not another re-run: it was checking out the PREVIOUS commit into a worktree
+and running the gate there in the same sandbox, where it passed. Previous commit
+green + this commit red twice = regression, not flake. A third re-run would have
+been a coin toss dressed up as evidence.
+
+The repaint is now gated on the batch being what the reader is looking at: the
+direct `?batch=` view of that batch, or a synthetic parent of it. The panel that
+delegates does its own repaint afterwards, and a batch nobody has open needs
+none — the state is written either way and the next natural render picks it up.
+
+**Two assertions in `prod-boot-payload-diet` had to be repaired with it**, and
+that is worth recording rather than quietly fixing: they asserted "repaints
+exactly once" while driving a batch that was NOT on screen, so under the correct
+behaviour they were measuring zero repaints and passing for the wrong reason.
+They now put the view on the batch under test. The regression itself is pinned in
+both directions — a read for an unopened batch writes state and does not repaint;
+a read for the batch whose synthetic parent is open still does.
+
+**The standing lesson for this surface:** a description read is a background
+operation, and a background operation must never repaint a surface that owns an
+editor unless its own result is on screen.

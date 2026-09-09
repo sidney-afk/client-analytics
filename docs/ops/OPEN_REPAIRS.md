@@ -13920,6 +13920,1133 @@ unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
 
+---
+
+## 171. [2026-09-07, BUILT, live on merge with no deploy and no migration; lane LX-C] Kasper's editor week, rebuilt off Linear — and the two ways a shaper corrupts a week without erroring
+
+Lane C's reserved ledger number. This entry covers the **editors-week** item
+only; the rest of lane C is tracked in the same PR body and will be appended
+here as it lands.
+
+**What changed.** `_kasperLoadEditors` POSTed the `editors-week` n8n webhook,
+which read Linear. It dies with Linear access on 2026-09-15. `_kedFetchNativeWeek`
+now builds the identical payload from `public.deliverable_events` — the
+status-transition ledger already installed and already anon-readable
+(`migrations/2026-07-06-b1-linear-data-model.sql`, table at line 87, anon select
+policy at line 683). **No migration and no Edge Function deploy is required**;
+this is live the moment `index.html` merges. The `EDITORS_WEEK_URL` constant is
+deleted and `docs/truth/ENDPOINTS.md` drops the row in the same commit, which is
+what `test/truth-sync.js` checks.
+
+Every `_ked*` consumer is **unchanged** — `_kedPaint`, `_kedRow`,
+`_kedSplitVideos`, `_kedVideoDeliveries`, `_kedVideoCourt`, `_kedWeekDateKeys`,
+`_kedStatusSlug`. The shaper emits the shape they already consume, so every
+number keeps the definition it had. That was the whole design goal: the owner
+said a simpler native version is fine, and the simplest version that is also
+*correct* is the one that changes no arithmetic.
+
+**THE TWO FAILURES THAT DO NOT ERROR.** Both are pinned in
+`test/editors-week-native.js` with counterexamples that go red against the naive
+shaper.
+
+1. **The dayKey must be an America/Chicago calendar date.**
+   `_kedVideoDeliveries` falls back to `String(t.at).slice(0,10)` — a **UTC**
+   date — when a transition carries no `dayKey`, but `_kedWeekDateKeys` builds
+   the seven bar buckets with `TZ = 'America/Chicago'`. Every delivery after
+   ~19:00 Chicago would land on the **next day's** bar, and Sunday-evening work
+   would fall outside the week's seven keys **entirely**: counted in the
+   headline totals, invisible in the bars, with nothing anywhere reporting a
+   problem. Kasper's week would silently shift a day.
+
+2. **`tweak` must be shaped to `Tweak Needed`.** `deliverables.status` uses
+   `tweak`; every `_ked*` predicate matches Linear's label. The raw value
+   matches neither `_kedIsTweakState` — so a tweak round is recounted as a
+   **first cut**, which is the exact split the headline row exists to show —
+   nor `_kedStatusSlug`, which needs `/tweak\s*needed/`, so the timeline strip
+   also loses its colour.
+
+**THE STATUS DOMAIN IS 13 VALUES, NOT 7.**
+`migrations/2026-07-06-b1-linear-data-model.sql` lines 39-41 is
+`check (status in (...))` over `triage, backlog, todo, in_progress,
+smm_approval, kasper_approval, client_approval, tweak, approved, scheduled,
+posted, canceled, duplicate`. The mapping was incomplete in **both** directions:
+`todo` and `backlog` already match `_kedIsWorkState` verbatim with no
+normalisation, and `triage`, `scheduled`, `canceled`, `duplicate` match no
+predicate at all — deliberately, since none of them is editor work.
+
+**Reads are paged.** The window routinely exceeds PostgREST's 1000-row default:
+measured 2026-09-07, the Aug 31 – Sep 6 window holds more than 1000
+`status_change` rows on its own. A truncated read is indistinguishable from a
+quiet week, so `_kedRestPage` pages and `_kedRestIn` chunks the `in.(…)` lists.
+
+**MEASURED AGAINST LIVE DATA, 2026-09-07** (read-only, publishable key, the same
+key and grouping the shipped code uses). Window resolved to
+`2026-08-31T05:00:00Z → 2026-09-07T05:00:00Z`, the seven bucket keys came out
+`2026-08-31 … 2026-09-06`, and **zero** `perDay` keys fell outside them. Four
+editors returned; 60 first cuts, 56 tweak rounds, 53 finishes, 4 still in
+progress, 85 videos on plates. One of the four returned 15 videos and a plate of
+0 — its in-window transitions were all reviewer/pipeline moves, which is the
+existing definition working, not a gap.
+
+**WHAT CHANGES MEANING, AND WHAT DOES NOT.** One claim I had to correct against
+the repo's own evidence before publishing it:
+
+- **Assignee attribution is not NEW — but that is not the same as fine, and my
+  first version of this bullet drew the wrong conclusion from a true fact.**
+  The fact stands: `docs/independence/SYSTEM_MAP.md` (F48) records the retired
+  endpoint already attributing *"past transitions … to the current assignee"*,
+  so grouping by `deliverables.assignee_id` does not introduce the behaviour.
+  What I then wrote — *"there is nothing here for the owner to weigh that was
+  not already true last week"* — **was wrong**, and is retracted. Parity with
+  the legacy reader is not a defence when the legacy reader's behaviour is the
+  thing the replacement was specified to remove: TRACK_B spec **9.11** names
+  current-assignee attribution as the legacy defect and requires event-time
+  assignee identity. This panel does not meet that clause. It is recorded as
+  **OPEN** further down this item, with the measurement showing why the
+  prescribed fix is blocked on data that does not exist rather than on effort.
+  Read that note, not this bullet, for the current position.
+- **Completeness went UP, not down.** The retired endpoint paged its issue
+  connection 50 at a time and **silently stopped after 30 pages / 1,500
+  issues**, with each issue history unpaged at `first:250`. The native reads
+  page to exhaustion. A week that quietly hit those caps was under-reported
+  before and is not now.
+- **The one genuine discontinuity: pre-cutover Linear-only issues were never
+  written to `deliverable_events`.** Any week reaching back before native filing
+  shows less than the Linear panel did. This is a data-coverage fact, not a
+  performance one, and it is the only reason to look before trusting a
+  historical week.
+
+**AND IT CLOSES F48.** The retired webhook was unauthenticated and served
+confidential people/client/work metadata to anyone who called it, with an
+arbitrary range. Retiring it removes that surface entirely; the replacement
+reads run under the browser's existing publishable key and RLS.
+
+Recommended before this is trusted for a real judgement: put one real week side
+by side against the current panel while both still exist — only possible
+**before 2026-09-15**.
+
+**Test:** `test/editors-week-native.js`, 33 checks, offline, no git dependency.
+It extracts the shipped `_kedFetchNativeWeek` and the unchanged `_ked*`
+consumers out of `index.html` into a `vm` and drives them through a stubbed
+PostgREST, so it exercises the source rather than a copy that can drift. It
+includes the two counterexamples above, a full delivery/tweak/finish/WIP parity
+case, the graphics-and-unassigned exclusion, a 1400-row paging case, the empty
+week, and a failed read (which must throw, so the panel shows its error state
+rather than painting an empty week as fact). Fixtures are synthetic: the repo is
+public.
+
+### CORRECTION, 2026-09-08 (Codex finding 5 on PR #1346): **IT DOES NOT CLOSE F48.**
+
+The paragraph above headed "AND IT CLOSES F48" is wrong, and this entry is
+appended rather than edited because the ledger is append-only. Read the two
+together: the claim stands as written, and this is what corrects it.
+
+**What the lane actually did:** removed the `editors-week` constant and the
+browser caller, so SyncView no longer *uses* the endpoint.
+
+**What F48 is about:** the DEPLOYED n8n workflow. `webhook/editors-week` is
+unauthenticated, takes an arbitrary historical range, and returns confidential
+people/client/work metadata to anyone who calls it. Not calling it from our
+browser does not deactivate it. The URL still answers today, and it will still
+answer after 2026-09-15 — that date ends our Linear *access*, not somebody
+else's ability to GET a webhook. So the exposure F48 tracks is exactly as open
+as it was before this lane, and the entry above declared a SECURITY item closed
+on the strength of a diff that cannot close it.
+
+**Why it was not closed here instead.** Deactivating that workflow is the fix,
+and `CLAUDE.md` is unambiguous: never edit an n8n workflow without the owner's
+explicit go-ahead **in that same request**. This session does not have one — the
+owner is away — and a security item is the last place to read silence as
+permission. The endpoint answering for another day is a known, pre-existing,
+unchanged exposure; a session editing production sales automation unasked is a
+new one.
+
+**What closing it needs**, when the owner does give the go-ahead in-request:
+export the workflow JSON to the private Drive backup FIRST, deactivate the
+workflow, commit only a public-safe status stub to `n8n-backups/`, and record
+the evidence here. A merged diff is not evidence.
+
+Corrected alongside this: `docs/independence/SYSTEM_MAP.md` (the "F48 is CLOSED
+by retirement … and it is gone" line) and `REPO_MAP.md`. `B4_READINESS.md` and
+`GO_LIVE_CHECKLIST.md` already carried F48 as open and needed no change — which
+is itself the tell that the closure claim was the outlier.
+
+The COMPLETENESS half of the entry above is unaffected and stands: the retired
+endpoint capped at 30 pages / 1,500 issues and the native reads page to
+exhaustion.
+
+### CORRECTION, 2026-09-08 (Codex finding 4 on PR #1346): **TEST AND INTERNAL CLIENTS WERE IN THE TOTALS.**
+
+The client lookup selected `slug,display_name` and nothing else, so the shaper
+could not tell one kind of client from another and every slug counted.
+`TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §9.11 names three exclusions for Video
+production totals — the Graphics team, TEST/internal clients, and unassigned
+work. Two of the three were implemented (`kind === 'video'`, `assignee_id`) and
+the third was not.
+
+The one that matters is TEST: `sidneylaruel` is the client the nightly probes
+drive, they move statuses on it all night, every move writes a `status_change`
+to `deliverable_events`, and each row landed in whichever editor holds the
+`assignee_id` — in the panel Kasper reads to judge people.
+
+**MEASURED AGAINST LIVE DATA, 2026-09-08** (read-only, publishable key, the same
+window, filters and grouping the shipped code uses; window resolved to
+`2026-08-31T05:00:00Z → 2026-09-07T05:00:00Z`, the same week the entry above
+measured):
+
+| | before | after |
+|---|---|---|
+| video + assigned deliverables | 139 | **123** |
+| editors returned | 4 | **3** |
+| in-window transitions counted | 458 | **440** |
+
+16 deliverables and 18 transitions drop: **1 from the TEST client and 15 from an
+internal one**. No slug in the window lacked a `clients` row, so the permissive
+branch below changed nothing this week.
+
+**AND IT EXPLAINS A LINE IN THE ENTRY ABOVE.** That measurement noted "one of the
+four returned 15 videos and a plate of 0 — its in-window transitions were all
+reviewer/pipeline moves, which is the existing definition working, not a gap."
+It was not the definition working. Those 15 videos are the internal client's, and
+that editor is the one who disappears entirely here. The odd row was the
+contamination, read as a curiosity.
+
+**EXCLUDED BY `kind`, NOT BY `active`, deliberately.** An offboarded real client
+(`kind:'client', active:false` — three live today) still had real videos edited
+by a real editor; dropping their week would erase work that happened. A slug
+with NO `clients` row is KEPT, per `AGENTS.md` ("when a guard could go either
+way, choose permissive"): the panel is a total, an absent registry row is not
+evidence of a robot, and silently under-reporting an editor is the failure
+nobody can see. Only a row that says `test` or `internal` is evidence.
+
+**IS THIS A BEHAVIOUR CHANGE FROM THE RETIRED ENDPOINT?** Probably yes, and it is
+not provable from here. The `editors-week` n8n workflow is not readable from this
+repo and must not be edited or invoked to find out, and the browser no longer
+calls it. The spec sentence exists because someone specified the exclusion for
+the REBUILD, which reads as the old reader not having it. So: **last week's
+number can legitimately drop when this merges**, and the drop is the robot and
+the internal client leaving, not work going missing. Stated here rather than
+corrected silently.
+
+**Test:** eight checks added to `test/editors-week-native.js` (TEST excluded,
+internal excluded, real client kept, offboarded real client kept, unknown slug
+kept, exactly two removed, the read actually selects `kind`, and an all-TEST week
+returning the empty envelope rather than an editor with a plate of zero). All
+eight fail against the shaper as it stood.
+
+**ADDENDUM 2026-09-08 — the pager was quietly short too.** Reviewing this item's
+own change, Codex found `_kedRestPage` running a FIXED twenty iterations: a query
+matching more than 20,000 rows returned the first 20,000 as though that were all
+of them. Same defect class as the two this item is about — a count the owner
+reads as fact, wrong with no error — but pre-existing, and hiding two orders of
+magnitude further out than the 1,000-row default the pager was written to fix.
+Rare and silent is the worse failure mode, not the better one: a number that
+never visibly goes wrong is the number that gets trusted. It now runs until it
+OBSERVES a terminal page, and the 50,000-row ceiling THROWS instead of returning
+short, because `_kasperLoadEditors` renders a throw as "Couldn't load editor
+stats" and renders a short read as a quiet week. Verified by reading that caller,
+not assumed. **Test:** four checks in `test/editors-week-native.js`, driven at
+`_kedRestPage` directly (the shaper's `in.(...)` filters cap the row count long
+before the ceiling); 3 of the 4 fail against the old loop, with 20,500 rows in
+and 20,000 out.
+
+**OPEN 2026-09-08 — event-time attribution is NOT implemented, and cannot be
+from this data.** Codex on `00d186b`: the shaper credits a week to the
+deliverable's CURRENT `assignee_id`, so a video reassigned after last week's
+transitions gives the whole week to whoever holds it now, and an unassigned one
+drops out entirely. `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` 9.11 names precisely
+that as the legacy n8n reader's defect and requires the native replacement to
+use "the assignee identity at **event time**". The finding is correct and this
+panel does not meet that clause.
+
+**The prescribed remedy is blocked on absent data, not on effort.** Measured
+2026-09-08 against 1,000 live `deliverable_events` rows with `action=status_change`:
+every payload key across the sample is `op / reason / ts / role / actor / action /
+source / outbound / to_status / from_status / surface / actor_key / auth_kind /
+expected_status / expected_updated_at` — **no assignee key of any kind**. The
+`actor`/`role` columns are the person who ACTED (on a Client-Approval→Approved
+transition that is the client, not the editor) and are null on 669 of the 1,000.
+No `assign` action is recorded anywhere. There is therefore no assignment
+history to reconstruct from, and no correct substitute available in the browser:
+`actor` would be a DIFFERENT wrong answer, not a better one.
+
+Closing it needs a migration plus a writer change — stamp the assignee onto
+every `deliverable_events` insert, or keep an assignment-history table — then a
+shaper that joins on it. That is a schema change to production and an owner
+decision, and it is a different lane from this one. **Left OPEN and stated on
+the PR rather than quietly shipped**, because 9.11's whole point is that the
+native replacement must not silently reproduce the legacy misattribution, and
+the failure mode here is exactly that: a per-editor number that looks precise
+and can be attributed to the wrong person with nothing on screen to say so.
+
+The impact cannot be sized from here either, and for the same reason: measuring
+how often a video is reassigned mid-week requires the history that does not
+exist. Do not read that as "probably rare".
+
+---
+
+## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing
+
+Lane C's reserved number is 171 and is spent on the editors-week rebuild.
+`LINEAR_EXIT_LANES.md` sanctions taking more by appending upward from 175, which
+is what this is. 169-174 are the other lanes' reservations and are untouched.
+
+**THE BUG IS THE DEFAULT, NOT THE CODE.** `_writeUiFetchRerouteFlagOnce` falls
+back to `{clients: []}` on any failure and on its two-second timeout, and
+`_writeUiPrimeRerouteFlag` memoises that promise for the life of the page. An
+empty allowlist meant exactly one thing everywhere: **legacy**. So one slow
+moment at boot sent **every** client's status changes to `LINEAR_SET_STATUS_URL`
+and every comment to `LINEAR_ADD_COMMENT_URL`, for as long as that tab stayed
+open. Item 70 already found and healed the *stickiness*; what it did not
+revisit is the *direction*.
+
+The in-code comment called this **"fail-legacy, never fail-open"**. That was
+correct while Linear was the safe destination. It is exactly backwards from the
+moment it is not: after 2026-09-15 the legacy lane is a dead URL that fails
+**silently**, while the native lane is an authority that can refuse **out loud**.
+`AGENTS.md` already prefers that shape — *"do not encode a guess about state the
+client cannot see as a refusal in the browser; let the authority that can see it
+decide, and make its refusal say something useful."*
+
+**MEASURED AGAINST THE LIVE FLAG, 2026-09-07** (read-only, publishable key):
+
+| | count |
+|---|---|
+| slugs in `write_ui_reroute_clients` | 43 |
+| `clients` rows with `active = true` | 43 |
+| **active but NOT enrolled** | **0** |
+| enrolled but not active | 0 |
+| enrolled slugs with no `clients` row | 0 |
+
+An exact 1:1 match with no ghosts in either direction. **So this changes the
+destination for no client that works today** — only for the failure case, which
+is the only case it was ever wrong in. It also answers the question the lane was
+told to ask the owner: there is no unenrolled active client to report.
+
+**THE INVERSION IS DELIBERATELY NARROW.** `_writeUiRerouteUseGateway` answers a
+*factual* question — is this slug in the allowlist — and two kinds of caller
+need exactly that answer and keep it:
+
+- **The outbox drain** (calendar and samples, the two `!_writeUiRerouteUseGateway`
+  sites). A genuinely unenrolled client's queued legacy item is legitimate
+  traffic; flipping its answer would quarantine those items as
+  `legacy_actor_unverifiable` with zero retries, which is **item 63 rebuilt**.
+- **The project-source enrollment filter**, which describes enrollment rather
+  than routing a write.
+
+Only the two "when ready" helpers that gate a **live write** were moved onto the
+new `_writeUiRerouteUseGatewayFailClosed`:
+`_writeUiRerouteUseGatewayWhenReady` (Submit routing) and
+`_writeUiUseGatewayWhenReady` (status + comment routing). The test fails if a
+later edit widens the flip to the drain.
+
+**WHAT IS DELIBERATELY NOT FLIPPED.** The `!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY`
+early return does **not** mark the flag failed, and must not: without Supabase
+config the native gateway is unreachable too, so legacy is the only lane that
+could work there. Routing native from that state routes into nothing. Client
+comments are also unaffected — they are routed legacy by **principal**, not by
+enrollment (see `_calPostLinearComment`), and item 63's `client_link` stamp is
+what the drain reads for them.
+
+**Test:** `test/write-ui-reroute-fail-closed.js`, 15 offline checks over the two
+real predicates extracted from `index.html`, including the counterexample that
+the old predicate answers `false` on the same state — the branch that chose
+Linear. Three of the checks exist only to pin the narrowness.
+
+**Still owed, and NOT done here:** the legacy writers themselves
+(`_calLegacyPushStatusToLinear` / `_calLegacyPostLinearComment` and their Samples
+twins `_sxrLegacyPushStatusToLinear` / `_sxrLegacyPostLinearComment`) still
+exist, and **both** outbox rings still exist — `syncview_linear_outbox_v1`
+(`index.html:30384`) and `syncview_sxr_linear_outbox_v1` (`index.html:63149`).
+This entry changes which lane a NEW write picks; it does not drain what is
+already queued. That is item C9 and it is unstarted.
+
+### CORRECTION AND EXTENSION, 2026-09-08 (Codex findings 1 and 4 on PR #1346)
+
+Two things above were incomplete. Appended, not edited — the ledger is
+append-only, so read them together.
+
+**FINDING 1 — the fail-closed contract covered only half the failures.** The
+entry above describes the flip as covering "any failure and the two-second
+timeout", and the code matched that: `_writeUiRerouteFlagFailed` is set in the
+catch and nowhere else. The SUCCESS path was not held to the same rule. It
+applies `rerouteRow.value` when there is one and `{clients: []}` when there is
+not, then clears the failed mark unconditionally — so three states arrived with
+an EMPTY allowlist and a flag reporting itself healthy:
+
+- a 200 carrying `[]`
+- a 200 whose rows do not include `write_ui_reroute_clients`
+- a 200 whose value is null, a scalar, or otherwise the wrong shape
+
+In every one, `_writeUiRerouteUseGatewayFailClosed` found no failure, answered
+the factual "this slug is not enrolled", and routed every status change to
+`LINEAR_SET_STATUS_URL` and every comment to `LINEAR_ADD_COMMENT_URL`. **Delete
+or corrupt that one row after 2026-09-15 and every write in every open tab goes
+silently to a dead endpoint** — the exact outcome this entry exists to prevent,
+reachable without a single network failure. A realtime DELETE reached the same
+place through `_writeUiApplyRerouteFlagFromChannel`, which had no row at all and
+read it as an empty allowlist.
+
+**The fix tracks validity separately from the allowlist**, which is the part
+that matters for everything this entry pinned:
+
+- the ALLOWLIST is untouched on every path. It stays the factual answer the
+  outbox drain and the project-source filter need. Flipping the drain is still
+  item 63 rebuilt, and still does not happen.
+- `_writeUiRerouteFlagFailed` keeps its one narrow meaning — the READ failed —
+  because `_writeUiHealRerouteFlag` keys on it to decide whether a resume
+  re-fetches. A successful empty read does NOT arm the heal, or a tab would
+  re-fetch on every resume forever.
+- a second signal, `_writeUiRerouteRosterUnusable`, gates ROUTING only. It is
+  set from the row on every apply site, including the realtime channel, and
+  starts `true` because before the first read there is nothing to trust.
+
+The one carve-out survives unchanged and is now pinned by execution: the
+`!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY` early return marks the roster
+USABLE, because without Supabase config the native gateway is unreachable too
+and legacy is the only lane that could work.
+
+**ONE OWNER DECISION THIS CREATES.** Emptying `write_ui_reroute_clients` now
+routes every live write NATIVE instead of legacy. If "empty the roster" was ever
+meant as a rollback lever, this takes it away. The judgement here is that it
+cannot be one: all 43 active clients are enrolled, both teams are
+SyncView-authoritative, and after 2026-09-15 the lane an empty roster used to
+select is a URL that accepts writes and drops them — so emptying it would roll
+back INTO SILENCE, which is the failure this entry exists to stop. If that
+reading is wrong, the veto is one condition in `_writeUiRerouteRosterUsable`.
+
+**Test:** `test/write-ui-reroute-usable-roster.js`, 42 offline checks. It lifts
+the shipped block out of `index.html` and drives the real
+`_writeUiFetchRerouteFlagOnce` through a stubbed fetch, so it exercises the read
+rather than a restatement of it. Nine checks fail on the code as it stood before
+this correction. `test/cutover-fix-pack-ui.js` was strengthened to pin both
+signals where it previously pinned one.
+
+**FINDING 4 — the nightly was green about a lane production does not take.**
+Four browser harnesses — `qa/probes/lib.js`, `qa/sxr_courier_lib.js`,
+`qa/golden_lib.js` and `qa/ef-writepath/lib.js` (the fourth was not in the
+finding; it carried the same stub) — answered the flag read with HTTP 200 and
+`[]`, each stating that this was the FAITHFUL simulation because *"real clients
+run the legacy lane"*. **The measurement in this very entry refutes that**: all
+43 active clients are enrolled, with no ghosts in either direction, and both
+teams are SyncView-authoritative (graphics 2026-08-16, video 2026-08-28). Real
+clients take the native gateway. So the probes exercised mocked Linear writes on
+a lane production does not use, and a green nightly did not cover what this PR
+ships. That is the shape of item 177, caught before it shipped rather than after.
+
+It had also stopped working mechanically: with finding 1 fixed, a successful read
+with no usable roster routes NATIVE, so `[]` buys the native lane with a comment
+above it claiming legacy. Strictly worse than either honest answer.
+
+All four harnesses now serve the production roster from one place,
+`qa/write_ui_reroute_fixture.js`. **Test:** `test/qa-harness-routes-like-production.js`,
+26 offline checks that run in `npm test` — where the nightly's own defect could
+never have been caught. Its strongest check lifts the shipped predicates and
+feeds them the bytes the harness actually serves, so it fails for any future
+body that stops describing production, not merely for the old comment.
+
+**THE HALF OF FINDING 4 THAT IS NOT DONE, and it is the larger half.** On the
+native lane a card needs a native work item: `_writeUiClassifyTargetless` refuses
+a targetless card with `native_link_required` whenever its team is
+SyncView-authoritative, which both now are. **No probe seeds
+`video_deliverable_id` or `graphic_deliverable_id`**, and 11 seed
+`linear_issue_id: ''` outright — so the fixtures are still not production-shaped,
+and probes that drive a status change or a comment on such a card will now
+refuse rather than push to a mocked webhook. 97 of the 136 probes touch those
+surfaces; how many actually trip is not knowable without running them.
+
+That is deliberate and it is the honest state, not an oversight: the harness now
+describes production and the fixtures do not yet match it. Closing it means
+minting real deliverables for the seeds against the live backend, which this
+session could not do or verify — there is no route to it from the sandbox. **Do
+not close it by putting the roster back to `[]`.** That restores the green, and
+the green was the defect. Owner decision owed on whether the fixture work lands
+in this lane or its own.
+
+### EXTENSION, 2026-09-08 (Codex findings 1 and 3 on PR #1346)
+
+**FINDING 1 — a malformed roster still read as usable.**
+`_writeUiRerouteRosterUsable` asked only whether normalisation produced at least
+one slug, and `_calRuntimeFlagClients` normalised every member with
+`String(x || '')`. `String()` does not reject a non-string, it FABRICATES a slug
+out of it: `{}` becomes `"[object Object]"`, which the slug rules strip to the
+perfectly plausible-looking `objectobject`. So `{"clients":[{}]}` — one corrupt
+value in the flag row — produced a non-empty roster that no real client is in,
+cleared the unusable signal, and sent all 43 enrolled clients back to
+`LINEAR_SET_STATUS_URL` / `LINEAR_ADD_COMMENT_URL` through the *factual* answer
+"this slug is not enrolled". The repair above, re-entered through its own fix.
+
+Fixed in two places, deliberately:
+
+- `_calRuntimeFlagSlug` is the member normaliser and answers **null** for
+  anything that is not a string. Every caller filters those out, so this only
+  ever drops entries that could not have matched a real client slug — the four
+  allowlists (`calendar_upsert_ef_clients`, `settings_ef_clients`,
+  `sample_review_ef_clients`, the reroute roster) keep exactly the behaviour they
+  had on well-formed data and stop inventing members on corrupt data.
+- `_writeUiRerouteRosterUsable` now requires that the value offers a member list
+  at all and that **every** member is slug-shaped. Salvaging the good half of a
+  mixed roster would leave the router acting on a roster it cannot trust, with
+  the 42 clients not in the salvaged half back on the dead lane.
+
+`_calRuntimeFlagRawMembers` was split out so the routing gate can tell "an
+operator's roster holding nobody" (`[]`) from "this value has no roster in it"
+(a scalar, an object of the wrong shape). The normaliser flattens both to zero
+slugs, which is right for an allowlist and wrong for a router.
+
+**Test:** 21 checks added to `test/write-ui-reroute-usable-roster.js`; **11 fail**
+against the predicate as it stood, including the finding verbatim
+(`{"clients":[{}]}`), the mixed good-slug-plus-corrupt-member case, and a control
+proving an all-strings roster is still usable and still decides by enrollment.
+
+**FINDING 3 — the shared fixture dropped the comment-gateway row.**
+`_writeUiFetchRerouteFlagOnce` issues ONE request for
+`key=in.(write_ui_reroute_clients,client_comment_gateway_enabled)` and splits the
+rows itself. `qa/write_ui_reroute_fixture.js` answered it with the reroute row
+alone, so `_clientCommentGatewaySetFlagValue(null)` ran on every harness and the
+client-comment front door was OFF — the same defect as the `[]` roster, one flag
+over, with eligible client comments exercising the legacy `linear-add-comment`
+fallback instead of the shipped native path.
+
+Read live 2026-09-08, read-only with the publishable key:
+`prod_authority = {"video":"syncview","graphics":"syncview"}` and
+`client_comment_gateway_enabled = {"enabled":true}` — ON since the 2026-08-14
+rollout. The fixture now serves both rows. Nothing elsewhere was depending on the
+door being shut: the only other harness that keys on the flag is
+`qa/probes/ot4_t1_submit_intake_guards.js`, which builds its own route table,
+leaves the row absent, and never opens a client comment — its comment claimed
+absent was "the faithful pre-rollout state", which stopped being true in August,
+and has been corrected to say why the row is absent there.
+
+**Test:** three checks added to `test/qa-harness-routes-like-production.js`,
+judged by the SHIPPED `_clientCommentGatewaySetFlagValue` / `_clientCommentGatewayOn`
+rather than by reading the literal, with the reroute-row-only body as the
+counterexample. All three fail against the one-row fixture.
+
+### THE PROBE-FIXTURE HALF IS NOW DONE — the part marked "NOT done" above
+
+`qa/native_work_item_fixture.js` gives the probes' own cards the thing a
+production card has: a native work item. It stamps `video_deliverable_id` /
+`graphic_deliverable_id` onto the probe's cards **in the calendar response**,
+answers the crosswalk read for exactly those ids with a row that genuinely
+describes the card, mocks the gateway, counts the retired webhooks, and seeds the
+verified staff identity the native lane requires and the retired webhooks did
+not.
+
+The ids are fixture-level rather than real, and that is a decision, not a
+shortcut: `calendar_posts.video_deliverable_id` carries a foreign key to
+`public.deliverables`, which the browser publishable key cannot write, and
+re-pointing a probe card at an EXISTING client deliverable would seed the exact
+F42 crosswalk breakage the product refuses. So the fixture fakes the ids it
+minted and nothing else — every flag read, the authority read, the card rows and
+every other table stay live.
+
+`p28`, `p29` and `p30` now assert native gateway intents and assert **ZERO**
+traffic to `linear-set-status` / `linear-add-comment`. They previously asserted
+the opposite, which is why "put the roster back to `[]`" was never the fix.
+
+**WHAT WAS ACTUALLY RUN, AND WHAT WAS NOT.**
+
+- `p28` and `p29`: **executed and green** (14/14 and 7/7) against the real
+  `index.html` and live backend reads, through the read-only bridge in
+  `docs/syncview-design/tests/prod-backend-bridge.js` — Chromium in an agent
+  sandbox has no route of its own (OPEN_REPAIRS 144/125). The bridge refuses
+  writes, so the source-save POSTs it blocks make a status push retry; the
+  assertions tolerate duplicates and the nightly has no bridge.
+- `p28` also needed one seeding change that is nothing to do with routing: both
+  approval picks are refused on an empty component by the 2026-09-05 "review
+  needs something to review" rule, so its card now carries an asset and a
+  thumbnail like `p29`/`p30` already did.
+- `p30`: **not run.** A client-entry tab needs a live review token, which needs
+  `SYNCVIEW_STAFF_KEY` — a repository secret this session does not hold. Its
+  comment assertion is the one place a residual risk sits: the client front door
+  also requires a verified client-entry capability, which only a real token
+  produces. The flag and the crosswalk it needs are both supplied; the capability
+  is not testable here.
+- The other 94 of the 136 probes that touch these surfaces are **not run and not
+  audited** here. Any of them that drives a status change or a comment on a
+  targetless card will now refuse rather than push to a mocked webhook, exactly
+  as production does. That is the honest remaining exposure of this item.
+
+**Test:** `test/probes-assert-native-write-lane.js`, 40 offline checks in
+`npm test`. It drives the fixture's real route handlers through a stand-in for
+Playwright's routing API (the card is stamped, other cards are not, a
+deliverables read naming none of the fixture ids is left live) and runs the
+shipped `_writeUiNativeId`, `_prodCrosswalkMismatchFields` and
+`_writeUiNativeStatus` over the fixture's own output, so the shapes the probes
+assert are the shapes the shipped code produces. It exists because the probes
+need a browser and a backend, and a claim about what the nightly asserts should
+be checkable on every pull request.
+
+### EXTENSION, 2026-09-08 (Codex finding on `189de4a`): **p28-p30 WAS NOT THE WHOLE MANIFEST.**
+
+Migrating three probes was not enough, and the miss is the same shape as the one
+above: `p36_full_sync.js` and `p60_modal_smm.js` had been handed the production
+roster by the same change, still waited for `linear-set-status` /
+`linear-add-comment`, and are both in `qa/probes/nightly-manifest.txt`. Two more
+manifest-gated nightlies left asserting a lane the product does not take —
+caught by review rather than by a test, twice on this PR, which is once too many
+for one class of defect.
+
+**The whole manifest, audited rather than sampled.** Exactly seven manifest
+probes touch those webhooks: p28, p29, p30 (already migrated), p36 and p60
+(migrated here), and p47/p68, which assert ZERO pushes and were therefore
+already correct — both are now strengthened to assert zero on the NATIVE lane
+too, which is the lane their clients actually take and the one their old
+Linear-only check was blind to.
+
+**THE ROOT-CAUSE FIX IS STRUCTURAL, NOT FIVE MORE EDITS.** One module owns the
+two retired URLs (`qa/native_work_item_fixture.js`), and the only thing it lets a
+probe do with them is COUNT them, through `NW.retiredCallCount(...)`. A probe
+that wants to assert one received something has to hand-roll a route, and
+`test/probes-assert-native-write-lane.js` now fails on any hand-rolled route for
+those URLs anywhere in the manifest, and on any manifest probe watching them that
+does not assert `NW.retiredCallCount(...) === 0`. Same shape as the house rule
+that a suite may not hand-roll a comment stripper (OPEN_REPAIRS 145). Prose
+naming the webhooks stays legal and is wanted — every migrated probe explains
+what it used to assert.
+
+**THE LANES OUTSIDE THE MANIFEST, NAMED.** The previous entry said "the other 94
+probes are not run and not audited". That was honest then and lazy now, so they
+were audited. Nine files outside the manifest still reference the retired
+webhooks; **seven of them assert a webhook WAS called** and are therefore
+affected and owed:
+
+| file | why not migrated here |
+|---|---|
+| `qa/scenarios.js` + `qa/scenario_engine.js` | the `expectLinear` verb of the scenario DSL; migrating it changes every scenario that uses it |
+| `qa/probes/ot4_t0_client_edge_conditions.js` | client surface; needs a live review token this session does not hold |
+| `qa/probes/sxr_kasper_audit_holes.js` | samples surface, waits for a status push |
+| `qa/probes/cal_linear_deep.js`, `qa/probes/sxr_linear_deep.js` | one present-assertion each; the rest of both files already asserts zero |
+| `qa/ef-writepath/10-status-linear.js`, `qa/ef-writepath/12-samples.js` | the ef-writepath harness, which this session could not run |
+
+`qa/ef-writepath/13-settings.js` asserts NO push and is correct as it stands, as
+do the two harness plumbing files. A tenth file,
+`qa/boot/client-entry-sequence.js`, records legacy queue writes deliberately: it
+is the fully synthetic boot harness, it serves its own flag rows rather than the
+production roster fixture, and its subject is the resume lease and the BFCache
+stale release rather than routing — the writes it records are the outbox
+drain's, which item 175 pinned as NOT flipped.
+
+**The first version of this scan missed that tenth file**, because it walked
+three hard-coded directories instead of the tree: a guard that only looks where
+its author looked, which is the same defect one level up from the one it exists
+to prevent. It walks `qa/` recursively now.
+
+That list is pinned in the suite as a tracked set: the test fails if a new file
+joins it OR if one leaves without its line being deleted. Each entry also carries a
+**witness** — an exact substring proving its declared polarity — because the
+first version stored the polarity and then reduced the map with `Object.keys`,
+so the labels were never checked and a file that flipped from asserting a push
+to asserting zero would have kept its stale label with the guard still green
+(Codex, `cfe251d`). Deliberately a pinned quotation rather than a classifier: a
+regex that decided polarity by itself would be a second thing to get wrong, and
+when a witness disappears the failure forces a human to re-read and re-classify
+that entry, which is the outcome worth having.
+
+**AND THE SAME MISTAKE A THIRD TIME, in the probes themselves.** `p47` and `p68`
+were strengthened to assert zero transport on both lanes — but `p47` installed
+its captures only on the Kasper context, while its step 4 performs the title
+approval through the separate client context, and `p60` did the same with its
+client tab. A regressed client-side push would have left those arrays empty, the
+zero-assertion would still have passed, and the request would have gone to the
+live TEST backend. Both now watch every context that acts. That is three
+instances on this PR of one pattern — a guard that only looks where its author
+looked — which is worth naming as the lesson rather than the individual fixes:
+`qa/boot` missed by a directory list, the polarity values missed by
+`Object.keys`, and the client contexts missed by watching only the convenient
+one.
+
+**A FOURTH, inside the fix for the second.** The plumbing check — "no assertion
+in this file may mention the retired webhooks" — was written per LINE, so it
+only fired when the assertion opener and the webhook reference sat on the same
+physical line, and its `assert` alternative did not match `assert.equal(...)`.
+A perfectly ordinary
+
+```js
+s.ok(
+  linearCalls().length === 0, 'no push');
+```
+
+satisfied neither regex on any one line, and the file kept its assertion-free
+label: the exact drift the polarity guard exists to catch, reintroduced inside
+the guard itself (Codex, `279222a`).
+
+It now strips comments with the house stripper (`test/helpers/strip-comments.js`
+— never a hand-rolled one, OPEN_REPAIRS 145), finds every assertion opener
+including receiver forms and `assert.<method>`, and takes the BALANCED
+parenthesised argument span across line boundaries. A regex literal holding an
+unbalanced paren could mis-slice a span; that direction yields a false POSITIVE,
+which is loud and forces a human to look, rather than the silent pass it
+replaces.
+
+**The scanner is proved before it is trusted**, which is the part that was
+missing: three self-tests run the detector on the two shapes the old check
+missed plus a control (a bare `linearCalls()` outside any assertion must NOT be
+flagged), and the whole guard was verified end-to-end by injecting that exact
+multiline assertion into `qa/sxr_courier_lib.js` — the suite went red naming the
+file and quoting the span — then restoring it. A guard whose own detector is
+untested is what produced this finding in the first place.
+
+**A FIFTH, found by applying that rule to the fix itself.** The PR comment for
+the fourth said a mis-sliced span "produces a false POSITIVE, which is loud".
+**That was wrong.** Driven adversarially rather than reasoned about, the span
+matcher counted the parens inside a regex literal — `ok(/\(/.test(linearCalls()), 'x')`
+— so the span never closed, and the scanner then **dropped it without a word**:
+a silent miss, in the very check written to end silent misses, with a published
+reassurance saying the opposite.
+
+Both halves are repaired. Regex literals are inert to the matcher (a `/` opens
+one only where a value may begin), and an undelimitable span is now REPORTED
+rather than skipped — so if the regex rule is ever wrong, the failure is loud in
+both directions. Seven adversarial shapes are pinned as self-tests, including
+the two that were missed, and the end-to-end injection was re-run with a
+regex-literal assertion: red, naming the file and quoting the span.
+
+### CODEX ON `d6e26c3`: THE OWED LIST WAS NOT ENOUGH ON ITS OWN
+
+Three findings, and the first is a design correction worth more than the fix.
+
+**P1 — a shared route was switched under lanes not written for it.** Recording
+the seven non-manifest lanes as "owed" left them pointed at the production
+roster by the shared `sxr_courier_lib.js` / `qa/ef-writepath/lib.js` route, and
+they are written for the LEGACY path: they seed legacy-only targets and wait for
+retired webhook calls, so they time out rather than exercise anything. Codex
+offered the alternative I had missed — *migrate them, or preserve an explicit
+legacy fixture only for them*.
+
+The second option is the right one, and not as a compromise: several of these
+lanes are ABOUT the legacy path by design. `cal_linear_deep` and
+`sxr_linear_deep` drive the outbox drain and its quarantine, which item 175
+pinned as deliberately NOT flipped; `qa/ef-writepath/10-status-linear` and
+`12-samples` assert the "Pipe B" n8n push, which IS the legacy pipe. A lane whose
+subject is the legacy write path should ask for the legacy lane out loud.
+
+**`[]` COULD NOT BE THAT REQUEST ANY MORE, which is the whole point.** Before
+this PR those lanes received `[]` and that meant legacy. After the fail-closed
+repair a successful read with no usable roster routes NATIVE, so `[]` now means
+the opposite of what it used to. `WRITE_UI_REROUTE_LEGACY_ROWS` is therefore a
+roster that is perfectly USABLE and simply does not enrol this client — legacy
+by ENROLLMENT, never by a failure mode, and it says so instead of relying on one.
+
+Wired per lane and opt-in only: `writeUiRerouteLegacy` on the courier surfaces
+(`cal_linear_deep`, `sxr_linear_deep`, `sxr_kasper_audit_holes`, the scenario
+engine's three openers, ot4_t0's four client openers) and
+`EF_WRITEPATH_LEGACY_ROSTER=1` on the two Pipe B lanes. The default stays
+production. **Every one of them remains on the owed-migration list**, and the
+suite now also asserts each carries its opt-in token, so the wiring and the list
+cannot drift apart.
+
+The fixture is judged by the SHIPPED predicates in
+`test/qa-harness-routes-like-production.js`, not by reading the literal: the
+legacy body routes the TEST client legacy, does so by enrollment rather than by
+the fail-closed fallback, differs from the production body, keeps the
+client-comment front door ON, and carries a non-empty roster excluding this
+client — the last check being the one that stops anybody reintroducing `[]`.
+
+**P1 — `_sxrMoveLink` had a SECOND unguarded await.** The 2026-09-08 freeze
+protected the authority read; `_sxrFlushCardSave(oldPid)` is a separate network
+round trip, and a client switch during it lands the continuation on the new
+client's `sxrState.posts` with the identical consequence — `newPid` matches
+nothing, and the code below still stamps `_sxrPendingEdits[newPid]` and calls
+`_sxrFlushCardSave(newPid)`, saving the previous client's card into the client
+now on screen. One guarded await and one unguarded one is not a guard; it is the
+same hole four lines down. The slug is re-validated after the flush.
+
+The source card's link is already cleared and saved at that point, so bailing
+leaves the move half-done. Deliberate, and the lesser harm: an incomplete move on
+a client the user has left is recoverable and visible, a cross-client WRITE is
+neither. Closing the half-state needs a transactional move and is not this
+repair.
+
+**Test:** `test/sxr-move-link-sealed.js` gains an EXECUTED section — every
+earlier check in that file is a source assertion, and a source assertion cannot
+say what the function does when the client moves mid-flight. It lifts the
+shipped `_sxrMoveLink` into a vm and switches the client inside each await in
+turn: three checks go red against the code without this fix.
+
+**P2 — the regex-literal case, already closed.** Codex's example
+(`s.ok(/)/.test(value) && linearCalls().length === 0, 'no push')`) was fixed by
+`0124e8d`, which it had not seen. Verified against its exact string rather than
+assumed, and pinned as a self-test because the review asked for it and because
+the next edit to that matcher should have to keep it working.
+
+### CODEX ON `638ff37`: THE LEGACY PINNING WAS TOO BROAD
+
+Three P1s, all against the fix from the round before, and all correct. This is
+the classification error the PR comment explicitly asked to have challenged, so
+it is worth recording that asking for it is what surfaced it.
+
+**The scenario DSL: 4 of 84, not 84 of 84.** Opening every actor on the legacy
+roster because the DSL *has* an `expectLinear` verb put all 84 base scenarios —
+and every compiled tree path — on the retired lane. Measured before fixing: only
+**4** of the 84 carry a Linear assertion. The other 80 are ordinary approve,
+request and comment journeys, and they stopped exercising the route production
+clients take. Green coverage that no longer covers the shipped lane is this
+change set's own defect, inverted.
+
+`scenarioUsesLegacyLane(scn)` now decides per SCENARIO from that scenario's own
+steps, and an undeclared scenario defaults to PRODUCTION — a lane that forgets to
+declare itself gets the one real clients take, and its Linear assertion fails
+loudly rather than a native regression hiding behind a green legacy run. Driven
+against the real `qa/scenarios.js` output in the suite, not asserted about:
+4 of 84 select legacy, every one of them genuinely carries the verb, and every
+scenario left on production carries none.
+
+**The compiled tree is a SECOND population, and the first version of this test
+pinned only the base scenarios** — the same narrowness this file keeps catching,
+in the test written to catch it. `qa/scenario_tree.js` compiles to the same
+`{ key, title, seed, steps, shots }` shape `runScenario` takes, and the finding
+named "every compiled tree path" explicitly. Measured: **12** compiled paths,
+**0** carrying a Linear verb, so all 12 correctly stay on production — and all 12
+were forced onto the retired lane by the blanket wiring. Both populations are now
+driven in the suite.
+
+**AND APPLYING THAT RULE WAS ITSELF A STEP TOO EARLY** (Codex on `a1b6d60`).
+Routing the other 80 scenarios to the production roster gives them the right
+LANE and a harness that cannot drive it: `qa/scenario_engine.js` seeds only fake
+`linear_issue_id` values and installs no `stubNativeWorkItems`, no
+`stubNativeGateway` and no verified staff identity — grep it for any of the three
+and the count is zero. Every native status or comment action would refuse with
+`native_link_required` or `credentials_required` BEFORE the journey under test
+ran, turning the whole samples nightly red rather than covering more of it.
+
+Right rule, premature application. The engine now asks `scenarioLaneIsLegacy`,
+which is the rule **OR** a named harness limit,
+`SCENARIO_HARNESS_CAN_DRIVE_NATIVE = false`. The two are deliberately separate: a
+single predicate returning "legacy" for both reasons would quietly lie about
+which one applied, and the reason is the whole content here. While the limit
+holds, all 84 run legacy — the pre-existing state, not a regression.
+
+Flipping that constant is the entire migration switch: seed native work items in
+the scenario fixtures, capture the gateway, seed a staff identity (the three
+things `qa/native_work_item_fixture.js` already does for p28/p29/p30/p36/p60),
+then set it `true` and the tested selector puts exactly 4 of 84 on the retired
+lane and the other 80 where production is. The suite pins that the constant is
+HONEST — it re-greps the engine for the three capabilities — so it cannot be set
+true while the harness still lacks them.
+
+**AND TWO LANES SHOULD NOT HAVE BEEN PINNED AT ALL.** `ot4_t0_client_edge_conditions`
+(the Tier-0 P4 real-client failure/lost-ack recovery contract) and
+`sxr_kasper_audit_holes` (approve/undo persistence and `kasper_approved_at`) are
+production-behaviour contracts, not rollback-transport tests. Pinning them to
+legacy would let a regression in the native path ship while the scheduled probe
+stayed green — the same "green about a lane production does not take" defect,
+pointed the other way.
+
+Both are back on the production roster and are **EXPECTED RED until migrated**.
+That is the deliberate choice: between a probe that passes wrongly and one that
+fails loudly, the loud one is correct, and `AGENTS.md` permits a red nightly when
+the PR says why and what clears it.
+
+**What migration needs**, recorded in both files and here so nobody re-derives it:
+`stubNativeWorkItems` extended to stamp `/rest/v1/sample_reviews` as well as
+`/rest/v1/calendar_posts`; gateway capture added to `qa/sxr_courier_lib.js`,
+which records LINEAR_HOOK calls and has no equivalent for
+`functions/v1/production-write`; then the assertions rewritten onto native
+intents. None of it is in this PR because none of it can be RUN from this
+sandbox, and an unverified rewrite of a Tier-0 probe is how this PR earned six
+findings already.
+
+**What stays legacy-pinned, and why it survived the challenge:**
+`cal_linear_deep` and `sxr_linear_deep` (the outbox drain and its quarantine,
+which item 175 pinned as deliberately NOT flipped), the two `qa/ef-writepath`
+Pipe B lanes (the n8n push IS their subject), and the 4 scenarios that assert on
+it. Codex challenged three lanes and left these; that is the line between "about
+the legacy path" and "happens to contain a legacy assertion", and the first
+version of this wiring did not draw it.
+
+### THE STOPPING CONDITION, REACHED AND ACTED ON (Codex on `cdd9547`)
+
+Three P2s, all about source-scanning guards in
+`test/probes-assert-native-write-lane.js` — the fourth, fifth, sixth, eighth and
+now these. The rule this session set for itself was that a recurrence in that one
+file means questioning the INSTRUMENT rather than sharpening it again. That point
+is here, and the answer differs per claim.
+
+**The capability grep is DELETED, not fixed.** It decided `engineHasNativeSeeding`
+from three raw token matches. Codex named two holes — a token in a comment, an
+import or dead code satisfies it, and the implication ran one way so a migration
+that added the capability and forgot the flip would silently leave all 84
+scenarios and 24 tree paths on the retired lane. Both correct, and the first was
+already DEMONSTRATED here without being noticed: the published "honest migration
+passes" proof for that check added the three names **in a comment**. Prose was
+offered as evidence that prose could not satisfy the check.
+
+Whether the harness can drive the native lane is a property of RUNNING it —
+fixtures installed on the right contexts, a gateway answering, an identity
+verified at the moment of the write. Reading the file cannot decide it, and a
+check that pretends to is worse than none because the next reader trusts it. The
+suite now claims only what it can decide, by execution: while the constant
+stands, every scenario really does route legacy; once lifted, the rule really
+does govern. **The flip is gated by running the scenario lane and recording the
+evidence here**, which is the only thing that can establish it.
+
+Deleting that grep took three attempts, each caught by running it: the check that
+asserts the grep is gone first matched the paragraph explaining the deletion,
+then matched its own regex literal, and a leftover `console.log` still referenced
+the dead identifier. The hole Codex described, reproduced three times in the act
+of removing it.
+
+**The export check KEEPS its limit and names it.** It is not scope-aware: a name
+declared only inside a function satisfies it while the module-level
+`module.exports` would still throw. Making it scope-aware means writing another
+source scanner, and this file's history is five findings about exactly that. A
+smaller true claim beats a larger one needing a sixth. Both behaviours are now
+driven — the shape it CATCHES (declared nowhere, the engine bug) and the shape it
+MISSES (inner scope) — so the limit is demonstrated rather than asserted.
+
+**COVERING THE BLIND SPOT THE NINTH EXPOSED.** The ninth existed because an
+earlier fix removed `qa/scenario_engine.js` from the only module graph that would
+have noticed it, so the question worth answering was not "fix this one" but "what
+else did that stop exercising". It stopped exercising LOADABILITY. Three of the
+ways a load fails can be checked without executing anything, and all three now
+are, over all 174 `qa/**/*.js` files: an undefined exported name (the ninth), a
+PARSE error, and a relative `require` naming a file that is not there.
+
+**What it still does not cover, stated in the file rather than implied:** a module
+that parses, resolves and exports honestly can still throw while executing its top
+level. `qa/sxr_courier_lib.js` is the live example — its Playwright fallback names
+a container-only path — and that is exactly the class the `unit` job cannot test,
+because loading it is what turned CI red. A real load belongs in a job that
+installs dependencies.
+
+**And a near-miss worth recording, because it nearly became a false finding.** The
+first proof of those two checks injected a syntax error into
+`qa/scenario_lane.js` — a file the suite REQUIRES — so the process died at the
+require before the checks ran, and the run looked like it caught nothing. The
+checks were fine; the test of the test was wrong. Driving it a second time
+against a file the suite only READS is the only reason that is known, and it is
+the same discipline that found the eighth: the first result of an experiment is
+not evidence until the experiment itself has been checked.
+
+**A NINTH — and the fix for the seventh is what created it.** Moving the lane
+rule out of `qa/scenario_engine.js` left its
+`module.exports = { scenarioUsesLegacyLane, runScenario }` naming an identifier
+the file no longer had in scope. Requiring the engine threw
+`ReferenceError: scenarioUsesLegacyLane is not defined`, so the scenario and tree
+nightly lanes **could not start at all** (Codex P1 on `eab1eef`).
+
+The unit suite did not catch it because the seventh fix was to STOP requiring the
+engine — which removed it from the only module graph that would have noticed. One
+coupling traded for one blind spot, and the blind spot was larger than the
+coupling.
+
+It cannot be caught by loading the engine in that suite: doing so is exactly what
+turned CI red, since the `unit` job has no `node_modules` and the harness beneath
+resolves Playwright through a container-only path. So the contract is checked
+STATICALLY — every shorthand name in a `module.exports` object must be declared
+or destructured somewhere in the same file, applied to the engine, the lane
+module and both fixtures. Weaker than a load, and it is what is available; it
+catches this exact bug, proven by restoring the broken import and watching the
+guard name the missing identifier.
+
+**And a P2 in the same review, same pattern:** the tree check drove
+`compile(samplesReviewTree())` — 12 synthetic paths with no component — while the
+`--tree` runner consumes `scenario_tree.base()`, which expands video AND graphic
+into 24 real ones. The 24 had been printed during this very session and the check
+was then written against the other function. A guard driven over a population of
+its author's choosing rather than the one the runner uses.
+
+**AN EIGHTH, and a different flavour: a guard that pinned a STATE where the
+invariant was the thing worth holding.** The first version of the honesty check
+on `SCENARIO_HARNESS_CAN_DRIVE_NATIVE` asserted the current value — constant
+`false`, every scenario legacy, engine carrying no seeding — while the PR comment
+described it as "flipping the constant is the whole migration switch". That was
+FALSE: flipping it would have turned three of those checks red, so the migration
+would have had to rewrite the guard, and a guard that goes red on the change it
+exists to enable is one somebody deletes rather than fixes.
+
+Found by driving it rather than trusting it, in the very check the PR comment had
+just named as the one most worth challenging.
+
+It asserts the PAIRING now, in both directions: the constant may be `true` ONLY
+if the engine really installs native work items, a gateway capture and a verified
+staff identity; and while it is `false`, every scenario runs legacy. The current
+value is REPORTED, not asserted — pinning it is what made the guard block its own
+migration.
+
+Driven both ways before being believed: a dishonest flip (constant `true`, engine
+unchanged) fails on the honesty invariant, and a simulated honest migration
+(constant `true` with the three capabilities present) passes.
+
+**A SEVENTH, and this one turned CI RED — the first red on this PR.**
+`test/probes-assert-native-write-lane.js` required `qa/scenario_engine.js` to
+drive the lane selector. That pulls `qa/sxr_courier_lib.js`, whose Playwright
+resolution is
+`try { require('playwright') } catch { require('/opt/node22/lib/node_modules/playwright') }`.
+The `unit` CI job runs `node test/run-all.js` with **no `npm install`**, so the
+first branch fails and the fallback names a path that exists only inside the
+agent container. It throws on a GitHub runner.
+
+**The suite passed locally for exactly the reason it failed in CI**: this sandbox
+is the one environment where that hardcoded path exists. A guard that only works
+where its author ran it — the same shape as the six before it, one layer further
+out, in the harness rather than in a detector.
+
+Root-caused from the mechanism, not guessed: the `qa/**/*.js` file set was proven
+identical between the commit and the working tree (so the tracked-set scan was
+not the cause), the workflow was read to confirm it installs nothing, and the fix
+was verified by making both `playwright` and the container path unresolvable —
+the old form throws `Cannot find module '/opt/node22/lib/node_modules/playwright'`,
+the new one loads.
+
+The rule lives in `qa/scenario_lane.js` now, a module with no dependencies, which
+the engine requires and re-exports. The suite asserts it requires no
+browser-harness module at all, so the coupling cannot come back.
+
+**The hardcoded fallback in `qa/sxr_courier_lib.js` is left alone** and is worth
+knowing about: it is correct for probe runs, where that container path is real,
+and changing module resolution in a shared harness without being able to run the
+probes is the risk this PR has spent six findings learning not to take. What
+changed is that no offline suite depends on it any more.
+
+**A SIXTH, in the wiring for the fix above, found by applying the rule instead
+of trusting it.** The `legacyOptIn` check asked whether the opt-in token appeared
+ANYWHERE in the file. `ot4_t0_client_edge_conditions.js` opens seven client
+surfaces; four were wired and three were not, and the check passed. A
+token-exists check is precisely "a guard as wide as the place its author looked",
+written one commit after saying so.
+
+Every page-open site's balanced call span must now carry the option, and the
+opener scanner is driven against a bare `client(browser)`, a wired one, and a
+multiline options object with nested braces before it is trusted. Verified by
+un-wiring a single opener — the exact state that passed before — and watching the
+suite name it: `1 without it, first: " client(browser)"`. The three missed sites
+are wired.
+
+**FIVE INSTANCES OF ONE PATTERN IS THE FINDING.** Not five separate mistakes: a
+guard is only as wide as the place its author remembered to look, and every one
+of these was written by someone (me) who had just been burned by the previous
+one. The durable defence is not vigilance — vigilance is exactly what produced
+the fifth, one commit after naming the pattern. It is that **a detector must be
+DRIVEN against the cases it claims to catch, and its author's reassurance about
+its failure direction is worth nothing until it has been.** The fifth was found
+by doing that instead of arguing about it, and the difference between the fourth
+fix and the fifth is the difference between a claim and a run. The point is not that
+the list is long — it is that it can no longer be forgotten, which is what
+actually went wrong twice here.
+
+**WHAT WAS RUN THIS ROUND.** `p60`'s migrated assertions executed green (5/5,
+0 JS errors) and `p36`'s two STAFF legs executed green (5/5) through the
+read-only backend bridge. `p36`'s steps 3 and 5 are client-driven and were NOT
+run, for the same reason `p30` was not: a client-entry tab needs a live review
+token, which needs `SYNCVIEW_STAFF_KEY`. `p47` and `p68` were not run; their
+change is an added zero-assertion on a second lane, which cannot turn a passing
+probe red without a real push appearing.
+
+**ADDENDUM 2026-09-08 — the flip was recorded in one truth doc out of five.**
+This item updated `docs/truth/LINEAR.md` and left `docs/truth/BRIEFING.md`,
+`docs/truth/APP.md` and two sections of `docs/independence/SYSTEM_MAP.md`
+asserting the INVERSE of the shipped routing: that a missing/malformed read
+falls to legacy, and that the cohort is TEST-only (it has been the full active
+roster since wave 3, 2026-08-14). AGENTS.md tells a new session to trust those
+files, so for a day the canonical answer to "which way does this fail" was
+backwards. Codex found it on `bd6011e`. All four corrected, each marked with the
+date and what it used to say rather than silently rewritten.
+
+This is the PR's own recurring pattern for the tenth time — **a change only as
+wide as the place its author was looking** — and it landed in the documentation
+layer, where it is least visible and most load-bearing. The guard added to
+`test/write-ui-reroute-usable-roster.js` is deliberately NARROW: it pins the four
+stale sentences so they cannot literally return, and it says in its own comment
+that it is not a general docs-agree-with-code check, because a fifth file or a
+reworded claim would pass it. The general fix wants one owning file the others
+cite, which is more than this lane should change. Recorded as owed, not as done.
+
+---
+
+## 176. [2026-09-07, FIXED, live on merge with no deploy; lane LX-C] The Samples "Move it here" was the hole the calendar twin's own comment warned about
+
+Found while scoping C8. **This is a standing seal defect, not only a cutover
+problem** — it is wrong today, on a syncview-authoritative team, with Linear
+still up.
+
+`_calMoveLink` on the calendar carries a live authority seal check, and its
+comment states the rule:
+
+> Moving a link SETS one on the receiving card, so it is the same write the seal
+> refuses — gated here too rather than relying on the commit path having already
+> checked. The repo's own lesson from the sub-issue multi-select bug is that **a
+> guard which lives only on the surface that usually calls it is a guard with a
+> hole in it.**
+
+`_sxrMoveLink`, the Samples twin, had no such check. The near-miss is why it was
+easy to overlook: `_sxrLinearCommit` **does** seal, before it calls
+`applyCommit`. But the link-conflict flow never goes through `_sxrLinearCommit`.
+The "This Linear sub-issue is already linked to …" row renders a **Move it here**
+button wired to `_sxrMoveLinkConfirm`, which calls `_sxrMoveLink` **directly**.
+Its only guard was `if (_isClientLink) return;` — staff-only, and every SMM is
+staff. So the seal covered the surface that usually calls it and not the one
+that bypasses it, which is the sentence above, in the twin.
+
+Two consequences, in order of who is hurt sooner:
+
+1. **Today:** a staff member can move a Linear link onto a samples card on a team
+   where SyncView is authoritative, which is precisely the write the seal exists
+   to refuse.
+2. **After 2026-09-15:** the move also fires `_sxrSyncStatusFromLinear`, which
+   POSTs `linear-subissues` (`index.html:69452`). That endpoint stops answering,
+   so the move hangs.
+
+**THE ORDER IS THE OTHER HALF OF THE FIX.** `_sxrMoveLink` clears the OLD card's
+link before setting the new one. A seal placed after that clearing would refuse
+the move and still have stripped the source card — the **item-66 shape**, where
+a refusal leaves the user worse off than before they clicked. The check goes in
+first, ahead of the clear, the pending-edit write, its flush, and the sync. Both
+twins now order it identically.
+
+**Test:** `test/sxr-move-link-sealed.js`, 11 offline checks. Five of them are
+about ORDER rather than presence, because a seal in the wrong place passes a
+naive "is it gated" grep and still loses the user's link.
+
+**Belongs to C8 and is NOT the whole of it.** C8 still has to remove the Import
+from Linear and Bulk link dialogs, whose open-fetches at `index.html:33769` and
+`:34046` fire `linear-subissues` BEFORE their seal checks — the user opens the
+dialog, SyncView calls Linear, and only Apply refuses. That is unstarted.
+
+### EXTENSION, 2026-09-08 (Codex findings 2 and 3 on PR #1346)
+
+The seal above is correct and unchanged. Adding it exposed two more defects on
+the same click, both in the code the seal now sits in front of.
+
+**FINDING 2 (P1) — the move could land on the wrong client.** The seal read is
+network-bound, and `sxrState.client` / `sxrState.posts` are mutable while it is
+in flight. Staff can click **Move it here** and switch Samples clients before it
+resolves. The continuation then read the NEW client's state:
+`sxrState.posts.find(p => p.id === newPid)` matches nothing, but the code below
+still stamped `_sxrPendingEdits[newPid]` and called `_sxrFlushCardSave(newPid)`
+— which, finding no id it recognises, treats it as a NEW row and saves the
+previous client's card into the client now on screen. **A cross-client write.**
+The odds are low and they do not soften it: the client lifecycle is the one
+thing that must not break.
+
+The fix is the guard `addSxrBlankCard` already uses twenty lines further down
+the same file — freeze the initiating slug BEFORE the await, compare after,
+abort silently if it moved. Silently, like that twin: a toast about the client
+the user just left is noise. The comparison sits ahead of every write, the
+source card's clearing included, so an abort strips nothing — the same
+item-66 ordering rule the seal itself follows.
+
+**FINDING 3 (P2) — a refusal left a dead button on screen.**
+`_sxrMoveLinkConfirm` deletes `_sxrPendingLinkMove[pid]` before calling
+`_sxrMoveLink`, so on ANY refusal — the seal above, or the new client-switch
+abort — the rendered "Move it here" conflict row stayed visible with nothing
+behind it. Every further click hit the `if (!mv)` guard and did nothing. The
+user is told the move was refused and then handed a control that silently
+no-ops. Retaining the pending move instead would let a second click re-fire a
+write that was just refused, so the row is restored — `_sxrRestoreTitleRow`,
+shared with Cancel so the two cannot drift. `_sxrMoveLink` now returns true only
+when the move actually happened; every refusal answers false.
+
+**Test:** `test/sxr-move-link-client-switch.js`, 27 offline checks. Static
+checks cannot see either of these — the order of two statements around an await
+is exactly what a grep gets wrong — so it lifts the shipped functions into a
+`vm`, holds the authority read open, moves the client underneath them, and
+asserts on what was written and rendered. Proved against two surgical
+counterfactuals on the fixed tree: reverting only the client freeze fails 11
+checks (including "no card save is issued"), reverting only the row restore
+fails 2. Fixtures are synthetic slugs.
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

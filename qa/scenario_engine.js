@@ -91,11 +91,24 @@ async function eventMatch(id, action, want, ms = 15000) {
 }
 
 // ---------- tab manager ----------
+/* Which lane a scenario needs lives in `qa/scenario_lane.js` — a module with no
+   dependencies — so the offline suite can check the rule without loading this file and the
+   browser harness underneath it. Re-exported below for callers that already import it here. */
+const { scenarioLaneIsLegacy, scenarioUsesLegacyLane } = require('./scenario_lane.js');
+
 class Actors {
-  constructor(browser) { this.browser = browser; this._smm = null; this._kasper = null; this._client = null; }
-  async smm() { if (!this._smm) this._smm = await smm(this.browser); return this._smm; }
-  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser); return this._kasper; }
-  async client() { if (!this._client) this._client = await client(this.browser); return this._client; }
+  constructor(browser, legacyLane) {
+    this.browser = browser;
+    this._smm = null; this._kasper = null; this._client = null;
+    /* Undefined means "not told", and the safe default there is PRODUCTION: a scenario that
+       forgets to declare itself gets the lane real clients take, and its Linear assertion
+       fails loudly rather than a native regression hiding behind a green legacy run. */
+    this.legacyLane = legacyLane === true;
+  }
+  get _rosterOpts() { return this.legacyLane ? { writeUiRerouteLegacy: true } : undefined; }
+  async smm() { if (!this._smm) this._smm = await smm(this.browser, 'sidneylaruel', this._rosterOpts); return this._smm; }
+  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser, this._rosterOpts); return this._kasper; }
+  async client() { if (!this._client) this._client = await client(this.browser, undefined, undefined, this._rosterOpts); return this._client; }
   async closeAll() { for (const p of [this._smm, this._kasper, this._client]) { if (p) { try { await p.context().close(); } catch {} } } this._smm = this._kasper = this._client = null; }
 }
 
@@ -727,7 +740,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const fs = require('fs');
   const id = scn.id, name = scn.name;
   const log = []; let nstep = 0; let okCount = 0, failCount = 0;
-  const actors = new Actors(browser);
+  const actors = new Actors(browser, scenarioLaneIsLegacy(scn));
   const extraIds = new Set();   // rows minted BY THE UI during this scenario (no seeded id) — archived in finally
   const uiNames = new Map();    // logical scenario names → per-run unique names (noSeed UI-born rows)
   const uniqueUiName = (label) => {
@@ -1084,4 +1097,4 @@ async function runScenario(browser, scn, shotDir, doShots) {
   return { key: scn.key, name: scn.title || scn.name, ok: okCount, fail: failCount, log };
 }
 
-module.exports = { runScenario };
+module.exports = { scenarioUsesLegacyLane, runScenario };

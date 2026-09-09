@@ -1,3 +1,4 @@
+const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
 // Shared harness for the golden-path interaction probes.
 //
 // Design (see docs/testing/CALENDAR-TEST-CATALOG.md §10.5):
@@ -67,15 +68,16 @@ function capture(page) {
 async function _ctx(browser) {
   const c = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  // write_ui_reroute_clients → DARK for the harness: the TEST client is the
-  // sole allowlist member, so the live flag would put it on the #850 gateway
-  // lane, which fails Linear-linkless harness cards closed before the source
-  // save. Real clients run legacy; keep the stand-in faithful. Only this one
-  // flag is stubbed. (Full rationale: qa/probes/lib.js; guard: p95.)
-  await c.route(u => { const s = u.toString(); return s.includes('syncview_runtime_flags') && s.includes('write_ui_reroute_clients'); }, async (route) => {
-    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+  // write_ui_reroute_clients → the PRODUCTION roster, which has the TEST
+  // client enrolled like every other active client. This used to serve `[]`
+  // and call that faithful because "real clients run legacy"; they do not,
+  // and after the fail-closed repair `[]` does not even produce a legacy lane.
+  // Full reasoning, and the fixture half still owed, in
+  // qa/write_ui_reroute_fixture.js. Only this one flag is stubbed. (Guard: p95.)
+  await c.route(u => REROUTE_FIXTURE.isRerouteFlagRequest(u.toString()), async (route) => {
+    const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
   });
   return c;
 }

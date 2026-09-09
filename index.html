@@ -22431,7 +22431,6 @@
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
     const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
-    const EDITORS_WEEK_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/editors-week';
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
@@ -25456,6 +25455,37 @@
     let _calUpsertFlagPromise = null;
     let _writeUiRerouteFlagPromise = null;
     let _writeUiRerouteFlagFailed = false;
+    /* VALIDITY IS TRACKED SEPARATELY FROM THE ALLOWLIST (Codex finding 1 on the
+       item-175 fix, 2026-09-08).
+
+       `_writeUiRerouteFlagFailed` means one narrow thing and must keep meaning
+       it: the READ ITSELF failed, which is what `_writeUiHealRerouteFlag` keys
+       on to decide whether a resume should re-fetch. It says nothing about a
+       read that SUCCEEDED and came back with nothing a router can act on.
+
+       Those are not the same state, and item 175 shipped as though they were.
+       The success path applies `rerouteRow.value` when there is one and
+       `{clients: []}` when there is not, then clears the failed mark
+       unconditionally. So a 200 carrying `[]`, or a missing `write_ui_reroute_clients`
+       key, or a value of the wrong shape produced an EMPTY allowlist and a
+       flag that reported itself healthy -- and `_writeUiRerouteUseGatewayFailClosed`,
+       finding no failure, answered the factual "this slug is not enrolled" and
+       sent every status change to LINEAR_SET_STATUS_URL and every comment to
+       LINEAR_ADD_COMMENT_URL. Delete or corrupt that one row after 2026-09-15
+       and every write in every open tab goes silently to a dead endpoint,
+       which is precisely the outcome item 175 exists to prevent. The
+       fail-closed contract has to cover "succeeded with nothing usable", not
+       only "could not be read".
+
+       This flag is that second signal. It gates ROUTING ONLY. The allowlist
+       itself is untouched on every path -- it stays the factual answer the
+       outbox drain and the project-source filter need, exactly as item 175
+       pinned -- and a heal still re-fetches only on a genuine read failure, so
+       an empty roster does not put a tab into a re-fetch loop. It starts TRUE
+       because before the first read lands there is no roster to trust, and the
+       whole point is that the unknown case routes to the authority that can
+       answer out loud. */
+    let _writeUiRerouteRosterUnusable = true;
     /* Review finding on the item-70 fix: the heal re-fetch and the realtime
        channel are separate connections, so a heal that started BEFORE a
        channel delivery can land after it and overwrite a good roster -- a
@@ -25472,11 +25502,41 @@
     let _settingsEfClients = new Set();
     let _settingsFlagPromise = null;
     let _settingsFlagChannel = null;
+    /* One roster MEMBER, normalised, or null when the member is not a slug at
+       all. Codex finding on the item-175 repair: this used to be
+       `calClientSlug(String(x || ''))` inline, and `String()` does not reject a
+       non-string -- it FABRICATES a slug out of it. `{}` becomes
+       "[object Object]", which the slug rules then strip to the perfectly
+       plausible-looking `objectobject`. So `{"clients":[{}]}` -- a corrupt row,
+       an object where a slug belongs -- produced a non-empty roster that no
+       real client is in, and every real client fell through to "not enrolled".
+       A member that is not a string is corruption, and the honest answer is
+       null rather than an invented enrolment. Every caller filters those out,
+       so this only ever drops entries that could not have matched a real client
+       slug in the first place; what it additionally buys is that
+       `_writeUiRerouteRosterUsable` can now SEE the corruption instead of
+       counting it. */
+    function _calRuntimeFlagSlug(member) {
+        if (typeof member !== 'string') return null;
+        let slug;
+        try { slug = calClientSlug(member); }
+        catch (e) { slug = member.toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return slug || null;
+    }
+    /* The members a flag value offers, or null when it offers no member list at
+       all. Split out of the normaliser so the routing gate can tell "an
+       operator's roster holding nobody" (`[]`) from "this value has no roster
+       in it" (a scalar, an object of the wrong shape) -- the normaliser
+       flattens both to zero slugs, and that is the right answer for an
+       ALLOWLIST and the wrong one for a router. */
+    function _calRuntimeFlagRawMembers(value) {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object' && Array.isArray(value.clients)) return value.clients;
+        return null;
+    }
     function _calRuntimeFlagClients(value) {
-        const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
-        return raw.map(x => {
-            try { return calClientSlug(String(x || '')); } catch (e) { return String(x || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        }).filter(Boolean);
+        const raw = _calRuntimeFlagRawMembers(value);
+        return (raw || []).map(x => _calRuntimeFlagSlug(x)).filter(Boolean);
     }
     function _calSetUpsertFlagValue(value) {
         _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
@@ -25489,6 +25549,33 @@
     }
     function _clientCommentGatewayOn() {
         return _clientCommentGatewayEnabled === true;
+    }
+    /* Did this read come back with a roster a ROUTER can act on?
+       Deliberately not "is the allowlist empty" asked at the predicate: the
+       question belongs to the READ, because only the read knows the difference
+       between an operator's roster that happens to hold nobody and a row that
+       was absent, null, or the wrong shape. All four answer the same way here
+       on purpose -- none of them can tell this tab which lane a given client
+       takes, and after 2026-09-15 guessing "legacy" is guessing "a URL that
+       accepts the write and drops it". Measured 2026-09-07: all 43 active
+       clients are enrolled, so an empty roster is a defect state, never an
+       operating one. */
+    function _writeUiRerouteRosterUsable(row) {
+        const value = row && row.value;
+        if (!value || typeof value !== 'object') return false;
+        const members = _calRuntimeFlagRawMembers(value);
+        if (!members || !members.length) return false;
+        /* EVERY member has to be slug-shaped, not merely one of them. Asking
+           "did normalisation produce at least one slug" was the Codex finding
+           on the first version of this predicate: a corrupt value such as
+           {"clients":[{}]} answered YES -- because the coercion invented
+           `objectobject` -- and that single bogus entry cleared the unusable
+           signal for the whole roster, sending every real client, none of whom
+           are in it, straight back to the retiring Linear webhooks. A roster
+           carrying anything that is not a slug is a roster this tab cannot
+           route by, whatever else is in it, so it heads for the native
+           authority that can refuse out loud. */
+        return members.every(member => _calRuntimeFlagSlug(member) !== null);
     }
     function _writeUiSetRerouteFlagValue(value, options) {
         const previousClients = new Set(_writeUiRerouteClients);
@@ -25523,6 +25610,12 @@
             if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
+            // The ONE state where an empty roster is treated as usable, and for
+            // the same reason this path does not set the failed mark: with no
+            // Supabase config the native gateway is unreachable too, so
+            // routing native routes into nothing. Legacy is the only lane that
+            // could work here, so let the empty allowlist mean what it says.
+            _writeUiRerouteRosterUnusable = false;
             return;
         }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -25556,10 +25649,25 @@
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
             _writeUiRerouteFlagFailed = false;
+            // The READ succeeded, so the failed mark clears and the heal stands
+            // down. Whether it succeeded with anything a ROUTER can use is a
+            // separate question, and the line above deliberately does not
+            // answer it: `[]`, an absent key, and a malformed value all reach
+            // here with the allowlist emptied and nothing wrong with the
+            // transport. Codex finding 1.
+            _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(rerouteRow);
         } catch (e) {
-            // A missing/unreadable rollout flag is deliberately dark: every
-            // client stays on the pre-#813 n8n transports, and client comments
-            // stay on the legacy lane (fail-legacy, never fail-open).
+            // A missing/unreadable rollout flag leaves the ALLOWLIST empty, and
+            // the allowlist is still the factual answer the outbox drain needs.
+            // What changed on 2026-09-07 (owner decision, LX-C) is what an empty
+            // allowlist means for ROUTING a live write: _writeUiRerouteFlagFailed
+            // is set here, and _writeUiRerouteUseGatewayFailClosed reads it to
+            // send status changes and comments NATIVE instead of to
+            // LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL. This comment used
+            // to say "fail-legacy, never fail-open", which was correct while
+            // Linear was the safe destination and is backwards once it is not.
+            // Client comments are unaffected: they are routed legacy by
+            // principal, not by enrollment (see _calPostLinearComment).
             // The dark fallback stays bare: the roster is empty on this path
             // both at boot and on a failed heal, so there is never a roster
             // CHANGE for options.refreshProjects to act on.
@@ -25567,7 +25675,8 @@
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
             _writeUiRerouteFlagFailed = true;
-            console.warn('[SyncView] write-UI reroute flag read failed; using legacy n8n transports', e);
+            _writeUiRerouteRosterUnusable = true;
+            console.warn('[SyncView] write-UI reroute flag read failed; routing live writes to the native gateway', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
         }
@@ -25582,6 +25691,7 @@
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
                 _writeUiRerouteFlagFailed = true;
+                _writeUiRerouteRosterUnusable = true;
             });
         }
         return _writeUiRerouteFlagPromise;
@@ -25616,6 +25726,7 @@
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
                 _writeUiRerouteFlagFailed = true;
+                _writeUiRerouteRosterUnusable = true;
             });
             return _writeUiRerouteFlagPromise;
         });
@@ -25628,6 +25739,11 @@
     function _writeUiApplyRerouteFlagFromChannel(row) {
         _writeUiRerouteFlagGeneration++;
         _writeUiRerouteFlagFailed = false;
+        // Same split as the fetch: the delivery is a successful read, so the
+        // failed mark clears; whether it delivered a usable roster is asked
+        // separately. A DELETE arrives here with no `row` at all, which is the
+        // literal "someone removed the flag row" case Codex finding 1 names.
+        _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(row);
         return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
     }
     function _calRuntimeFlagClient() {
@@ -25687,6 +25803,40 @@
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         return !!slug && _writeUiRerouteClients.has(slug);
+    }
+    /* ROUTING A LIVE WRITE FAILS CLOSED AGAINST LINEAR (owner decision, 2026-09-07).
+       _writeUiRerouteUseGateway above answers a FACTUAL question — is this slug
+       in the allowlist — and two callers need exactly that answer and must keep
+       it: the outbox drain (index.html ~32320 / ~68380), where a genuinely
+       unenrolled client's legacy item is legitimate traffic and quarantining it
+       is the item-63 defect, and the project-source filter at ~13866.
+       Routing a live write is a different question. Its unreadable-flag answer
+       used to be "legacy": _writeUiFetchRerouteFlagOnce falls back to
+       {clients:[]} on any failure or on the two-second timeout, so ONE slow
+       moment at boot sent every client's status changes to LINEAR_SET_STATUS_URL
+       and every comment to LINEAR_ADD_COMMENT_URL. The comment there calls that
+       "fail-legacy, never fail-open". That was correct while Linear was the safe
+       destination and is exactly backwards once it is not: after 2026-09-15 the
+       legacy lane is a dead URL that fails silently, while the native lane is an
+       authority that can refuse out loud — which is the permissive-client rule in
+       AGENTS.md ("let the authority that can see it decide"), not an exception to it.
+       Measured 2026-09-07 against the live flag: all 43 active clients are
+       enrolled, and the allowlist holds exactly those 43 with no ghosts. So this
+       changes the destination for NO client that works today — only for the
+       failure case, which is the only case it was ever wrong in. */
+    function _writeUiRerouteUseGatewayFailClosed(clientOrSlug) {
+        /* Two signals, not one, and BOTH are checked (Codex finding 1).
+           `_writeUiRerouteFlagFailed` is the read that never landed;
+           `_writeUiRerouteRosterUnusable` is the read that landed with nothing
+           a router can act on -- `[]`, an absent key, a malformed value, or no
+           read yet. The first shipped in item 175 and the second did not, so a
+           deleted or corrupted flag row answered the factual "not enrolled"
+           and every live write went to a webhook that will stop existing.
+           Every failure site sets both; the redundancy is deliberate, so that a
+           later edit which sets only one still fails toward the authority that
+           can refuse out loud rather than toward the silent one. */
+        if (_writeUiRerouteFlagFailed || _writeUiRerouteRosterUnusable) return true;
+        return _writeUiRerouteUseGateway(clientOrSlug);
     }
     window.peekWriteUiRerouteClients = function () { return Array.from(_writeUiRerouteClients); };
     function _calUpsertUrlForClient(clientOrSlug) {
@@ -25969,7 +26119,7 @@
     async function _writeUiRerouteUseGatewayWhenReady(clientOrSlug) {
         const clientSlug = wlNormalizeClient(clientOrSlug && clientOrSlug.name ? clientOrSlug.name : clientOrSlug);
         await _writeUiPrimeRerouteFlag();
-        return _writeUiRerouteUseGateway(clientSlug);
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
     }
     async function _writeUiUseGatewayWhenReady(surface, meta) {
         // Freeze the initiating card/client before the runtime flag wait. A tab
@@ -25977,7 +26127,7 @@
         // intent using mutable Calendar/SXR selection state.
         const clientSlug = _writeUiSourceClientSlug(surface, meta);
         await _writeUiPrimeRerouteFlag();
-        return _writeUiRerouteUseGateway(clientSlug);
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
     }
     async function _writeUiClassifyTargetless(surface, component, meta) {
         const authority = await _writeUiRefreshAuthority();
@@ -66129,21 +66279,81 @@
         const nm = String(conflict.name || '').trim() || 'Untitled sample';
         row.innerHTML = `<div class="cal-link-conflict" data-link-conflict="${_sxrEscAttr(pid)}"><span class="cal-link-conflict-msg">This Linear sub-issue is already linked to “${_sxrEsc(nm)}”.</span><span class="cal-link-conflict-actions"><button type="button" class="cal-link-conflict-move" onclick="_sxrMoveLinkConfirm('${pid}')">Move it here</button><button type="button" class="cal-link-conflict-cancel" onclick="_sxrLinkConflictCancel('${pid}')">Cancel</button></span></div>`;
     }
-    function _sxrLinkConflictCancel(pid) {
-        delete _sxrPendingLinkMove[pid];
+    /* Put the ordinary title row back where a conflict row is rendered. Shared
+       by Cancel and by a refused Move so the two cannot drift: a conflict row
+       left on screen after the pending move is gone is a dead control. */
+    function _sxrRestoreTitleRow(pid) {
         const post = sxrState.posts.find(p => p.id === pid);
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (row) row.innerHTML = _sxrTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+    function _sxrLinkConflictCancel(pid) {
+        delete _sxrPendingLinkMove[pid];
+        _sxrRestoreTitleRow(pid);
     }
     function _sxrMoveLinkConfirm(pid) {
         const mv = _sxrPendingLinkMove[pid];
         if (!mv) return;
         delete _sxrPendingLinkMove[pid];
-        _sxrMoveLink(mv.oldPid, pid, mv.which, mv.val);
+        /* A REFUSED MOVE MUST NOT LEAVE THE CONFLICT ROW BEHIND (Codex finding
+           3, 2026-09-08). The pending move is dropped on the line above --
+           before `_sxrMoveLink` has had a chance to refuse -- so when the seal
+           refuses (item 176) or the client changed underneath (finding 2), the
+           rendered "Move it here" row stayed on screen with nothing behind it:
+           `_sxrPendingLinkMove[pid]` is gone, so every further click returns at
+           the `if (!mv)` guard and does nothing at all. The user is told the
+           move was refused and then handed a button that silently no-ops.
+           Dropping the pending move first is still right -- retaining it would
+           leave a second click able to re-fire a write that was just refused --
+           so the row is restored instead, exactly as Cancel does. */
+        Promise.resolve(_sxrMoveLink(mv.oldPid, pid, mv.which, mv.val))
+            .then(moved => { if (!moved) _sxrRestoreTitleRow(pid); })
+            .catch(() => _sxrRestoreTitleRow(pid));
     }
+    /* Returns TRUE only when the move actually happened. Every refusal answers
+       false so `_sxrMoveLinkConfirm` can put the title row back (finding 3). */
     async function _sxrMoveLink(oldPid, newPid, which, val) {
-        if (_isClientLink) return;
+        if (_isClientLink) return false;   // moving a Linear link is SMM-only
+        /* FREEZE THE CLIENT BEFORE THE AUTHORITY AWAIT (Codex finding 2,
+           2026-09-08). The seal read below is network-bound, and
+           `sxrState.client` / `sxrState.posts` are mutable: staff can click
+           "Move it here" and switch Samples clients while it is in flight. The
+           continuation then reads the NEW client's state, `newPid` matches
+           nothing in it, and the writes below still stamp
+           `_sxrPendingEdits[newPid]` and call `_sxrFlushCardSave(newPid)` --
+           which, finding no id it recognises, treats it as a new row and saves
+           the previous client's card into the client now on screen. That is a
+           cross-client WRITE, and the client lifecycle is the one thing that
+           must not break, so the odds do not soften it.
+           `addSxrBlankCard` right below already freezes its slug across exactly
+           this kind of wait; this is the same guard on the same shape. Silent,
+           like that one: the user has moved on to another client and a toast
+           about the one they left is noise. `slug` is captured here rather than
+           after the seal because the code below uses it too, and it must be the
+           INITIATING client's. */
         const slug = sxrClientSlug(sxrState.client);
+        /* The calendar twin `_calMoveLink` gates here and says exactly why:
+           "a guard which lives only on the surface that usually calls it is a
+           guard with a hole in it." THIS TWIN WAS THAT HOLE. `_sxrLinearCommit`
+           does check the seal before `applyCommit`, but the conflict flow does
+           not go through it -- `_sxrMoveLinkConfirm` is a different surface and
+           reaches this function directly. So a staff member could move a Linear
+           link onto a samples card on a syncview-authoritative team, and the
+           move also fires `_sxrSyncStatusFromLinear`, which POSTs
+           `linear-subissues` and will hang once that endpoint is gone.
+           Seal FIRST, before the old card's link is cleared: a refusal that has
+           already mutated the source card is the item-66 shape, where the tool
+           refuses and still leaves the user worse off than before they clicked. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        // The client check comes FIRST: if the tab moved on, this move belongs
+        // to nobody on screen, and a seal notice about the client they left is
+        // the wrong thing to say.
+        if (!slug || sxrClientSlug(sxrState.client) !== slug) return false;
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return false;
+        }
         const key = _sxrLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
         const oldPost = sxrState.posts.find(p => p.id === oldPid);
@@ -66157,7 +66367,28 @@
                     cleared = true;
                 }
             });
-            if (cleared) { _sxrRenderBody({ preserveScroll: true }); try { await _sxrFlushCardSave(oldPid); } catch (e) {} }
+            if (cleared) {
+                _sxrRenderBody({ preserveScroll: true });
+                try { await _sxrFlushCardSave(oldPid); } catch (e) {}
+                /* THE SECOND AWAIT HAS THE SAME HAZARD AS THE FIRST (Codex,
+                   2026-09-08). The freeze above protects the AUTHORITY read;
+                   this flush is a separate network round trip, and a client
+                   switch during it lands the continuation on the new client's
+                   `sxrState.posts` with the same consequence: `newPid` matches
+                   nothing, and the writes below stamp `_sxrPendingEdits[newPid]`
+                   and call `_sxrFlushCardSave(newPid)` anyway, saving the
+                   previous client's card into the client now on screen. One
+                   guarded await and one unguarded one is not a guard; it is the
+                   same hole moved four lines down.
+                   The source card's link IS already cleared and saved at this
+                   point, so bailing here leaves the move half-done. That is
+                   deliberate and it is the lesser harm: an incomplete move on a
+                   client the user has navigated away from is recoverable and
+                   visible, while a cross-client WRITE is neither. Closing the
+                   half-state needs a transactional move, which is not this
+                   repair. */
+                if (sxrClientSlug(sxrState.client) !== slug) return false;
+            }
         }
         const newPost = sxrState.posts.find(p => p.id === newPid);
         if (newPost) newPost[newFld] = val;
@@ -66167,6 +66398,7 @@
         if (val) _sxrArchivedRemove(slug, [val]);
         _sxrRenderBody({ preserveScroll: true });
         if (val && typeof _sxrSyncStatusFromLinear === 'function') _sxrSyncStatusFromLinear(newPid, val, which);
+        return true;
     }
     function _sxrLinkDuplicatePeers(post) {
         if (!post) return [];
@@ -74946,7 +75178,7 @@
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
         lastLoaded: 0,
-        editorsData: null,    // { weekLabel, editors[], … } from /webhook/editors-week
+        editorsData: null,    // { weekLabel, editors[], … } from _kedFetchNativeWeek
         editorsLoading: false,
         editorsError: null,
         editorsLoadedAt: 0,
@@ -79575,9 +79807,10 @@
 
 
     /* ── Editors (weekly labor) ─────────────────────────────────────
-       Reads /webhook/editors-week — every VID-team sub-issue with activity
-       in the previous calendar week (Mon→Sun, America/Chicago), grouped per
-       assignee, each carrying its full within-week transition history.
+       Reads public.deliverable_events — every video deliverable with a status
+       transition in the previous calendar week (Mon→Sun, America/Chicago),
+       grouped per current assignee, each carrying its within-week history.
+       See _kedFetchNativeWeek for the shaper and its two correctness traps.
        Work is measured client-side as DELIVERIES (see _kedSplitVideos): the
        editor handing a video off for review (into For SMM / Kasper / Client
        approval) from a state they were holding it in — a first cut (from In
@@ -79676,6 +79909,298 @@
         try { localStorage.setItem(KASPER_EDITORS_CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() })); } catch (e) {}
     }
 
+    /* ── editors-week, natively ──────────────────────────────────────
+       Replaces the retired editors-week n8n call (Linear-backed) with a
+       direct read of public.deliverable_events, the installed status-transition
+       ledger (migrations/2026-07-06-b1-linear-data-model.sql:87, anon-readable
+       per its policy at :683). The panel's maths is UNCHANGED: this shaper
+       emits exactly the payload _kedPaint/_kedSplitVideos/_kedVideoCourt
+       already consume, so every number keeps its existing definition.
+
+       Two things it must get right, both of which silently corrupt the week
+       if they are wrong:
+
+       1. dayKey MUST be an America/Chicago calendar date. _kedVideoDeliveries
+          falls back to `String(t.at).slice(0,10)` — a UTC date — when dayKey
+          is absent, but _kedWeekDateKeys builds the seven bar buckets in
+          America/Chicago. Anything after ~19:00 Chicago would land on the next
+          day's bar, and Sunday-evening work would fall outside the week's keys
+          entirely: counted in the totals, invisible in the bars.
+       2. Native status values are not the Linear labels the _ked* predicates
+          match on. `tweak` in particular must become 'Tweak Needed' or it
+          matches neither _kedIsTweakState (so a tweak round is miscounted as
+          a first cut) nor _kedStatusSlug (so the timeline strip loses its
+          colour). The map below is the whole translation layer. */
+    const _KED_NATIVE_TZ = 'America/Chicago';
+    // deliverables.status domain (migrations/2026-07-06-b1-linear-data-model.sql:39-41)
+    // → the Linear-shaped label the existing predicates already understand.
+    // 'scheduled' has no Linear equivalent and deliberately matches no
+    // predicate: it is a post-approval publishing state, not editor work.
+    const _KED_NATIVE_STATUS_LABEL = {
+        triage:           'Triage',
+        backlog:          'Backlog',
+        todo:             'Todo',
+        in_progress:      'In Progress',
+        smm_approval:     'For SMM Approval',
+        kasper_approval:  'For Kasper Approval',
+        client_approval:  'For Client Approval',
+        tweak:            'Tweak Needed',
+        approved:         'Approved',
+        scheduled:        'Scheduled',
+        posted:           'Posted',
+        canceled:         'Canceled',
+        duplicate:        'Duplicate'
+    };
+    function _kedNativeLabel(status) {
+        const raw = String(status == null ? '' : status).trim();
+        if (!raw) return '';
+        return _KED_NATIVE_STATUS_LABEL[raw.toLowerCase()] || raw;
+    }
+
+    // Minutes that America/Chicago is offset from UTC at a given instant
+    // (-300 on CDT, -360 on CST). Derived from Intl rather than hard-coded so
+    // the DST boundary inside a week cannot shift a day.
+    function _kedTzOffsetMinutes(date) {
+        const dtf = new Intl.DateTimeFormat('en-US', {
+            timeZone: _KED_NATIVE_TZ, hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        const p = {};
+        for (const part of dtf.formatToParts(date)) { if (part.type !== 'literal') p[part.type] = part.value; }
+        const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+        return Math.round((asUTC - date.getTime()) / 60000);
+    }
+    // The UTC instant of 00:00 America/Chicago on a YYYY-MM-DD date. Two
+    // passes so a date whose naive-UTC guess lands on the other side of a DST
+    // transition still resolves to the right wall-clock midnight.
+    function _kedChicagoMidnightMs(dateStr) {
+        const naive = Date.parse(String(dateStr) + 'T00:00:00Z');
+        if (isNaN(naive)) return NaN;
+        let ms = naive - _kedTzOffsetMinutes(new Date(naive)) * 60000;
+        ms = naive - _kedTzOffsetMinutes(new Date(ms)) * 60000;
+        return ms;
+    }
+    const _kedDayKeyFmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: _KED_NATIVE_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    // The same key _kedWeekDateKeys stamps on the seven buckets.
+    function _kedChicagoDayKey(iso) {
+        const ms = Date.parse(iso);
+        if (isNaN(ms)) return '';
+        return _kedDayKeyFmt.format(new Date(ms));
+    }
+    function _kedWeekLabel(startMs, endMs) {
+        const f = new Intl.DateTimeFormat('en-US', { timeZone: _KED_NATIVE_TZ, month: 'short', day: 'numeric' });
+        return f.format(new Date(startMs)) + ' – ' + f.format(new Date(endMs - 1));
+    }
+
+    // PostgREST paging. The window routinely exceeds the 1000-row default,
+    // and a truncated read is indistinguishable from a quiet week.
+    //
+    // THE CEILING THROWS RATHER THAN TRUNCATING (Codex, 2026-09-08). This loop
+    // used to run a fixed twenty iterations and return whatever it had, so a
+    // query matching 20,000 rows or more handed the panel the first 20,000 as
+    // if they were all of them -- the SAME silent undercount the pager exists
+    // to remove, moved from 1,000 up to 20,000 and made rarer, which is worse,
+    // not better: rare and silent is how a wrong number survives long enough to
+    // be trusted. It now runs until it OBSERVES a terminal page (a short one,
+    // or an empty one when the total is an exact multiple of PAGE), and the
+    // ceiling is an assertion rather than a stop: reaching it means the caller
+    // asked for a window no week of status events can fill, which is a bug in
+    // the query and not a big week. Throwing is right because every caller of
+    // this is a COUNT the owner reads as fact -- and the panel already renders
+    // a thrown read as an error, where it renders a short one as a quiet week.
+    async function _kedRestPage(path) {
+        const out = [];
+        const PAGE = 1000;
+        const MAX_PAGES = 50;              // 50,000 rows; a real week is ~10^2
+        for (let page = 0; ; page++) {
+            if (page >= MAX_PAGES) {
+                // Only the table name -- `path` carries filter values, and this
+                // string can reach a console in a PUBLIC repo's CI output.
+                throw new Error('_kedRestPage: over ' + (MAX_PAGES * PAGE)
+                    + ' rows from ' + String(path).split('?')[0]
+                    + '; refusing to report a truncated count');
+            }
+            const offset = page * PAGE;
+            const url = CAL_SUPABASE_URL + '/rest/v1/' + path
+                + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=' + PAGE + '&offset=' + offset;
+            const resp = await fetch(url, {
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows) || !rows.length) break;
+            for (const r of rows) out.push(r);
+            if (rows.length < PAGE) break;
+        }
+        return out;
+    }
+    // `id=in.(...)` has a URL-length ceiling, so ids go out in chunks.
+    async function _kedRestIn(table, select, column, ids) {
+        const out = [];
+        const CHUNK = 120;
+        for (let i = 0; i < ids.length; i += CHUNK) {
+            const slice = ids.slice(i, i + CHUNK).filter(Boolean);
+            if (!slice.length) continue;
+            const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
+            const rows = await _kedRestPage(table + '?select=' + select
+                + '&' + column + '=in.(' + encodeURIComponent(list) + ')');
+            for (const r of rows) out.push(r);
+        }
+        return out;
+    }
+
+    /* Build the editors-week payload from public.deliverable_events.
+       Shape returned is byte-compatible with what the retired n8n endpoint
+       returned, so nothing downstream changes:
+         { weekLabel, weekStart, weekEnd, source, editors:[
+             { id, name, email, avatarUrl, videos:[
+                 { id, title, clientName, url, transitions:[{at,dayKey,from,status}] } ] } ] } */
+    async function _kedFetchNativeWeek() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('native_source_unavailable');
+        const mondayDate = _kedExpectedLastWeekMondayDate();
+        const weekStartMs = _kedChicagoMidnightMs(mondayDate);
+        if (isNaN(weekStartMs)) throw new Error('week_window_unresolved');
+        // Exclusive end: 00:00 Chicago on the following Monday. Derived from
+        // the date seven days on rather than +7*86400000 so a DST week keeps
+        // its wall-clock boundary.
+        const nextMondayDate = _kedDayKeyFmt.format(new Date(weekStartMs + 7 * 86400000 + 12 * 3600000));
+        const weekEndMs = _kedChicagoMidnightMs(nextMondayDate);
+        const startISO = new Date(weekStartMs).toISOString();
+        const endISO = new Date(weekEndMs).toISOString();
+
+        const events = await _kedRestPage(
+            'deliverable_events?select=deliverable_id,ts,from_status,to_status'
+            + '&action=eq.status_change'
+            + '&ts=gte.' + encodeURIComponent(startISO)
+            + '&ts=lt.' + encodeURIComponent(endISO)
+            + '&order=ts.asc');
+
+        const byDeliverable = new Map();
+        for (const ev of events) {
+            const did = ev && ev.deliverable_id;
+            if (!did) continue;
+            if (!byDeliverable.has(did)) byDeliverable.set(did, []);
+            byDeliverable.get(did).push({
+                at: ev.ts,
+                dayKey: _kedChicagoDayKey(ev.ts),
+                from: _kedNativeLabel(ev.from_status),
+                status: _kedNativeLabel(ev.to_status)
+            });
+        }
+        const ids = Array.from(byDeliverable.keys());
+        if (!ids.length) {
+            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                     weekEnd: endISO, source: 'native', editors: [] };
+        }
+
+        // Only video deliverables: the panel counts videos, and graphics work
+        // would inflate every headline number.
+        //
+        // KNOWN GAP, NOT AN OVERSIGHT: `assignee_id` is the deliverable's
+        // CURRENT assignee, so a video reassigned after last week's transitions
+        // credits the whole week to whoever holds it now. TRACK_B spec 9.11
+        // names that exact behaviour as the legacy `editors-week` reader's
+        // defect and requires the native replacement to use "the assignee
+        // identity at EVENT TIME" instead. This does not do that, and cannot
+        // yet: there is no assignment history to read. Measured 2026-09-08
+        // against 1,000 live `status_change` rows -- the `actor`/`role` columns
+        // are the person who ACTED (a client approving is not the editor), they
+        // are null on two thirds of rows, and no payload variant across the
+        // sample carries an assignee key at all. No `assign` action is recorded
+        // anywhere either. Reconstructing event-time assignment therefore needs
+        // a migration plus a writer change (stamp the assignee onto every
+        // event, or keep an assignment-history table), which is an owner
+        // decision and a different lane. OPEN_REPAIRS 171 carries it OPEN.
+        // Written here so the next reader sees the gap at the lookup that
+        // causes it rather than inferring the panel is spec-complete.
+        let deliverables = (await _kedRestIn(
+            'deliverables', 'id,title,client_slug,assignee_id,kind,linear_issue_url', 'id', ids))
+            .filter(d => d && d.kind === 'video' && d.assignee_id);
+        if (!deliverables.length) {
+            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                     weekEnd: endISO, source: 'native', editors: [] };
+        }
+
+        const memberIds = Array.from(new Set(deliverables.map(d => d.assignee_id)));
+        const members = await _kedRestIn('team_members', 'id,name,email,role,active', 'id', memberIds);
+        const memberById = new Map(members.map(m => [m.id, m]));
+        const clientSlugs = Array.from(new Set(deliverables.map(d => d.client_slug).filter(Boolean)));
+        const clients = clientSlugs.length
+            ? await _kedRestIn('clients', 'slug,display_name,kind', 'slug', clientSlugs)
+            : [];
+        const clientBySlug = new Map(clients.map(c => [c.slug, c.display_name]));
+        /* TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION.
+
+           Codex finding, 2026-09-08. This lookup selected `slug,display_name`
+           only, so it could not tell one kind of client from another and every
+           slug counted. `sidneylaruel` is the TEST client the nightly probes
+           drive: they move statuses on it continuously, each move writes a
+           `status_change` to `deliverable_events`, and every one of those rows
+           landed in whichever editor holds the assignee_id — inflating first
+           cuts, tweak rounds, finishes and the videos-on-plate count with
+           robot traffic, in the panel Kasper reads to judge people.
+           `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §9.11 names the exclusion
+           explicitly ("exclude the Graphics team, TEST/internal clients, and
+           unassigned work from Video production totals"); the other two halves
+           of that sentence were already implemented above (`kind === 'video'`,
+           `assignee_id`) and this one was not.
+
+           EXCLUDED BY `kind`, NOT BY `active`, and the difference is
+           deliberate. An offboarded real client (`kind:'client', active:false`
+           — three of them live today) still had real videos edited by a real
+           editor, and dropping their week would erase work that happened. Only
+           a client that is not production work at all is removed.
+
+           A slug with NO `clients` row is KEPT, per the house rule that a guard
+           which could go either way chooses permissive (`AGENTS.md`): the panel
+           is a total, an absent registry row is not evidence of a robot, and
+           silently under-reporting an editor is the failure nobody can see. A
+           row that says `test` or `internal` IS evidence, and that is the only
+           thing dropped here. */
+        const nonProductionSlugs = new Set(clients
+            .filter(c => ['test', 'internal'].includes(String(c && c.kind || '').trim().toLowerCase()))
+            .map(c => c.slug));
+        if (nonProductionSlugs.size) {
+            deliverables = deliverables.filter(d => !nonProductionSlugs.has(d.client_slug));
+            if (!deliverables.length) {
+                return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                         weekEnd: endISO, source: 'native', editors: [] };
+            }
+        }
+
+        const byEditor = new Map();
+        for (const d of deliverables) {
+            const m = memberById.get(d.assignee_id);
+            if (!m) continue;
+            if (!byEditor.has(m.id)) {
+                byEditor.set(m.id, { id: m.id, name: m.name, email: m.email, avatarUrl: null, videos: [] });
+            }
+            byEditor.get(m.id).videos.push({
+                id: d.id,
+                title: d.title,
+                clientName: clientBySlug.get(d.client_slug) || '',
+                url: d.linear_issue_url || '',
+                transitions: (byDeliverable.get(d.id) || [])
+                    .slice()
+                    .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+            });
+        }
+        return {
+            weekLabel: _kedWeekLabel(weekStartMs, weekEndMs),
+            weekStart: startISO,
+            weekEnd: endISO,
+            source: 'native',
+            editors: Array.from(byEditor.values())
+        };
+    }
+
     async function _kasperLoadEditors(forceRefresh) {
         const body = document.getElementById('kedBody');
         const btn  = document.getElementById('kedRefresh');
@@ -79693,17 +80218,11 @@
         }
 
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work from Linear" });
+        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work" });
         _kasperState.editorsLoading = true;
         _kasperState.editorsError = null;
         try {
-            const resp = await fetch(EDITORS_WEEK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const json = await resp.json();
+            const json = await _kedFetchNativeWeek();
             if (!json || json.ok === false) throw new Error((json && json.error) || 'Unknown error');
             _kasperState.editorsData = json;
             _kasperState.editorsLoadedAt = Date.now();

@@ -4,6 +4,21 @@
 // the reverted status to (mocked) Linear so the issue isn't left stale.
 'use strict';
 const L = require('../sxr_courier_lib.js');
+/* EXPECTED RED UNTIL MIGRATED, and deliberately not pinned to the legacy lane.
+   Codex on 638ff37: this probe's contract is production behaviour, so putting it on the
+   explicit legacy roster would let a regression in the native path ship while the scheduled
+   probe stayed green — the exact "green about a lane production does not take" defect this
+   whole change set exists to remove, inverted. Between a probe that passes wrongly and one
+   that fails loudly, the loud one is correct.
+   WHAT MIGRATION NEEDS, so the next session does not have to re-derive it:
+     1. `stubNativeWorkItems` extended to stamp `/rest/v1/sample_reviews` rows, not only
+        `/rest/v1/calendar_posts`;
+     2. gateway capture inside `qa/sxr_courier_lib.js` — it records LINEAR_HOOK calls and has
+        no equivalent for `functions/v1/production-write`;
+     3. the assertions here rewritten onto native intents.
+   None of it was done in this PR because none of it can be RUN from this sandbox, and an
+   unverified rewrite of a Tier-0 probe is how this PR earned six findings already.
+   Tracked in OPEN_REPAIRS 175 and in test/probes-assert-native-write-lane.js. */
 const { launch, kasper, up, supa, archiveSafe, linearCalls, resetLinearCalls } = L;
 
 let ok = 0, fail = 0;

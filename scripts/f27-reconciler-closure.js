@@ -280,8 +280,12 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // retirement activation, which remains a separate held operation.
   // (Previous pins: c2cc93ab... after the two changes above, 4a884593... this
   // branch, c1a773a3... main, cc2b4324... before both.)
+  // Re-reviewed 2026-09-09: add the intake worker/checker and notification
+  // worker/checker lane declarations. All four use the existing heartbeat
+  // reader/relay, with provisional 360-minute freshness; no new dependency,
+  // network adapter, or reconciler mutation path enters this closure.
   'scripts/monitoring-watchdog.js':
-    '1f7fa709a780749454112c666d1a1e8f5a00cf0c57df4691d6de2987bbbd5116',
+    'b193214e7db5b8ee12a1633670f4b292aadcaf01421963c1c6b71b9067639bb4',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

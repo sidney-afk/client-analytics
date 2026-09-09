@@ -300,7 +300,7 @@ jobs:
       # (Prior pins: 65647320... first lifted gateway; 27d1a608... files=5,
       # #1361 2026-09-08; ccbdd136f4...
       # production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 0e660e96a839adf1bb32b9207d883d0e0654bfe681fcdd1479c1a4a6de1760f3
+      PRODUCTION_WRITE_SOURCE_SHA256: 3df65f659fdb6e3c06c483ba0c8e8aa362a36c0b533e632e1d6c9c4e9608fd5c
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

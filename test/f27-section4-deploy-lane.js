@@ -459,7 +459,7 @@ const CANDIDATES = new Map([
     // Re-pinned once more when the final attribution projection made intake
     // persist the validated native epoch; closure membership remains six.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: '0e660e96a839adf1bb32b9207d883d0e0654bfe681fcdd1479c1a4a6de1760f3',
+    source: '3df65f659fdb6e3c06c483ba0c8e8aa362a36c0b533e632e1d6c9c4e9608fd5c',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

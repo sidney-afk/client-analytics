@@ -89,6 +89,16 @@ function newHarness(opts) {
       projectionGeneration: 0, deepLink: o.deepLink === undefined ? { kind: 'issue', id: 'VID-1' } : o.deepLink,
       openId: 'VID-1', view: 'detail', deepLinkMissing: '',
       terminalTailPending: false, terminalTailFailed: false, terminalTailLoadedAt: 0,
+      /* Mirrors of real _prodState fields that _prodLoadData touches directly.
+         This sandbox runs the REAL function against a hand-built state, so any
+         field the loader reaches for has to exist here or the loader throws into
+         its own catch and every assertion below runs against a load that never
+         happened -- which reads as a deep-link regression rather than a missing
+         stub. Twice now (#1364). */
+      batchPartialRows: new Set(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
+      batchDeltaCursor: '',
     },
     _prodIssue(id) {
       const sid = String(id || '');
@@ -111,6 +121,9 @@ function newHarness(opts) {
       throw new Error('unexpected projection read ' + params);
     },
     _prodPreserveProjectedFields: incoming => incoming,
+    _prodCarryBatchDescriptions: incoming => incoming,
+    _prodAdvanceBatchDeltaCursor() {},
+    _prodInvalidateBatchDescriptionReads() {},
     _prodInvalidateScopedReads() {},
     _prodCacheWrite() { log.cacheWrites++; },
     _prodCachePurge() {},

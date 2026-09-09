@@ -18069,3 +18069,36 @@ a read for the batch whose synthetic parent is open still does.
 **The standing lesson for this surface:** a description read is a background
 operation, and a background operation must never repaint a surface that owns an
 editor unless its own result is on screen.
+
+### 182h. Concurrent waiters, the first finding the redesign made ordinary
+
+Codex round seven, on the single-owner code. Worth recording because of what KIND
+of finding it is: not another negotiation between two readers of one row, but a
+plain single-flight question — the class the redesign was meant to reduce this
+surface to.
+
+`_prodEnsureBatchDescription` skipped a read already in flight instead of joining
+it. A second caller's `await` therefore resumed BEFORE the column existed, and
+the delegating panel treated an absent column as a completed failure and set
+`error` — which its own guard then used to refuse every later non-forced attempt.
+"Description could not load." until a manual refresh. Reachable with the two
+synthetic parents of a split-team batch (they share a `batchId`), or by moving
+from `?batch=` to that batch's parent mid-read.
+
+Two independent repairs, either of which prevents the wedge:
+
+1. **Join, don't skip.** `batchDescriptionInFlight` maps a batch id to the
+   promise in the air; a caller arriving mid-read awaits that promise. Two panels
+   now issue ONE network read and both resume with the answer.
+2. **Only a recorded failure is a failure.** The panel calls an absent column an
+   error only when the owner actually wrote `error`; otherwise it lands on `idle`,
+   which the guard does not block, so the next render can ask again. A retired
+   read is not a failed one.
+
+**A third gap surfaced while writing the test, and nobody reported it.**
+`_prodInvalidateBatchDescriptionReads` retired a read's token and read state but
+left its in-flight promise, so the next caller would JOIN a read whose answer the
+token check was already guaranteed to discard — resuming with nothing. It now
+drops the in-flight entry too, so the next caller starts fresh; the retired
+promise settles harmlessly against its stale token. Single flight joins live
+reads, not dead ones.

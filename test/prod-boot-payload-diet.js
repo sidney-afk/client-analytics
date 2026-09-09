@@ -59,8 +59,8 @@ ok(!/_prodReadBatchDescriptionRow\(/.test(ensure),
   'ONE OWNER: the panel no longer runs its own read beside _prodEnsureBatchDescription — that second reader is what produced four separate defects over three review rounds');
 ok(!/batchSharedToken/.test(ensure) && !/_prodNextBatchDescriptionToken\(/.test(ensure),
   '...so the shared per-batch token this branch used to take is gone, along with the "which reader owns this entry" question');
-ok(!/_prodState\.batchDescriptionReads/.test(ensure),
-  '...and the panel never writes the shared read state, so it cannot strand the direct view');
+ok(!/_prodState\.batchDescriptionReads\.(set|delete)\(/.test(ensure),
+  '...and the panel never WRITES the shared read state (it may read it to tell a failure from a not-yet-loaded read), so it cannot strand the direct view');
 ok(/_prodAdoptDescriptionValue\(id, batchRow\.description, batchRow\.updated_at\)/.test(ensure),
   'the panel reflects the row the owner wrote, rather than a value it fetched itself');
 ok(/panelToken === _prodState\.descriptionRequestTokens\.get\(id\)/.test(ensure)
@@ -106,7 +106,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
     Set, Map,
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchPartialRows: new Set(), projectionGeneration: 3, adapter: {} },
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchPartialRows: new Set(), projectionGeneration: 3, adapter: {} },
     /* The owner now asks whether the batch it just loaded is what the reader is
        LOOKING at before repainting; these two feed that question. */
     _prodOpenRowId: () => '',
@@ -178,7 +178,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodRender: () => {},
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
       batchPartialRows: new Set(),
       projectionGeneration: 7, adapter: {},
     },
@@ -197,7 +197,8 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ctx.invalidate(['b1']);
 
   const readB = ctx.ensure('b1', false);            // read B starts on the new row
-  ok(gate.resolve.length === 2, 'read B started beside it');
+  ok(gate.resolve.length === 2,
+    'read B starts a FRESH read rather than joining the one the invalidation just retired — single-flight joins live reads, not dead ones');
 
   gate.resolve[1]({ id: 'b1', description: 'FRESH', updated_at: 't3' });   // B lands first
   gate.resolve[0]({ id: 'b1', description: 'STALE', updated_at: 't1' });   // A lands after
@@ -237,7 +238,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodRender: () => {},
     _prodState: {
       batches: [{ id: 'b1', updated_at: 'T5' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
       batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
     },
     /* The owner now asks whether the batch it just loaded is what the reader is
@@ -451,7 +452,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodIssue: () => ({ id: 'open-row', syntheticBatchParent: false, batchId: 'other' }),
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
       batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
       view: 'detail', openId: 'open-row', openBatchId: '',
     },
@@ -474,6 +475,63 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   await ctx.ensure('b2', true);
   ok(renders.length === 1,
     'and a read for the batch whose synthetic parent IS open does repaint, so the panel still fills');
+}
+
+
+// ---- 5j. concurrent waiters JOIN the read instead of racing past it (round 7) ----
+/* The redesign's owner returned immediately when a read was already in flight.
+   A second panel's `await` therefore resumed BEFORE the column existed, saw it
+   absent, called that a failure, and then refused to retry because its own error
+   guard blocked it — "Description could not load." until a manual refresh.
+   Reachable with the two synthetic parents of a split-team batch, or by moving
+   from ?batch= to its parent mid-read. */
+{
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  ok(/const inFlight = _prodState\.batchDescriptionInFlight\.get\(batchId\);\s*\n\s*if \(inFlight\) return inFlight;/.test(owner),
+    'a caller arriving while a read is in the air JOINS that read rather than returning');
+  ok(owner.indexOf('if (inFlight) return inFlight;') < owner.indexOf("_prodState.batchDescriptionReads.set(batchId, 'loading')"),
+    '...before the read state is claimed, so the join wins over the old loading short-circuit');
+  ok(/finally \{ _prodState\.batchDescriptionInFlight\.delete\(batchId\); \}/.test(owner),
+    '...and the in-flight entry is always cleared, so one failed read cannot wedge the batch forever');
+
+  const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
+  ok(/\} else if \(_prodState\.batchDescriptionReads\.get\(batchId\) === 'error'\) \{/.test(ensureDesc),
+    'the delegating panel calls an absent column a FAILURE only when the owner actually recorded one');
+  ok(/state\.status = state\.hasValue \? 'stale' : 'idle';/.test(ensureDesc.slice(ensureDesc.indexOf("=== 'error') {"))),
+    "...otherwise it lands on 'idle', which the guard at the top does NOT block, so the next render can ask again");
+
+  // Executed: two waiters, one read.
+  let reads = 0;
+  let resolveRead;
+  const ctx = {
+    Map, Set, String, Number, Promise, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => null },
+    _prodRender: () => {},
+    _prodOpenRowId: () => '',
+    _prodIssue: () => null,
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 't1' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(), batchPartialRows: new Set(),
+      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+    },
+    _prodReadBatchDescriptionRow: () => { reads++; return new Promise(r => { resolveRead = r; }); },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+
+  const first = ctx.ensure('b1', false);
+  const second = ctx.ensure('b1', false);      // the second panel, mid-read
+  ok(reads === 1, 'THE FIX: two concurrent callers issue ONE network read, not two');
+  resolveRead({ id: 'b1', description: 'shared answer', updated_at: 't2' });
+  await Promise.all([first, second]);
+  ok(ctx._prodState.batches[0].description === 'shared answer',
+    '...and both resume only once the answer has landed on the row');
+  ok(ctx._prodState.batchDescriptionInFlight.size === 0,
+    '...leaving no in-flight entry behind');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

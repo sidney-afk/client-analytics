@@ -49355,6 +49355,11 @@
                batch-detail view re-asking on every render, and what lets that
                view say the read failed instead of holding a skeleton forever. */
             batchDescriptionReads: new Map(),
+            /* SINGLE FLIGHT: batchId -> the promise of the read currently in the
+               air. A second caller for the same batch awaits that promise rather
+               than returning, so every waiter resumes with the answer instead of
+               resuming instantly and concluding the read failed. */
+            batchDescriptionInFlight: new Map(),
             /* Per-batch request tokens for those reads. The generation counter
                alone cannot stand in for these: it only advances in
                _prodLoadData, never on the operational delta, so a delta that
@@ -57212,6 +57217,12 @@
             targets.forEach(batchId => {
                 _prodNextBatchDescriptionToken(batchId);
                 _prodState.batchDescriptionReads.delete(batchId);
+                /* And the in-flight entry, or the next caller JOINS a read this
+                   invalidation just retired -- whose answer the token check will
+                   throw away, leaving the caller with nothing. Dropping it here
+                   means the next caller starts a fresh read instead; the retired
+                   promise still settles harmlessly against its stale token. */
+                _prodState.batchDescriptionInFlight.delete(batchId);
             });
         }
         async function _prodEnsureBatchDescription(batchId, force) {
@@ -57220,8 +57231,17 @@
             const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
             if (!row) return;
             if (!force && _prodHasOwn(row, 'description')) return;
+            /* A read already in the air is JOINED, not skipped. Returning here
+               resumed the caller's `await` immediately, before the column
+               existed -- so a second panel (the two synthetic parents of a
+               split-team batch, or moving from `?batch=` to its parent mid-read)
+               saw an absent column, called it a failure, and then refused to try
+               again because its own error guard blocked it. Raised by Codex on
+               #1364. */
+            const inFlight = _prodState.batchDescriptionInFlight.get(batchId);
+            if (inFlight) return inFlight;
             const readState = _prodState.batchDescriptionReads.get(batchId);
-            if (readState === 'loading' || (!force && readState === 'error')) return;
+            if (!force && readState === 'error') return;
             _prodState.batchDescriptionReads.set(batchId, 'loading');
             const token = _prodNextBatchDescriptionToken(batchId);
             const generation = _prodState.projectionGeneration;
@@ -57244,6 +57264,7 @@
             const tokenCurrent = () => token === _prodState.batchDescriptionTokens.get(batchId);
             const stillCurrent = () => tokenCurrent() && generation === _prodState.projectionGeneration;
             const release = () => { if (tokenCurrent()) _prodState.batchDescriptionReads.delete(batchId); };
+            const run = (async () => {
             try {
                 const fresh = await _prodReadBatchDescriptionRow(batchId);
                 if (!stillCurrent()) { release(); return; }
@@ -57291,6 +57312,10 @@
             const visible = (_prodState.view === 'batch' && String(_prodState.openBatchId || '') === batchId)
                 || !!(openIssue && openIssue.syntheticBatchParent === true && String(openIssue.batchId || '') === batchId);
             if (visible && document.getElementById('prodRoot')) _prodRender();
+            })();
+            _prodState.batchDescriptionInFlight.set(batchId, run);
+            try { await run; }
+            finally { _prodState.batchDescriptionInFlight.delete(batchId); }
         }
         async function _prodEnsureDescription(id, force) {
             id = String(id || '');
@@ -57361,8 +57386,7 @@
                     _prodAdoptDescriptionValue(id, batchRow.description, batchRow.updated_at);
                     const adoptedBatch = _prodState.descriptions.get(id);
                     if (adoptedBatch) adoptedBatch.scopeSignature = panelScope;
-                } else {
-                    // The owner read and did not land a column: that is a failure.
+                } else if (_prodState.batchDescriptionReads.get(batchId) === 'error') {
                     state.refreshing = false;
                     if (state.hasValue) {
                         state.status = 'stale';
@@ -57371,6 +57395,17 @@
                         state.status = 'error';
                         state.error = 'Description could not load.';
                     }
+                } else {
+                    /* No column yet and no recorded failure: the read was retired
+                       (an invalidation, a moved generation) rather than failed.
+                       'idle' rather than 'error' on purpose -- the guard at the
+                       top of this function blocks a retry on 'error', so calling
+                       a not-yet-loaded description a failure wedges the panel
+                       until a manual refresh. This leaves the next render free to
+                       ask again. */
+                    state.refreshing = false;
+                    state.refreshError = '';
+                    state.status = state.hasValue ? 'stale' : 'idle';
                 }
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;

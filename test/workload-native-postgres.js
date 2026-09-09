@@ -37,7 +37,7 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  sql(cut('migrations/2026-07-06-b1-linear-data-model.sql','create extension','create table if not exists public.deliverable_events'));
  sql(read('migrations/2026-07-19-workload-plan.sql'));
  sql(`create table syncview_runtime_flags(key text primary key,value jsonb);
- create table workload_issues(id text primary key,active boolean,is_sub_issue boolean,team_key text,team_name text,client_name text,status_type text);`);
+ create table workload_issues(id text primary key,active boolean,is_sub_issue boolean,team_key text,team_name text,client_name text,status_type text,assignee_id text);`);
  const labels=cut('migrations/2026-07-23-f34-f53-production-attachments.sql','create or replace function public.production_workload_label_projection','revoke all on function public.production_workload_label_projection');
  sql(labels+`create view production_deliverables_browser_v1 as select d.id,
  (p.value->>'complete')::boolean workload_labels_complete,p.value->'labels' workload_labels
@@ -45,26 +45,40 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  sql(read('migrations/2026-09-02-workload-native-view.sql'));
  sql(read('migrations/2026-09-05-workload-native-membership.sql'));
  sql(read('migrations/2026-09-08-workload-native-label-state-shape.sql'));
+ sql(read('migrations/2026-09-09-workload-native-roster.sql'));
  checks++;
  sql(`insert into clients(slug,display_name)values('fixture','Fixture'),('other','Other');
- insert into team_members(id,name,role,team,active)values
- ('00000000-0000-0000-0000-000000000001','Fixture editor','editor','video',true),
- ('00000000-0000-0000-0000-000000000002','Fixture designer','designer','graphics',true),
- ('00000000-0000-0000-0000-000000000003','Fixture retired','editor','video',false),
- ('00000000-0000-0000-0000-000000000004','Fixture wrong role','smm','video',true);
+ insert into team_members(id,name,role,team,active,linear_user_id)values
+ ('00000000-0000-0000-0000-000000000001','Fixture editor','editor','video',true,'provider-editor'),
+ ('00000000-0000-0000-0000-000000000002','Fixture designer','designer','graphics',true,'provider-designer'),
+ ('00000000-0000-0000-0000-000000000003','Fixture retired','editor','video',false,'provider-retired'),
+ ('00000000-0000-0000-0000-000000000004','Fixture wrong role','smm','video',true,'provider-manager'),
+ ('00000000-0000-0000-0000-000000000005','Fixture zero work','editor','video',true,null);
+ -- Active cross-role/cross-team rows must never leak into the creative roster.
+ insert into team_members(id,name,role,team,active,linear_user_id)values
+ ('00000000-0000-0000-0000-000000000006','Fixture cross role','designer','video',true,'provider-cross');
  insert into batches(id,client_slug,name)values('bat_fixture','fixture','Fixture batch');
  insert into deliverables(id,batch_id,client_slug,team,kind,title,status,assignee_id,linear_issue_uuid,linear_raw)
  values('del_fixture','bat_fixture','fixture','video','video','Fixture work','todo',
  '00000000-0000-0000-0000-000000000001','old-fixture','{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}');
  insert into syncview_runtime_flags values('prod_authority','{"video":"syncview","graphics":"syncview"}');
- insert into workload_issues values('legacy-con',true,true,'CON','Content','Fixture','started'),
- ('legacy-str',true,true,'STR','Strategy','Fixture','started'),('old-fixture',true,true,'VID','Video','Fixture','started');
+ insert into workload_issues values('legacy-con',true,true,'CON','Content','Fixture','started',null),
+ ('legacy-str',true,true,'STR','Strategy','Fixture','started',null),
+ ('old-fixture',true,true,'VID','Video','Fixture','started','provider-editor');
  insert into workload_plan values('old-fixture','fixture','2030-01-08','fixture',now());`);
  let value=json('select workload_native_snapshot_v1();');
  ok(value.count===4&&value.rows.length===4,'one parent/native work plus CON/STR, duplicate provider row omitted');
  ok(value.legacy_teams.sort().join(',')==='CON,STR','remaining team authorities explicit');
- ok(value.rows.find(r=>r.id==='del_fixture').native_assignee_eligible===true,'unmapped native editor eligible');
+ ok(value.rows.find(r=>r.id==='del_fixture').native_assignee_eligible===true,'mapped native editor eligible');
  ok(value.rows.find(r=>r.id==='del_fixture').native_metadata.workload_labels_complete===true,'actual complete native label projection');
+ const rosterIds=value.roster.map(r=>r.id);
+ ok(value.roster.length===3&&new Set(rosterIds).size===3,'roster contains each active exact-role creative member once');
+ ok(rosterIds.includes('provider-editor')&&value.rows.find(r=>r.id==='del_fixture').assignee_id==='provider-editor',
+  'retained provider alias keys both the active roster card and native work, preventing a free/busy split');
+ ok(value.roster.some(r=>r.native_id==='00000000-0000-0000-0000-000000000005'
+  &&r.id==='00000000-0000-0000-0000-000000000005'),'active zero-task editor is returned under the stable native fallback id');
+ ok(!value.roster.some(r=>['00000000-0000-0000-0000-000000000003','provider-manager','provider-cross'].includes(r.id)),
+  'inactive, wrong-role and cross-role members cannot leak into the roster');
  // A3, the release gate, EXECUTED rather than pattern-matched. `linear_raw`
  // with no `issue` at all is the exact and permanent shape of every deliverable
  // the native intake paths write once `linear_outbound_enabled` is off, because
@@ -118,10 +132,18 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  ok(value.updated===1&&value.plan.plan_date===null&&value.plan.storage_issue_id==='old-fixture','clear preserves historic row identity');
  for(const role of ['anon','authenticated']){
  for(const call of ['workload_native_snapshot_v1()',"workload_native_plan_target_v1('old-fixture')","workload_native_plan_set_v1('del_fixture','fixture','fixture',null,'fixture')"]){sql(`set role ${role};select ${call};`,db,true);checks++;}}
- ok(json('set role service_role;select workload_native_snapshot_v1();').complete===true,'service-only read capability');
+ const serviceSnapshot=json('set role service_role;select workload_native_snapshot_v1();');
+ ok(serviceSnapshot.complete===true&&serviceSnapshot.roster.length===3,'service-only read returns the complete roster');
  sql(`update syncview_runtime_flags set value='{"video":"linear","graphics":"syncview"}';`);
  value=json('select workload_native_snapshot_v1();');
- ok(value.rows.some(r=>r.id==='old-fixture'&&r.source==='legacy')&&!value.rows.some(r=>r.id==='del_fixture'),'provider authority keeps actual legacy membership');
+ const legacy=value.rows.find(r=>r.id==='old-fixture'&&r.source==='legacy');
+ ok(legacy&&legacy.native_assignee_eligible===true&&!value.rows.some(r=>r.id==='del_fixture'),'provider authority keeps exact server-derived legacy membership');
+ ok(value.roster.some(r=>r.id==='provider-editor')&&new Set(value.roster.map(r=>r.id)).size===value.roster.length,
+  'rollback roster uses the same retained alias without duplicate capacity cards');
+ sql(`update workload_issues set assignee_id='provider-manager' where id='old-fixture';`);
+ ok(json('select workload_native_snapshot_v1();').rows.find(r=>r.id==='old-fixture').native_assignee_eligible===false,
+  'legacy wrong-role assignee is refused by server membership');
+ sql(`update workload_issues set assignee_id='provider-editor' where id='old-fixture';`);
  sql(`update syncview_runtime_flags set value='{}';`);sql('select workload_native_snapshot_v1();',db,true);checks++;
  sql(`update syncview_runtime_flags set value='{"video":"syncview","graphics":"syncview"}';
  insert into deliverables(id,batch_id,client_slug,team,kind,title,status,linear_raw)

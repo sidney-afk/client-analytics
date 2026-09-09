@@ -461,7 +461,7 @@ const CANDIDATES = new Map([
     // admission, and the native lift -- and a pin carrying only some of them is
     // wrong. File count moves 5 -> SIX; _shared/native-brief-media.mjs is the
     // new import. Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: 'PLACEHOLDER_RECOMPUTE',
+    source: '122f18bed2d66e5131f72e39b6d0336992d96107912c626de73d830de99f0fe2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

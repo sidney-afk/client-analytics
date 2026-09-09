@@ -314,7 +314,7 @@ jobs:
       # Regenerated with scripts/ef-fingerprint.js at the merge commit, never by
       # hand. (Prior pins: fc721251ee... files=5, main 2026-09-09;
       # 27d1a608fd... files=5, #1361 2026-09-08.)
-      PRODUCTION_WRITE_SOURCE_SHA256: PLACEHOLDER_RECOMPUTE
+      PRODUCTION_WRITE_SOURCE_SHA256: 122f18bed2d66e5131f72e39b6d0336992d96107912c626de73d830de99f0fe2
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -39,6 +39,7 @@ const REASON_CODES = Object.freeze(new Set([
   'parent_receipt_provenance_mismatch', 'f27_hold', 'children_incomplete',
   'deliverable_card_cleared', 'deliverable_rebound', 'card_archived', 'card_slot_occupied',
   'card_deleted_after_creation', 'card_provenance_unavailable', 'reconcile_readback_mismatch',
+  'reconcile_child_identity_changed',
   'authority_unavailable', 'team_is_linear_authoritative', 'legacy_parity_gate_unavailable',
   'legacy_parity_not_allowed', 'test_client_scope_required', 'idempotency_conflict',
   'write_conflict', 'idempotent_result_missing', 'project_mapping_missing', 'team_rollback_hold',

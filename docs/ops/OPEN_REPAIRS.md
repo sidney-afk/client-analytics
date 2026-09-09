@@ -18577,3 +18577,58 @@ and it is now the expected state rather than a symptom of something broken.
 **Owner step that IS safe and self-contained:** the migration
 (`migrations/2026-09-09-kasper-urgent-pings.sql`). It only adds columns and widens
 an existing trigger — it touches no Edge Function and cannot re-gate anything.
+
+**THE SAME ASSUMPTION IS IN THE MIGRATION, ONE LAYER DOWN.** Its
+`create or replace function public.calendar_posts_stamp_status_at()` was written
+by copying the body out of `migrations/calendar-status-at-migration.sql` and
+adding two branches. That copy assumes **the repo's migration file matches the
+live function** — the identical assumption that made the deploy instruction
+above dangerous, applied to Postgres instead of to an Edge Function. If the live
+trigger has drifted from that file, `create or replace` silently overwrites the
+drift. Nothing in the repo can tell you whether it has. Read the live definition
+FIRST and compare its video/graphic branches:
+
+```sql
+select pg_get_functiondef('public.calendar_posts_stamp_status_at'::regproc);
+```
+
+The generalisation, which is the actual lesson of this item and is bigger than
+either instance: **this repository is not the state of the system.** For most
+files it is, which is exactly why the exceptions are dangerous — they read
+identically. Two are now known (the frozen writers; possibly this trigger), both
+found only because something checked rather than assumed. Before any change is
+applied to a live artifact, read the live artifact.
+
+**Owner decisions, 2026-09-09.**
+1. **The PR is HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
+   owner's standard is that a client's approvals must never break, and half of
+   this feature cannot be proven until the Edge Function half is real. It merges
+   when the marker fields are live in the un-gated writers, not before.
+2. **The `send-urgent-kasper-slack` webhook stays unauthenticated**, at parity
+   with `send-urgent-slack` and every other browser-called SyncView webhook.
+   Codex's P1 is accurate and is accepted, not refuted: an unauthenticated caller
+   can cause repeated bot DMs to one person. It reads nothing, writes nothing,
+   cannot inject a mention or an off-origin link past the sanitiser, and the
+   recipient can mute it. Authentication is deferred to the n8n replacement
+   (`docs/independence/N8N_REPLACEMENT_PLAN.md`) so the whole surface moves
+   together rather than one endpoint being hardened while its twin stays open.
+
+**The exact delta to port when the writers are done.** Recorded here so the
+person doing it is not re-deriving it from a diff. Onto the LIVE un-gated source
+of each of `calendar-upsert` and `sample-review-upsert`:
+
+```
+1. ALLOWED             += kasper_urgent_pinged_at, kasper_urgent_status_at,
+                          kasper_urgent_comp, kasper_urgent_by
+2. SCALAR_FIELDS       += the same four
+3. + KASPER_URGENT_MARKER_FIELDS  (the same four, as a roster const)
+4. + KASPER_URGENT_COMPONENTS     (calendar: video/graphic/caption/title;
+                                   samples: video/graphic)
+5. + kasperUrgentComp() and applyKasperUrgentMarkerGuards(), called from
+     applyGuards() right after applyUrgentMarkerGuards()
+6. + the kasper_urgent_ping row in buildEvents()
+```
+
+Steps 5 and 6 are lifted verbatim from this branch. Steps 1-4 are list additions.
+Nothing in the delta touches authorization, CORS, or any existing guard — which
+is what makes it portable onto a source this branch does not contain.

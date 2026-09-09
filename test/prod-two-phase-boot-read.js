@@ -140,9 +140,9 @@ ok(/catch \(e\)/.test(tail) && /console\.warn/.test(tail),
 const loadData = grabFunc('_prodLoadData');
 ok(/_prodLoadDeliverableProjection\(PROD_LIVE_FILTER\)/.test(loadData),
   '_prodLoadData fetches only the live half up front');
-ok(/_prodLoadTerminalTail\(\)/.test(loadData),
-  'and kicks off the tail after the board has painted');
-const paintAt = loadData.indexOf('_prodRender();\n                _prodLoadTerminalTail()');
+ok(/_prodLoadTerminalTail\(\{ full: !silent \}\)/.test(loadData),
+  'and kicks off the tail after the board has painted (in full only when someone asked: 2026-09-09, the silent reconcile reads it incrementally)');
+const paintAt = loadData.indexOf('_prodRender();\n                /* `silent` is the honest signal');
 ok(paintAt > 0,
   'the tail starts AFTER the paint, not before it — starting it first would put the archive back in front of the reader');
 

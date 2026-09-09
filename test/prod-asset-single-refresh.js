@@ -95,7 +95,15 @@ ok((tail.match(/_prodScopeSignatures\(/g) || []).length === 2,
   'and again AFTER it, so the two can be compared');
 ok(/_prodInvalidateScopedReadsFor\(rescoped\)/.test(tail),
   'and invalidates exactly the rows whose stamp moved');
-ok(tail.indexOf('scopeBefore') < tail.indexOf('_prodState.deliverables = merged'),
+/* The tail gained a second merge branch on 2026-09-09 (the watermarked read
+   updates rows in place via _prodMergeDeliverableRows; the full read still
+   appends only unseen ids). The stamp must precede BOTH of them, so this
+   compares against whichever comes first rather than one branch's text. */
+const firstMerge = Math.min(
+  ...['_prodMergeDeliverableRows(tail)', '_prodState.deliverables = (_prodState.deliverables || [])']
+    .map(needle => tail.indexOf(needle))
+    .filter(at => at >= 0));
+ok(Number.isFinite(firstMerge) && tail.indexOf('scopeBefore') < firstMerge,
   'the BEFORE stamp is taken while the pre-merge adapter is still installed — after it, there is nothing left to compare against');
 ok(tail.indexOf('_prodState.adapter = _prodAdapter(') < tail.indexOf('const scopeAfter'),
   'and the AFTER stamp is taken from the rebuilt adapter, not the old one');

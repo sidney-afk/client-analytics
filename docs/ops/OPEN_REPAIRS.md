@@ -18314,3 +18314,69 @@ truth, and a stale contract at the top of a gate is worse than none — someone
 debugging a future failure would have read it and set about restoring the
 mechanism this PR deliberately removed. It now states the ten-minute batch
 staleness as the ACCEPTED behaviour rather than a gap to close.
+
+## 184. [2026-09-09] The archive was re-downloaded six times an hour, and a background tick could land mid-keystroke
+
+Owner-approved follow-up to item 182, from the same report ("as fast and as
+smooth as it can be"). Two independent changes, both browser-only.
+
+**The archive.** `_prodLoadTerminalTail` read every terminal row on every full
+reconcile. Measured live 2026-09-09 against the deployed backend: **4,098
+terminal rows**, 182 KB compressed per page of 1,000, **five strictly
+sequential pages**, so ~0.9 MB and several seconds. `PROD_FULL_RECONCILE_MS` is
+ten minutes, so an open tab re-downloaded the finished work **six times an
+hour** — roughly 43 MB across an eight-hour day, for rows that by definition
+are not moving.
+
+It never needed that cadence. The 30-second delta reads `updated_at >=
+watermark` with **no status filter**, so a row that CHANGES — including one that
+has just become approved or posted — already arrives on the next tick. The only
+thing a full re-read adds is convergence for a hard DELETE, which no watermark
+read can see. So the full pass survives at `PROD_TERMINAL_FULL_MS` (one hour),
+on the first tail of a projection, and on anything the reader asked for (boot
+and Refresh both reach `_prodLoadData` non-silently); the ten-minute reconcile
+takes a watermarked read instead.
+
+Two details that are easy to get wrong and are pinned in
+`test/prod-terminal-tail-and-busy-guard.js`:
+
+- The watermark is over the **terminal rows only** (`_prodTerminalWatermark`).
+  The whole-projection watermark is almost always newer, because the live half
+  moves constantly, and using it would skip the very rows this is for.
+- The incremental read **updates in place** (`_prodMergeDeliverableRows`). The
+  full read may append only ids it has never seen, because the live half it
+  joins is the fresher of the two; this read is the opposite — every row it
+  returns moved *after* the copy held here.
+
+**The tick, while someone is typing.** `_prodRefreshBusy` already deferred a
+background tick for an open menu layer and for an in-flight write. It did not
+defer for a caret in a field. `_prodRender()` rebuilds `#prodRoot` wholesale, so
+a tick landing mid-keystroke replaces the node being typed into and takes the
+caret and selection with it; the board's own filter and search inputs had
+nothing protecting them at all. Workload has guarded its search input this way
+since it shipped and Calendar defers on the same condition. Scoped to the board,
+so a field focused on another surface cannot freeze this one.
+
+### 184a. The correction that cost two browser-gate runs
+
+The first draft added a SEPARATE mechanism: a `_prodIsBusy` / `_prodRenderWhenIdle`
+pair that did the read and deferred the *paint*, and it routed the
+batch-description arrival through it. That starved the arrival: the description
+panel's editor is focused as a matter of course, so the repaint that panel was
+waiting for never landed. `inplace_link` in the mocked browser gate timed out
+twice, passed on `43b1455`, and passed again the moment the guard alone was
+neutered — which is how it was narrowed to that one line.
+
+Two rules came out of it, both now pinned:
+
+1. **A repaint that IS the answer to a read the visible panel asked for must
+   never be deferred.** Deferral is for UNSOLICITED repaints landing on a reader
+   who is mid-interaction.
+2. **Extend the guard that exists rather than adding a second one.** The draft
+   duplicated the menu-layer check that `_prodRefreshBusy` already performed,
+   which is how the two mechanisms could disagree about what "busy" meant.
+
+Also recorded because it was stated wrongly to the owner first: Production was
+**not** unguarded. Menus and in-flight writes were already covered, and
+`_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
+was the one real gap.

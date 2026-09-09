@@ -49391,6 +49391,10 @@
                tail that actually lands. */
             terminalTailFailed: false,
             terminalTailLoadedAt: 0,
+            /* When the tail was last read IN FULL, as opposed to incrementally.
+               A full read is what converges a hard delete; the watermark read
+               below cannot see a row that no longer exists. */
+            terminalTailFullAt: 0,
             writes: new Map(),
             commentDrafts: new Map(),
             briefsLoaded: false,
@@ -57278,6 +57282,20 @@
                 : null;
             const visible = (_prodState.view === 'batch' && String(_prodState.openBatchId || '') === batchId)
                 || !!(openIssue && openIssue.syntheticBatchParent === true && String(openIssue.batchId || '') === batchId);
+            /* NOT `_prodRenderWhenIdle`, and the browser gate is what says so.
+
+               This repaint is the COMPLETION of a read this very panel asked
+               for, not an unsolicited background tick. Routing it through the
+               idle guard deferred it whenever a contenteditable was focused --
+               which, for the description panel, is the ordinary state rather
+               than the exception -- so the description never arrived and focus
+               was never restored. `inplace_link` timed out twice here and
+               passes on 43b1455; neutering the guard alone made it pass again,
+               which is how this was narrowed to this one line.
+
+               The rule the guard encodes is about UNSOLICITED repaints landing
+               on a reader who is mid-interaction. A panel painting the answer
+               it is waiting for is the interaction. */
             if (visible && document.getElementById('prodRoot')) _prodRender();
             })();
             _prodState.batchDescriptionInFlight.set(batchId, run);
@@ -60929,7 +60947,7 @@
            and is about to discard itself for exactly that reason -- so without
            this, the generation that asked never gets a tail at all. */
         let _prodTerminalTailRerun = false;
-        async function _prodLoadTerminalTail() {
+        async function _prodLoadTerminalTail(opts) {
             if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
             _prodTerminalTailRunning = true;
             _prodTerminalTailRerun = false;
@@ -60943,17 +60961,45 @@
                longer running. Raised on PR 1236 as two findings; both are the
                same missing step seen from two exits. */
             let settled = false;
+            /* A full pass is the FIRST tail of a projection, anything the reader
+               asked for by hand (boot and the Refresh button both arrive here
+               non-silently), and one pass an hour so a hard delete converges.
+               Everything else -- the ten-minute background reconcile -- reads
+               only what moved. `terminalTailLoadedAt` gates on having a tail at
+               all: without one there is nothing for a watermark to be relative
+               to, and an incremental read would leave the archive empty. */
+            const fullPass = !!(opts && opts.full)
+                || !Number(_prodState.terminalTailLoadedAt || 0)
+                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+            const watermark = fullPass ? '' : _prodTerminalWatermark();
+            const filter = watermark
+                ? PROD_TERMINAL_FILTER + '&updated_at=gte.' + encodeURIComponent(watermark)
+                : PROD_TERMINAL_FILTER;
             try {
-                const tail = await _prodLoadDeliverableProjection(PROD_TERMINAL_FILTER);
+                const tail = await _prodLoadDeliverableProjection(filter);
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(tail)) return false;
-                // De-duplicate by id rather than concatenating blind: a status
-                // edited between the two reads can legitimately appear in both
-                // halves, and the live half is the fresher of the two.
-                const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
-                const merged = (_prodState.deliverables || []).concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
                 const scopeBefore = _prodScopeSignatures(_prodState.adapter);
-                _prodState.deliverables = merged;
+                if (watermark) {
+                    /* UPDATE in place, do not append blind. The full pass below
+                       may append only what it has never seen, because the live
+                       half it is joining is the fresher of the two. This read is
+                       the opposite: every row it returns moved AFTER the copy
+                       held here, so a row already present is exactly the one
+                       that must be replaced. `_prodMergeDeliverableRows` is the
+                       merge the 30-second delta already uses, and it assigns
+                       `_prodState.deliverables` itself. */
+                    _prodMergeDeliverableRows(tail);
+                } else {
+                    // De-duplicate by id rather than concatenating blind: a status
+                    // edited between the two reads can legitimately appear in both
+                    // halves, and the live half is the fresher of the two.
+                    const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                    _prodState.deliverables = (_prodState.deliverables || [])
+                        .concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                    _prodState.terminalTailFullAt = Date.now();
+                }
+                const merged = _prodState.deliverables;
                 _prodState.adapter = _prodAdapter({
                     clients: _prodState.clients,
                     members: _prodState.members,
@@ -61056,7 +61102,11 @@
                    itself on failure would spin against a backend that is down. */
                 if (_prodTerminalTailRerun && generation !== _prodState.projectionGeneration) {
                     _prodTerminalTailRerun = false;
-                    _prodLoadTerminalTail();
+                    /* A new projection generation has no tail of its own yet, so
+                       this rerun is a first tail whatever the displaced call
+                       was: ask for the full pass rather than a watermark
+                       relative to a row set that belongs to the old scope. */
+                    _prodLoadTerminalTail({ full: true });
                 } else if (!settled) {
                     /* STOP CLAIMING TO LOAD, WITHOUT STARTING TO ACCUSE.
                        The previous version called `_prodApplyDeepLinkFallback(true)`
@@ -61254,7 +61304,13 @@
                 // resolve, and only now conclude that a target does not exist.
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
-                _prodLoadTerminalTail();
+                /* `silent` is the honest signal for "nobody asked for this".
+                   Boot and the Refresh button both reach here non-silently and
+                   get the full archive; only the ten-minute background
+                   reconcile is silent, and that is precisely the caller that
+                   was re-downloading 4,098 finished rows nobody had asked to
+                   see. */
+                _prodLoadTerminalTail({ full: !silent });
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {
@@ -61833,6 +61889,23 @@
         // write is in flight, or while a foreground load is already running.
         const PROD_DELTA_REFRESH_MS = 30000;
         const PROD_FULL_RECONCILE_MS = 600000;
+        /* How often the FINISHED half is re-read in full.
+
+           It used to be re-read on every full reconcile, so an open tab
+           downloaded all of it six times an hour. Measured live 2026-09-09:
+           4,098 terminal rows, 182 KB compressed per page of 1,000, five
+           strictly sequential pages -- about 0.9 MB and several seconds, for
+           work that is done and by definition not moving. Over an eight-hour
+           day that is ~43 MB of re-downloading the archive.
+
+           It does not need the reconcile's cadence. The 30-second delta reads
+           `updated_at >= watermark` with NO status filter, so a row that
+           CHANGES -- including one that just became approved or posted --
+           already arrives on the next tick. The only thing a full re-read adds
+           is convergence for a hard DELETE, which no watermark read can see.
+           So the full pass survives at its own, much slower cadence, and the
+           reconcile takes a watermarked read instead. */
+        const PROD_TERMINAL_FULL_MS = 3600000;
         const PROD_REFRESH_MAX_BACKOFF_MS = 300000;
         const PROD_STALE_AFTER_MS = 120000;
         function _prodRowUpdatedMs(row) {
@@ -61851,6 +61924,16 @@
                 }
             });
             return best;
+        }
+        /* The newest stamp among the FINISHED rows this tab holds.
+
+           Deliberately not `_prodDeliverableWatermark(_prodState.deliverables)`:
+           the live half moves every few minutes and the finished half does not,
+           so the whole-projection stamp is almost always newer than every
+           terminal row. Reading from it would skip the rows this is for. */
+        function _prodTerminalWatermark() {
+            return _prodDeliverableWatermark(
+                (_prodState.deliverables || []).filter(_prodCacheIsTerminal));
         }
         function _prodInvalidateScopedReadsFor(ids) {
             const targets = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
@@ -61957,7 +62040,36 @@
         function _prodRefreshBusy() {
             if (_prodState.writes && _prodState.writes.size) return true;
             const layer = document.getElementById('prodLayer');
-            return !!(layer && layer.childElementCount);
+            if (layer && layer.childElementCount) return true;
+            /* AND TYPING COUNTS, which is the case this guard was missing.
+
+               An open menu and an in-flight write already deferred the tick;
+               someone with a caret in a field did not. `_prodRender()` rebuilds
+               `#prodRoot` wholesale, so a tick landing mid-keystroke replaces
+               the node being typed into: the caret and the selection go with
+               it, and the board's own filter and search inputs have nothing
+               protecting them at all. Workload has guarded its search box this
+               way since it shipped (`document.activeElement !== searchInput`)
+               and Calendar defers on the same condition (`_calIsCalBusy`);
+               Production is the last of the three to get it.
+
+               This is deliberately the SAME answer a menu gets -- skip this
+               tick, try the next one -- rather than a second mechanism that
+               reads the data and defers the paint. Nothing is lost by waiting:
+               the next tick is 30 seconds away, the freshness age keeps
+               counting so the delay is visible, and an explicit Retry or the
+               Refresh button passes `force` straight past this check.
+
+               Scoped to the board. A field focused somewhere else on the page
+               is not this surface's business and must not freeze it. */
+            const el = document.activeElement;
+            if (!el) return false;
+            const typing = el.tagName === 'INPUT'
+                || el.tagName === 'TEXTAREA'
+                || el.isContentEditable === true;
+            if (!typing) return false;
+            const root = document.getElementById('prodRoot');
+            return !!(root && root.contains(el));
         }
         function _prodSyncFreshnessControl() {
             const button = document.querySelector('[data-prod-refresh="1"]');

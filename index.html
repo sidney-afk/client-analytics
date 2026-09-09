@@ -76495,7 +76495,7 @@
     // cache the workflow response in localStorage. The cache survives across
     // page reloads (until the user clicks Refresh or the calendar crosses
     // into a new "last week").
-    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v2';
+    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v3';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
     const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v3';
     const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — content/coverage drift slowly
@@ -81106,7 +81106,7 @@
     /* ── Editors (weekly labor) ─────────────────────────────────────
        Reads public.deliverable_events — every video deliverable with a status
        transition in the previous calendar week (Mon→Sun, America/Chicago),
-       grouped per current assignee, each carrying its within-week history.
+       grouped per event-time assignee, each carrying only that owner's within-week history.
        See _kedFetchNativeWeek for the shaper and its two correctness traps.
        Work is measured client-side as DELIVERIES (see _kedSplitVideos): the
        editor handing a video off for review (into For SMM / Kasper / Client
@@ -81153,7 +81153,7 @@
                 </ul>
                 <p class="ked-info-note">Hover any notch or band for the status name.</p>
             </div>
-            <div id="kedBody">${_svLoadingSkeletonHtml('kasper', { label: "Loading last week's work from Linear" })}</div>`;
+            <div id="kedBody">${_svLoadingSkeletonHtml('kasper', { label: "Loading last week's event-attributed work" })}</div>`;
         const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
         if (fresh) { _kedPaint(); return; }
         await _kasperLoadEditors(false);
@@ -81372,9 +81372,14 @@
         const startISO = new Date(weekStartMs).toISOString();
         const endISO = new Date(weekEndMs).toISOString();
 
+        // Event ownership is a server-side snapshot, not the deliverable's
+        // current assignee. The migration labels rows without that proof as
+        // `unknown`, and a truly unassigned status change as `unassigned`.
+        // Keep both visible in `unattributed` below; do not guess from the
+        // current deliverable or from an import/mirror source timestamp.
         const events = await _kedRestPage(
-            'deliverable_events?select=deliverable_id,ts,from_status,to_status'
-            + '&action=eq.status_change'
+            'deliverable_events?select=deliverable_id,ts,from_status,to_status,event_assignee_id,event_assignee_attribution'
+            + '&action=in.(status_change,mirror_in_status_change)'
             + '&ts=gte.' + encodeURIComponent(startISO)
             + '&ts=lt.' + encodeURIComponent(endISO)
             + '&order=ts.asc');
@@ -81388,114 +81393,86 @@
                 at: ev.ts,
                 dayKey: _kedChicagoDayKey(ev.ts),
                 from: _kedNativeLabel(ev.from_status),
-                status: _kedNativeLabel(ev.to_status)
+                status: _kedNativeLabel(ev.to_status),
+                ownerId: ev.event_assignee_id || '',
+                attribution: ev.event_assignee_attribution || 'unknown'
             });
         }
         const ids = Array.from(byDeliverable.keys());
-        if (!ids.length) {
-            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
-                     weekEnd: endISO, source: 'native', editors: [] };
-        }
+        const envelope = (editors, unattributed) => ({
+            weekLabel: _kedWeekLabel(weekStartMs, weekEndMs),
+            weekStart: startISO,
+            weekEnd: endISO,
+            source: 'native-event-assignee-v1',
+            editors,
+            unattributed
+        });
+        if (!ids.length) return envelope([], { unknown: 0, unassigned: 0 });
 
-        // Only video deliverables: the panel counts videos, and graphics work
-        // would inflate every headline number.
-        //
-        // KNOWN GAP, NOT AN OVERSIGHT: `assignee_id` is the deliverable's
-        // CURRENT assignee, so a video reassigned after last week's transitions
-        // credits the whole week to whoever holds it now. TRACK_B spec 9.11
-        // names that exact behaviour as the legacy `editors-week` reader's
-        // defect and requires the native replacement to use "the assignee
-        // identity at EVENT TIME" instead. This does not do that, and cannot
-        // yet: there is no assignment history to read. Measured 2026-09-08
-        // against 1,000 live `status_change` rows -- the `actor`/`role` columns
-        // are the person who ACTED (a client approving is not the editor), they
-        // are null on two thirds of rows, and no payload variant across the
-        // sample carries an assignee key at all. No `assign` action is recorded
-        // anywhere either. Reconstructing event-time assignment therefore needs
-        // a migration plus a writer change (stamp the assignee onto every
-        // event, or keep an assignment-history table), which is an owner
-        // decision and a different lane. OPEN_REPAIRS 171 carries it OPEN.
-        // Written here so the next reader sees the gap at the lookup that
-        // causes it rather than inferring the panel is spec-complete.
+        // Do not use deliverables.assignee_id here. It is the CURRENT owner,
+        // so doing so would move a prior editor's work after reassignment.
         let deliverables = (await _kedRestIn(
-            'deliverables', 'id,title,client_slug,assignee_id,kind,linear_issue_url', 'id', ids))
-            .filter(d => d && d.kind === 'video' && d.assignee_id);
-        if (!deliverables.length) {
-            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
-                     weekEnd: endISO, source: 'native', editors: [] };
-        }
+            'deliverables', 'id,title,client_slug,kind,linear_issue_url', 'id', ids))
+            .filter(d => d && d.kind === 'video');
+        if (!deliverables.length) return envelope([], { unknown: 0, unassigned: 0 });
 
-        const memberIds = Array.from(new Set(deliverables.map(d => d.assignee_id)));
-        const members = await _kedRestIn('team_members', 'id,name,email,role,active', 'id', memberIds);
-        const memberById = new Map(members.map(m => [m.id, m]));
         const clientSlugs = Array.from(new Set(deliverables.map(d => d.client_slug).filter(Boolean)));
         const clients = clientSlugs.length
             ? await _kedRestIn('clients', 'slug,display_name,kind', 'slug', clientSlugs)
             : [];
         const clientBySlug = new Map(clients.map(c => [c.slug, c.display_name]));
-        /* TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION.
-
-           Codex finding, 2026-09-08. This lookup selected `slug,display_name`
-           only, so it could not tell one kind of client from another and every
-           slug counted. `sidneylaruel` is the TEST client the nightly probes
-           drive: they move statuses on it continuously, each move writes a
-           `status_change` to `deliverable_events`, and every one of those rows
-           landed in whichever editor holds the assignee_id — inflating first
-           cuts, tweak rounds, finishes and the videos-on-plate count with
-           robot traffic, in the panel Kasper reads to judge people.
-           `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §9.11 names the exclusion
-           explicitly ("exclude the Graphics team, TEST/internal clients, and
-           unassigned work from Video production totals"); the other two halves
-           of that sentence were already implemented above (`kind === 'video'`,
-           `assignee_id`) and this one was not.
-
-           EXCLUDED BY `kind`, NOT BY `active`, and the difference is
-           deliberate. An offboarded real client (`kind:'client', active:false`
-           — three of them live today) still had real videos edited by a real
-           editor, and dropping their week would erase work that happened. Only
-           a client that is not production work at all is removed.
-
-           A slug with NO `clients` row is KEPT, per the house rule that a guard
-           which could go either way chooses permissive (`AGENTS.md`): the panel
-           is a total, an absent registry row is not evidence of a robot, and
-           silently under-reporting an editor is the failure nobody can see. A
-           row that says `test` or `internal` IS evidence, and that is the only
-           thing dropped here. */
+        /* TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION. Exclude by
+           `kind`, not `active`: offboarded real work stays in history, while
+           a missing registry row is retained under the permissive UI rule. */
         const nonProductionSlugs = new Set(clients
             .filter(c => ['test', 'internal'].includes(String(c && c.kind || '').trim().toLowerCase()))
             .map(c => c.slug));
-        if (nonProductionSlugs.size) {
-            deliverables = deliverables.filter(d => !nonProductionSlugs.has(d.client_slug));
-            if (!deliverables.length) {
-                return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
-                         weekEnd: endISO, source: 'native', editors: [] };
-            }
-        }
+        if (nonProductionSlugs.size) deliverables = deliverables.filter(d => !nonProductionSlugs.has(d.client_slug));
+        if (!deliverables.length) return envelope([], { unknown: 0, unassigned: 0 });
 
+        const ownerIds = Array.from(new Set(
+            deliverables.flatMap(d => (byDeliverable.get(d.id) || [])
+                .filter(t => t.attribution === 'native_transaction' && t.ownerId)
+                .map(t => t.ownerId))));
+        // `active` is display metadata only. Inactive people retain their
+        // earned history; a deleted roster row gets a neutral former-editor
+        // label without reconstructing a name or email.
+        const members = ownerIds.length
+            ? await _kedRestIn('team_members', 'id,name,role,active', 'id', ownerIds)
+            : [];
+        const memberById = new Map(members.map(m => [m.id, m]));
         const byEditor = new Map();
+        const unattributed = { unknown: 0, unassigned: 0 };
+
         for (const d of deliverables) {
-            const m = memberById.get(d.assignee_id);
-            if (!m) continue;
-            if (!byEditor.has(m.id)) {
-                byEditor.set(m.id, { id: m.id, name: m.name, email: m.email, avatarUrl: null, videos: [] });
+            const perOwner = new Map();
+            for (const t of (byDeliverable.get(d.id) || [])) {
+                if (t.attribution === 'native_transaction' && t.ownerId) {
+                    if (!perOwner.has(t.ownerId)) perOwner.set(t.ownerId, []);
+                    perOwner.get(t.ownerId).push(t);
+                } else if (t.attribution === 'unassigned') {
+                    unattributed.unassigned++;
+                } else {
+                    unattributed.unknown++;
+                }
             }
-            byEditor.get(m.id).videos.push({
-                id: d.id,
-                title: d.title,
-                clientName: clientBySlug.get(d.client_slug) || '',
-                url: d.linear_issue_url || '',
-                transitions: (byDeliverable.get(d.id) || [])
-                    .slice()
-                    .sort((a, b) => String(a.at).localeCompare(String(b.at)))
-            });
+            for (const [ownerId, transitions] of perOwner) {
+                const m = memberById.get(ownerId);
+                if (!byEditor.has(ownerId)) {
+                    byEditor.set(ownerId, m
+                        ? { id: m.id, name: m.name, email: '', avatarUrl: null, inactive: m.active === false, videos: [] }
+                        : { id: ownerId, name: 'Former editor', email: '', avatarUrl: null, inactive: true, removed: true, videos: [] });
+                }
+                byEditor.get(ownerId).videos.push({
+                    id: d.id,
+                    title: d.title,
+                    clientName: clientBySlug.get(d.client_slug) || '',
+                    url: d.linear_issue_url || '',
+                    transitions: transitions.slice().sort((a, b) => String(a.at).localeCompare(String(b.at)))
+                });
+            }
         }
-        return {
-            weekLabel: _kedWeekLabel(weekStartMs, weekEndMs),
-            weekStart: startISO,
-            weekEnd: endISO,
-            source: 'native',
-            editors: Array.from(byEditor.values())
-        };
+        return envelope(Array.from(byEditor.values()), unattributed);
     }
 
     async function _kasperLoadEditors(forceRefresh) {
@@ -81542,17 +81519,21 @@
         const data = _kasperState.editorsData;
         const body = document.getElementById('kedBody');
         if (!body || !data) return;
-        const editors = (Array.isArray(data.editors) ? data.editors : [])
-            .filter(ed => !wlIsInactiveEditor(
-                ed && (ed.id || ed.assigneeId || ed.assignee_id || ed.userId || ed.user_id),
-                ed && (ed.name || ed.assigneeName || ed.assignee_name)
-            ));
+        // Historical attribution must retain inactive/removed roster identity.
+        // This view is history, not a current staffing picker.
+        const editors = Array.isArray(data.editors) ? data.editors : [];
+        const unattributed = data.unattributed || {};
+        const unknown = Number(unattributed.unknown || 0);
+        const unassigned = Number(unattributed.unassigned || 0);
+        const attributionNote = (unknown || unassigned)
+            ? `<div class="ked-empty-sub">${unknown ? `${unknown} status ${unknown === 1 ? 'change has' : 'changes have'} no event-time assignee proof and ${unknown === 1 ? 'is' : 'are'} not credited.` : ''}${unknown && unassigned ? ' ' : ''}${unassigned ? `${unassigned} ${unassigned === 1 ? 'change was' : 'changes were'} unassigned at the event and ${unassigned === 1 ? 'is' : 'are'} not credited.` : ''}</div>`
+            : '';
 
         const weekEl = document.getElementById('kedWeekLabel');
         if (weekEl) weekEl.textContent = data.weekLabel || 'Last week';
 
         if (!editors.length) {
-            body.innerHTML = `<div class="ked-empty-msg">No editor deliveries last week.</div>`;
+            body.innerHTML = `<div class="ked-empty-msg">No editor deliveries with event-time attribution last week.${attributionNote}</div>`;
             return;
         }
 
@@ -81573,7 +81554,7 @@
         });
 
         const rows = editors.map(ed => _kedRow(ed, weekDates, globalDailyMax, anyWeekendActivity)).join('');
-        body.innerHTML = `<div class="ked-list">${rows}</div>`;
+        body.innerHTML = `<div class="ked-list">${rows}</div>${attributionNote}`;
     }
 
     function _kedWeekDateKeys(weekStartISO) {
@@ -81778,7 +81759,7 @@
     };
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
-        const key = ed.email || ed.name;
+        const key = ed.id || ed.email || ed.name;
         const expanded = !!_kasperState.editorsExpanded[key];
         const dayFilter = _kasperState.editorsDayFilter[key] || null;
         const days = showWeekend ? weekDates : weekDates.slice(0, 5);

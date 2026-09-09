@@ -32,6 +32,8 @@ const path = require('path');
 const vm = require('vm');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+const EVENT_ASSIGNEE_MIGRATION = fs.readFileSync(
+  path.resolve(__dirname, '..', 'migrations', '2026-09-09-editors-event-assignee.sql'), 'utf8');
 
 let failures = 0;
 function ok(condition, message) {
@@ -162,8 +164,10 @@ function iso(dayOffset, hour, minute) {
   return new Date(MONDAY_MS + dayOffset * 86400000 + hour * 3600000 + (minute || 0) * 60000).toISOString();
 }
 
-function ev(deliverable_id, ts, from_status, to_status) {
-  return { deliverable_id, ts, from_status, to_status };
+function ev(deliverable_id, ts, from_status, to_status, ownerId, attribution) {
+  return { deliverable_id, ts, from_status, to_status, action: 'status_change',
+    event_assignee_id: ownerId === undefined ? 'm1' : ownerId,
+    event_assignee_attribution: attribution === undefined ? 'native_transaction' : attribution };
 }
 
 /* ── 1. The payload contract the cache and the bar buckets depend on ─────── */
@@ -186,7 +190,7 @@ function ev(deliverable_id, ts, from_status, to_status) {
     'the seven bar buckets run Mon..Sun off the shaper\'s own weekStart');
   ok(Date.parse(out.weekEnd) - Date.parse(out.weekStart) >= 6 * 86400000,
     'weekEnd is the exclusive end of the same seven-day window');
-  ok(out.source === 'native', 'the payload declares its source, so a stale cached Linear payload is distinguishable');
+  ok(out.source === 'native-event-assignee-v1', 'the payload declares its event-assignee source, so an old current-assignee cache is distinguishable');
   ok(Array.isArray(out.editors) && out.editors.length === 1 && out.editors[0].videos.length === 1,
     'one editor with one video comes back in the shape _kedPaint consumes');
 
@@ -295,12 +299,69 @@ function ev(deliverable_id, ts, from_status, to_status) {
   ok(st.loadVideos === 3 && st.newVideos + st.tweakVideos + st.inProgVideos === st.loadVideos,
     'on-his-plate is three and its three parts still add up to it');
 
-  /* ── 6. Scope and robustness ──────────────────────────────────────────── */
+  /* ── 6. Event owner is immutable history, not current assignment ─────── */
+  const reassigned = makeSandbox({
+    deliverable_events: [
+      ev('handoff', iso(0, 14), 'todo', 'in_progress', 'former'),
+      ev('handoff', iso(0, 18), 'in_progress', 'smm_approval', 'former'),
+      ev('handoff', iso(2, 14), 'tweak', 'kasper_approval', 'current'),
+      ev('handoff', iso(3, 12), 'kasper_approval', 'approved', 'current')
+    ],
+    // The live row now belongs to a third identity. It must not receive any
+    // of last week's transitions just because it is current today.
+    deliverables: [{ id: 'handoff', title: 'H', client_slug: 'testclient', assignee_id: 'today', kind: 'video', linear_issue_url: '' }],
+    team_members: [
+      { id: 'former', name: 'Inactive Editor', email: 'former@example.invalid', role: 'editor', active: false },
+      { id: 'current', name: 'Current Editor', email: 'current@example.invalid', role: 'editor', active: true },
+      { id: 'today', name: 'Today Editor', email: 'today@example.invalid', role: 'editor', active: true }
+    ],
+    clients: [{ slug: 'testclient', display_name: 'Test Client' }]
+  });
+  const reassignedOut = await reassigned._kedFetchNativeWeek();
+  const byOwner = new Map(reassignedOut.editors.map(e => [e.id, e]));
+  ok(byOwner.has('former') && byOwner.has('current') && !byOwner.has('today'),
+    'a reassignment during the week credits each transition to its stamped owner, never today\'s assignee');
+  ok(byOwner.get('former').videos[0].transitions.length === 2
+    && byOwner.get('current').videos[0].transitions.length === 2,
+    'the shared video is partitioned by event owner instead of duplicating its full timeline under both people');
+  ok(reassigned._kedSplitVideos(byOwner.get('former').videos, Date.parse(reassignedOut.weekStart), Date.parse(reassignedOut.weekEnd)).firstCuts === 1
+    && reassigned._kedSplitVideos(byOwner.get('current').videos, Date.parse(reassignedOut.weekStart), Date.parse(reassignedOut.weekEnd)).tweakRounds === 1,
+    'the handoff keeps the first cut with the former editor and the tweak delivery with the current editor');
+  const totalFinishes = reassignedOut.editors.reduce((n, editor) => n
+    + reassigned._kedSplitVideos(editor.videos, Date.parse(reassignedOut.weekStart), Date.parse(reassignedOut.weekEnd)).finishes, 0);
+  ok(totalFinishes === 1, 'a finish is attributed to its own event once, with no duplicate finish after reassignment');
+  ok(byOwner.get('former').inactive === true,
+    'an inactive roster member remains in historical results; _kedPaint must not filter this history');
+  ok(/_kedRestIn\('team_members', 'id,name,role,active'/.test(INDEX),
+    'restoring historical roster identity does not expand the weekly reader with email snapshots');
+  ok(!/editors = .*wlIsInactiveEditor/s.test(INDEX),
+    'the shipped painter no longer removes inactive editors from a completed week');
+
+  const noProof = makeSandbox({
+    deliverable_events: [
+      ev('legacy', iso(0, 15), 'in_progress', 'smm_approval', null, 'unknown'),
+      ev('unassigned', iso(1, 15), 'in_progress', 'smm_approval', null, 'unassigned')
+    ],
+    // A tempting current assignee must never fill either missing history owner.
+    deliverables: [
+      { id: 'legacy', title: 'Legacy', client_slug: 'testclient', assignee_id: 'today', kind: 'video', linear_issue_url: '' },
+      { id: 'unassigned', title: 'Unassigned', client_slug: 'testclient', assignee_id: 'today', kind: 'video', linear_issue_url: '' }
+    ],
+    team_members: [{ id: 'today', name: 'Today Editor', email: 'today@example.invalid', role: 'editor', active: true }],
+    clients: [{ slug: 'testclient', display_name: 'Test Client' }]
+  });
+  const noProofOut = await noProof._kedFetchNativeWeek();
+  ok(noProofOut.editors.length === 0 && noProofOut.unattributed.unknown === 1 && noProofOut.unattributed.unassigned === 1,
+    'unknown historic and explicitly unassigned events remain honest separately labeled counts, never guessed current-assignee credit');
+  ok(/event_assignee_attribution/.test(INDEX) && /unattributed/.test(INDEX),
+    'the shipped UI has an explicit attribution-limited state instead of silently calling unknown history a quiet week');
+
+  /* ── 7. Scope and robustness ──────────────────────────────────────────── */
   const mixed = makeSandbox({
     deliverable_events: [
       ev('v1', iso(0, 15), 'in_progress', 'smm_approval'),
       ev('g1', iso(0, 15), 'in_progress', 'smm_approval'),
-      ev('u1', iso(0, 15), 'in_progress', 'smm_approval')
+      ev('u1', iso(0, 15), 'in_progress', 'smm_approval', null, 'unassigned')
     ],
     deliverables: [
       { id: 'v1', title: 'V', client_slug: 'testclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' },
@@ -448,7 +509,25 @@ function ev(deliverable_id, ts, from_status, to_status) {
   ok(ceiling && !/select=/.test(String(ceiling.message)),
     'the thrown message names the table only, never the filter values — it can reach CI output in a PUBLIC repo');
 
-  /* ── 7. The endpoint is actually gone from the shipped file ───────────── */
+  /* ── 8. SQL contract: source-only and immutable ─────────────────────── */
+  ok(/add column if not exists event_assignee_id uuid/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /event_assignee_attribution text not null default 'unknown'/.test(EVENT_ASSIGNEE_MIGRATION),
+    'the migration adds nullable event identity plus an explicit unknown default; it does not infer legacy ownership');
+  ok(/native_transaction/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /unassigned/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /event_assignee_attribution_immutable/.test(EVENT_ASSIGNEE_MIGRATION),
+    'only transaction-stamped known and explicit unassigned states are valid, and attribution cannot later be rewritten');
+  ok(/v_event \? 'ts'/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /v_event \? 'source_event_at'/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /\('backfill', 'reconcile'\)/.test(EVENT_ASSIGNEE_MIGRATION),
+    'source-timed, backfill, and reconcile writes remain unknown instead of pretending a later database snapshot proves past ownership');
+  ok(/event_assignee_server_stamp_required/.test(EVENT_ASSIGNEE_MIGRATION)
+    && /app\.event_assignee_stamp/.test(EVENT_ASSIGNEE_MIGRATION),
+    'direct callers cannot fabricate an owner; the native status transaction alone opens and consumes the stamp');
+  ok(!/update\s+public\.deliverable_events[\s\S]{0,240}assignee_id/i.test(EVENT_ASSIGNEE_MIGRATION),
+    'the migration contains no current-assignee backfill of historical ledger rows');
+
+  /* ── 9. The endpoint is actually gone from the shipped file ───────────── */
   ok(!/webhook\/editors-week/.test(INDEX),
     'no editors-week webhook path remains anywhere in index.html');
   ok(!/EDITORS_WEEK_URL/.test(INDEX),

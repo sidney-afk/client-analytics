@@ -9,7 +9,7 @@ nothing and accepts no database URL or credential.
 
 .EXAMPLE
 & .\scripts\run-private-postgres-proof.ps1
-#>]
+#>
 [CmdletBinding()]
 param(
   [ValidateSet('All', 'Unit', 'F27')]
@@ -26,15 +26,42 @@ function Require-Command([string]$Name) {
 }
 
 function Assert-CleanPostgresEnvironment {
-  $routingNames = @(
-    'DATABASE_URL', 'SUPABASE_DB_URL', 'F27_DATABASE_URL', 'F27_DISPOSABLE_DATABASE_URL',
-    'PGHOST', 'PGHOSTADDR', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE',
-    'PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS'
-  )
-  $present = @($routingNames | Where-Object { [Environment]::GetEnvironmentVariable($_, 'Process') })
+  $present = @([Environment]::GetEnvironmentVariables('Process').Keys | Where-Object {
+    $name = [string]$_
+    $name -match '^(?i:PG)' -or $name -match '(?i:_DATABASE_URL)$' -or
+      $name -match '^(?i:F42_REHEARSAL_)' -or $name -match '^(?i:NIR_)' -or
+      $name -match '^(?i:NATIVE_LABEL_PG_CONFIG)$' -or $name -match '^(?i:CARD_.*PG)' -or
+      $name -match '^(?i:F63_REQUIRE_POSTGRES|ARTIFACT_REQUIRE_POSTGRES|INTAKE_MANIFEST_REQUIRE_POSTGRES)$'
+  } | Sort-Object)
   if ($present.Count -gt 0) {
     throw ('Refusing inherited database routing environment: ' + ($present -join ', ') +
       '. Open a clean PowerShell window or remove those process variables first.')
+  }
+}
+
+function Invoke-LoggedProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$Program,
+    [Parameter(Mandatory = $true)][string[]]$Arguments,
+    [Parameter(Mandatory = $true)][string]$LogPath
+  )
+  $stdoutPath = "$LogPath.stdout-$([Guid]::NewGuid().ToString('N'))"
+  $stderrPath = "$LogPath.stderr-$([Guid]::NewGuid().ToString('N'))"
+  try {
+    $process = Start-Process -FilePath $Program -ArgumentList $Arguments -NoNewWindow -Wait -PassThru `
+      -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    foreach ($streamPath in @($stdoutPath, $stderrPath)) {
+      if (Test-Path -LiteralPath $streamPath) {
+        $lines = @(Get-Content -LiteralPath $streamPath)
+        if ($lines.Count -gt 0) {
+          $lines | Add-Content -LiteralPath $LogPath
+          foreach ($line in $lines) { Write-Host $line }
+        }
+      }
+    }
+    return $process.ExitCode
+  } finally {
+    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -92,12 +119,13 @@ function Invoke-PostgresLane {
     if ($Kind -eq 'Unit') {
       $env:F63_REQUIRE_POSTGRES = '1'
       $env:ARTIFACT_REQUIRE_POSTGRES = '1'
-      & $Node test/run-all.js 2>&1 | Tee-Object -FilePath $LogPath -Append
-      if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 16 unit lane failed with code $LASTEXITCODE." }
+      $exitCode = Invoke-LoggedProcess -Program $Node -Arguments @('test/run-all.js') -LogPath $LogPath
+      if ($exitCode -ne 0) { throw "PostgreSQL 16 unit lane failed with code $exitCode." }
     } else {
-      & $Psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql 2>&1 |
-        Tee-Object -FilePath $LogPath -Append
-      if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 17 F27 lane failed with code $LASTEXITCODE." }
+      $exitCode = Invoke-LoggedProcess -Program $Psql `
+        -Arguments @('-X', '-v', 'ON_ERROR_STOP=1', '-f', 'scripts/f27-team-rollback-proof.sql') `
+        -LogPath $LogPath
+      if ($exitCode -ne 0) { throw "PostgreSQL 17 F27 lane failed with code $exitCode." }
       if (-not (Select-String -Path $LogPath -SimpleMatch 'F27_PROOF_OK' -Quiet)) {
         throw 'F27 proof completed without its required terminal marker.'
       }

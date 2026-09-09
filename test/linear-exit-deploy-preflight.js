@@ -37,6 +37,13 @@ async function rejectsCode(run, code) {
       && query.includes('zz_native_intake_delete_guard')
       && query.includes('zzz_native_assignment_receipt_guard')
       && query.includes('zzz_native_label_receipt_guard'));
+  ok('a missing one-team config member is false rather than ignored as SQL NULL',
+    (query.match(/bool_and\(coalesce\(/g) || []).length === 3
+      && (query.match(/unnest\(array\['video','graphics'\]\) team/g) || []).length === 3);
+  ok('trigger compatibility binds timing, event set, row/statement scope and an unqualified predicate',
+    query.includes("t.tgtype=e.tgtype and t.tgqual is null")
+      && query.includes("'zz_native_intake_receipt_guard','production_native_intake_receipt_guard',23")
+      && query.includes("'zz_native_intake_truncate_guard','production_native_intake_truncate_guard',34"));
 
   ok('an absent required object fails closed', await rejectsCode(async () => {
     const fixture = rows(); fixture[0].present = false; fixture[0].compatible = false;

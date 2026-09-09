@@ -56,14 +56,14 @@ const PRIVATE_ROUTINES = new Set([
 ]);
 
 const TRIGGERS = Object.freeze([
-  ['mirror_outbox.zz_native_intake_receipt_guard', 'mirror_outbox', 'zz_native_intake_receipt_guard', 'production_native_intake_receipt_guard'],
-  ['mirror_outbox.zz_native_intake_delete_guard', 'mirror_outbox', 'zz_native_intake_delete_guard', 'production_native_intake_delete_guard'],
-  ['mirror_outbox.zz_native_intake_truncate_guard', 'mirror_outbox', 'zz_native_intake_truncate_guard', 'production_native_intake_truncate_guard'],
-  ['mirror_outbox.zzz_native_assignment_receipt_guard', 'mirror_outbox', 'zzz_native_assignment_receipt_guard', 'production_native_assignment_receipt_guard'],
-  ['mirror_outbox.zzz_native_assignment_truncate_guard', 'mirror_outbox', 'zzz_native_assignment_truncate_guard', 'production_native_assignment_truncate_guard'],
-  ['mirror_outbox.zzz_native_label_receipt_guard', 'mirror_outbox', 'zzz_native_label_receipt_guard', 'production_native_label_receipt_guard'],
-  ['mirror_outbox.zzz_native_label_truncate_guard', 'mirror_outbox', 'zzz_native_label_truncate_guard', 'production_native_label_truncate_guard'],
-  ['deliverables.zzz_production_native_identifier_mint', 'deliverables', 'zzz_production_native_identifier_mint', 'production_native_identifier_guard'],
+  ['mirror_outbox.zz_native_intake_receipt_guard', 'mirror_outbox', 'zz_native_intake_receipt_guard', 'production_native_intake_receipt_guard', 23],
+  ['mirror_outbox.zz_native_intake_delete_guard', 'mirror_outbox', 'zz_native_intake_delete_guard', 'production_native_intake_delete_guard', 11],
+  ['mirror_outbox.zz_native_intake_truncate_guard', 'mirror_outbox', 'zz_native_intake_truncate_guard', 'production_native_intake_truncate_guard', 34],
+  ['mirror_outbox.zzz_native_assignment_receipt_guard', 'mirror_outbox', 'zzz_native_assignment_receipt_guard', 'production_native_assignment_receipt_guard', 31],
+  ['mirror_outbox.zzz_native_assignment_truncate_guard', 'mirror_outbox', 'zzz_native_assignment_truncate_guard', 'production_native_assignment_truncate_guard', 34],
+  ['mirror_outbox.zzz_native_label_receipt_guard', 'mirror_outbox', 'zzz_native_label_receipt_guard', 'production_native_label_receipt_guard', 31],
+  ['mirror_outbox.zzz_native_label_truncate_guard', 'mirror_outbox', 'zzz_native_label_truncate_guard', 'production_native_label_truncate_guard', 34],
+  ['deliverables.zzz_production_native_identifier_mint', 'deliverables', 'zzz_production_native_identifier_mint', 'production_native_identifier_guard', 23],
 ]);
 
 const COLUMNS = Object.freeze([
@@ -111,8 +111,8 @@ function contractQuery() {
   const expected = expectedObjects();
   const routines = expected.routines.map(row =>
     `(${sqlString(row.key)},${sqlString(row.signature)},${sqlString(row.bodyMd5)},${sqlString(row.searchPath)},${row.serviceExecute})`).join(',\n');
-  const triggers = TRIGGERS.map(([key, table, trigger, fn]) =>
-    `(${sqlString(`trigger:${key}`)},${sqlString(table)},${sqlString(trigger)},${sqlString(fn)})`).join(',\n');
+  const triggers = TRIGGERS.map(([key, table, trigger, fn, tgtype]) =>
+    `(${sqlString(`trigger:${key}`)},${sqlString(table)},${sqlString(trigger)},${sqlString(fn)},${tgtype})`).join(',\n');
   const columns = COLUMNS.map(([key, table, column, type, notNull]) =>
     `(${sqlString(`column:${key}`)},${sqlString(table)},${sqlString(column)},${sqlString(type)},${notNull})`).join(',\n');
   return `with expected_routine(object_key,signature,body_md5,search_path,service_execute) as (values\n${routines}\n),
@@ -125,11 +125,12 @@ routine_rows as (
       and not has_function_privilege('anon',p.oid,'EXECUTE')
       and not has_function_privilege('authenticated',p.oid,'EXECUTE'),false) as compatible
   from expected_routine e left join pg_proc p on p.oid=to_regprocedure(e.signature)
-), expected_trigger(object_key,table_name,trigger_name,function_name) as (values
+), expected_trigger(object_key,table_name,trigger_name,function_name,tgtype) as (values
 ${triggers}
 ), trigger_rows as (
   select e.object_key,(t.oid is not null) as present,
-    coalesce(t.tgenabled='O' and pn.nspname='public' and p.proname=e.function_name,false) as compatible
+    coalesce(t.tgenabled='O' and t.tgtype=e.tgtype and t.tgqual is null
+      and pn.nspname='public' and p.proname=e.function_name,false) as compatible
   from expected_trigger e left join pg_class c on c.relnamespace='public'::regnamespace and c.relname=e.table_name
   left join pg_trigger t on t.tgrelid=c.oid and t.tgname=e.trigger_name and not t.tgisinternal
   left join pg_proc p on p.oid=t.tgfoid left join pg_namespace pn on pn.oid=p.pronamespace
@@ -143,16 +144,16 @@ ${columns}
 ), config_rows as (
   select 'config:native_intake_epochs'::text object_key,(f.key is not null) present,
     coalesce(jsonb_typeof(f.value)='object'
-      and (select bool_and(jsonb_typeof(f.value->team)='object'
+      and (select bool_and(coalesce(jsonb_typeof(f.value->team)='object'
         and jsonb_typeof(f.value->team->'enabled')='boolean'
-        and (f.value->team->'enabled'='false'::jsonb or coalesce(f.value->team->>'epoch','')~'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'))
+        and (f.value->team->'enabled'='false'::jsonb or coalesce(f.value->team->>'epoch','')~'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'),false))
         from unnest(array['video','graphics']) team),false) compatible
     from (values('native_intake_epochs')) e(key) left join public.syncview_runtime_flags f using(key)
   union all
   select 'config:native_assignment_epochs',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
-    and (select bool_and(jsonb_typeof(f.value->team)='object' and coalesce(f.value->team->>'mode','') in ('provider','native','hold')
+    and (select bool_and(coalesce(jsonb_typeof(f.value->team)='object' and coalesce(f.value->team->>'mode','') in ('provider','native','hold')
       and case when f.value->team->>'mode'='native' then coalesce(f.value->team->>'epoch','')~'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'
-        else f.value->team->'epoch'='null'::jsonb end) from unnest(array['video','graphics']) team),false)
+        else f.value->team->'epoch'='null'::jsonb end,false)) from unnest(array['video','graphics']) team),false)
     from (values('native_assignment_epochs')) e(key) left join public.syncview_runtime_flags f using(key)
   union all
   select 'config:production_native_label_catalog',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
@@ -163,8 +164,8 @@ ${columns}
   union all
   select 'config:production_native_identifier_mint',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
     and f.value->'schema_version'='1'::jsonb
-    and (select bool_and(jsonb_typeof(f.value->team)='object'
-      and coalesce(f.value->team->>'mode','') in ('provider','native'))
+    and (select bool_and(coalesce(jsonb_typeof(f.value->team)='object'
+      and coalesce(f.value->team->>'mode','') in ('provider','native'),false))
       from unnest(array['video','graphics']) team),false)
     from (values('production_native_identifier_mint')) e(key) left join public.syncview_runtime_flags f using(key)
 )

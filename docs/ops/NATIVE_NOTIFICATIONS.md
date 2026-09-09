@@ -48,7 +48,7 @@ The source includes dormant five-minute GitHub Actions sender and monitor jobs:
 skipped until their distinct repository variables are literally `true` and their
 shared service-only URL/key secrets are set after review. The monitor health call
 fails on blocked, unknown, or expired-lease debt; it does not send a provider
-message. A claim revalidates every queued urgent target (current authority, exact card round, active assigned editor, and protected destination) before Slack; stale urgent work becomes blocked instead of sending late. No n8n workflow is added or invoked by this layer.
+message. Claim preparation checks queued urgent targets against current authority, card round, assigned editor, and destination. A detected stale target is blocked. This database check and a later Slack request are not one atomic operation: business state can change between them; the source does not guarantee the target stays unchanged until Slack accepts the post. No n8n workflow is added or invoked by this layer.
 
 ## Verification
 
@@ -60,3 +60,7 @@ urgent editor ID is inserted as mention markup. The real SQL
 proof is `node test/native-notifications-postgres.js` under the existing
 `postgres:16` unit-service (`F63_REQUIRE_POSTGRES=1`); local execution is
 skipped where socket creation is denied.
+
+### Trust boundary
+
+The Edge Function authenticates the caller. SQL actor, payload, and event-stamp checks enforce the normal application protocol; they do not independently authenticate a person against a SQL-capable `service_role`. That role remains separately trusted. Anonymous/authenticated callers have no notification-table access or notification-RPC execution grants. Service inspection is read-only; notification state changes use the owning routines.

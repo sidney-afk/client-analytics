@@ -43,7 +43,7 @@ try {
   assert.equal(scalar("select count(*) from public.production_notification_intents where kind='comment' and source_comment_id='notification-comment'"), '1', 'staff comment trigger writes exactly one intent through partial unique conflict inference');
   assert.match(scalar("select message->>'text' from public.production_notification_intents where kind='status_smm_approval'"), /‹@Ubad›/, 'user-derived title is mention-escaped');
   // A provider-era/legacy-shaped ID is accepted when the committed evidence is native; no del_ prefix assumption.
-  assert.equal(scalar("select count(*) from public.production_notification_intents where deliverable_id='legacy-native-id'"), '1');
+  assert.equal(scalar("select count(*) from public.production_notification_intents where deliverable_id='legacy-native-id' and kind='status_smm_approval'"), '1');
   // Import/test/parity and missing authority leave no intent.
   cluster.exec(`insert into public.deliverable_events(deliverable_id,batch_id,client_slug,action,source,from_status,to_status,payload)
     values ('legacy-native-id','notification-batch','fixture-client','status_change','reconcile','todo','tweak','{}'::jsonb);`);

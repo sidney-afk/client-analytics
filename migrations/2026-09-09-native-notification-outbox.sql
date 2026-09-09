@@ -104,6 +104,9 @@ grant select, insert, update, delete on table public.production_notification_con
 -- Intents/receipts have no direct service DML route: only SECURITY DEFINER
 -- observer/claim/receipt routines write them.
 revoke all on table public.production_notification_intents, public.production_notification_delivery_receipts, public.production_notification_reconciliations from service_role;
+-- Read-only inspection supports the service gateway and security-invoker monitor.
+-- Business/delivery state remains writable only through the owning RPCs.
+grant select on table public.production_notification_intents, public.production_notification_delivery_receipts, public.production_notification_reconciliations to service_role;
 grant usage, select on sequence public.production_notification_delivery_receipts_id_seq, public.production_notification_reconciliations_id_seq to service_role;
 
 -- Once committed, event/comment identity, destination, and message are durable
@@ -459,7 +462,7 @@ begin
     intent_key, kind, state, client_slug, deliverable_id, actor_member_id, intended_member_id,
     destination_kind, destination_channel_id, message
   ) values (
-    'urgent:' || encode(digest(p_deliverable_id || '|' || v_round::text, 'sha256'), 'hex'),
+    'urgent:' || encode(digest(p_deliverable_id || '|' || to_char(v_round at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), 'sha256'), 'hex'),
     'urgent', 'pending', v_slug, p_deliverable_id, p_actor_member_id, p_intended_member_id,
     'video_editing_channel', v_channel,
     jsonb_build_object('schema', 1, 'text', '<@' || v_editor.slack_user_id || '> URGENT: ' || public.production_notification_plain_text(v_del.title, 300) || ' needs tweaks.',
@@ -467,7 +470,7 @@ begin
       'intended_member_id', p_intended_member_id::text, 'round', v_round::text, 'surface', v_surface, 'card_id', p_card_id)
   ) on conflict (intent_key) do nothing;
   return jsonb_build_object('status', 'pending', 'dispatch_id', p_dispatch_id::text, 'intent_key',
-    'urgent:' || encode(digest(p_deliverable_id || '|' || v_round::text, 'sha256'), 'hex'));
+    'urgent:' || encode(digest(p_deliverable_id || '|' || to_char(v_round at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), 'sha256'), 'hex'));
 end;
 $fn$;
 
@@ -519,7 +522,7 @@ as $fn$
   select coalesce((
     select jsonb_build_object('state', i.state, 'sent', i.state = 'sent')
       from public.production_notification_intents i
-     where i.intent_key = 'urgent:' || encode(digest(p_deliverable_id || '|' || p_video_status_at::text, 'sha256'), 'hex')
+     where i.intent_key = 'urgent:' || encode(digest(p_deliverable_id || '|' || to_char(p_video_status_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), 'sha256'), 'hex')
        and i.client_slug = p_client_slug and i.kind = 'urgent'
   ), jsonb_build_object('state', 'absent', 'sent', false))
 $fn$;

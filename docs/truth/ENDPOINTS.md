@@ -186,7 +186,35 @@ Other:
   against the exact Samples-origin deliverable and component team. The client UI
   defensively projects client audience only and staff Client-visible depends on durable Samples-card
   linkage, not an endpoint assertion. The tokened TEST read drill is still owed before
-  client-visible UI widens further.
+  client-visible UI widens further. **Staff principals may additionally send
+  `include_feedback: true`**, which adds a read-only `feedback` object
+  (`{version, status, complete, scope, rows}`) projecting the notes still held
+  in the linked Calendar/Samples card cell. It is staff-only, runs after the
+  existing budget/target-authorization/allow-audit and re-checks the five
+  crosswalk fields before responding, adds no SQL, and returns
+  `status:'unmapped'` when the deliverable carries no verified card link. Two
+  readers send it: the SyncLinear **Feedback & tweaks** panel and the Workload
+  Tweak Needed popover, both at `limit: 50`. **`total` is nullable**: the exact
+  count scans every comment row on the deliverable while the page is bounded, so
+  it is settled independently and fails OPEN — a count that errors or rejects
+  yields `total: null` and the page is served anyway (`null` means *not counted*;
+  an empty thread is still `0`). A failed PAGE read is still a 500 `read_failed`.
+  Neither browser consumer DISPLAYS `total`, but the Workload Tweak Needed reader
+  (`_wlNativeTweakComments`) validates it and uses it as its completeness proof,
+  so both consumers must be checked when this field changes. The page is read
+  BEFORE its count, deliberately: they are separate transactions, so run
+  concurrently the count can predate the page it certifies and a legitimate
+  mid-walk deletion then reads as a mismatch. Note also that `before` is applied
+  to the PAGE query only, never to the count, so every `total` is a whole-thread
+  count at the moment its page was served: the reader proves a paged
+  walk against its TERMINAL count alone: intermediate counts are neither retained
+  nor compared, because counts taken at different moments differ legitimately (an
+  older unserved row deleted mid-walk) and catch nothing the terminal count does
+  not. A paged walk whose terminal count failed open refuses (an earlier count
+  predates the pages after it and cannot catch a head insertion), and a walk with
+  no count is accepted only when it never paged.
+  Every other non-integer (`undefined` included) stays a refusal. Whether the endpoint should
+  compute an exact count at all is an open owner decision (`OPEN_REPAIRS` 172).
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override.

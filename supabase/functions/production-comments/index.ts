@@ -12,6 +12,7 @@ import {
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
+import { readLegacyFeedback } from "./feedback.mjs";
 import {
   audienceAllowed,
   clean,
@@ -363,8 +364,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
-    if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
+    // The count scans every comment row on this deliverable; the page reads a
+    // bounded `limit + 1`. So the count is the half that grows without bound and
+    // can hit a statement timeout, and it used to take the page down with it:
+    // either error threw the same failure, the gateway answered 500
+    // `read_failed`, and the browser replaced the entire feed with "Comments
+    // could not load." on a thread whose rows had in fact been read fine.
+    //
+    // The count now fails OPEN. It is settled on its own, so neither a rejection
+    // nor an error result can fail the request; all it can cost the caller is
+    // `total`, which becomes null. The page read stays fatal, because comments
+    // that genuinely cannot be read must say so rather than render as an empty
+    // thread.
+    //
+    // Whether this endpoint should compute an exact count at all is an open
+    // owner decision (OPEN_REPAIRS 172). Nothing here forecloses it: the field
+    // and its `has_more` / `next_cursor` neighbours are unchanged.
+    // ORDER MATTERS, and it is not an optimisation. These are two independent
+    // PostgREST requests in two transactions, so run concurrently they observe
+    // two different database states. A reader that validates a page against this
+    // count is then checking it against a number that may have been taken
+    // BEFORE the page: delete an older row in that window and the count comes
+    // back one too high for a page that is perfectly current, and the reader
+    // refuses a thread nothing is wrong with.
+    //
+    // Reading the page first and the count strictly after it makes the count
+    // observe a state at or after the page it certifies, which is what a caller
+    // paging to `has_more === false` needs in order to treat the final count as
+    // a statement about the walk it just finished. It costs the page's own
+    // latency, which is bounded at `limit + 1` rows and small beside the count's
+    // unbounded scan, and it saves the scan entirely when the page read fails.
+    //
+    // This does NOT make a multi-page walk exact, and no ordering here could:
+    // the caller's rows come from several requests at several moments, so the
+    // count can only ever be current with the LAST of them. Rows served early
+    // and deleted later still leave a legitimate mismatch. The check is a strong
+    // consistency test, not a transaction.
+    const pageResult = await pageQuery;
+    if (pageResult.error) throw new Error("comment_read_failed");
+    const totalCount = await Promise.resolve(totalQuery).then(
+      (result) => (result.error ? null : Number(result.count || 0)),
+      () => null,
+    );
 
     const fetched = Array.isArray(pageResult.data) ? pageResult.data : [];
     const hasMore = fetched.length > limit;
@@ -378,16 +419,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }))
       .filter(Boolean);
     const tail = comments.length ? comments[comments.length - 1] as JsonMap : null;
+    let feedback = null;
+    if (body.include_feedback === true && principal.kind === "staff") {
+      // Existing authorization and durable allow audit precede every source read.
+      feedback = await readLegacyFeedback(supabase, target, principal);
+      const { data: latest, error: latestError } = await supabase.from("deliverables")
+        .select("id,client_slug,team,origin,card_id").eq("id", deliverableId).maybeSingle();
+      if (latestError) throw new Error("target_recheck_failed");
+      if (!latest || (["id", "client_slug", "team", "origin", "card_id"] as const).some(
+        key => clean(latest[key]) !== clean(target[key]),
+      )) return json({ ok: false, error: "forbidden" }, 403);
+    }
     return json({
       ok: true,
       canonical_thread: true,
       audience_scope: principal.kind === "client" ? "client" : "all",
-      total: Number(totalResult.count || 0),
+      total: totalCount,
       has_more: hasMore,
       next_cursor: hasMore && tail
         ? { created_at: clean(tail.created_at), id: clean(tail.id) }
         : null,
       comments,
+      ...(feedback ? { feedback } : {}),
     });
   } catch (_error) {
     return json({ ok: false, error: "read_failed" }, 500);

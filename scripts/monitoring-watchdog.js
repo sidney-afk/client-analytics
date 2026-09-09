@@ -242,6 +242,15 @@ const LANES = Object.freeze([
     hosts: ['workload-source-freshness.yml'], retired: null },
   { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
     hosts: ['outbox-debt-census.yml'], retired: null },
+  /*
+   * The admission gate is dormant until its explicit SQL activation RPC runs.
+   * This lane starts before that activation and reports DORMANT as healthy;
+   * after activation it proves the recorded high-water has no ordinary rows
+   * above it. It is intentionally Linear-free and does not retire with a main
+   * schedule: it is the evidence that the already-retired boundary still holds.
+   */
+  { key: 'syncview_retirement_census', label: 'SyncView retirement admission census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['syncview-retirement-census.yml'], retired: null },
 ]);
 
 function clean(value) {

@@ -453,7 +453,7 @@ const CANDIDATES = new Map([
     // permission. Only policy.mjs moved (clientOperationAllowed) -- no
     // migration, no schema, no new import, file count unchanged at 5, and the
     // entrypoint hash is unchanged because it hashes the PATH.
-    source: '6fd2cd7247c8ac87cbd2de8f73cf79f0f1e1ee7b0248bcf61824f6d07cfa9b61',
+    source: 'ea4bc35a5f5948f5695ff88e7ff85e550a38b90752c2c11ada37c5c8b4af8b3d',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

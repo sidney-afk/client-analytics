@@ -297,7 +297,7 @@ jobs:
       # the change. Policy-only change in clientOperationAllowed -- no
       # migration, no schema, no new import, file count unchanged at 5.
       # (Previous pin: 27d1a608fd... -- production-write v70, 2026-09-08.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 6fd2cd7247c8ac87cbd2de8f73cf79f0f1e1ee7b0248bcf61824f6d07cfa9b61
+      PRODUCTION_WRITE_SOURCE_SHA256: ea4bc35a5f5948f5695ff88e7ff85e550a38b90752c2c11ada37c5c8b4af8b3d
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

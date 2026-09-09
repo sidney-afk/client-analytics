@@ -491,8 +491,8 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     'a caller arriving while a read is in the air JOINS that read rather than returning');
   ok(owner.indexOf('if (inFlight) return inFlight;') < owner.indexOf("_prodState.batchDescriptionReads.set(batchId, 'loading')"),
     '...before the read state is claimed, so the join wins over the old loading short-circuit');
-  ok(/finally \{ _prodState\.batchDescriptionInFlight\.delete\(batchId\); \}/.test(owner),
-    '...and the in-flight entry is always cleared, so one failed read cannot wedge the batch forever');
+  ok(/if \(_prodState\.batchDescriptionInFlight\.get\(batchId\) === run\) \{\s*\n\s*_prodState\.batchDescriptionInFlight\.delete\(batchId\);/.test(owner),
+    '...and clears the in-flight entry ONLY when the map still holds this read, so a settling invalidated read cannot evict the fresh one that replaced it');
 
   const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
   ok(/\} else if \(_prodState\.batchDescriptionReads\.get\(batchId\) === 'error'\) \{/.test(ensureDesc),
@@ -532,6 +532,54 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     '...and both resume only once the answer has landed on the row');
   ok(ctx._prodState.batchDescriptionInFlight.size === 0,
     '...leaving no in-flight entry behind');
+}
+
+
+// ---- 5k. a settling old read does not evict the fresh one (round 8) ---------
+/* The classic single-flight bug, and it reads as tidying up: read A is
+   invalidated, read B starts and stores its own promise, then A settles and its
+   unconditional cleanup evicts B. The next render sees nothing in flight, starts
+   C, advances the token, and B's perfectly good answer is discarded — longer
+   loading and redundant requests. Executed, in that order. */
+{
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  const settle = [];
+  const ctx = {
+    Map, Set, String, Number, Promise, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => null },
+    _prodRender: () => {},
+    _prodOpenRowId: () => '',
+    _prodIssue: () => null,
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 't1' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(), batchPartialRows: new Set(),
+      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+    },
+    _prodReadBatchDescriptionRow: () => new Promise(r => settle.push(r)),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + owner + '\nthis.ensure = _prodEnsureBatchDescription; this.invalidate = _prodInvalidateBatchDescriptionReads;', ctx);
+
+  const readA = ctx.ensure('b1', false);
+  ctx.invalidate(['b1']);                       // A is retired, its entry dropped
+  const readB = ctx.ensure('b1', false);        // B starts fresh
+  ok(settle.length === 2, 'HARNESS: B really did start its own read rather than joining the retired A');
+  const bPromise = ctx._prodState.batchDescriptionInFlight.get('b1');
+  ok(!!bPromise, 'HARNESS: and B is the read now on record');
+
+  settle[0]({ id: 'b1', description: 'stale', updated_at: 't1' });   // A settles LAST-registered-first
+  await readA;
+  ok(ctx._prodState.batchDescriptionInFlight.get('b1') === bPromise,
+    "THE BUG: A's cleanup does NOT evict B — the map still holds B's read, so the next caller joins it instead of starting a third");
+
+  settle[1]({ id: 'b1', description: 'fresh', updated_at: 't2' });
+  await readB;
+  ok(ctx._prodState.batches[0].description === 'fresh', "and B's answer is the one that lands");
+  ok(ctx._prodState.batchDescriptionInFlight.size === 0, 'and B clears its own entry when it settles');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

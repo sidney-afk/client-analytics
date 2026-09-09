@@ -18102,3 +18102,29 @@ token check was already guaranteed to discard — resuming with nothing. It now
 drops the in-flight entry too, so the next caller starts fresh; the retired
 promise settles harmlessly against its stale token. Single flight joins live
 reads, not dead ones.
+
+### 182i. The single-flight cleanup evicted the wrong read
+
+Codex round eight, on the round-seven fix. The textbook single-flight bug, and it
+reads as tidying up rather than logic:
+
+```js
+finally { _prodState.batchDescriptionInFlight.delete(batchId); }
+```
+
+Read A is invalidated, read B starts and stores its own promise, then A settles
+and its `finally` evicts **B's** entry. The next render sees nothing in flight,
+starts read C, advances the token, and guarantees B's perfectly good answer is
+discarded. Longer loading and redundant requests, from a line whose only apparent
+job is housekeeping.
+
+The entry is now removed only when the map still holds THIS invocation's promise.
+The regression test drives that exact ordering — A retired, B started, A settling
+late — and asserts B's entry survives and B's answer is the one that lands.
+
+**Why this one is filed as ordinary.** Rounds three through six were each a
+consequence of the previous fix inside the two-reader arrangement, which is why
+#1364 stopped and replaced it. Rounds seven and eight are instead standard
+single-flight questions with standard answers: join a live read, and clean up
+only what you own. That is the shape this surface was meant to have after the
+redesign, and it is the signal that the redesign did what it was for.

@@ -57315,7 +57315,19 @@
             })();
             _prodState.batchDescriptionInFlight.set(batchId, run);
             try { await run; }
-            finally { _prodState.batchDescriptionInFlight.delete(batchId); }
+            finally {
+                /* Only if the map still holds THIS read. Deleting unconditionally
+                   is the classic single-flight bug: an invalidated read A settles
+                   after a fresh read B has stored its own promise, and A's
+                   cleanup then evicts B -- so the next render sees no read in
+                   flight, starts C, advances the token, and guarantees B's
+                   perfectly good answer is thrown away. Longer loading and
+                   redundant requests, from a line that looks like tidying up.
+                   Raised by Codex on #1364. */
+                if (_prodState.batchDescriptionInFlight.get(batchId) === run) {
+                    _prodState.batchDescriptionInFlight.delete(batchId);
+                }
+            }
         }
         async function _prodEnsureDescription(id, force) {
             id = String(id || '');

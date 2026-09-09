@@ -329,6 +329,24 @@ setTimeout(() => {
     check(slug + ' says it is FROZEN and why deploying it re-gates clients',
       ef.includes('⛔ FROZEN') && ef.includes('authorizeBrowserWrite') && ef.includes('NO CI DEPLOY PATH'));
   }
+  // Codex round 2, all four findings.
+  check('the kill-switch is re-read at CLICK time, not just cached at boot',
+    INDEX.includes('async function _kasperUrgentPingOnLive()')
+    && (INDEX.match(/await _kasperUrgentPingOnLive\(\)/g) || []).length === 2);
+  check('activation repaints, so it does not need a reload',
+    INDEX.includes('_kasperUrgentRepaintSurfaces()'));
+  check('the KASPER ping persists BEFORE Slack; the editor ping is unchanged',
+    /kasper:[\s\S]{0,900}persistFirst: true,/.test(INDEX)
+    && INDEX.includes('if (spec.persistFirst && opts && typeof opts.persist')
+    && INDEX.includes('if (!spec.persistFirst && opts && typeof opts.persist')
+    && !/editor:[\s\S]{0,600}persistFirst/.test(INDEX));
+  check('a card with two waiting components reconciles ALL its buttons after saving',
+    /_calPersistKasperUrgentForPost[\s\S]{0,2200}_calUpdateCardStatusDisplay\(post\.id\)/.test(INDEX));
+  check('the EF strips all four *_status_at before writing, not just two',
+    ['caption_status_at', 'title_status_at', 'video_status_at', 'graphic_status_at'].every(c =>
+      fs.readFileSync(path.join(ROOT, 'supabase/functions/calendar-upsert/index.ts'), 'utf8')
+        .includes('delete out.' + c + ';')));
+
   check('the flag read fails closed on every error path',
     /_kasperUrgentPingEnabled = false;\s*\/\/ fail closed/.test(INDEX)
     && INDEX.includes("row.value.enabled === true"));

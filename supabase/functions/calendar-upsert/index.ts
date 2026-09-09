@@ -411,8 +411,15 @@ function updatePayload(client: string, row: Row): Row {
 function scalarPayloadForExisting(row: Row): Row {
   const out: Row = { ...row };
   for (const k of ["video_tweaks", "graphic_tweaks", "caption_tweaks", "title_tweaks", "tweaks"]) delete out[k];
+  // All four, not just the two that predate the caption/title stamps. The Kasper
+  // marker guard writes row[comp + "_status_at"], so a caption or title status
+  // that changed between readExisting and this update would have its stale
+  // timestamp written back -- and the trigger sees no status change in ITS
+  // update, so it never repairs it. (Codex P2 on PR 1370.)
   delete out.video_status_at;
   delete out.graphic_status_at;
+  delete out.caption_status_at;
+  delete out.title_status_at;
   return out;
 }
 

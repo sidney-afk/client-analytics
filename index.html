@@ -25563,6 +25563,16 @@
     const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
     let _kasperUrgentPingEnabled = false;
     function _kasperUrgentPingOn() { return _kasperUrgentPingEnabled === true; }
+    /* Re-read at CLICK time, not just at boot. A flag cached at boot makes the
+       advertised one-step rollback untrue: a tab that saw `enabled: true` keeps
+       sending DMs and writing markers after the row is flipped off, which is
+       precisely the situation the switch exists for. So the dispatch path asks
+       again and fails closed, and a stale-cached render can only ever offer a
+       button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
+    async function _kasperUrgentPingOnLive() {
+        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentPingEnabled = false; }
+        return _kasperUrgentPingOn();
+    }
     async function _calFetchKasperUrgentFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentPingEnabled = false; return; }
         try {
@@ -25571,10 +25581,19 @@
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const rows = await resp.json();
             const row = Array.isArray(rows) ? rows[0] : null;
+            const was = _kasperUrgentPingEnabled;
             _kasperUrgentPingEnabled = !!(row && row.value && row.value.enabled === true);
+            // A render that won the race against this read is buttonless; repaint
+            // it rather than making activation require a reload.
+            if (was !== _kasperUrgentPingEnabled) _kasperUrgentRepaintSurfaces();
         } catch (e) {
             _kasperUrgentPingEnabled = false;   // fail closed, always
         }
+    }
+    function _kasperUrgentRepaintSurfaces() {
+        try { if (typeof renderCalendarView === 'function' && calState && Array.isArray(calState.posts) && calState.posts.length) renderCalendarView(); } catch (e) {}
+        try { if (typeof _kasperPaintReview === 'function') _kasperPaintReview(); } catch (e) {}
+        try { if (typeof _sxrKasperRenderQueue === 'function') _sxrKasperRenderQueue(); } catch (e) {}
     }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
@@ -33425,7 +33444,8 @@
             sentTitle: 'Kasper pinged',
             sentWhere: 'Sent Kasper a Slack DM',
             alreadySent: 'Kasper was already pinged for this card in this session.',
-            failBody: 'The ping to Kasper failed to send. Try again, or message him in Slack manually.'
+            persistFirst: true,
+            failBody: 'The ping to Kasper was not sent. Nothing was saved and no message went out, so it is safe to try again.'
         }
     };
     function _urgentKind(kind) { return URGENT_PING_KINDS[kind] || URGENT_PING_KINDS.editor; }
@@ -33587,6 +33607,11 @@
         if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
             post[comp + '_status_at'] = post.kasper_urgent_status_at;
         }
+        // A card with two components at Kasper Approval renders TWO buttons, and
+        // the dispatcher only disables the one that was clicked. Without this the
+        // sibling stays live and can fire a duplicate DM before the next render.
+        // (Codex P2 on PR 1370 — the samples path already did this.)
+        try { _calUpdateCardStatusDisplay(post.id); } catch (e) {}
         return echo;
     }
     /* Where the DM points. Kasper's review tab is one hash away on the live
@@ -33599,8 +33624,10 @@
     /* Ping Kasper about a card parked at Kasper Approval. Reuses the SAME
        confirm → POST → latch dispatch as the editor ping; only the flavour
        differs. */
-    function _calSendKasperUrgentSlack(event, pid) {
+    async function _calSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') {
             showNotify('Already sent', _urgentKind('kasper').alreadySent);
@@ -33661,6 +33688,20 @@
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
                     try {
+                        /* ORDER MATTERS, and it differs by flavour.
+                           editor: Slack first. The message IS the deliverable;
+                             its marker only drives a Sent latch, so a failed
+                             write is cosmetic and must not cost the ping.
+                           kasper: MARKER FIRST. The DM says "it is in the Urgent
+                             section at the top", so sending it before the marker
+                             lands can promise a section that never populates. A
+                             failed write now aborts before Slack: no marker, no
+                             DM, nothing to reconcile. (Codex P1 on PR 1370.) */
+                        let sentAtPre = '';
+                        if (spec.persistFirst && opts && typeof opts.persist === 'function') {
+                            sentAtPre = new Date().toISOString();
+                            await opts.persist({ sentAt: sentAtPre, issue, editor: '' });
+                        }
                         const resp = await fetch(spec.url(), {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(Object.assign({ issue, client, name: String(name || '') }, (opts && opts.payload) || {}))
@@ -33669,8 +33710,8 @@
                         try { j = await resp.json(); } catch {}
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
-                        const sentAt = new Date().toISOString();
-                        if (opts && typeof opts.persist === 'function') {
+                        const sentAt = sentAtPre || new Date().toISOString();
+                        if (!spec.persistFirst && opts && typeof opts.persist === 'function') {
                             try {
                                 await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
                             } catch (persistErr) {
@@ -66861,8 +66902,10 @@
     /* Ping Kasper about a SAMPLE waiting on him. Same dispatch, same marker;
        the DM link points at his Samples subtab rather than the calendar queue,
        because that is the only place this card is visible to him. */
-    function _sxrSendKasperUrgentSlack(event, pid) {
+    async function _sxrSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
         const post = sxrState.posts.find(p => p.id === pid);

@@ -17987,3 +17987,48 @@ new on-demand read into a surface that already had two readers and two
 invalidation schemes. If a future session touches batch descriptions again, the
 cheaper design is ONE owner for the read with ONE state machine that both
 surfaces render from, not two readers cooperating through a shared token.
+
+### 182f. Round six stopped the patching: the two-reader arrangement was the defect
+
+Codex's sixth round found two more, both inside the machinery added to fix
+rounds three through five, which is the condition #1364 had already committed to
+stopping on.
+
+**Both verified before acting.** A synthetic parent replaced mid-read by a real
+one (hierarchy rebuild) failed the panel's currency check while the shared batch
+token had not moved, so the panel released only its own state and left
+`batchDescriptionReads[batchId]` on `loading` — after which every later direct
+`?batch=` read refused to start. And `batchPartialRows` was marked
+unconditionally, so a read returning the SAME stamp still marked the row partial;
+since the batch delta filter is `updated_at >= cursor` and therefore inclusive,
+the boundary row returned on every tick, the merge called it changed, the
+description was dropped and re-read, and the row was marked partial again. A
+30-second loop costing an extra request and a skeleton flash — undoing the
+saving this change exists for.
+
+**The repair was not a seventh patch.** Four of the ten findings on #1364
+existed only because TWO functions read and wrote one batch row, cooperating
+through a shared token across two state maps: an older answer landing on a newer
+one, a save reverted by a read that started before it, a displaced reader
+stranding its own panel, and a displaced reader stranding the other reader's
+entry. The arrangement was the defect; each fix created the conditions for the
+next.
+
+`_prodEnsureBatchDescription` is now the sole owner, keyed by batch id. The
+synthetic parent panel waits for it and reflects the row instead of running its
+own read. That deletes the shared token, the second writer of the shared read
+state, and the whole "which reader owns this entry" question rather than
+answering it a fifth time. What stays per-panel is what genuinely is per-panel:
+a split-team batch has two synthetic parents sharing one `batchId`, each with
+its own editor state, caret and scope, so each keeps its own token and its own
+release.
+
+Partial marking is now one comparison in one place, against the stamp captured
+before the write.
+
+**The general lesson, for whoever adds the next on-demand read here.** A test
+that asserts a call EXISTS is not a test that it WORKS: the wiring assertions on
+this PR passed while a read that could never terminate and a view that never
+loaded were both live. And when a second reader of the same row starts needing a
+token to coordinate with the first, the reader is the thing to remove, not the
+token to refine.

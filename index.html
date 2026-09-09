@@ -57252,10 +57252,20 @@
                     _prodState.batchDescriptionReads.delete(batchId);
                     return;
                 }
+                const priorStamp = String(live.updated_at || '');
                 live.description = fresh.description == null ? '' : String(fresh.description);
-                if (fresh.updated_at) {
+                /* Marked partial ONLY when the stamp actually moves. Marking
+                   unconditionally built a 30-second refetch loop: the batch
+                   delta filter is `updated_at >= cursor` and therefore inclusive,
+                   so the boundary row comes back on every tick; a partial mark
+                   made _prodMergeBatchRows call it changed, which dropped its
+                   description and retired its read, which made the next render
+                   read it again and mark it partial again. The direct batch view
+                   flashed its skeleton and spent an extra request every tick --
+                   undoing the very saving this change exists for. Raised by
+                   Codex on #1364. */
+                if (fresh.updated_at && String(fresh.updated_at) !== priorStamp) {
                     live.updated_at = fresh.updated_at;
-                    // Description-only read: see _prodState.batchPartialRows.
                     _prodState.batchPartialRows.add(batchId);
                 }
                 _prodState.adapter = null;
@@ -57272,18 +57282,29 @@
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state || state.saving) return state || null;
             if (issue.syntheticBatchParent === true) {
-                /* A batch parent has no deliverable row for `description_read`
-                   to authorize against, and since 2026-09-08 the boot read no
-                   longer carries batch descriptions either (see
-                   PROD_BATCH_DESCRIPTION_SELECT). So this reads the ONE batch
-                   row over the same browser grant the boot read uses -- the
-                   column was always readable here; the change is reading it
-                   for the parent that is open instead of for all 1,688. No
-                   staff identity is involved, which is why this branch stays
-                   above the identity read below. Same guards as the deliverable
-                   path: a request token, the projection generation and the
-                   row's scope, so a late answer cannot land on a row that
-                   moved. */
+                /* ONE OWNER for a batch description, and this panel is not it.
+
+                   Until 2026-09-09 this branch ran its own read beside
+                   `_prodEnsureBatchDescription`: two readers of the same batch
+                   row, cooperating through a shared token across two state
+                   maps. Codex found four separate defects in that arrangement
+                   over three review rounds (#1364) -- an older answer landing on
+                   a newer one, a save silently reverted by a read that started
+                   before it, a displaced reader stranding its own panel, and a
+                   displaced reader stranding the OTHER reader's shared entry --
+                   and each fix created the conditions for the next. The
+                   arrangement was the defect; the fixes were symptoms.
+
+                   So the read moved to a single owner keyed by BATCH id, and
+                   this panel now waits for it and reflects the row. There is one
+                   token, one read state, one place that writes the column. The
+                   whole class of "which reader owns this entry" question is
+                   gone rather than answered again.
+
+                   What stays here is the part that is genuinely per-PANEL: a
+                   split-team batch has two synthetic parents sharing one
+                   batchId, and each has its own editor state, caret and scope.
+                   Those still need their own token and their own release. */
                 if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;
                 const batchId = String(issue.batchId || '');
                 if (!batchId) {
@@ -57292,69 +57313,40 @@
                     if (!state.hasValue) state.error = 'Description could not load.';
                     return state;
                 }
-                const batchToken = _prodNextDescriptionRequestToken(id);
-                const batchGeneration = _prodState.projectionGeneration;
-                const batchScope = _prodIssueScopeSignature(issue);
-                /* The SHARED per-batch token, taken in addition to this panel's
-                   own issue-keyed one. Two readers write this same batch row --
-                   this panel, keyed by ISSUE id, and the direct `?batch=` view,
-                   keyed by BATCH id -- so a token that retires only its own
-                   domain lets the other domain's older answer land on top of a
-                   newer one. Taking it here also retires any direct read already
-                   in the air for this batch, and _prodEnsureBatchDescription
-                   taking it retires this one, so whichever read STARTED LAST is
-                   the only one whose answer can land. Raised by Codex on #1364,
-                   as the second-order case of the race fixed one round earlier. */
-                const batchSharedToken = _prodNextBatchDescriptionToken(batchId);
-                const batchStillCurrent = () => {
+                const panelToken = _prodNextDescriptionRequestToken(id);
+                const panelGeneration = _prodState.projectionGeneration;
+                const panelScope = _prodIssueScopeSignature(issue);
+                const panelStillCurrent = () => {
                     const live = _prodIssue(id);
-                    return batchToken === _prodState.descriptionRequestTokens.get(id)
-                        && batchSharedToken === _prodState.batchDescriptionTokens.get(batchId)
-                        && batchGeneration === _prodState.projectionGeneration
+                    return panelToken === _prodState.descriptionRequestTokens.get(id)
+                        && panelGeneration === _prodState.projectionGeneration
                         && !!live && String(live.batchId || '') === batchId
-                        && _prodIssueScopeSignature(live) === batchScope;
+                        && _prodIssueScopeSignature(live) === panelScope;
                 };
                 state.refreshing = true;
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
-                /* While this read holds the shared token it also owns the shared
-                   read state, so the direct `?batch=` view sees one truth rather
-                   than the leftovers of whoever ran last. */
-                _prodState.batchDescriptionReads.set(batchId, 'loading');
-                /* Releasing a DISPLACED read. Returning bare left `state.refreshing`
-                   true forever, and the guard at the top of this function refuses
-                   to start a read while that is set -- so the panel short-circuited
-                   on every later open and never loaded again. Reachable by switching
-                   between the two synthetic parents of a split-team batch, which
-                   share a batchId and so share the token. Only this panel's OWN
-                   per-issue state is released, and only while its own token still
-                   says it owns it; the shared entry belongs to whoever holds the
-                   shared token now. Raised by Codex on #1364. */
-                const releasePanel = () => {
-                    if (batchToken !== _prodState.descriptionRequestTokens.get(id)) return;
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                // The owner reads, guards and records. It never throws.
+                await _prodEnsureBatchDescription(batchId, force);
+                if (!panelStillCurrent()) {
+                    /* Release THIS panel only. The owner holds the shared read
+                       state and releases it on its own exits, which is why a
+                       synthetic parent replaced mid-read by a real one can no
+                       longer strand it. */
                     state.refreshing = false;
                     state.refreshError = '';
                     state.status = state.hasValue ? 'stale' : 'idle';
-                };
-                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
-                try {
-                    const row = await _prodReadBatchDescriptionRow(batchId);
-                    if (!batchStillCurrent()) { releasePanel(); return null; }
-                    _prodState.batchDescriptionReads.set(batchId, 'ready');
-                    _prodSyncBatchDescriptionRow(id, row.description, row.updated_at);
-                    _prodAdoptDescriptionValue(id, row.description, row.updated_at);
+                    return null;
+                }
+                const batchRow = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                if (batchRow && _prodHasOwn(batchRow, 'description')) {
+                    _prodAdoptDescriptionValue(id, batchRow.description, batchRow.updated_at);
                     const adoptedBatch = _prodState.descriptions.get(id);
-                    if (adoptedBatch) adoptedBatch.scopeSignature = batchScope;
-                    if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
-                    return state;
-                } catch (error) {
-                    if (!batchStillCurrent()) { releasePanel(); return null; }
-                    /* This read owns the shared entry, so a failure must record
-                       itself there too. Leaving it on 'loading' stranded the
-                       direct view on its skeleton -- the case where a synthetic
-                       read supersedes an in-flight direct read and then fails. */
-                    _prodState.batchDescriptionReads.set(batchId, 'error');
+                    if (adoptedBatch) adoptedBatch.scopeSignature = panelScope;
+                } else {
+                    // The owner read and did not land a column: that is a failure.
                     state.refreshing = false;
                     if (state.hasValue) {
                         state.status = 'stale';
@@ -57363,9 +57355,9 @@
                         state.status = 'error';
                         state.error = 'Description could not load.';
                     }
-                    if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
-                    return null;
                 }
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return state;
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
             const staffIdentity = _syncviewStaffIdentityForHeaders();

@@ -51,114 +51,28 @@ ok(constValue("const PROD_BATCH_DESCRIPTION_SELECT = ") === 'id,description,upda
 
 const ensure = grabFunc('async function _prodEnsureDescription(id, force)');
 const branchAt = ensure.indexOf('if (issue.syntheticBatchParent === true) {');
-const readAt = ensure.indexOf('_prodReadBatchDescriptionRow(batchId)');
+const delegateAt = ensure.indexOf('await _prodEnsureBatchDescription(batchId, force);');
 const identityAt = ensure.indexOf('_syncviewStaffIdentityForHeaders()');
-ok(branchAt > 0 && readAt > branchAt && readAt < identityAt,
-  'a batch parent reads its own row inside the synthetic branch, before any staff-identity read');
-ok(/batchGeneration === _prodState\.projectionGeneration/.test(ensure)
-  && /_prodIssueScopeSignature\(live\) === batchScope/.test(ensure)
-  && /batchToken === _prodState\.descriptionRequestTokens\.get\(id\)/.test(ensure),
-  'and a late answer is discarded on the same three guards as the deliverable path: token, generation, scope');
-ok(/_prodSyncBatchDescriptionRow\(id, row\.description, row\.updated_at\);\s*\n\s*_prodAdoptDescriptionValue\(id, row\.description, row\.updated_at\);/.test(ensure),
-  'the row is written back into the batch AND adopted into the panel state, so descLoaded and the panel agree');
-ok(!/state\.status = 'ready';\s*\n\s*return state;\s*\n\s*\}\s*\n\s*if \(!force/.test(ensure),
-  'the old branch, which declared the description ready without ever reading it, is gone');
-
-// ---- 2. the tab return asks for what changed -----------------------------
-const listenerStart = html.indexOf('function _prodAutoRefreshOnReturn()');
-const listenerSrc = html.slice(listenerStart, html.indexOf('\n        }', listenerStart) + '\n        }'.length);
+ok(branchAt > 0 && delegateAt > branchAt && delegateAt < identityAt,
+  'a batch parent DELEGATES to the single owner inside the synthetic branch, before any staff-identity read');
+ok(!/_prodReadBatchDescriptionRow\(/.test(ensure),
+  'ONE OWNER: the panel no longer runs its own read beside _prodEnsureBatchDescription — that second reader is what produced four separate defects over three review rounds');
+ok(!/batchSharedToken/.test(ensure) && !/_prodNextBatchDescriptionToken\(/.test(ensure),
+  '...so the shared per-batch token this branch used to take is gone, along with the "which reader owns this entry" question');
+ok(!/_prodState\.batchDescriptionReads/.test(ensure),
+  '...and the panel never writes the shared read state, so it cannot strand the direct view');
+ok(/_prodAdoptDescriptionValue\(id, batchRow\.description, batchRow\.updated_at\)/.test(ensure),
+  'the panel reflects the row the owner wrote, rather than a value it fetched itself');
+ok(/panelToken === _prodState\.descriptionRequestTokens\.get\(id\)/.test(ensure)
+  && /panelGeneration === _prodState\.projectionGeneration/.test(ensure)
+  && /_prodIssueScopeSignature\(live\) === panelScope/.test(ensure),
+  'what stays per-panel is still guarded per-panel: token, generation and scope — a split-team batch has two parents sharing one batchId');
 {
-  const calls = [];
-  const scope = new Function('_prodState', 'document', '_prodEnabled', '_prodRefreshPolicyDay', '_prodRefresh',
-    `let _prodLastAutoRefreshAt = 0;\n${listenerSrc}\nreturn _prodAutoRefreshOnReturn;`);
-  const fire = scope({ loaded: true, loading: false, refreshing: false }, { hidden: false }, () => true, () => {}, o => calls.push(o));
-  fire();
-  ok(calls.length === 1 && calls[0].silent === true && calls[0].incremental === true,
-    'the tab-return listener (executed) asks for a silent, INCREMENTAL refresh');
+  const releaseAt = ensure.indexOf('if (!panelStillCurrent()) {');
+  const adoptAt = ensure.indexOf('_prodAdoptDescriptionValue(id, batchRow.description');
+  ok(releaseAt > 0 && releaseAt < adoptAt && /state\.status = state\.hasValue \? 'stale' : 'idle';/.test(ensure.slice(releaseAt, adoptAt)),
+    'a panel displaced while the owner was reading clears its own refreshing flag, so reopening it is not wedged by the guard at the top');
 }
-const refresh = grabFunc('function _prodRefresh(opts)');
-const incrementalAt = refresh.indexOf('if (silent && opts && opts.incremental) {');
-const deltaAt = refresh.indexOf('_prodDeltaRefresh({ force: true });');
-const fullAt = refresh.indexOf('_prodLoadData({ silent });');
-ok(incrementalAt > 0 && deltaAt > incrementalAt && deltaAt < fullAt && refresh.indexOf('return;', deltaAt) < fullAt,
-  '_prodRefresh routes an incremental request to _prodDeltaRefresh and returns before the full load');
-ok(refresh.indexOf('_prodRefreshAuthority({ silent: true });', incrementalAt) < deltaAt,
-  'authority is still re-read on a tab return, so a flipped write gate does not wait for a row to change');
-
-const delta = grabFunc('async function _prodDeltaRefresh(options)');
-ok(/'updated_at=gte\.' \+ encodeURIComponent\(watermark\)/.test(delta),
-  'the deliverable delta read is unchanged');
-ok(/_prodRestRows\('batches', PROD_BATCH_SELECT, 'updated_at=gte\.' \+ encodeURIComponent\(batchWatermark\), 1000, 25, \{ keysetColumn: 'id' \}\)/.test(delta),
-  'batches are walked by their own watermark, with the boot select (no description)');
-ok(delta.indexOf('_prodState.adapter = _prodAdapter(_prodState);') < delta.indexOf('_prodMarkBatchDescriptionsStale(changedBatchIds);'),
-  'changed batches mark their open panel stale AFTER the adapter is rebuilt, which is what _prodIssue reads');
-
-// ---- 3. the two pure merges, executed -----------------------------------
-const helpers = [
-  grabFunc('function _prodById(rows, key)'),
-  grabFunc('function _prodCarryBatchDescriptions(incoming, previous)'),
-  grabFunc('function _prodMergeBatchRows(changed)'),
-].join('\n');
-const hasOwnDecl = html.match(/\n\s*(?:const|function) _prodHasOwn[^\n]*\n/);
-ok(!!hasOwnDecl, '_prodHasOwn is findable (harness is not vacuous)');
-const ctx = { _prodState: { batches: [], batchPartialRows: new Set() }, console, Set };
-vm.createContext(ctx);
-vm.runInContext('const _prodHasOwn = (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key);\n' + helpers
-  + '\nthis.carry = _prodCarryBatchDescriptions; this.merge = _prodMergeBatchRows;', ctx);
-
-{
-  const prior = [{ id: 'b1', updated_at: 't1', description: 'held' }, { id: 'b2', updated_at: 't1', description: 'old' }];
-  const out = ctx.carry([{ id: 'b1', updated_at: 't1' }, { id: 'b2', updated_at: 't2' }, { id: 'b3', updated_at: 't1' }, { id: 'b4', updated_at: 't1', description: 'fresh' }], prior);
-  ok(out[0].description === 'held', 'full load: a held description survives while the stamp is unchanged');
-  ok(!Object.prototype.hasOwnProperty.call(out[1], 'description'), 'full load: a moved stamp drops the held text, so the panel reads it again');
-  ok(!Object.prototype.hasOwnProperty.call(out[2], 'description'), 'full load: a batch never seen carries nothing');
-  ok(out[3].description === 'fresh', 'full load: a row that arrives with a description keeps its own');
-}
-{
-  ctx._prodState.batches = [{ id: 'b1', updated_at: 't1', description: 'held' }, { id: 'b2', updated_at: 't1', description: 'old' }];
-  const changed = ctx.merge([{ id: 'b1', updated_at: 't1' }, { id: 'b2', updated_at: 't2' }, { id: 'b3', updated_at: 't3' }]);
-  const byId = Object.fromEntries(ctx._prodState.batches.map(r => [r.id, r]));
-  ok(JSON.stringify(changed) === JSON.stringify(['b2', 'b3']), 'delta: only rows whose stamp moved, or new rows, count as changed');
-  ok(byId.b1.description === 'held', 'delta: an unchanged row keeps the description it already held');
-  ok(!Object.prototype.hasOwnProperty.call(byId.b2, 'description'), 'delta: a moved row arrives without one');
-  ok(Object.keys(byId).length === 3, 'delta: a new batch joins the set');
-  ok(ctx.merge([]).length === 0 && ctx.merge(null).length === 0, 'delta: an empty or absent answer changes nothing');
-}
-
-// ---- 4. the one-row read TERMINATES (Codex #1364, P1) --------------------
-/* The first version of this change called _prodRestRows with pageSize 1 and
-   maxPages 1. The helper only returns when a page comes back SHORTER than the
-   page size, so an exact one-row match filled the only page and fell out of the
-   loop into `read exceeded pagination cap` — every batch-parent description
-   read threw, and the panel said "Description could not load." The wiring
-   assertions above all passed while that was true, which is exactly why this
-   section EXECUTES the real pager instead of reading it. */
-const restRowsSrc = grabFunc('async function _prodRestRows(table, select, params, pageSize, maxPages, options)');
-function runPager(pageSize, maxPages, rowCount) {
-  const ctx = {
-    CAL_SUPABASE_URL: 'https://x', CAL_SUPABASE_ANON_KEY: 'k', console, Promise, Array, String, Number, Math, encodeURIComponent,
-    _prodRestPage: async () => Array.from({ length: rowCount }, (_, i) => ({ id: 'b' + i })),
-  };
-  vm.createContext(ctx);
-  vm.runInContext(restRowsSrc + '\nthis.run = _prodRestRows;', ctx);
-  return ctx.run('batches', 'id,description,updated_at', 'id=eq.b0', pageSize, maxPages);
-}
-{
-  let threw = '';
-  try { await runPager(1, 1, 1); } catch (e) { threw = String(e && e.message || e); }
-  ok(/exceeded pagination cap/.test(threw),
-    'HARNESS: the old arguments (pageSize 1, maxPages 1) really do throw on an exact one-row match — this test can fail for the reason it names');
-}
-{
-  const rows = await runPager(1000, 1, 1);
-  ok(Array.isArray(rows) && rows.length === 1,
-    'the shipped arguments (pageSize 1000, maxPages 1) RETURN the single row instead of throwing');
-}
-const readRow = grabFunc('async function _prodReadBatchDescriptionRow(batchId)');
-ok(/_prodRestRows\('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq\.' \+ encodeURIComponent\(batchId\), 1000, 1\)/.test(readRow),
-  'and the shipped call site uses exactly those arguments');
-ok(grabFunc('async function _prodEnsureDescription(id, force)').includes('_prodReadBatchDescriptionRow(batchId)'),
-  'the synthetic parent panel goes through the one shared reader, so it cannot drift from the batch view');
 
 // ---- 5. the direct batch view is served too (Codex #1364, P2) ------------
 /* `?batch=<id>` renders batch.description straight off the row through
@@ -288,32 +202,50 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
 }
 
 
-// ---- 5c. the two readers share ONE token domain (Codex #1364, round 3) ----
-/* The synthetic parent panel (keyed by ISSUE id) and the direct ?batch= view
-   (keyed by BATCH id) write the SAME batch row. A token that retires only its
-   own domain lets the other domain's older answer land on top of a newer one --
-   and, through the save path, silently revert text the user just committed. */
+// ---- 5c. the owner marks a row partial only when the stamp MOVES ----------
+/* Marking unconditionally built a 30-second refetch loop: the batch delta filter
+   is `updated_at >= cursor` and therefore inclusive, so the boundary row returns
+   on every tick; a partial mark made the merge call it changed, which dropped its
+   description and retired its read, which made the next render read it again and
+   mark it partial again. The direct batch view flashed its skeleton and spent an
+   extra request every tick — undoing the saving this whole change exists for. */
 {
-  const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
-  ok(/const batchSharedToken = _prodNextBatchDescriptionToken\(batchId\);/.test(ensureDesc)
-    && /batchSharedToken === _prodState\.batchDescriptionTokens\.get\(batchId\)/.test(ensureDesc),
-    'the synthetic parent read takes AND checks the shared per-batch token, so it retires and is retired by the direct read');
-  const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
-  ok(/_prodNextBatchDescriptionToken\(batchId\);/.test(sync),
-    'and every write to a batch row (optimistic, committed save, both conflict restores) retires an in-flight direct read, so a save cannot be reverted by a read that started before it');
-  ok(!/batchDescriptionReads\.delete/.test(sync),
-    '...the token only — the read state belongs to whichever reader owns it');
-}
-{
-  // Executed: a read in flight is retired by a save landing first.
-  const helpers = grabFunc('function _prodNextBatchDescriptionToken(batchId)');
-  const ctx = { Map, Number, String, _prodState: { batchDescriptionTokens: new Map() } };
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  ok(/const priorStamp = String\(live\.updated_at \|\| ''\);/.test(owner)
+    && /if \(fresh\.updated_at && String\(fresh\.updated_at\) !== priorStamp\) \{/.test(owner),
+    'the owner compares the returned stamp against the row it is about to overwrite, and marks partial only when it actually advances');
+  ok(owner.indexOf('const priorStamp') < owner.indexOf('live.description ='),
+    '...capturing the prior stamp BEFORE the write, or the comparison would always be true');
+
+  // Executed: an unchanged stamp must not mark the row, or the loop returns.
+  const ctx = {
+    Map, Set, String, Number, Promise, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => null },
+    _prodRender: () => {},
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 'T5' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
+    },
+    _prodReadBatchDescriptionRow: async () => ctx.__answer(),
+  };
   vm.createContext(ctx);
-  vm.runInContext(helpers + '\nthis.next = _prodNextBatchDescriptionToken;', ctx);
-  const readToken = ctx.next('b1');
-  const saveToken = ctx.next('b1');
-  ok(readToken !== saveToken && ctx._prodState.batchDescriptionTokens.get('b1') === saveToken,
-    'tokens only ever advance, so a token held across a retirement cannot collide with a fresh one');
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+
+  ctx.__answer = () => ({ id: 'b1', description: 'text', updated_at: 'T5' });
+  await ctx.ensure('b1', true);
+  ok(ctx._prodState.batches[0].description === 'text', 'the description still lands');
+  ok(!ctx._prodState.batchPartialRows.has('b1'),
+    'THE LOOP: a read returning the SAME stamp does not mark the row partial, so the inclusive delta boundary cannot re-trigger it every tick');
+
+  ctx._prodState.batches = [{ id: 'b2', updated_at: 'T5' }];
+  ctx.__answer = () => ({ id: 'b2', description: 'newer', updated_at: 'T9' });
+  await ctx.ensure('b2', true);
+  ok(ctx._prodState.batchPartialRows.has('b2') && ctx._prodState.batches[0].updated_at === 'T9',
+    'but a read that genuinely advances the stamp still marks the row partial, so a real change is not masked');
 }
 
 // ---- 5d. the batch delta cursor is server truth (Codex #1364, round 3) ----
@@ -351,26 +283,27 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
 }
 
 
-// ---- 5e. a displaced reader releases what it owns (Codex #1364, round 4) ----
-/* The shared token means one reader can displace another. The displaced one
-   returned bare, leaving state.refreshing true — and the guard at the top of
-   _prodEnsureDescription refuses to start a read while that is set, so the panel
-   short-circuited on every later open and never loaded again. Reachable by
-   switching between the two synthetic parents of a split-team batch, which share
-   a batchId and therefore share the token. */
+// ---- 5e. the owner is the ONLY writer of the shared read state --------------
+/* Round six found a synthetic parent replaced mid-read by a real one stranding
+   the shared entry on 'loading', which then refused every later direct read.
+   That was possible only because two functions wrote that entry. Now one does. */
 {
-  const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
-  ok(/const releasePanel = \(\) => \{/.test(ensureDesc)
-    && /if \(batchToken !== _prodState\.descriptionRequestTokens\.get\(id\)\) return;/.test(ensureDesc),
-    'a displaced synthetic read releases its OWN panel state, and only while its own token still owns it');
-  ok((ensureDesc.match(/\{ releasePanel\(\); return null; \}/g) || []).length === 2,
-    '...on both exits, the superseded answer and the superseded failure');
-  ok(/_prodState\.batchDescriptionReads\.set\(batchId, 'loading'\);/.test(ensureDesc),
-    'the synthetic read takes the SHARED read state while it holds the shared token');
-  ok(/_prodState\.batchDescriptionReads\.set\(batchId, 'error'\);/.test(ensureDesc),
-    "...and records a failure there, so a synthetic read that supersedes a direct one and then fails cannot strand the direct view on its skeleton");
-  const guard = ensureDesc.indexOf("if (!force && (state.status === 'ready' || state.refreshing");
-  ok(guard > 0, 'HARNESS: the refreshing guard this protects against is real and still present');
+  const writers = [];
+  ['async function _prodEnsureBatchDescription(batchId, force)',
+   'async function _prodEnsureDescription(id, force)',
+   'function _prodSyncBatchDescriptionRow(id, value, updatedAt)',
+   'function _prodInvalidateBatchDescriptionReads(batchIds)',
+  ].forEach(sig => {
+    const src = grabFunc(sig);
+    if (/_prodState\.batchDescriptionReads\.(set|delete)\(/.test(src)) writers.push(sig.split('(')[0].replace(/^(async )?function /, ''));
+  });
+  ok(writers.length === 2
+    && writers.includes('_prodEnsureBatchDescription')
+    && writers.includes('_prodInvalidateBatchDescriptionReads'),
+    'exactly two things write the shared read state — the owner and the shared invalidator — not the panel: ' + writers.join(', '));
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  ok(/const release = \(\) => \{ if \(tokenCurrent\(\)\) _prodState\.batchDescriptionReads\.delete\(batchId\); \};/.test(owner),
+    'and the owner releases that state on the exits where it still owns it');
 }
 
 // ---- 5f. a partially advanced row is never "unchanged" (Codex #1364, round 4) ----

@@ -44,7 +44,8 @@ const WL_CONSTS=['WL_PARKED_STATUSES','WL_WORKLOAD_TIME_ZONE','WL_PLACEMENT_WALK
  'WL_CLIENT_NAMES','WL_CLIENT_CANONICAL'].map(constSrc).join('\n');
 const WL_BUCKETER=closureOf('wlApplyData');
 function fixture(){return {ok:true,contract:'workload-native-snapshot-v1',complete:true,count:2,
- authority:{video:'syncview',graphics:'syncview'},legacy_teams:[],rows:[
+ authority:{video:'syncview',graphics:'syncview'},legacy_teams:[],
+ roster:[{id:'member-fixture',native_id:'member-fixture',name:'Fixture Editor',team:'video'}],rows:[
  {id:'bat_fixture',source:'native',is_sub_issue:false,active:true,title:'Fixture batch'},
  {id:'del_fixture',linear_id:'old-fixture',source:'native',is_sub_issue:true,active:true,
  parent_id:'bat_fixture',client_slug:'fixture',client_name:'Fixture',team_key:'VID',team_name:'Video',
@@ -55,7 +56,7 @@ function fixture(){return {ok:true,contract:'workload-native-snapshot-v1',comple
  plans:[{issue_id:'del_fixture',storage_issue_id:'old-fixture',client:'fixture',plan_date:'2030-01-08',updated_at:'2030-01-01T00:00:00Z'}]};}
 function browser(response=fixture()) {
  const calls=[], state={issueSnapshot:[],planByIssueId:new Map(),planStatus:'unknown',planHasSnapshot:false,
- workloadByIssueId:new Map(),dueAuthorityByIssueId:new Map(),nativeDueTargetByIssueId:new Map(),linearMetadataStatus:'unknown'};
+ workloadByIssueId:new Map(),dueAuthorityByIssueId:new Map(),nativeDueTargetByIssueId:new Map(),linearMetadataStatus:'unknown',editorRoster:[],editorRosterStatus:'unknown'};
  const context={console,URL,Date,Map,Set,JSON,Promise,Error,AbortController,setTimeout,clearTimeout,
  WL_PLAN_READ_TIMEOUT_MS:500,WORKLOAD_PLAN_URL:'https://fixture.invalid/functions/v1/workload-plan',
  CAL_SUPABASE_URL:'https://fixture.invalid',_wlPlanSessionGeneration:1,_wlPlanWriteGeneration:0,_wlPlanLoadGeneration:0,
@@ -136,7 +137,8 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
  ok(legacyPlanAliases(projected).map(p=>p.issue_id).sort().join(',')==='del_fixture,old-fixture','old bundle and native bundle both see one stored plan');
  const mutations=[v=>v.count++,v=>v.rows.push(v.rows[1]),v=>v.complete=false,v=>delete v.authority,
  v=>v.authority.video='linear',v=>delete v.rows[1].native_client_active,v=>v.rows[1].linear_id='bat_fixture',
- v=>v.plans.push({...v.plans[0],issue_id:'del_fixture'}),v=>v.plans[0].plan_date='bad',v=>delete v.legacy_teams];
+ v=>v.plans.push({...v.plans[0],issue_id:'del_fixture'}),v=>v.plans[0].plan_date='bad',v=>delete v.legacy_teams,
+ v=>delete v.roster,v=>v.roster.push({...v.roster[0]}),v=>v.roster[0].team='operations'];
  for(const mutate of mutations){const value=copy(raw);mutate(value);assert.throws(()=>projectNativeSnapshot(value,s=>s.toLowerCase()));checks++;}
  // A drifted plan client USED TO be in the throw list above, and that is the
  // defect this test now pins instead. On 2026-09-08 six real rows saved under a
@@ -176,9 +178,15 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
  ok(b.calls.length===1&&b.calls[0].body.action==='native_snapshot','normal and forced loads use one native snapshot');
  ok(result.issues[1].id==='del_fixture'&&result.issues[1].nativeId==='del_fixture'&&result.issues[1].url==='','native direct identity has no Linear link');
  ok(result.metadata[0].workload.weight===3&&result.metadata[0].native_target.id==='del_fixture','native complete weight and due target');
- ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');}
+ ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');
+ ok(result.roster.length===1&&result.roster[0].id==='member-fixture','authenticated snapshot carries stable native roster identity');}
  const b=browser();await b.context.wlLoadSnapshot(false,null);
  ok(b.state.planByIssueId.get('del_fixture')==='2030-01-08'&&b.state.planStatus==='ready','actual plan adoption retains historical pin');
+ ok(b.state.editorRoster.length===1&&b.state.editorRoster[0].team==='video'&&b.state.editorRosterStatus==='ready','snapshot adoption retains zero-work editor roster');
+ {const old=fixture();delete old.roster;const mixed=browser(old);const loaded=await mixed.context.loadLinearIssues(false);
+  ok(loaded.issues.length===2&&loaded.rosterComplete===false,'new browser keeps normal work visible against an old roster-less server snapshot');
+  await mixed.context.wlLoadSnapshot(false,null);
+  ok(mixed.state.editorRoster.length===0&&mixed.state.editorRosterStatus==='unavailable','mixed release explicitly withholds the zero-work roster instead of inventing completeness');}
  // ---- The dropped-plan warning REACHES A PERSON -----------------------------
  //
  // A dropped plan is a work day somebody DRAGGED and can no longer see: the card

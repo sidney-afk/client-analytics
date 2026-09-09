@@ -7,9 +7,18 @@ export function projectNativeSnapshot(value, normalizeClient) {
       || !Array.isArray(value.rows) || !Array.isArray(value.plans)
       || !Number.isSafeInteger(value.count) || value.count !== value.rows.length
       || value.count > 50000 || value.plans.length > 50000
-      || !Array.isArray(value.legacy_teams)
+      || !Array.isArray(value.legacy_teams) || !Array.isArray(value.roster)
+      || value.roster.length > 1000
       || !value.authority || !['video','graphics'].every(team =>
         ['syncview','linear'].includes(value.authority[team]))) fail();
+  const rosterIds = new Set();
+  for (const member of value.roster) {
+    if (!member || typeof member.id !== 'string' || !member.id.trim()
+        || rosterIds.has(member.id) || typeof member.native_id !== 'string' || !member.native_id.trim()
+        || typeof member.name !== 'string' || !member.name.trim()
+        || !['video','graphics'].includes(member.team)) fail();
+    rosterIds.add(member.id);
+  }
   const identities = new Map(), aliases = new Map();
   for (const row of value.rows) {
     if (!row || typeof row.id !== 'string' || !row.id.trim()
@@ -25,12 +34,17 @@ export function projectNativeSnapshot(value, normalizeClient) {
           || normalizeClient(row.native_plan_client_name) !== normalizeClient(row.client_name)) fail();
       aliases.set(row.native_plan_id,row);
     }
-    if (row.source !== 'native' || !row.is_sub_issue) continue;
+    if (!row.is_sub_issue) continue;
+    if (['VID','GRA'].includes(row.team_key) && typeof row.native_assignee_eligible !== 'boolean') fail();
+    if (row.source !== 'native') continue;
     if (!['VID','GRA'].includes(row.team_key)
         || typeof row.client_slug !== 'string' || !row.client_slug
         || typeof row.client_name !== 'string' || !row.client_name
         || typeof row.native_client_active !== 'boolean'
         || typeof row.native_assignee_eligible !== 'boolean'
+        || (row.native_assignee_eligible && (!rosterIds.has(row.assignee_id)
+          || !value.roster.some(member => member.id === row.assignee_id
+            && member.team === (row.team_key === 'VID' ? 'video' : 'graphics'))))
         || value.authority[row.team_key === 'VID' ? 'video' : 'graphics'] !== 'syncview') fail();
     if (row.linear_id != null) {
       if (typeof row.linear_id !== 'string' || !row.linear_id.trim()

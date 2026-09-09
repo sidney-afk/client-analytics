@@ -326,3 +326,12 @@ before executing step 5**. Do not carry a rollback lever that stops being one.
 - Do not disable the reconcile or the Linear webhook.
 - Do not "fix" item 95 by patching the `workload_issues` path — that work is
   thrown away by step 4.
+
+
+## Authenticated capacity roster (2026-09-09 source change)
+
+`workload_native_snapshot_v1()` returns `roster` from active `team_members` rows with exact creative role/team pairs: video/editor and graphics/designer. It includes members with zero active work. The roster key is `coalesce(linear_user_id, id::text)`, exactly matching `workload_issues_native_v1.assignee_id`; `native_id` is carried separately. This preserves the existing grouping, rollup, capacity, and drag namespace while removing the browser-maintained `WL_VIDEO_EDITORS` seed. Exact-role predicates prevent cross-team and noncreative roster rows from becoming capacity cards.
+
+Fresh native and explicit legacy rows also carry server-derived `native_assignee_eligible`. `WL_ALLOWED_EDITORS` remains only for an older cached row that predates that field, preserving the established bounded cold-start fallback rather than changing rollback semantics during this roster repair.
+
+Install bottom-up: apply `migrations/2026-09-09-workload-native-roster.sql`, deploy the exact reviewed `workload-plan` closure, then publish the browser. The deploy order remains SQL first because the new Edge projection refuses a missing roster. The new browser is mixed-state compatible with the prior roster-less response: normal work remains visible, while the freest/zero-work ranking shows an explicit unavailable state until a complete roster arrives. The prior Edge projection passes through the additive SQL field, so SQL-first also lets the new browser consume the roster before the Edge redeploy.

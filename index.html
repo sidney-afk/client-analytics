@@ -14118,6 +14118,8 @@
         // person dragged and can no longer see, and it stays true until the
         // stored client is repaired.
         nativePlansDropped: 0,
+        editorRoster: [],                       // active exact-role creative members from the authenticated snapshot
+        editorRosterStatus: 'unknown',              // ready | unavailable during SQL/Edge/browser mixed release
         error: null
     };
 
@@ -14661,9 +14663,12 @@
             ? issue.nativeClientActive === true : wlIsAllowedClient(issue && issue.clientName);
     }
     function wlIssueEditorAllowed(issue) {
-        return issue && issue.workloadSource === 'native'
-            ? issue.nativeAssigneeEligible === true
-            : wlIsAllowedEditor(issue && issue.assigneeName, issue && issue.teamKey, issue && issue.teamName);
+        // Both native rows and explicit rollback/provider rows carry membership
+        // from the authenticated snapshot. Missing membership never revives a
+        // cached or cross-role assignee by display name.
+        if (!issue) return false;
+        if (typeof issue.nativeAssigneeEligible === 'boolean') return issue.nativeAssigneeEligible;
+        return wlIsAllowedEditor(issue.assigneeName, issue.teamKey, issue.teamName);
     }
     function wlSnapshotIdentity() {
         const value = _syncviewStaffIdentityForHeaders();
@@ -14687,13 +14692,26 @@
                 || value.contract !== 'workload-native-snapshot-v1'
                 || !Array.isArray(value.rows) || !Array.isArray(value.plans)
                 || value.count !== value.rows.length || !Number.isSafeInteger(value.count)
-                || !Array.isArray(value.legacy_teams)) {
+                || !Array.isArray(value.legacy_teams)
+                || (value.roster != null && !Array.isArray(value.roster))) {
                 const error = new Error('Workload could not load a complete snapshot. Please retry.');
                 error.status = response.status;
                 throw error;
             }
             const authority = wlProductionAuthorityValue(value.authority);
             if (!authority) throw new Error('Workload authority is unavailable.');
+            const roster = Array.isArray(value.roster) ? value.roster : [];
+            const rosterComplete = Array.isArray(value.roster);
+            const rosterIds = new Set();
+            for (const member of roster) {
+                if (!member || typeof member.id !== 'string' || !member.id.trim()
+                    || rosterIds.has(member.id) || typeof member.native_id !== 'string' || !member.native_id.trim()
+                    || typeof member.name !== 'string' || !member.name.trim()
+                    || !['video','graphics'].includes(member.team)) {
+                    throw new Error('Workload editor roster is incomplete.');
+                }
+                rosterIds.add(member.id);
+            }
             const fingerprint = wlProductionAuthorityFingerprint(authority);
             const seen = new Set(), metadata = [], issues = [], unprovableNativeIds = [];
             for (const row of value.rows) {
@@ -14709,7 +14727,8 @@
                 if (row.source === 'native') {
                     if (row.is_sub_issue && (typeof row.native_client_active !== 'boolean'
                         || typeof row.native_assignee_eligible !== 'boolean'
-                        || !['VID','GRA'].includes(row.team_key))) {
+                        || !['VID','GRA'].includes(row.team_key)
+                        || (rosterComplete && row.native_assignee_eligible && !rosterIds.has(row.assignee_id)))) {
                         throw new Error('Native Workload membership is incomplete.');
                     }
                     issue.nativeId = row.is_sub_issue ? row.id : '';
@@ -14790,6 +14809,7 @@
                 throw new Error('Staff session changed while Workload was loading.');
             }
             return { issues, metadata, plans: { rows: value.plans, readGeneration },
+                roster: roster.map(member => ({ ...member })), rosterComplete,
                 fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams,
                 // A dropped plan is a work day somebody DRAGGED and can no longer
                 // see; the card silently reverts to automatic placement, so staff
@@ -15652,6 +15672,8 @@
             // net left, so it gets written.
             wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
             wlApplyData(value.issues, value.fetchedAt);
+            wlState.editorRoster = value.roster;
+            wlState.editorRosterStatus = value.rosterComplete ? 'ready' : 'unavailable';
             wlState.nativeLegacyTeams = value.legacyTeams;
             // Two non-destructive warnings over a board that painted fine, and
             // they are kept in SEPARATE state on purpose. Writing the
@@ -16193,6 +16215,7 @@
         return s === 'to do' || s === 'todo';
     }
 
+
     // Editors who have left the team. This shared exclusion is applied to both
     // Workload's local roster and the Kasper Editors response, so historical or
     // cached Linear activity cannot put a former editor back in either view.
@@ -16204,9 +16227,9 @@
         'martinsynchro',
     ]);
 
-    // Active editors. The video roster is maintained here; the only graphic
-    // designer right now is Rocío Perez. Anyone else gets filtered out so the
-    // panels only surface people actively editing.
+    // Legacy cached-row fallback only. Fresh authenticated snapshots carry exact
+    // active-role membership from team_members; these tokens preserve the
+    // previous rollback behavior when an older cached row lacks that field.
     // Each entry is a normalised name token — wlNormalizeEditor() collapses
     // emails, accented names and "First Last"/"Last First" into the same key.
     const WL_ALLOWED_EDITORS = new Set([
@@ -16220,17 +16243,7 @@
         'rocioperez',
         'perezrocio',
     ]);
-    // The full roster of current video editors (Linear user id + display
-    // name), so the "freest first" panel can always show everyone — even an
-    // editor with zero active sub-issues, who is by definition the freest.
-    // ids match the assigneeId on Linear sub-issues, so a roster entry and an
-    // editor's live work collapse into one chip rather than duplicating.
-    const WL_VIDEO_EDITORS = [
-        { id: 'b199cff7-2b9b-4164-8824-d3644d13f1fd', name: 'Iara Miraille' },
-        { id: 'e19eb17e-fb0d-45c6-b303-7907d1ccfaaa', name: 'Nahuel Espindola' },
-        { id: '2cea7628-c64e-4abb-9b3e-3f8bd9f64ae4', name: 'Santi Gimelli' },
-    ];
-    function wlNormalizeEditor(s) {
+        function wlNormalizeEditor(s) {
         if (!s) return '';
         const lower = String(s).trim().toLowerCase()
             .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
@@ -18852,7 +18865,7 @@
         // Keep every current video editor visible, including a completely free
         // editor. Live issue data merges onto these stable-id roster rows.
         if (wlState.team === 'all' || wlState.team === 'video') {
-            for (const rosterEditor of WL_VIDEO_EDITORS) {
+            for (const rosterEditor of wlState.editorRoster.filter(member => member.team === 'video')) {
                 ensureEditor({
                     assigneeId: rosterEditor.id,
                     assigneeName: rosterEditor.name,
@@ -18985,7 +18998,7 @@
 
     // Editor workload — ranks every current video editor by how busy they are
     // so a SMM can see at a glance who has the most free time before assigning
-    // a new sub-issue. The whole roster always shows (see WL_VIDEO_EDITORS):
+    // a new sub-issue. The whole roster always shows (see wlState.editorRoster):
     // an editor with no active sub-issues sorts first as the freest. The count
     // matches what's visible across the calendar and active strips, deduped on
     // id, including the undated lane. "Days of work" = count / per-day
@@ -18996,6 +19009,11 @@
         const wrap = document.getElementById('wlCapacity');
         const row  = document.getElementById('wlCapacityRow');
         if (!wrap || !row) return;
+        if (wlState.editorRosterStatus !== 'ready') {
+            wrap.classList.remove('empty');
+            row.innerHTML = '<span class="workload-capacity-hint" role="status">Current editor capacity is unavailable. Refresh after the roster update completes.</span>';
+            return;
+        }
 
         const seen = new Set();
         const byEditor = new Map();
@@ -19032,11 +19050,11 @@
         // The client filter is intentionally NOT applied here: a free editor
         // has capacity for any client, so they should still appear (at 0) when
         // the panel is narrowed to a single client. Real work merges onto
-        // these entries by id (see WL_VIDEO_EDITORS) and the roster's clean
+        // these entries by id (see wlState.editorRoster) and the roster's clean
         // display name wins over the raw Linear email.
         if (wlState.team === 'all' || wlState.team === 'video') {
-            for (const r of WL_VIDEO_EDITORS) {
-                byEditor.set(r.id, { assigneeId: r.id, assigneeName: r.name, teamKey: '', teamName: '', count: 0, units: 0 });
+            for (const r of wlState.editorRoster.filter(member => member.team === 'video')) {
+                byEditor.set(r.id, { assigneeId: r.id, assigneeName: r.name, teamKey: 'VID', teamName: 'Video', count: 0, units: 0 });
             }
         }
         for (const s of (wlState.planned      || [])) consider(s);

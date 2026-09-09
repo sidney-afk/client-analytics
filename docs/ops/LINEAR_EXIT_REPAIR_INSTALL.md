@@ -92,6 +92,35 @@ or any capability should be enabled.
 6. Require exact source/JWT/version readback for every function the selected workflow actually deployed. A preflight PASS cannot turn a partial function deployment into success.
 7. Only after the compatible gateway and browser are serving, run separately authorized TEST journeys and re-read every still-dormant capability. Flag changes, catalogue attestation, identifier seeding, client provisioning and final retirement remain distinct actions with their own receipts.
 
+### Notification delivery cutover
+
+Installing `2026-09-09-native-notification-outbox.sql` creates enabled observer
+triggers immediately. There is no separate enqueue flag: eligible native UI
+status/comment commits begin writing intents as soon as the migration commits,
+even while the sender, monitor and gateway wake remain disabled. The sender
+later claims every `pending`/due `retryable` row oldest-first; it has no release
+cutoff that distinguishes an intent created before delivery activation.
+
+That creates a mandatory disposition boundary. During the SQL-to-gateway and
+provider-to-native ordinary-receipt window, an eligible status/comment may both
+create a notification intent and retain its existing Linear outbound work. If
+the sender is later enabled without inspection, it can post a delayed Slack
+message for work that was also delivered to Linear and may already have caused
+a Linear-side notification. Apply this order:
+
+1. Keep `NATIVE_NOTIFICATION_SENDER_ENABLED` and `NOTIFY_WAKE_ENABLED` false. Enable no provider call merely because the SQL, sender source or monitor is present.
+2. Record the separately authorized per-team ordinary-receipt native activation receipts. Prove that subsequent eligible status/comment writes produce terminal native receipts and no `linear-set-status`, `linear-add-comment` or `linear-outbound` delivery. A source assertion is insufficient.
+3. With read-only service access, capture aggregate intent counts by `kind`, `state`, deliverable team and creation time on both sides of those activation receipts. Print no client, card, comment, member, channel or message data. Any pre-boundary `pending`/`retryable` row keeps sender activation on **HOLD**: the current protected reconciliation RPC has no truthful “obsolete/duplicate already notified through Linear” terminal action, and direct update/delete is not an allowed substitute. A reviewed repair or explicit decision to send that bounded backlog is required.
+4. Prove the urgent route separately. A new browser/gateway sends a native-card urgent request only to `production-write`; a pre-deployment browser may fall back to `send-urgent-slack`, and an older cached browser can still call that n8n webhook directly. The legacy post and native intent share no server-side deduplication key. Before native urgent delivery, require current browser/gateway source proof plus a read-only n8n execution/in-flight check and a provider-channel check around the boundary. Legacy-only cards may retain their documented route; a native card must have exactly one route.
+5. Enable and verify the monitor first. Only after the old notification paths are excluded and every pre-boundary row has an honest disposition may a separately authorized bounded sender invocation deliver the accepted post-boundary backlog. Enable the schedule after its receipt and monitor pass; enable gateway wakes last.
+
+Turning the sender schedule and gateway wake off stops new provider calls but
+does not stop the database triggers from recording intents. A gateway rollback
+therefore disables both delivery switches first, preserves and recaptures the
+intent census, and leaves the prior-four source restore independent of the new
+notification schema and sender. Never delete queued evidence to make rollback
+look quiet.
+
 Retirement activation is **not** a safe last step while it blocks ordinary
 native status, comment, due-date, title or other business writes. The release
 must prove that every supported native business write continues under the

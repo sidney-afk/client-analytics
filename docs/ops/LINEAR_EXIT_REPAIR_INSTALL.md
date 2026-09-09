@@ -138,21 +138,25 @@ acceptable way to make mirror debt stay at zero.
 | Partial onboarding manual deploy | Any of the 13 deploys or final attestation fails | Hold affected admission and identify every live closure. This lane has no equivalent bundled 13-function restore; do not infer rollback from the job's final red state. In particular, never enable gateway notification wakes until compatible `notify` readback passes. |
 | After accepted native work | A later canary or capability fails | Hold new admission and repair forward while preserving names, epochs, manifests, event attribution and receipts. Do not restore provider-only/bare-title functions or delete retained evidence. |
 
-## Pending owner choices
+## Owner clarification — preserve existing behavior
 
-The questionnaire returned no answers for the following product/operational
-choices, so this repair does not ratify any of them:
+Owner clarification, 2026-09-09, supersedes the earlier unanswered questionnaire:
 
-1. When one post has work for only one team, should the absent team see the post at all, and if so in what read-only state?
-2. Should a reply inherit the parent comment's audience, or require the author to choose its audience each time?
-3. Should resolved feedback remain visible in a dimmed/history state or disappear from the normal thread?
-4. Which human escalation route should receive an unrepairable legacy card after automated recovery stops?
+1. Video-only and Graphics-only handling already exists. Preserve the current
+   routing and visibility behavior; verify parity rather than inventing a new rule.
+2. Replies in a client-visible thread remain visible to the people authorized
+   to see that thread. This does not authorize exposing staff-only threads,
+   another client's data, or content to unauthenticated visitors.
+3. Completed/resolved comments remain accessible through the History icon,
+   as they are today. Do not replace this with a dimmed-always-visible design.
 
-Existing behavior and permissions remain in force while these choices are open;
-the repair does not widen any audience automatically. The separately recorded
-Slack notification scope remains status-only for `smm_approval`/`tweak`, routes
-ordinary comments to the client creative channel without tags, and routes
-urgent video work separately. Those settled choices are not reopened here.
+The human escalation contact/channel for an unrepaired legacy card has not
+been supplied. This is an operational routing detail, not an invitation to
+redesign these three existing behaviors or a reason to stop independent repairs.
+
+The separately recorded Slack scope remains status-only for `smm_approval`/`tweak`,
+plus new sub-issue comments in the client creative channel without tags, and
+urgent video work in the separate Video Editing channel. Those decisions are settled.
 
 ## Evidence still required before installation or cancellation
 

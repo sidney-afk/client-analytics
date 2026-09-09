@@ -93,6 +93,21 @@ for(const [start,end] of [
  assert.equal(intakeWithoutNaming.split(after).length,2,'the lifted handler does not carry #1361 exactly once');
  intakeWithoutNaming=intakeWithoutNaming.replace(after,before);
 }
+// The reviewed native-attribution repair passes the already accepted epoch to
+// the persisted stamp. Account for exactly that one call-site line from its
+// pinned commit and parent; keep the rest of the historical handler frozen.
+const nativeAttributionRelease='42c1d00c4b9095ce6754a895705c79ea8c965ccd';
+const preNativeAttributionRelease='ecb6db5f76ce142193ae589dc6ccb55e4693c11e';
+function attributionCallLine(sha){
+ const lines=pinnedIntake(sha).split('\n').filter(line=>line.includes('linear_raw: { attribution: intakeAttribution('));
+ assert.equal(lines.length,1,'native attribution call-site must be unique');
+ return lines[0];
+}
+const nativeAttributionAfter=attributionCallLine(nativeAttributionRelease);
+const nativeAttributionBefore=attributionCallLine(preNativeAttributionRelease);
+assert.notEqual(nativeAttributionAfter,nativeAttributionBefore);
+assert.equal(intakeWithoutNaming.split(nativeAttributionAfter).length,2);
+intakeWithoutNaming=intakeWithoutNaming.replace(nativeAttributionAfter,nativeAttributionBefore);
 assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')
  .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
 pass('#1361 survives the lift as an accounted block, with the whole-handler equality check intact around it');

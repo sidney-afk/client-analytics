@@ -532,10 +532,32 @@ async function main() {
     ok('admission table remains inaccessible to service_role',
       scalar(cluster, "select not has_table_privilege('service_role','public.production_native_ordinary_receipt_admissions','select')") === 't');
 
-    // Test the final retirement recognizer with actual and unstored malformed composites.
-    cluster.exec(`create or replace function public.production_syncview_retirement_typed_native_receipt(
-      p_row public.mirror_outbox) returns boolean language sql immutable as $fn$ select false $fn$`);
+    // Install the real retirement admission boundary. The compact disposable
+    // foundation does not install the three separate native-owner migrations or
+    // the full F27 release bundle, so provide only their protected trigger-name
+    // prerequisites here. These fixture triggers deliberately perform no
+    // classification; the real ordinary guard and retirement guard remain the
+    // subjects exercised below.
+    cluster.exec(`
+      create or replace function public.nir_fixture_admission_prerequisite()
+      returns trigger language plpgsql as $fn$ begin return new; end $fn$;
+      create trigger track_b_f27_hold_guard before insert on public.mirror_outbox
+        for each row execute function public.nir_fixture_admission_prerequisite();
+      create trigger zz_native_intake_receipt_guard before insert on public.mirror_outbox
+        for each row execute function public.nir_fixture_admission_prerequisite();
+      create trigger zzz_native_assignment_receipt_guard before insert on public.mirror_outbox
+        for each row execute function public.nir_fixture_admission_prerequisite();
+      create trigger zzz_native_label_receipt_guard before insert on public.mirror_outbox
+        for each row execute function public.nir_fixture_admission_prerequisite();
+    `);
+    cluster.runFile(path.join(MIGRATIONS, '2026-09-09-syncview-retirement-admission.sql'));
     cluster.runFile(path.join(MIGRATIONS, '2026-09-10-syncview-retirement-native-ordinary-recognizer.sql'));
+
+    ok('real retirement activation remains an unconditional no-mutation refusal', rejection(
+      "select public.production_syncview_retirement_activate('disposable fixture must stay blocked')",
+      /syncview_retirement_native_receipt_contract_required/,
+    ) && scalar(cluster, "select mode from public.syncview_retirement_admission where singleton") === 'active');
+
     ok('retirement recognizer accepts an actual typed ordinary receipt',
       scalar(cluster, `select public.production_syncview_retirement_typed_native_receipt(o)
         from public.mirror_outbox o where dedup_key='native-title'`) === 't');
@@ -558,6 +580,61 @@ async function main() {
     ok('retirement recognizer rejects owner/entity/operation mismatch',
       scalar(cluster, `select public.production_syncview_retirement_typed_native_receipt(
         jsonb_populate_record(null::public.mirror_outbox,${json(wrongBinding)}))`) === 'f');
+
+    // Exercise the real guard's retired predicate without making activation
+    // executable. This direct state change is confined to the disposable
+    // superuser fixture and models the future activation transaction's table
+    // lock, high-water capture, and singleton update.
+    setCapability('native', 'retired-proof');
+    const highWater = Number(scalar(cluster, 'select coalesce(max(id),0) from public.mirror_outbox'));
+    cluster.exec(`
+      begin;
+      lock table public.mirror_outbox in share row exclusive mode;
+      update public.syncview_retirement_admission
+      set mode='retired', activated_at=clock_timestamp(),
+          activated_reason='disposable protected fixture',
+          high_water_outbox_id=${highWater}, high_water_created_at=clock_timestamp()
+      where singleton;
+      commit;
+    `);
+    deliverableWrite('nor-d2', { title: 'Retired native accepted' }, event({
+      dedup: 'retired-native', id: 'nor-d2', operation: 'title',
+    }));
+    assertReceipt('retired-native', 'deliverable', 'title');
+    ok('real retired admission admits a typed native receipt above its high-water',
+      Number(scalar(cluster, "select id from public.mirror_outbox where dedup_key='retired-native'")) > highWater
+      && scalar(cluster, "select (public.production_syncview_retirement_census()->>'ordinary_post_cutoff_total')::bigint") === '0');
+
+    const retiredBefore = {
+      title: scalar(cluster, "select title from public.deliverables where id='nor-d2'"),
+      events: count(cluster, 'select * from public.deliverable_events'),
+      outbox: count(cluster, 'select * from public.mirror_outbox'),
+    };
+    setCapability('provider');
+    ok('real retired admission rolls back a fresh provider-shaped business write', rejection(
+      `select public.production_deliverable_write(${json({
+        id: 'nor-d2', client_slug: 'fixture-client', team: 'video', title: 'must not commit',
+      })},${json(event({ dedup: 'retired-provider', id: 'nor-d2', operation: 'title' }))})`,
+      /syncview_retirement_admission_closed:title/,
+    ) && scalar(cluster, "select title from public.deliverables where id='nor-d2'") === retiredBefore.title
+      && count(cluster, 'select * from public.deliverable_events') === retiredBefore.events
+      && count(cluster, 'select * from public.mirror_outbox') === retiredBefore.outbox);
+
+    setCapability('native', 'retired-proof');
+    const boundaryEvent = event({ dedup: 'retired-lock-race', id: 'nor-d2', operation: 'priority' });
+    const boundaryRace = await Promise.all([
+      psqlAsync(env, `begin; lock table public.mirror_outbox in share row exclusive mode;
+        select pg_sleep(0.3);
+        update public.syncview_retirement_admission set activated_reason='disposable lock race' where singleton;
+        commit;`),
+      psqlAsync(env, `select pg_sleep(0.1); select public.production_deliverable_write(${json({
+        id: 'nor-d2', client_slug: 'fixture-client', team: 'video', priority: 4,
+      })},${json(boundaryEvent)});`),
+    ]);
+    assert.deepEqual(boundaryRace.map(result => result.status), [0, 0], boundaryRace.map(result => result.stderr).join('\n'));
+    assertReceipt('retired-lock-race', 'deliverable', 'priority');
+    ok('future cutoff table-lock order releases a waiting typed writer through the real guard',
+      Number(scalar(cluster, "select id from public.mirror_outbox where dedup_key='retired-lock-race'")) > highWater);
 
     console.log(`NATIVE_ORDINARY_RECEIPTS_POSTGRES_OK ${passed} assertions`);
   } finally {

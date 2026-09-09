@@ -20,6 +20,7 @@ need('v_cap:=public.production_native_ordinary_capability');
 need("if v_cap->>'mode'='provider' then return v_event; end if;");
 need("'native_operation',v_action");
 need("v_action in ('edit', 'delete') or (v_outbound->'payload' ? '_native_ordinary_receipt')");
+need('perform public.production_outbox_replay(');
 assert(!sql.includes("owner='batch'"), 'unsupported batch operations must not mint ordinary receipts');
 for (const op of ['status','due','title','priority','archive','restore','parent','description','attachment']) need(`'${op}'`);
 for (const op of ['comment','edit','delete','resolve','unresolve']) need(`'${op}'`);

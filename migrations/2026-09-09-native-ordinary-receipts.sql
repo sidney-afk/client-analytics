@@ -222,6 +222,13 @@ begin
     select c.* into v_result from public.production_comments c
     where c.id = v_receipt.comment_id;
     if not found then raise exception 'idempotent_result_missing'; end if;
+    if exists(select 1 from public.mirror_outbox o where o.dedup_key=v_dedup_key) then
+      perform public.production_outbox_replay(
+        'comment',coalesce(v_result.deliverable_id,v_result.batch_id),'comment',
+        v_result.client_slug,v_result.team,nullif(v_event->>'actor',''),nullif(v_event->>'role',''),
+        v_test_only,v_legacy_parity,v_fingerprint,v_dedup_key
+      );
+    end if;
     return v_result;
   end if;
 
@@ -360,6 +367,14 @@ begin
     from public.production_comments c
     where c.id = v_receipt.comment_id;
     if not found then raise exception 'idempotent_result_missing'; end if;
+    if exists(select 1 from public.mirror_outbox o where o.dedup_key=v_dedup_key) then
+      perform public.production_outbox_replay(
+        'comment',coalesce(v_result.deliverable_id,v_result.batch_id),'comment',
+        v_result.client_slug,v_result.team,nullif(v_event->>'actor',''),nullif(v_event->>'role',''),
+        coalesce((v_outbound->>'test_only')::boolean,false),v_legacy_parity,
+        v_fingerprint,v_dedup_key
+      );
+    end if;
     return v_result;
   end if;
 

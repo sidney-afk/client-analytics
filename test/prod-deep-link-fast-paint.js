@@ -122,6 +122,7 @@ function newHarness(opts) {
     _prodPreserveProjectedFields: incoming => incoming,
     _prodCarryBatchDescriptions: incoming => incoming,
     _prodAdvanceBatchDeltaCursor() {},
+    _prodInvalidateBatchDescriptionReads() {},
     _prodInvalidateScopedReads() {},
     _prodCacheWrite() { log.cacheWrites++; },
     _prodCachePurge() {},

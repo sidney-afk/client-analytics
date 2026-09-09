@@ -437,6 +437,36 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     'THE FIX: the full load itself retires every remembered batch-description read, so the Refresh button is a real retry');
 }
 
+
+// ---- 5h. the fast-paint sandbox mirrors every loader dependency -------------
+/* THREE separate breaks of test/prod-deep-link-fast-paint.js in this PR came
+   from the same place, so it is worth a check rather than a fourth apology.
+   That suite runs the REAL _prodLoadData against a hand-built sandbox, so every
+   _prod* function the loader calls must exist there. When one does not, the
+   loader throws into its own catch and the suite's assertions run against a load
+   that never happened -- which reads as a deep-link regression, not a missing
+   stub, and costs a cycle to re-diagnose every time. This derives the list from
+   the shipped loader instead of trusting anyone to remember.
+
+   (Only FUNCTIONS: _prodState fields the loader merely assigns are harmless
+   when absent, since assigning a new property on the sandbox state object is
+   not an error.) */
+{
+  const fastPaint = fs.readFileSync(path.join(ROOT, 'test', 'prod-deep-link-fast-paint.js'), 'utf8');
+  const loadStart = html.indexOf('async function _prodLoadData(opts)');
+  const loadEnd = html.indexOf('\n        async function _prodLoadEventsFor', loadStart);
+  ok(loadStart > 0 && loadEnd > loadStart, 'HARNESS: _prodLoadData is findable and bounded');
+  const body = html.slice(loadStart, loadEnd)
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const called = [...new Set([...body.matchAll(/\b(_prod[A-Za-z0-9_]+)\s*\(/g)].map(m => m[1]))]
+    .filter(name => name !== '_prodLoadData');
+  ok(called.length > 8, 'HARNESS: the loader really does call a list of helpers (' + called.length + ')');
+  const missing = called.filter(name => !new RegExp('\\b' + name + '\\b').test(fastPaint));
+  ok(missing.length === 0,
+    'every _prod* helper _prodLoadData calls is mirrored in the fast-paint sandbox'
+      + (missing.length ? ' — MISSING: ' + missing.join(', ') : ''));
+}
+
 const batchDetail = grabFunc('function _prodBatchDetail(');
 ok(/descReadFailed \? 'Description could not load\.' : 'No batch description\.'/.test(batchDetail)
   && /batchDescriptionReads\.get\(String\(batch\.id \|\| ''\)\) === 'error'/.test(batchDetail),

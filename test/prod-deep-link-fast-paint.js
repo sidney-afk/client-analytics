@@ -97,6 +97,7 @@ function newHarness(opts) {
          stub. Twice now (#1364). */
       batchPartialRows: new Set(),
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
       batchDeltaCursor: '',
     },
     _prodIssue(id) {

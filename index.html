@@ -49360,6 +49360,15 @@
                than returning, so every waiter resumes with the answer instead of
                resuming instantly and concluding the read failed. */
             batchDescriptionInFlight: new Map(),
+            /* The compare-and-swap clock for the DESCRIPTION column, per batch.
+               Separate from the row's `updated_at`, which now means "freshness
+               of the last COMPLETE read" and is what the delta merge compares.
+               Those two were the same value until 2026-09-09 and that conflation
+               is what produced findings across three review rounds; splitting
+               them lets each mean one thing. Written by the one-row read and by
+               every description write; dropped when a complete row lands, since
+               that row's own stamp is authoritative again. */
+            batchDescriptionClocks: new Map(),
             /* Per-batch request tokens for those reads. The generation counter
                alone cannot stand in for these: it only advances in
                _prodLoadData, never on the operational delta, so a delta that
@@ -54839,7 +54848,21 @@
                     }
                 }
                 const batch = _prodBatch(payload.id);
+                /* Attachment evidence first, then the description clock FOR A
+                   DESCRIPTION WRITE ONLY, then the row.
+
+                   The middle term keeps consecutive description saves working:
+                   the row's stamp is the freshness of the last COMPLETE read and
+                   no longer moves when a description is written, so on its own it
+                   would send a pre-save clock and take a 409. It is scoped to
+                   `batch_description` on purpose -- a batch_asset write has
+                   nothing to do with the description column, and consulting the
+                   clock for it changed a shipped behaviour that
+                   test/batch-asset-write.js pins. */
                 payload.expected_updated_at = batchClock
+                    || (operation === 'batch_description'
+                        ? String(_prodState.batchDescriptionClocks.get(String(payload.id || '')) || '')
+                        : '')
                     || (batch ? String(batch.updated_at || '') : '');
             } else if (operation !== 'comment') {
                 payload.expected_updated_at = issue.updatedRaw;
@@ -56825,12 +56848,17 @@
             const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
             if (!row) return;
             row.description = value == null ? '' : String(value);
-            /* `updatedAt` is deliberately not written onto the row: this is a
-               description-only write, and advancing the stamp of an otherwise
-               unrefreshed row is what produced three findings on #1364. The
-               description's own stamp lives in the panel state
-               (`state.sourceUpdatedAt`), which is what the compare-and-swap
-               actually reads. */
+            /* The stamp goes to the DESCRIPTION CLOCK, not onto the row.
+               Advancing the row's own stamp from a description-only write made
+               an unrefreshed row look freshly read, which produced findings
+               across three rounds. But the clock still has to move: the
+               compare-and-swap for a batch description reads it (see
+               _prodGatewayWrite), so discarding it outright made a second save
+               send a pre-save clock and take a 409, and the conflict restore
+               conflicted again on retry. An earlier version of this comment
+               claimed `state.sourceUpdatedAt` was what the CAS read; that was
+               simply wrong, and Codex caught it on #1364. */
+            if (updatedAt) _prodState.batchDescriptionClocks.set(batchId, String(updatedAt));
             /* Every write to a batch row's description funnels through here --
                the optimistic pre-save value, the committed save, and both
                conflict restores -- so this is where an in-flight direct
@@ -57267,6 +57295,7 @@
                     return;
                 }
                 live.description = fresh.description == null ? '' : String(fresh.description);
+                if (fresh.updated_at) _prodState.batchDescriptionClocks.set(batchId, String(fresh.updated_at));
                 /* The row stamp is deliberately NOT advanced from a
                    description-only read.
 
@@ -61187,6 +61216,8 @@
                 _prodState.clients = mergedClients;
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
+                // Every row is a complete read, so no description clock survives.
+                _prodState.batchDescriptionClocks.clear();
                 /* And no remembered batch-description read outlives a full load.
                    This is the RETRY for a failed one: the visible topbar Refresh
                    runs _prodManualRefresh -> _prodDeltaRefresh({full:true}) ->
@@ -61954,6 +61985,10 @@
                     byId.set(id, row);
                     return;
                 }
+                /* A complete row's own stamp is authoritative again, so the
+                   description clock for it is retired rather than left to
+                   shadow a newer server value. */
+                _prodState.batchDescriptionClocks.delete(id);
                 changedIds.push(id);
                 byId.set(id, row);
             });

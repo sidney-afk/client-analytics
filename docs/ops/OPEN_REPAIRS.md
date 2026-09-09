@@ -18207,3 +18207,44 @@ the stamp write now assert its absence.
 
 **The rule worth keeping:** a third finding in one mechanism is not a third bug.
 It is the mechanism asking to be deleted.
+
+### 182k. I asserted the CAS read one thing and it read another
+
+Codex round twelve, and the most instructive finding on #1364 because it was an
+error of ASSERTION, not of code.
+
+Justifying the 182j retraction I wrote, in a code comment and again on the PR:
+*"the description's own stamp lives in the panel state (`state.sourceUpdatedAt`),
+which is what the compare-and-swap actually reads — the row's copy was never
+load-bearing for it."*
+
+**That was false.** `_prodGatewayWrite` builds `expected_updated_at` from
+`_prodBatch(payload.id).updated_at` — the ROW's copy — with attachment evidence
+as the only preferred source. I never checked before writing it down twice.
+
+**What it would have cost.** Saving a synthetic-parent description twice before
+the next complete refresh: the first save succeeds and its committed clock is
+discarded, the second sends the pre-save clock and takes a 409, and the conflict
+restore routes through the same helper so the retry conflicts again — until a
+delta or full reconcile happens to replace the row.
+
+**The fix is a split, not a revert.** Those were one field doing two jobs, which
+is the same conflation that generated 182f, round six and 182j:
+
+| Value | Means | Read by |
+|---|---|---|
+| `batches.updated_at` (the row) | freshness of the last COMPLETE read | the delta merge's equality test |
+| `batchDescriptionClocks[batchId]` | the CAS clock for the description column | `_prodGatewayWrite`, for `batch_description` only |
+
+Every description write advances the clock; the one-row read seeds it; a complete
+row retires it, because that row's own stamp is authoritative again.
+
+**And the fix shipped its own defect, caught locally.** The clock was first
+consulted for EVERY batch write, so a `batch_asset` write would have taken a
+clock belonging to a column it does not touch. `test/batch-asset-write.js` caught
+it by pinning that fallback. It is now scoped to `batch_description`, and both
+suites pin the scoping from opposite sides.
+
+**The rule worth keeping:** "X is what actually reads this" is a claim about
+code, and it takes one grep. Writing it from memory into a comment makes it
+durable, and into a PR comment makes it persuasive. Neither makes it true.

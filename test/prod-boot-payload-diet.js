@@ -106,7 +106,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
     Set, Map,
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), projectionGeneration: 3, adapter: {} },
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(), projectionGeneration: 3, adapter: {} },
     /* The owner now asks whether the batch it just loaded is what the reader is
        LOOKING at before repainting; these two feed that question. */
     _prodOpenRowId: () => '',
@@ -180,7 +180,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodRender: () => {},
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
             projectionGeneration: 7, adapter: {},
     },
     _prodReadBatchDescriptionRow: (id) => new Promise(resolve => { gate.resolve = gate.resolve || []; gate.resolve.push(resolve); }),
@@ -361,7 +361,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodIssue: () => ({ id: 'open-row', syntheticBatchParent: false, batchId: 'other' }),
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
       projectionGeneration: 1, adapter: {},
       view: 'detail', openId: 'open-row', openBatchId: '',
     },
@@ -422,7 +422,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => { reads++; return new Promise(r => { resolveRead = r; }); },
   };
@@ -462,7 +462,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => new Promise(r => settle.push(r)),
   };
@@ -519,7 +519,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 'T1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(),
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: async () => ({ id: 'b1', description: 'text', updated_at: 'T9' }),
@@ -542,6 +542,51 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(mctx.merge([{ id: 'b1', updated_at: 'T1' }]).length === 0,
     'an unchanged stamp is unchanged, and the held description survives');
   ok(mctx._prodState.batches[0].description === 'held', '...carried onto the incoming row');
+}
+
+
+// ---- 5g. the description CAS clock is separate from row freshness (round 12) ----
+/* I claimed on the PR that state.sourceUpdatedAt was what the compare-and-swap
+   read, and that the row's copy "was never load-bearing for it". That was simply
+   FALSE: _prodGatewayWrite builds expected_updated_at from _prodBatch(...).
+   updated_at. So dropping the stamp write made a SECOND consecutive save send a
+   pre-save clock and take a 409, and the conflict restore conflicted again on
+   retry. The two values needed splitting, not deleting: the row's stamp is the
+   freshness of the last COMPLETE read, and the description has its own clock. */
+{
+  const gateway = html.slice(html.indexOf('const batch = _prodBatch(payload.id);'));
+  ok(/operation === 'batch_description'\s*\n\s*\? String\(_prodState\.batchDescriptionClocks\.get\(String\(payload\.id \|\| ''\)\) \|\| ''\)/.test(gateway.slice(0, 1200)),
+    'the batch-description write prefers the description clock over the row freshness stamp');
+  ok(/: ''\)\s*\n\s*\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(gateway.slice(0, 1200)),
+    '...and any OTHER batch write (batch_asset) still falls straight through to the row, which test/batch-asset-write.js pins independently');
+  const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
+  ok(/_prodState\.batchDescriptionClocks\.set\(batchId, String\(updatedAt\)\)/.test(sync)
+    && !/row\.updated_at = updatedAt/.test(sync),
+    'every description write moves the CLOCK and still leaves the row stamp alone');
+  ok(/_prodState\.batchDescriptionClocks\.set\(batchId, String\(fresh\.updated_at\)\)/.test(
+      grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
+    'and the one-row read seeds that clock, so the first save after a read is not guessing');
+  ok(/_prodState\.batchDescriptionClocks\.delete\(id\);/.test(grabFunc('function _prodMergeBatchRows(changed)')),
+    'a complete row retires its description clock, since its own stamp is authoritative again');
+
+  // Executed: two consecutive saves must not send the same pre-save clock.
+  const ctx = { Map, String, console,
+    _prodIssue: () => ({ id: 'i1', batchId: 'b1' }),
+    _prodState: { batches: [{ id: 'b1', updated_at: 'T1', description: 'a' }],
+                  batchDescriptionClocks: new Map(), batchDescriptionTokens: new Map(),
+                  adapter: {} },
+    _prodNextBatchDescriptionToken: () => 1 };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)')
+    + '\nthis.sync = _prodSyncBatchDescriptionRow;', ctx);
+  ctx.sync('i1', 'first save', 'T2');
+  ok(ctx._prodState.batchDescriptionClocks.get('b1') === 'T2',
+    'THE 409: after a save the clock advances, so the NEXT save sends T2 rather than the pre-save T1');
+  ok(ctx._prodState.batches[0].updated_at === 'T1',
+    '...while the row stamp still marks the last complete read, which is what the delta merge compares');
+  ctx.sync('i1', 'second save', 'T3');
+  ok(ctx._prodState.batchDescriptionClocks.get('b1') === 'T3' && ctx._prodState.batches[0].updated_at === 'T1',
+    'and a second save advances the clock again, still without disturbing row freshness');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

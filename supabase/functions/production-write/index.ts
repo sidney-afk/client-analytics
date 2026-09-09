@@ -3843,7 +3843,7 @@ async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: Json
       || !/^U[A-Z0-9]{8,}$/.test(clean(editor.slack_user_id))) {
     throw new GatewayError(409, "urgent_editor_unavailable");
   }
-  return { clientSlug, id, cardId, surface, round, actorMemberId: urgentText(principal.memberId), intendedMemberId: urgentText(editor.id) };
+  return { clientSlug, id, cardId, surface, round, roundExact: urgentText(card.video_status_at, 40), actorMemberId: urgentText(principal.memberId), intendedMemberId: urgentText(editor.id) };
 }
 async function wakeNotificationSender(): Promise<void> {
   // Deliberately post-commit and best-effort: the durable SQL intent remains
@@ -3866,7 +3866,7 @@ async function handleNativeUrgentStatus(supabase: SupabaseClient, req: Request, 
   if (Object.keys(body).some(k => !fields.includes(k))) throw new GatewayError(400, "invalid_urgent_request");
   const snapshot = await urgentSnapshot(supabase, req, body);
   const { data, error } = await supabase.rpc("production_notification_urgent_status", {
-    p_client_slug: snapshot.clientSlug, p_deliverable_id: snapshot.id, p_video_status_at: snapshot.round,
+    p_client_slug: snapshot.clientSlug, p_deliverable_id: snapshot.id, p_video_status_at: snapshot.roundExact,
   });
   if (error || !data || typeof data !== "object" || Array.isArray(data)
       || !["absent", "pending", "sending", "sent", "retryable", "unknown", "blocked"].includes(clean((data as JsonMap).state))) {
@@ -3883,7 +3883,7 @@ async function handleNativeUrgentDispatch(supabase: SupabaseClient, req: Request
     const dispatchId = crypto.randomUUID();
     const { data, error } = await supabase.rpc("production_notification_enqueue_urgent", {
       p_dispatch_id: dispatchId, p_client_slug: snapshot.clientSlug, p_deliverable_id: snapshot.id,
-      p_card_id: snapshot.cardId, p_surface: snapshot.surface, p_video_status_at: snapshot.round,
+      p_card_id: snapshot.cardId, p_surface: snapshot.surface, p_video_status_at: snapshot.roundExact,
       p_actor_member_id: snapshot.actorMemberId, p_intended_member_id: snapshot.intendedMemberId,
     });
     if (error || !data || typeof data !== "object" || Array.isArray(data)) {

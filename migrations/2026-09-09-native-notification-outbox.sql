@@ -90,7 +90,8 @@ create table if not exists public.production_notification_delivery_receipts (
 create table if not exists public.production_notification_reconciliations (
   id bigint generated always as identity primary key,
   intent_id uuid not null references public.production_notification_intents(id),
-  action text not null check (action in ('release_blocked_destination','retry_duplicate_risk')),
+  action text not null check (action in ('release_blocked_destination','retry_duplicate_risk','retry_known_nondelivery','attest_manual_receipt')),
+  provider_message_id text,
   created_at timestamptz not null default now()
 );
 
@@ -475,7 +476,7 @@ end;
 $fn$;
 
 create or replace function public.production_notification_reconcile(
-  p_intent_id uuid, p_action text, p_confirmation text default null
+  p_intent_id uuid, p_action text, p_confirmation text default null, p_provider_message_id text default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -485,6 +486,7 @@ declare
   v_intent public.production_notification_intents%rowtype;
   v_channel text;
   v_action text := lower(btrim(coalesce(p_action, '')));
+  v_provider text := nullif(btrim(coalesce(p_provider_message_id, '')), '');
 begin
   select * into v_intent from public.production_notification_intents where id = p_intent_id for update;
   if not found then raise exception 'production_notification_intent_missing'; end if;
@@ -505,8 +507,26 @@ begin
     end if;
     update public.production_notification_intents set state = 'retryable', lease_token = null, lease_expires_at = null,
       next_attempt_at = now(), last_failure_code = 'operator_duplicate_risk_retry', updated_at = now() where id = v_intent.id;
+  elsif v_action = 'retry_known_nondelivery' then
+    if v_intent.state <> 'blocked' or v_intent.destination_channel_id is null
+       or p_confirmation is distinct from 'PROVIDER_CONFIRMED_NOT_DELIVERED' then
+      raise exception 'production_notification_known_nondelivery_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'retryable', next_attempt_at = now(),
+      last_failure_code = 'operator_confirmed_nondelivery', updated_at = now() where id = v_intent.id;
+  elsif v_action = 'attest_manual_receipt' then
+    if v_intent.state not in ('unknown', 'sending')
+       or p_confirmation is distinct from 'MANUAL_PROVIDER_RECEIPT_VERIFIED'
+       or (v_provider ~ '^\d{10,}\.[0-9]{6}$') is not true then
+      raise exception 'production_notification_manual_receipt_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'sent', provider_message_id = v_provider, sent_at = now(),
+      attempt_count = attempt_count + 1, lease_token = null, lease_expires_at = null, updated_at = now(), last_failure_code = null
+      where id = v_intent.id;
+    insert into public.production_notification_delivery_receipts(intent_id, attempt, outcome, intended_member_id, destination_channel_id, provider_message_id)
+    values (v_intent.id, v_intent.attempt_count + 1, 'sent', v_intent.intended_member_id, v_intent.destination_channel_id, v_provider);
   else raise exception 'production_notification_reconcile_action_invalid'; end if;
-  insert into public.production_notification_reconciliations(intent_id, action) values (v_intent.id, v_action);
+  insert into public.production_notification_reconciliations(intent_id, action, provider_message_id) values (v_intent.id, v_action, v_provider);
   return jsonb_build_object('state', (select state from public.production_notification_intents where id = v_intent.id));
 end;
 $fn$;
@@ -537,30 +557,8 @@ declare
   v_limit integer := greatest(1, least(coalesce(p_limit, 10), 10));
 begin
   perform set_config('app.production_notification_write', '1', true);
-  -- An urgent intent must still name the same active video editor, exact card
-  -- round, authority, and protected channel at claim time. A stale target is
-  -- blocked before any provider request; it is never silently sent late.
-  update public.production_notification_intents i
-     set state = 'blocked', last_failure_code = 'urgent_target_changed', updated_at = now()
-   where i.kind = 'urgent' and i.state in ('pending', 'retryable')
-     and not exists (
-       select 1 from public.deliverables d
-       join public.team_members m on m.id = i.intended_member_id
-       join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
-       join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
-       where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
-         and d.kind = 'video' and d.status = 'tweak' and d.deleted_at is null
-         and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
-         and cfg.value->>'channel_id' = i.destination_channel_id
-         and ((i.message->>'surface' = 'calendar' and exists (
-           select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug
-             and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed'
-             and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null))
-           or (i.message->>'surface' = 'samples' and exists (
-           select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug
-             and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed'
-             and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null)))
-     );
+  -- Candidate locks and its stale urgent check share one statement. The Slack
+  -- request remains necessarily later (documented point-in-time limitation).
   return query
   with candidates as (
     select i.id
@@ -569,13 +567,30 @@ begin
      order by i.created_at, i.id
      for update skip locked
      limit v_limit
+  ), stale as (
+    update public.production_notification_intents i
+       set state = 'blocked', last_failure_code = 'urgent_target_changed', updated_at = now()
+      from candidates c
+     where i.id = c.id and i.kind = 'urgent'
+       and not exists (
+         select 1 from public.deliverables d
+         join public.team_members m on m.id = i.intended_member_id
+         join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
+         join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
+         where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
+           and d.kind = 'video' and d.status = 'tweak' and d.deleted_at is null
+           and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
+           and cfg.value->>'channel_id' = i.destination_channel_id
+           and ((i.message->>'surface' = 'calendar' and exists (select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null))
+             or (i.message->>'surface' = 'samples' and exists (select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null)))
+       ) returning i.id
   ), claimed as (
     update public.production_notification_intents i
        set state = 'sending', attempt_count = i.attempt_count + 1,
            lease_token = gen_random_uuid(), lease_expires_at = now() + interval '5 minutes',
            updated_at = now(), next_attempt_at = now(), last_failure_code = null
       from candidates c
-     where i.id = c.id
+     where i.id = c.id and not exists (select 1 from stale s where s.id = i.id)
     returning i.*
   )
   select c.id, c.attempt_count, c.destination_channel_id, c.message->>'text', c.id, coalesce((c.message->>'allow_mentions')::boolean, false) from claimed c;
@@ -627,13 +642,13 @@ revoke all on function public.production_notification_intent_guard(),
   public.production_notification_actor_valid(uuid, text, text),
   public.production_notification_health_summary(),
   public.production_notification_urgent_status(text, text, timestamptz),
-  public.production_notification_reconcile(uuid, text, text),
+  public.production_notification_reconcile(uuid, text, text, text),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),
   public.production_notification_claim(integer),
   public.production_notification_record_delivery(uuid, integer, text, text, text) from public, anon, authenticated;
 grant execute on function public.production_notification_health_summary(),
   public.production_notification_urgent_status(text, text, timestamptz),
-  public.production_notification_reconcile(uuid, text, text),
+  public.production_notification_reconcile(uuid, text, text, text),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),
   public.production_notification_claim(integer),
   public.production_notification_record_delivery(uuid, integer, text, text, text) to service_role;

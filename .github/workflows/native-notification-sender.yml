@@ -1,0 +1,26 @@
+name: Native notification sender
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  send:
+    # Dormant unless an operator explicitly enables the repository variable
+    # after migration/function deployment and a scoped manual receipt drill.
+    if: vars.NATIVE_NOTIFICATION_SENDER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Claim and deliver bounded notification intents
+        env:
+          NOTIFY_URL: ${{ secrets.NATIVE_NOTIFICATION_NOTIFY_URL }}
+          NOTIFY_RUNNER_KEY: ${{ secrets.NATIVE_NOTIFICATION_RUNNER_KEY }}
+        run: |
+          test -n "$NOTIFY_URL" && test -n "$NOTIFY_RUNNER_KEY"
+          curl --fail-with-body --silent --show-error --max-time 30 \
+            -X POST "$NOTIFY_URL" \
+            -H 'content-type: application/json' \
+            -H "x-notify-runner-key: $NOTIFY_RUNNER_KEY" \
+            --data '{"action":"send","limit":10}'

@@ -3779,9 +3779,9 @@ async function handleIntakeEditorOptions(
   return json({ ...responseScope, lane: "native", editors: projection });
 }
 
-// Native urgent handoff: no data mutation, provider lookup, or retry.
-const NATIVE_URGENT_AUDIENCE = "syncview:n8n:native-urgent-video:v1";
-const NATIVE_URGENT_URL = "https://synchrosocial.app.n8n.cloud/webhook/native-urgent-video";
+// Native urgent admission: preserve gateway-owned exact editor checks, then
+// commit a notification intent. Delivery is handled later by the manual notify
+// sender; this action never calls n8n or Slack and never reports "sent".
 function urgentText(value: unknown, cap = 160): string {
   if (typeof value !== "string" || !value || value !== value.trim()
       || value.length > cap || /[\x00-\x1f\x7f]/.test(value)) {
@@ -3839,81 +3839,53 @@ async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: Json
     throw new GatewayError(409, "urgent_target_changed");
   }
   const editor = await one("team_members", "id", urgentText(row.assignee_id));
-  const email = urgentText(typeof editor.email === "string" ? editor.email.trim().toLowerCase() : editor.email, 254);
   if (editor.active !== true || editor.team !== "video" || editor.role !== "editor"
-      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      || !/^U[A-Z0-9]{8,}$/.test(clean(editor.slack_user_id))) {
     throw new GatewayError(409, "urgent_editor_unavailable");
   }
-  const context = {
-    deliverable_id: id, client_slug: clientSlug, client_name: urgentText(client.display_name, 300),
-    card_id: cardId, surface, team: "video", video_status_at: round,
-    assignee_id: urgentText(editor.id), assignee_email: email,
-    assignee_name: urgentText(editor.name, 300), title: urgentText(row.title, 300),
-    actor_member_id: urgentText(principal.memberId),
-  };
-  // Only compare current fields; no client or staff record is returned to caller.
-  const fingerprint = JSON.stringify([context, assignment.epoch, row.updated_at, card.updated_at, batch.updated_at, principal.actorRole, principal.keyRole]);
-  return { context, fingerprint };
+  return { clientSlug, id, cardId, surface, round, actorMemberId: urgentText(principal.memberId), intendedMemberId: urgentText(editor.id) };
 }
-function urgentBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+async function wakeNotificationSender(): Promise<void> {
+  // Deliberately post-commit and best-effort: the durable SQL intent remains
+  // pending if the sender is absent, unhealthy, or intentionally unconfigured.
+  if (Deno.env.get("NOTIFY_WAKE_ENABLED") !== "true") return;
+  const url = clean(Deno.env.get("SUPABASE_URL"));
+  const key = clean(Deno.env.get("NOTIFY_RUNNER_KEY"));
+  if (!url || !key) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+  try {
+    await fetch(`${url}/functions/v1/notify`, { method: "POST", redirect: "error", signal: controller.signal,
+      headers: { "content-type": "application/json", "x-notify-runner-key": key }, body: '{"limit":1}' });
+  } catch { /* monitor_v1 retains the pending intent; never change gateway receipt */ }
+  finally { clearTimeout(timer); }
 }
-async function urgentJwt(body: string, dispatchId: string, issued: number, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(body))), b => b.toString(16).padStart(2, "0")).join("");
-  const header = urgentBase64(encoder.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
-  const claims = urgentBase64(encoder.encode(JSON.stringify({ purpose: "native-urgent-handoff-v1", aud: NATIVE_URGENT_AUDIENCE,
-    jti: dispatchId, iat: issued, exp: issued + 60, body_sha256: digest })));
-  // n8n jwtAuth/passphrase uses the UTF8 secret, NOT hex-decoded bytes.
-  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(header + "." + claims)));
-  return header + "." + claims + "." + urgentBase64(signature);
-}
+
 async function handleNativeUrgentDispatch(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
   try {
-    // Exact shape rejects browser-supplied recipient/actor/message authority.
     const fields = ["action", "client_slug", "deliverable_id", "card_id", "surface", "video_status_at"];
     if (Object.keys(body).some(k => !fields.includes(k))) throw new GatewayError(400, "invalid_urgent_request");
-    const first = await urgentSnapshot(supabase, req, body);
-    const secret = Deno.env.get("NATIVE_URGENT_HANDOFF_KEY_HEX") || "";
-    if (Deno.env.get("NATIVE_URGENT_HANDOFF_ENABLED") !== "true"
-        || Deno.env.get("NATIVE_URGENT_HANDOFF_URL") !== NATIVE_URGENT_URL || !/^[a-f0-9]{64}$/.test(secret)) {
-      throw new GatewayError(503, "native_urgent_not_configured");
-    }
-    const dispatchId = crypto.randomUUID(), issued = Math.floor(Date.now() / 1000);
-    const payload = JSON.stringify({ contract: "native_urgent_video_v1", audience: NATIVE_URGENT_AUDIENCE,
-      dispatch_id: dispatchId, issued_at: issued, expires_at: issued + 60, context: first.context });
-    const token = await urgentJwt(payload, dispatchId, issued, secret);
-    const second = await urgentSnapshot(supabase, req, body);
-    if (second.fingerprint !== first.fingerprint || Math.floor(Date.now() / 1000) >= issued + 60) {
-      throw new GatewayError(409, "urgent_target_changed");
-    }
-    // No asynchronous work between the fresh comparison and the one handoff.
-    // This is not an atomic lock against reassignment after this read.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    try {
-      const response = await fetch(NATIVE_URGENT_URL, { method: "POST", redirect: "error", signal: controller.signal,
-        headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: payload });
-      if (!response.ok) throw new Error("handoff_unconfirmed");
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("handoff_unconfirmed");
-      let text = "", size = 0; const decoder = new TextDecoder();
-      while (true) { const next = await reader.read(); if (next.done) break; size += next.value.length;
-        if (size > 4096) { await reader.cancel(); throw new Error("handoff_unconfirmed"); }
-        text += decoder.decode(next.value, { stream: true }); }
-      const ack = JSON.parse(text + decoder.decode());
-      if (ack.ok !== true || ack.contract !== "native_urgent_video_v1" || ack.dispatch_id !== dispatchId
-          || ack.delivered !== true || typeof ack.slack_ts !== "string" || !/^\d{10,}\.[0-9]{6}$/.test(ack.slack_ts)) {
-        throw new Error("handoff_unconfirmed");
+    const snapshot = await urgentSnapshot(supabase, req, body);
+    const dispatchId = crypto.randomUUID();
+    const { data, error } = await supabase.rpc("production_notification_enqueue_urgent", {
+      p_dispatch_id: dispatchId, p_client_slug: snapshot.clientSlug, p_deliverable_id: snapshot.id,
+      p_card_id: snapshot.cardId, p_surface: snapshot.surface, p_video_status_at: snapshot.round,
+      p_actor_member_id: snapshot.actorMemberId, p_intended_member_id: snapshot.intendedMemberId,
+    });
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+      const message = clean(error?.message);
+      if (/notification_urgent_(target_changed|editor_unavailable|authority_unavailable|destination_unconfigured|actor_invalid|client_invalid)/.test(message)) {
+        const code = message.match(/notification_urgent_(target_changed|editor_unavailable|authority_unavailable|destination_unconfigured|actor_invalid|client_invalid)/)?.[0] || "notification_urgent_target_changed";
+        throw new GatewayError(code === "notification_urgent_authority_unavailable" ? 503 : 409, code);
       }
-      return json({ ok: true, delivery: "sent", dispatch_id: dispatchId, slack_ts: ack.slack_ts });
-    } catch {
-      return json({ ok: false, error: "delivery_unknown", delivery: "unknown", dispatch_id: dispatchId, retry_safe: false }, 502);
-    } finally { clearTimeout(timer); }
+      throw new GatewayError(503, "urgent_notification_unavailable");
+    }
+    // `pending` is a committed handoff only. The browser must not render it as
+    // delivered; the eventual provider receipt is the only sent evidence.
+    await wakeNotificationSender();
+    return json({ ok: true, delivery: "pending", dispatch_id: dispatchId, retry_safe: false }, 202);
   } catch (error) {
     if (error instanceof GatewayError) return json({ ok: false, error: error.code, delivery: "not_sent", retry_safe: true }, error.status);
-    // Unknown preflight failures cannot have reached the handoff.
     return json({ ok: false, error: "urgent_lookup_unavailable", delivery: "not_sent", retry_safe: true }, 503);
   }
 }
@@ -6616,6 +6588,11 @@ async function handleEntityOperation(
   const mirrorPending = !mutationHasMirror
     ? false
     : awaitedDrain ? mirror.acknowledged !== true : true;
+  // The SQL event/comment observer has committed before this point. Wake the
+  // manual sender best-effort for ordinary native status/comment writes too;
+  // failure cannot roll back this accepted production mutation.
+  if ((operation === "status" || operation === "comment") && authority === "syncview"
+      && !principal.testOnly && !legacyParity) await wakeNotificationSender();
   return json({
     ok: true,
     native_committed: true,

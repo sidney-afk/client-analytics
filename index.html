@@ -3286,6 +3286,10 @@
         .prod-attribution-chip.is-provisional { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
         .prod-attribution-chip.is-needs { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
         .prod-attribution-chip.is-conflict { color: var(--prod-overdue, #eb5757); border-color: rgba(235, 87, 87, .35); background: rgba(235, 87, 87, .10); }
+        /* A card SyncView created seconds ago, still waiting for Linear, is not
+           a repair: it reads in the neutral muted key, not the amber one every
+           other unresolved state uses. */
+        .prod-attribution-chip.is-syncing { color: var(--prod-muted); border-color: var(--prod-border); background: var(--prod-hover); }
         .prod-attribution-notice { margin: -4px 0 14px; border-radius: 8px; padding: 9px 11px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
         .prod-attribution-notice b { color: var(--prod-strong); }
         .prod-attribution-notice.is-conflict { color: var(--prod-overdue, #eb5757); }
@@ -52658,9 +52662,49 @@
         function _prodAttributionResolved(issue) {
             return !!(issue && issue.attribution && issue.attribution.state === 'resolved');
         }
+        /* A CARD THIS APP CREATED SECONDS AGO IS NOT A BROKEN CLIENT MAPPING.
+         *
+         * Native creation writes the deliverable row first and mirrors it into
+         * Linear after; the attribution resolver reads only the mirrored fields
+         * (own project, then ancestors, then the persisted stamp), so for the
+         * few seconds before Linear answers a brand new card resolves to
+         * `needs_attribution` and every write control on it is gated shut.
+         *
+         * Measured on the live row that produced the 2026-09-09 report
+         * (GRA-7437, created from the calendar at 19:28:29Z): the mirror stamped
+         * `resolved` / `direct_project` at 19:28:41Z, twelve seconds later, and
+         * the row was correct on both sides of that gap. The gate was right for
+         * those twelve seconds -- nothing had confirmed who owns the row -- but
+         * it announced itself as "Client attribution needs repair", so an SMM
+         * reasonably read a transient sync as a broken client and reported it as
+         * one.
+         *
+         * THIS IS COPY ONLY. The gate still refuses the write, the row still
+         * groups under the needs-attribution sentinel, and no verdict moves.
+         * The state is narrowed hard so nothing else can borrow the softer
+         * wording: no stamp has ever been persisted on the row, no project is
+         * known from any source, the mirror has not yet returned a Linear issue,
+         * and the slug SyncView itself stored is a currently ACTIVE roster
+         * client. A row Linear actively invalidated carries a persisted stamp
+         * and keeps the repair banner it has always had.
+         */
+        function _prodAttributionSyncPending(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution || attribution.state !== 'needs_attribution') return false;
+            if (attribution.persistedState) return false;
+            if (attribution.directProjectId || attribution.mappedProjectId) return false;
+            const raw = issue.raw || {};
+            if (String(raw.linear_issue_uuid || '').trim()) return false;
+            const slug = String(issue.storedClientSlug || '').trim();
+            return !!(slug && _prodClient(slug));
+        }
+        function _prodAttributionSyncClientLabel(issue) {
+            return _prodDisplayClient(String(issue && issue.storedClientSlug || ''));
+        }
         function _prodAttributionGateText(issue) {
             const attribution = issue && issue.attribution;
             if (!attribution || attribution.state === 'resolved') return '';
+            if (_prodAttributionSyncPending(issue)) return 'This card is still syncing to Linear. It becomes editable a few seconds after Linear answers.';
             if (attribution.state === 'conflict') return 'Client attribution conflicts across this issue family. Repair it before writing.';
             if (attribution.state === 'provisional_child_family') return 'Client attribution is provisional from child issues. Repair it before writing.';
             return 'Client attribution needs repair before writing.';
@@ -62856,6 +62900,9 @@
         function _prodAttributionChipOnlyHTML(issue) {
             const attribution = issue && issue.attribution;
             if (!attribution) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers.">Syncing to Linear</span>';
+            }
             if (attribution.state === 'resolved' && attribution.repairRequired) {
                 return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
             }
@@ -62874,6 +62921,12 @@
             const attribution = issue && issue.attribution;
             const project = issue && issue.project || '';
             const label = _prodDisplayClient(project);
+            if (_prodAttributionSyncPending(issue)) {
+                /* Name the client SyncView stored, so the card the SMM just
+                   filed still reads as that client's while Linear catches up. */
+                const syncLabel = _prodAttributionSyncClientLabel(issue);
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers."><span class="prod-client-dot">' + _prodProjectGlyph(String(issue.storedClientSlug || '')) + '</span><span>' + _calEsc(syncLabel) + ' · syncing</span></span>';
+            }
             if (!attribution || attribution.state === 'resolved') {
                 return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project) + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>'
                     + _prodAttributionChipOnlyHTML(issue);
@@ -62892,6 +62945,9 @@
             }
             const attribution = issue && issue.attribution;
             if (!attribution || (attribution.state === 'resolved' && !attribution.repairRequired)) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="syncing"><b>Syncing to Linear.</b> This card was created in SyncView and is waiting for Linear to answer, which normally takes a few seconds. It becomes editable as soon as it does; reload the tab if it stays this way.</div>';
+            }
             const reason = String(attribution.reason || '').replace(/_/g, ' ');
             if (attribution.state === 'provisional_child_family') {
                 return '<div class="prod-attribution-notice" data-prod-attribution-notice="provisional"><b>Provisional client attribution.</b> The active-roster client shown here is inferred from one unanimous child family. This issue is read-only until the mapping is repaired.</div>';
@@ -62917,7 +62973,10 @@
                    has always used. */
                 return '<span class="prod-prop-btn" data-prod-prop="project" aria-disabled="true" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
             }
-            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
+            const syncing = _prodAttributionSyncPending(issue);
+            const shownSlug = syncing ? String(issue.storedClientSlug || '') : project;
+            const shownLabel = syncing ? _prodAttributionSyncClientLabel(issue) : _prodDisplayClient(project);
+            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(syncing ? 'syncing' : attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(shownSlug) + '</span><span>' + _calEsc(shownLabel) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }
         function _prodAddSubIssueButtonHTML(compact) {
             const parent = _prodIssue(_prodState.openId);

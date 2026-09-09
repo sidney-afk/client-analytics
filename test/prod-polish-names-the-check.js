@@ -171,16 +171,26 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
 
   const start3 = gateSrc.indexOf('function failureReason(');
   const reasonFn = gateSrc.slice(start3, gateSrc.indexOf('\n}', start3) + 2);
-  const reason = new Function('behavWiredFailedChecks', 'classifyFailure', 'smokeFailedStage',
-    reasonFn + '\nreturn failureReason;')(() => '', () => 'timeout_unspecified', failedStage);
+  /* `pixelWiredFailedStates` joined this chain on 2026-09-09 (item 185), so the
+     injected set gained a fourth name. Injected empty here, which is what a
+     suite that emits no pixel marker produces, so every case below asserts the
+     same behaviour it always did. */
+  const build = (behav, pixel) => new Function(
+    'behavWiredFailedChecks', 'pixelWiredFailedStates', 'classifyFailure', 'smokeFailedStage',
+    reasonFn + '\nreturn failureReason;')(behav, pixel, () => 'timeout_unspecified', failedStage);
+  const reason = build(() => '', () => '');
   ok(reason('SMOKE_STAGE board_open\nTimeout') === 'timeout_unspecified@board_open',
     'the code says WHAT broke and the stage says WHERE, joined by a literal this file owns');
   ok(reason('Timeout, no markers') === 'timeout_unspecified',
     '...and a suite with no stages keeps the bare code, unchanged');
-  const named = new Function('behavWiredFailedChecks', 'classifyFailure', 'smokeFailedStage',
-    reasonFn + '\nreturn failureReason;')(() => 'behav_wired:x', () => 'timeout_unspecified', failedStage);
+  const named = build(() => 'behav_wired:x', () => '');
   ok(named('SMOKE_STAGE board_open') === 'behav_wired:x',
     'and a named check still outranks both, because it says more than either');
+  const pixelNamed = build(() => '', () => 'pixel_wired:topbar');
+  ok(pixelNamed('SMOKE_STAGE board_open') === 'pixel_wired:topbar',
+    'a named pixel state likewise outranks the generic code and the stage');
+  ok(build(() => 'behav_wired:x', () => 'pixel_wired:topbar')('anything') === 'behav_wired:x',
+    'and when both lanes name something the behaviour lane still answers first, as it did before');
 }
 
 if (failures) {

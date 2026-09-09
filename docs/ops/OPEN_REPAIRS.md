@@ -18448,3 +18448,48 @@ Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
 merge refuse older rows would be a no-op for the delta by the argument above,
 so it would buy nothing there while quietly changing the contract of the path
 that every write already depends on.
+
+## 185. [2026-09-09] The pixel lane has been red for ten days without naming a single failing check
+
+`production-polish-heavy` has failed on `main` on every run since 2026-08-30,
+and every one of those runs reported the same public line:
+
+```
+Production heavy gate failed at: Production pixel parity [error_generic]
+```
+
+Nobody has looked at it, which is the correct response to a message that says
+nothing. **The block was never the divergence; it was that the divergence could
+not be seen.**
+
+`pixel-wired.js` throws `${gaps.length} pixel parity gap(s) found` and prints
+each gap to stderr. A gap's `message` is live-derived — computed CSS values,
+element counts, console text — so it stays on the ephemeral runner by design in
+a public repository, and nothing in the thrown message matched a classifier
+signature, so `classifyFailure` fell through to the error-type fallback.
+
+A gap's `state` is a different kind of thing: every one is a **string literal at
+its call site in that same public file** (plus the two `<theme> palette` labels
+built from its own closed theme list). So the labels can be published while the
+messages cannot. `pixel-wired.js` now emits them on a `PIXEL_WIRED_FAILED_STATES`
+marker line, and the gate matches each against `PIXEL_WIRED_STATES`, harvested
+from pixel-wired.js's own source, before emitting `pixel_wired:topbar+icons`.
+
+This is the mechanism the behaviour lane already uses (`BEHAV_WIRED_CHECKS`,
+item 125, which records the identical blackout and the identical fix), reused
+rather than reinvented, including the 24-name cap so a wide breakage summarises
+instead of dumping.
+
+Two properties are pinned in `test/pixel-parity-failure-is-nameable.js`, and the
+second matters more than the first:
+
+1. A known label is published.
+2. **A label that is not a literal in pixel-wired.js is dropped entirely** —
+   tested by feeding the matcher a fabricated client name and asserting it
+   produces nothing, and by asserting a known label beside an unknown one
+   publishes only the known one. The marker is also built from `state` only,
+   never `message`, and that is asserted against the source.
+
+**This makes the failure diagnosable. It does not fix it.** Whatever `main` is
+actually diverging on is still diverging; the next run will simply say which
+part. That is the prerequisite for anyone doing something about it.

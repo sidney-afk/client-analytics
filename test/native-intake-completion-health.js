@@ -4,7 +4,7 @@ const canonical=require('../scripts/native-intake-reconcile/reconcile-lib');
 const completion=require('../scripts/native-intake-completion/completion-lib');
 const { limits }=require('../scripts/native-intake-completion/monitor');
 const { LANES }=require('../scripts/monitoring-watchdog');
-const good={manifests:2,requests_complete:1,requests_owed:1,owed:{children_native:0,children_provider:0,cards:1,identity_conflicts:0,missing_terminal_receipts:0},backlog_age_seconds:60,latest_outcomes:{'cards:unresolved':1},observed_at:'2026-09-09T00:00:00.000Z'};
+const good={manifests:2,requests_complete:1,requests_owed:1,owed:{children_native:0,children_provider:0,cards:1,identity_conflicts:0,missing_terminal_receipts:0},backlog_age_seconds:60,latest_outcomes:{'cards:unresolved':1},observed_at:new Date().toISOString()};
 async function run(){
   assert.equal(completion,canonical,'completion uses canonical reconciliation protocol');
   assert.equal(canonical.boundReason('card_creation_held'),'card_creation_held');
@@ -13,6 +13,10 @@ async function run(){
   assert.deepEqual(canonical.assessSummary(good,{maxBacklogAgeSeconds:120,maxRequestsOwed:1}).failures,[]);
   assert.deepEqual(canonical.assessSummary(good,{maxBacklogAgeSeconds:30,maxRequestsOwed:0}).failures.sort(),['backlog_age','requests_owed']);
   assert.throws(()=>canonical.validateSummary({...good,owed:{}}),/reconcile_protocol_summary/);
+  assert.throws(()=>canonical.validateSummary({...good,observed_at:'2026-09-08T00:00:00.000Z'}),/reconcile_protocol_summary_stale/);
+  assert.throws(()=>canonical.validateStage('children',{stage:'cards',request_id:'request-a',applied:false,outcome:'complete'},'request-a'),/reconcile_protocol_children/);
+  assert.throws(()=>canonical.validateStage('children',{stage:'children',request_id:'wrong-request',applied:false,outcome:'complete'},'request-a'),/reconcile_protocol_children/);
+  assert.throws(()=>canonical.validateStage('children',{stage:'children',request_id:'request-a',outcome:'complete'},'request-a'),/reconcile_protocol_children/);
   assert.throws(()=>limits({NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED:'not-a-number'}),/config_error/);
   let calls=0;
   await assert.rejects(()=>canonical.runReconcile({actor:'fixture',apply:false,limit:5,requestIds:['different-request'],rpc:async name=>{

@@ -16,7 +16,7 @@ const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
-if (!['history-v7','history-v8','history-v9','history-v10'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
+if (!['history-v7','history-v8','history-v9','history-v10','history-v11'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const CORPUS_VERSION = backup.resolveCorpus(CORPUS).version;
 // Named v10 recovery inventory. These are the durable owners that the native
 // repair adds or whose existing state is required to replay the v10 receipt;
@@ -59,7 +59,11 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   ...(CORPUS_VERSION >= 9 ? ['migrations/2026-09-07-legacy-intake-native-triage.sql','migrations/2026-09-07-native-brief-media.sql','scripts/native-card-materialization/recovery-v9-phase.mjs'] : []),
   ...(CORPUS_VERSION >= 10 ? ['migrations/2026-08-04-client-access-auto-provision.sql','migrations/2026-09-05-description-images.sql',
   'migrations/2026-09-07-native-identifier-mint.sql','migrations/2026-09-09-native-client-provisioning.sql',
-  'migrations/2026-09-09-syncview-retirement-admission.sql'] : [])];
+  'migrations/2026-09-09-syncview-retirement-admission.sql'] : []),
+  ...(CORPUS_VERSION >= 11 ? ['migrations/2026-09-09-native-ordinary-receipts.sql',
+  'migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql',
+  'migrations/2026-09-09-editors-event-assignee.sql',
+  'migrations/2026-09-09-native-notification-outbox.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -114,7 +118,7 @@ function grants(cfg, db, role, mode) {
 }
 function dataGrants(cfg, db, role, mode) {
   const result = cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
-    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS_VERSION===10?'HISTORY_V10_BACKUP_GRANTS_ONLY':CORPUS_VERSION===9?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
+    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS_VERSION===11?'HISTORY_V11_BACKUP_GRANTS_ONLY':CORPUS_VERSION===10?'HISTORY_V10_BACKUP_GRANTS_ONLY':CORPUS_VERSION===9?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
     '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql')], {
     encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
   fs.writeFileSync(path.join(cfg.output, 'data-grants-' + mode + '.private.log'), result.stderr || '');
@@ -177,15 +181,27 @@ async function run() {
       source.query("set role service_role;select public.production_native_client_provision('schema-v10-native-client','schema-v10-native-client','Schema V10 Native Client');");
       source.query("insert into public.description_images(id,storage_path,public_url,mime_type,byte_length,width,height,actor_key,actor_name,actor_role,client_slug) values ('00000000-0000-4000-8000-000000000910','schema-v10-image.png','https://storage.invalid/schema-v10-image.png','image/png',1,1,1,'schema-v10-actor','Schema V10 Actor','admin','schema-v10-native-client');");
     }
+    if (CORPUS_VERSION>=11) {
+      // The v11 contracts are staged only in this disposable source setup. The
+      // migration order preserves ordinary receipt/recognizer prerequisites and
+      // applies notification observers after the native event-assignee stamp.
+      for (const file of ['2026-09-09-native-ordinary-receipts.sql','2026-09-10-syncview-retirement-native-ordinary-recognizer.sql',
+        '2026-09-09-editors-event-assignee.sql','2026-09-09-native-notification-outbox.sql'])
+        source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
+      source.query("insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);");
+    }
     const seeded = phase(cfg, source, 'seed', '', 'source');
     const continuity = CORPUS_VERSION>=9 ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
-      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS_VERSION===10 ? 47 : CORPUS_VERSION===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS_VERSION===11 ? 52 : CORPUS_VERSION===10 ? 47 : CORPUS_VERSION===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       const selected = backup.resolveCorpus(CORPUS).tables;
       for (const table of selected) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
+      if (CORPUS_VERSION >= 11) {
+        assert.deepEqual(selected.slice(-5).map(table => table.name), ['production_native_ordinary_receipt_admissions','production_notification_config','production_notification_intents','production_notification_delivery_receipts','production_notification_reconciliations']);
+      }
       if (CORPUS_VERSION >= 10) {
-        assert.deepEqual(selected.slice(-V10_NEW_DURABLE_OWNERS.length).map(table => table.name), V10_NEW_DURABLE_OWNERS);
+        assert.deepEqual(selected.slice(CORPUS_VERSION >= 11 ? -10 : -V10_NEW_DURABLE_OWNERS.length, CORPUS_VERSION >= 11 ? -5 : undefined).map(table => table.name), V10_NEW_DURABLE_OWNERS);
         for (const name of V10_NATIVE_RECOVERY_OWNERS) {
           assert.ok(selected.some(table => table.name === name), 'v10 selected native recovery owner:' + name);
           assert.notEqual(source.query('select to_regclass(' + quote('public.' + name) + ')'), '', 'v10 source native recovery owner:' + name);

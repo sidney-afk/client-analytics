@@ -122,6 +122,16 @@ const NATIVE_PROVISIONING_HISTORY_TABLES = Object.freeze([...NATIVE_CONTINUITY_H
   // remain external custody and are never claimed by this data-only package.
   { name: 'description_images', pk: 'id' },
 ]);
+// v11 adds the ordinary native receipt ledger and the notification intent/delivery
+// evidence. The delivery receipt uses a generated identity; no earlier corpus
+// is redefined to include these later durable owners.
+const NATIVE_NOTIFICATION_HISTORY_TABLES = Object.freeze([...NATIVE_PROVISIONING_HISTORY_TABLES,
+  { name: 'production_native_ordinary_receipt_admissions', pk: 'token' },
+  { name: 'production_notification_config', pk: 'key' },
+  { name: 'production_notification_intents', pk: 'id' },
+  { name: 'production_notification_delivery_receipts', pk: 'id', identity: true },
+  { name: 'production_notification_reconciliations', pk: 'id', identity: true },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
@@ -138,6 +148,8 @@ const CORPORA = Object.freeze({
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V9\n', 'utf8'), tables: NATIVE_CONTINUITY_HISTORY_TABLES }),
   'history-v10': Object.freeze({ name: 'history-v10', version: 10,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V10\n', 'utf8'), tables: NATIVE_PROVISIONING_HISTORY_TABLES }),
+  'history-v11': Object.freeze({ name: 'history-v11', version: 11,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V11\n', 'utf8'), tables: NATIVE_NOTIFICATION_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -157,7 +169,8 @@ function manifestCorpus(manifest) {
           : manifest && manifest.schema_version === 7 ? 'history-v7'
             : manifest && manifest.schema_version === 8 ? 'history-v8'
               : manifest && manifest.schema_version === 9 ? 'history-v9'
-                : manifest && manifest.schema_version === 10 ? 'history-v10' : '';
+                : manifest && manifest.schema_version === 10 ? 'history-v10'
+                  : manifest && manifest.schema_version === 11 ? 'history-v11' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -340,6 +353,7 @@ ${corpus.version < 7 ? "if to_regclass('public.production_card_materialization_r
 ${corpus.version < 8 ? "if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if;" : ''}
 ${corpus.version < 9 ? "if to_regclass('public.legacy_intake_native_triage') is not null or to_regclass('public.native_brief_media_occurrences') is not null then raise exception 'Track-B package omits native continuity recovery evidence'; end if;" : ''}
 ${corpus.version < 10 ? "if to_regclass('public.production_native_client_provisions') is not null or to_regclass('public.syncview_retirement_admission') is not null or to_regclass('public.production_native_identifier_mint') is not null or to_regclass('public.production_native_identifier_grants') is not null or to_regclass('public.description_images') is not null then raise exception 'Track-B package omits native provision, retirement, identifier, or description ledger evidence'; end if;" : ''}
+${corpus.version < 11 ? "if to_regclass('public.production_native_ordinary_receipt_admissions') is not null or to_regclass('public.production_notification_config') is not null or to_regclass('public.production_notification_intents') is not null or to_regclass('public.production_notification_delivery_receipts') is not null or to_regclass('public.production_notification_reconciliations') is not null then raise exception 'Track-B package omits ordinary native receipt or notification recovery evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
   raise exception 'Track-B corpus has an omitted incoming foreign key';
@@ -352,7 +366,7 @@ end $corpus_boundary$;\n`;
 }
 
 function materializationPresenceSql() {
-  return "do $materialization_boundary$ begin if to_regclass('public.production_native_client_provisions') is not null or to_regclass('public.syncview_retirement_admission') is not null or to_regclass('public.production_native_identifier_mint') is not null or to_regclass('public.production_native_identifier_grants') is not null or to_regclass('public.description_images') is not null then raise exception 'Track-B package omits native provision, retirement, identifier, or description ledger evidence'; end if; if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if; if to_regclass('public.legacy_intake_native_triage') is not null or to_regclass('public.native_brief_media_occurrences') is not null then raise exception 'Track-B package omits native continuity recovery evidence'; end if; end $materialization_boundary$;\n";
+  return "do $materialization_boundary$ begin if to_regclass('public.production_native_ordinary_receipt_admissions') is not null or to_regclass('public.production_notification_config') is not null or to_regclass('public.production_notification_intents') is not null or to_regclass('public.production_notification_delivery_receipts') is not null or to_regclass('public.production_notification_reconciliations') is not null then raise exception 'Track-B package omits ordinary native receipt or notification recovery evidence'; end if; if to_regclass('public.production_native_client_provisions') is not null or to_regclass('public.syncview_retirement_admission') is not null or to_regclass('public.production_native_identifier_mint') is not null or to_regclass('public.production_native_identifier_grants') is not null or to_regclass('public.description_images') is not null then raise exception 'Track-B package omits native provision, retirement, identifier, or description ledger evidence'; end if; if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if; if to_regclass('public.legacy_intake_native_triage') is not null or to_regclass('public.native_brief_media_occurrences') is not null then raise exception 'Track-B package omits native continuity recovery evidence'; end if; end $materialization_boundary$;\n";
 }
 
 function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {
@@ -1319,6 +1333,7 @@ module.exports = {
   CATALOG_CUTOFF_HISTORY_TABLES,
   NATIVE_CONTINUITY_HISTORY_TABLES,
   NATIVE_PROVISIONING_HISTORY_TABLES,
+  NATIVE_NOTIFICATION_HISTORY_TABLES,
   corpusBoundarySql,
   readOnlyPrivilegeArgs,
   configuredCorpus,

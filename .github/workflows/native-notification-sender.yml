@@ -1,26 +1,47 @@
 name: Native notification sender
 
+# Source-only prepared lane. GitHub scheduling is best effort and gives no
+# prompt-delivery SLO. The protected variable keeps all provider calls dormant.
 on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: native-notification-sender
+  cancel-in-progress: false
+
 jobs:
   send:
-    # Dormant unless an operator explicitly enables the repository variable
-    # after migration/function deployment and a scoped manual receipt drill.
-    if: vars.NATIVE_NOTIFICATION_SENDER_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NOTIFY_URL: ${{ secrets.NATIVE_NOTIFICATION_NOTIFY_URL }}
+      NOTIFY_RUNNER_KEY: ${{ secrets.NATIVE_NOTIFICATION_RUNNER_KEY }}
+      NATIVE_NOTIFICATION_SENDER_ENABLED: ${{ vars.NATIVE_NOTIFICATION_SENDER_ENABLED || 'false' }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Claim and deliver bounded notification intents
-        env:
-          NOTIFY_URL: ${{ secrets.NATIVE_NOTIFICATION_NOTIFY_URL }}
-          NOTIFY_RUNNER_KEY: ${{ secrets.NATIVE_NOTIFICATION_RUNNER_KEY }}
+        shell: bash
         run: |
+          if [ "$NATIVE_NOTIFICATION_SENDER_ENABLED" != 'true' ]; then
+            echo 'native notification sender is DORMANT; protected activation has not been enabled.'
+            exit 0
+          fi
           test -n "$NOTIFY_URL" && test -n "$NOTIFY_RUNNER_KEY"
-          curl --fail-with-body --silent --show-error --max-time 30 \
+          curl --fail-with-body --silent --show-error --max-time 75 \
             -X POST "$NOTIFY_URL" \
             -H 'content-type: application/json' \
             -H "x-notify-runner-key: $NOTIFY_RUNNER_KEY" \
             --data '{"action":"send","limit":10}'
+      - name: Record notification sender heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=native_notification_sender --ok=${{ job.status == 'success' }}

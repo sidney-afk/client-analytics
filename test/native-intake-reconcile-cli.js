@@ -56,7 +56,7 @@ function respond(name, mode) {
       manifests: 4, requests_complete: 2, requests_owed: 2,
       owed: { children_native: 1, children_provider: 1, cards: 2, identity_conflicts: 1, missing_terminal_receipts: 1 },
       backlog_oldest_recorded_at: '2026-09-05T20:00:00Z', backlog_age_seconds: 4200,
-      latest_outcomes: { 'children:unresolved': 1, [CANARY.outcomeKey]: 1 }, observed_at: '2026-09-05T21:00:00Z',
+      latest_outcomes: { 'children:unresolved': 1, [CANARY.outcomeKey]: 1 }, observed_at: new Date().toISOString(),
     },
   };
   return { status: 200, body: JSON.stringify(bodies[name] || null) };

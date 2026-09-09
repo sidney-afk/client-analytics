@@ -46,6 +46,24 @@ const INTEGRITY_CHECKS = Object.freeze({
   orphan_outbox_dependency: "select count(*)::text from public.mirror_outbox o left join public.mirror_outbox q on q.id=o.depends_on_id where o.depends_on_id is not null and q.id is null;",
 });
 
+const V11_INTEGRITY_CHECKS = Object.freeze({
+  orphan_ordinary_receipt_outbox: "select count(*)::text from public.production_native_ordinary_receipt_admissions a left join public.mirror_outbox o on o.id=a.receipt_id where a.receipt_id is not null and o.id is null;",
+  orphan_notification_intent_client: "select count(*)::text from public.production_notification_intents i left join public.clients c on c.slug=i.client_slug where c.slug is null;",
+  orphan_notification_intent_deliverable: "select count(*)::text from public.production_notification_intents i left join public.deliverables d on d.id=i.deliverable_id where d.id is null;",
+  orphan_notification_intent_event: "select count(*)::text from public.production_notification_intents i left join public.deliverable_events e on e.id=i.source_event_id where i.source_event_id is not null and e.id is null;",
+  orphan_notification_intent_comment: "select count(*)::text from public.production_notification_intents i left join public.production_comments c on c.id=i.source_comment_id where i.source_comment_id is not null and c.id is null;",
+  orphan_notification_intent_actor: "select count(*)::text from public.production_notification_intents i left join public.team_members m on m.id=i.actor_member_id where i.actor_member_id is not null and m.id is null;",
+  orphan_notification_intent_intended_member: "select count(*)::text from public.production_notification_intents i left join public.team_members m on m.id=i.intended_member_id where i.intended_member_id is not null and m.id is null;",
+  orphan_notification_delivery_intent: "select count(*)::text from public.production_notification_delivery_receipts r left join public.production_notification_intents i on i.id=r.intent_id where i.id is null;",
+  orphan_notification_delivery_member: "select count(*)::text from public.production_notification_delivery_receipts r left join public.team_members m on m.id=r.intended_member_id where r.intended_member_id is not null and m.id is null;",
+  orphan_notification_reconciliation_intent: "select count(*)::text from public.production_notification_reconciliations r left join public.production_notification_intents i on i.id=r.intent_id where i.id is null;",
+});
+
+function integrityChecks(corpusName = 'legacy-v3') {
+  return resolveCorpus(corpusName).version >= 11
+    ? { ...INTEGRITY_CHECKS, ...V11_INTEGRITY_CHECKS } : INTEGRITY_CHECKS;
+}
+
 function clean(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -75,7 +93,8 @@ function assertScratchTarget(url = DB_URL, expectedRef = EXPECTED_REF, confirm =
 function restoreSql(parsedDump, corpusName = 'legacy-v3') {
   const corpus = resolveCorpus(corpusName);
   const names = corpus.tables.map(config => safeIdentifier(config.name));
-  const helper = corpus.version === 10 ? 'track_b_restore_set_history_v10_user_triggers'
+  const helper = corpus.version === 11 ? 'track_b_restore_set_history_v11_user_triggers'
+    : corpus.version === 10 ? 'track_b_restore_set_history_v10_user_triggers'
     : corpus.version === 9 ? 'track_b_restore_set_history_v9_user_triggers'
     : corpus.version === 8 ? 'track_b_restore_set_history_v8_user_triggers'
     : corpus.version === 7 ? 'track_b_restore_set_history_v7_user_triggers'
@@ -105,6 +124,10 @@ function restoreSql(parsedDump, corpusName = 'legacy-v3') {
   });
   const preamble = [
     'begin;',
+    // v11 ordinary receipt linkage is DEFERRABLE INITIALLY DEFERRED. Make the
+    // ordering explicit before combined truncation/COPY so mirrored receipts
+    // and their immutable admission can restore in one transaction.
+    'set constraints all deferred;',
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '20min';",
     ...legacyGuard,
@@ -128,7 +151,7 @@ function verifySql(corpusName = 'legacy-v3') {
     const name = safeIdentifier(config.name);
     lines.push(`select '${name}' || E'\\t' || count(*)::text from public.${name};`);
   }
-  for (const [key, sql] of Object.entries(INTEGRITY_CHECKS)) {
+  for (const [key, sql] of Object.entries(integrityChecks(corpusName))) {
     lines.push(`select '${key}' || E'\\t' || (${sql.slice(0, -1)});`);
   }
   return `${lines.join('\n')}\n`;
@@ -155,7 +178,7 @@ function verifyCounts(manifest, observed) {
       throw new Error(`Restore row-count mismatch for ${config.name}: expected ${expected}, observed ${observed[config.name]}`);
     }
   }
-  for (const key of Object.keys(INTEGRITY_CHECKS)) {
+  for (const key of Object.keys(integrityChecks(corpus.name))) {
     if (!Object.prototype.hasOwnProperty.call(observed, key)) {
       throw new Error(`Restore integrity check ${key} is missing`);
     }
@@ -228,6 +251,8 @@ if (require.main === module) {
 
 module.exports = {
   INTEGRITY_CHECKS,
+  V11_INTEGRITY_CHECKS,
+  integrityChecks,
   PRODUCTION_REF,
   assertScratchTarget,
   connectionProjectRef,

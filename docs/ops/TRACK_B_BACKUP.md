@@ -39,7 +39,7 @@ The active six-hour lane still follows the corpus selected by the protected
 `TRACK_B_BACKUP_CORPUS` repository variable. The legacy 14-table format remains
 its current authenticated value until the matching schema, restricted-role
 grants, and disposable recovery rehearsal are approved together. The workflow
-accepts explicit manual `history-v7`, `history-v8`, `history-v9`, and `history-v10` package
+accepts explicit manual `history-v7`, `history-v8`, `history-v9`, `history-v10`, and `history-v11` package
 runs; each version has its own signed format and prior versions refuse a newer
 owner instead of claiming empty coverage.
 
@@ -65,9 +65,15 @@ and `deliverable_events` retains the Editors event-time columns because the
 package carries the exact `pg_dump` COPY column list rather than a fixed list.
 It also retains the Boolean-singleton `syncview_retirement_admission` census state, the native identifier mint/grant owners, and the service-only `description_images` ledger. The v10 prerequisite rejects an identity sequence on every new owner.
 
+`history-v11` is a prepared 52-table successor. It adds the immutable ordinary native receipt admission ledger, notification config, notification intents, delivery receipts, and the operator reconciliation journal. The two notification journals use generated identity sequences; the ordinary admission's mirror-outbox foreign key must be `DEFERRABLE INITIALLY DEFERRED`, so restore begins by deferring constraints and validates all source references before commit. The v11 prerequisite also requires the ordinary receipt guard, all notification source observers, RLS, and their service-only ACL boundaries. It is source preparation only: no v11 disposable restore has been executed or claimed.
+
 Neither version restores Storage bucket configuration or object bytes, signed/Linear-hosted asset availability, provider state, n8n configuration, secrets, or client-facing tokens outside the selected database rows. The restored description ledger is evidence only; its referenced objects require separately verified custody before activation. The receipt
 and data corpus must be advanced again when a new authoritative table is
 introduced; never relabel an older package as complete.
+
+### Ordered v11 activation (deployment owner)
+
+Keep the schedule on its current protected corpus until the finalized ordinary-receipt recognizer and notification migration are installed in the exact source order, `scripts/track-b-history-v11-backup-prerequisites.sql` succeeds for both restricted roles, and a disposable empty-target v11 rehearsal captures then restores nonempty ordinary and notification records while proving the deferred receipt edge, notification source FKs, identities, trigger functions, and ACLs. Only then may the ordered activation manifest set `TRACK_B_BACKUP_CORPUS=history-v11`. GitHub schedule delivery remains best effort; this source change does not activate a scheduler, notification sender, runtime flag, n8n workflow, or provider call.
 
 ### Ordered v10 activation (deployment owner)
 

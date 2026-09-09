@@ -1,10 +1,46 @@
 'use strict';
-/* Read-only, bounded health observer for the completion backlog. A missing or
- * malformed summary is unreadable, never converted to a reassuring zero. */
+
+/* Read-only, bounded health observer for the completion backlog. A missing,
+ * stale, or malformed summary is unreadable, never reassuring zero debt. */
 const { restTransport, parseIntOption } = require('../native-intake-reconcile/runner-lib');
 const { assessSummary } = require('../native-intake-reconcile/reconcile-lib');
-function limits(env=process.env){return {maxBacklogAgeSeconds:parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_BACKLOG_AGE_SECONDS||'3600','max_backlog_age_seconds',{min:0,max:31536000,required:true}),maxRequestsOwed:parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED||'0','max_requests_owed',{min:0,max:1000000,required:true}),maxMissingTerminalReceipts:parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_MISSING_TERMINAL_RECEIPTS||'0','max_missing_terminal_receipts',{min:0,max:1000000,required:true}),maxIdentityConflicts:parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_IDENTITY_CONFLICTS||'0','max_identity_conflicts',{min:0,max:1000000,required:true})};}
-async function check(env=process.env){const url=String(env.SUPABASE_URL||'').replace(/\/$/,''),key=String(env.SUPABASE_SERVICE_ROLE_KEY||'');if(!url||!key)throw new Error('completion_monitor_unreadable');const timeoutMs=parseIntOption(env.NATIVE_INTAKE_RPC_TIMEOUT_MS||'15000','rpc_timeout_ms',{min:1000,max:60000,required:true});const summary=await restTransport({url,key,timeoutMs})('production_intake_reconcile_summary',{});const assessment=assessSummary(summary,limits(env));return {verdict:assessment.ok?'healthy':'attention_required',ok:assessment.ok,failures:assessment.failures,summary:assessment.summary};}
-async function main(){let result;try{result=await check();}catch(_){result={verdict:'unreadable',ok:false,failures:['summary_unreadable']};}console.log(JSON.stringify(result));if(!result.ok)throw new Error('native intake completion '+result.verdict);return result;}
-if(require.main===module)main().catch(error=>{console.error(error.message||String(error));process.exit(1);});
-module.exports={check,limits};
+
+function limits(env = process.env) {
+  return {
+    maxBacklogAgeSeconds: parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_BACKLOG_AGE_SECONDS || '3600', 'max_backlog_age_seconds', { min: 0, max: 31536000, required: true }),
+    maxRequestsOwed: parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_REQUESTS_OWED || '0', 'max_requests_owed', { min: 0, max: 1000000, required: true }),
+    maxMissingTerminalReceipts: parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_MISSING_TERMINAL_RECEIPTS || '0', 'max_missing_terminal_receipts', { min: 0, max: 1000000, required: true }),
+    maxIdentityConflicts: parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_IDENTITY_CONFLICTS || '0', 'max_identity_conflicts', { min: 0, max: 1000000, required: true }),
+    maxSummaryAgeSeconds: parseIntOption(env.NATIVE_INTAKE_COMPLETION_MAX_SUMMARY_AGE_SECONDS || '300', 'max_summary_age_seconds', { min: 0, max: 86400, required: true }),
+  };
+}
+async function check(env = process.env) {
+  const url = String(env.SUPABASE_URL || '').replace(/\/$/, '');
+  const key = String(env.SUPABASE_SERVICE_ROLE_KEY || '');
+  if (!url || !key) throw new Error('completion_monitor_unreadable');
+  const timeoutMs = parseIntOption(env.NATIVE_INTAKE_RPC_TIMEOUT_MS || '15000', 'rpc_timeout_ms', { min: 1000, max: 60000, required: true });
+  const summary = await restTransport({ url, key, timeoutMs })('production_intake_reconcile_summary', {});
+  const assessment = assessSummary(summary, limits(env));
+  return {
+    verdict: assessment.ok ? 'healthy' : 'attention_required',
+    ok: assessment.ok,
+    failures: assessment.failures,
+    summary: assessment.summary,
+  };
+}
+async function main() {
+  let result;
+  try {
+    result = await check();
+  } catch (_) {
+    result = { verdict: 'unreadable', ok: false, failures: ['summary_unreadable'] };
+  }
+  console.log(JSON.stringify(result));
+  if (!result.ok) throw new Error('native intake completion ' + result.verdict);
+  return result;
+}
+if (require.main === module) main().catch(error => {
+  console.error(error.message || String(error));
+  process.exit(1);
+});
+module.exports = { check, limits };

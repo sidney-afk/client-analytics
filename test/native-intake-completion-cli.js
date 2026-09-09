@@ -57,10 +57,12 @@ function respond(name, mode) {
       manifests: 4, requests_complete: 2, requests_owed: 2,
       owed: { children_native: 1, children_provider: 1, cards: 2, identity_conflicts: 1, missing_terminal_receipts: 1 },
       backlog_oldest_recorded_at: '2026-09-05T20:00:00Z', backlog_age_seconds: 4200,
-      latest_outcomes: { 'children:unresolved': 1, [CANARY.outcomeKey]: 1 }, observed_at: '2026-09-05T21:00:00Z',
+      latest_outcomes: { 'children:unresolved': 1, [CANARY.outcomeKey]: 1 }, observed_at: new Date().toISOString(),
     },
   };
-  return { status: 200, body: JSON.stringify(bodies[name] || null) };
+  const body = bodies[name] || null;
+  if (mode === 'wrong_request' && name === 'production_intake_reconcile_children') body.request_id = 'wrong-stage-request';
+  return { status: 200, body: JSON.stringify(body) };
 }
 
 function startServer(mode) {
@@ -187,6 +189,16 @@ function leaks(text) { return forbidden.filter(word => String(text || '').includ
       'a malformed aggregate summary fails closed instead of becoming zero debt');
   } finally {
     malformed.server.close();
+  }
+
+  const wrongRequest = await startServer('wrong_request');
+  try {
+    const refused = await runCli(wrongRequest.port, ['--limit=5'], {});
+    ok(refused.status === 1 && /^reconcile_protocol_children\s*$/m.test(refused.stderr)
+      && leaks(refused.stdout).length === 0 && leaks(refused.stderr).length === 0,
+      'a stage response for another request fails closed before tallying completion');
+  } finally {
+    wrongRequest.server.close();
   }
 
   const failing = await startServer('error');

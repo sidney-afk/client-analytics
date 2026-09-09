@@ -30,6 +30,8 @@ alter table public.clients
       and native_project_ids ? 'video'
       and native_project_ids ? 'graphics'
       and (native_project_ids - 'video' - 'graphics') = '{}'::jsonb
+      and jsonb_typeof(native_project_ids->'video') = 'string'
+      and jsonb_typeof(native_project_ids->'graphics') = 'string'
       and native_project_ids->>'video' ~ '^svproj_video_[0-9a-f]{32}$'
       and native_project_ids->>'graphics' ~ '^svproj_graphics_[0-9a-f]{32}$'
       and native_project_ids->>'video' <> native_project_ids->>'graphics'

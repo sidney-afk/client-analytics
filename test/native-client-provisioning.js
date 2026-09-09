@@ -11,6 +11,10 @@ function has(pattern, message) { assert.match(sql, pattern, message); }
 
 has(/add column if not exists native_project_ids jsonb not null default '\{\}'::jsonb/i,
   'new native project mapping must be additive and non-null');
+has(/jsonb_typeof\(native_project_ids->'video'\) = 'string'[\s\S]{0,240}jsonb_typeof\(native_project_ids->'graphics'\) = 'string'/,
+  'mapping constraint must not let SQL CHECK NULL semantics admit fake ids');
+has(/create unique index if not exists clients_native_project_ids_video_unique[\s\S]{0,220}clients_native_project_ids_graphics_unique/,
+  'each native team identity must have one roster owner');
 has(/'svproj_video_' \|\| encode\(gen_random_bytes\(16\), 'hex'\)/,
   'video identity must be opaque UUIDhex-shaped');
 has(/'svproj_graphics_' \|\| encode\(gen_random_bytes\(16\), 'hex'\)/,

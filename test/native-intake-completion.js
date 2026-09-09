@@ -1,13 +1,16 @@
 'use strict';
 // No live URLs accepted. CI's existing disposable PostgreSQL service is required;
 // local use explicitly opts in after starting a disposable loopback database.
-// Chain: PR1293 manifest -> PR1302 native-only intake -> this reconcile draft,
+// Chain: root manifest -> exact composed named-append native intake -> receipt
+// retention -> this reconcile draft,
 // plus the exact live column set of both card tables and their event ledgers
 // (from the schema baseline) so stage 2 writes the same columns it would live.
 const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
+const os = require('os');
 const { bootCluster, connectionEnv } = require('../scripts/native-intake-manifest/harness.js');
+const { fromRepository } = require('../scripts/native-intake-named-append-compose.js');
 if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.INTAKE_MANIFEST_REQUIRE_POSTGRES !== '1') {
   console.log('SKIP native intake completion: disposable PostgreSQL not explicitly required');
   process.exit(0);
@@ -34,6 +37,7 @@ function baselineTable(baseline, table) {
 }
 
 let cluster;
+let composedPath = '';
 try {
   cluster = bootCluster();
   const filming = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-07-09-filming-plans-source.sql'), 'utf8');
@@ -41,7 +45,12 @@ try {
   if (seed < 0) throw new Error('filming-plan schema seam drift');
   cluster.exec(filming.slice(0, seed));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-root-manifest.sql'));
-  cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-only-intake.sql'));
+  // The two source halves both define production_intake_append. The operator
+  // applies their one-transaction composed artifact, never either half alone.
+  composedPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'native-intake-completion-')), 'composed.sql');
+  fs.writeFileSync(composedPath, fromRepository().sql);
+  cluster.runFile(composedPath);
+  cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-08-native-intake-receipt-retention.sql'));
   // Same exact F27 write-fence subset the native-only proof installs.
   const f27 = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-07-20-f27-team-rollback.sql'), 'utf8').replace(/\r\n/g, '\n');
   const tableStart = f27.indexOf('create table if not exists public.track_b_team_rollbacks (');

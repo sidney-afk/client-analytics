@@ -272,7 +272,7 @@ ok(/const verificationEpoch = _syncviewStaffVerificationEpoch/.test(extract('_pr
 ok(/_prodState\.writes\.has\(id \+ ':labels'\)/.test(extract('_prodEnsureLabels'))
   && /_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh')),
 'Production refreshes preserve a pending label write and do not race it with an older protected read');
-ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds \}\)/.test(source)
+ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds,\s*\.\.\.\(state\.catalogVersion \? \{ catalog_version: state\.catalogVersion \} : \{\}\) \}\)/.test(extract('_prodRunLabelsWrite'))
   && /payload\.expected_updated_at = issue\.updatedRaw/.test(source)
   && /_prodWriteRequestId\(operation\)/.test(extract('_prodGatewayWrite')),
 'label toggles send one full selected-id set through the existing CAS/idempotency envelope');

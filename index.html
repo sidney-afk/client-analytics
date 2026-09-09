@@ -27923,7 +27923,9 @@
             'client_scope_mismatch', 'client_inactive', 'asset_scope_forbidden',
             'assignee_scope_forbidden', 'description_scope_forbidden',
             'skip_graphic_generation_forbidden', 'test_client_scope_required',
-            'test_project_scope_required', 'test_scope_service_only'
+            'test_project_scope_required', 'test_scope_service_only',
+            'assignment_scope_forbidden',
+            'native_label_scope_forbidden'
         ]);
         // A runtime flag or routing decision. Only the owner can move it.
         add('blocked', [
@@ -27933,7 +27935,10 @@
             'intake_assignee_override_not_allowed', 'label_not_applicable',
             'label_selection_out_of_catalog', 'production_create_batch_scope',
             'production_create_parent_nested', 'production_create_parent_route',
-            'production_create_parent_scope', 'production_create_closed'
+            'production_create_parent_scope', 'production_create_closed',
+            'native_label_catalog_config_invalid',
+            'native_label_catalog_held',
+            'native_label_catalog_unverified'
         ]);
         // Someone else won the race.
         add('conflict', [
@@ -27958,7 +27963,8 @@
             'component_fill_sort_mismatch', 'component_fill_card_missing',
             'source_repair_receipt_required', 'status_commit_required',
             'create_parent_not_found', 'batch_parent_mapping_missing',
-            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
+            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete',
+            'native_label_catalog_changed'
         ]);
         // The local repair journal for this write does not line up.
         add('repair', [
@@ -28001,7 +28007,10 @@
             'graphics_default_assignee_unavailable', 'create_parent_lookup_unavailable',
             'create_replay_lookup_unavailable', 'graphic_generation_unavailable',
             'graphic_generation_failed', 'label_catalog_unavailable',
-            'label_catalog_incomplete', 'label_selection_incomplete'
+            'label_catalog_incomplete', 'label_selection_incomplete',
+            'native_label_catalog_config_unavailable',
+            'native_label_catalog_malformed',
+            'native_label_catalog_unavailable'
         ]);
         // A payload this UI built, which the gateway will reject every time.
         add('bug', [
@@ -28082,6 +28091,126 @@
         assignee_provider_unavailable: {
             title: 'Nothing was changed',
             text: 'The linked task system could not confirm who is assignable, so nothing was changed. The editor list is not wrong and neither is this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        delivery_unknown: {
+            title: 'Check delivery',
+            text: 'The urgent ping may already have been sent. Check #video-editing manually before sending another message.'
+        },
+        invalid_urgent_request: {
+            title: 'Urgent ping not sent',
+            text: 'This page sent an unsupported urgent request. Send this code to the owner; repeating the same request will not fix it.'
+        },
+        native_urgent_not_configured: {
+            title: 'Urgent ping not sent',
+            text: 'Urgent alerts are not enabled for this video yet. Ask the owner to check the setup, or post in #video-editing manually.'
+        },
+        urgent_assignment_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current editor assignment could not be confirmed. Ask your social media manager to check the assignment before sending a ping.'
+        },
+        urgent_context_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The video, card or editor details could not be confirmed. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_editor_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The assigned editor is not available for this alert. Ask your social media manager to check the active video editor and their email address.'
+        },
+        urgent_lookup_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current video details could not be checked. Nothing was sent. Wait a moment before trying again, or post in #video-editing manually.'
+        },
+        urgent_round_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current tweaks request could not be identified. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_target_changed: {
+            title: 'Urgent ping not sent',
+            text: 'The video, assignment or tweaks request changed. Refresh the card and check its current status and editor before deciding whether a ping is still needed.'
+        },
+        calendar_feedback_recovery_forbidden: {
+            title: 'Card copy refused',
+            text: 'This card is no longer bound to the work item your feedback was accepted on, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        companion_status_unbound: {
+            title: 'Card copy held',
+            text: 'This earlier status change cannot be linked to your saved feedback safely, so retrying will not complete its Calendar copy. Your original text is kept; ask your SMM to review it.'
+        },
+        companion_status_unreserved: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its status change was never reserved, so retrying will not change that. Your original text is kept; this needs review.'
+        },
+        intake_editor_options_unavailable: {
+            title: 'Editor list unavailable',
+            text: 'The editor list could not be verified. Refresh the dialog to try again. Your draft is kept; automatic assignment is still available.'
+        },
+        invalid_cursor: {
+            title: 'List needs refreshing',
+            text: 'This saved page of the list is no longer usable. Refresh the submission inbox to load it again.'
+        },
+        invalid_recover_source: {
+            title: 'Card copy refused',
+            text: 'The saved recovery context for this feedback is incomplete, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        legacy_intake_acceptance_unavailable: {
+            title: 'Submission unconfirmed',
+            text: 'We could not confirm whether this submission was accepted. Keep the original request and check the submission inbox before trying again.'
+        },
+        legacy_intake_client_not_unique: {
+            title: 'Client needs checking',
+            text: 'This request could not be matched to one active client. Keep the original request and ask your social media manager to check the client.'
+        },
+        legacy_intake_confirmation_required: {
+            title: 'Team selection needed',
+            text: 'Review the saved submission and select the intended teams in the submission inbox before completing it.'
+        },
+        legacy_intake_inbox_unavailable: {
+            title: 'Submission inbox unavailable',
+            text: 'The saved submissions could not be loaded. Try refreshing the inbox in a moment; do not send a replacement request.'
+        },
+        legacy_intake_invalid_utf8: {
+            title: 'Submission could not be read',
+            text: 'This request arrived in an unreadable form. Keep your original text and ask your social media manager for help before sending it again.'
+        },
+        legacy_intake_missing: {
+            title: 'Saved submission not found',
+            text: 'This submission could not be found in the inbox. Keep the original request and ask your social media manager to check it.'
+        },
+        legacy_intake_native_epoch_required: {
+            title: 'Completion paused',
+            text: 'The replacement workflow is not ready for every selected team. Keep this saved submission and ask the owner to check readiness.'
+        },
+        legacy_intake_original_staff_required: {
+            title: 'Original reviewer needed',
+            text: 'The person who confirmed these teams needs to continue this saved submission. Ask them to open the inbox; do not create a replacement.'
+        },
+        legacy_intake_payload_conflict: {
+            title: 'Saved request differs',
+            text: 'This request differs from the version already saved. Keep both versions and ask your social media manager to review them before continuing.'
+        },
+        legacy_intake_storage_unavailable: {
+            title: 'Submission unconfirmed',
+            text: 'We could not confirm that this request was saved. Keep the original request and check the submission inbox before trying again.'
+        },
+        legacy_intake_too_large: {
+            title: 'Submission too large',
+            text: 'This request is too large to process here. Keep the original text and ask your social media manager to help submit it safely.'
+        },
+        public_intake_disabled: {
+            title: 'Submission paused',
+            text: 'Submissions are temporarily paused. Keep your original request and contact your social media manager before sending it again.'
+        },
+        recover_source_unsupported: {
+            title: 'Card copy refused',
+            text: 'This kind of feedback cannot be finished from here, and retrying will not change that. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        recovery_held: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its Calendar copy could not be completed safely. Your original text is kept; this needs review.'
+        },
+        recovery_result_invalid: {
+            title: 'Card copy unconfirmed',
+            text: 'The write service answered in a shape this page does not recognise. Nothing else was written; your original text is kept. Send this code to the owner.'
         },
         invalid_intake_item_name: {
             title: 'Post name too long',
@@ -34544,39 +34673,137 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue) {
+        if (!issue && !String(post.video_deliverable_id || '').trim()) {
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
-        _calUrgentSlackDispatch(btn, issue, String(calState.client || '').trim(), post.name, {
-            persist: (ping) => _calPersistUrgentSentForPost(calState.client, post, ping)
+        const sourceClient = calState.client;
+        _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
+            native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: calClientSlug(calState.client),
+                deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'calendar', video_status_at: String(post.video_status_at || '') } : null,
+            currentClientSlug: () => calClientSlug(calState.client),
+            currentPost: () => calState.posts.find(p => p.id === pid),
+            persist: (ping) => _calPersistUrgentSentForPost(sourceClient, post, ping)
         });
     }
-    /* Shared confirm → POST → button-latch for the URGENT ping. Used by BOTH the
-       SMM calendar button (_calSendUrgentSlack) and Kasper's review-card button
-       (_kasperSendUrgentSlack). The front-end only ever sends the video
-       sub-issue URL + client name; the send-urgent-slack workflow resolves the
-       editor from Linear and posts to #video-editing, so the message is byte-for
-       -byte identical no matter who triggers it. `btn` may be null (no element to
-       latch). */
+    /* Four staff surfaces share confirmation and delivery handling. Native
+       identity goes only to the authenticated gateway; legacy URL-only cards
+       retain their existing webhook, and so does a native-capable card for as
+       long as the gateway has not been redeployed (see the 400 branch below).
+       A local hold prevents blind resubmission after uncertain native delivery.
+       It is not a global delivery receipt. */
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
+        const native = opts && opts.native;
+        const roundTime = native ? Date.parse(native.video_status_at) : NaN;
+        const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
+            { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
+        let storageUnavailable = false;
+        const retainedAttempt = () => {
+            if (!native) return false;
+            try { return !!localStorage.getItem(attemptKey); } catch (e) { storageUnavailable = true; return true; }
+        };
+        const showUnknown = () => {
+            if (btn) { btn.disabled = true; btn.textContent = 'Check delivery'; }
+            showNotify(storageUnavailable ? 'Delivery status unavailable' : 'Check delivery', storageUnavailable
+                ? 'This browser cannot read its saved delivery status. Nothing new was sent. Check #video-editing manually before sending another message.'
+                : 'An urgent ping may already have been sent for this round. Check #video-editing manually before sending another message.');
+        };
+        if (native && (typeof _isClientLink !== 'undefined' && _isClientLink)) {
+            showNotify('Staff sign-in required', 'Sign in as staff to send an urgent ping.'); return;
+        }
+        if (retainedAttempt()) { showUnknown(); return; }
         showConfirm(
             'Send urgent tweak ping?',
-            'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            native
+                ? 'This posts an “URGENT TWEAKS NEEDED” message in #video-editing and tags the currently assigned editor. Only use it for tweaks that need attention today.'
+                : 'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
             () => {
+                if (retainedAttempt()) { showUnknown(); return; }
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
+                    let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '', nativeLane = !!native;
+                    const releaseOwnHold = () => {
+                        try {
+                            if (holdWritten && localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey);
+                        } catch (ignore) {}
+                    };
                     try {
-                        const resp = await fetch(URGENT_SLACK_URL, {
+                        let resp;
+                        if (nativeLane) {
+                            // Retain before transport. This is a local recovery hold,
+                            // not a cross-device delivery or exactly-once receipt.
+                            holdValue = JSON.stringify({ state: 'delivery_unknown', attempt_id: crypto.randomUUID() });
+                            localStorage.setItem(attemptKey, holdValue);
+                            holdWritten = true;
+                            const headers = _syncviewEfHeaders({ 'Content-Type': 'application/json',
+                                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, WRITE_UI_PRODUCTION_WRITE_URL);
+                            const request = { method: 'POST', headers, body: JSON.stringify(native), signal: AbortSignal.timeout(30000) };
+                            attempted = true;
+                            resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, request);
+                        } else resp = await fetch(URGENT_SLACK_URL, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ issue, client, name: String(name || '') })
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
+                        /* THE PRE-DEPLOYMENT 400 IS THE LEGACY LANE, NOT A DELIVERY
+                           DOUBT. This file ships to Pages on merge; the gateway that
+                           knows `native_urgent_dispatch` ships later, on the F27
+                           Section 4 dispatch. In between, the deployed gateway
+                           answers `400 unsupported_action` with NO `delivery` field
+                           -- a shape the live handler cannot produce for this action,
+                           because it catches everything and always answers with one.
+                           A 400 is also the one status no retry and no later state
+                           can turn into a delivery: the request shape itself was
+                           refused, so nothing was sent and nothing can be sent later.
+                           Reading it as unknown would retain the hold and disable the
+                           URGENT button for the length of that window on every card
+                           that already works today. So the hold is released and a card
+                           that still carries a Linear sub-issue falls through to the
+                           webhook it uses right now. A native-only card has no such
+                           lane and is told plainly that nothing was sent. Same
+                           doctrine as the Create Post editor picker; it retires with
+                           the provider lane, not before. */
+                        if (nativeLane && resp.status === 400 && j && j.ok === false
+                            && j.error === 'unsupported_action' && j.delivery === undefined) {
+                            nativeLane = false;
+                            releaseOwnHold();
+                            if (!issue) {
+                                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                                showNotify('Could not send urgent ping', 'Nothing was sent. This video has no Linear sub-issue to fall back on, so post in #video-editing manually.');
+                                return;
+                            }
+                            resp = await fetch(URGENT_SLACK_URL, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ issue, client, name: String(name || '') })
+                            });
+                            j = null;
+                            try { j = await resp.json(); } catch {}
+                        }
+                        if (nativeLane) {
+                            knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
+                            if (!(resp.ok && j && j.ok === true && j.delivery === 'sent'
+                                && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
+                                && typeof j.slack_ts === 'string' && j.slack_ts.trim())) {
+                                const refusal = new Error('native_urgent_unconfirmed');
+                                if (knownNotSent) { refusal.code = String(j.error || 'native_urgent_unconfirmed'); refusal.status = resp.status; }
+                                throw refusal;
+                            }
+                        }
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
                         const sentAt = new Date().toISOString();
-                        if (opts && typeof opts.persist === 'function') {
+                        const current = nativeLane && opts.currentPost ? opts.currentPost() : null;
+                        const sameRound = !nativeLane || !!(current && opts.currentClientSlug && opts.currentClientSlug() === native.client_slug
+                            && String(current.id) === native.card_id
+                            && _writeUiNativeId(current, 'video') === native.deliverable_id
+                            && String(current.video_status_at || '') === native.video_status_at
+                            && _calNormStatus(current.video_status || '') === 'Tweaks Needed');
+                        if (!sameRound) {
+                            if (btn) { btn.disabled = true; btn.textContent = 'Earlier round sent'; }
+                            showNotify('Urgent ping sent', 'The ping was sent for the original video round. The current card changed, so its Sent marker was not updated.'); return;
+                        }
+                        if (sameRound && opts && typeof opts.persist === 'function') {
                             try {
                                 await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
                             } catch (persistErr) {
@@ -34588,6 +34815,20 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
+                        if (nativeLane && !attempted) {
+                            releaseOwnHold();
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Could not prepare urgent ping', 'Nothing was sent. This browser could not retain the delivery attempt. Check browser storage before trying again.'); return;
+                        }
+                        if (nativeLane && knownNotSent) {
+                            releaseOwnHold();
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            const code = e.code || 'native_urgent_unconfirmed';
+                            const guidance = _writeUiFailureText('urgent ping', code, e.status);
+                            showNotify(guidance.title, guidance.text + ' (code: ' + code + ')');
+                            return;
+                        }
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
                     }
@@ -42025,7 +42266,78 @@
      */
     const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
     const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS = 4000;
+    /* GATEWAY FIRST. The picker used to read the roster and the open-load
+       counts straight out of PostgREST, which forced the browser to reproduce
+       the gateway's eligibility rule (a non-null Linear mapping) in order to
+       agree with it. Once assignment is native that rule is wrong, so the
+       decision moves to the server: `intake_editor_options` answers with the
+       lane it is actually in and, in the native lane, with the ranked editors
+       it would itself assign. The PostgREST read below survives as the
+       PROVIDER-lane picker and is unchanged. */
     async function _calNativeVideoEditorPool() {
+        const state = _calNativePostState;
+        const identity = _syncviewStaffIdentityForHeaders();
+        const clientSlug = String(state && state.clientSlug || '');
+        const surface = String(state && state.surface || '');
+        const actorId = String(identity && identity.member && identity.member.id || '');
+        const actorKey = String(identity && identity.key || '');
+        const actorRole = String(identity && identity.role || '');
+        const current = () => {
+            const now = _syncviewStaffIdentityForHeaders();
+            return state && state === _calNativePostState
+                && state.surface === surface && state.clientSlug === clientSlug
+                && _nativePostViewSlug(surface) === clientSlug
+                && actorId && now && actorKey === now.key && actorRole === now.role
+                && now.member && actorId === now.member.id;
+        };
+        if (!current() || !['admin', 'smm'].includes(actorRole)) throw new Error('editor scope unavailable');
+        const url = CAL_SUPABASE_URL + '/functions/v1/production-write';
+        const response = await fetch(url, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', 'Content-Type': 'application/json' }, url),
+            body: JSON.stringify({ action: 'intake_editor_options', surface, client_slug: clientSlug }),
+        });
+        /* A 400 IS THE PROVIDER LANE, NOT AN ERROR. This file ships to Pages on
+           merge; the gateway that knows this action ships later, on the F27
+           Section 4 dispatch. In between, the deployed gateway answers
+           `400 unsupported_action` -- and a 400 is the one status no retry and
+           no later state can turn into an answer, because the request shape
+           itself was refused. Throwing here would break the picker for every
+           SMM for the length of that window; degrading to the provider picker
+           keeps it working exactly as it does today. The gateway still decides
+           the real assignment at submission either way, so a browser guessing
+           "provider" cannot make a native assignment happen or not happen. */
+        if (response.status === 400) {
+            const editors = await _calLegacyVideoEditorPool();
+            if (!current()) throw new Error('editor scope changed');
+            return editors;
+        }
+        const result = await response.json();
+        if (!current() || !response.ok || !result || result.ok !== true || result.complete !== true
+            || result.contract !== 'intake-editor-options-v1' || result.surface !== surface
+            || result.client_slug !== clientSlug || result.team !== 'video') {
+            throw new Error('editor options unavailable');
+        }
+        // Only a successful current provider decision may use the old picker.
+        // An unreadable epoch or malformed result never guesses this lane.
+        // Submission still independently validates its current policy.
+        if (result.lane === 'provider' && result.editors === undefined) {
+            const editors = await _calLegacyVideoEditorPool();
+            if (!current()) throw new Error('editor scope changed');
+            return editors;
+        }
+        if (result.lane !== 'native' || !Array.isArray(result.editors) || !result.editors.length
+            || result.editors.some(editor => !editor || typeof editor.id !== 'string' || !editor.id.trim()
+                || typeof editor.name !== 'string' || !editor.name.trim()
+                || !Number.isSafeInteger(editor.openCount) || editor.openCount < 0)
+            || new Set(result.editors.map(editor => editor.id)).size !== result.editors.length) {
+            throw new Error('editor options incomplete');
+        }
+        return result.editors.map(editor => ({ id: editor.id, name: editor.name, openCount: editor.openCount }));
+    }
+    async function _calLegacyVideoEditorPool() {
         /*
          * ELIGIBILITY, not just the roster. Caught in review: the shared
          * `_syncviewStaffRoster` cache selects id/name/role/team and nothing
@@ -43186,6 +43498,7 @@
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
+        const editorState = _calNativePostState;
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
            that fails leaves Create Post working exactly as it did before. */
@@ -43199,14 +43512,14 @@
             _calNativeVideoEditorPool(),
             new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
         ]).then(editors => {
-            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditors = editors;
             _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
             _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
             if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
             try { _calRenderNativePostChoice(); } catch (e) {}
         }).catch(() => {
-            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditorStatus = 'unavailable';
             try { _calRenderNativePostChoice(); } catch (e) {}
         });
@@ -48177,7 +48490,7 @@
         if (!p || c !== 'video') return false;
         if (_calNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
         const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
-        return !!link;
+        return !!(link || String(p.video_deliverable_id || '').trim());
     }
     /* Refresh just the status chip/dropdown on a card without re-rendering
        the whole calendar — used after an auto-status change so the card
@@ -51394,6 +51707,7 @@
                 status: 'ready',
                 complete: true,
                 authority: payload && payload.authority || '',
+                catalogVersion: typeof (payload && payload.catalog_version) === 'string' ? payload.catalog_version : '',
                 catalog: [...allById.values()],
                 selectedIds,
                 selected,
@@ -56345,7 +56659,8 @@
             state.writeError = '';
             _prodRefreshLabelSurfaces(id);
             try {
-                const json = await _prodGatewayWrite(issue, 'labels', { label_ids: labelIds });
+                const json = await _prodGatewayWrite(issue, 'labels', { label_ids: labelIds,
+                    ...(state.catalogVersion ? { catalog_version: state.catalogVersion } : {}) });
                 if (!json) {
                     if (!identityStillCurrent()) return;
                     const current = _prodLabelState(id) || state;
@@ -67334,7 +67649,7 @@
     function _sxrShowUrgent(p, c) {
         if (!p || c !== 'video') return false;
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
-        return !!String(p.linear_issue_id || '').trim();
+        return !!(String(p.linear_issue_id || '').trim() || String(p.video_deliverable_id || '').trim());
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
         if (!post || !post.id) return null;
@@ -67365,9 +67680,14 @@
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
-        _calUrgentSlackDispatch(btn, issue, String(sxrState.client || '').trim(), post.name, {
-            persist: (ping) => _sxrPersistUrgentSentForPost(sxrState.client, post, ping)
+        if (!issue && !String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        const sourceClient = sxrState.client;
+        _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
+            native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: sxrClientSlug(sxrState.client),
+                deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'samples', video_status_at: String(post.video_status_at || '') } : null,
+            currentClientSlug: () => sxrClientSlug(sxrState.client),
+            currentPost: () => sxrState.posts.find(p => p.id === pid),
+            persist: (ping) => _sxrPersistUrgentSentForPost(sourceClient, post, ping)
         });
     }
     function _sxrRenderInlineCard(p, isBlank, isCurrent) {
@@ -72164,9 +72484,13 @@
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
         const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
         const issue = String(it.post.linear_issue_id || '').trim();
-        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!issue && !String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
         const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
+            native: String(it.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(it.slug || sxrClientSlug(client)),
+                deliverable_id: _writeUiNativeId(it.post, 'video'), card_id: String(it.post.id), surface: 'samples', video_status_at: String(it.post.video_status_at || '') } : null,
+            currentClientSlug: () => String((_sxrKasperFindItem(pid) || {}).slug || ''),
+            currentPost: () => (_sxrKasperFindItem(pid) || {}).post,
             persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
         });
     }
@@ -79432,12 +79756,16 @@
                   || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
         if (!item || !item.post) return;
         const issue = String(item.post.linear_issue_id || '').trim();
-        if (!issue) {
+        if (!issue && !String(item.post.video_deliverable_id || '').trim()) {
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
         const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, item.post.name, {
+            native: String(item.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(item.slug || calClientSlug(client)),
+                deliverable_id: _writeUiNativeId(item.post, 'video'), card_id: String(item.post.id), surface: 'calendar', video_status_at: String(item.post.video_status_at || '') } : null,
+            currentClientSlug: () => String(((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).slug || ''),
+            currentPost: () => ((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).post,
             persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
         });
     }

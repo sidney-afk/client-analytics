@@ -72,7 +72,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '5'
+      PRODUCTION_WRITE_FILE_COUNT: '6'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -281,18 +281,22 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      # Re-pinned 2026-09-08: a Submit-tab note written for the video editor
-      # can no longer suppress or stand in for AI thumbnail-title generation.
-      # A caller-supplied note and a generated title (labelled with
-      # THUMBNAIL_TEXT_AI_LABEL) are additive -- joined by a newline -- rather
-      # than one excluding or replacing the other; only a PRIOR ATTEMPT's
-      # brief still wins outright. Amended before merge for a Codex P2: a
-      # generated title containing \r or \n is now rejected too, since only
-      # its first physical line would carry the label. See
-      # test/f27-section4-deploy-lane.js CANDIDATES for the full note. No
-      # migration, no new import, file count unchanged at 5.
-      # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432
+      # Re-pinned for the native write gateway lift, ON TOP OF #1361. Two
+      # changes are now in this closure and BOTH must be present:
+      #   1. #1361 (main, 2026-09-08): a Submit-tab note written for the video
+      #      editor no longer suppresses or stands in for AI thumbnail-title
+      #      generation; note and generated title are additive, and a title
+      #      containing \r or \n is rejected. Only a PRIOR ATTEMPT's brief wins.
+      #   2. The native write gateway lift: intake, append, component fill,
+      #      assignee change and labels stop routing through Linear, and the
+      #      native urgent handoff lands on top.
+      # Closure grows to SIX files; the new import is
+      # _shared/native-brief-media.mjs. Every native lane is behind a flag that
+      # defaults OFF, so deploying this activates nothing on its own: the SQL
+      # goes in FIRST and the flags are flipped AFTER.
+      # (Prior pins: 27d1a608... files=5, #1361 2026-09-08; ccbdd136f4...
+      # production-write v69, 2026-09-07.)
+      PRODUCTION_WRITE_SOURCE_SHA256: e1c6443c850f74a449e05e7e59f43d1afd21a62c3c177702752f60fb421155da
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

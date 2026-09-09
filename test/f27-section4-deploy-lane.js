@@ -447,9 +447,19 @@ const CANDIDATES = new Map([
     // the existing length/grounding rejections. Comment-only elsewhere; no
     // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
-    source: '27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432',
+    //
+    // Re-pinned AGAIN, same day, ON TOP of the above: the native write gateway
+    // lift. Intake, append, component fill, assignee change and labels stop
+    // routing through Linear, and the native urgent handoff lands with them.
+    // BOTH changes are in this closure -- the thumbnail-title fix above and
+    // the native lift -- and a pin that carries only one of them is wrong.
+    // File count moves 5 -> SIX; _shared/native-brief-media.mjs is the new
+    // import. Every native lane is behind a flag defaulting OFF, so the deploy
+    // activates nothing: SQL first, dispatch second, flags last.
+    // Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: 'e1c6443c850f74a449e05e7e59f43d1afd21a62c3c177702752f60fb421155da',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 5,
+    files: 6,
   }],
 ]);
 

@@ -7389,8 +7389,6 @@
         .kad-range-btn { min-height: 32px; padding: 6px 12px; border: none; border-right: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .kad-range-btn:last-child { border-right: none; }
         .kad-range-btn.active { background: var(--text-primary); color: var(--white); }
-        .kad-campaign-select { min-height: 32px; padding: 6px 26px 6px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
-        .kad-campaign-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
         .kad-range-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
         .kad-lead-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
         .kad-lead-won { background: var(--up-bg); color: var(--up); }
@@ -75477,14 +75475,16 @@
         // is genuinely something to choose between. A dropdown rather than a
         // button row: once the account passed a handful of campaigns the tab
         // row overflowed the toolbar and got visually clipped (owner report,
-        // 2026-09-09) - a <select> scales to any count without that failure
-        // mode.
+        // 2026-09-09). Uses the shared sv-select primitive rather than a native
+        // <select> - UI_DESIGN_STANDARDS.md requires it on branded surfaces
+        // (native popups can't carry SyncView's keyboard/theme/tooltip/mobile
+        // states); _svSelectPick dispatches a real change event on the hidden
+        // input, so the same this.value onchange contract applies.
         if (_kadState.campaigns.length < 2) return '';
-        const opts = [{ campaign_id: 'all', campaign_name: 'All campaigns' }].concat(_kadState.campaigns);
-        const optionsHtml = opts.map(c =>
-            '<option value="' + _calEscAttr(c.campaign_id) + '"' + (c.campaign_id === _kadState.campaign ? ' selected' : '') + '>' + _calEsc(c.campaign_name) + '</option>'
-        ).join('');
-        return '<select class="kad-campaign-select" aria-label="Campaign" onchange="_kadSetCampaign(this.value)">' + optionsHtml + '</select>';
+        const items = [{ value: 'all', label: 'All campaigns' }].concat(
+            _kadState.campaigns.map(c => ({ value: c.campaign_id, label: c.campaign_name }))
+        );
+        return _svSelectHtml('kadCampaignSelect', items, _kadState.campaign, 'Choose campaign', { onchange: '_kadSetCampaign(this.value)' });
     }
 
     function _kadSummarizeRows(rows) {

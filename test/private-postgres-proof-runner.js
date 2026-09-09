@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'run-private-postgres-proof.ps1'), 'utf8');
+const clusterSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'f42-apply-rehearsal.js'), 'utf8');
 assert.match(source, /^<#[\s\S]*\r?\n#>\r?\n\[CmdletBinding\(\)\]/);
 assert.doesNotMatch(source, /^#>\]/m);
 assert.match(source, /ValidateSet\('All', 'Unit', 'F27'\)/);
@@ -29,4 +30,6 @@ assert.match(source, /actualLabel -eq "\$RunId-\$suffix"/);
 assert.match(source, /docker rm --force/i);
 assert.doesNotMatch(source, /docker (?:pull|install)|winget|choco|Invoke-WebRequest/i);
 assert.match(source, /\[IO\.Path\]::GetTempPath\(\)/);
+assert.match(clusterSource, /process\.platform === 'win32'[\s\S]*spawnSync\('where\.exe', \[bin\]/);
+assert.doesNotMatch(clusterSource.match(/if \(process\.platform === 'win32'\)[\s\S]*?\n  }/)[0], /bash|command -v|\/c\//);
 console.log('private PostgreSQL proof runner contract passed');

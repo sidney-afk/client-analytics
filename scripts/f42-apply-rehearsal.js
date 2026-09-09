@@ -181,6 +181,14 @@ function fixtureSnapshot(overrides = {}) {
 // ---- disposable cluster + psql plumbing -------------------------------------
 
 function which(bin) {
+  // `command -v` under Git Bash returns `/c/...`, which Windows Node cannot
+  // execute directly. External-service rehearsals need only the native psql
+  // client, so preserve its executable Windows path instead of translating it
+  // through a POSIX shell.
+  if (process.platform === 'win32') {
+    const windows = spawnSync('where.exe', [bin], { encoding: 'utf8', windowsHide: true });
+    return (windows.stdout || '').trim().split(/\r?\n/).filter(Boolean)[0] || '';
+  }
   const r = spawnSync('bash', ['-lc', `command -v ${bin} || ls /usr/lib/postgresql/16/bin/${bin} 2>/dev/null`], { encoding: 'utf8' });
   return (r.stdout || '').trim().split('\n').filter(Boolean)[0] || '';
 }

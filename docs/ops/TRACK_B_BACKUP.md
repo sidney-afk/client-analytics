@@ -39,7 +39,7 @@ The active six-hour lane still follows the corpus selected by the protected
 `TRACK_B_BACKUP_CORPUS` repository variable. The legacy 14-table format remains
 its current authenticated value until the matching schema, restricted-role
 grants, and disposable recovery rehearsal are approved together. The workflow
-accepts explicit manual `history-v7`, `history-v8`, and `history-v9` package
+accepts explicit manual `history-v7`, `history-v8`, `history-v9`, and `history-v10` package
 runs; each version has its own signed format and prior versions refuse a newer
 owner instead of claiming empty coverage.
 
@@ -55,11 +55,30 @@ rather than retried in place.
 `history-v9` is a prepared 42-table successor: it includes Calendar, Samples,
 Workload, manifests, card/journal/provenance/feedback recovery evidence, F27
 state, native label catalog, cutoff, public intake provenance, native triage,
-and brief-media occurrence records. It does not restore storage object bytes,
-provider state, n8n configuration, secrets, or client-facing tokens outside the
-selected database rows. The receipt and data corpus must be advanced again when
-a new authoritative table is introduced; never relabel an older package as
-complete.
+and brief-media occurrence records.
+
+`history-v10` is the prepared 47-table successor. It additionally captures the
+immutable `production_native_client_provisions` receipt keyed by caller-owned
+text `request_id`. The existing `clients` member retains its full live row,
+including `native_project_ids`; `syncview_runtime_flags` retains routing flags,
+and `deliverable_events` retains the Editors event-time columns because the
+package carries the exact `pg_dump` COPY column list rather than a fixed list.
+It also retains the Boolean-singleton `syncview_retirement_admission` census state, the native identifier mint/grant owners, and the service-only `description_images` ledger. The v10 prerequisite rejects an identity sequence on every new owner.
+
+Neither version restores Storage bucket configuration or object bytes, signed/Linear-hosted asset availability, provider state, n8n configuration, secrets, or client-facing tokens outside the selected database rows. The restored description ledger is evidence only; its referenced objects require separately verified custody before activation. The receipt
+and data corpus must be advanced again when a new authoritative table is
+introduced; never relabel an older package as complete.
+
+### Ordered v10 activation (deployment owner)
+
+Keep the schedule on its current protected corpus until all of the following
+release-local evidence exists: install the exact native provisioning migration,
+apply `scripts/track-b-history-v10-backup-prerequisites.sql` separately to the
+restricted source and disposable target roles, and complete the dispatch-only
+empty-target schema recovery rehearsal with a nonempty provision receipt. Then
+set the protected `TRACK_B_BACKUP_CORPUS` repository variable to `history-v10`
+in the ordered activation manifest. Do not activate the retirement-admission
+candidate through this lane: its durable state is captured, while activation remains blocked pending its reviewed replacement.
 
 ## Repository configuration
 

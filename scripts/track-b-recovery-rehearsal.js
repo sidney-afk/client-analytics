@@ -16,7 +16,24 @@ const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
-if (!['history-v7','history-v8','history-v9'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
+if (!['history-v7','history-v8','history-v9','history-v10'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
+const CORPUS_VERSION = backup.resolveCorpus(CORPUS).version;
+// Named v10 recovery inventory. These are the durable owners that the native
+// repair adds or whose existing state is required to replay the v10 receipt;
+// this is intentionally an inventory, not a claim that a fixed table count
+// captures platform storage or other external custody.
+const V10_NEW_DURABLE_OWNERS = Object.freeze([
+  'production_native_client_provisions', 'syncview_retirement_admission',
+  'production_native_identifier_mint', 'production_native_identifier_grants',
+  'description_images'
+]);
+const V10_NATIVE_RECOVERY_OWNERS = Object.freeze([
+  'production_intake_manifests', 'production_card_provenance',
+  'production_card_materialization_receipts', 'production_card_materialization_ingress',
+  'production_label_catalog_versions', 'linear_outbound_cutoff_control',
+  'legacy_intake_native_triage', 'native_brief_media_occurrences',
+  ...V10_NEW_DURABLE_OWNERS
+]);
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 // The older data rehearsal intentionally fixes its comparison at v7. This
@@ -39,7 +56,10 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql',
   'migrations/2026-09-05-native-label-catalog-foundation.sql', 'migrations/2026-09-06-native-label-writes.sql',
   'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'] : []),
-  ...(CORPUS === 'history-v9' ? ['migrations/2026-09-07-legacy-intake-native-triage.sql','migrations/2026-09-07-native-brief-media.sql','scripts/native-card-materialization/recovery-v9-phase.mjs'] : [])];
+  ...(CORPUS_VERSION >= 9 ? ['migrations/2026-09-07-legacy-intake-native-triage.sql','migrations/2026-09-07-native-brief-media.sql','scripts/native-card-materialization/recovery-v9-phase.mjs'] : []),
+  ...(CORPUS_VERSION >= 10 ? ['migrations/2026-08-04-client-access-auto-provision.sql','migrations/2026-09-05-description-images.sql',
+  'migrations/2026-09-07-native-identifier-mint.sql','migrations/2026-09-09-native-client-provisioning.sql',
+  'migrations/2026-09-09-syncview-retirement-admission.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -78,7 +98,7 @@ class DB extends LocalDatabase {
 function phase(cfg, db, kind, seed, name, version=7) {
   const report = path.join(cfg.output, name + '.private.json');
   const result = cp.spawnSync(process.execPath, ['--experimental-strip-types', path.join(ROOT, 'scripts/native-card-materialization/recovery-v'+version+'-phase.mjs')], {
-    timeout: CORPUS==='history-v9'?240000:120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+    timeout: CORPUS_VERSION>=9?240000:120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
     env: { ...cleanEnv(cfg.password), NIR_PGHOST: cfg.host, NIR_PGPORT: cfg.port, NIR_PGUSER: db.config.user,
       NIR_PGDATABASE: db.name, NIR_PSQL: cfg.psql, CARD_MATERIALIZATION_FIXTURE: path.join(ROOT, 'scripts/native-card-materialization/fixture.mjs'),
       CARD_MATERIALIZATION_PHASE: kind, CARD_MATERIALIZATION_PHASE_REPORT: report, CARD_MATERIALIZATION_PHASE_SEED: seed || '' } });
@@ -94,7 +114,7 @@ function grants(cfg, db, role, mode) {
 }
 function dataGrants(cfg, db, role, mode) {
   const result = cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
-    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS==='history-v9'?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
+    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS_VERSION===10?'HISTORY_V10_BACKUP_GRANTS_ONLY':CORPUS_VERSION===9?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
     '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql')], {
     encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
   fs.writeFileSync(path.join(cfg.output, 'data-grants-' + mode + '.private.log'), result.stderr || '');
@@ -142,16 +162,35 @@ async function run() {
       source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     if (CORPUS !== 'history-v7') for (const file of ['2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
-    if (CORPUS==='history-v9') {
+    if (CORPUS_VERSION>=9) {
       source.query('alter table storage.buckets add column public boolean not null default false,add column file_size_limit bigint,add column allowed_mime_types text[];grant usage on schema extensions to service_role');
       for(const file of ['2026-07-14-linear-intake-receipts.sql','2026-09-07-legacy-intake-native-triage.sql','2026-09-07-native-brief-media.sql'])source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
     }
+    if (CORPUS_VERSION>=10) {
+      source.query(`insert into public.syncview_runtime_flags(key,value) values
+        ('calendar_upsert_ef_clients','{"clients":[]}'::jsonb),('sample_review_ef_clients','{"clients":[]}'::jsonb),
+        ('settings_ef_clients','{"clients":[]}'::jsonb),('write_ui_reroute_clients','{"clients":[]}'::jsonb)
+        on conflict(key) do update set value=excluded.value;`);
+      for (const file of ['2026-08-04-client-access-auto-provision.sql','2026-09-05-description-images.sql','2026-09-07-native-identifier-mint.sql',
+        '2026-09-09-native-client-provisioning.sql','2026-09-09-syncview-retirement-admission.sql'])
+        source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
+      source.query("set role service_role;select public.production_native_client_provision('schema-v10-native-client','schema-v10-native-client','Schema V10 Native Client');");
+      source.query("insert into public.description_images(id,storage_path,public_url,mime_type,byte_length,width,height,actor_key,actor_name,actor_role,client_slug) values ('00000000-0000-4000-8000-000000000910','schema-v10-image.png','https://storage.invalid/schema-v10-image.png','image/png',1,1,1,'schema-v10-actor','Schema V10 Actor','admin','schema-v10-native-client');");
+    }
     const seeded = phase(cfg, source, 'seed', '', 'source');
-    const continuity = CORPUS==='history-v9' ? phase(cfg,source,'seed','','continuity-source',9) : null;
+    const continuity = CORPUS_VERSION>=9 ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
-      assert.equal(backup.resolveCorpus(CORPUS).tables.length, backup.resolveCorpus(CORPUS).version===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS_VERSION===10 ? 47 : CORPUS_VERSION===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
-      for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
+      const selected = backup.resolveCorpus(CORPUS).tables;
+      for (const table of selected) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
+      if (CORPUS_VERSION >= 10) {
+        assert.deepEqual(selected.slice(-V10_NEW_DURABLE_OWNERS.length).map(table => table.name), V10_NEW_DURABLE_OWNERS);
+        for (const name of V10_NATIVE_RECOVERY_OWNERS) {
+          assert.ok(selected.some(table => table.name === name), 'v10 selected native recovery owner:' + name);
+          assert.notEqual(source.query('select to_regclass(' + quote('public.' + name) + ')'), '', 'v10 source native recovery owner:' + name);
+        }
+      }
       if (CORPUS !== 'history-v7') {
       const labelVersion='00000000-0000-4000-8000-000000000700', teamVideo='00000000-0000-4000-8000-000000000900', teamGraphics='00000000-0000-4000-8000-000000000901';
       const node={id:'00000000-0000-4000-8000-000000000001',name:'Synthetic label',color:'#123456',description:null,isGroup:false,archivedAt:null,team:{id:teamVideo}};
@@ -383,6 +422,17 @@ async function run() {
         const replay=phase(cfg,target,'replay',continuity.report,'continuity-replay',9);
         assert.equal(replay.value.replayed,1);assert.equal(replay.value.provider_attempts,0);
         assert.equal(replay.value.object_bytes_recovered,false);assert.equal(replay.value.owner_receipt_bytes_recovered,false);
+      });
+      if (CORPUS_VERSION>=10) check('restored v10 native provisioning receipt replays without a fresh enrollment or routing mutation',()=>{
+        assert.equal(target.query("set role service_role;select public.production_native_client_provision('schema-v10-native-client','schema-v10-native-client','Schema V10 Native Client')->>'outcome';"),'replayed');
+        const provision=target.rows("select native_project_ids from public.production_native_client_provisions where request_id='schema-v10-native-client'")[0];
+        assert.equal(provision.native_project_ids.video.startsWith('svproj_video_'),true);assert.equal(provision.native_project_ids.graphics.startsWith('svproj_graphics_'),true);
+        assert.equal(target.query("select count(*) from public.production_native_client_provisions where request_id='schema-v10-native-client'"),'1');
+        assert.equal(target.query("select count(*) from public.syncview_runtime_flags where key in ('calendar_upsert_ef_clients','sample_review_ef_clients','settings_ef_clients','write_ui_reroute_clients') and value->'clients' @> '[\"schema-v10-native-client\"]'::jsonb"),'4');
+        assert.equal(target.query("select mode from public.syncview_retirement_admission where singleton"),'active');
+        assert.equal(target.query("select count(*) from public.production_native_identifier_mint"),'0');
+        assert.equal(target.query("select count(*) from public.production_native_identifier_grants"),'0');
+        assert.equal(target.query("select count(*) from public.description_images where storage_path='schema-v10-image.png'"),'1');
       });
       check('v8 refuses the expanded native continuity source despite the unchanged older format',()=>{
         const refused=target.raw('begin;'+backup.corpusBoundarySql('history-v8')+'rollback;');

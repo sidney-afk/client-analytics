@@ -13,6 +13,7 @@ on:
           - history-v7
           - history-v8
           - history-v9
+          - history-v10
         default: configured
       restore_rehearsal:
         description: 'Destructively restore the new backup into the configured scratch project'

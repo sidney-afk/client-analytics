@@ -18550,7 +18550,59 @@ half-commit is not.**
 component, video). Any client on any slug whose approve half-commits lands
 in the same trap until this deploys.
 
-## 187. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+---
+---
+
+## 187. [2026-09-09, FIXED — copy only] A card SyncView had just created said "Client attribution needs repair" for the twelve seconds before Linear answered
+
+An SMM reported that a thumbnail he had just filed from the content calendar
+refused every edit and accused the client of a broken mapping. The client was
+fine. The report was a race with our own mirror, dressed as a data defect.
+
+**Measured on the live row.** `GRA-7437` / `del_56236b60…`, graphics, an active
+roster client. `deliverable_events` has it created from the calendar at
+**19:28:29.255Z** (`action: create`, `source: ui`, `surface: calendar`) and the
+mirror stamping it at **19:28:41.440Z**: twelve seconds. The stored row carried
+the right `client_slug` throughout, and the browser view read
+`raw_attribution_state: resolved` / `direct_project` on the far side of the gap.
+`attribution-stuck-check.js` reports the row in no stuck bucket, and the client
+has zero live rows with a missing project or an unresolved stamp.
+
+**Mechanism.** Native creation writes the deliverable row first and mirrors it
+into Linear after. `_prodResolveAttributions` derives the client from the
+MIRRORED fields only — the row's own Linear project, then its ancestors, then
+the persisted stamp — and never from the `client_slug` column SyncView itself
+wrote at creation. So before the mirror answers there is no evidence at all and
+the row resolves `needs_attribution` / `repair_required`. Run against the live
+row with its mirrored fields stripped, the shipped resolver returns exactly
+that; run against the row as it stands, it returns `resolved` / `direct_project`.
+
+The gate was RIGHT for those twelve seconds — nothing had confirmed who owned
+the row — but it announced itself as a repair, so a transient sync read as a
+broken client and cost a round trip. **The fix is copy, not verdict.** A row in
+the narrow syncing shape (no persisted stamp, no project from any source, no
+Linear issue yet, and a stored slug that is a currently ACTIVE roster client)
+now reads "Syncing to Linear" in its chip, its notice, its side-card project row
+and its gate text, in the neutral muted key rather than the amber repair one.
+The write is still refused, the row still groups under the needs-attribution
+sentinel, and every other unresolved state — a stamp Linear invalidated, an
+unmapped project, a conflict, a slug that is not on the active roster — keeps
+the repair banner it has always had.
+
+`test/prod-attribution-sync-pending-copy.js` executes the real functions out of
+the shipped file and pins both halves: the softer wording for the syncing shape,
+and each of the six ways out of it keeping its own banner.
+
+**What this does NOT fix,** and is the owner's call: attribution still ignores
+the row's own `client_slug`, so if the mirror ever fails outright rather than
+lagging, the card stays read-only until somebody notices. Resolving a native,
+pre-mirror row from its stored active-roster slug would close that, and is a
+verdict change rather than a copy change. Measured today: **139 live rows**
+carry no `raw_project_id`, so this read path reaches further than the one card.
+
+- Done when: shipped (copy). The verdict question above stays open.
+
+## 188. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
 
 Item 186 closed the client-visible refusal and said plainly that it did not
 explain why the `calendar_posts` leg never followed its own committed gateway

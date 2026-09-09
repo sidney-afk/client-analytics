@@ -87,16 +87,24 @@ create table if not exists public.production_notification_delivery_receipts (
   unique (intent_id, attempt)
 );
 
+create table if not exists public.production_notification_reconciliations (
+  id bigint generated always as identity primary key,
+  intent_id uuid not null references public.production_notification_intents(id),
+  action text not null check (action in ('release_blocked_destination','retry_duplicate_risk')),
+  created_at timestamptz not null default now()
+);
+
 alter table public.production_notification_config enable row level security;
 alter table public.production_notification_intents enable row level security;
 alter table public.production_notification_delivery_receipts enable row level security;
+alter table public.production_notification_reconciliations enable row level security;
 revoke all on table public.production_notification_config, public.production_notification_intents,
-  public.production_notification_delivery_receipts from public, anon, authenticated;
+  public.production_notification_delivery_receipts, public.production_notification_reconciliations from public, anon, authenticated;
 grant select, insert, update, delete on table public.production_notification_config to service_role;
 -- Intents/receipts have no direct service DML route: only SECURITY DEFINER
 -- observer/claim/receipt routines write them.
-revoke all on table public.production_notification_intents, public.production_notification_delivery_receipts from service_role;
-grant usage, select on sequence public.production_notification_delivery_receipts_id_seq to service_role;
+revoke all on table public.production_notification_intents, public.production_notification_delivery_receipts, public.production_notification_reconciliations from service_role;
+grant usage, select on sequence public.production_notification_delivery_receipts_id_seq, public.production_notification_reconciliations_id_seq to service_role;
 
 -- Once committed, event/comment identity, destination, and message are durable
 -- evidence.  Delivery transitions are only performed by the two RPCs below.
@@ -124,8 +132,10 @@ begin
      or new.actor_member_id is distinct from old.actor_member_id
      or new.intended_member_id is distinct from old.intended_member_id
      or new.destination_kind is distinct from old.destination_kind
-     or new.destination_channel_id is distinct from old.destination_channel_id
-     or new.message is distinct from old.message or new.created_at is distinct from old.created_at then
+     or new.message is distinct from old.message or new.created_at is distinct from old.created_at
+     or (new.destination_channel_id is distinct from old.destination_channel_id and not (
+       old.state = 'blocked' and old.destination_channel_id is null and new.state = 'pending'
+       and (new.destination_channel_id ~ '^[CG][A-Z0-9]{8,}$') is true)) then
     raise exception 'production_notification_intent_immutable';
   end if;
   return new;
@@ -219,7 +229,7 @@ begin
     v_actor_id, 'client_creative_channel', case when v_state = 'pending' then v_channel else null end,
     jsonb_build_object('schema', 1, 'text', v_text, 'parse', 'none', 'link_names', false,
       'actor_member_id', v_actor_id::text, 'event_id', new.id)
-  ) on conflict (source_event_id) do nothing;
+  ) on conflict (source_event_id) where source_event_id is not null do nothing;
   return new;
 end;
 $fn$;
@@ -271,7 +281,7 @@ begin
       'text', public.production_notification_plain_text(new.author_name, 200) || ' commented on ' || public.production_notification_plain_text(v_deliverable.title, 300) || ': ' || public.production_notification_plain_text(new.body, 3500),
       'parse', 'none', 'link_names', false, 'actor_member_id', new.author_member_id::text,
       'comment_id', new.id)
-  ) on conflict (source_comment_id) do nothing;
+  ) on conflict (source_comment_id) where source_comment_id is not null do nothing;
   return new;
 end;
 $fn$;
@@ -332,7 +342,7 @@ begin
     jsonb_build_object('schema', 1,
       'text', public.production_notification_plain_text(v_client.display_name, 200) || ' commented on ' || public.production_notification_plain_text(v_deliverable.title, 300) || ': ' || public.production_notification_plain_text(v_comment.body, 3500),
       'parse', 'none', 'link_names', false, 'actor_kind', 'client', 'comment_id', v_comment.id)
-  ) on conflict (source_comment_id) do nothing;
+  ) on conflict (source_comment_id) where source_comment_id is not null do nothing;
   return new;
 end;
 $fn$;
@@ -454,11 +464,64 @@ begin
     'video_editing_channel', v_channel,
     jsonb_build_object('schema', 1, 'text', '<@' || v_editor.slack_user_id || '> URGENT: ' || public.production_notification_plain_text(v_del.title, 300) || ' needs tweaks.',
       'parse', 'none', 'link_names', false, 'allow_mentions', true, 'actor_member_id', p_actor_member_id::text,
-      'intended_member_id', p_intended_member_id::text, 'round', v_round::text)
+      'intended_member_id', p_intended_member_id::text, 'round', v_round::text, 'surface', v_surface, 'card_id', p_card_id)
   ) on conflict (intent_key) do nothing;
   return jsonb_build_object('status', 'pending', 'dispatch_id', p_dispatch_id::text, 'intent_key',
     'urgent:' || encode(digest(p_deliverable_id || '|' || v_round::text, 'sha256'), 'hex'));
 end;
+$fn$;
+
+create or replace function public.production_notification_reconcile(
+  p_intent_id uuid, p_action text, p_confirmation text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_intent public.production_notification_intents%rowtype;
+  v_channel text;
+  v_action text := lower(btrim(coalesce(p_action, '')));
+begin
+  select * into v_intent from public.production_notification_intents where id = p_intent_id for update;
+  if not found then raise exception 'production_notification_intent_missing'; end if;
+  perform set_config('app.production_notification_write', '1', true);
+  if v_action = 'release_blocked_destination' then
+    if v_intent.state <> 'blocked' or v_intent.destination_channel_id is not null then raise exception 'production_notification_reconcile_invalid_state'; end if;
+    if v_intent.destination_kind = 'client_creative_channel' then
+      select nullif(btrim(coalesce(c.slack_channel_id, '')), '') into v_channel from public.clients c where c.slug = v_intent.client_slug and c.active and c.kind = 'client';
+    else
+      select nullif(btrim(coalesce(value->>'channel_id', '')), '') into v_channel from public.production_notification_config where key = 'urgent_video_destination';
+    end if;
+    if (v_channel ~ '^[CG][A-Z0-9]{8,}$') is not true then raise exception 'production_notification_destination_unavailable'; end if;
+    update public.production_notification_intents set state = 'pending', destination_channel_id = v_channel,
+      last_failure_code = null, next_attempt_at = now(), updated_at = now() where id = v_intent.id;
+  elsif v_action = 'retry_duplicate_risk' then
+    if v_intent.state not in ('unknown', 'sending') or p_confirmation is distinct from 'RETRY_MAY_DUPLICATE' then
+      raise exception 'production_notification_duplicate_risk_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'retryable', lease_token = null, lease_expires_at = null,
+      next_attempt_at = now(), last_failure_code = 'operator_duplicate_risk_retry', updated_at = now() where id = v_intent.id;
+  else raise exception 'production_notification_reconcile_action_invalid'; end if;
+  insert into public.production_notification_reconciliations(intent_id, action) values (v_intent.id, v_action);
+  return jsonb_build_object('state', (select state from public.production_notification_intents where id = v_intent.id));
+end;
+$fn$;
+
+create or replace function public.production_notification_urgent_status(
+  p_client_slug text, p_deliverable_id text, p_video_status_at timestamptz
+) returns jsonb
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $fn$
+  select coalesce((
+    select jsonb_build_object('state', i.state, 'sent', i.state = 'sent')
+      from public.production_notification_intents i
+     where i.intent_key = 'urgent:' || encode(digest(p_deliverable_id || '|' || p_video_status_at::text, 'sha256'), 'hex')
+       and i.client_slug = p_client_slug and i.kind = 'urgent'
+  ), jsonb_build_object('state', 'absent', 'sent', false))
 $fn$;
 
 create or replace function public.production_notification_claim(p_limit integer default 10)
@@ -471,6 +534,30 @@ declare
   v_limit integer := greatest(1, least(coalesce(p_limit, 10), 10));
 begin
   perform set_config('app.production_notification_write', '1', true);
+  -- An urgent intent must still name the same active video editor, exact card
+  -- round, authority, and protected channel at claim time. A stale target is
+  -- blocked before any provider request; it is never silently sent late.
+  update public.production_notification_intents i
+     set state = 'blocked', last_failure_code = 'urgent_target_changed', updated_at = now()
+   where i.kind = 'urgent' and i.state in ('pending', 'retryable')
+     and not exists (
+       select 1 from public.deliverables d
+       join public.team_members m on m.id = i.intended_member_id
+       join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
+       join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
+       where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
+         and d.kind = 'video' and d.status = 'tweak' and d.deleted_at is null
+         and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
+         and cfg.value->>'channel_id' = i.destination_channel_id
+         and ((i.message->>'surface' = 'calendar' and exists (
+           select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug
+             and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed'
+             and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null))
+           or (i.message->>'surface' = 'samples' and exists (
+           select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug
+             and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed'
+             and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null)))
+     );
   return query
   with candidates as (
     select i.id
@@ -536,10 +623,14 @@ revoke all on function public.production_notification_intent_guard(),
   public.production_notification_plain_text(text, integer),
   public.production_notification_actor_valid(uuid, text, text),
   public.production_notification_health_summary(),
+  public.production_notification_urgent_status(text, text, timestamptz),
+  public.production_notification_reconcile(uuid, text, text),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),
   public.production_notification_claim(integer),
   public.production_notification_record_delivery(uuid, integer, text, text, text) from public, anon, authenticated;
 grant execute on function public.production_notification_health_summary(),
+  public.production_notification_urgent_status(text, text, timestamptz),
+  public.production_notification_reconcile(uuid, text, text),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),
   public.production_notification_claim(integer),
   public.production_notification_record_delivery(uuid, integer, text, text, text) to service_role;

@@ -34692,6 +34692,37 @@
        long as the gateway has not been redeployed (see the 400 branch below).
        A local hold prevents blind resubmission after uncertain native delivery.
        It is not a global delivery receipt. */
+    async function _calCheckQueuedUrgent(btn, native, opts, attemptKey, holdValue, issue) {
+        try {
+            const headers = _syncviewEfHeaders({ 'Content-Type': 'application/json',
+                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, WRITE_UI_PRODUCTION_WRITE_URL);
+            const reply = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, { method: 'POST', headers,
+                body: JSON.stringify(Object.assign({}, native, { action: 'native_urgent_status' })), signal: AbortSignal.timeout(10000) });
+            const status = await reply.json().catch(() => null);
+            if (!reply.ok || !status || status.ok !== true) throw new Error('urgent_status_unavailable');
+            if (status.delivery === 'sent' && status.sent === true) {
+                try { if (localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey); } catch (e) {}
+                if (btn) { btn.disabled = true; btn.textContent = 'Sent'; btn.dataset.urgentSent = '1'; btn.classList.add('is-sent'); }
+                if (opts && typeof opts.persist === 'function') await opts.persist({ sentAt: new Date().toISOString(), issue, editor: '' });
+                showNotify('Urgent ping sent', 'The queued urgent ping was delivered to #video-editing.'); return;
+            }
+            if (status.delivery === 'absent') {
+                try { if (localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey); } catch (e) {}
+                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                showNotify('Urgent ping not queued', 'Nothing was sent or remains queued for this round. You can send a new urgent ping.'); return;
+            }
+            if (status.delivery === 'pending' || status.delivery === 'retryable' || status.delivery === 'sending') {
+                if (btn) { btn.disabled = true; btn.textContent = 'Queued'; }
+                showNotify('Urgent ping queued', 'The urgent ping is queued for #video-editing. It is not marked Sent until Slack returns a receipt.'); return;
+            }
+            if (btn) { btn.disabled = true; btn.textContent = 'Check delivery'; }
+            showNotify('Check delivery', 'The queued urgent ping needs an operator check before another message can be sent. Check #video-editing manually.');
+        } catch (e) {
+            if (btn) { btn.disabled = true; btn.textContent = 'Check delivery'; }
+            showNotify('Check delivery', 'The queued urgent ping status could not be read. Check #video-editing manually before sending another message.');
+        }
+    }
+
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
         const native = opts && opts.native;
         const roundTime = native ? Date.parse(native.video_status_at) : NaN;
@@ -34711,7 +34742,16 @@
         if (native && (typeof _isClientLink !== 'undefined' && _isClientLink)) {
             showNotify('Staff sign-in required', 'Sign in as staff to send an urgent ping.'); return;
         }
-        if (retainedAttempt()) { showUnknown(); return; }
+        if (retainedAttempt()) {
+            let held = '';
+            try { held = localStorage.getItem(attemptKey) || ''; } catch (e) {}
+            let queued = null;
+            try { queued = JSON.parse(held); } catch (e) {}
+            if (queued && queued.state === 'delivery_queued') {
+                _calCheckQueuedUrgent(btn, native, opts, attemptKey, held, issue); return;
+            }
+            showUnknown(); return;
+        }
         showConfirm(
             'Send urgent tweak ping?',
             native
@@ -34782,6 +34822,14 @@
                         }
                         if (nativeLane) {
                             knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
+                            if (resp.status === 202 && j && j.ok === true && j.delivery === 'pending'
+                                && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()) {
+                                holdValue = JSON.stringify({ state: 'delivery_queued', dispatch_id: j.dispatch_id });
+                                localStorage.setItem(attemptKey, holdValue);
+                                if (btn) { btn.disabled = true; btn.textContent = 'Queued'; }
+                                showNotify('Urgent ping queued', 'The urgent ping is queued for #video-editing. It is not marked Sent until Slack returns a receipt.');
+                                return;
+                            }
                             if (!(resp.ok && j && j.ok === true && j.delivery === 'sent'
                                 && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
                                 && typeof j.slack_ts === 'string' && j.slack_ts.trim())) {

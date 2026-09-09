@@ -45,9 +45,11 @@ export async function postSlackChannelMessage(
       body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false }),
     });
   } catch {
+    clearTimeout(timer);
     return { kind: "unknown", code: "slack_transport_unconfirmed" };
-  } finally { clearTimeout(timer); }
+  }
   const body = await boundedBody(response);
+  clearTimeout(timer);
   if (response.ok && body?.ok === true && body.channel === channel && typeof body.ts === "string" && SLACK_TS.test(body.ts)) {
     return { kind: "sent", messageId: body.ts };
   }

@@ -36,20 +36,25 @@ try {
     values ('legacy-native-id','notification-batch','fixture-client','status_change','ui','in_progress','smm_approval',
       '{"auth_kind":"staff","actor_key":"member:${ACTOR}"}'::jsonb);`);
   assert.equal(scalar("select count(*) from public.production_notification_intents where kind='status_smm_approval'"), '1');
+  cluster.exec(`insert into public.production_comments(
+    id,idempotency_key,native_comment_id,deliverable_id,client_slug,team,author_key,author_member_id,author_name,role,body,audience,origin,source
+  ) values ('notification-comment','notification-comment-key','notification-comment-native','legacy-native-id','fixture-client','video',
+    'member:${ACTOR}','${ACTOR}','Synthetic Staff','smm','A safe comment','client','native','ui');`);
+  assert.equal(scalar("select count(*) from public.production_notification_intents where kind='comment' and source_comment_id='notification-comment'"), '1', 'staff comment trigger writes exactly one intent through partial unique conflict inference');
   assert.match(scalar("select message->>'text' from public.production_notification_intents where kind='status_smm_approval'"), /‹@Ubad›/, 'user-derived title is mention-escaped');
   // A provider-era/legacy-shaped ID is accepted when the committed evidence is native; no del_ prefix assumption.
   assert.equal(scalar("select count(*) from public.production_notification_intents where deliverable_id='legacy-native-id'"), '1');
   // Import/test/parity and missing authority leave no intent.
   cluster.exec(`insert into public.deliverable_events(deliverable_id,batch_id,client_slug,action,source,from_status,to_status,payload)
     values ('legacy-native-id','notification-batch','fixture-client','status_change','reconcile','todo','tweak','{}'::jsonb);`);
-  assert.equal(scalar('select count(*) from public.production_notification_intents'), '1');
+  assert.equal(scalar('select count(*) from public.production_notification_intents'), '2');
   cluster.exec(`update public.syncview_runtime_flags set value='{"video":"linear","graphics":"syncview"}'::jsonb where key='prod_authority';
     select set_config('app.event_assignee_stamp','native-status-v1',true);
     select set_config('app.event_assignee_id','${EDITOR}',true);
     select set_config('app.event_assignee_attribution','native_transaction',true);
     insert into public.deliverable_events(deliverable_id,batch_id,client_slug,action,source,from_status,to_status,payload)
       values ('legacy-native-id','notification-batch','fixture-client','status_change','ui','smm_approval','tweak','{"auth_kind":"staff","actor_key":"member:${ACTOR}"}'::jsonb);`);
-  assert.equal(scalar('select count(*) from public.production_notification_intents'), '1');
+  assert.equal(scalar('select count(*) from public.production_notification_intents'), '2');
   cluster.exec(`update public.syncview_runtime_flags set value='{"video":"syncview","graphics":"syncview"}'::jsonb where key='prod_authority';`);
   // Direct DML and non-service role execution are denied. PostgreSQL superuser is intentionally outside this proof boundary.
   refuses("begin; set local role anon; select public.production_notification_claim(1); rollback;", 'permission denied');

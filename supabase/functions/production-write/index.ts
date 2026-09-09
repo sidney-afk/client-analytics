@@ -3861,6 +3861,20 @@ async function wakeNotificationSender(): Promise<void> {
   finally { clearTimeout(timer); }
 }
 
+async function handleNativeUrgentStatus(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
+  const fields = ["action", "client_slug", "deliverable_id", "card_id", "surface", "video_status_at"];
+  if (Object.keys(body).some(k => !fields.includes(k))) throw new GatewayError(400, "invalid_urgent_request");
+  const snapshot = await urgentSnapshot(supabase, req, body);
+  const { data, error } = await supabase.rpc("production_notification_urgent_status", {
+    p_client_slug: snapshot.clientSlug, p_deliverable_id: snapshot.id, p_video_status_at: snapshot.round,
+  });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)
+      || !["absent", "pending", "sending", "sent", "retryable", "unknown", "blocked"].includes(clean((data as JsonMap).state))) {
+    throw new GatewayError(503, "urgent_notification_unavailable");
+  }
+  return json({ ok: true, delivery: clean((data as JsonMap).state), sent: (data as JsonMap).sent === true });
+}
+
 async function handleNativeUrgentDispatch(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
   try {
     const fields = ["action", "client_slug", "deliverable_id", "card_id", "surface", "video_status_at"];
@@ -8301,6 +8315,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "native_urgent_dispatch") {
       return await handleNativeUrgentDispatch(supabase, req, body);
+    }
+    if (lower(body.action) === "native_urgent_status") {
+      return await handleNativeUrgentStatus(supabase, req, body);
     }
     if (body.action !== undefined) throw new GatewayError(400, "unsupported_action");
     const operation = normalizeOperation(body.operation);

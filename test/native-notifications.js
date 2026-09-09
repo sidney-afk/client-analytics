@@ -23,7 +23,8 @@ ok(/'parse', 'none', 'link_names', false/.test(sql) && /'allow_mentions', true/.
 ok(/destination_channel_id text not null/.test(sql) && /intended_member_id uuid/.test(sql), 'receipt snapshots destination and optional exact intended member');
 ok(/state in \('pending','sending','sent','retryable','unknown','blocked'\)/.test(sql), 'pending, retryable, blocked, and ambiguous outcomes are distinct');
 ok(/for update skip locked/i.test(sql) && /next_attempt_at <= now\(\)/.test(sql) && /interval '5 minutes'/.test(sql) && /lease_expired_manual_reconcile/.test(sql), 'claims are bounded, rate retries back off, and an abandoned lease stays visible');
-ok(/production_notification_enqueue_urgent/i.test(sql) && /slack_user_id/.test(sql) && /urgent_video_destination/.test(sql), 'urgent uses protected destination config and exact active editor identity');
+ok(/production_notification_enqueue_urgent/i.test(sql) && /slack_user_id/.test(sql) && /urgent_video_destination/.test(sql) && /urgent_target_changed/.test(sql), 'urgent uses protected destination config, exact active editor identity, and claim-time stale blocking');
+ok(/production_notification_reconcile/.test(sql) && /RETRY_MAY_DUPLICATE/.test(sql) && /production_notification_reconciliations/.test(sql), 'protected recovery releases never-sent destinations and records explicit duplicate-risk retries');
 ok(/notification_urgent_destination_unconfigured/.test(sql), 'urgent never guesses a video-editing channel');
 const urgentBlock = gateway.slice(gateway.indexOf('async function handleNativeUrgentDispatch'), gateway.indexOf('async function handleCreateOptions'));
 ok(/production_notification_enqueue_urgent/.test(urgentBlock), 'gateway routes urgent to committed notification admission');

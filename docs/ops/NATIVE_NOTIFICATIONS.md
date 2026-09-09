@@ -30,7 +30,7 @@ receipt with its destination channel and, for urgent, intended editor snapshot.
 A transport-ambiguous response becomes `unknown` and is never automatically
 retried. `retryable` is a known provider failure and is eligible for a later
 manual sender run. `blocked`, `unknown`, and expired `sending` leases remain in
-`production_notification_monitor_v1` for operator action.
+`production_notification_monitor_v1` for operator action. `production_notification_reconcile` is the only protected recovery route: `release_blocked_destination` rereads a newly configured client/urgent destination before releasing a never-sent blocked intent; `retry_duplicate_risk` requires the literal `RETRY_MAY_DUPLICATE` confirmation for unknown/expired sending state and writes a durable reconciliation record. It never silently retries an ambiguous provider outcome.
 
 The gateway can make one best-effort post-commit wake call only when
 `NOTIFY_WAKE_ENABLED=true`; failed wakes leave the intent pending. There is no
@@ -48,7 +48,7 @@ The source includes dormant five-minute GitHub Actions sender and monitor jobs:
 skipped until their distinct repository variables are literally `true` and their
 shared service-only URL/key secrets are set after review. The monitor health call
 fails on blocked, unknown, or expired-lease debt; it does not send a provider
-message. No n8n workflow is added or invoked by this layer.
+message. A claim revalidates every queued urgent target (current authority, exact card round, active assigned editor, and protected destination) before Slack; stale urgent work becomes blocked instead of sending late. No n8n workflow is added or invoked by this layer.
 
 ## Verification
 

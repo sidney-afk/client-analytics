@@ -457,7 +457,7 @@ const CANDIDATES = new Map([
     // import. Every native lane is behind a flag defaulting OFF, so the deploy
     // activates nothing: SQL first, dispatch second, flags last.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: 'e1c6443c850f74a449e05e7e59f43d1afd21a62c3c177702752f60fb421155da',
+    source: '656473204ac784e42db0978df6a52463b765b5d34ee2ed9eee57825c4a699545',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

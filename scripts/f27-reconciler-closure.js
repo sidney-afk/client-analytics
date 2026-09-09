@@ -271,9 +271,17 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // host gap, not a bound, since best-effort scheduling can drop firings for
   // longer than anything measured. No other lane's threshold changes, and no
   // lane's detection path does.
-  // (Previous pins: 4a884593... this branch, c1a773a3... main, cc2b4324... before both.)
+  //
+  // Re-pinned 2026-09-09 after the reviewed retirement repair registered one
+  // additional dormant-safe census lane. That entry only extends the LANES
+  // data consumed by the existing watchdog check; it adds no import, command,
+  // network adapter or reconciler entrypoint. Closure membership remains the
+  // same eleven files. This pin records those source bytes and does not approve
+  // retirement activation, which remains a separate held operation.
+  // (Previous pins: c2cc93ab... after the two changes above, 4a884593... this
+  // branch, c1a773a3... main, cc2b4324... before both.)
   'scripts/monitoring-watchdog.js':
-    'c2cc93ab2783a21b40ca93542316c085efefe3febe4a9bcede89e21831ea5e71',
+    '1f7fa709a780749454112c666d1a1e8f5a00cf0c57df4691d6de2987bbbd5116',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

@@ -294,9 +294,13 @@ jobs:
       # _shared/native-brief-media.mjs. Every native lane is behind a flag that
       # defaults OFF, so deploying this activates nothing on its own: the SQL
       # goes in FIRST and the flags are flipped AFTER.
-      # (Prior pins: 27d1a608... files=5, #1361 2026-09-08; ccbdd136f4...
+      # Re-pinned after the final attribution projection repair made intake
+      # persist the already-validated native epoch beside its opaque project
+      # identity. No import entered or left; the six-file closure is unchanged.
+      # (Prior pins: 65647320... first lifted gateway; 27d1a608... files=5,
+      # #1361 2026-09-08; ccbdd136f4...
       # production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 656473204ac784e42db0978df6a52463b765b5d34ee2ed9eee57825c4a699545
+      PRODUCTION_WRITE_SOURCE_SHA256: 0e660e96a839adf1bb32b9207d883d0e0654bfe681fcdd1479c1a4a6de1760f3
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

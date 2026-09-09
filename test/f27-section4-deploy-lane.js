@@ -456,8 +456,10 @@ const CANDIDATES = new Map([
     // File count moves 5 -> SIX; _shared/native-brief-media.mjs is the new
     // import. Every native lane is behind a flag defaulting OFF, so the deploy
     // activates nothing: SQL first, dispatch second, flags last.
+    // Re-pinned once more when the final attribution projection made intake
+    // persist the validated native epoch; closure membership remains six.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: '656473204ac784e42db0978df6a52463b765b5d34ee2ed9eee57825c4a699545',
+    source: '0e660e96a839adf1bb32b9207d883d0e0654bfe681fcdd1479c1a4a6de1760f3',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],
@@ -536,13 +538,20 @@ ok(workflow.includes('F27_PROJECT_REF=$project_ref')
   && rollbackLibrary.includes('provider.supabase_cli_version !== expectedCliVersion'),
 'the sealed undo is privately bound to the masked reviewed project, exact CLI, and both approved adapters before either operation mutates');
 
+const sqlPreflightAt = workflow.indexOf('- name: Assert compatible native SQL before the first forward deployment');
+const sqlPreflightEnd = workflow.indexOf('\n      - name:', sqlPreflightAt + 1);
+const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
   && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 6
-  && validationAt < firstSecretAt,
-'production credentials are protected-Environment, step-scoped, and unavailable before trusted validation');
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 7
+  && validationAt < firstSecretAt
+  && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
+  && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
+  && occurrences(sqlPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|restore-captured-prior-four/.test(sqlPreflightBlock),
+'production credentials are protected-Environment and step-scoped, with the native-SQL credential available only at its forward preflight boundary');
 
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(workflow)
   && workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')

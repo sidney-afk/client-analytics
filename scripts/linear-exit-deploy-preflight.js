@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTRACT = 'linear-exit-production-write-sql-v1';
+const CONTRACT = 'linear-exit-production-write-sql-v2';
 const TRANSIENT = new Set([429, 502, 503, 504]);
 
 const ROUTINES = Object.freeze([
@@ -40,6 +40,8 @@ const ROUTINES = Object.freeze([
   ['production_native_identifier_seed(text,bigint)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_seed', 'pg_catalog, public'],
   ['production_native_identifier_allocate(text,text)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_allocate', 'pg_catalog, public'],
   ['production_native_identifier_guard()', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_guard', 'pg_catalog, public'],
+  ['production_native_client_provision(text,text,text)', 'migrations/2026-09-09-native-client-provisioning.sql', 'production_native_client_provision', 'pg_catalog, public, extensions, pg_temp'],
+  ['production_native_client_provisions_immutable()', 'migrations/2026-09-09-native-client-provisioning.sql', 'production_native_client_provisions_immutable', 'pg_catalog, public, pg_temp', false],
 ]);
 
 const PRIVATE_ROUTINES = new Set([
@@ -53,6 +55,7 @@ const PRIVATE_ROUTINES = new Set([
   'production_native_label_truncate_guard',
   'production_native_identifier_allocate',
   'production_native_identifier_guard',
+  'production_native_client_provisions_immutable',
 ]);
 
 const TRIGGERS = Object.freeze([
@@ -64,6 +67,8 @@ const TRIGGERS = Object.freeze([
   ['mirror_outbox.zzz_native_label_receipt_guard', 'mirror_outbox', 'zzz_native_label_receipt_guard', 'production_native_label_receipt_guard', 31],
   ['mirror_outbox.zzz_native_label_truncate_guard', 'mirror_outbox', 'zzz_native_label_truncate_guard', 'production_native_label_truncate_guard', 34],
   ['deliverables.zzz_production_native_identifier_mint', 'deliverables', 'zzz_production_native_identifier_mint', 'production_native_identifier_guard', 23],
+  ['production_native_client_provisions.production_native_client_provisions_immutable_row', 'production_native_client_provisions', 'production_native_client_provisions_immutable_row', 'production_native_client_provisions_immutable', 27],
+  ['production_native_client_provisions.production_native_client_provisions_immutable_truncate', 'production_native_client_provisions', 'production_native_client_provisions_immutable_truncate', 'production_native_client_provisions_immutable', 34],
 ]);
 
 const COLUMNS = Object.freeze([
@@ -71,6 +76,22 @@ const COLUMNS = Object.freeze([
   ['production_label_catalog_versions.operator_attestation', 'production_label_catalog_versions', 'operator_attestation', 'jsonb', false],
   ['production_native_identifier_mint.next_ordinal', 'production_native_identifier_mint', 'next_ordinal', 'bigint', true],
   ['production_native_identifier_grants.identifier', 'production_native_identifier_grants', 'identifier', 'text', true],
+  ['clients.native_project_ids', 'clients', 'native_project_ids', 'jsonb', true],
+  ['production_native_client_provisions.request_id', 'production_native_client_provisions', 'request_id', 'text', true],
+  ['production_native_client_provisions.client_slug', 'production_native_client_provisions', 'client_slug', 'text', true],
+  ['production_native_client_provisions.intent_sha256', 'production_native_client_provisions', 'intent_sha256', 'text', true],
+  ['production_native_client_provisions.native_project_ids', 'production_native_client_provisions', 'native_project_ids', 'jsonb', true],
+  ['production_native_client_provisions.created_at', 'production_native_client_provisions', 'created_at', 'timestamp with time zone', true],
+  ['production_deliverables_browser_v1.raw_attribution_project_id', 'production_deliverables_browser_v1', 'raw_attribution_project_id', 'text', false],
+  ['production_deliverables_browser_v1.raw_attribution_native_epoch', 'production_deliverables_browser_v1', 'raw_attribution_native_epoch', 'text', false],
+]);
+
+const SCHEMA_KEYS = Object.freeze([
+  'constraint:clients.clients_native_project_ids_object',
+  'index:clients.clients_native_project_ids_video_unique',
+  'index:clients.clients_native_project_ids_graphics_unique',
+  'relation:production_native_client_provisions',
+  'relation:production_deliverables_browser_v1',
 ]);
 
 function bodyFor(file, name) {
@@ -86,11 +107,12 @@ function bodyFor(file, name) {
 function sqlString(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 
 function expectedObjects() {
-  const routines = ROUTINES.map(([signature, file, name, searchPath]) => ({
+  const routines = ROUTINES.map(([signature, file, name, searchPath, securityDefiner = true]) => ({
     key: `routine:${signature}`,
     signature: `public.${signature}`,
     bodyMd5: crypto.createHash('md5').update(bodyFor(file, name), 'utf8').digest('hex'),
     searchPath,
+    securityDefiner,
     serviceExecute: !PRIVATE_ROUTINES.has(name),
   }));
   return {
@@ -99,6 +121,7 @@ function expectedObjects() {
       ...routines.map(row => row.key),
       ...TRIGGERS.map(row => `trigger:${row[0]}`),
       ...COLUMNS.map(row => `column:${row[0]}`),
+      ...SCHEMA_KEYS,
       'config:native_intake_epochs',
       'config:native_assignment_epochs',
       'config:production_native_label_catalog',
@@ -110,16 +133,16 @@ function expectedObjects() {
 function contractQuery() {
   const expected = expectedObjects();
   const routines = expected.routines.map(row =>
-    `(${sqlString(row.key)},${sqlString(row.signature)},${sqlString(row.bodyMd5)},${sqlString(row.searchPath)},${row.serviceExecute})`).join(',\n');
+    `(${sqlString(row.key)},${sqlString(row.signature)},${sqlString(row.bodyMd5)},${sqlString(row.searchPath)},${row.securityDefiner},${row.serviceExecute})`).join(',\n');
   const triggers = TRIGGERS.map(([key, table, trigger, fn, tgtype]) =>
     `(${sqlString(`trigger:${key}`)},${sqlString(table)},${sqlString(trigger)},${sqlString(fn)},${tgtype})`).join(',\n');
   const columns = COLUMNS.map(([key, table, column, type, notNull]) =>
     `(${sqlString(`column:${key}`)},${sqlString(table)},${sqlString(column)},${sqlString(type)},${notNull})`).join(',\n');
-  return `with expected_routine(object_key,signature,body_md5,search_path,service_execute) as (values\n${routines}\n),
+  return `with expected_routine(object_key,signature,body_md5,search_path,security_definer,service_execute) as (values\n${routines}\n),
 routine_rows as (
   select e.object_key,(p.oid is not null) as present,
     coalesce(md5(p.prosrc)=e.body_md5
-      and p.prosecdef
+      and p.prosecdef=e.security_definer
       and p.proconfig=array['search_path='||e.search_path]::text[]
       and has_function_privilege('service_role',p.oid,'EXECUTE')=e.service_execute
       and not has_function_privilege('anon',p.oid,'EXECUTE')
@@ -141,6 +164,43 @@ ${columns}
     coalesce(format_type(a.atttypid,a.atttypmod)=e.data_type and a.attnotnull=e.not_null,false) as compatible
   from expected_column e left join pg_class c on c.relnamespace='public'::regnamespace and c.relname=e.table_name
   left join pg_attribute a on a.attrelid=c.oid and a.attname=e.column_name and a.attnum>0 and not a.attisdropped
+), schema_rows as (
+  select 'constraint:clients.clients_native_project_ids_object'::text object_key,(x.oid is not null) present,
+    coalesce(x.contype='c' and x.convalidated
+      and pg_get_constraintdef(x.oid) like '%native_project_ids = ''{}''::jsonb%'
+      and pg_get_constraintdef(x.oid) like '%native_project_ids ? ''video''::text%'
+      and pg_get_constraintdef(x.oid) like '%native_project_ids ? ''graphics''::text%'
+      and pg_get_constraintdef(x.oid) like '%^svproj_video_[0-9a-f]{32}$%'
+      and pg_get_constraintdef(x.oid) like '%^svproj_graphics_[0-9a-f]{32}$%',false) compatible
+    from (values(true)) seed(v) left join pg_constraint x
+      on x.conrelid='public.clients'::regclass and x.conname='clients_native_project_ids_object'
+  union all
+  select 'index:clients.clients_native_project_ids_video_unique',(i.indexrelid is not null),
+    coalesce(i.indisunique and i.indisvalid and i.indisready
+      and pg_get_expr(i.indexprs,i.indrelid)='(native_project_ids ->> ''video''::text)'
+      and pg_get_expr(i.indpred,i.indrelid)='(native_project_ids ? ''video''::text)',false)
+    from (values(true)) seed(v) left join pg_index i on i.indexrelid=to_regclass('public.clients_native_project_ids_video_unique')
+  union all
+  select 'index:clients.clients_native_project_ids_graphics_unique',(i.indexrelid is not null),
+    coalesce(i.indisunique and i.indisvalid and i.indisready
+      and pg_get_expr(i.indexprs,i.indrelid)='(native_project_ids ->> ''graphics''::text)'
+      and pg_get_expr(i.indpred,i.indrelid)='(native_project_ids ? ''graphics''::text)',false)
+    from (values(true)) seed(v) left join pg_index i on i.indexrelid=to_regclass('public.clients_native_project_ids_graphics_unique')
+  union all
+  select 'relation:production_native_client_provisions',(c.oid is not null),
+    coalesce(c.relkind='r' and c.relrowsecurity
+      and not exists (select 1 from aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) acl
+        left join pg_roles role on role.oid=acl.grantee
+        where acl.grantee=0 or role.rolname in ('anon','authenticated','service_role')),false)
+    from (values(true)) seed(v) left join pg_class c
+      on c.relnamespace='public'::regnamespace and c.relname='production_native_client_provisions'
+  union all
+  select 'relation:production_deliverables_browser_v1',(c.oid is not null),
+    coalesce(c.relkind='v' and 'security_barrier=true'=any(coalesce(c.reloptions,array[]::text[]))
+      and has_table_privilege('anon',c.oid,'SELECT')
+      and has_table_privilege('authenticated',c.oid,'SELECT'),false)
+    from (values(true)) seed(v) left join pg_class c
+      on c.relnamespace='public'::regnamespace and c.relname='production_deliverables_browser_v1'
 ), config_rows as (
   select 'config:native_intake_epochs'::text object_key,(f.key is not null) present,
     coalesce(jsonb_typeof(f.value)='object'
@@ -172,6 +232,7 @@ ${columns}
 select object_key,present,compatible from routine_rows
 union all select object_key,present,compatible from trigger_rows
 union all select object_key,present,compatible from column_rows
+union all select object_key,present,compatible from schema_rows
 union all select object_key,present,compatible from config_rows
 order by object_key`;
 }
@@ -234,4 +295,4 @@ async function main() {
 }
 
 if (require.main === module) main();
-module.exports = { CONTRACT, COLUMNS, ROUTINES, TRIGGERS, PreflightError, contractQuery, expectedObjects, readContract, validateRows };
+module.exports = { CONTRACT, COLUMNS, ROUTINES, SCHEMA_KEYS, TRIGGERS, PreflightError, contractQuery, expectedObjects, readContract, validateRows };

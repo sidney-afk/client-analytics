@@ -36,6 +36,11 @@ do not blindly re-run an already-partial installation. The final candidate's
 schema manifest must include the recovery/completion owners as well as the
 gateway subset below; the nine-file gateway list by itself is incomplete.
 
+Every database action below requires separate future owner authorization. The
+SQL may come from an exact, pinned **unmerged** candidate commit, provided that
+the reviewed bytes are the bytes later merged and deployed. This ordering does
+not authorize applying that candidate now.
+
 The concrete dependency order for a target on the audited baseline is:
 
 1. Install and read back `2026-09-05-card-change-journal.sql` before admitting new repaired writes, plus `2026-09-05-calendar-feedback-recovery.sql` and the reviewed `2026-09-05-crosswalk-bind-and-import.sql` service-only recovery boundaries. These add no automatic recovery run.
@@ -43,7 +48,7 @@ The concrete dependency order for a target on the audited baseline is:
 3. Install `2026-09-05-native-intake-reconcile.sql` after root manifest plus native epochs/receipts, then `2026-09-06-native-card-materialization-boundary.sql`, then `2026-09-07-legacy-intake-native-triage.sql`. The triage migration explicitly depends on root reconciliation and card materialization. Installing them does not run reconciliation or triage.
 4. Install `2026-09-07-native-brief-media.sql` before a gateway can accept that private media contract. Verify the private bucket/table/ACL contract without printing object data.
 5. Install `2026-09-06-linear-outbound-cutoff.sql` inactive before deploying cutoff-aware outbound source. Its presence is not authority to activate it, and the current retirement contract remains held while it blocks ordinary business writes.
-6. Install assignment, labels, identifier mint, native client provisioning and Editors attribution as detailed below.
+6. Install assignment, labels, identifier mint, native client provisioning, the native browser projection and Editors attribution as detailed below.
 7. Build and execute the integrated versioned backup/recovery package over this **final** owner set. Older selected-table snapshots do not prove the new schema, and recovery scripts are proof tooling rather than migrations to apply to production.
 
 Within that order, the exact gateway/UI prerequisites are:
@@ -56,28 +61,34 @@ Within that order, the exact gateway/UI prerequisites are:
 6. `migrations/2026-09-06-native-label-writes.sql` extends the foundation with the default-provider, operator-attested native label capability and retained receipts.
 7. `migrations/2026-09-07-native-identifier-mint.sql` installs the default-provider name mint. Seeding and activation are later deliberate operations, not part of schema installation.
 8. `migrations/2026-09-09-native-client-provisioning.sql` adds `clients.native_project_ids` and the service-only provisioning receipt/RPC. Installation enrolls no client and changes no routing flag; invoking the RPC is a separately reviewed onboarding operation after serving proof.
-9. `migrations/2026-09-09-editors-event-assignee.sql` adds server-stamped event-time assignee attribution. It must precede the browser query that selects `event_assignee_id` and `event_assignee_attribution`; existing history remains honestly `unknown`.
+9. `migrations/2026-09-09-native-attribution-browser-projection.sql` must follow native client provisioning **and** the complete Workload chain below, because the replaced view calls `production_workload_label_projection`. It precedes the browser source that reads its bounded `raw_attribution_project_id` and `raw_attribution_native_epoch` fields.
+10. `migrations/2026-09-09-editors-event-assignee.sql` adds server-stamped event-time assignee attribution. It must precede the browser query that selects `event_assignee_id` and `event_assignee_attribution`; existing history remains honestly `unknown`.
 
 For Workload, preserve its separate prerequisite chain: the native view before
 the membership/snapshot RPC, then
 `2026-09-08-workload-native-label-state-shape.sql` after the membership SQL.
-Read back the current installed revisions before deciding which steps remain;
-the gateway preflight does not certify the Workload reader.
+Complete this chain before native attribution browser projection step 9. Read
+back the current installed revisions before deciding which steps remain; the
+gateway preflight does not certify the Workload reader.
 
-After the SQL set, run the preflight from the exact candidate in read-only mode
-with the already-held operator credential. A PASS means the expected native SQL
-contract is present and source-compatible. It does not mean the migration was
-safe on the captured production schema, data was preserved, a catalog or mint
-was correctly seeded, or any capability should be enabled.
+After the SQL set, run the preflight from the same pinned unmerged candidate in
+read-only mode with the already-held operator credential. After that exact
+candidate becomes reviewed `main`, each deploy workflow derives the same
+contract from its reviewed-main checkout and repeats the preflight before its
+first mutation. A PASS means the expected native SQL contract is present and
+source-compatible. It does not mean the migration was safe on the captured
+production schema, data was preserved, a catalog or mint was correctly seeded,
+or any capability should be enabled.
 
 ## Serving order
 
 1. Keep every new native capability in its installed dormant/provider state. Do not change authority, intake, assignment, label, identifier, client-enrollment or cutoff flags.
-2. Complete the live read-only SQL preflight. Any `CONFIG_MISSING`, `READ_FAILED*`, `READ_RESPONSE_INVALID`, `CONTRACT_ABSENT` or `CONTRACT_MISMATCH` result stops before all Edge Function deployment.
-3. Merge only a candidate whose new-browser/old-gateway paths are proved. Because Pages publishes `main` and both Edge Function workflows require a commit on `main`, this compatibility evidence is what covers the short Pages-to-gateway interval; timing estimates do not.
-4. Use the release manifest to choose **one** gateway owner lane. The onboarding lane deploys 12 functions; F27 Section 4 deploys exactly four and requires its fresh sealed prior-four capture/upload plus merge freeze. Do not dispatch both merely because both are listed.
-5. Require exact source/JWT/version readback for every function the selected workflow actually deployed. A preflight PASS cannot turn a partial function deployment into success.
-6. Only after the compatible gateway and browser are serving, run separately authorized TEST journeys and re-read every still-dormant capability. Flag changes, catalogue attestation, identifier seeding, client provisioning and final retirement remain distinct actions with their own receipts.
+2. Under a separate future database authorization, install the exact pinned unmerged candidate SQL and complete its schema/grant/trigger readback. The native client provisioning and native attribution projection migrations, plus the Editors event-assignee migration, must be present before the new browser reaches Pages.
+3. Complete the live read-only SQL preflight from that pinned candidate. Any `CONFIG_MISSING`, `READ_FAILED*`, `READ_RESPONSE_INVALID`, `CONTRACT_ABSENT` or `CONTRACT_MISMATCH` result stops before merge and before all Edge Function deployment.
+4. Prove the old browser and old gateway tolerate the installed dormant schema, then merge only the byte-identical reviewed candidate. Pages publishes `main`, so its newly selected database fields must already exist. If policy prohibits applying SQL from an unmerged pinned candidate, the release is blocked until the new browser is changed and proved backward-compatible; elapsed time between publishes is not a substitute.
+5. After merge, use the release manifest to choose **one** gateway owner lane. The onboarding lane deploys 12 functions; F27 Section 4 deploys exactly four and requires its fresh sealed prior-four capture/upload plus merge freeze. Each workflow rechecks source-compatible SQL from the reviewed-main checkout before its first deploy. Do not dispatch both merely because both are listed.
+6. Require exact source/JWT/version readback for every function the selected workflow actually deployed. A preflight PASS cannot turn a partial function deployment into success.
+7. Only after the compatible gateway and browser are serving, run separately authorized TEST journeys and re-read every still-dormant capability. Flag changes, catalogue attestation, identifier seeding, client provisioning and final retirement remain distinct actions with their own receipts.
 
 Retirement activation is **not** a safe last step while it blocks ordinary
 native status, comment, due-date, title or other business writes. The release

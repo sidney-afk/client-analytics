@@ -44,6 +44,16 @@ async function rejectsCode(run, code) {
     query.includes("t.tgtype=e.tgtype and t.tgqual is null")
       && query.includes("'zz_native_intake_receipt_guard','production_native_intake_receipt_guard',23")
       && query.includes("'zz_native_intake_truncate_guard','production_native_intake_truncate_guard',34"));
+  ok('the final native-client and browser-projection schema is a required deploy prerequisite',
+    query.includes('production_native_client_provision(text,text,text)')
+      && query.includes('clients.native_project_ids')
+      && query.includes('clients_native_project_ids_video_unique')
+      && query.includes('production_native_client_provisions_immutable_row')
+      && query.includes('production_deliverables_browser_v1.raw_attribution_project_id')
+      && query.includes("'security_barrier=true'=any"));
+  ok('routine compatibility binds each final owner body and its actual security mode',
+    query.includes('security_definer,service_execute')
+      && query.includes('p.prosecdef=e.security_definer'));
 
   ok('an absent required object fails closed', await rejectsCode(async () => {
     const fixture = rows(); fixture[0].present = false; fixture[0].compatible = false;

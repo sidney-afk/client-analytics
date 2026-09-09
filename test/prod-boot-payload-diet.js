@@ -285,6 +285,69 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   }
 }
 
+
+// ---- 5c. the two readers share ONE token domain (Codex #1364, round 3) ----
+/* The synthetic parent panel (keyed by ISSUE id) and the direct ?batch= view
+   (keyed by BATCH id) write the SAME batch row. A token that retires only its
+   own domain lets the other domain's older answer land on top of a newer one --
+   and, through the save path, silently revert text the user just committed. */
+{
+  const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
+  ok(/const batchSharedToken = _prodNextBatchDescriptionToken\(batchId\);/.test(ensureDesc)
+    && /batchSharedToken === _prodState\.batchDescriptionTokens\.get\(batchId\)/.test(ensureDesc),
+    'the synthetic parent read takes AND checks the shared per-batch token, so it retires and is retired by the direct read');
+  const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
+  ok(/_prodNextBatchDescriptionToken\(batchId\);/.test(sync),
+    'and every write to a batch row (optimistic, committed save, both conflict restores) retires an in-flight direct read, so a save cannot be reverted by a read that started before it');
+  ok(!/batchDescriptionReads\.delete/.test(sync),
+    '...the token only — the read state belongs to whichever reader owns it');
+}
+{
+  // Executed: a read in flight is retired by a save landing first.
+  const helpers = grabFunc('function _prodNextBatchDescriptionToken(batchId)');
+  const ctx = { Map, Number, String, _prodState: { batchDescriptionTokens: new Map() } };
+  vm.createContext(ctx);
+  vm.runInContext(helpers + '\nthis.next = _prodNextBatchDescriptionToken;', ctx);
+  const readToken = ctx.next('b1');
+  const saveToken = ctx.next('b1');
+  ok(readToken !== saveToken && ctx._prodState.batchDescriptionTokens.get('b1') === saveToken,
+    'tokens only ever advance, so a token held across a retirement cannot collide with a fresh one');
+}
+
+// ---- 5d. the batch delta cursor is server truth (Codex #1364, round 3) ----
+/* The cursor was recomputed from local rows, and a point read or a description
+   save writes a fresh `updated_at` onto ONE row. That jumped the cursor past
+   any batch changed in between, hiding it until the ten-minute reconcile. */
+{
+  const delta = grabFunc('async function _prodDeltaRefresh(options)');
+  ok(/const batchWatermark = _prodState\.batchDeltaCursor;/.test(delta),
+    'the batch delta reads its own cursor, not a watermark recomputed from mutated rows');
+  ok(delta.indexOf('_prodAdvanceBatchDeltaCursor(batchRows);') < delta.indexOf('_prodMergeBatchRows(batchRows)'),
+    '...advanced from the server answer BEFORE the merge lets a local value near those rows');
+  const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
+  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 300)),
+    '...and seeded on a full load from the RAW server rows, not the merged ones');
+
+  const advance = grabFunc('function _prodAdvanceBatchDeltaCursor(rows)');
+  const ctx = {
+    Date, Number, String, Array,
+    _prodState: { batchDeltaCursor: '' },
+    _prodRowUpdatedMs: (row) => { const v = Date.parse(String(row && row.updated_at || '')); return Number.isFinite(v) ? v : -1; },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodDeliverableWatermark(rows)') + '\n' + advance
+    + '\nthis.advance = _prodAdvanceBatchDeltaCursor;', ctx);
+  ctx.advance([{ updated_at: '2026-09-01T00:00:00+00:00' }, { updated_at: '2026-09-03T00:00:00+00:00' }]);
+  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'the cursor takes the newest stamp in a server answer');
+  ctx.advance([{ updated_at: '2026-09-02T00:00:00+00:00' }]);
+  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00',
+    'THE BUG: and never moves BACKWARDS, so an older answer cannot rewind the delta');
+  ctx.advance([]);
+  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'an empty answer leaves it alone');
+  ctx.advance([{ updated_at: 'not a date' }]);
+  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'and an unparseable stamp cannot poison it');
+}
+
 const batchDetail = grabFunc('function _prodBatchDetail(');
 ok(/descReadFailed \? 'Description could not load\.' : 'No batch description\.'/.test(batchDetail)
   && /batchDescriptionReads\.get\(String\(batch\.id \|\| ''\)\) === 'error'/.test(batchDetail),

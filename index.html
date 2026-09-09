@@ -49361,6 +49361,13 @@
                moves a batch's stamp mid-read leaves the generation equal and an
                older answer comparing as current. Raised by Codex on #1364. */
             batchDescriptionTokens: new Map(),
+            /* How far the batch delta has actually READ, which is not the same
+               question as the newest stamp among local rows. Point reads and
+               description saves write a fresh `updated_at` onto ONE row, so a
+               watermark recomputed from rows can jump past batches that changed
+               in between and hide them until the ten-minute reconcile. Only a
+               server answer ever advances this. Raised by Codex on #1364. */
+            batchDeltaCursor: '',
             createDraft: null,
             createCatalog: [],
             createAssignees: [],
@@ -56814,6 +56821,14 @@
             if (!row) return;
             row.description = value == null ? '' : String(value);
             if (updatedAt) row.updated_at = updatedAt;
+            /* Every write to a batch row's description funnels through here --
+               the optimistic pre-save value, the committed save, and both
+               conflict restores -- so this is where an in-flight direct
+               `?batch=` read is retired. Without it a read that started before
+               a save lands after it and silently reverts the text the user just
+               committed. The token only; the read state belongs to whoever is
+               reading, and the row now carries a description anyway. */
+            _prodNextBatchDescriptionToken(batchId);
             _prodState.adapter = null;
         }
         function _prodSyncDescriptionRow(id, value, updatedAt) {
@@ -57264,9 +57279,21 @@
                 const batchToken = _prodNextDescriptionRequestToken(id);
                 const batchGeneration = _prodState.projectionGeneration;
                 const batchScope = _prodIssueScopeSignature(issue);
+                /* The SHARED per-batch token, taken in addition to this panel's
+                   own issue-keyed one. Two readers write this same batch row --
+                   this panel, keyed by ISSUE id, and the direct `?batch=` view,
+                   keyed by BATCH id -- so a token that retires only its own
+                   domain lets the other domain's older answer land on top of a
+                   newer one. Taking it here also retires any direct read already
+                   in the air for this batch, and _prodEnsureBatchDescription
+                   taking it retires this one, so whichever read STARTED LAST is
+                   the only one whose answer can land. Raised by Codex on #1364,
+                   as the second-order case of the race fixed one round earlier. */
+                const batchSharedToken = _prodNextBatchDescriptionToken(batchId);
                 const batchStillCurrent = () => {
                     const live = _prodIssue(id);
                     return batchToken === _prodState.descriptionRequestTokens.get(id)
+                        && batchSharedToken === _prodState.batchDescriptionTokens.get(batchId)
                         && batchGeneration === _prodState.projectionGeneration
                         && !!live && String(live.batchId || '') === batchId
                         && _prodIssueScopeSignature(live) === batchScope;
@@ -61068,6 +61095,8 @@
                 _prodState.clients = mergedClients;
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
+                // Seeded from the raw server answer, never from the merged rows.
+                _prodAdvanceBatchDeltaCursor(batches);
                 _prodState.deliverables = mergedDeliverables;
                 _prodState.authority = authority;
                 _prodState.authorityLoaded = true;
@@ -61715,6 +61744,18 @@
             const parsed = value ? Date.parse(value) : NaN;
             return Number.isFinite(parsed) ? parsed : -1;
         }
+        /* Advance the batch delta cursor, from a SERVER answer only. Compared as
+           parsed instants rather than strings: these are two timestamps from the
+           same column, but a lexicographic compare would still be a silent
+           landmine if the rendered precision ever differed. */
+        function _prodAdvanceBatchDeltaCursor(rows) {
+            const candidate = _prodDeliverableWatermark(rows);
+            if (!candidate) return;
+            const candidateMs = Date.parse(candidate);
+            if (!Number.isFinite(candidateMs)) return;
+            const currentMs = _prodState.batchDeltaCursor ? Date.parse(_prodState.batchDeltaCursor) : NaN;
+            if (!Number.isFinite(currentMs) || candidateMs > currentMs) _prodState.batchDeltaCursor = candidate;
+        }
         function _prodDeliverableWatermark(rows) {
             let best = '';
             let bestMs = -1;
@@ -61942,7 +61983,7 @@
                        Same select as boot: no description. A batch whose stamp
                        moved drops its held description and re-reads it when
                        its panel is open. */
-                    const batchWatermark = _prodDeliverableWatermark(_prodState.batches);
+                    const batchWatermark = _prodState.batchDeltaCursor;
                     const [rows, batchRows] = await Promise.all([
                         _prodRestRows(
                             'production_deliverables_browser_v1',
@@ -61957,6 +61998,9 @@
                             : Promise.resolve([])
                     ]);
                     const changedIds = _prodMergeDeliverableRows(rows);
+                    // From the server answer, before the merge lets any local
+                    // value near these rows.
+                    _prodAdvanceBatchDeltaCursor(batchRows);
                     const changedBatchIds = _prodMergeBatchRows(batchRows);
                     if (changedIds.length || changedBatchIds.length) {
                         repaint = true;

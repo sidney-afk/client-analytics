@@ -17883,3 +17883,39 @@ ordering holding forever.
 The regression test drives the real race, with both reads resolved in the
 damaging order, and asserts the newer text survives, the older stamp is not
 written back, and the newer read keeps ownership of the state.
+
+### 182c. Two more from Codex round three: a second token domain, and a cursor made of local writes
+
+**The two readers of a batch row did not retire each other.** A batch row's
+description has two readers, keyed differently — the synthetic parent panel by
+ISSUE id (`descriptionRequestTokens`) and the direct `?batch=` view by BATCH id
+(`batchDescriptionTokens`). The token added in 182b protected only the second.
+So leaving a `?batch=` view with a read in flight and then opening or editing the
+synthetic parent let the older read land on top of the newer answer. Through the
+save path it is worse than stale text: all four writers of a batch description
+(the optimistic pre-save value, the committed save, and both conflict restores)
+funnel through `_prodSyncBatchDescriptionRow`, so a read that started before a
+save landed after it and **silently reverted text the user had just committed**.
+
+Both readers now take the same shared per-batch token, and every write through
+that funnel retires it. The rule is now one sentence: whichever read STARTED
+LAST is the only one whose answer can land, and any completed write retires
+every read older than it.
+
+**The batch delta cursor was derived from rows that local writes mutate.** It
+was `_prodDeliverableWatermark(_prodState.batches)` — the newest stamp among
+local rows — but a point read and every description save write a fresh
+`updated_at` onto ONE row. Open one batch whose row is newer than the rest and
+the cursor jumps to it, so `updated_at >= cursor` excludes every batch changed
+between the last real read and that stamp; those stay invisible until the
+ten-minute reconcile. There is now a real `batchDeltaCursor` advanced ONLY from
+server answers (seeded on a full load from the raw rows, before the merge lets a
+local value near them), compared as parsed instants rather than strings, and it
+never moves backwards.
+
+**A pre-existing twin, NOT fixed here, deliberately.** `_prodSyncDescriptionRow`
+does the same thing to `deliverables.updated_at`, and the DELIVERABLE delta
+watermark is still `_prodDeliverableWatermark(_prodState.deliverables)`. That is
+the identical defect on the older path and it predates this change; it is left
+alone rather than widening a PR already three review rounds deep. Worth its own
+repair — the fix is the same shape as the one above.

@@ -1044,6 +1044,14 @@ function extractFunction(name, bodyMarker = '{') {
     && /throw new GatewayError\(409, "project_mapping_missing"\)/.test(edge)
     && !/matching = projects\.filter/.test(edge.slice(edge.indexOf('async function projectForIntake'), edge.indexOf('function teamIdFor'))),
   'missing, ambiguous, or untagged real-client mappings fail closed without exact-name create fallback');
+  ok(/native_project_ids/.test(edge)
+    && /function nativeIntakeProjectIdsForTeam/.test(edge)
+    && /\^svproj_\[a-z0-9_-\]\+\$\/i/.test(edge)
+    && /if \(nativeEpoch\) \{[\s\S]{0,700}const native = nativeIntakeProjectIdsForTeam\(client, team\)/.test(edge)
+    && /native\.length > 1[\s\S]{0,100}project_mapping_ambiguous/.test(edge)
+    && /source: "native_intake_project"/.test(edge)
+    && /reason: "native_intake_project_mapped"/.test(edge),
+  'a reviewed native project map is used only for a native epoch, remains shape-bounded, and stamps explicit native ownership');
   ok(/LINEAR_VIDEO_TEAM_ID/.test(edge) && /LINEAR_GRAPHICS_TEAM_ID/.test(edge),
     'optional team UUIDs come from Edge secrets, never source literals');
   ok(/identifier: null/.test(edge)

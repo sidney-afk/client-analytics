@@ -100,6 +100,10 @@ type ClientRow = JsonMap & {
   active: boolean;
   kind: string;
   linear_project_ids?: unknown;
+  // A reviewed, SyncView-owned route for an already-native intake epoch. It is
+  // intentionally distinct from Linear project IDs and never authorizes a
+  // provider-era create.
+  native_project_ids?: unknown;
 };
 type Principal = {
   kind: "staff" | "client" | "test" | "public";
@@ -1078,7 +1082,7 @@ async function serviceRoleRequest(req: Request): Promise<boolean> {
 
 async function clientBySlug(supabase: SupabaseClient, slug: string): Promise<ClientRow | null> {
   const { data, error } = await supabase.from("clients")
-    .select("slug,display_name,active,kind,linear_project_ids")
+    .select("slug,display_name,active,kind,linear_project_ids,native_project_ids")
     .eq("slug", slug)
     .maybeSingle();
   if (error) throw new GatewayError(503, "client_lookup_unavailable");
@@ -1166,7 +1170,7 @@ function intakeDescriptionWithFilmingPlan(
 
 async function uniqueActiveTestClient(supabase: SupabaseClient): Promise<ClientRow> {
   const { data, error } = await supabase.from("clients")
-    .select("slug,display_name,active,kind,linear_project_ids")
+    .select("slug,display_name,active,kind,linear_project_ids,native_project_ids")
     .eq("active", true)
     .eq("kind", "test");
   if (error) throw new GatewayError(503, "client_lookup_unavailable");
@@ -2631,6 +2635,14 @@ async function parentRouteForAppend(
  * on the next onboarding. Nothing gates on it — see
  * docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
  */
+function nativeIntakeProjectIdsForTeam(client: ClientRow, team: string): string[] {
+  // Native ownership is an explicit reviewed per-team map. A malformed value
+  // is not a compatibility fallback: it leaves admission at the normal
+  // project_mapping_missing/ambiguous boundary.
+  return projectIdsForTeam(client.native_project_ids, team)
+    .filter(id => /^svproj_[a-z0-9_-]+$/i.test(id));
+}
+
 function intakeAttribution(client: ClientRow, team: string, projectId: string): JsonMap {
   /*
    * The RECONCILER's rule, not intake's. `attributionProjectIds` is team-blind,
@@ -2639,6 +2651,7 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
    * Using the stricter one here stamped `needs_attribution` on rows the
    * reconciler resolved, guaranteeing a permanent diff.
    */
+  const nativeMapped = nativeIntakeProjectIdsForTeam(client, team).includes(projectId);
   const mapped = attributionProjectIds(client.linear_project_ids).includes(projectId);
   const base: JsonMap = {
     schema: "syncview_attribution_v1",
@@ -2657,8 +2670,22 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
   // f200 attaches this whenever a direct project resolves to no owner
   // (`f200-attribution.js:342`, surfaced at `:406`). Without it the stamp and
   // the recomputation differ by exactly one key on every unmapped row.
-  if (!mapped && projectId) base.unmapped_project_ids = [projectId];
-  if (!mapped) return base;
+  if (!mapped && !nativeMapped && projectId) base.unmapped_project_ids = [projectId];
+  if (!mapped && !nativeMapped) return base;
+  if (nativeMapped) {
+    return {
+      ...base,
+      state: "resolved",
+      client_slug: clean(client.slug),
+      owner_kind: lower(client.kind || "client"),
+      // This project identity is native; never label it as a Linear direct
+      // project or make the legacy attribution reconciler repair it as one.
+      source: "native_intake_project",
+      project_id: projectId,
+      repair_required: false,
+      reason: "native_intake_project_mapped",
+    };
+  }
   return {
     ...base,
     state: "resolved",
@@ -2729,6 +2756,15 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
     const project = await readLinearProject(tagged[0]);
     if (!projectMatchesTeam(project, team)) throw new GatewayError(409, "project_mapping_missing");
     return tagged[0];
+  }
+  if (nativeEpoch) {
+    // A native route is eligible only after there are zero explicit legacy
+    // routes for this team. This preserves every accepted provider-era or
+    // legacy-retry identity and prevents an onboarding edit from silently
+    // swapping a Linear project for an existing request.
+    const native = nativeIntakeProjectIdsForTeam(client, team);
+    if (native.length > 1) throw new GatewayError(409, "project_mapping_ambiguous");
+    if (native.length === 1) return native[0];
   }
   // Real-client intake never guesses from a display name or an untagged list.
   // The read-only census may propose exact-name candidates to the owner, but

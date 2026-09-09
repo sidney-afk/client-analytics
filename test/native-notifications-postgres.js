@@ -52,13 +52,13 @@ try {
   assert.equal(scalar('select count(*) from public.production_notification_intents'), '1');
   cluster.exec(`update public.syncview_runtime_flags set value='{"video":"syncview","graphics":"syncview"}'::jsonb where key='prod_authority';`);
   // Direct DML and non-service role execution are denied. PostgreSQL superuser is intentionally outside this proof boundary.
-  refuses("set local role anon; select public.production_notification_claim(1);", 'permission denied');
+  refuses("begin; set local role anon; select public.production_notification_claim(1); rollback;", 'permission denied');
   refuses("insert into public.production_notification_intents(intent_key,kind,state,client_slug,deliverable_id,source_event_id,actor_member_id,destination_kind,message) values ('bad-direct','status_tweak','blocked','fixture-client','legacy-native-id',1,'11111111-1111-4111-8111-111111111111','client_creative_channel','{}');", 'production_notification_intent_insert_forbidden');
   // A service-role claim/receipt is the only state progression. Provider identity is durable.
-  cluster.exec('set local role service_role; select * from public.production_notification_claim(1); reset role;');
+  cluster.exec('begin; set local role service_role; select * from public.production_notification_claim(1); commit;');
   assert.equal(scalar("select state from public.production_notification_intents where kind='status_smm_approval'"), 'sending');
-  cluster.exec(`set local role service_role; select public.production_notification_record_delivery(
-    (select id from public.production_notification_intents where kind='status_smm_approval'), 1, 'retryable', null, 'slack_provider_retryable'); reset role;`);
+  cluster.exec(`begin; set local role service_role; select public.production_notification_record_delivery(
+    (select id from public.production_notification_intents where kind='status_smm_approval'), 1, 'retryable', null, 'slack_provider_retryable'); commit;`);
   assert.equal(scalar("select state from public.production_notification_intents where kind='status_smm_approval'"), 'retryable');
   assert.equal(scalar('select count(*) from public.production_notification_delivery_receipts'), '1');
   console.log('ok native notifications PostgreSQL proof');

@@ -18549,3 +18549,59 @@ half-commit is not.**
 **Live blast radius at the time of writing**: one card on one slug (one
 component, video). Any client on any slug whose approve half-commits lands
 in the same trap until this deploys.
+
+## 187. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+
+Item 186 closed the client-visible refusal and said plainly that it did not
+explain why the `calendar_posts` leg never followed its own committed gateway
+write. This is that explanation, established by replication rather than by
+reading, in `qa/client-approve-half-commit/probe.js`.
+
+**Method.** The harness serves the repo, boots the real `index.html`, seeds one
+card at `Client Approval` and drives the REAL client approve path. The client
+branch needs no client token: `_calReviewMode()` returns `client` for any view
+that is not `smmreview`, so `_calReviewApplyApprove` takes the same branch,
+stamps the same `client_<comp>_approved_at` and routes the same gateway write.
+Leg 1 (gateway) and leg 2 (`calendar_posts`) are recorded separately and each
+fault is scored against the fingerprint measured on the live card: committed AND
+stale AND unstamped AND still reading `Client Approval` to the client.
+
+| Fault injected | Leg 1 | Leg 2 | Verdict |
+|---|---|---|---|
+| none (control) | commits | writes | correct |
+| **gateway response lost** | **commits** | **never** | **reproduces** |
+| storage refuses the checkpoint | commits | never | no: card stays Approved, storage error shown |
+| source write rejected (500) | commits | attempted | no: card stays Approved, retry armed |
+
+**Only a lost response reproduces it**, and the other two are ruled out on the
+record rather than by argument. A browser cannot distinguish "the server never
+received it" from "the server committed it and the reply was lost". The catch in
+`_calFlushCardSave` assumed the first, rolled the card back through
+`_CAL_ROLLBACK_FIELDS`, and abandoned leg 2. **The rollback is the whole
+mechanism**: it is what put the card back to `Awaiting your approval` with the
+Approve button live, which is what produced the repeat clicks that met 186's
+refusal.
+
+**The finding that decides the fix.** The durable repair journal ALREADY
+completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
+restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
+lands with the right status and the right sign-off stamp. Nothing is missing.
+
+**What is fixed here (browser only, no deploy).** A statusless throw from an
+attempt already in flight is now AMBIGUOUS, not failed: no rollback, no failure
+dialog, the checkpoint armed so the repair owns the write, and honest copy
+("Still saving...") in place of a control that would refuse the reader. After
+the fix no injected fault reproduces the fingerprint, and the probe fails the
+build if one ever does again.
+
+**What is still open, and it is the real one.** That repair runs only in that
+client's browser, only if she comes back. She met an error, reported it, and
+closed the tab, so a write the server had already committed was left unfinished
+with nothing server-side able to complete it; her card stayed stale until an
+unrelated staff browser projected the canonical status back at 19:32. **The
+completion of a committed write still depends on one particular browser session
+surviving.** Closing that needs a server-side reconciler (a deliverable whose
+status disagrees with its card row is a repairable fact, visible without any
+browser), which is an owner decision about who owns the card row and is
+deliberately NOT taken here. The planned review-surface fault sweep across
+Client / SMM / Kasper should shape it before it is built.

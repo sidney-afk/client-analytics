@@ -26711,6 +26711,29 @@
         }
         return out;
     }
+    /* A gateway attempt that never came back with an HTTP answer is AMBIGUOUS,
+       not failed. The browser cannot tell "the server never received it" from
+       "the server committed it and the reply was lost", and treating the second
+       as the first is what produced the 2026-09-09 half-commit: the client's
+       approve was live on the server while her card rolled back to
+       "Awaiting your approval" with the Approve button re-armed, which is what
+       made her press it again and meet a refusal (OPEN_REPAIRS 186).
+
+       Replicated in qa/client-approve-half-commit: of a lost response, a
+       refused storage checkpoint and a rejected source write, ONLY the lost
+       response reproduces the measured fingerprint, and only because of that
+       rollback. The same harness proves the durable repair journal finishes
+       the write correctly once connectivity returns, so the right move is to
+       keep the optimistic state and let the repair own it.
+
+       A gateway refusal carries a numeric status (_writeUiGatewayError, or a
+       non-2xx response), and those stay hard failures that roll back. Only a
+       statusless throw from an attempt already in flight is ambiguous. */
+    function _writeUiTransportAmbiguous(error) {
+        if (!error) return false;
+        const status = Number(error.status);
+        return !Number.isFinite(status) || status <= 0;
+    }
     function _writeUiQueueDiagnostic(surface, outcome, item, error) {
         try {
             const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]');
@@ -40436,7 +40459,13 @@
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            /* Possibly committed, so neither rolled back nor reported as a
+               failure: a dialog saying the write failed would be a guess, and
+               the one guess that costs the most is the one that sends the
+               person back to a control that will refuse them. */
+            const gatewayAmbiguous = gatewayAttempted && !gatewayCommitted && _writeUiTransportAmbiguous(e);
+            const gatewayDurable = gatewayCommitted || gatewayAmbiguous;
+            if (gatewayAttempted && !gatewayDurable) _writeUiReportFailure('calendar', 'status', e);
             _calSetCardStatus(realId, 'error', e.message || 'save failed');
             // Roll back structural fields the upsert failed to persist.
             // Text fields (caption / name / cta / tweak comments / asset
@@ -40457,16 +40486,20 @@
                 if (iErr >= 0) calState.posts[iErr]._saveError = _writeUiFailureSentence(e, 'save failed');
             } else if (prevSnapshot && iErr >= 0) {
                 const cur = calState.posts[iErr];
-                if (!gatewayCommitted) {
+                if (!gatewayDurable) {
                     _CAL_ROLLBACK_FIELDS.forEach(k => {
                         if (k in edits) cur[k] = prevSnapshot[k];
                     });
                 }
                 // updated_at must also revert so the next background
-                // merge doesn't see a phantom "we wrote newer" stamp.
-                cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
-                cur._saveError = _writeUiFailureSentence(e, 'save failed');
-                if (gatewayCommitted) {
+                // merge doesn't see a phantom "we wrote newer" stamp. An
+                // ambiguous attempt keeps its stamp: the row it may already
+                // have written on the server carries this same clock.
+                if (!gatewayAmbiguous) cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                cur._saveError = gatewayAmbiguous
+                    ? 'Still saving. The connection dropped before this was confirmed, so it finishes on its own: leave this page open, or come back to it.'
+                    : _writeUiFailureSentence(e, 'save failed');
+                if (gatewayDurable) {
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
                     cur._writeUiRetryPrincipal = _writeUiPrincipalKey();

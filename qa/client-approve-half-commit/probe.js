@@ -195,4 +195,14 @@ function fingerprint(out) {
   verdicts.forEach(([name, f]) => console.log('  ' + (f.matchesLive ? 'REPRODUCES' : 'no        ') + '  ' + name));
   const reproducing = verdicts.filter(([, f]) => f.matchesLive).map(([name]) => name);
   console.log('\nreproducing faults: ' + (reproducing.length ? reproducing.join('; ') : 'none'));
+  /* GUARD. Once the ambiguous-transport fix is in place no fault may reproduce
+     the live fingerprint: a lost response must leave the card showing the
+     approval, keep the sign-off stamp, and arm the repair that finishes leg 2.
+     A fault reappearing here is that regression, not a flake. */
+  if (reproducing.length) {
+    console.error('\nFAIL: the half-commit fingerprint is reachable again via: ' + reproducing.join('; '));
+    process.exitCode = 1;
+  } else {
+    console.log('PASS: no injected fault leaves a committed approve invisible to the client');
+  }
 })();

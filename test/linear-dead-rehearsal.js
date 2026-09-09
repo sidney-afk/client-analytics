@@ -129,16 +129,15 @@ const {
 }
 
 // ---------------------------------------------------------------------------
-// LINEAR-BACKED WEBHOOKS THAT DO NOT CARRY THE `linear-` PREFIX.
+// REMAINING LINEAR-BACKED WEBHOOKS WITHOUT THE `linear-` PREFIX.
 //
-// OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reach Linear through
+// OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reached Linear through
 // their n8n workflow rather than through a `linear-*` name. The prefix match
-// cannot see them, so a dead-Linear rehearsal would have sent them to real n8n
-// and a HEALTHY Linear -- reporting four Linear-dependent flows as surviving a
-// dead Linear on the strength of them having used a live one.
+// cannot see them. The final native Editors reader removed `editors-week`; the
+// other three remain browser routes and must still be denied in dead mode.
 // ---------------------------------------------------------------------------
 {
-  const backed = ['editors-week', 'send-urgent-slack', 'video-form', 'graphic-form'];
+  const backed = ['send-urgent-slack', 'video-form', 'graphic-form'];
   const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const hook of backed) {
     ok(app.includes(`webhook/${hook}`),
@@ -146,6 +145,10 @@ const {
     ok(LINEAR_BACKED_HOOK.test(`https://example.invalid/webhook/${hook}`),
       `${hook} reaches Linear through n8n and must be intercepted in dead mode`);
   }
+  ok(!app.includes('webhook/editors-week'),
+    'the final app no longer calls the removed editors-week provider endpoint');
+  ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/editors-week'),
+    'the dead harness does not claim coverage for the removed editors-week route');
   ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/video-form?client=x'),
     'a query string must not defeat the match');
 
@@ -157,7 +160,7 @@ const {
   ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/editors-week-archive'),
     'the match must be anchored at a path boundary, not a prefix');
 
-  // DEAD MODE ONLY. Healthy-mode behaviour for these four must not change: this
+  // DEAD MODE ONLY. Healthy-mode behaviour for these three must not change: this
   // library has never mocked them, and altering that would silently change every
   // existing probe rather than only the rehearsal.
   const backedBranch = source.match(/if \(LINEAR_DEAD\) \{\s*\n\s*const bh = url\.match\(LINEAR_BACKED_HOOK\)[\s\S]{0,1400}?\n    \}/);
@@ -259,123 +262,56 @@ const {
 }
 
 /*
- * A PROBE THAT INTERCEPTS A LINEAR WEBHOOK MUST HONOUR THE MODE.
+ * FINAL NATIVE PROBES: POSITIVE NATIVE ROUTING + NEGATIVE PROVIDER ROUTING.
  *
- * `SYNCVIEW_QA_LINEAR_DEAD` reaches only what the centralized interceptor sees.
- * A probe that registers its OWN route for the same pattern wins — a
- * later-registered Playwright route takes precedence — so it answers however it
- * likes no matter what the environment says.
+ * C removed the seven probe-local legacy Linear success stubs and replaced them
+ * with native work-item/gateway fixtures. The final invariant is therefore not
+ * “every legacy stub honours dead mode”; there should be no such success stub.
+ * Every probe that stubs the native gateway must also capture the two retiring
+ * browser webhooks, assert zero calls, and the capture must abort if reached.
  *
- * Four probes (p28/p29/p30/p36) did exactly that, fulfilling `200 {"ok":true}`
- * unconditionally, which meant a full-manifest run with dead mode ON exercised a
- * HEALTHY Linear for precisely the status-and-comment write flows the rehearsal
- * exists to watch die. Found by Codex on PR #1350 (F1); fixed by routing all four
- * through `qa/probes/linear-hook-fulfil.js`, which they can share because they
- * still need to RECORD the calls they intercept and so cannot simply drop their
- * routes and inherit the library's.
- *
- * The property enforced here is the one that actually matters, and it is not a
- * list of names: EVERY probe that intercepts a Linear webhook must answer through
- * the shared helper. A new probe that hand-rolls `route.fulfill` fails this
- * immediately, which is the only version of this check that cannot rot — an
- * exclusion list would have to be maintained by whoever adds the probe, and that
- * is exactly the person who does not know it exists.
+ * Scope matters: Playwright routing can prove what the BROWSER selected. It
+ * cannot intercept a fetch made inside an Edge Function. Server independence
+ * needs the actual-handler provider-denied seams; a green browser route check
+ * must never be described as that server proof.
  */
 {
   const probeDir = path.join(__dirname, '..', 'qa', 'probes');
-  const HELPER = 'linear-hook-fulfil.js';
-
-  /*
-   * DETECTING THE INTERCEPTS. The first version of this matched a route pattern
-   * that spelled a Linear webhook LITERALLY, and Codex found the hole: three more
-   * probes build the pattern by concatenation —
-   * `for (const wh of ['linear-set-status', …]) ctx.route('**​/webhook/' + wh, …)`
-   * — so p47/p60/p68 sailed straight past a check that reported itself green.
-   * That was the fourth time in this lane a guard passed while the thing it
-   * guarded was broken, which is why the rule below keys on the WEBHOOK NAMES
-   * near the registration rather than on the shape of the pattern string.
-   *
-   * The lookback is what makes concatenation visible: the loop header carrying
-   * the names sits on a line above the `.route(` call.
-   */
-  const HOOK_NAMES = /linear-(set-status|add-comment|subissues|issue-statuses|issues|projects|tweak-comments)/;
-  const LOOKBACK = 250;
-
-  function linearRouteHandlers(source) {
-    const handlers = [];
-    const opener = /\.route\(/g;
-    let match;
-    while ((match = opener.exec(source)) !== null) {
-      const open = source.indexOf('(', match.index);
-      let depth = 0;
-      for (let i = open; i < source.length; i++) {
-        if (source[i] === '(') depth += 1;
-        else if (source[i] === ')') {
-          depth -= 1;
-          if (depth === 0) {
-            const body = source.slice(open, i + 1);
-            /*
-             * Judge the PATTERN, not the whole handler.
-             *
-             * Matching anywhere in the body swept in `ot4_t1_submit_intake_guards.js`,
-             * whose `route('**​/*')` catch-all mentions two Linear paths inside a
-             * fully sealed fixture that ABORTS everything it does not name. That
-             * probe is not pretending Linear is healthy — its default is refusal —
-             * and flagging it would have meant either a false alarm or, worse,
-             * someone loosening this check to silence it.
-             */
-            const comma = body.indexOf(',');
-            const pattern = comma === -1 ? body : body.slice(0, comma);
-            const context = source.slice(Math.max(0, match.index - LOOKBACK), match.index);
-            // Linear-targeted if the pattern names a webhook, or the loop header
-            // immediately above supplies the names by concatenation.
-            if (HOOK_NAMES.test(pattern) || HOOK_NAMES.test(context)) handlers.push(body);
-            break;
-          }
-        }
-      }
-    }
-    return handlers;
-  }
-
-  const intercepts = fs.readdirSync(probeDir)
-    .filter(name => name.endsWith('.js') && name !== HELPER)
-    .filter(name => linearRouteHandlers(fs.readFileSync(path.join(probeDir, name), 'utf8')).length > 0)
+  const fixturePath = path.join(__dirname, '..', 'qa', 'native_work_item_fixture.js');
+  const fixture = fs.readFileSync(fixturePath, 'utf8');
+  const nativeProbes = fs.readdirSync(probeDir)
+    .filter(name => name.endsWith('.js'))
+    .filter(name => /\bNW\.stubNativeGateway\s*\(/.test(
+      fs.readFileSync(path.join(probeDir, name), 'utf8')))
     .sort();
 
-  ok(intercepts.length >= 7,
-    `expected at least the seven known Linear-intercepting probes, found ${intercepts.length} `
-    + `(${intercepts.join(', ') || 'none'}) — if this drops, the detector stopped matching and `
-    + 'the check silently became a no-op');
-
-  for (const probe of intercepts) {
-    const source = fs.readFileSync(path.join(probeDir, probe), 'utf8');
-    for (const [index, handler] of linearRouteHandlers(source).entries()) {
-      ok(/fulfilLinearHook/.test(handler),
-        `${probe} Linear route #${index + 1} does not answer through ${HELPER}, so it ignores `
-        + 'SYNCVIEW_QA_LINEAR_DEAD and rehearses a HEALTHY Linear whatever the environment says');
-      ok(!/\broute\.fulfill\(|\br\.fulfill\(/.test(handler),
-        `${probe} Linear route #${index + 1} still fulfils directly — the whole point of the `
-        + 'helper is that the answer depends on the mode');
-    }
+  ok(nativeProbes.length >= 7,
+    `the final manifest retains the seven native write-routing probes (${nativeProbes.join(', ') || 'none'})`);
+  for (const probe of nativeProbes) {
+    const probeSource = fs.readFileSync(path.join(probeDir, probe), 'utf8');
+    ok(/\bNW\.captureRetiredWebhooks\s*\(/.test(probeSource),
+      `${probe} captures any browser attempt to use a retiring Linear write webhook`);
+    ok(/NW\.retiredCallCount\([^\n]*\)\s*===\s*0/.test(probeSource),
+      `${probe} asserts zero retiring-webhook traffic instead of accepting a clean refusal as success`);
+    ok(/NW\.(?:statusCalls|commentCalls)\s*\(|gateway(?:[A-Za-z]*)?\.length/.test(probeSource),
+      `${probe} also makes a positive assertion on native gateway routing`);
   }
 
-  const helper = fs.readFileSync(path.join(probeDir, HELPER), 'utf8');
+  const captureStart = fixture.indexOf('async function captureRetiredWebhooks');
+  const captureEnd = fixture.indexOf('\n}\n', captureStart);
+  const capture = captureStart < 0 || captureEnd < 0 ? '' : fixture.slice(captureStart, captureEnd + 2);
+  ok((capture.match(/route\.abort\('blockedbyclient'\)/g) || []).length === 2,
+    'the native fixture denies both retiring browser transports if either is reached');
+  ok(!/route\.fulfill\(/.test(capture),
+    'the native fixture cannot silently turn a provider-routing regression into a healthy 200');
+  ok(/browser route proof only/i.test(fixture)
+    && /actual-handler transport seam with provider egress denied/i.test(fixture),
+  'the harness states the browser/server proof boundary at the code that creates the stub');
 
-  // The helper must BRANCH on the mode. Asserting the token `LINEAR_DEAD` merely
-  // appears is not enough — it also appears in the import and the exports, so
-  // deleting the branch itself left the old assertion green.
-  ok(/if\s*\(\s*!\s*LINEAR_DEAD\s*\)|if\s*\(\s*LINEAR_DEAD\s*\)/.test(helper),
-    'the shared helper must branch on LINEAR_DEAD — without the branch every answer is the '
-    + 'healthy 200 again and dead mode reaches nothing');
-  ok(/linearDeadResponseFor\s*\(/.test(helper) && /linearDeadShapeFor\s*\(/.test(helper),
-    'the shared helper must consult the dead-mode rotation, not just proxy a 200');
-  ok(/route\.abort\(/.test(helper),
-    'the helper must ABORT for the refused shape — fulfilling it as a response would turn '
-    + '"connection refused" into "the server answered"');
-  ok(/status: 200[\s\S]{0,120}ok["']?:?\s*true|\{"ok":true\}/.test(helper),
-    'healthy mode must remain the historical 200 byte for byte, so a probe green before the '
-    + 'helper existed stays green for the same reason');
+  const handlerProof = fs.readFileSync(path.join(__dirname, '..', 'qa', 'native-label-catalog', 'handler-proof.mjs'), 'utf8');
+  ok(/global fetch is entirely replaced, never delegates to real transport/.test(handlerProof)
+    && /not a browser\/socket receiver test/.test(handlerProof),
+  'an actual-handler provider-denied proof labels its own separate scope explicitly');
 }
 
 console.log(failures

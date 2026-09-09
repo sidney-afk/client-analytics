@@ -101,19 +101,22 @@ const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
 
 /* LINEAR-BACKED webhooks that do NOT carry the `linear-` prefix.
  *
- * Found by lane LX-N8N (OPEN_REPAIRS 181) and verified against this tree: four
+ * Found by lane LX-N8N (OPEN_REPAIRS 181). Three browser webhooks in the final
  * webhooks the browser calls reach Linear through their n8n workflow rather
  * than through a `linear-*` name, so the prefix match above cannot see them.
  *
- *   editors-week       queries Linear for the week's editor workload
  *   send-urgent-slack  shaped like a Slack write, but resolves the issue's
- *                      CURRENT Linear assignee to pick who to mention
+ *                      current Linear assignee to pick who to mention
  *   video-form         creates a Linear issue
  *   graphic-form       creates a Linear issue
  *
+ * `editors-week` used to be the fourth entry. The final native Editors reader
+ * removed that browser endpoint, so retaining its dead pattern would make this
+ * harness claim coverage for a route the product can no longer take.
+ *
  * WHY THIS MATTERS FOR THE REHEARSAL, and only for the rehearsal. A dead-Linear
- * run that leaves these four live sends them to real n8n, whose Linear nodes are
- * (today) talking to a HEALTHY Linear -- so the rehearsal would report that four
+ * run that leaves these three live sends them to real n8n, whose Linear nodes are
+ * (today) talking to a HEALTHY Linear -- so the rehearsal would report that three
  * Linear-dependent flows survive Linear being dead on the strength of them
  * having quietly used a live one. That is the same polarity error this whole
  * mode exists to correct, one layer further out.
@@ -136,7 +139,7 @@ const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
  * incident in which a videographer's only submitted copy lived in his browser.
  */
 const LINEAR_BACKED_HOOK =
-  /\/webhook\/(editors-week|send-urgent-slack|video-form|graphic-form)(?:[/?]|$)/;
+  /\/webhook\/(send-urgent-slack|video-form|graphic-form)(?:[/?]|$)/;
 const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;

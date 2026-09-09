@@ -186,10 +186,14 @@ async function stubNativeGateway(ctx, options) {
 }
 
 /*
- * Route the two retired webhooks and COUNT them. They are answered 200 so a
- * probe that trips one fails on the assertion rather than on a network error —
- * a failure that says "this went to Linear" is worth more than one that says
- * "a request failed".
+ * Route the two retired webhooks, COUNT them, and deny transport. The seven
+ * native-routing probes assert the count stays zero; aborting as well means a
+ * missed assertion cannot turn this fixture into a healthy-provider stub.
+ *
+ * This is browser route proof only. The gateway above is also a browser stub,
+ * so this helper cannot prove that a deployed or actual `production-write`
+ * handler makes no server-side provider fetch. That separate claim requires an
+ * actual-handler transport seam with provider egress denied.
  */
 async function captureRetiredWebhooks(ctx) {
   const setStatus = [];
@@ -197,12 +201,12 @@ async function captureRetiredWebhooks(ctx) {
   await ctx.route('**/webhook/linear-set-status', async (route) => {
     try { setStatus.push(JSON.parse(route.request().postData() || '{}')); }
     catch (e) { setStatus.push({ parseErr: true }); }
-    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"ok":true}' });
+    await route.abort('blockedbyclient');
   });
   await ctx.route('**/webhook/linear-add-comment', async (route) => {
     try { addComment.push(JSON.parse(route.request().postData() || '{}')); }
     catch (e) { addComment.push({ parseErr: true }); }
-    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"ok":true}' });
+    await route.abort('blockedbyclient');
   });
   return { setStatus, addComment };
 }

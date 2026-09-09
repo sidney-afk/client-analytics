@@ -1,11 +1,13 @@
 'use strict';
 // No live URLs accepted. CI's existing disposable PostgreSQL service is required;
 // local use explicitly opts in after starting a disposable loopback database.
-// Chain: PR1293 manifest -> PR1302 native-only intake -> this reconcile draft,
+// Chain: root manifest -> exact composed intake -> receipt retention -> reconcile,
 // plus the exact live column set of both card tables and their event ledgers
 // (from the schema baseline) so stage 2 writes the same columns it would live.
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const { fromRepository } = require('../scripts/native-intake-named-append-compose.js');
 const { spawnSync } = require('child_process');
 const { bootCluster, connectionEnv } = require('../scripts/native-intake-manifest/harness.js');
 if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.INTAKE_MANIFEST_REQUIRE_POSTGRES !== '1') {
@@ -41,7 +43,16 @@ try {
   if (seed < 0) throw new Error('filming-plan schema seam drift');
   cluster.exec(filming.slice(0, seed));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-root-manifest.sql'));
-  cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-only-intake.sql'));
+  const artifactDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'reconcile-composed-'));
+  const artifact = path.join(artifactDirectory, 'composed.sql');
+  try {
+    fs.writeFileSync(artifact, fromRepository().sql);
+    cluster.runFile(artifact);
+  } finally {
+    if (fs.existsSync(artifact)) fs.unlinkSync(artifact);
+    fs.rmdirSync(artifactDirectory);
+  }
+  cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-08-native-intake-receipt-retention.sql'));
   // Same exact F27 write-fence subset the native-only proof installs.
   const f27 = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-07-20-f27-team-rollback.sql'), 'utf8').replace(/\r\n/g, '\n');
   const tableStart = f27.indexOf('create table if not exists public.track_b_team_rollbacks (');

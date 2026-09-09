@@ -99,6 +99,9 @@ vm.runInContext([
   extract('_prodAuthorityValue'),
   extract('_prodWriteTeam'),
   extract('_prodAttributionResolved'),
+  // The gate text asks whether a native row is merely waiting on the Linear
+  // mirror before it names a repair, so its helper comes with it.
+  extract('_prodAttributionSyncPending'),
   extract('_prodAttributionGateText'),
   extract('_prodIdentityRepairGateText'),
   extract('_prodCreativeNextStatuses'),

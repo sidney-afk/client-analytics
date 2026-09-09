@@ -447,17 +447,21 @@ const CANDIDATES = new Map([
     // the existing length/grounding rejections. Comment-only elsewhere; no
     // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
+    // Re-pinned 2026-09-09: a client re-sending the status her row already
+    // holds is admitted as the no-op it is, rather than refused
+    // 403 operation_forbidden with a message accusing her account of lacking
+    // permission. Only policy.mjs moved (clientOperationAllowed) -- no
+    // migration, no schema, no new import, file count unchanged at 5, and the
+    // entrypoint hash is unchanged because it hashes the PATH.
     //
-    // Re-pinned AGAIN, same day, ON TOP of the above: the native write gateway
-    // lift. Intake, append, component fill, assignee change and labels stop
-    // routing through Linear, and the native urgent handoff lands with them.
-    // BOTH changes are in this closure -- the thumbnail-title fix above and
-    // the native lift -- and a pin that carries only one of them is wrong.
-    // File count moves 5 -> SIX; _shared/native-brief-media.mjs is the new
-    // import. Every native lane is behind a flag defaulting OFF, so the deploy
-    // activates nothing: SQL first, dispatch second, flags last.
-    // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: 'e1c6443c850f74a449e05e7e59f43d1afd21a62c3c177702752f60fb421155da',
+    // Re-pinned AGAIN on top of that: the native write gateway lift. Intake,
+    // append, component fill, assignee change and labels stop routing through
+    // Linear, and the native urgent handoff lands with them. ALL THREE changes
+    // are in this closure -- the thumbnail-title fix, the client no-op
+    // admission, and the native lift -- and a pin carrying only some of them is
+    // wrong. File count moves 5 -> SIX; _shared/native-brief-media.mjs is the
+    // new import. Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: 'PLACEHOLDER_RECOMPUTE',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

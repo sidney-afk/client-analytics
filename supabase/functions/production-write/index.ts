@@ -6464,7 +6464,20 @@ async function handleEntityOperation(
       // The due bump is server-derived from the first locked row and stays in
       // the durable outbox payload without making retries state-dependent.
       fingerprintPatch = { ...patch };
-      const bumpedDueDate = overdueStatusBumpDate(existing.due_date);
+      /* A client re-sending the status the row already holds is admitted by
+         clientOperationAllowed as the no-op it is (see policy.mjs), and a
+         no-op must not carry a side effect the client is separately DENIED.
+         The overdue bump is default-on -- overdueStatusBumpEnabled returns
+         true when the flag is missing, malformed or unreadable -- so without
+         this a client whose retry exists only to repair a stale calendar_posts
+         row would move the canonical due date, and the outbox would carry that
+         move on to Linear. `due` is refused to a client at the operation
+         level; it must not arrive through the back of an idempotent status
+         write. Staff no-ops keep the legacy bump: their status write is a
+         real operator action on a row they may also set the due date on. */
+      const clientStatusNoop = principal.kind === "client"
+        && nextStatus === lower(existing.status);
+      const bumpedDueDate = clientStatusNoop ? "" : overdueStatusBumpDate(existing.due_date);
       if (bumpedDueDate && await overdueStatusBumpEnabled(supabase)) {
         patch.due_date = bumpedDueDate;
         payload.due_date = bumpedDueDate;

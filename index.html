@@ -51450,7 +51450,7 @@
            one description at a time. `updated_at` rides along so a held value
            can be told apart from a moved one. */
         const PROD_BATCH_DESCRIPTION_SELECT = 'id,description,updated_at';
-        const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
+        const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_project_id,raw_attribution_native_epoch,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
         async function _prodLoadDeliverableProjection(filterParams) {
             const select = PROD_DELIVERABLE_SELECT;
             const params = String(filterParams == null ? '' : filterParams);
@@ -51473,7 +51473,7 @@
                 // migration that creates the safe view. Once installed, only
                 // the view is used; auth/network/server failures never fall
                 // back to legacy body reads.
-                const legacySelect = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived';
+                const legacySelect = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_project_id:linear_raw->attribution->>project_id,raw_attribution_native_epoch:linear_raw->attribution->>native_epoch,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived';
                 return _prodRestRows(
                     'deliverables',
                     legacySelect,
@@ -53440,6 +53440,13 @@
             }
             return [...found];
         }
+        function _prodNativeProjectIdForTeam(value, team) {
+            const normalizedTeam = String(team || '').trim().toLowerCase();
+            if (!['video', 'graphics'].includes(normalizedTeam) || !value || typeof value !== 'object' || Array.isArray(value)) return '';
+            const projectId = String(value[normalizedTeam] || '').trim();
+            const prefix = normalizedTeam === 'video' ? 'svproj_video_' : 'svproj_graphics_';
+            return new RegExp('^' + prefix + '[a-f0-9]{32}$', 'i').test(projectId) ? projectId : '';
+        }
         function _prodRawProjectId(row) {
             const projected = String(row && row.raw_project_id || '').trim();
             if (projected) return projected;
@@ -53464,6 +53471,8 @@
                 client_slug: String(read('raw_attribution_client_slug', 'client_slug') || '').trim(),
                 owner_kind: String(read('raw_attribution_owner_kind', 'owner_kind') || '').trim(),
                 source: String(read('raw_attribution_source', 'source') || '').trim(),
+                project_id: String(read('raw_attribution_project_id', 'project_id') || '').trim(),
+                native_epoch: String(read('raw_attribution_native_epoch', 'native_epoch') || '').trim(),
                 provisional_client_slug: String(read('raw_attribution_provisional_client_slug', 'provisional_client_slug') || '').trim(),
                 mapping_revision: String(read('raw_attribution_mapping_revision', 'mapping_revision') || '').trim(),
                 repair_required: repairRaw === true || String(repairRaw || '').toLowerCase() === 'true',
@@ -53508,6 +53517,7 @@
         function _prodResolveAttributions(rows, clients, parentLinks) {
             const activeBySlug = new Map();
             const projectOwners = new Map();
+            const nativeProjectOwners = new Map();
             (clients || []).forEach(client => {
                 const slug = String(client && client.slug || '').trim();
                 if (!slug || client.active !== true) return;
@@ -53516,6 +53526,13 @@
                     const prior = projectOwners.get(projectId);
                     if (prior && prior.slug !== slug) projectOwners.set(projectId, { conflict: true });
                     else if (!prior) projectOwners.set(projectId, { slug, kind: String(client.kind || 'client') });
+                });
+                ['video', 'graphics'].forEach(team => {
+                    const projectId = _prodNativeProjectIdForTeam(client.native_project_ids, team);
+                    if (!projectId) return;
+                    const prior = nativeProjectOwners.get(projectId);
+                    if (prior && prior.slug !== slug) nativeProjectOwners.set(projectId, { conflict: true });
+                    else if (!prior) nativeProjectOwners.set(projectId, { slug, kind: String(client.kind || 'client'), team });
                 });
             });
             const rowById = new Map((rows || []).map(row => [String(row && row.id || ''), row]).filter(([id]) => id));
@@ -53608,6 +53625,33 @@
                 } else if (persisted.state === 'resolved') {
                     const persistedActive = activeBySlug.has(persisted.client_slug);
                     const explicit = /^explicit_/.test(persisted.source);
+                    if (persisted.source === 'native_intake_project') {
+                        const nativeOwner = nativeProjectOwners.get(persisted.project_id);
+                        const expectedProject = persistedActive
+                            ? _prodNativeProjectIdForTeam(activeBySlug.get(persisted.client_slug).native_project_ids, row.team)
+                            : '';
+                        const nativeProofValid = persisted.schema === 'syncview_attribution_v1'
+                            && persisted.owner_kind === 'client'
+                            && persistedActive
+                            && String(row.client_slug || '').trim() === persisted.client_slug
+                            && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(persisted.native_epoch)
+                            && !!expectedProject
+                            && expectedProject === persisted.project_id
+                            && nativeOwner && !nativeOwner.conflict
+                            && nativeOwner.slug === persisted.client_slug
+                            && nativeOwner.team === String(row.team || '').trim().toLowerCase();
+                        attribution = nativeProofValid
+                            ? resolved(persisted.client_slug, 'native_intake_project', {
+                                ownerKind: 'client',
+                                mappingRevision: persisted.mapping_revision,
+                                repairRequired: persisted.repair_required,
+                                reason: persisted.reason || 'native_intake_project_mapped'
+                            })
+                            : needs({
+                                mappingRevision: persisted.mapping_revision,
+                                reason: 'persisted_native_intake_ownership_invalid'
+                            });
+                    } else
                     /*
                      * An ABSENT persisted slug is missing evidence, not
                      * contradicting evidence -- and until 2026-08-23 this
@@ -62701,7 +62745,7 @@
                     _prodState.authorityReadAt = Date.now();
                     if (document.getElementById('prodRoot')) _prodRender();
                 }).catch(() => {});
-                const clientsRead = _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10);
+                const clientsRead = _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,native_project_ids,updated_at', 'order=display_name.asc', 1000, 10);
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
                 /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
 

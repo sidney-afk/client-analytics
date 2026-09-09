@@ -2643,7 +2643,7 @@ function nativeIntakeProjectIdsForTeam(client: ClientRow, team: string): string[
     .filter(id => /^svproj_[a-z0-9_-]+$/i.test(id));
 }
 
-function intakeAttribution(client: ClientRow, team: string, projectId: string): JsonMap {
+function intakeAttribution(client: ClientRow, team: string, projectId: string, nativeEpoch = ""): JsonMap {
   /*
    * The RECONCILER's rule, not intake's. `attributionProjectIds` is team-blind,
    * matching `buildProjectIndex`; `projectIdsForTeam` is team-aware and is
@@ -2682,6 +2682,10 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
       // project or make the legacy attribution reconciler repair it as one.
       source: "native_intake_project",
       project_id: projectId,
+      // A persisted native source is tied to the accepted epoch, not a later
+      // runtime flag read. The browser uses this only with the exact reviewed
+      // native mapping; it is never provider evidence.
+      native_epoch: clean(nativeEpoch),
       repair_required: false,
       reason: "native_intake_project_mapped",
     };
@@ -6955,7 +6959,7 @@ async function handleComponentFill(
     sort_key: sibling.sort_key == null ? null : Number(sibling.sort_key),
     created_by: principal.actorKey,
     created_at: sourceEditedAt,
-    linear_raw: { attribution: intakeAttribution(client, team, projectId) },
+    linear_raw: { attribution: intakeAttribution(client, team, projectId, nativeEpoch) },
   };
 
   const dedup = dedupKey("create", "deliverable", deliverableId, requestId);
@@ -7576,7 +7580,7 @@ async function handleIntakeCreate(
       // No Linear issue exists yet; `linear-outbound` adds `issue` alongside
       // this on drain via a spread, so the stamp survives. Without it the row
       // reaches the reconciler unstamped and diffs until B1's next pass.
-      linear_raw: { attribution: intakeAttribution(client, team, projectByTeam[team] || "") },
+      linear_raw: { attribution: intakeAttribution(client, team, projectByTeam[team] || "", nativeEpochByTeam[team] || "") },
     };
     const existing = existingById.get(deliverableIds[index]);
     if (intakeExistingRowConflict(existing, row)) {

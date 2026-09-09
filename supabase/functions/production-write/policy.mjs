@@ -504,6 +504,29 @@ export function clientOperationAllowed(operation, currentStatus, nextStatus) {
   const op = normalizeOperation(operation);
   if (op === "comment") return true;
   if (op !== "status" || !CLIENT_STATUSES.has(lower(nextStatus))) return false;
+  /* A client re-sending the status the row ALREADY holds is not a transition
+     and must never read as a permission refusal. Measured on lilybaker card
+     p_mrb65aeu_cjq0m, 2026-09-09: the client's approve committed here at
+     19:18:09 (deliverable_events status_change client_approval -> approved,
+     actor role "client") but the calendar_posts row never followed --
+     video_status stayed "Client Approval" and client_video_approved_at stayed
+     null. Her Review tab therefore still showed "Awaiting your approval", and
+     every further click asked approved -> approved, which this predicate
+     refused as 403 operation_forbidden. The dialog then told a paying client
+     "Your account is not permitted to make this change on this item. Retrying
+     will not change that -- ask an SMM or the owner": permanently stuck, with
+     a permission accusation standing in for a half-committed write.
+
+     Admitting the no-op is not a widening. A client can still only ever name
+     `approved` or `tweak` (CLIENT_STATUSES, checked above), and this arm only
+     admits the case where the row is already sitting on the value asked for,
+     so no status the client could not otherwise reach becomes reachable --
+     the write is idempotent by construction. What it buys is self-healing:
+     the retry succeeds, the source-row upsert behind it runs, and the sheet
+     catches up with the canonical row on the client's own next click.
+     `tweak -> tweak` was already admitted by the transition arm below; only
+     the approved case was stranded. */
+  if (lower(currentStatus) === lower(nextStatus)) return true;
   return ["client_approval", "tweak"].includes(lower(currentStatus));
 }
 

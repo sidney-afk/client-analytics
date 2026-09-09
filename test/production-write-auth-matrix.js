@@ -133,11 +133,24 @@ function matrixEqual(actual, expected, message) {
     && policy.clientOperationAllowed('status', 'tweak', 'approved')
     && policy.clientOperationAllowed('status', 'tweak', 'tweak'),
   'client token may select either legal client decision from client-approval or tweak');
-  for (const current of policy.DELIVERABLE_STATUSES.filter(status => !['client_approval', 'tweak'].includes(status))) {
+  // `approved` is excluded from the denial sweep because approved -> approved is
+  // not a transition at all: see the no-op assertion below.
+  for (const current of policy.DELIVERABLE_STATUSES.filter(status => !['client_approval', 'tweak', 'approved'].includes(status))) {
     ok(!policy.clientOperationAllowed('status', current, 'approved')
       && !policy.clientOperationAllowed('status', current, 'tweak'),
     `client status is denied from non-client stage ${current}`);
   }
+  ok(!policy.clientOperationAllowed('status', 'approved', 'tweak'),
+  'an approved row still refuses a client tweak: only the no-op is admitted');
+  /* A client re-sending the status the row already holds is a no-op, not a
+     permission question. Live case, lilybaker card p_mrb65aeu_cjq0m
+     2026-09-09: the client's approve committed server-side at 19:18:09 while
+     the calendar_posts row stayed at "Client Approval", so her Review tab kept
+     offering Approve and every click asked approved -> approved. Refusing it
+     told her, wrongly and permanently, that her account was not permitted to
+     make the change. */
+  ok(policy.clientOperationAllowed('status', 'approved', 'approved'),
+  'a client re-approving an already-approved row is admitted as a no-op, not refused as forbidden');
   ok(!policy.clientOperationAllowed('status', 'client_approval', 'posted')
     && policy.clientOperationAllowed('comment', 'posted', ''),
   'client status values stay closed while own-thread comment permission is status-independent');

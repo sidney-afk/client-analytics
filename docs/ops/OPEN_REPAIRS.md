@@ -18639,68 +18639,54 @@ completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
 restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
 lands with the right status and the right sign-off stamp. Nothing is missing.
 
-**A second dead end, found by Codex on the fix's own PR and confirmed in the
-source. It is NOT fixed here, and the reason is worth recording.** A request
-that died BEFORE reaching the server (offline, DNS, TLS) has no route home:
-`_writeUiReplayRepairIntents` reads the authenticated receipt, gets exact
-`absent`, cannot supersede a row nobody moved, and throws
-`status_reapply_required`; `_calRetrySave` will not checkpoint without a
-committed repair ref. The write is lost while the journal goes on insisting it
-is owed.
+**THE BROWSER FIX WAS ATTEMPTED AND WITHDRAWN. Four review rounds, seven
+findings, every one a real defect in the FIX rather than in the original code.**
+Recorded in full, because the next person to open this will otherwise make the
+same attempt:
 
-This PR DID carry a fix for it -- reissue the intent on proven absence -- and it
-was withdrawn after review, on three findings that were all correct:
+1. *Absence had no route home.* A request that died before reaching the server
+   threw `status_reapply_required`, and `_calRetrySave` refuses to checkpoint
+   without a committed repair ref, so the write was lost while the journal went
+   on insisting it was owed.
+2. *No CAS on this lane.* Reissuing on proven absence can overwrite another
+   actor's status: Calendar/SXR status payloads carry neither `expected_status`
+   nor `expected_updated_at`, and `production-write` requires them on the
+   `production` surface only. The comment claiming server CAS settled that race
+   was false.
+3. *Legacy fallback.* A missing or rolled-back reroute flag sends the reissue to
+   `_calLegacyPushStatusToLinear`, which fires unawaited and returns `skipped`.
+4. *A 5xx is not proof of non-commit,* so treating it as definitive rolls the
+   card back and re-arms the control: the original incident through another door.
+5. *But a blanket `status >= 500` is wrong too.* `authority_unavailable` throws
+   503 BEFORE `beforeAttempt` reserves the journal record, while
+   `gatewayAttempted` is already true, so a never-sent request would arm a
+   checkpoint with no repair refs and strand the card as "Source repair receipt
+   missing".
+6. *The optimistic approval was invisible as unconfirmed.* `_calReviewPanelHtml`
+   returns the "Approved / Locked in" collapse before any error is read, and
+   both queue predicates plus `_calReviewCardBody` filter on
+   `_calReviewComponentActive`, which an optimistically-Approved component
+   fails. The not-confirmed copy therefore never reaches a real client link in
+   the single-component case: exactly the case the change targeted.
+7. *The harness kept not proving what it claimed.* It recorded a commit before
+   every simulated abort (masking the pre-server path), scored only against the
+   fingerprint (so a broken recovery passed for the wrong reason), and DEFINED
+   an `error-after-commit` fault it never ran.
 
-1. **No CAS exists on this lane.** Calendar/SXR status payloads carry neither
-   `expected_status` nor `expected_updated_at`, and `production-write` requires
-   them on the `production` surface only. So between the reconcile's read of the
-   row and the reissue, another actor's status change can be overwritten, and
-   the claim that "the gateway's CAS decides it" was simply false.
-2. **The reissue could fall to the legacy lane.** If the reroute flag read is
-   missing, times out or is rolled back mid-repair, `_calPushStatusToLinear`
-   selects `_calLegacyPushStatusToLinear`, fires an unawaited legacy mutation
-   and returns `skipped` rather than `native_committed` -- so the branch would
-   throw anyway and every later resume could resend a stale status.
-3. **The probe did not actually protect it.** Scoring only against the live
-   fingerprint let a broken A3 score "no" for the wrong reason (leg 1 empty
-   because nothing was ever sent), so the suite would have passed with the new
-   behaviour deleted.
+**Why withdrawn rather than iterated.** The server half of 186 is deployed
+(`production-write` v70), so a client no longer meets the refusal loop and this
+is defence in depth, not an emergency. The area couples optimistic card state, a
+two-leg write, a repair journal, authority preflight and two queue predicates,
+and each patch surfaced another interaction. A correct fix needs CAS on the
+calendar status lane and one coherent unconfirmed-state contract across the
+review surfaces: edge-function work that overlaps almost entirely with the
+server-side reconciler. Half of it, shipped to a client-facing surface, is how
+the original incident happened.
 
-Doing it properly needs CAS on the calendar status lane, which is an edge
-function change and another deploy, and it overlaps almost entirely with the
-server-side reconciler below. So the gap stays open and is instead **asserted**:
-harness case `A3` now pins the current behaviour by name (nothing reaches the
-server, leg 2 correctly does not happen, the debt is retained as
-`status_reapply_required`, and the client is told NOT confirmed rather than
-handed a control that would refuse them). It cannot drift silently.
-
-**Two more findings on the same review, both correct, both fixed here.**
-
-- **A 5xx is not proof of non-commit.** The first version of the ambiguity test
-  treated any numeric status as definitive. The gateway commits the native row
-  and the outbox in one transaction and can still fail afterwards, and a proxy
-  can answer 502/503/504 for a request the server completed. Server errors now
-  take the ambiguous path; a 4xx, which is the gateway refusing by name before
-  any write, still rolls back. The harness had DEFINED an `error-after-commit`
-  fault and never run it, which is how this went unnoticed; it is now case `D`.
-- **An unconfirmed write was still wearing the approved badge.** Keeping the
-  optimistic approval is only honest if the reader is told it is unconfirmed,
-  and it was not: `_calReviewPanelHtml` returns the "Approved / Locked in"
-  collapse BEFORE any error is read, and `_calReviewItems` then drops the card
-  as approved. So the not-confirmed copy never reached the client, and an
-  unsaved approval looked successful and then vanished from the queue -- worse
-  than the rollback this change removed. A card carrying an unresolved repair
-  now renders as "not confirmed" with the reason, and stays in the queue until
-  the repair resolves.
-
-**What is fixed here (browser only, no deploy).** A statusless throw from an
-attempt already in flight is now AMBIGUOUS, not failed: no rollback, no failure
-dialog, the checkpoint armed so the repair owns the write, and copy that says
-"Not confirmed" and asks the reader to reopen the page, in place of a control
-that would refuse them. That closes the measured incident: the rollback was the
-whole mechanism behind 186. After the fix no injected fault reproduces the
-fingerprint, and every case asserts its own recovery contract, so the probe
-fails the build if any of them regresses.
+**What ships instead: the replication, with the defect pinned.** Harness case
+`A` asserts the CURRENT behaviour by name (a committed-but-lost response rolls
+the card back and drops the sign-off stamp), so this cannot be quietly "fixed"
+or regress further without someone deliberately rewriting a contract.
 
 **What is still open, and it is the real one.** That repair runs only in that
 client's browser, only if she comes back. She met an error, reported it, and

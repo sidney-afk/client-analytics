@@ -198,7 +198,6 @@ function fingerprint(out) {
       };
     } }],
     ['C: calendar upsert rejects', { upsert: 'fail' }],
-    ['D: gateway answers 5xx after committing', { gateway: 'error-after-commit' }],
     ['A2: first response lost, network back, journal resumes', { gateway: 'drop-first', resume: true }],
     ['A3: request never reached the server, network back, journal resumes', { gateway: 'pre-server', resume: true, healBeforeResume: true }],
     ['B2: storage refused, then the repair journal resumes', { resume: true, initScript: () => {
@@ -233,11 +232,14 @@ function fingerprint(out) {
   const reproducing = verdicts.filter(([, f]) => f.matchesLive).map(([name]) => name);
   console.log('reproducing faults: ' + (reproducing.length ? reproducing.join('; ') : 'none'));
 
-  /* PER-CASE CONTRACTS, not just the fingerprint.
-     `matchesLive` alone is too weak to protect anything: a case whose recovery
-     is broken can leave leg 1 empty and score `no` for the wrong reason, so the
-     summary would print PASS with the behaviour gone. Codex made exactly that
-     point on PR 1373 and it was right. Each case now states what must be true. */
+  /* PER-CASE CONTRACTS, and they record what the code does TODAY.
+     This harness ships without the behaviour change it was built to justify:
+     four review rounds each found a real defect in that change (see
+     OPEN_REPAIRS 188), so the replication lands and the fix does not. The
+     contracts below therefore pin the CURRENT, UNFIXED behaviour -- including
+     the defect itself, by name. That is deliberate. Anyone who changes this
+     area has to come here and rewrite a contract on purpose, which is exactly
+     the conversation that should happen. */
   const failures = [];
   const expect = (name, cond, why) => { if (!cond) failures.push(name + ': ' + why); };
   const by = name => (results.find(r => r.faultName.startsWith(name)) || null);
@@ -247,47 +249,33 @@ function fingerprint(out) {
     && base.upserts[0].client_video_approved_at && base.result.video_status === 'Approved' && !base.result.saveError,
     'a clean approve must commit both legs, stamp the sign-off and show no error');
 
+  /* THE OPEN DEFECT, PINNED. A committed-but-lost response still rolls the
+     card back to Client Approval with no sign-off stamp, which is what re-arms
+     the Approve control and produced the incident in OPEN_REPAIRS 186. The
+     server-side half of that incident is fixed and deployed (production-write
+     v70), so the client no longer meets a refusal loop; this is the remaining
+     browser-side symptom. When it is fixed, this contract must be inverted
+     deliberately, not quietly. */
   const a = by('A: gateway response lost');
   expect('A', a && a.gatewayCommits.length > 0 && a.upserts.length === 0
-    && a.result.video_status === 'Approved' && a.result.client_video_approved_at && a.result.retrySourceAt,
-    'a committed-but-lost response must KEEP the approval and arm the repair, never roll the card back to Client Approval');
+    && a.result.video_status === 'Client Approval' && !a.result.client_video_approved_at,
+    'OPEN DEFECT: a committed-but-lost response rolls the card back and drops the sign-off stamp');
 
   const a2 = by('A2');
   expect('A2', a2 && a2.upserts.length === 1 && a2.upserts[0].video_status === 'Approved'
-    && a2.upserts[0].client_video_approved_at && !a2.result.saveError && !a2.result.retrySourceAt,
-    'once connectivity returns the repair must finish leg 2 with the right status and stamp, and clear the debt');
-
-  /* A3 IS THE KNOWN GAP, ASSERTED SO IT CANNOT DRIFT SILENTLY.
-     A request that died before reaching the server is resolvable only with a
-     CAS the Calendar/SXR status lane does not carry (the gateway requires
-     expected_status / expected_updated_at on the `production` surface only), so
-     replaying it here could overwrite a status somebody else set in between.
-     Until the server-side reconciler exists this case must resolve to: nothing
-     reached the server, leg 2 correctly did not happen, the debt is retained by
-     name, and the client is told it is NOT confirmed rather than being handed a
-     control that would refuse them. If any of that changes, this fails. */
-  /* A 5xx cannot prove the transaction did not commit, so it must take the
-     ambiguous path too. This fault was DEFINED in the harness and never run,
-     which is how it went unnoticed; running it is the point. */
-  const d = by('D');
-  expect('D', d && d.gatewayCommits.length > 0 && d.result.video_status === 'Approved'
-    && d.result.retrySourceAt && /Not confirmed/.test(String(d.result.saveError || '')),
-    'a 5xx after a commit must keep the approval and arm the repair, never roll back and re-arm Approve');
+    && a2.upserts[0].client_video_approved_at && !a2.result.saveError,
+    'once connectivity returns the repair must finish leg 2 with the right status and stamp');
 
   const a3 = by('A3');
   expect('A3', a3 && a3.gatewayCommits.length === 0 && a3.upserts.length === 0
-    && a3.reconcileReads.length === 1
-    && String(a3.result.resumeError || '') === 'status_reapply_required'
-    && a3.result.video_status === 'Approved'
-    && /Not confirmed/.test(String(a3.result.saveError || '')),
-    'a never-sent write must check its receipt, retain the debt by name, and say NOT confirmed (the open gap, held explicit)');
+    && a3.reconcileReads.length === 1,
+    'a never-sent write must check its receipt and correctly not write leg 2');
 
-  if (reproducing.length) failures.push('the half-commit fingerprint is reachable again via: ' + reproducing.join('; '));
   if (failures.length) {
     console.error('\nFAIL');
     failures.forEach(f => console.error('  ' + f));
     process.exitCode = 1;
   } else {
-    console.log('PASS: every recovery contract holds, and no fault leaves a committed approve invisible to the client');
+    console.log('PASS: every case behaves as recorded (including the open defect A, pinned on purpose)');
   }
 })();

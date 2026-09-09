@@ -80,6 +80,15 @@ begin
     from public.production_comments c
     where c.id = v_receipt.comment_id;
     if not found then raise exception 'idempotent_result_missing'; end if;
+    if v_outbound->>'entity' is distinct from 'comment'
+       or v_outbound->>'entity_id' is distinct from coalesce(v_result.deliverable_id,v_result.batch_id)
+       or v_outbound->>'operation' is distinct from 'comment'
+       or (v_comment ? 'deliverable_id' and nullif(btrim(v_comment->>'deliverable_id'),'') is distinct from v_result.deliverable_id)
+       or (v_comment ? 'batch_id' and nullif(btrim(v_comment->>'batch_id'),'') is distinct from v_result.batch_id)
+       or (v_comment ? 'team' and nullif(btrim(v_comment->>'team'),'') is distinct from v_result.team)
+       or (v_comment ? 'author_name' and nullif(btrim(v_comment->>'author_name'),'') is distinct from v_result.author_name)
+       or (v_comment ? 'role' and nullif(btrim(v_comment->>'role'),'') is distinct from v_result.role)
+    then raise exception 'idempotency_conflict'; end if;
     if exists(select 1 from public.mirror_outbox o where o.dedup_key=v_dedup_key) then
       perform public.production_outbox_replay(
         'comment',coalesce(v_result.deliverable_id,v_result.batch_id),'comment',

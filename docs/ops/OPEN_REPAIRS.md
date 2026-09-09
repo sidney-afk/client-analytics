@@ -18166,3 +18166,44 @@ something to bolt onto a PR that has already absorbed nine review rounds.
 worth building as server-side search, or is title and identifier matching enough?
 Nobody has reported missing it; it is recorded here so the answer is a choice
 rather than an accident.
+
+### 182j. The retraction: no description-only write advances a row's stamp
+
+Codex round eleven found a THIRD defect in the same mechanism, which is the
+signal that the mechanism was the defect.
+
+**The finding.** A batch delta answering from a snapshot taken before a local
+point read could return that batch at an older stamp. Because the row was marked
+partial, the merge bypassed its equality branch, cleared the marker, and replaced
+the newer local row with the older response — discarding a just-loaded or
+just-saved description and regressing the batch's other displayed fields until a
+later delta repaired them.
+
+**The root cause was one decision, not three bugs.** A description-only read or
+save wrote its `updated_at` onto the local row. That makes an otherwise-stale row
+LOOK freshly read, and every consequence needed its own guard:
+
+| Round | Consequence | Guard added |
+|---|---|---|
+| 182f | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| six | marking unconditionally built a 30-second refetch loop | mark only when the stamp advances |
+| eleven | an older snapshot could overwrite the newer local row | *(would have been a third guard)* |
+
+**The repair is removal.** No description-only write advances a row's stamp any
+more — not the one-row read, not the save funnel. `batchPartialRows` is gone from
+the code entirely. The merge can trust stamp equality again, because every stamp
+it sees came from a complete read.
+
+Nothing is lost. A batch nothing changed sits below the delta cursor and never
+comes back. A batch that genuinely moved comes back with a different stamp,
+counts as changed, and its description is re-read. The description's own stamp
+lives in the panel state (`state.sourceUpdatedAt`), which is what the
+compare-and-swap actually reads — the row's copy was never load-bearing for it.
+
+**Codex proposed exactly this in round four** ("avoid copying the row-level stamp
+from that partial read") and I took the marker instead. That was the wrong call,
+it cost three review rounds, and this is the retraction. Two tests that asserted
+the stamp write now assert its absence.
+
+**The rule worth keeping:** a third finding in one mechanism is not a third bug.
+It is the mechanism asking to be deleted.

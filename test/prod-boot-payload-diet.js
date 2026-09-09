@@ -106,7 +106,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
     Set, Map,
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchPartialRows: new Set(), projectionGeneration: 3, adapter: {} },
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), projectionGeneration: 3, adapter: {} },
     /* The owner now asks whether the batch it just loaded is what the reader is
        LOOKING at before repainting; these two feed that question. */
     _prodOpenRowId: () => '',
@@ -128,8 +128,10 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   };
   ctx.__answer = () => ({ id: 'b1', description: 'the plan', updated_at: 't2' });
   await ensureVisible('b1', false);
-  ok(ctx._prodState.batches[0].description === 'the plan' && ctx._prodState.batches[0].updated_at === 't2',
+  ok(ctx._prodState.batches[0].description === 'the plan',
     'a successful read writes the column back onto the batch row the view renders');
+  ok(ctx._prodState.batches[0].updated_at === 't1',
+    '...and leaves the row stamp at its last COMPLETE read, which is what makes the merge able to trust stamp equality');
   ok(ctx._prodState.adapter === null && renders.length === 1,
     'and invalidates the adapter and repaints exactly once');
 
@@ -179,8 +181,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
-      batchPartialRows: new Set(),
-      projectionGeneration: 7, adapter: {},
+            projectionGeneration: 7, adapter: {},
     },
     _prodReadBatchDescriptionRow: (id) => new Promise(resolve => { gate.resolve = gate.resolve || []; gate.resolve.push(resolve); }),
   };
@@ -207,63 +208,13 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     const row = ctx._prodState.batches[0];
     ok(row.description === 'FRESH',
       'THE RACE: the superseded answer does not overwrite the newer text');
-    ok(row.updated_at === 't3',
-      '...and does not write its older stamp back, which would corrupt the batch delta watermark');
+      ok(row.updated_at === 't2',
+      '...and neither read touches the row stamp at all, so no answer can move it out from under the delta');
     ok(ctx._prodState.batchDescriptionReads.get('b1') === 'ready',
       '...and leaves the newer read owning the state, rather than clearing an entry it no longer owns');
   }
 }
 
-
-// ---- 5c. the owner marks a row partial only when the stamp MOVES ----------
-/* Marking unconditionally built a 30-second refetch loop: the batch delta filter
-   is `updated_at >= cursor` and therefore inclusive, so the boundary row returns
-   on every tick; a partial mark made the merge call it changed, which dropped its
-   description and retired its read, which made the next render read it again and
-   mark it partial again. The direct batch view flashed its skeleton and spent an
-   extra request every tick — undoing the saving this whole change exists for. */
-{
-  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
-  ok(/const priorStamp = String\(live\.updated_at \|\| ''\);/.test(owner)
-    && /if \(fresh\.updated_at && String\(fresh\.updated_at\) !== priorStamp\) \{/.test(owner),
-    'the owner compares the returned stamp against the row it is about to overwrite, and marks partial only when it actually advances');
-  ok(owner.indexOf('const priorStamp') < owner.indexOf('live.description ='),
-    '...capturing the prior stamp BEFORE the write, or the comparison would always be true');
-
-  // Executed: an unchanged stamp must not mark the row, or the loop returns.
-  const ctx = {
-    Map, Set, String, Number, Promise, console,
-    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
-    document: { getElementById: () => null },
-    _prodRender: () => {},
-    _prodState: {
-      batches: [{ id: 'b1', updated_at: 'T5' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
-      batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
-    },
-    /* The owner now asks whether the batch it just loaded is what the reader is
-       LOOKING at before repainting; these two feed that question. */
-    _prodOpenRowId: () => '',
-    _prodIssue: () => null,
-    _prodReadBatchDescriptionRow: async () => ctx.__answer(),
-  };
-  vm.createContext(ctx);
-  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
-    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
-    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
-
-  ctx.__answer = () => ({ id: 'b1', description: 'text', updated_at: 'T5' });
-  await ctx.ensure('b1', true);
-  ok(ctx._prodState.batches[0].description === 'text', 'the description still lands');
-  ok(!ctx._prodState.batchPartialRows.has('b1'),
-    'THE LOOP: a read returning the SAME stamp does not mark the row partial, so the inclusive delta boundary cannot re-trigger it every tick');
-
-  ctx._prodState.batches = [{ id: 'b2', updated_at: 'T5' }];
-  ctx.__answer = () => ({ id: 'b2', description: 'newer', updated_at: 'T9' });
-  await ctx.ensure('b2', true);
-  ok(ctx._prodState.batchPartialRows.has('b2') && ctx._prodState.batches[0].updated_at === 'T9',
-    'but a read that genuinely advances the stamp still marks the row partial, so a real change is not masked');
-}
 
 // ---- 5d. the batch delta cursor is server truth (Codex #1364, round 3) ----
 /* The cursor was recomputed from local rows, and a point read or a description
@@ -322,48 +273,6 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(/const release = \(\) => \{ if \(tokenCurrent\(\)\) _prodState\.batchDescriptionReads\.delete\(batchId\); \};/.test(owner),
     'and the owner releases that state on the exits where it still owns it');
 }
-
-// ---- 5f. a partially advanced row is never "unchanged" (Codex #1364, round 4) ----
-/* A description-only read or save writes a fresh updated_at over otherwise old
-   fields. The delta then saw matching stamps, called the row unchanged, and left
-   the batch name/status/linear_parent_ids stale until the ten-minute reconcile. */
-{
-  const merge = grabFunc('function _prodMergeBatchRows(changed)');
-  ok(/const partial = _prodState\.batchPartialRows\.has\(id\);/.test(merge)
-    && /if \(previous && !partial && String\(previous\.updated_at/.test(merge),
-    'the merge refuses to read stamp equality as unchanged for a partially advanced row');
-  ok(/_prodState\.batchPartialRows\.delete\(id\);/.test(merge),
-    '...and clears the mark once a complete row has replaced it');
-  ok(/_prodState\.batchPartialRows\.add\(batchId\);/.test(grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)')),
-    'a description save marks the row partial');
-  ok(/_prodState\.batchPartialRows\.add\(batchId\);/.test(grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
-    'and so does a description-only read');
-  const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
-  ok(/_prodState\.batchPartialRows\.clear\(\);/.test(load.slice(0, 400)),
-    'a full load clears every mark, because every row in it came from a complete read');
-
-  // Executed, on the exact shape of the bug.
-  const ctx = {
-    Map, Set, String, Array, console,
-    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
-    _prodState: {
-      batches: [{ id: 'b1', name: 'OLD NAME', updated_at: 'T2' }],
-      batchPartialRows: new Set(['b1']),
-    },
-  };
-  vm.createContext(ctx);
-  vm.runInContext(grabFunc('function _prodMergeBatchRows(changed)') + '\nthis.merge = _prodMergeBatchRows;', ctx);
-  const changed = ctx.merge([{ id: 'b1', name: 'NEW NAME', updated_at: 'T2' }]);
-  ok(changed.length === 1 && changed[0] === 'b1',
-    'THE BUG: a complete row arriving at the SAME stamp as a partially advanced local row still counts as changed');
-  ok(ctx._prodState.batches[0].name === 'NEW NAME', '...so the fresh fields land');
-  ok(!ctx._prodState.batchPartialRows.has('b1'), '...and the row is no longer marked partial');
-
-  const again = ctx.merge([{ id: 'b1', name: 'NEW NAME', updated_at: 'T2' }]);
-  ok(again.length === 0,
-    'and once it is a complete row, stamp equality means unchanged again — the mark is not sticky');
-}
-
 
 // ---- 5g. the visible Refresh button actually clears a failed read (round 5) ----
 /* _prodMarkDescriptionsStale is reached from _prodRefresh, NOT from the topbar
@@ -453,7 +362,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
-      batchPartialRows: new Set(), projectionGeneration: 1, adapter: {},
+      projectionGeneration: 1, adapter: {},
       view: 'detail', openId: 'open-row', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: async () => ({ id: 'b1', description: 'x', updated_at: 't2' }),
@@ -513,8 +422,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(), batchPartialRows: new Set(),
-      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => { reads++; return new Promise(r => { resolveRead = r; }); },
   };
@@ -554,8 +462,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(), batchPartialRows: new Set(),
-      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => new Promise(r => settle.push(r)),
   };
@@ -580,6 +487,61 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   await readB;
   ok(ctx._prodState.batches[0].description === 'fresh', "and B's answer is the one that lands");
   ok(ctx._prodState.batchDescriptionInFlight.size === 0, 'and B clears its own entry when it settles');
+}
+
+
+// ---- 5f. no description-only write advances a row's stamp (round 11) --------
+/* Three findings came from advancing it and then guarding the consequences: a
+   complete row at the same stamp looked unchanged, unconditional marking built a
+   30-second refetch loop, and an in-flight delta from an older snapshot
+   overwrote the newer local row. The marker was the problem, not the answer, so
+   it is gone and the stamp is simply left alone — which is what Codex proposed
+   in round four before I took the marker instead. */
+{
+  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
+  const merge = grabFunc('function _prodMergeBatchRows(changed)');
+  ok(!/live\.updated_at = fresh\.updated_at/.test(owner),
+    'the one-row read writes the description and leaves updated_at alone');
+  ok(!/row\.updated_at = updatedAt/.test(sync),
+    'and so does every description write that funnels through the sync helper');
+  ok(!/batchPartialRows/.test(owner + sync + merge) && !/_prodState\.batchPartialRows/.test(html),
+    'the partial-row marker is gone from the code entirely, not merely bypassed');
+  ok(/if \(previous && String\(previous\.updated_at \|\| ''\) === String\(row\.updated_at \|\| ''\)\) \{/.test(merge),
+    'so the merge can believe stamp equality again: every stamp it sees came from a complete read');
+
+  // Executed: a description read must not disturb the row's stamp.
+  const ctx = {
+    Map, Set, String, Number, Promise, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => null },
+    _prodRender: () => {}, _prodOpenRowId: () => '', _prodIssue: () => null,
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 'T1' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(),
+      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+    },
+    _prodReadBatchDescriptionRow: async () => ({ id: 'b1', description: 'text', updated_at: 'T9' }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+  await ctx.ensure('b1', true);
+  ok(ctx._prodState.batches[0].description === 'text', 'the description lands');
+  ok(ctx._prodState.batches[0].updated_at === 'T1',
+    'THE RETRACTION: and the row keeps the stamp of its last COMPLETE read, so a later delta answering from any snapshot cannot be mis-ranked against it');
+
+  // And the merge, executed: an older complete row is simply a changed row.
+  const mctx = { Map, Set, String, Array, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    _prodState: { batches: [{ id: 'b1', updated_at: 'T1', description: 'held' }] } };
+  vm.createContext(mctx);
+  vm.runInContext(merge + '\nthis.merge = _prodMergeBatchRows;', mctx);
+  ok(mctx.merge([{ id: 'b1', updated_at: 'T1' }]).length === 0,
+    'an unchanged stamp is unchanged, and the held description survives');
+  ok(mctx._prodState.batches[0].description === 'held', '...carried onto the incoming row');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

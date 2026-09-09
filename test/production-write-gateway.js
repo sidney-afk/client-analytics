@@ -465,6 +465,15 @@ function extractFunction(name) {
     && /payload\.due_date = bumpedDueDate/.test(edge)
     && /fingerprintPatch = \{ \.\.\.patch \}/.test(edge),
   'status writes atomically carry the flag-gated server-derived bump while retries retain the caller fingerprint');
+  /* A client re-approving an already-approved row is admitted as a no-op, so
+     it must not carry the one side effect a client is separately denied. The
+     bump is default-on when the flag is missing or unreadable, so a retry
+     whose only purpose is repairing a stale calendar_posts row would otherwise
+     move the canonical due date and mirror that move to Linear. Staff no-ops
+     keep the legacy bump. */
+  ok(/const clientStatusNoop = principal\.kind === "client"\s*\n\s*&& nextStatus === lower\(existing\.status\);/.test(edge)
+    && /const bumpedDueDate = clientStatusNoop \? "" : overdueStatusBumpDate\(existing\.due_date\);/.test(edge),
+  'a client status no-op suppresses the overdue due-date bump it is not permitted to make, and staff writes keep it');
   ok(/if \(!Object\.prototype\.hasOwnProperty\.call\(expected, "stateId"\)\) return false;/.test(inbound)
     && /clean\(objectAt\(issue\.state\)\.id\) === clean\(expected\.stateId\)/.test(inbound)
     && /hasOwnProperty\.call\(expected, "dueDate"\)/.test(inbound),

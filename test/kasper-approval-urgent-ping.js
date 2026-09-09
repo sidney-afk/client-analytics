@@ -206,7 +206,9 @@ const D = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', 'showConfi
 );
 
 const fakeBtn = { dataset: {}, disabled: false, textContent: 'URGENT', classList: { _s: new Set(), add(c) { this._s.add(c); } } };
-D(fakeBtn, 'https://linear.app/synchro-social/issue/VID-1/v', 'sidneylaruel', 'Video 1', {
+// Fixture slug only. Real client slugs are not allowed in this repo — the
+// identity-exposure gate fails on any slug a change adds (CLAUDE.md).
+D(fakeBtn, 'https://linear.app/synchro-social/issue/VID-1/v', 'testclient', 'Video 1', {
   kind: 'kasper',
   payload: { url: 'https://syncview.synchrosocial.com/#kasper', surface: 'calendar', component: 'video' },
   persist: () => Promise.resolve({}),
@@ -217,7 +219,7 @@ setTimeout(() => {
     sent.fetches.length === 1 && sent.fetches[0].url === 'http://x/send-urgent-kasper-slack');
   const b = sent.fetches[0] ? sent.fetches[0].body : {};
   check('sends the card context and the review-tab link',
-    b.client === 'sidneylaruel' && b.name === 'Video 1'
+    b.client === 'testclient' && b.name === 'Video 1'
     && b.url === 'https://syncview.synchrosocial.com/#kasper'
     && b.surface === 'calendar' && b.component === 'video');
   check('sends NO recipient — the workflow resolves Kasper itself',

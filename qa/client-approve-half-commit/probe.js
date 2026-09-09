@@ -38,6 +38,14 @@ async function run(faultName, fault) {
   const page = await browser.newPage();
   const gatewayCommits = [];      // leg 1: what the server accepted
   const upserts = [];             // leg 2: what reached calendar_posts
+  const reconcileReads = [];      // the authenticated "did it commit?" reads
+  let nativeStatus = 'client_approval';   // what the canonical row currently holds
+  /* Nobody has touched this row since long before the attempt, which is the
+     honest shape of a pre-server failure: an hour-old clock cannot 'prove
+     current' against a write issued seconds ago, so the reconcile must not
+     mistake an untouched row for one somebody else moved. */
+  let nativeStatusAt = new Date(Date.now() - 3600 * 1000).toISOString();
+  let preServerHealed = false;    // flipped when the pre-server outage ends
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message).slice(0, 200)));
 
@@ -64,14 +72,34 @@ async function run(faultName, fault) {
         : key === 'linear_authority' ? { video: 'syncview', graphics: 'syncview' } : { video: 'syncview', graphics: 'syncview' } }));
     }
     else if (table === 'calendar_posts') rows = [];
-    else if (table === 'deliverables') rows = [];
+    else if (table === 'deliverables' || table === 'production_deliverables_browser_v1') {
+      // The canonical row the replay reads to decide whether anything moved.
+      // On the pre-server path nothing did, so it still reads client_approval.
+      rows = [{ id: VID, card_id: CARD, client_slug: SLUG, team: 'video', origin: 'calendar',
+        status: nativeStatus, status_at: nativeStatusAt, updated_at: nativeStatusAt }];
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
   });
 
   await page.route('**/functions/v1/production-write', async route => {
     const body = JSON.parse(route.request().postData() || '{}');
+    /* PRE-SERVER failures record nothing: the request never reached the
+       server, so treating it as a commit is exactly the masking Codex named on
+       #1373. Only a request the server actually processes is pushed here. */
+    if (fault.gateway === 'pre-server' && !preServerHealed) return route.abort('connectionfailed');
+    // A reconcile-only read is the authenticated proof of what committed. On
+    // the pre-server path nothing did, so it answers `absent`, which is what
+    // the replay needs in order to reissue rather than give up.
+    if (body.reconcile_only === true) {
+      reconcileReads.push(String(body.operation || ''));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        ok: true, outcome: 'absent',
+        row: { id: VID, card_id: CARD, client_slug: SLUG, team: 'video', status: 'client_approval', updated_at: new Date().toISOString() },
+      }) });
+    }
     // The server COMMITS first, exactly as it did live at 19:18:09.
     gatewayCommits.push({ operation: body.operation, status: body.status, entity_id: body.entity_id });
+    if (body.operation === 'status' && body.status) { nativeStatus = String(body.status); nativeStatusAt = new Date().toISOString(); }
     if (fault.gateway === 'drop-response') return route.abort('connectionfailed');
     if (fault.gateway === 'drop-first' && gatewayCommits.length === 1) return route.abort('connectionfailed');
     if (fault.gateway === 'error-after-commit') {
@@ -96,6 +124,8 @@ async function run(faultName, fault) {
     && typeof calState !== 'undefined', null, { timeout: 25000 });
 
   if (fault.resume) await page.evaluate(() => { window.__probeResume = true; });
+  if (fault.healBeforeResume) await page.evaluate(() => { window.__probeHealBeforeResume = true; });
+  await page.exposeFunction('__probeHealNow', () => { preServerHealed = true; });
   await page.evaluate(() => {
     _syncviewStaffIdentitySave({ key: 'probe-role-key', role: 'admin', member: { id: 'admin', name: 'Probe Admin', role: 'admin', team: 'graphics' } });
     _syncviewAcceptStaffVerification();
@@ -118,9 +148,10 @@ async function run(faultName, fault) {
     window._calPendingEdits = window._calPendingEdits || {};
     try { window._calReviewApplyApprove(card, 'video'); } catch (e) { return { threw: String(e && e.message) }; }
     await new Promise(r => setTimeout(r, 2500));
+    if (window.__probeHealBeforeResume) { window.__probeHealNow && window.__probeHealNow(); await new Promise(r => setTimeout(r, 200)); }
     if (window.__probeResume) {
       // Does the durable repair journal finish the abandoned second leg?
-      try { await window._writeUiResumeSourceRepairs(); } catch (e) {}
+      try { await window._writeUiResumeSourceRepairs(); } catch (e) { window.__probeResumeError = String(e && (e.code || e.message)); }
       await new Promise(r => setTimeout(r, 2500));
     }
     const post = calState.posts.find(p => p.id === card) || {};
@@ -129,11 +160,12 @@ async function run(faultName, fault) {
       client_video_approved_at: post.client_video_approved_at || null,
       saveError: post._saveError || null,
       retrySourceAt: post._writeUiRetrySourceAt || null,
+      resumeError: window.__probeResumeError || null,
     };
   }, { slug: SLUG, card: CARD, vid: VID });
 
   await browser.close(); server.close();
-  return { faultName, gatewayCommits, upserts, result, errors };
+  return { faultName, gatewayCommits, upserts, reconcileReads, result, errors };
 }
 
 /* The live fingerprint this harness exists to reproduce, measured on card
@@ -167,6 +199,7 @@ function fingerprint(out) {
     } }],
     ['C: calendar upsert rejects', { upsert: 'fail' }],
     ['A2: first response lost, network back, journal resumes', { gateway: 'drop-first', resume: true }],
+    ['A3: request never reached the server, network back, journal resumes', { gateway: 'pre-server', resume: true, healBeforeResume: true }],
     ['B2: storage refused, then the repair journal resumes', { resume: true, initScript: () => {
       const real = Storage.prototype.setItem;
       Storage.prototype.setItem = function (k, v) {
@@ -182,6 +215,7 @@ function fingerprint(out) {
       verdicts.push([name, fingerprint(out)]);
       console.log('\n=== ' + name);
       console.log('  leg 1 gateway commits :', JSON.stringify(out.gatewayCommits));
+      console.log('  reconcile receipt reads:', out.reconcileReads.length);
       console.log('  leg 2 calendar upserts:', out.upserts.length,
         out.upserts.map(u => JSON.stringify({ video_status: u.video_status, stamp: u.client_video_approved_at })).join(' '));
       console.log('  card after            :', JSON.stringify(out.result));

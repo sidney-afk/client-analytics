@@ -18587,6 +18587,19 @@ completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
 restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
 lands with the right status and the right sign-off stamp. Nothing is missing.
 
+**A second dead end, found by Codex on the fix's own PR and confirmed in the
+source.** A request that died BEFORE reaching the server (offline, DNS, TLS) had
+no route home at all: `_writeUiReplayRepairIntents` reads the authenticated
+receipt, gets exact `absent`, cannot supersede a row nobody moved, and threw
+`status_reapply_required`; `_calRetrySave` will not checkpoint without a
+committed repair ref. The write was simply lost while the journal went on
+insisting it was owed. Exact absence is now REPLAYABLE: it is the proof that
+nothing of ours is on the row, so reissuing the same intent through the current
+authority lane is a first write, not a second one, and the gateway's own
+permission and CAS rules decide it. The pinned envelope is still never replayed
+blindly, and a row somebody else moved is still resolved read-only. Harness case
+`A3` covers it end to end.
+
 **What is fixed here (browser only, no deploy).** A statusless throw from an
 attempt already in flight is now AMBIGUOUS, not failed: no rollback, no failure
 dialog, the checkpoint armed so the repair owns the write, and honest copy

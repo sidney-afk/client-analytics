@@ -18128,3 +18128,41 @@ consequence of the previous fix inside the two-reader arrangement, which is why
 single-flight questions with standard answers: join a live read, and clean up
 only what you own. That is the shape this surface was meant to have after the
 redesign, and it is the signal that the redesign did what it was for.
+
+## 183. [2026-09-09, OPEN — owner decision, measured] Command-palette description search: what item 182 narrowed, and what it was already
+
+Codex round nine on #1364 raised this, and it is the first finding on that PR that
+is a FEATURE question rather than a defect. Verified before writing it down.
+
+**What the palette actually matched, before and after.** `_prodPaletteItems`
+ranks `i.desc`. For a deliverable that is empty and always has been: `brief` is
+not in `PROD_DELIVERABLE_SELECT`, so a deliverable's description never reaches the
+browser at boot. For a synthetic batch parent it came from
+`node.batch.description`, which the boot read carried until item 182 stopped it.
+
+| Row kind | Description searchable BEFORE 182 | After |
+|---|---|---|
+| Deliverable (6,325 rows) | **No** — `brief` was never in the select | No |
+| Synthetic batch parent (1,540 of 1,688 batches carry one) | Yes | **No** |
+
+So the parity claim at `WIRED-PARITY.md` was already only partly true, and 182
+took the remaining part. `WIRED-PARITY.md` now states this accurately instead of
+claiming search the app does not do.
+
+**Why this is not being patched inside #1364.** The two cheap repairs are both
+wrong. Reinstating `description` in the boot read restores 1 MB on every open,
+which is the entire defect 182 exists to fix. Lazy-loading every batch
+description when the palette opens moves the same megabyte to a keystroke and
+makes the palette feel worse than the boot did.
+
+**The right repair is a different feature: ask the server.** When the palette has
+a query of a few characters, issue a `description=ilike.*<query>*` read against
+`batches` (and, if briefs are ever wanted, the deliverable projection), merge
+those ids into the ranked list, and debounce it. That is a new read path with its
+own ranking and cancellation semantics — a feature, not a bug fix, and not
+something to bolt onto a PR that has already absorbed nine review rounds.
+
+**Owner decision, one line:** is palette search over post/batch description text
+worth building as server-side search, or is title and identifier matching enough?
+Nobody has reported missing it; it is recorded here so the answer is a choice
+rather than an accident.

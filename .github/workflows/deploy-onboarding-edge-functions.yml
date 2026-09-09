@@ -101,6 +101,24 @@ jobs:
             node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only --format=json > /dev/null
           fi
           echo "Deploying Edge Functions from $actual" >> "$GITHUB_STEP_SUMMARY"
+      - name: Assert the Linear-exit SQL contract before a manual deployment
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          # This is one read-only catalog SELECT through the Management API.
+          # It runs before the first of all 12 manual deployments; a missing or
+          # source-mismatched native RPC, receipt trigger, column or dormant/
+          # active configuration refuses the complete release before mutation.
+          receipt="$(node scripts/linear-exit-deploy-preflight.js)"
+          node -e 'const r=JSON.parse(process.argv[1]);if(r.status!=="PASS"||r.read_only!==true)process.exit(1)' "$receipt"
+          echo "- Linear-exit native SQL preflight: PASS" >> "$GITHUB_STEP_SUMMARY"
       - uses: supabase/setup-cli@v1
         with:
           version: latest

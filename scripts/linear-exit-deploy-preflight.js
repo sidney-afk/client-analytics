@@ -1,0 +1,236 @@
+'use strict';
+
+/*
+ * Read-only database contract gate for the Linear-exit production-write
+ * release. The Management API endpoint is POST because it accepts SQL, but
+ * QUERY is one catalog SELECT: it cannot change schema, flags or application
+ * data. Output is an aggregate public-safe receipt; database rows and function
+ * source never leave the process.
+ */
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.resolve(__dirname, '..');
+const CONTRACT = 'linear-exit-production-write-sql-v1';
+const TRANSIENT = new Set([429, 502, 503, 504]);
+
+const ROUTINES = Object.freeze([
+  ['production_native_intake_epochs()', 'migrations/2026-09-05-native-only-intake.sql', 'production_native_intake_epochs', 'public'],
+  ['production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_epoch_read', 'public'],
+  ['production_intake_root_begin(jsonb,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_root_begin', 'public'],
+  ['production_intake_append(text,timestamptz,jsonb,jsonb)', 'migrations/2026-09-07-native-intake-named-append.sql', 'production_intake_append', 'public'],
+  ['production_component_fill(jsonb,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_component_fill', 'public'],
+  ['production_native_intake_receipt_guard()', 'migrations/2026-09-05-native-only-intake.sql', 'production_native_intake_receipt_guard', 'public'],
+  ['production_native_intake_delete_guard()', 'migrations/2026-09-08-native-intake-receipt-retention.sql', 'production_native_intake_delete_guard', 'public'],
+  ['production_native_intake_truncate_guard()', 'migrations/2026-09-08-native-intake-receipt-retention.sql', 'production_native_intake_truncate_guard', 'public'],
+  ['production_assignment_epoch(text)', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_assignment_epoch', 'public'],
+  ['production_assignment_context(jsonb)', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_assignment_context', 'public'],
+  ['production_assignee_write(jsonb,jsonb)', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_assignee_write', 'public'],
+  ['production_native_assignment_receipt_guard()', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_native_assignment_receipt_guard', 'public'],
+  ['production_native_assignment_truncate_guard()', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_native_assignment_truncate_guard', 'public'],
+  ['production_label_catalog_read_version(uuid,text)', 'migrations/2026-09-05-native-label-catalog-foundation.sql', 'production_label_catalog_read_version', 'pg_catalog, public'],
+  ['production_label_catalog_validate_selection(uuid,text,jsonb,jsonb)', 'migrations/2026-09-05-native-label-catalog-foundation.sql', 'production_label_catalog_validate_selection', 'pg_catalog, public'],
+  ['production_label_catalog_capability()', 'migrations/2026-09-06-native-label-writes.sql', 'production_label_catalog_capability', 'pg_catalog, public'],
+  ['production_label_catalog_read_attested(uuid,text)', 'migrations/2026-09-06-native-label-writes.sql', 'production_label_catalog_read_attested', 'pg_catalog, public'],
+  ['production_labels_write(jsonb,jsonb)', 'migrations/2026-09-06-native-label-writes.sql', 'production_labels_write', 'pg_catalog, public'],
+  ['production_native_label_receipt_guard()', 'migrations/2026-09-06-native-label-writes.sql', 'production_native_label_receipt_guard', 'pg_catalog, public'],
+  ['production_native_label_truncate_guard()', 'migrations/2026-09-06-native-label-writes.sql', 'production_native_label_truncate_guard', 'pg_catalog, public'],
+  ['production_native_identifier_capability(text)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_capability', 'pg_catalog, public'],
+  ['production_native_identifier_seed(text,bigint)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_seed', 'pg_catalog, public'],
+  ['production_native_identifier_allocate(text,text)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_allocate', 'pg_catalog, public'],
+  ['production_native_identifier_guard()', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_guard', 'pg_catalog, public'],
+]);
+
+const PRIVATE_ROUTINES = new Set([
+  'production_native_intake_receipt_guard',
+  'production_native_intake_delete_guard',
+  'production_native_intake_truncate_guard',
+  'production_assignment_epoch',
+  'production_native_assignment_receipt_guard',
+  'production_native_assignment_truncate_guard',
+  'production_native_label_receipt_guard',
+  'production_native_label_truncate_guard',
+  'production_native_identifier_allocate',
+  'production_native_identifier_guard',
+]);
+
+const TRIGGERS = Object.freeze([
+  ['mirror_outbox.zz_native_intake_receipt_guard', 'mirror_outbox', 'zz_native_intake_receipt_guard', 'production_native_intake_receipt_guard'],
+  ['mirror_outbox.zz_native_intake_delete_guard', 'mirror_outbox', 'zz_native_intake_delete_guard', 'production_native_intake_delete_guard'],
+  ['mirror_outbox.zz_native_intake_truncate_guard', 'mirror_outbox', 'zz_native_intake_truncate_guard', 'production_native_intake_truncate_guard'],
+  ['mirror_outbox.zzz_native_assignment_receipt_guard', 'mirror_outbox', 'zzz_native_assignment_receipt_guard', 'production_native_assignment_receipt_guard'],
+  ['mirror_outbox.zzz_native_assignment_truncate_guard', 'mirror_outbox', 'zzz_native_assignment_truncate_guard', 'production_native_assignment_truncate_guard'],
+  ['mirror_outbox.zzz_native_label_receipt_guard', 'mirror_outbox', 'zzz_native_label_receipt_guard', 'production_native_label_receipt_guard'],
+  ['mirror_outbox.zzz_native_label_truncate_guard', 'mirror_outbox', 'zzz_native_label_truncate_guard', 'production_native_label_truncate_guard'],
+  ['deliverables.zzz_production_native_identifier_mint', 'deliverables', 'zzz_production_native_identifier_mint', 'production_native_identifier_guard'],
+]);
+
+const COLUMNS = Object.freeze([
+  ['production_intake_manifests.native_epochs', 'production_intake_manifests', 'native_epochs', 'jsonb', true],
+  ['production_label_catalog_versions.operator_attestation', 'production_label_catalog_versions', 'operator_attestation', 'jsonb', false],
+  ['production_native_identifier_mint.next_ordinal', 'production_native_identifier_mint', 'next_ordinal', 'bigint', true],
+  ['production_native_identifier_grants.identifier', 'production_native_identifier_grants', 'identifier', 'text', true],
+]);
+
+function bodyFor(file, name) {
+  const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = source.match(new RegExp(
+    `create\\s+(?:or\\s+replace\\s+)?function\\s+public\\.${escaped}\\s*\\([\\s\\S]*?\\)`
+      + `[\\s\\S]*?\\bas\\s+(\\$[A-Za-z0-9_]*\\$)([\\s\\S]*?)\\1\\s*;`, 'i'));
+  if (!match) throw new Error(`repository contract body missing: ${file}:${name}`);
+  return match[2];
+}
+
+function sqlString(value) { return `'${String(value).replaceAll("'", "''")}'`; }
+
+function expectedObjects() {
+  const routines = ROUTINES.map(([signature, file, name, searchPath]) => ({
+    key: `routine:${signature}`,
+    signature: `public.${signature}`,
+    bodyMd5: crypto.createHash('md5').update(bodyFor(file, name), 'utf8').digest('hex'),
+    searchPath,
+    serviceExecute: !PRIVATE_ROUTINES.has(name),
+  }));
+  return {
+    routines,
+    keys: [
+      ...routines.map(row => row.key),
+      ...TRIGGERS.map(row => `trigger:${row[0]}`),
+      ...COLUMNS.map(row => `column:${row[0]}`),
+      'config:native_intake_epochs',
+      'config:native_assignment_epochs',
+      'config:production_native_label_catalog',
+      'config:production_native_identifier_mint',
+    ],
+  };
+}
+
+function contractQuery() {
+  const expected = expectedObjects();
+  const routines = expected.routines.map(row =>
+    `(${sqlString(row.key)},${sqlString(row.signature)},${sqlString(row.bodyMd5)},${sqlString(row.searchPath)},${row.serviceExecute})`).join(',\n');
+  const triggers = TRIGGERS.map(([key, table, trigger, fn]) =>
+    `(${sqlString(`trigger:${key}`)},${sqlString(table)},${sqlString(trigger)},${sqlString(fn)})`).join(',\n');
+  const columns = COLUMNS.map(([key, table, column, type, notNull]) =>
+    `(${sqlString(`column:${key}`)},${sqlString(table)},${sqlString(column)},${sqlString(type)},${notNull})`).join(',\n');
+  return `with expected_routine(object_key,signature,body_md5,search_path,service_execute) as (values\n${routines}\n),
+routine_rows as (
+  select e.object_key,(p.oid is not null) as present,
+    coalesce(md5(p.prosrc)=e.body_md5
+      and p.prosecdef
+      and p.proconfig=array['search_path='||e.search_path]::text[]
+      and has_function_privilege('service_role',p.oid,'EXECUTE')=e.service_execute
+      and not has_function_privilege('anon',p.oid,'EXECUTE')
+      and not has_function_privilege('authenticated',p.oid,'EXECUTE'),false) as compatible
+  from expected_routine e left join pg_proc p on p.oid=to_regprocedure(e.signature)
+), expected_trigger(object_key,table_name,trigger_name,function_name) as (values
+${triggers}
+), trigger_rows as (
+  select e.object_key,(t.oid is not null) as present,
+    coalesce(t.tgenabled='O' and pn.nspname='public' and p.proname=e.function_name,false) as compatible
+  from expected_trigger e left join pg_class c on c.relnamespace='public'::regnamespace and c.relname=e.table_name
+  left join pg_trigger t on t.tgrelid=c.oid and t.tgname=e.trigger_name and not t.tgisinternal
+  left join pg_proc p on p.oid=t.tgfoid left join pg_namespace pn on pn.oid=p.pronamespace
+), expected_column(object_key,table_name,column_name,data_type,not_null) as (values
+${columns}
+), column_rows as (
+  select e.object_key,(a.attnum is not null) as present,
+    coalesce(format_type(a.atttypid,a.atttypmod)=e.data_type and a.attnotnull=e.not_null,false) as compatible
+  from expected_column e left join pg_class c on c.relnamespace='public'::regnamespace and c.relname=e.table_name
+  left join pg_attribute a on a.attrelid=c.oid and a.attname=e.column_name and a.attnum>0 and not a.attisdropped
+), config_rows as (
+  select 'config:native_intake_epochs'::text object_key,(f.key is not null) present,
+    coalesce(jsonb_typeof(f.value)='object'
+      and (select bool_and(jsonb_typeof(f.value->team)='object'
+        and jsonb_typeof(f.value->team->'enabled')='boolean'
+        and (f.value->team->'enabled'='false'::jsonb or coalesce(f.value->team->>'epoch','')~'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'))
+        from unnest(array['video','graphics']) team),false) compatible
+    from (values('native_intake_epochs')) e(key) left join public.syncview_runtime_flags f using(key)
+  union all
+  select 'config:native_assignment_epochs',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
+    and (select bool_and(jsonb_typeof(f.value->team)='object' and coalesce(f.value->team->>'mode','') in ('provider','native','hold')
+      and case when f.value->team->>'mode'='native' then coalesce(f.value->team->>'epoch','')~'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'
+        else f.value->team->'epoch'='null'::jsonb end) from unnest(array['video','graphics']) team),false)
+    from (values('native_assignment_epochs')) e(key) left join public.syncview_runtime_flags f using(key)
+  union all
+  select 'config:production_native_label_catalog',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
+    and f.value->'schema_version'='1'::jsonb and coalesce(f.value->>'mode','') in ('provider','native','hold')
+    and case when f.value->>'mode'='native' then coalesce(f.value->>'version_id','')~'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      else f.value->'version_id'='null'::jsonb end,false)
+    from (values('production_native_label_catalog')) e(key) left join public.syncview_runtime_flags f using(key)
+  union all
+  select 'config:production_native_identifier_mint',(f.key is not null),coalesce(jsonb_typeof(f.value)='object'
+    and f.value->'schema_version'='1'::jsonb
+    and (select bool_and(jsonb_typeof(f.value->team)='object'
+      and coalesce(f.value->team->>'mode','') in ('provider','native'))
+      from unnest(array['video','graphics']) team),false)
+    from (values('production_native_identifier_mint')) e(key) left join public.syncview_runtime_flags f using(key)
+)
+select object_key,present,compatible from routine_rows
+union all select object_key,present,compatible from trigger_rows
+union all select object_key,present,compatible from column_rows
+union all select object_key,present,compatible from config_rows
+order by object_key`;
+}
+
+class PreflightError extends Error {
+  constructor(code, objectKeys = []) { super(code); this.code = code; this.objectKeys = objectKeys; }
+}
+
+function validateRows(rows) {
+  if (!Array.isArray(rows)) throw new PreflightError('READ_RESPONSE_INVALID');
+  const expected = expectedObjects().keys.slice().sort();
+  const actual = rows.map(row => String(row && row.object_key || '')).sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new PreflightError('READ_RESPONSE_INVALID');
+  }
+  const absent = rows.filter(row => row.present !== true);
+  if (absent.length) throw new PreflightError('CONTRACT_ABSENT', absent.map(row => row.object_key));
+  const mismatched = rows.filter(row => row.compatible !== true);
+  if (mismatched.length) throw new PreflightError('CONTRACT_MISMATCH', mismatched.map(row => row.object_key));
+  return { status: 'PASS', contract: CONTRACT, checked_objects: expected.length, read_only: true };
+}
+
+async function readContract({ token, projectRef, fetchImpl = globalThis.fetch }) {
+  if (!token || !/^[a-z0-9]{20}$/.test(projectRef || '')) throw new PreflightError('CONFIG_MISSING');
+  const url = `https://api.supabase.com/v1/projects/${projectRef}/database/query`;
+  let response;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await fetchImpl(url, {
+        method: 'POST', redirect: 'error',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: contractQuery() }),
+      });
+    } catch (_) {
+      if (attempt === 3) throw new PreflightError('READ_FAILED');
+      continue;
+    }
+    if (response.ok) break;
+    if (!TRANSIENT.has(response.status) || attempt === 3) throw new PreflightError(`READ_FAILED_HTTP_${response.status}`);
+  }
+  let rows;
+  try { rows = await response.json(); } catch (_) { throw new PreflightError('READ_RESPONSE_INVALID'); }
+  return validateRows(rows);
+}
+
+async function main() {
+  try {
+    const result = await readContract({
+      token: String(process.env.SUPABASE_ACCESS_TOKEN || '').trim(),
+      projectRef: String(process.env.PROJECT_REF || process.env.F27_PROJECT_REF || '').trim(),
+    });
+    console.log(JSON.stringify(result));
+  } catch (error) {
+    const code = error instanceof PreflightError ? error.code : 'LOCAL_CONTRACT_INVALID';
+    const objects = error instanceof PreflightError && error.objectKeys.length
+      ? `:${error.objectKeys.join(',')}` : '';
+    console.error(`linear-exit-deploy-preflight: ${code}${objects}`);
+    process.exitCode = 1;
+  }
+}
+
+if (require.main === module) main();
+module.exports = { CONTRACT, COLUMNS, ROUTINES, TRIGGERS, PreflightError, contractQuery, expectedObjects, readContract, validateRows };

@@ -170,10 +170,18 @@ ok(grabFunc('async function _prodEnsureDescription(id, force)').includes('_prodR
 const ensureBatchAt = html.indexOf('_prodEnsureBatchDescription(_prodState.openBatchId, false);');
 ok(ensureBatchAt > 0, 'the render pass loads the description for the direct batch view');
 const guardAt = html.lastIndexOf("if (_prodState.view === 'batch' && _prodState.openBatchId) {", ensureBatchAt);
-ok(guardAt > 0 && ensureBatchAt - guardAt < 400,
-  '...guarded on that view, so no other view pays for the read');
-ok(html.indexOf("if (_prodState.view === 'detail' && _prodState.openId) {", ensureBatchAt) > ensureBatchAt,
-  '...and it sits beside the detail-view ensure block, which is the render pass');
+const guardEnd = html.indexOf('\n            }', guardAt);
+ok(guardAt > 0 && guardEnd > ensureBatchAt,
+  '...inside the batch-view guard, so no other view pays for the read');
+/* It must live in the batch block that follows the detail branch, not in one
+   placed ahead of it: test/prod-deep-link-open-id-key.js slices the detail
+   branch as detail-start up to the FIRST `view === 'batch'`, so a block above
+   the detail branch empties that slice and makes its whole
+   canonical-row-id section pass vacuously. That is how the first draft of this
+   fix broke a suite it never mentioned. */
+const detailBranchAt = html.indexOf("if (_prodState.view === 'detail' && _prodState.openId) {\n                const openRowId = _prodOpenRowId();");
+ok(detailBranchAt > 0 && detailBranchAt < guardAt,
+  '...and AFTER the detail branch, so the deep-link suite still slices a non-empty detail branch');
 {
   const ensureBatch = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
   const renders = [];

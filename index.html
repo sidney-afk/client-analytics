@@ -62060,11 +62060,6 @@
                 const painted = _prodPaintedDetailKey(root);
                 if (painted && painted === _prodState.detailScrollKey) detailPane.scrollTop = _prodState.detailScrollTop;
             }
-            if (_prodState.view === 'batch' && _prodState.openBatchId) {
-                // The batch view renders batch.description off the row, and the
-                // boot read no longer carries it. See _prodEnsureBatchDescription.
-                _prodEnsureBatchDescription(_prodState.openBatchId, false);
-            }
             if (_prodState.view === 'detail' && _prodState.openId) {
                 const openRowId = _prodOpenRowId();
                 _prodComments.ensure(openRowId);
@@ -62134,6 +62129,15 @@
             if (_prodState.view === 'batch' && _prodState.openBatchId) {
                 const first = _prodBatchRows(_prodState.openBatchId)[0];
                 if (first) _prodEnsureAssets(first.id, false);
+                /* This view renders `batch.description` straight off the row and
+                   the boot read no longer carries it, so it needs its own read;
+                   _prodEnsureDescription serves the DETAIL view only. It belongs
+                   in this block rather than a second one above the detail
+                   branch: test/prod-deep-link-open-id-key.js slices that branch
+                   as detail-start up to the first `view === 'batch'`, so a block
+                   placed ahead of it makes that slice empty and the whole
+                   canonical-row-id section vacuous. */
+                _prodEnsureBatchDescription(_prodState.openBatchId, false);
             }
             /* Description first: its snapshot carries the caret from description
                state, which tracks edits the live element no longer shows. The

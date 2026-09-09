@@ -27,7 +27,7 @@ begin
   v_cap:=public.production_native_ordinary_capability(p_expected->>'team');
   if v_cap->>'mode'='provider' then return v_event; end if;
   if v_cap->>'mode'='hold' then raise exception 'native_ordinary_receipt_held'; end if;
-  if v_owner not in ('deliverable','batch','comment') or coalesce(v_native,'')=''
+  if v_owner not in ('deliverable','comment') or coalesce(v_native,'')=''
      or p_expected->>'entity' is distinct from v_out->>'entity'
      or p_expected->>'entity_id' is distinct from v_out->>'entity_id'
      or p_expected->>'receipt_operation' is distinct from v_out->>'operation'

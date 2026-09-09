@@ -2,7 +2,7 @@
 begin;
 create or replace function public.production_native_ordinary_event(p_event jsonb,p_expected jsonb)
 returns jsonb language plpgsql security definer set search_path=public as $fn$
-declare v_event jsonb:=coalesce(p_event,'{}'::jsonb); v_out jsonb:=coalesce(v_event->'outbound','{}'::jsonb); v_payload jsonb:=coalesce(v_out->'payload','{}'::jsonb); v_cap jsonb; v_token uuid:=gen_random_uuid(); v_owner text:=p_expected->>'owner'; v_native text:=p_expected->>'native_operation';
+declare v_event jsonb:=coalesce(p_event,'{}'::jsonb); v_out jsonb:=coalesce(v_event->'outbound','{}'::jsonb); v_payload jsonb:=coalesce(v_out->'payload','{}'::jsonb); v_cap jsonb; v_token uuid:=gen_random_uuid(); v_owner text:=p_expected->>'owner'; v_native text:=p_expected->>'native_operation'; v_source_edited_at timestamptz;
 begin
  if v_payload ? '_native_ordinary_receipt' then raise exception 'native_ordinary_receipt_marker_forbidden'; end if;
  v_cap:=public.production_native_ordinary_capability(p_expected->>'team');
@@ -10,7 +10,8 @@ begin
  if v_cap->>'mode'='hold' then raise exception 'native_ordinary_receipt_held'; end if;
  -- outboundBase carries entity/id/op/dedup/clock only. Scope comes from the
  -- locked owner row; supplied optional scope is rejected only if contradictory.
- if v_owner not in ('deliverable','batch','comment') or coalesce(v_native,'')=''
+ v_source_edited_at:=coalesce(nullif(p_expected->>'source_edited_at','')::timestamptz,(v_out->>'source_edited_at')::timestamptz);
+ if v_owner not in ('deliverable','comment') or coalesce(v_native,'')='' or v_source_edited_at is null
     or p_expected->>'entity' is distinct from v_out->>'entity' or p_expected->>'entity_id' is distinct from v_out->>'entity_id'
     or p_expected->>'receipt_operation' is distinct from v_out->>'operation'
     or (v_out ? 'client_slug' and p_expected->>'client_slug' is distinct from v_out->>'client_slug')
@@ -20,7 +21,7 @@ begin
     or coalesce((v_out->>'test_only')::boolean,false) or coalesce((v_out->>'legacy_parity')::boolean,false)
  then raise exception 'native_ordinary_receipt_scope_forbidden'; end if;
  insert into public.production_native_ordinary_receipt_admissions(token,epoch,owner,entity,entity_id,receipt_operation,native_operation,client_slug,team,actor,role,dedup_key,intent_fingerprint,source_edited_at)
- values(v_token,v_cap->>'epoch',v_owner,p_expected->>'entity',p_expected->>'entity_id',p_expected->>'receipt_operation',v_native,p_expected->>'client_slug',p_expected->>'team',p_expected->>'actor',p_expected->>'role',v_out->>'dedup_key',v_payload->>'_intent_fingerprint',(v_out->>'source_edited_at')::timestamptz);
+ values(v_token,v_cap->>'epoch',v_owner,p_expected->>'entity',p_expected->>'entity_id',p_expected->>'receipt_operation',v_native,p_expected->>'client_slug',p_expected->>'team',p_expected->>'actor',p_expected->>'role',v_out->>'dedup_key',v_payload->>'_intent_fingerprint',v_source_edited_at);
  return jsonb_set(v_event,'{outbound,payload}',v_payload||jsonb_build_object('_native_ordinary_receipt',jsonb_build_object('schema',1,'epoch',v_cap->>'epoch','owner',v_owner,'operation',v_native,'token',v_token::text)),true);
 end $fn$;
 
@@ -135,7 +136,8 @@ begin
   v_event := public.production_native_ordinary_event(v_event, jsonb_build_object(
     'owner','comment','entity','comment','entity_id',v_target_id,
     'receipt_operation','comment','native_operation',v_action,
-    'client_slug',v_existing.client_slug,'team',v_existing.team,'actor',v_event->>'actor','role',v_event->>'role'
+    'client_slug',v_existing.client_slug,'team',v_existing.team,'actor',v_event->>'actor','role',v_event->>'role',
+    'source_edited_at',v_comment->>'source_updated_at'
   ));
   v_outbound := coalesce(v_event->'outbound', '{}'::jsonb);
 

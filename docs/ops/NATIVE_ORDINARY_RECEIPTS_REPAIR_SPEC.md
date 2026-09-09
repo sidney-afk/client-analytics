@@ -12,7 +12,7 @@ Source trace:
 | --- | --- | --- |
 | Production gateway ordinary entity route | `supabase/functions/production-write/index.ts:5700-6595` | `handleEntityOperation` sends ordinary non-assignee/non-label writes to `production_deliverable_write` at `:6545`. |
 | Deliverable authoritative wrapper | `migrations/2026-07-12-write-ui-outbox-parity.sql:242-297` | Checks authority, exact replay, advisory dedup, row CAS, then calls `deliverable_write`; it owns the right transaction boundary. |
-| Batch authoritative wrapper | `migrations/2026-07-12-write-ui-outbox-parity.sql:300-360` and gateway `index.ts:6627` | Same provider receipt shape for batch writes. |
+| Batch authoritative wrapper | `migrations/2026-07-12-write-ui-outbox-parity.sql:300-360`; gateway `index.ts:5783-5785` | The gateway refuses every batch entity operation except comment. Batch create is intake-owned; batch description and asset use separate native no-outbox RPCs. It is outside the ordinary receipt contract. |
 | Comment add | gateway `index.ts:5938-6205`; `migrations/2026-07-23-production-comment-thread-lifecycle.sql:217-350` | Normalizes the comment, inserts the native mutation receipt, then enqueues provider `comment`. |
 | Comment lifecycle | gateway `index.ts:6237`; `migrations/2026-07-23-production-comment-thread-lifecycle.sql:440-620` | Edit/delete enqueue provider `comment`; resolve/unresolve currently have no outbox completion receipt. |
 | Existing native pattern | `migrations/2026-09-06-native-existing-assignment.sql:82-120,134-175`; `migrations/2026-09-06-native-label-writes.sql:100-180`; `migrations/2026-09-05-native-only-intake.sql:80-134` | Typed marker, scope/epoch validation, terminal result, receipt retention, exact replay, and native row/event/receipt atomicity. |
@@ -36,7 +36,7 @@ The capability must use an explicit allowlist owned by each writer, not `operati
 | Writer owner | Operations that need typed native receipts | Exclusions / separate owner |
 | --- | --- | --- |
 | `production_deliverable_write` | `status`, `due`, `title`, `priority`, `archive`, `restore`, `parent`, `description`, `attachment` | `assignee` stays in `production_assignee_write`; `labels` stays in `production_labels_write`; `create` stays in the intake contract. |
-| `production_batch_write` | Only actual supported non-create batch operations after tracing its outbound envelope | Batch creation remains intake/provider-specific; no inferred batch operation is allowed. |
+| `production_batch_write` | None | The gateway has no ordinary batch mutation route. Batch creation remains intake-owned, comment uses the comment owner, and batch description/asset use their explicit native no-outbox RPCs. |
 | `production_comment_write` | `comment` add/reply | Preserve normalized body, comment ID, audience and existing native-comment identity. |
 | `production_comment_lifecycle_write` | `comment` edit/delete; resolve/unresolve need a durable native completion receipt even though they do not currently enqueue | Do not manufacture a Linear comment for resolve/unresolve. |
 | Crosswalk/import repair | None by default | `migrations/2026-09-05-crosswalk-bind-and-import.sql:351` directly calls the helper for a provider-side eviction. It needs its own reviewed disposition, never a blanket capability bypass. |
@@ -52,7 +52,7 @@ For each allowed fresh mutation, the owning SQL wrapper must add a marker genera
 _native_ordinary_receipt: {
   schema: 1,
   epoch: <server-read capability epoch>,
-  owner: <deliverable|batch|comment>,
+  owner: <deliverable|comment>,
   operation: <exact allowed operation>
 }
 linear_result: {

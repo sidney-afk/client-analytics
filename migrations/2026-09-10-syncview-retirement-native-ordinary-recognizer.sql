@@ -19,10 +19,21 @@ returns boolean language sql immutable set search_path=public as $fn$
  ) or (
    jsonb_typeof(p_row.payload->'_native_ordinary_receipt')='object'
    and p_row.payload->'_native_ordinary_receipt'->'schema'='1'::jsonb
+   and coalesce(p_row.payload->'_native_ordinary_receipt'->>'epoch','') ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'
+   and coalesce(p_row.payload->'_native_ordinary_receipt'->>'token','') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
    and p_row.status='skipped' and p_row.linear_result->>'native_ordinary'='true'
    and p_row.linear_result->>'epoch'=p_row.payload->'_native_ordinary_receipt'->>'epoch'
    and p_row.linear_result->>'owner'=p_row.payload->'_native_ordinary_receipt'->>'owner'
    and p_row.linear_result->>'operation'=p_row.payload->'_native_ordinary_receipt'->>'operation'
+   and (
+     (p_row.payload->'_native_ordinary_receipt'->>'owner'='deliverable'
+       and p_row.entity='deliverable'
+       and p_row.operation=p_row.payload->'_native_ordinary_receipt'->>'operation'
+       and p_row.operation in ('status','due','title','priority','archive','restore','parent','description','attachment'))
+     or (p_row.payload->'_native_ordinary_receipt'->>'owner'='comment'
+       and p_row.entity='comment' and p_row.operation='comment'
+       and p_row.payload->'_native_ordinary_receipt'->>'operation' in ('comment','edit','delete','resolve','unresolve'))
+   )
  );
 $fn$;
 commit;

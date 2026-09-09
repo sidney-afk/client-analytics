@@ -1904,11 +1904,11 @@ async function nativeOrdinaryReceipt(supabase: SupabaseClient, dedup: string): P
   const owner = clean(marker.owner);
   const nativeOperation = clean(marker.operation);
   const ownerOperation = owner === "deliverable"
-    ? ["status", "due", "title", "priority", "archive", "restore", "parent", "description", "attachment"].includes(nativeOperation)
-    : owner === "batch"
-      ? ["status", "due", "title", "priority", "archive", "restore", "parent", "description"].includes(nativeOperation)
-      : owner === "comment" && ["comment", "edit", "delete", "resolve", "unresolve"].includes(nativeOperation)
-        && clean(row.operation) === "comment";
+    ? clean(row.entity) === "deliverable" && clean(row.operation) === nativeOperation
+      && ["status", "due", "title", "priority", "archive", "restore", "parent", "description", "attachment"].includes(nativeOperation)
+    : owner === "comment" && clean(row.entity) === "comment"
+      && ["comment", "edit", "delete", "resolve", "unresolve"].includes(nativeOperation)
+      && clean(row.operation) === "comment";
   const token = clean(marker.token);
   const valid = Number(marker.schema) === 1 && String(marker.schema) === "1"
     && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(clean(marker.epoch))

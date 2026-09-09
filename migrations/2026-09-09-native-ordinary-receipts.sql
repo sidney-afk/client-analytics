@@ -19,8 +19,8 @@ insert into public.syncview_runtime_flags(key,value,updated_by) values
 create table if not exists public.production_native_ordinary_receipt_admissions (
   token uuid primary key,
   epoch text not null check (epoch ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'),
-  owner text not null check (owner in ('deliverable','batch','comment')),
-  entity text not null check (entity in ('deliverable','batch','comment')),
+  owner text not null check (owner in ('deliverable','comment')),
+  entity text not null check (entity in ('deliverable','comment')),
   entity_id text not null, receipt_operation text not null,
   native_operation text not null,
   client_slug text not null, team text not null check (team in ('video','graphics')),
@@ -33,8 +33,6 @@ create table if not exists public.production_native_ordinary_receipt_admissions 
   issued_at timestamptz not null default clock_timestamp(),
   check ((owner='deliverable' and entity='deliverable'
           and native_operation in ('status','due','title','priority','archive','restore','parent','description','attachment'))
-      or (owner='batch' and entity='batch'
-          and native_operation in ('status','due','title','priority','archive','restore','parent','description'))
       or (owner='comment' and entity='comment' and receipt_operation='comment'
           and native_operation in ('comment','edit','delete','resolve','unresolve')))
 );
@@ -71,7 +69,7 @@ declare v_event jsonb:=coalesce(p_event,'{}'::jsonb); v_out jsonb:=coalesce(v_ev
  v_owner text:=p_expected->>'owner'; v_native text:=p_expected->>'native_operation';
 begin
   if v_payload ? '_native_ordinary_receipt' then raise exception 'native_ordinary_receipt_marker_forbidden'; end if;
-  if v_owner not in ('deliverable','batch','comment') or coalesce(v_native,'')=''
+ if v_owner not in ('deliverable','comment') or coalesce(v_native,'')=''
      or p_expected->>'entity' is distinct from v_out->>'entity'
      or p_expected->>'entity_id' is distinct from v_out->>'entity_id'
      or p_expected->>'receipt_operation' is distinct from v_out->>'operation'
@@ -151,19 +149,6 @@ begin
  perform pg_advisory_xact_lock(hashtextextended('production-deliverable:'||v_id,0)); select d.* into v_current from public.deliverables d where d.id=v_id for update;
  if found then if v_event?'expected_status' and v_current.status is distinct from nullif(v_event->>'expected_status','') then raise exception 'write_conflict'; end if; if v_event?'expected_updated_at' and v_current.updated_at is distinct from nullif(v_event->>'expected_updated_at','')::timestamptz then raise exception 'write_conflict'; end if; end if;
  return public.deliverable_write(v_row,v_event);
-end $fn$;
-
-create or replace function public.production_batch_write(p_row jsonb,p_event jsonb default '{}'::jsonb) returns public.batches
-language plpgsql security definer set search_path=public as $fn$
-declare v_row jsonb:=coalesce(p_row,'{}'::jsonb); v_event jsonb:=coalesce(p_event,'{}'::jsonb); v_outbound jsonb:=coalesce(v_event->'outbound','{}'::jsonb); v_payload jsonb:=coalesce(v_outbound->'payload','{}'::jsonb); v_id text:=nullif(btrim(v_row->>'id'),''); v_team text:=coalesce(nullif(v_outbound->>'team',''),nullif(v_row->>'team','')); v_dedup text:=nullif(btrim(v_outbound->>'dedup_key'),''); v_fingerprint text:=nullif(btrim(v_payload->>'_intent_fingerprint'),''); v_result public.batches%rowtype;
-begin
- if v_id is null then raise exception 'production batch id required'; end if;
- perform public.production_assert_authority(nullif(v_row->>'client_slug',''),v_team,coalesce((v_outbound->>'test_only')::boolean,false),coalesce((v_outbound->>'legacy_parity')::boolean,false));
- if public.production_outbox_replay(coalesce(nullif(v_outbound->>'entity',''),'batch'),v_id,nullif(v_outbound->>'operation',''),nullif(v_row->>'client_slug',''),v_team,nullif(v_event->>'actor',''),nullif(v_event->>'role',''),coalesce((v_outbound->>'test_only')::boolean,false),coalesce((v_outbound->>'legacy_parity')::boolean,false),v_fingerprint,v_dedup) then select b.* into v_result from public.batches b where b.id=v_id; if not found then raise exception 'idempotent_result_missing'; end if; return v_result; end if;
- if nullif(v_outbound->>'operation','') in ('status','due','title','priority','archive','restore','parent','description') then
-   v_event:=public.production_native_ordinary_event(v_event,jsonb_build_object('owner','batch','entity','batch','entity_id',v_id,'receipt_operation',v_outbound->>'operation','native_operation',v_outbound->>'operation','client_slug',v_row->>'client_slug','team',v_team,'actor',v_event->>'actor','role',v_event->>'role'));
- end if;
- return public.batch_write(v_row,v_event);
 end $fn$;
 
 -- Comment owner retains normalized store/CAS and adds the marker only after exact receipt replay.

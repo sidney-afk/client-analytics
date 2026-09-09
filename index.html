@@ -7384,11 +7384,13 @@
         }
 
         .kad-wrap { display: grid; gap: 16px; }
-        .kad-toolbar { display: flex; justify-content: flex-end; }
+        .kad-toolbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
         .kad-range-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         .kad-range-btn { min-height: 32px; padding: 6px 12px; border: none; border-right: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .kad-range-btn:last-child { border-right: none; }
         .kad-range-btn.active { background: var(--text-primary); color: var(--white); }
+        .kad-campaign-select { min-height: 32px; padding: 6px 26px 6px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .kad-campaign-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
         .kad-range-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
         .kad-lead-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
         .kad-lead-won { background: var(--up-bg); color: var(--up); }
@@ -75472,12 +75474,17 @@
     function _kadCampaignToggleHtml() {
         // One campaign is the normal case for most of this account's life - a
         // selector with a single option is noise, so it only renders once there
-        // is genuinely something to choose between.
+        // is genuinely something to choose between. A dropdown rather than a
+        // button row: once the account passed a handful of campaigns the tab
+        // row overflowed the toolbar and got visually clipped (owner report,
+        // 2026-09-09) - a <select> scales to any count without that failure
+        // mode.
         if (_kadState.campaigns.length < 2) return '';
         const opts = [{ campaign_id: 'all', campaign_name: 'All campaigns' }].concat(_kadState.campaigns);
-        return '<div class="kad-range-toggle" role="group" aria-label="Campaign">' + opts.map(c =>
-            '<button type="button" class="kad-range-btn' + (c.campaign_id === _kadState.campaign ? ' active' : '') + '" onclick="_kadSetCampaign(\'' + _calEscAttr(c.campaign_id) + '\')">' + _calEsc(c.campaign_name) + '</button>'
-        ).join('') + '</div>';
+        const optionsHtml = opts.map(c =>
+            '<option value="' + _calEscAttr(c.campaign_id) + '"' + (c.campaign_id === _kadState.campaign ? ' selected' : '') + '>' + _calEsc(c.campaign_name) + '</option>'
+        ).join('');
+        return '<select class="kad-campaign-select" aria-label="Campaign" onchange="_kadSetCampaign(this.value)">' + optionsHtml + '</select>';
     }
 
     function _kadSummarizeRows(rows) {
@@ -75583,10 +75590,26 @@
     }
 
     function _kadUnfinishedLeadFollowUpHtml(lead) {
-        if (lead.email_sent_at) return '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10));
-        if (lead.sms_sent_at) return '<span class="kad-lead-status kad-lead-won">SMS sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10));
-        if (lead.follow_up_due_at) return '<span class="kad-lead-status kad-lead-open">Not yet</span> — due ' + _kadFmtDate(lead.follow_up_due_at.slice(0, 10));
-        return '<span class="kad-lead-cancelled">—</span>';
+        // Every non-finisher now gets BOTH channels when we hold an email and
+        // a phone (owner decision, 2026-09-04) - email_sent_at and
+        // sms_sent_at can both be set on the same lead. The old chain
+        // returned on the first truthy channel, so a lead who got an email
+        // AND a text only ever showed "Email sent", silently hiding the text
+        // (owner report, 2026-09-09). Report each channel that applies to
+        // this lead independently instead of first-match-wins.
+        const dueDate = lead.follow_up_due_at ? _kadFmtDate(lead.follow_up_due_at.slice(0, 10)) : null;
+        const parts = [];
+        if (lead.email) {
+            parts.push(lead.email_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Email due</span> ' + dueDate : '<span class="kad-lead-cancelled">Email pending</span>'));
+        }
+        if (lead.phone) {
+            parts.push(lead.sms_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Text sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Text due</span> ' + dueDate : '<span class="kad-lead-cancelled">Text pending</span>'));
+        }
+        return parts.length ? parts.join('<br>') : '<span class="kad-lead-cancelled">—</span>';
     }
 
     function _kadUnfinishedLeadsListHtml() {
@@ -75630,7 +75653,7 @@
             + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
             + (campaignNote ? '<div class="kad-section-sub" style="margin:-4px 0 12px">' + campaignNote + '</div>' : '')
             + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched. Never filtered by the campaign selector.</div>' + _kadLeadsListHtml() + '</div>'
-            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email has gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
+            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email and text have gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
         _kadRenderChart(rangeRows);
     }
 

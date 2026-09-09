@@ -17752,3 +17752,61 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+---
+
+## 182. [2026-09-09, lane LX-URGENT, BUILT — front-end + EF source shipped; migration and two EF deploys are the owner's steps] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+
+The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
+editor in `#video-editing`. The mirror case had no affordance at all. A card parked
+at **Kasper Approval** could sit there indefinitely, and the only escalation was the
+SMM chasing Kasper by hand — which leaves no trace on the row, so nothing on Kasper's
+own screen said which of the cards in his queue could not wait.
+
+**Shape.** The second flavour is deliberately ONE machine with the first, not a
+parallel one: same button, same `_calUrgentSlackDispatch` confirm → POST → latch,
+same four-column marker, same "the marker dies with its round" rule.
+`URGENT_PING_KINDS` holds the only two things that actually differ (destination and
+copy) and `kind` defaults to `'editor'` at every call site, so **no pre-existing call
+path changed behaviour**. A third flavour would be a row in that table.
+
+**The one predicate.** `_calKasperUrgentActive(post)` decides BOTH the button's Sent
+latch and membership of the new Urgent section. That is the point: the section is not
+a second opinion about what is urgent, it is the same fact rendered twice, so the two
+cannot drift. Urgent is a **split of waiting**, not a fourth bucket — an urgent card
+is a waiting card with a ping on it, and it renders, acts and finishes identically.
+Both queue-count pills had to add the split back (`urgent + waiting`), or pinging a
+card would silently shrink the count of work Kasper still owes.
+
+**Two things this ran into that the video ping never had to.**
+
+**1. Only video and graphic carried a change-stamp.** `video_status_at` /
+`graphic_status_at` exist because the Linear reconciler needed them (2026-06-19,
+GRA-6339); caption and title never did. The round key needs one for whichever
+component the ping was fired from, so the migration extends the existing
+`calendar_posts_stamp_status_at` trigger to all four. Rows that predate it carry
+null, and the predicate treats **unstamped-and-still-at-Kasper-Approval as live**
+rather than as a failed round — the generous direction on purpose, because the
+failure that matters here is a pinged card silently *missing* from the Urgent
+section, not one lingering a round too long.
+
+**2. A pill can change flavour in place.** `_calUpdateCardStatusDisplay` used to
+toggle the URGENT button's *state*; a component moving Tweaks Needed → Kasper
+Approval now has to swap the **button**, because the two carry different handlers.
+Restyling it in place would have left a pill that looks right and pings the wrong
+person — a bug with no visible symptom until someone in `#video-editing` is asked
+about a card they have nothing to do with. Both in-place updaters (calendar and
+samples) now remove-and-rebuild on a `data-urgent-kind` mismatch.
+
+**Recipient is never in the payload.** The browser sends card context only, exactly
+as the editor ping does; `send-urgent-kasper-slack` resolves Kasper itself and
+rebuilds the review-tab link, accepting a URL from the request only when it is on
+the SyncView origin. Same reason the editor ping never trusted a mention: a webhook
+that takes its recipient from an open page is a spam relay with extra steps.
+
+**Owner steps, in this order.** The migration FIRST (the guard writes
+`caption_status_at` / `title_status_at`, which do not exist until it runs), then
+`calendar-upsert` and `sample-review-upsert` — both are `NO CI DEPLOY PATH` in
+`docs/ops/EF_DEPLOY_MANIFEST.md`, so they deploy by hand. Until the two EFs are
+live the allow-list drops the marker fields: the DM still sends, and the Urgent
+section stays empty. That failure mode is quiet, which is the one to watch for.

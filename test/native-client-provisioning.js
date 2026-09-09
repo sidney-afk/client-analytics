@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '2026-09-09-native-client-provisioning.sql'), 'utf8');
 const docs = fs.readFileSync(path.join(__dirname, '..', 'docs', 'ops', 'NATIVE_CLIENT_PROVISIONING.md'), 'utf8');
+const completionDocs = fs.readFileSync(path.join(__dirname, '..', 'docs', 'ops', 'NATIVE_INTAKE_COMPLETION.md'), 'utf8');
 function has(pattern, message) { assert.match(sql, pattern, message); }
 
 has(/add column if not exists native_project_ids jsonb not null default '\{\}'::jsonb/i,
@@ -53,5 +54,10 @@ assert.doesNotMatch(sql, /return jsonb_build_object\([\s\S]{0,300}'display_name'
 assert.doesNotMatch(sql, /return jsonb_build_object\([\s\S]{0,260}'review_token'/i,
   'safe RPC responses must never include a review token');
 assert.match(docs, /DORMANT/i, 'operator docs must state the activation posture');
-assert.match(docs, /No automatic mutation schedule/i, 'operator docs must state the monitoring gap');
+assert.match(docs, /no UI, workflow, deploy hook, or scheduled caller for this RPC/i,
+  'operator docs must state that provisioning has no automatic caller');
+assert.match(docs, /remain dormant until the protected `NATIVE_INTAKE_COMPLETION_ENABLED` variable/i,
+  'operator docs must distinguish prepared completion schedules from provisioning activation');
+assert.match(completionDocs, /GitHub\s+schedules are best effort[\s\S]*provide no prompt recovery SLO[\s\S]*external scheduler and\s+observer are required/i,
+  'operator docs must state the residual completion monitoring gap');
 console.log('ok native client provisioning source contract');

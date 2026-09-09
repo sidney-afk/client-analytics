@@ -24,9 +24,11 @@ async function run(){
     throw new Error('unexpected:'+name);
   }}),/reconcile_protocol_backlog_cursor/);
   assert.equal(calls,2,'stalled cursor refuses after one cursor advance and before a third page');
-  const lane=fs.readFileSync(path.join(__dirname,'../scripts/native-intake-completion/lane.mjs'),'utf8');
+  const lanePath=path.join(__dirname,'../scripts/native-intake-completion/lane.mjs');
+  const lane=fs.readFileSync(lanePath,'utf8');
   assert.match(lane,/native-intake-reconcile\/lane\.mjs/);
-  assert.equal(fs.existsSync(path.join(__dirname,'../scripts/native-intake-completion/load-writers.mjs')),false);
+  assert.equal(fs.readdirSync(path.dirname(lanePath)).includes('load-writers.mjs'),false,
+    'completion must reuse the canonical reconcile lane instead of carrying a second writer loader');
   for(const [file,key] of [['native-intake-completion.yml','native_intake_completion'],['native-intake-completion-monitor.yml','native_intake_completion_monitor']]){
     const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows',file),'utf8');
     assert.match(workflow,/NATIVE_INTAKE_COMPLETION_ENABLED/);assert.match(workflow,new RegExp('monitoring-watchdog\\.js --heartbeat='+key));

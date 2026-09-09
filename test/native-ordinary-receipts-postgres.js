@@ -586,17 +586,19 @@ async function main() {
     // superuser fixture and models the future activation transaction's table
     // lock, high-water capture, and singleton update.
     setCapability('native', 'retired-proof');
-    const highWater = Number(scalar(cluster, 'select coalesce(max(id),0) from public.mirror_outbox'));
     cluster.exec(`
       begin;
       lock table public.mirror_outbox in share row exclusive mode;
       update public.syncview_retirement_admission
       set mode='retired', activated_at=clock_timestamp(),
           activated_reason='disposable protected fixture',
-          high_water_outbox_id=${highWater}, high_water_created_at=clock_timestamp()
+          high_water_outbox_id=(select coalesce(max(id),0) from public.mirror_outbox),
+          high_water_created_at=clock_timestamp()
       where singleton;
       commit;
     `);
+    const highWater = Number(scalar(cluster,
+      'select high_water_outbox_id from public.syncview_retirement_admission where singleton'));
     deliverableWrite('nor-d2', { title: 'Retired native accepted' }, event({
       dedup: 'retired-native', id: 'nor-d2', operation: 'title',
     }));
@@ -622,18 +624,28 @@ async function main() {
 
     setCapability('native', 'retired-proof');
     const boundaryEvent = event({ dedup: 'retired-lock-race', id: 'nor-d2', operation: 'priority' });
-    const boundaryRace = await Promise.all([
-      psqlAsync(env, `begin; lock table public.mirror_outbox in share row exclusive mode;
-        select pg_sleep(0.3);
+    const cutoffLock = psqlAsync(env, `begin; lock table public.mirror_outbox in share row exclusive mode;
+        select pg_sleep(1);
         update public.syncview_retirement_admission set activated_reason='disposable lock race' where singleton;
-        commit;`),
-      psqlAsync(env, `select pg_sleep(0.1); select public.production_deliverable_write(${json({
+        commit;`);
+    const waitingWriter = psqlAsync(env,
+      `begin; set local application_name='nir-retired-lock-writer'; select pg_sleep(0.1);
+       select public.production_deliverable_write(${json({
         id: 'nor-d2', client_slug: 'fixture-client', team: 'video', priority: 4,
-      })},${json(boundaryEvent)});`),
-    ]);
+      })},${json(boundaryEvent)}); commit;`);
+    let observedLockWait = false;
+    for (let attempt = 0; attempt < 20 && !observedLockWait; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      observedLockWait = scalar(cluster, `select exists(
+        select 1 from pg_stat_activity
+        where pid <> pg_backend_pid() and application_name='nir-retired-lock-writer'
+          and state='active' and wait_event_type='Lock')`) === 't';
+    }
+    const boundaryRace = await Promise.all([cutoffLock, waitingWriter]);
+    ok('future cutoff table lock makes the competing typed writer wait', observedLockWait);
     assert.deepEqual(boundaryRace.map(result => result.status), [0, 0], boundaryRace.map(result => result.stderr).join('\n'));
     assertReceipt('retired-lock-race', 'deliverable', 'priority');
-    ok('future cutoff table-lock order releases a waiting typed writer through the real guard',
+    ok('future cutoff table lock releases the waiting typed writer through the real guard',
       Number(scalar(cluster, "select id from public.mirror_outbox where dedup_key='retired-lock-race'")) > highWater);
 
     console.log(`NATIVE_ORDINARY_RECEIPTS_POSTGRES_OK ${passed} assertions`);

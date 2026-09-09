@@ -18655,8 +18655,35 @@ identically. Two are now known (the frozen writers; possibly this trigger), both
 found only because something checked rather than assumed. Before any change is
 applied to a live artifact, read the live artifact.
 
-**Owner decisions, 2026-09-09.**
-1. **The PR is HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
+**Owner decisions, 2026-09-09 (second round).** The owner asked for the feature
+to be made safe to merge rather than held indefinitely, and chose the register +
+review gates below but NOT the re-issue-every-link path that would close the
+divergence for good. So:
+
+3. **A kill-switch, defaulting OFF, now gates the whole affordance**
+   (`kasper_urgent_ping_enabled` in `syncview_runtime_flags`; the browser fails
+   closed on a missing row, missing key, failed read or malformed value). With it
+   off the feature is INERT — no button, so no click, no write, no DM. This is
+   what makes merging safe before the EF half exists, and it is one row to turn
+   on afterwards with no deploy.
+
+   It exists because "the front-end just adds a button" was wrong. Without the
+   EF, a ping still POSTs a patch whose four marker fields the allow-list drops,
+   leaving an UPDATE that writes only `updated_at` — and `dedupeByLinearIssue`
+   (`scripts/linear-sync-reconcile.js:285`) picks the canonical row by most-recent
+   `updated_at`, so on a card sharing a Linear link with another, a no-op ping can
+   flip which row the calendar shows. Its own comment names that hazard. Status
+   direction is unaffected (it keys on `*_status_at`, the GRA-6339 fix).
+4. **`docs/ops/LIVE_DIVERGENCE_REGISTER.md` + `test/live-divergence-register.js`.**
+   A change touching a registered path must touch the register in the same diff;
+   a registered file must carry its own inline ⛔ warning and no copy-pasteable
+   deploy command. The register is parsed for its own path list, so adding an
+   entry arms the gate with no second place to edit. The owner declined the
+   re-issue path, so this divergence is permanent — which is precisely why it
+   needed a machine, not a memory.
+
+**Owner decisions, 2026-09-09 (first round).**
+1. **The PR was HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
    owner's standard is that a client's approvals must never break, and half of
    this feature cannot be proven until the Edge Function half is real. It merges
    when the marker fields are live in the un-gated writers, not before.

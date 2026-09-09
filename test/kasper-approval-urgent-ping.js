@@ -76,6 +76,7 @@ const PRED = [
   grabFunc('_calCompLinked'),
   grabFunc('_calShowUrgent'),
   grabFunc('_kasperCompReviewable'),
+  grabFunc('_kasperUrgentPingOn'),
   grabFunc('_calShowKasperUrgent'),
   grabFunc('_calKasperUrgentComp'),
   grabFunc('_calKasperUrgentActive'),
@@ -87,11 +88,16 @@ const PRED = [
   grabFunc('_calKasperReviewUrl'),
 ].join('\n\n');
 
-const P = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName',
+const P = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentPingEnabled',
   PRED + ';return { _calShowUrgent, _calShowKasperUrgent, _calKasperUrgentActive, _calKasperUrgentComp,'
        + ' _calKasperUrgentPingComp, _calUrgentSentForCurrentRound, _calUrgentButtonHtml,'
        + ' _calBuildKasperUrgentPatch, _calKasperReviewUrl, URGENT_PING_KINDS };'
-)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView');
+)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView', true);
+
+// The same predicates with the kill-switch OFF, which is the shipped default.
+const OFF = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentPingEnabled',
+  PRED + ';return { _calShowKasperUrgent };'
+)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView', false);
 
 const R1 = '2026-09-09T12:00:00.000Z';
 const R2 = '2026-09-09T13:00:00.000Z';
@@ -146,6 +152,15 @@ check('the marker itself stays keyed to status, not to content',
   P._calKasperUrgentActive(card({
     asset_url: '', kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video',
   })) === true);
+
+// The kill-switch is what lets this merge before its Edge Function half exists.
+// With it off the feature is inert: no button, so no click, no updated_at-only
+// write, and no DM pointing at a section that cannot populate.
+check('the kill-switch OFF hides the affordance entirely',
+  OFF._calShowKasperUrgent(card(), 'video') === false);
+check('and it fails CLOSED — a non-true value is off, not on',
+  new Function('_kasperUrgentPingEnabled', grabFunc('_kasperUrgentPingOn') + ';return _kasperUrgentPingOn();')(undefined) === false
+  && new Function('_kasperUrgentPingEnabled', grabFunc('_kasperUrgentPingOn') + ';return _kasperUrgentPingOn();')('yes') === false);
 
 console.log('\n-- the round: a ping outlives neither his decision nor the round --');
 const pinged = card({ kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video' });
@@ -314,6 +329,15 @@ setTimeout(() => {
     check(slug + ' says it is FROZEN and why deploying it re-gates clients',
       ef.includes('⛔ FROZEN') && ef.includes('authorizeBrowserWrite') && ef.includes('NO CI DEPLOY PATH'));
   }
+  check('the flag read fails closed on every error path',
+    /_kasperUrgentPingEnabled = false;\s*\/\/ fail closed/.test(INDEX)
+    && INDEX.includes("row.value.enabled === true"));
+  check('both affordances are gated on it',
+    (INDEX.match(/if \(!_kasperUrgentPingOn\(\)\) return false;/g) || []).length === 2);
+  check('the migration ships the flag row COMMENTED OUT, so schema alone is inert',
+    /^-- insert into public\.syncview_runtime_flags/m.test(
+      fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8')));
+
   const ledger = fs.readFileSync(path.join(ROOT, 'docs/ops/OPEN_REPAIRS.md'), 'utf8');
   const item = ledger.slice(ledger.indexOf('## 186.'));
   check('the ledger item does not tell the owner to deploy the frozen writers',

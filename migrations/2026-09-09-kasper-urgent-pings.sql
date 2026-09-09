@@ -92,3 +92,21 @@ create trigger trg_calendar_posts_stamp_status_at
 -- now holds the current time, and video_status_at is untouched.
 -- ROLLBACK: re-run 2026-06-XX calendar-status-at-migration.sql to restore the
 -- two-column trigger; the four marker columns can be left in place (unused).
+
+-- ============================================================
+-- KILL-SWITCH ROW — run this ONLY after the four kasper_urgent_* fields are
+-- live in the un-gated calendar-upsert / sample-review-upsert (see the ⛔ FROZEN
+-- banner in those files, and OPEN_REPAIRS item 187).
+--
+-- The browser fails closed without it: no flag row means no URGENT button on a
+-- Kasper Approval pill, which means no click, no write and no DM. Running the
+-- schema above WITHOUT this row is the correct intermediate state.
+-- ============================================================
+-- insert into public.syncview_runtime_flags (key, value)
+-- values ('kasper_urgent_ping_enabled', '{"enabled": true}'::jsonb)
+-- on conflict (key) do update set value = excluded.value;
+--
+-- To turn it back off (instant, no deploy):
+-- update public.syncview_runtime_flags
+--    set value = '{"enabled": false}'::jsonb
+--  where key = 'kasper_urgent_ping_enabled';

@@ -25538,6 +25538,44 @@
         }
         return Promise.resolve();
     }
+    /* KILL-SWITCH for the Kasper-approval URGENT ping, and it is the reason this
+       feature can merge before its Edge Function half exists.
+
+       The marker columns live behind the ⛔ FROZEN writers (see the banner in
+       supabase/functions/calendar-upsert/index.ts). Until their live un-gated
+       source carries the four kasper_urgent_* fields, a ping would post a patch
+       whose fields the allow-list drops -- leaving an UPDATE that writes nothing
+       but `updated_at`. That is not harmless: dedupeByLinearIssue in
+       scripts/linear-sync-reconcile.js picks the canonical row by most-recent
+       `updated_at`, so on a card sharing a Linear link with another, a no-op
+       ping can flip which row the calendar shows. And the DM would say "it is in
+       the Urgent section at the top" of a section that cannot populate.
+
+       So the affordance is OFF until this flag says otherwise, and it FAILS
+       CLOSED: no flag row, no key, a failed read, a malformed value -> off. With
+       it off the feature is completely inert -- no button, so no click, no write
+       and no DM. Turning it on after the EF port is one row, no deploy:
+
+         insert into public.syncview_runtime_flags (key, value)
+         values ('kasper_urgent_ping_enabled', '{"enabled": true}'::jsonb)
+         on conflict (key) do update set value = excluded.value;
+    */
+    const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
+    let _kasperUrgentPingEnabled = false;
+    function _kasperUrgentPingOn() { return _kasperUrgentPingEnabled === true; }
+    async function _calFetchKasperUrgentFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentPingEnabled = false; return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _kasperUrgentPingEnabled = !!(row && row.value && row.value.enabled === true);
+        } catch (e) {
+            _kasperUrgentPingEnabled = false;   // fail closed, always
+        }
+    }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
         try {
@@ -25709,7 +25747,7 @@
     }
     function _calPrimeUpsertRoutingFlag() {
         if (!_calUpsertFlagPromise) {
-            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _writeUiPrimeRerouteFlag()])
+            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
                 .then(() => _calSubscribeUpsertFlag()).catch(() => null);
         }
         return _calUpsertFlagPromise;
@@ -33454,6 +33492,7 @@
        browser already holds, not guessed at, and the correct move for a card
        with no video is to attach the video, not to chase Kasper about it. */
     function _calShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn()) return false;      // kill-switch, fails closed
         if (!p || !c) return false;
         if (_calNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
         if (c === 'graphic' && !_calCompLinked(p, c)) return false;
@@ -66791,6 +66830,7 @@
        gates track their own queues; if the samples queue ever starts stranding
        cards, this is the line that has to follow it. */
     function _sxrShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn()) return false;      // same kill-switch as the calendar
         if (!p || !c) return false;
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
         if (c === 'graphic' && !_calCompLinked(p, c)) return false;

@@ -33701,6 +33701,16 @@
                              lands can promise a section that never populates. A
                              failed write now aborts before Slack: no marker, no
                              DM, nothing to reconcile. (Codex P1 on PR 1370.) */
+                        // The pre-dialog read is not enough: the confirm can sit
+                        // open indefinitely while the flag is flipped off. Ask
+                        // again HERE, before the first side effect, or the
+                        // rollback still cannot stop an open tab. (Codex P1 r3.)
+                        if (spec.persistFirst && typeof _kasperUrgentPingOnLive === 'function'
+                            && !(await _kasperUrgentPingOnLive())) {
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Urgent pings are off', 'The Kasper urgent ping was disabled while this dialog was open. Nothing was saved and nothing was sent.');
+                            return;
+                        }
                         let sentAtPre = '';
                         if (spec.persistFirst && opts && typeof opts.persist === 'function') {
                             sentAtPre = new Date().toISOString();

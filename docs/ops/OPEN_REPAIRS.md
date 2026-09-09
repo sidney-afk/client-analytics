@@ -18748,6 +18748,35 @@ divergence for good. So:
    (`docs/independence/N8N_REPLACEMENT_PLAN.md`) so the whole surface moves
    together rather than one endpoint being hardened while its twin stays open.
 
+**TWO DEFECTS THAT MUST BE FIXED *IN* THE PORT, NOT BEFORE IT.** Codex's third
+round found both. Neither is fixable in this branch in any way that could ship,
+because both live in the artifact that has not been written yet — the live
+un-gated writer source — and both are unreachable while the kill-switch is off
+(no button, so no click path at all). Recording them here rather than patching
+the un-shippable copy:
+
+1. **The marker needs a delivered state, not just a sent-at.** Round 2 moved the
+   Kasper ping to persist-before-Slack so a failed write could not produce a DM
+   about a section that never populates. That traded one failure for its mirror:
+   the marker now lands, the card repaints as Urgent, and if the webhook then
+   fails, Kasper never got the DM — while the blank-field guard stops the empty
+   marker from clearing it, so reloads keep suppressing the retry. Slack and
+   Postgres have no shared transaction, so *some* window exists whichever order
+   you pick; the fix is to stop pretending otherwise. Add
+   `kasper_urgent_delivered_at` and require it in `_calKasperUrgentActive`, so a
+   marker with no delivery is pending, invisible in the Urgent section, and
+   retryable. That is a schema + writer change, i.e. the port.
+2. **The marker guard reads a stale snapshot.** `applyKasperUrgentMarkerGuards`
+   approves against `readExisting`, and the `.update()` that follows carries no
+   status predicate — so a component moved out of Kasper Approval by another
+   reviewer inside that window still gets a marker written, and the DM points at
+   a section the live row already excludes it from. The fix is a conditional
+   update (`.eq(comp + "_status", "Kasper Approval")` plus the round key) in both
+   writers. Also the port.
+
+Both are listed in the register entry's "to ship a change" path. A port that
+lands the allow-list delta without them ships two known P1s.
+
 **The exact delta to port when the writers are done.** Recorded here so the
 person doing it is not re-deriving it from a diff. Onto the LIVE un-gated source
 of each of `calendar-upsert` and `sample-review-upsert`:

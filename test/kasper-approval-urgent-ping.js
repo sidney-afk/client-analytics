@@ -330,9 +330,11 @@ setTimeout(() => {
       ef.includes('⛔ FROZEN') && ef.includes('authorizeBrowserWrite') && ef.includes('NO CI DEPLOY PATH'));
   }
   // Codex round 2, all four findings.
+  check('the kill-switch is re-read again INSIDE the confirm, before any side effect',
+    /confirm can sit[\s\S]{0,400}await _kasperUrgentPingOnLive\(\)/.test(INDEX));
   check('the kill-switch is re-read at CLICK time, not just cached at boot',
     INDEX.includes('async function _kasperUrgentPingOnLive()')
-    && (INDEX.match(/await _kasperUrgentPingOnLive\(\)/g) || []).length === 2);
+    && (INDEX.match(/await _kasperUrgentPingOnLive\(\)/g) || []).length === 3);   // 2 handlers + inside the confirm
   check('activation repaints, so it does not need a reload',
     INDEX.includes('_kasperUrgentRepaintSurfaces()'));
   check('the KASPER ping persists BEFORE Slack; the editor ping is unchanged',
@@ -357,6 +359,8 @@ setTimeout(() => {
       fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8')));
 
   const ledger = fs.readFileSync(path.join(ROOT, 'docs/ops/OPEN_REPAIRS.md'), 'utf8');
+  check('the two port-blocking defects are recorded, not silently carried',
+    ledger.includes('kasper_urgent_delivered_at') && ledger.includes('MUST BE FIXED *IN* THE PORT'));
   // Anchored on the item's TITLE, not its number. The number has already moved
   // twice (186 -> 187 -> 188) as concurrent branches claimed it on merge, and a
   // number-anchored slice silently starts reading somebody else's item -- which

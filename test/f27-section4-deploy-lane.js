@@ -447,7 +447,13 @@ const CANDIDATES = new Map([
     // the existing length/grounding rejections. Comment-only elsewhere; no
     // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
-    source: '27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432',
+    // Re-pinned 2026-09-09: a client re-sending the status her row already
+    // holds is admitted as the no-op it is, rather than refused
+    // 403 operation_forbidden with a message accusing her account of lacking
+    // permission. Only policy.mjs moved (clientOperationAllowed) -- no
+    // migration, no schema, no new import, file count unchanged at 5, and the
+    // entrypoint hash is unchanged because it hashes the PATH.
+    source: '6fd2cd7247c8ac87cbd2de8f73cf79f0f1e1ee7b0248bcf61824f6d07cfa9b61',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

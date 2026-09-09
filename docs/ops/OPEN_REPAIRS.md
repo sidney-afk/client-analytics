@@ -18493,3 +18493,59 @@ second matters more than the first:
 **This makes the failure diagnosable. It does not fix it.** Whatever `main` is
 actually diverging on is still diverging; the next run will simply say which
 part. That is the prerequisite for anyone doing something about it.
+
+## 186. [2026-09-09, FIXED in `production-write`; NEEDS A SECTION 4 DEPLOY] A client whose approve had already landed was told, permanently, that her account was not permitted to approve
+
+**Reported by the owner from a client's screenshot**: the dialog said *"Your
+account is not permitted to make this change on this item. Retrying will not
+change that — ask an SMM or the owner to make it, quoting this code"* with
+`operation_forbidden`, on a card she was trying to approve. It was not a
+permission problem, no SMM could have helped, and the retry advice was correct
+only by accident: the row was already sitting on the exact status she was
+asking for.
+
+**MEASURED, `lilybaker` card `p_mrb65aeu_cjq0m`, 2026-09-09.**
+
+| Where | What it says |
+|---|---|
+| `deliverable_events` 19:18:09 | `status_change`, role `client`, `client_approval → approved`, source `ui` |
+| `deliverables` (video) | `approved`, `status_at` 19:18:12 |
+| `calendar_posts` | `video_status` = **`Client Approval`**, `client_video_approved_at` = **null** |
+
+Her approve **committed server-side**. The source row never followed. The
+client Review tab reads the sheet, not the canonical row, so the card kept
+showing "Awaiting your approval" with a live Approve button — and every click
+after 19:18 asked `approved → approved`.
+
+**The refusal.** `clientOperationAllowed` (`policy.mjs`) admitted a client
+status write only when the CURRENT status was one a client may act from
+(`client_approval` or `tweak`). A no-op — the row already on the value asked
+for — fell through to the same `403 operation_forbidden` as a client trying to
+jump a row out of `kasper_approval`, and `WRITE_UI_FAILURE_CODE_CLASS` maps
+that code to the `access` class, whose text is the accusation above. So a
+half-committed write presented itself to a paying client as a permission
+problem, permanently, with no path out that did not involve staff.
+
+**The fix (this PR).** The no-op is admitted. A client can still only ever name
+`approved` or `tweak` — `CLIENT_STATUSES` is checked first and unchanged — and
+the new arm fires only when the row already holds the value requested, so
+nothing previously unreachable becomes reachable; the write is idempotent by
+construction. What it buys is **self-healing**: the retry now succeeds, the
+source-row upsert behind it runs, and the sheet catches up on the client's own
+next click. `tweak → tweak` was already admitted by the transition arm; only
+the `approved` case was stranded.
+
+**What this does NOT fix, and it is the deeper item.** *Why* the
+`calendar_posts` write did not follow its own committed gateway write at
+19:18 is not established here. The gateway leg is acknowledged and the source
+leg is not, which is precisely the shape `_writeUiRetrySourceAt` /
+`checkpointCommittedSource` exist to hold — so either the checkpoint did not
+take or the rollback in `_calReviewApplyApprove` ran anyway. Worth noting that
+per item 101 a refused write leaves no server-side trace, so the browser-side
+half of this is only recoverable from the client's own `localStorage` ring, in
+her browser, which we do not have. **The client-visible symptom is closed; the
+half-commit is not.**
+
+**Live blast radius at the time of writing**: this card only for `lilybaker`
+(one component, video). Any client on any slug whose approve half-commits lands
+in the same trap until this deploys.

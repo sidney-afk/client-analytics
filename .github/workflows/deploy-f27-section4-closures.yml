@@ -291,8 +291,13 @@ jobs:
       # its first physical line would carry the label. See
       # test/f27-section4-deploy-lane.js CANDIDATES for the full note. No
       # migration, no new import, file count unchanged at 5.
-      # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432
+      # Re-pinned 2026-09-09: a client re-sending the status her row already
+      # holds is admitted as the no-op it is, instead of being refused
+      # 403 operation_forbidden and told her account is not permitted to make
+      # the change. Policy-only change in clientOperationAllowed -- no
+      # migration, no schema, no new import, file count unchanged at 5.
+      # (Previous pin: 27d1a608fd... -- production-write v70, 2026-09-08.)
+      PRODUCTION_WRITE_SOURCE_SHA256: 6fd2cd7247c8ac87cbd2de8f73cf79f0f1e1ee7b0248bcf61824f6d07cfa9b61
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

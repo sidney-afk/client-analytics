@@ -71,9 +71,9 @@ function extractFunction(name) {
   throw new Error('unclosed ' + name);
 }
 
-const sandbox = { Map, Set, String, Array, Object, JSON, Boolean };
+const sandbox = { Map, Set, String, Array, Object, JSON, Boolean, RegExp };
 vm.createContext(sandbox);
-for (const name of ['_prodHasOwn', '_prodLinearRaw', '_prodConfiguredProjectIds', '_prodRawProjectId', '_prodRawAttribution', '_prodResolveAttributions']) {
+for (const name of ['_prodHasOwn', '_prodLinearRaw', '_prodConfiguredProjectIds', '_prodNativeProjectIdForTeam', '_prodRawProjectId', '_prodRawAttribution', '_prodResolveAttributions']) {
   vm.runInContext(extractFunction(name), sandbox);
 }
 vm.runInContext('this.resolve = _prodResolveAttributions;', sandbox);

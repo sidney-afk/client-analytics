@@ -18674,6 +18674,25 @@ server, leg 2 correctly does not happen, the debt is retained as
 `status_reapply_required`, and the client is told NOT confirmed rather than
 handed a control that would refuse them). It cannot drift silently.
 
+**Two more findings on the same review, both correct, both fixed here.**
+
+- **A 5xx is not proof of non-commit.** The first version of the ambiguity test
+  treated any numeric status as definitive. The gateway commits the native row
+  and the outbox in one transaction and can still fail afterwards, and a proxy
+  can answer 502/503/504 for a request the server completed. Server errors now
+  take the ambiguous path; a 4xx, which is the gateway refusing by name before
+  any write, still rolls back. The harness had DEFINED an `error-after-commit`
+  fault and never run it, which is how this went unnoticed; it is now case `D`.
+- **An unconfirmed write was still wearing the approved badge.** Keeping the
+  optimistic approval is only honest if the reader is told it is unconfirmed,
+  and it was not: `_calReviewPanelHtml` returns the "Approved / Locked in"
+  collapse BEFORE any error is read, and `_calReviewItems` then drops the card
+  as approved. So the not-confirmed copy never reached the client, and an
+  unsaved approval looked successful and then vanished from the queue -- worse
+  than the rollback this change removed. A card carrying an unresolved repair
+  now renders as "not confirmed" with the reason, and stays in the queue until
+  the repair resolves.
+
 **What is fixed here (browser only, no deploy).** A statusless throw from an
 attempt already in flight is now AMBIGUOUS, not failed: no rollback, no failure
 dialog, the checkpoint armed so the repair owns the write, and copy that says

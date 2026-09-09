@@ -26736,7 +26736,17 @@
     function _writeUiTransportAmbiguous(error) {
         if (!error) return false;
         const status = Number(error.status);
-        return !Number.isFinite(status) || status <= 0;
+        // No status at all: the answer never arrived.
+        if (!Number.isFinite(status) || status <= 0) return true;
+        /* A 5xx is not proof either. The gateway commits the native row and the
+           outbox in one transaction and can still fail afterwards, and a proxy
+           can answer 502/503/504 for a request the server completed, so a
+           server error says "this attempt did not return success", never "this
+           did not happen". Treating it as definitive rolls the card back and
+           re-arms the control, which is the exact incident this change exists
+           to stop. A 4xx IS definitive -- the gateway refused it by name,
+           before any write -- and still rolls back. */
+        return status >= 500;
     }
     function _writeUiQueueDiagnostic(surface, outcome, item, error) {
         try {
@@ -44281,7 +44291,10 @@
             // already approved.
             const surf = (mode === 'smm') ? 'smm' : 'client';
             const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', surf);
-            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            // An unresolved ambiguous write keeps its card in the queue: dropping
+            // it hides the one state the reader still has to act on, and the
+            // panel renders it as "not confirmed" rather than as done.
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending && !p._writeUiRetrySourceAt) return false;
             // SMM Review tab: only posts with a component awaiting SMM
             // approval (or sent back for tweaks), AND that actually have
             // something to look at — a post with no video and no thumbnail
@@ -44327,7 +44340,10 @@
             if (!p) return false;
             const s = _calNormStatus(p.status || '');
             const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', 'smm');
-            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            // An unresolved ambiguous write keeps its card in the queue: dropping
+            // it hides the one state the reader still has to act on, and the
+            // panel renders it as "not confirmed" rather than as done.
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending && !p._writeUiRetrySourceAt) return false;
             if (_calHasMedia(p)) return false;
             return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
         });
@@ -44501,6 +44517,23 @@
         // terminal from the client's seat; surfacing it as a full panel
         // wastes real estate. A click toggles back to the full view if
         // they want to see past comments or the asset link again.
+        /* AN UNCONFIRMED WRITE MAY NOT WEAR THE APPROVED BADGE.
+           Keeping the optimistic approval on an ambiguous failure is only
+           honest if the reader is TOLD it is unconfirmed. Without this the
+           collapse below returns "Approved / Locked in", and returns it BEFORE
+           any error is read, so the not-confirmed copy never reaches the
+           client; the card then drops out of _calReviewItems as approved, and
+           an unsaved approval looks successful and then vanishes. That is a
+           worse outcome than the rollback this change removed, not a better
+           one. Cleared the moment the repair resolves (_writeUiRetrySourceAt
+           is deleted then), so a confirmed approval collapses as before. */
+        if (p && p._writeUiRetrySourceAt && (state === 'approved' || state === 'scheduled')) {
+            return `<div class="cal-review-panel cal-review-panel-mini is-unconfirmed" data-comp="${escComp}" data-state="unconfirmed">
+                <span class="cal-review-mini-icon">!</span>
+                <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} not confirmed</span>
+                <span class="cal-review-mini-sub">${_calEsc(String(p._saveError || 'The write service did not answer. Reopen this page and it checks with the server.'))}</span>
+            </div>`;
+        }
         if (state === 'approved' || state === 'posted' || state === 'scheduled') {
             const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
             const wordAction = state === 'posted' ? 'Posted' : (state === 'scheduled' ? 'Scheduled' : 'Approved');

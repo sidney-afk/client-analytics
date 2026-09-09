@@ -198,6 +198,7 @@ function fingerprint(out) {
       };
     } }],
     ['C: calendar upsert rejects', { upsert: 'fail' }],
+    ['D: gateway answers 5xx after committing', { gateway: 'error-after-commit' }],
     ['A2: first response lost, network back, journal resumes', { gateway: 'drop-first', resume: true }],
     ['A3: request never reached the server, network back, journal resumes', { gateway: 'pre-server', resume: true, healBeforeResume: true }],
     ['B2: storage refused, then the repair journal resumes', { resume: true, initScript: () => {
@@ -265,6 +266,14 @@ function fingerprint(out) {
      reached the server, leg 2 correctly did not happen, the debt is retained by
      name, and the client is told it is NOT confirmed rather than being handed a
      control that would refuse them. If any of that changes, this fails. */
+  /* A 5xx cannot prove the transaction did not commit, so it must take the
+     ambiguous path too. This fault was DEFINED in the harness and never run,
+     which is how it went unnoticed; running it is the point. */
+  const d = by('D');
+  expect('D', d && d.gatewayCommits.length > 0 && d.result.video_status === 'Approved'
+    && d.result.retrySourceAt && /Not confirmed/.test(String(d.result.saveError || '')),
+    'a 5xx after a commit must keep the approval and arm the repair, never roll back and re-arm Approve');
+
   const a3 = by('A3');
   expect('A3', a3 && a3.gatewayCommits.length === 0 && a3.upserts.length === 0
     && a3.reconcileReads.length === 1

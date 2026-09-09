@@ -4,6 +4,7 @@
 //   • setting a link persists it
 //   • clearing it leaves the DB link EMPTY (not the old URL, not the literal sentinel string)
 const Q = require('./lib.js');
+const { fulfilLinearHook } = require('./linear-hook-fulfil.js');
 const PID = 'p_lc_' + Math.floor(Date.now() / 1000);
 const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
 
@@ -15,7 +16,7 @@ const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const linear = [];
-  for (const wh of ['linear-set-status', 'linear-add-comment']) await ctx.route('**/webhook/' + wh, async (r) => { linear.push(wh); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  for (const wh of ['linear-set-status', 'linear-add-comment']) await ctx.route('**/webhook/' + wh, async (r) => { linear.push(wh); await fulfilLinearHook(r); });
   const smm = await ctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });
   smm.on('pageerror', e => smm._errs.push(String(e && e.message)));

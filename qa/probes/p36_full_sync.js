@@ -3,14 +3,15 @@
 //   (a) the database (Supabase row), (b) the Kasper queue, (c) the client surface,
 //   (d) the Linear push (intercepted, no real Linear mutation).
 const Q = require('./lib.js');
+const { fulfilLinearHook } = require('./linear-hook-fulfil.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_fs_' + TS;
 const VURL = 'https://linear.app/sidtest/issue/FS-' + TS;
 
 function intercept(ctx, setCalls, addCalls) {
   return Promise.all([
-    ctx.route('**/webhook/linear-set-status', async (r) => { try { setCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }),
-    ctx.route('**/webhook/linear-add-comment', async (r) => { try { addCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }),
+    ctx.route('**/webhook/linear-set-status', async (r) => { try { setCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await fulfilLinearHook(r); }),
+    ctx.route('**/webhook/linear-add-comment', async (r) => { try { addCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await fulfilLinearHook(r); }),
   ]);
 }
 async function mkPage(browser, setCalls, addCalls) {

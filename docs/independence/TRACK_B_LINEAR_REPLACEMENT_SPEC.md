@@ -1577,13 +1577,25 @@ provably — as the floor on which later improvements are built.
 
 ## 11. Notifications
 
-Slack now, behind one `notify` EF (ro.am-swappable). Fires on: deliverable assigned, status →
-`tweak` (with tweak text), status → `smm_approval`, URGENT. Every send logs an event. **Owner
-input (D-14):** what does Linear's native project→Slack integration post today (~51 projects
-carry `slackChannelId`) — which of it must the notify EF replicate so client channels don't go
-quiet at B5? Editors also lose Linear's own inbox at cutover; the assigned/tweak notifications
-are the replacement — confirm sufficiency in the TEST matrix and full-roster shadow review.
-**Exact-recipient contract:** a channel post is not delivery success. Resolve the immutable native
+**Owner scope decision, 2026-09-09 (supersedes the earlier assignment-alert scope):**
+Slack delivery belongs in `production-write` or a small `notify` Edge Function it calls,
+using `clients.slack_channel_id` for each client's creative channel, with **no new n8n
+executions**. Notify that channel only when a deliverable enters `smm_approval` ("For SMM
+approval") or `tweak` ("Tweak Needed"), and when a new comment is added to a sub-issue.
+Do not notify every status change. Comment notices name the commenter and **mention nobody**.
+Assignment alerts are not required. URGENT remains required and goes to the separate
+video-editing channel, not the client's creative channel. The no-mention decision applies
+to comment notices; it does not repeal the existing intended-editor urgent delivery contract.
+Every send must have an observable event and provider receipt. Destination configuration,
+identity validation for urgent mentions, retry behavior, and installation proof remain
+implementation/evidence work; this scope decision is not deployment authorization.
+
+**Source discrepancy found during the 2026-09-09 repair:** the candidate already contains a
+`native_urgent_dispatch` handoff to an n8n URL in `production-write`, although the general
+notification EF was not built. That handoff must be accounted for when implementing the
+zero-new-n8n approach; a new Slack sender alone does not replace the existing urgent route.
+
+**Exact-recipient contract (URGENT / targeted editor delivery):** a channel post is not delivery success. Resolve the immutable native
 assignee to exactly one active notification identity before sending; missing/ambiguous mappings
 remain visibly pending/retryable and alert. Persist the intended member, resolved destination, and
 provider message/receipt id, and let the caller show “Sent” only from that exact-recipient receipt.
@@ -1765,7 +1777,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-11 | CON/STR scope | §2.9 (measure active split at B1) | out of scope; archived at B5 | B1 |
 | D-12 | Inbound comment-image fidelity | Linear image URLs expire | best-effort for new comments; rescue pass covers briefs | B3 |
 | D-13 | Legacy title mismatches at B4 | §9.4 | badge + report, no mass rename | B4 |
-| D-14 | Linear→Slack project integration replacement scope | §11 | owner inspects one channel | B3 |
+| D-14 | Linear→Slack project integration replacement scope | **SCOPE ANSWERED by owner 2026-09-09:** only `smm_approval`/`tweak` transitions plus new sub-issue comments in the client creative channel; comments name the author without mentions; no assignment alerts; URGENT in the separate video-editing channel. Zero new n8n executions. §11 governs. | Build, configure, and verify delivery; scope answer is not installation approval. | B3 / source repair |
 | D-15 | Rotate the 7 public per-SMM Linear keys + remove the sheet column | publicly readable via gviz today | **DECLINED by owner 2026-07-05** ("I don't care about it") — risk accepted, same posture as D9 (hardcoded house key). Keys become moot at B5 when Linear is retired; the sheet column is still removed at §13.6 cleanup | — |
 | D-16 | §3 private four-entry owner review list (two possible clients, one unmatched variant, one junk quarantine row) | §3; identifiers stay in the private artifact | — | B1 |
 | D-17 | Copy the design-kit behavioral suites into the repo | **SUITES RESOLVED; SECURITY FOLLOW-UP OPEN.** The behavioral files are committed under `docs/syncview-design/tests/`. The shared source folder also exposed a saved Linear browser session. Unsharing/deleting the folder is insufficient: revoke the provider-side session first, verify the old profile is denied, inspect downloads/caches privately, then remove the artifact and record identifier-free evidence (F64). | — | B2 suites ✅ / session incident OPEN |
@@ -1786,7 +1798,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-32 | Staged reroute rollout via per-client allowlist (amended the original #813 merge model; satisfies D-28's soak intent) | audit F02/F23: the original “#813 ships inert” claim was false — merging without a cohort boundary could freeze every Linear-linked approval company-wide, and GitHub Pages deploys to 100% of users at once with no canary | **RATIFIED by owner 2026-07-13; implementation landed via #850:** the reroute ships behind per-client runtime flag `write_ui_reroute_clients`, defaulting to the TEST client only. The merge is dark; parity is armed only in an owner-approved Phase 1; real clients enroll in separately approved staged cohorts with watchers green between cohorts; a full-roster clean week satisfies D-28's soak. Any allowlist change remains owner-gated. | write-UI epoch |
 | D-33 | No notification of the 21 affected people | onboarding contact data was anonymously reachable (F77) | **RATIFIED by owner 2026-07-15:** no notification of the 21 people whose onboarding contact data was anonymously reachable. | privacy / F77 |
 | D-34 | F64 public-history PII purge parked | schema-only clean files are ready, but GitHub still expands deleted rows even behind a diff guard; no live endpoint serves the file | **PARKED by owner 2026-07-15:** accepted residual documented in F64; reopen when the owner schedules the freeze/rewrite. | privacy / F64 |
-| D-35 | F15 slack_user_id backfill deferred | no consumer exists — the post-Linear editor-notify EF is unbuilt; today's pings ride the legacy n8n email→Slack map + Linear | **DEFERRED by owner 2026-07-15:** backfill slack_user_id only when/if a post-Linear notify EF is built. | write-UI epoch / F15 |
+| D-35 | F15 slack_user_id backfill deferred | The earlier "no consumer exists" statement described the July state. The candidate has an n8n urgent adapter, while general native notifications are being built. Untagged client-channel comments do not need personal Slack identities; targeted URGENT still does. | **Owner deferral retained:** perform identity mapping/backfill when the post-Linear notify consumer requires it. Do not infer blanket closure from D-14 or silently remove urgent recipient validation. | write-UI epoch / F15 |
 
 ---
 

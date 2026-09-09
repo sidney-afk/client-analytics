@@ -60968,9 +60968,11 @@
                only what moved. `terminalTailLoadedAt` gates on having a tail at
                all: without one there is nothing for a watermark to be relative
                to, and an incremental read would leave the archive empty. */
-            const fullPass = !!(opts && opts.full)
-                || !Number(_prodState.terminalTailLoadedAt || 0)
-                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+            const fullPass = !!(opts && opts.full);
+            /* An empty watermark still falls back to the full read. That is the
+               belt to the caller's braces: without a stamp there is nothing for
+               an incremental read to be relative to, and reading incrementally
+               anyway would leave the archive empty rather than merely stale. */
             const watermark = fullPass ? '' : _prodTerminalWatermark();
             const filter = watermark
                 ? PROD_TERMINAL_FILTER + '&updated_at=gte.' + encodeURIComponent(watermark)
@@ -61226,7 +61228,13 @@
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodCarryBatchDescriptions(batches, _prodState.batches);
-                const mergedDeliverables = _prodCarryDeepLinkRows(deliverables);
+                /* Decided BEFORE the projection is replaced, and the carry
+                   below depends on it. `_prodState.deliverables` still holds
+                   the previous set at this point, archive included. */
+                const tailFull = _prodTerminalTailFullDue(silent);
+                const mergedDeliverables = tailFull
+                    ? _prodCarryDeepLinkRows(deliverables)
+                    : _prodCarryTerminalRows(_prodCarryDeepLinkRows(deliverables), _prodState.deliverables);
                 _prodState.projectionGeneration++;
                 _prodInvalidateScopedReads();
                 _prodState.clients = mergedClients;
@@ -61310,7 +61318,7 @@
                    reconcile is silent, and that is precisely the caller that
                    was re-downloading 4,098 finished rows nobody had asked to
                    see. */
-                _prodLoadTerminalTail({ full: !silent });
+                _prodLoadTerminalTail({ full: tailFull });
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {
@@ -61934,6 +61942,36 @@
         function _prodTerminalWatermark() {
             return _prodDeliverableWatermark(
                 (_prodState.deliverables || []).filter(_prodCacheIsTerminal));
+        }
+        /* Is the NEXT tail a full pass? Decided here rather than inside the
+           tail, because `_prodLoadData` has to know the answer BEFORE it
+           replaces the projection: a full pass re-reads the archive and must
+           not carry a stale copy of it, an incremental pass carries the copy
+           and reads only what moved. Two callers, one rule. */
+        function _prodTerminalTailFullDue(silent) {
+            return !silent
+                || !Number(_prodState.terminalTailLoadedAt || 0)
+                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+        }
+        /* Carry the finished rows across phase one.
+
+           Phase one reads the LIVE half only and replaces the projection with
+           it, which drops every terminal row; phase two then re-read all 4,098
+           of them, which is exactly what made that re-read look necessary.
+           An incremental phase two cannot rebuild the archive from a
+           watermarked read, so the archive has to survive phase one instead.
+
+           The live half WINS on a collision: a row that has just left a
+           terminal status appears in `live` with its new value, and the copy
+           held here is by definition the older one. (Raised by Codex on #1366,
+           which caught that computing the watermark after the replacement
+           always yielded '' and silently fell back to the full read.) */
+        function _prodCarryTerminalRows(live, previous) {
+            const rows = Array.isArray(live) ? live : [];
+            const held = (Array.isArray(previous) ? previous : []).filter(_prodCacheIsTerminal);
+            if (!held.length) return rows;
+            const liveIds = new Set(rows.map(row => String(row && row.id || '')));
+            return rows.concat(held.filter(row => row && !liveIds.has(String(row.id || ''))));
         }
         function _prodInvalidateScopedReadsFor(ids) {
             const targets = new Set((ids || []).map(id => String(id || '')).filter(Boolean));

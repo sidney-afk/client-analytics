@@ -94,6 +94,88 @@ ok(TERMINAL_FULL_MS > RECONCILE_MS,
     'no finished rows yet means no watermark, so the caller must read in full');
 }
 
+// ---- 2b. THE CALLER SEQUENCE, which is where the first version broke -------
+/* Codex on #1366: `_prodLoadData` replaces `_prodState.deliverables` with the
+   LIVE-only read before it calls the tail, so a watermark computed afterwards
+   was always '' and the tail silently fell back to reading all 4,098 rows —
+   the exact behaviour this change exists to remove. The first version of this
+   suite seeded terminal rows straight into the sandbox and so never exercised
+   the real order. These checks do. */
+{
+  const sandbox = { _prodState: { deliverables: [], terminalTailLoadedAt: 0, terminalTailFullAt: 0 }, console, Date, Number, Set, Array, String };
+  vm.createContext(sandbox);
+  vm.runInContext(
+    "const PROD_CACHE_TERMINAL = ['approved','posted','archived','canceled','cancelled','duplicate'];\n"
+    + 'const PROD_TERMINAL_FULL_MS = ' + TERMINAL_FULL_MS + ';\n'
+    + grabFunc('function _prodCacheIsTerminal(row)') + '\n'
+    + grabFunc('function _prodRowUpdatedMs(row)') + '\n'
+    + grabFunc('function _prodDeliverableWatermark(rows)') + '\n'
+    + grabFunc('function _prodTerminalWatermark()') + '\n'
+    + grabFunc('function _prodTerminalTailFullDue(silent)') + '\n'
+    + grabFunc('function _prodCarryTerminalRows(live, previous)') + '\n',
+    sandbox);
+  const carry = vm.runInContext('_prodCarryTerminalRows', sandbox);
+  const fullDue = vm.runInContext('_prodTerminalTailFullDue', sandbox);
+
+  const previous = [
+    { id: 'live1', status: 'todo', updated_at: '2026-09-09T00:00:00Z' },
+    { id: 'arch1', status: 'approved', updated_at: '2026-09-01T00:00:00Z' },
+    { id: 'arch2', status: 'posted', updated_at: '2026-09-02T00:00:00Z' },
+  ];
+  const freshLive = [{ id: 'live1', status: 'in_progress', updated_at: '2026-09-09T12:00:00Z' }];
+
+  const carried = carry(freshLive, previous);
+  ok(carried.length === 3, 'phase one keeps the archive alongside the fresh live half');
+  ok(!carried.some(r => r.id === 'live1' && r.status === 'todo'),
+    'and the stale live row is not carried, only finished rows are');
+
+  // The property Codex's finding is about.
+  sandbox._prodState.deliverables = carried;
+  ok(vm.runInContext('_prodTerminalWatermark()', sandbox) === '2026-09-02T00:00:00Z',
+    'so the archive watermark still exists AFTER the phase-one replacement (the defect: it was empty)');
+
+  sandbox._prodState.deliverables = freshLive;
+  ok(vm.runInContext('_prodTerminalWatermark()', sandbox) === '',
+    'without the carry the watermark is empty, which is exactly what silently forced a full read');
+
+  // A row leaving a terminal status: the live half is the fresher copy.
+  const reopened = carry(
+    [{ id: 'arch1', status: 'in_progress', updated_at: '2026-09-09T12:00:00Z' }],
+    previous);
+  ok(reopened.filter(r => r.id === 'arch1').length === 1
+     && reopened.find(r => r.id === 'arch1').status === 'in_progress',
+    'a row that just left the archive is not duplicated, and the live copy wins');
+
+  ok(carry(freshLive, []).length === 1, 'nothing to carry leaves the live half untouched');
+
+  // The decision that drives the carry.
+  const now = Date.now();
+  sandbox._prodState.terminalTailLoadedAt = now;
+  sandbox._prodState.terminalTailFullAt = now;
+  ok(fullDue(false) === true, 'a load nobody asked to be silent (boot, Refresh) takes the full archive');
+  ok(fullDue(true) === false, 'a silent reconcile with a recent full pass goes incremental');
+  sandbox._prodState.terminalTailLoadedAt = 0;
+  ok(fullDue(true) === true, 'a silent reconcile with no archive yet still takes the full pass');
+  sandbox._prodState.terminalTailLoadedAt = now;
+  sandbox._prodState.terminalTailFullAt = now - TERMINAL_FULL_MS - 1000;
+  ok(fullDue(true) === true, 'and once the hourly interval has elapsed, so a hard delete converges');
+}
+
+// ---- 2c. the order in the loader, pinned ----------------------------------
+{
+  const loader = html.slice(html.indexOf('async function _prodLoadData(opts)'));
+  const body = loader.slice(0, loader.indexOf('\n        }'));
+  const decidedAt = body.indexOf('const tailFull = _prodTerminalTailFullDue(silent)');
+  const carriedAt = body.indexOf('_prodCarryTerminalRows(');
+  const replacedAt = body.indexOf('_prodState.deliverables = mergedDeliverables');
+  ok(decidedAt > 0 && carriedAt > 0 && replacedAt > 0,
+    'the loader decides, carries, and then replaces');
+  ok(decidedAt < replacedAt && carriedAt < replacedAt,
+    'the decision and the carry both happen BEFORE the projection is replaced — reversing this is the defect');
+  ok(body.includes('_prodLoadTerminalTail({ full: tailFull })'),
+    'and the tail is handed the same decision rather than re-deriving it');
+}
+
 // ---- 3. the reader itself, executed ---------------------------------------
 function makeTail() {
   const calls = [];
@@ -145,12 +227,14 @@ function makeTail() {
 }
 
 {
-  // 3a. The very first tail is a full pass even when nobody asked for one.
+  // 3a. With nothing held, an incremental request still reads in full: there
+  //     is no stamp to be relative to, and a watermarked read would leave the
+  //     archive empty rather than merely stale.
   const t = makeTail();
   t.sandbox.__next = [{ id: 'a', status: 'approved', updated_at: '2026-09-01T00:00:00Z' }];
   await t.run({ full: false });
   ok(t.calls.length === 1 && !t.calls[0].includes('updated_at'),
-    'the first tail of a projection reads in full, with no watermark');
+    'an empty watermark falls back to the full read rather than emptying the archive');
   ok(t.sandbox._prodState.terminalTailFullAt > 0,
     'a full pass stamps when the archive was last read whole');
 
@@ -199,19 +283,18 @@ function makeTail() {
     { id: 'a', status: 'approved', updated_at: '2026-09-01T00:00:00Z' },
   ];
   t.sandbox._prodState.terminalTailLoadedAt = Date.now();
-  t.sandbox._prodState.terminalTailFullAt = Date.now() - TERMINAL_FULL_MS - 1000;
   t.sandbox.__next = [];
-  await t.run({ full: false });
+  await t.run({ full: true });
   ok(t.calls.length === 1 && !t.calls[0].includes('updated_at'),
-    'once the full interval has elapsed the archive is read whole again');
+    'the hourly full pass, once the caller asks for it, reads the archive whole again');
 }
 
 // ---- 4. the caller only asks for the whole archive when someone is waiting -
 {
   const loader = html.slice(html.indexOf('async function _prodLoadData(opts)'));
   const call = loader.slice(0, loader.indexOf('\n        }'));
-  ok(call.includes('_prodLoadTerminalTail({ full: !silent })'),
-    'the loader reads the archive whole only when the load is not silent');
+  ok(call.includes('_prodLoadTerminalTail({ full: tailFull })'),
+    'the loader hands the tail the decision it made before replacing the projection');
   ok(/const silent = !!\(opts && opts\.silent && _prodState\.loaded\)/.test(html),
     'and `silent` still means a background load, so the ten-minute reconcile is the incremental caller');
 }

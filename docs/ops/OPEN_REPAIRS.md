@@ -18380,3 +18380,42 @@ Also recorded because it was stated wrongly to the owner first: Production was
 **not** unguarded. Menus and in-flight writes were already covered, and
 `_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
 was the one real gap.
+
+### 184b. The incremental read was a no-op, and the test could not see it
+
+Codex on #1366, P2, and it was right about both halves.
+
+`_prodLoadData` replaces `_prodState.deliverables` with the **live-only**
+`PROD_LIVE_FILTER` result and only afterwards calls `_prodLoadTerminalTail`. So
+by the time the tail computed `_prodTerminalWatermark()` there were no terminal
+rows left to compute it from: the watermark was always `''`, the filter fell
+back to the unwatermarked `PROD_TERMINAL_FILTER`, and the browser downloaded
+all 4,098 rows on every reconcile exactly as before. **The change did nothing,
+and every test passed.**
+
+It could not be fixed by moving the watermark alone. An incremental read cannot
+rebuild the archive, so if phase one drops the finished rows there is nothing
+for phase two to add to. The archive has to survive phase one instead:
+
+- `_prodTerminalTailFullDue(silent)` decides the mode **before** the projection
+  is replaced, and the same value is handed to the tail rather than re-derived
+  there. One rule, one place.
+- `_prodCarryTerminalRows(live, previous)` carries the finished rows across the
+  replacement when the next tail is incremental, with the **live half winning
+  every collision** — a row that just left a terminal status appears in `live`
+  with its new value, and the held copy is by definition older.
+- On a full pass nothing is carried, so the full read's fresh rows are not
+  shadowed by held copies. Boot and Refresh are always full passes, so the
+  two-phase boot is byte-for-byte what it was.
+- The in-memory carry cannot grow the cache: `_prodCacheProject` already drops
+  terminal rows before writing.
+
+**The test lesson is the sharper one.** `test/prod-terminal-tail-and-busy-guard.js`
+seeded terminal rows straight into its sandbox and called the tail, so it
+exercised the reader in a state the real caller never produces. It asserted the
+mechanism worked while the mechanism was disconnected. A unit test that
+constructs its own preconditions proves the function, not the feature; where a
+caller establishes the precondition, the test has to establish it the same way.
+The suite now runs the phase-one replacement first and asserts the watermark
+survives it, and pins that the decision and the carry both precede the
+replacement.

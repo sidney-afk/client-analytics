@@ -17847,3 +17847,39 @@ render → ensure → render cannot spin. A failed read now says
 **Description could not load.** rather than holding the skeleton, and both the
 manual refresh and a delta that moves the batch's stamp clear the remembered
 failure so it is not permanent for the session.
+
+### 182b. A third defect, also from Codex review on #1364: the superseded direct-batch read
+
+`_prodEnsureBatchDescription` guarded its answer on `_prodState.projectionGeneration`
+alone. That counter only advances in `_prodLoadData` — **the operational delta
+never touches it** — so a delta that moved a batch's stamp mid-read left the
+generation equal and the older answer comparing as current:
+
+1. Read A goes out for batch `b1`.
+2. The 30s delta sees a newer `updated_at`, `_prodMergeBatchRows` replaces the
+   row without its description, and the stale-mark drops the read state.
+3. The next render starts read B, which lands with the fresh text.
+4. Read A lands afterwards, passes the generation check, and overwrites the
+   fresh text with **stale text and an older `updated_at`**.
+5. The row now carries the column, so it looks loaded and is never re-read.
+   The stale stamp also lowers `_prodDeliverableWatermark(_prodState.batches)`,
+   so the delta re-fetches ground it has already covered.
+
+Fixed with a per-batch request token (`batchDescriptionTokens`), the same shape
+`descriptionRequestTokens` already gives the deliverable path. Both the manual
+refresh and a delta that moves a batch's stamp now retire the reads in flight
+for those rows rather than only dropping their state.
+
+**A wedge in the first draft of that fix, found by writing the test.** Making a
+superseded read touch nothing at all is correct when a NEWER READ owns the state
+entry, and wrong when only the GENERATION moved: nothing then releases the
+`loading` marker, and the guard that refuses to start a read while one is in
+flight would lock that batch out of ever loading again. A superseded read now
+releases the entry only when its token says it still owns it. Today the full
+load that moves the generation always runs `_prodMarkDescriptionsStale` first,
+which clears the entry anyway — the repair is so this stops depending on that
+ordering holding forever.
+
+The regression test drives the real race, with both reads resolved in the
+damaging order, and asserts the newer text survives, the older stamp is not
+written back, and the newer read keeps ownership of the state.

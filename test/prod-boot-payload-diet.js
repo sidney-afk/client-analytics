@@ -190,11 +190,14 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), projectionGeneration: 3, adapter: {} },
+    Set, Map,
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), projectionGeneration: 3, adapter: {} },
     _prodReadBatchDescriptionRow: async () => ctx.__answer(),
   };
   vm.createContext(ctx);
-  vm.runInContext(ensureBatch + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
+  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
+    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
+    + ensureBatch + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
 
   ctx.__answer = () => ({ id: 'b1', description: 'the plan', updated_at: 't2' });
   await ctx.ensure('b1', false);
@@ -222,18 +225,76 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ctx._prodState.batchDescriptionReads.clear();
   ctx.__answer = () => { ctx._prodState.projectionGeneration = 99; return { id: 'b3', description: 'stale', updated_at: 't2' }; };
   await ctx.ensure('b3', false);
-  ok(!Object.prototype.hasOwnProperty.call(ctx._prodState.batches[0], 'description')
-    && !ctx._prodState.batchDescriptionReads.has('b3'),
+  ok(!Object.prototype.hasOwnProperty.call(ctx._prodState.batches[0], 'description'),
     'an answer that lands after the projection moved on is discarded, not written onto a row from another generation');
+  ok(!ctx._prodState.batchDescriptionReads.has('b3'),
+    '...and RELEASES the read state, because only the generation moved — no newer read owns it, and a stranded "loading" would wedge the batch out of ever loading again');
 }
+
+// ---- 5b. a superseded direct-batch read cannot land (Codex #1364, round 2) ----
+/* The generation counter is NOT a stand-in for a request token here: it only
+   advances in _prodLoadData, never on the operational delta. So a delta that
+   moves a batch's stamp mid-read left the generation equal, and the older
+   answer wrote its stale text AND its older stamp onto the replacement row --
+   which then never refetched, because a row carrying the column looks loaded.
+   Permanently stale text, and a corrupted batch watermark with it. Executed,
+   with the two reads resolved in the damaging order. */
+{
+  const ensureBatch = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  const helpers = grabFunc('function _prodNextBatchDescriptionToken(batchId)')
+    + '\n' + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)');
+  const gate = {};
+  const ctx = {
+    console, Promise, Array, String, Number, Set, Map,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    document: { getElementById: () => ({}) },
+    _prodRender: () => {},
+    _prodState: {
+      batches: [{ id: 'b1', updated_at: 't1' }],
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      projectionGeneration: 7, adapter: {},
+    },
+    _prodReadBatchDescriptionRow: (id) => new Promise(resolve => { gate.resolve = gate.resolve || []; gate.resolve.push(resolve); }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(helpers + '\n' + ensureBatch
+    + '\nthis.ensure = _prodEnsureBatchDescription; this.invalidate = _prodInvalidateBatchDescriptionReads;', ctx);
+
+  const readA = ctx.ensure('b1', false);            // read A goes in flight
+  ok(ctx._prodState.batchDescriptionReads.get('b1') === 'loading', 'read A is in flight');
+
+  // the delta replaces the row (stamp moved, description dropped) and retires
+  // the in-flight read — exactly what _prodMarkBatchDescriptionsStale now does.
+  ctx._prodState.batches = [{ id: 'b1', updated_at: 't2' }];
+  ctx.invalidate(['b1']);
+
+  const readB = ctx.ensure('b1', false);            // read B starts on the new row
+  ok(gate.resolve.length === 2, 'read B started beside it');
+
+  gate.resolve[1]({ id: 'b1', description: 'FRESH', updated_at: 't3' });   // B lands first
+  gate.resolve[0]({ id: 'b1', description: 'STALE', updated_at: 't1' });   // A lands after
+  await Promise.all([readA, readB]);
+  {
+    const row = ctx._prodState.batches[0];
+    ok(row.description === 'FRESH',
+      'THE RACE: the superseded answer does not overwrite the newer text');
+    ok(row.updated_at === 't3',
+      '...and does not write its older stamp back, which would corrupt the batch delta watermark');
+    ok(ctx._prodState.batchDescriptionReads.get('b1') === 'ready',
+      '...and leaves the newer read owning the state, rather than clearing an entry it no longer owns');
+  }
+}
+
 const batchDetail = grabFunc('function _prodBatchDetail(');
 ok(/descReadFailed \? 'Description could not load\.' : 'No batch description\.'/.test(batchDetail)
   && /batchDescriptionReads\.get\(String\(batch\.id \|\| ''\)\) === 'error'/.test(batchDetail),
   'and a failed read says so, instead of holding the loading skeleton forever');
-ok(/_prodState\.batchDescriptionReads\.clear\(\);/.test(grabFunc('function _prodMarkDescriptionsStale()')),
-  'a manual refresh clears the read states, so a failure is not permanent for the session');
-ok(/batchDescriptionReads\.delete\(batchId\)/.test(grabFunc('function _prodMarkBatchDescriptionsStale(batchIds)')),
-  'and a batch whose stamp moved in the delta drops its read state so the view re-reads');
+ok(/_prodInvalidateBatchDescriptionReads\(null\);/.test(grabFunc('function _prodMarkDescriptionsStale()')),
+  'a manual refresh retires every direct-batch read, so a failure is not permanent for the session');
+ok(/_prodInvalidateBatchDescriptionReads\(Array\.from\(targets\)\)/.test(grabFunc('function _prodMarkBatchDescriptionsStale(batchIds)')),
+  'and a batch whose stamp moved in the delta retires its read so the view re-reads');
+ok(/token === _prodState\.batchDescriptionTokens\.get\(batchId\)/.test(grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
+  'the read is gated on a per-batch token, not on the generation alone — the delta never advances the generation');
 
 if (failures) { console.error(`\n${failures} boot payload diet check(s) failed`); process.exit(1); }
 console.log('\nprod-boot-payload-diet: all ok');

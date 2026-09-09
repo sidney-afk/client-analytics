@@ -49355,6 +49355,12 @@
                batch-detail view re-asking on every render, and what lets that
                view say the read failed instead of holding a skeleton forever. */
             batchDescriptionReads: new Map(),
+            /* Per-batch request tokens for those reads. The generation counter
+               alone cannot stand in for these: it only advances in
+               _prodLoadData, never on the operational delta, so a delta that
+               moves a batch's stamp mid-read leaves the generation equal and an
+               older answer comparing as current. Raised by Codex on #1364. */
+            batchDescriptionTokens: new Map(),
             createDraft: null,
             createCatalog: [],
             createAssignees: [],
@@ -56782,7 +56788,7 @@
             /* Including the batch-detail read states: a manual refresh is the
                retry for a batch description that failed to load, and leaving
                'error' behind would make that failure permanent for the session. */
-            _prodState.batchDescriptionReads.clear();
+            _prodInvalidateBatchDescriptionReads(null);
             _prodState.descriptions.forEach((state, id) => {
                 if (!state || state.saving) return;
                 _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
@@ -57156,6 +57162,31 @@
            Terminating, like _prodEnsureLabels: a row that HAS the column
            returns before the read, and a failed read is remembered, so the
            _prodRender -> ensure -> _prodRender cycle cannot spin. */
+        function _prodNextBatchDescriptionToken(batchId) {
+            const next = Number(_prodState.batchDescriptionTokens.get(batchId) || 0) + 1;
+            _prodState.batchDescriptionTokens.set(batchId, next);
+            return next;
+        }
+        /* Retire every in-flight direct-batch description read, so its answer
+           can no longer land. `batchIds` null means all of them (the manual
+           refresh); otherwise just the batches whose row the delta replaced.
+           The token bump is the half that matters -- dropping the read state
+           alone lets a NEW read start while the old one is still in the air,
+           and then the older answer overwrites the newer text and its older
+           stamp onto the row, which never refetches again because it now looks
+           loaded. Tokens are only ever bumped, never cleared, so a token held
+           across a reset cannot collide with a fresh one. */
+        function _prodInvalidateBatchDescriptionReads(batchIds) {
+            const targets = batchIds == null
+                ? new Set([].concat(
+                    Array.from(_prodState.batchDescriptionTokens.keys()),
+                    Array.from(_prodState.batchDescriptionReads.keys())))
+                : new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
+            targets.forEach(batchId => {
+                _prodNextBatchDescriptionToken(batchId);
+                _prodState.batchDescriptionReads.delete(batchId);
+            });
+        }
         async function _prodEnsureBatchDescription(batchId, force) {
             batchId = String(batchId || '');
             if (!batchId) return;
@@ -57165,13 +57196,30 @@
             const readState = _prodState.batchDescriptionReads.get(batchId);
             if (readState === 'loading' || (!force && readState === 'error')) return;
             _prodState.batchDescriptionReads.set(batchId, 'loading');
+            const token = _prodNextBatchDescriptionToken(batchId);
             const generation = _prodState.projectionGeneration;
+            /* Two different ways to stop being current, and they must be
+               released differently.
+
+               TOKEN MOVED: a newer read of this same batch owns the state entry
+               now, so this one touches NOTHING. Deleting it here would either
+               strand that read's 'loading' or invite a third read on top of the
+               two already in the air.
+
+               GENERATION MOVED ONLY: no newer read necessarily exists, so this
+               read is still the owner and MUST release the entry -- leaving
+               'loading' behind would wedge the batch out of ever loading again,
+               because the guard above refuses to start a read while one is
+               marked in flight. In today's code the full load that moves the
+               generation always runs _prodMarkDescriptionsStale first, which
+               clears the entry anyway; this does not depend on that ordering
+               holding forever. */
+            const tokenCurrent = () => token === _prodState.batchDescriptionTokens.get(batchId);
+            const stillCurrent = () => tokenCurrent() && generation === _prodState.projectionGeneration;
+            const release = () => { if (tokenCurrent()) _prodState.batchDescriptionReads.delete(batchId); };
             try {
                 const fresh = await _prodReadBatchDescriptionRow(batchId);
-                if (generation !== _prodState.projectionGeneration) {
-                    _prodState.batchDescriptionReads.delete(batchId);
-                    return;
-                }
+                if (!stillCurrent()) { release(); return; }
                 const live = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
                 if (!live) {
                     _prodState.batchDescriptionReads.delete(batchId);
@@ -57182,10 +57230,7 @@
                 _prodState.adapter = null;
                 _prodState.batchDescriptionReads.set(batchId, 'ready');
             } catch (error) {
-                if (generation !== _prodState.projectionGeneration) {
-                    _prodState.batchDescriptionReads.delete(batchId);
-                    return;
-                }
+                if (!stillCurrent()) { release(); return; }
                 _prodState.batchDescriptionReads.set(batchId, 'error');
             }
             if (document.getElementById('prodRoot')) _prodRender();
@@ -61774,9 +61819,11 @@
         function _prodMarkBatchDescriptionsStale(batchIds) {
             const targets = new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
             if (!targets.size) return;
-            // The batch-detail view's read state for the same rows: the merge
-            // dropped their description, so its next render must re-read.
-            targets.forEach(batchId => _prodState.batchDescriptionReads.delete(batchId));
+            /* The batch-detail view's reads for the same rows: the merge dropped
+               their description, so its next render must re-read -- and any read
+               already in the air for them must be retired, or its older answer
+               lands on the replacement row. */
+            _prodInvalidateBatchDescriptionReads(Array.from(targets));
             _prodState.descriptions.forEach((state, id) => {
                 if (!state || state.saving) return;
                 const issue = _prodIssue(id);

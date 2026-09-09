@@ -62,7 +62,7 @@ function extractFunction(name) {
   throw new Error('unclosed ' + name);
 }
 
-const ACTIVE = { dougcartwright: { id: 'dougcartwright', name: 'Doug Cartwright' } };
+const ACTIVE = { 'roster-slug': { id: 'roster-slug', name: 'Roster Client' } };
 const sandbox = {
   String, Object, Boolean,
   // Roster and escaping stand in for their real implementations; every
@@ -100,7 +100,7 @@ function syncingIssue(overrides) {
   return Object.assign({
     id: 'del_1',
     project: '__needs_attribution__',
-    storedClientSlug: 'dougcartwright',
+    storedClientSlug: 'roster-slug',
     raw: { linear_issue_uuid: null },
     attribution: {
       state: 'needs_attribution',
@@ -121,12 +121,12 @@ ok(/still syncing to Linear/.test(sandbox.gate(syncing)), 'the gate text says sy
 ok(sandbox.gate(syncing) !== '', 'the write is STILL gated while syncing');
 ok(/Syncing to Linear/.test(sandbox.chip(syncing)) && !/Needs attribution/.test(sandbox.chip(syncing)),
   'the chip says syncing, not needs attribution');
-ok(/Doug Cartwright · syncing/.test(sandbox.projectChip(syncing)),
+ok(/Roster Client · syncing/.test(sandbox.projectChip(syncing)),
   'the project chip names the client SyncView stored');
 ok(/data-prod-attribution-notice="syncing"/.test(sandbox.notice(syncing))
   && !/needs repair/.test(sandbox.notice(syncing)),
   'the notice is the syncing one, and the repair wording is gone');
-ok(/Doug Cartwright/.test(sandbox.control(syncing)) && /data-prod-attribution-project="syncing"/.test(sandbox.control(syncing)),
+ok(/Roster Client/.test(sandbox.control(syncing)) && /data-prod-attribution-project="syncing"/.test(sandbox.control(syncing)),
   'the side-card project row names the client and marks itself syncing');
 
 // Every way OUT of the syncing shape keeps the repair banner.
@@ -152,8 +152,8 @@ notSyncing.forEach(([label, issue]) => {
 
 // A resolved row is untouched by any of this.
 const resolved = syncingIssue({
-  project: 'dougcartwright',
-  attribution: { state: 'resolved', clientSlug: 'dougcartwright', repairRequired: false, reason: 'direct_project_mapped', directProjectId: 'p', mappedProjectId: 'p', persistedState: 'resolved' }
+  project: 'roster-slug',
+  attribution: { state: 'resolved', clientSlug: 'roster-slug', repairRequired: false, reason: 'direct_project_mapped', directProjectId: 'p', mappedProjectId: 'p', persistedState: 'resolved' }
 });
 ok(sandbox.pending(resolved) === false, 'a resolved row is never syncing');
 ok(sandbox.gate(resolved) === '', 'a resolved row is writable');

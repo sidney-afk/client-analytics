@@ -29,6 +29,7 @@ function Assert-CleanPostgresEnvironment {
   $present = @([Environment]::GetEnvironmentVariables('Process').Keys | Where-Object {
     $name = [string]$_
     $name -match '^(?i:PG)' -or $name -match '(?i:_DATABASE_URL)$' -or
+      $name -match '^(?i:DATABASE_URL|SUPABASE_DB_URL)$' -or
       $name -match '^(?i:F42_REHEARSAL_)' -or $name -match '^(?i:NIR_)' -or
       $name -match '^(?i:NATIVE_LABEL_PG_CONFIG)$' -or $name -match '^(?i:CARD_.*PG)' -or
       $name -match '^(?i:F63_REQUIRE_POSTGRES|ARTIFACT_REQUIRE_POSTGRES|INTAKE_MANIFEST_REQUIRE_POSTGRES)$'

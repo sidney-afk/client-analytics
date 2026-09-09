@@ -10,7 +10,7 @@ assert.match(source, /ValidateSet\('All', 'Unit', 'F27'\)/);
 assert.match(source, /postgres:\$Major/);
 assert.match(source, /--publish '127\.0\.0\.1::5432'/);
 assert.match(source, /Assert-CleanPostgresEnvironment/);
-for (const forbiddenPattern of ['PG', '_DATABASE_URL', 'F42_REHEARSAL_', 'NIR_', 'NATIVE_LABEL_PG_CONFIG', 'CARD_.*PG']) {
+for (const forbiddenPattern of ['PG', 'DATABASE_URL|SUPABASE_DB_URL', '_DATABASE_URL', 'F42_REHEARSAL_', 'NIR_', 'NATIVE_LABEL_PG_CONFIG', 'CARD_.*PG']) {
   assert.ok(source.includes(forbiddenPattern), `runner must reject inherited ${forbiddenPattern} selectors`);
 }
 assert.match(source, /\$env:F63_REQUIRE_POSTGRES = '1'/);

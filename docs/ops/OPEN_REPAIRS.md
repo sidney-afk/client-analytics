@@ -18314,3 +18314,137 @@ truth, and a stale contract at the top of a gate is worse than none — someone
 debugging a future failure would have read it and set about restoring the
 mechanism this PR deliberately removed. It now states the ten-minute batch
 staleness as the ACCEPTED behaviour rather than a gap to close.
+
+## 184. [2026-09-09] The archive was re-downloaded six times an hour, and a background tick could land mid-keystroke
+
+Owner-approved follow-up to item 182, from the same report ("as fast and as
+smooth as it can be"). Two independent changes, both browser-only.
+
+**The archive.** `_prodLoadTerminalTail` read every terminal row on every full
+reconcile. Measured live 2026-09-09 against the deployed backend: **4,098
+terminal rows**, 182 KB compressed per page of 1,000, **five strictly
+sequential pages**, so ~0.9 MB and several seconds. `PROD_FULL_RECONCILE_MS` is
+ten minutes, so an open tab re-downloaded the finished work **six times an
+hour** — roughly 43 MB across an eight-hour day, for rows that by definition
+are not moving.
+
+It never needed that cadence. The 30-second delta reads `updated_at >=
+watermark` with **no status filter**, so a row that CHANGES — including one that
+has just become approved or posted — already arrives on the next tick. The only
+thing a full re-read adds is convergence for a hard DELETE, which no watermark
+read can see. So the full pass survives at `PROD_TERMINAL_FULL_MS` (one hour),
+on the first tail of a projection, and on anything the reader asked for (boot
+and Refresh both reach `_prodLoadData` non-silently); the ten-minute reconcile
+takes a watermarked read instead.
+
+Two details that are easy to get wrong and are pinned in
+`test/prod-terminal-tail-and-busy-guard.js`:
+
+- The watermark is over the **terminal rows only** (`_prodTerminalWatermark`).
+  The whole-projection watermark is almost always newer, because the live half
+  moves constantly, and using it would skip the very rows this is for.
+- The incremental read **updates in place** (`_prodMergeDeliverableRows`). The
+  full read may append only ids it has never seen, because the live half it
+  joins is the fresher of the two; this read is the opposite — every row it
+  returns moved *after* the copy held here.
+
+**The tick, while someone is typing.** `_prodRefreshBusy` already deferred a
+background tick for an open menu layer and for an in-flight write. It did not
+defer for a caret in a field. `_prodRender()` rebuilds `#prodRoot` wholesale, so
+a tick landing mid-keystroke replaces the node being typed into and takes the
+caret and selection with it; the board's own filter and search inputs had
+nothing protecting them at all. Workload has guarded its search input this way
+since it shipped and Calendar defers on the same condition. Scoped to the board,
+so a field focused on another surface cannot freeze this one.
+
+### 184a. The correction that cost two browser-gate runs
+
+The first draft added a SEPARATE mechanism: a `_prodIsBusy` / `_prodRenderWhenIdle`
+pair that did the read and deferred the *paint*, and it routed the
+batch-description arrival through it. That starved the arrival: the description
+panel's editor is focused as a matter of course, so the repaint that panel was
+waiting for never landed. `inplace_link` in the mocked browser gate timed out
+twice, passed on `43b1455`, and passed again the moment the guard alone was
+neutered — which is how it was narrowed to that one line.
+
+Two rules came out of it, both now pinned:
+
+1. **A repaint that IS the answer to a read the visible panel asked for must
+   never be deferred.** Deferral is for UNSOLICITED repaints landing on a reader
+   who is mid-interaction.
+2. **Extend the guard that exists rather than adding a second one.** The draft
+   duplicated the menu-layer check that `_prodRefreshBusy` already performed,
+   which is how the two mechanisms could disagree about what "busy" meant.
+
+Also recorded because it was stated wrongly to the owner first: Production was
+**not** unguarded. Menus and in-flight writes were already covered, and
+`_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
+was the one real gap.
+
+### 184b. The incremental read was a no-op, and the test could not see it
+
+Codex on #1366, P2, and it was right about both halves.
+
+`_prodLoadData` replaces `_prodState.deliverables` with the **live-only**
+`PROD_LIVE_FILTER` result and only afterwards calls `_prodLoadTerminalTail`. So
+by the time the tail computed `_prodTerminalWatermark()` there were no terminal
+rows left to compute it from: the watermark was always `''`, the filter fell
+back to the unwatermarked `PROD_TERMINAL_FILTER`, and the browser downloaded
+all 4,098 rows on every reconcile exactly as before. **The change did nothing,
+and every test passed.**
+
+It could not be fixed by moving the watermark alone. An incremental read cannot
+rebuild the archive, so if phase one drops the finished rows there is nothing
+for phase two to add to. The archive has to survive phase one instead:
+
+- `_prodTerminalTailFullDue(silent)` decides the mode **before** the projection
+  is replaced, and the same value is handed to the tail rather than re-derived
+  there. One rule, one place.
+- `_prodCarryTerminalRows(live, previous)` carries the finished rows across the
+  replacement when the next tail is incremental, with the **live half winning
+  every collision** — a row that just left a terminal status appears in `live`
+  with its new value, and the held copy is by definition older.
+- On a full pass nothing is carried, so the full read's fresh rows are not
+  shadowed by held copies. Boot and Refresh are always full passes, so the
+  two-phase boot is byte-for-byte what it was.
+- The in-memory carry cannot grow the cache: `_prodCacheProject` already drops
+  terminal rows before writing.
+
+**The test lesson is the sharper one.** `test/prod-terminal-tail-and-busy-guard.js`
+seeded terminal rows straight into its sandbox and called the tail, so it
+exercised the reader in a state the real caller never produces. It asserted the
+mechanism worked while the mechanism was disconnected. A unit test that
+constructs its own preconditions proves the function, not the feature; where a
+caller establishes the precondition, the test has to establish it the same way.
+The suite now runs the phase-one replacement first and asserts the watermark
+survives it, and pins that the decision and the carry both precede the
+replacement.
+
+### 184c. A late incremental tail could revert a row that had moved on
+
+Codex on #1366, second round, P2, and also right.
+
+`_prodMergeDeliverableRows` replaces a held row whenever the incoming
+`updated_at` *differs* — it never checks that the incoming one is NEWER. That is
+safe for the 30-second delta, whose watermark is the maximum over the whole
+projection, so no response it returns can predate a row already held. It is not
+safe for the incremental tail, whose watermark is the **archive's** (routinely
+older than any live row) and whose read spans several seconds across pages.
+
+The case that bites is a row **leaving** the archive. The tail selects it while
+it is still `approved`; a delta tick or a user write moves it to `in_progress`
+while the read is in flight; the late response reverts the row's status in the
+open tab until a later refresh — and someone can then act against that stale
+state, which is the same shape as the reverts item 101 exists for.
+
+`_prodDropSupersededRows(rows, previous)` filters the tail response against the
+copies currently held before the merge sees it. An identical stamp is kept (a
+same-second echo is not stale), and a row with no parseable stamp on either
+side is kept, because absence of proof that it is stale is not proof. The full
+pass needs none of this: it appends only ids it has never seen, so it cannot
+overwrite anything.
+
+Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
+merge refuse older rows would be a no-op for the delta by the argument above,
+so it would buy nothing there while quietly changing the contract of the path
+that every write already depends on.

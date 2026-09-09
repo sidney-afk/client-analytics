@@ -122,6 +122,12 @@ function newHarness(opts) {
     },
     _prodPreserveProjectedFields: incoming => incoming,
     _prodCarryBatchDescriptions: incoming => incoming,
+    // Added 2026-09-09 with the incremental archive read: the loader decides
+    // whether the next tail is a full pass, and carries the finished rows
+    // across phase one when it is not. Neither affects the deep-link paint,
+    // so both are mirrored at their identity behaviour.
+    _prodTerminalTailFullDue: () => true,
+    _prodCarryTerminalRows: (live) => live,
     _prodAdvanceBatchDeltaCursor() {},
     _prodInvalidateBatchDescriptionReads() {},
     _prodInvalidateScopedReads() {},
@@ -245,8 +251,9 @@ const landPhaseOne = (h, live) => {
     const load = extractFunction('_prodLoadData');
     ok(load.indexOf('_prodDeepLinkFastPaint(') > 0 && load.indexOf('_prodDeepLinkFastPaint(') < load.indexOf('await Promise.all('),
       '_prodLoadData starts the fast paint BEFORE awaiting phase one');
-    ok(/const mergedDeliverables = _prodCarryDeepLinkRows\(deliverables\)/.test(load),
-      'and carries the painted rows across the phase-one replacement');
+    ok(/_prodCarryDeepLinkRows\(deliverables\)/.test(load)
+       && load.indexOf('_prodCarryDeepLinkRows(deliverables)') < load.indexOf('_prodState.deliverables = mergedDeliverables'),
+      'and carries the painted rows across the phase-one replacement (both branches of the archive-carry decision run it)');
     const paint = extractFunction('_prodDeepLinkFastPaint');
     ok(!/_prodCacheWrite|_prodApplyDeepLinkFallback|deepLink = /.test(paint),
       'the fast paint never writes the cache, never applies or consumes the deep link');

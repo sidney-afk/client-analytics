@@ -77,6 +77,18 @@ function harness(opts) {
       terminalTailLoadedAt: 0
     };
     const PROD_TERMINAL_FILTER = 'terminal';
+    /* Added 2026-09-09: the tail reads incrementally when the caller asks for
+       it, so it now consults the archive watermark and the delta's merge.
+       Every case in this suite drives the FULL pass (opts.full), which is the
+       path these settle/deep-link assertions are about, so the watermark is
+       never consulted here -- it is defined so the function resolves, not to
+       be exercised. Its own behaviour is covered in
+       test/prod-terminal-tail-and-busy-guard.js. */
+    function _prodTerminalWatermark() { return ''; }
+    function _prodMergeDeliverableRows(rows) {
+      _prodState.deliverables = (_prodState.deliverables || []).concat(rows || []);
+      return (rows || []).map(row => String(row && row.id || ''));
+    }
     const document = { getElementById() { return {}; } };
     function _prodApplyDeepLinkFallback() { calls.fallback++; }
     function _prodRender() { calls.render++; }

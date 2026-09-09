@@ -17752,3 +17752,565 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+## 182. [2026-09-08, FIXED in the browser; nothing to deploy] SyncLinear felt "sometimes really slow" while the backend answered in half a second: the tab was downloading every batch description on every open and every return
+
+**Owner report.** "Sometimes SyncLinear is pretty slow today. It was really fast a
+couple of days ago." Calendar and Workload "feel slow" too, on and off.
+
+**What was measured (sandbox, 2026-09-08 22:00 UTC, twelve samples over two
+minutes).** Every read the Production tab makes at boot answered in 0.3 to 0.6
+seconds; one deliverables page in twelve took 1.8 seconds. The GitHub Pages fetch
+of the app took under half a second. Supabase's status page showed "partially
+degraded" for an unrelated 401 incident. So the server was not the slowness. The
+weight was in what the tab pulled, and how often:
+
+| Read at boot | Compressed | Note |
+|---|---|---|
+| `index.html` | 1.3 MB | cached 10 minutes by Pages |
+| `batches`, 2 sequential pages | 1.1 MB | **1.0 MB of it is the `description` column**: 2.3 million characters across 1,688 rows, median 743, evenly spread, not one bad row |
+| live deliverables, 3 sequential pages | 0.75 MB | 2,316 rows |
+| terminal tail, ~5 pages | ~1 MB | 4,098 rows, deferred |
+
+And `_prodAutoRefreshOnReturn` re-ran the FULL load (batches and live projection
+again, about 2 MB) on every return to the tab after 30 seconds away. On a link
+whose throughput moves around, that is exactly "fast one day, slow the next,
+slow within the same day". The description column was consumed in one place: the
+detail panel of the parent that is open. Deliverable descriptions (`brief`) had
+already been taken off the boot read for the same reason; batches had not.
+
+**What changed (`index.html` only, so it ships with the merge; no function deploy,
+no migration).**
+
+1. `PROD_BATCH_SELECT` no longer carries `description`. A batch parent's panel
+   reads its ONE row on open through the synthetic branch of
+   `_prodEnsureDescription`, over the same browser grant, with the same three
+   late-answer guards as the deliverable path (request token, projection
+   generation, row scope). The old branch declared the description "ready"
+   without reading anything, which was only true because boot had read it.
+   `_prodCarryBatchDescriptions` keeps a held description across a full reload
+   only while the row's `updated_at` is unchanged: the description write is a
+   compare-and-swap on that stamp (item 2026-09-01), so a moved stamp means
+   read it again.
+2. A tab return calls `_prodRefresh({ silent: true, incremental: true })`, which
+   routes to the existing `_prodDeltaRefresh` (rows stamped since the watermark,
+   full reconcile every ten minutes as before) instead of the full load. Authority
+   is still re-read on return. The delta now also walks `batches` on their own
+   watermark (`_prodMergeBatchRows`), so a filming day planned since the last
+   read appears on the next tick rather than at the reconcile; a batch whose
+   stamp moved marks its open panel stale (`_prodMarkBatchDescriptionsStale`) so
+   the text is re-read rather than shown as current.
+
+Not done, by the owner's choice: trimming the 20+ `raw_*` attribution columns from
+the deliverable select (the third proposal).
+
+**Effect.** Boot drops from about 3.2 MB to about 2.2 MB compressed and loses the
+slowest single query (the description-only read alone took 1.9 s). A tab return
+drops from about 2 MB to a few kilobytes unless rows changed. The manual Refresh
+button keeps the full path.
+
+**Proof.** `test/prod-boot-payload-diet.js` (new) pins both rules against the
+shipped source and executes the two merges and the return listener.
+`test/prod-deep-link-fast-paint.js` and `test/production-preview-source.js` were
+updated for the renamed batch merge. The mocked browser gate
+(`docs/syncview-design/tests/prod-write-gateway-browser.js`) and the boot budget
+were run before push.
+
+### 182a. Two defects the first draft shipped, both caught by Codex review on #1364
+
+Recorded because the wiring tests passed while both were live, which is the
+transferable lesson: an assertion that the call EXISTS is not an assertion that
+it WORKS.
+
+**P1 — the one-row read could not terminate.** The first draft called
+`_prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.<id>', 1, 1)`.
+That helper only returns when a page comes back SHORTER than the page size, so
+an exact one-row match filled the only page, fell out of the loop, and threw
+`batches read exceeded pagination cap`. **Every batch-parent description would
+have rendered "Description could not load."** The page size is now 1000 (an
+`id=eq.<uuid>` returns at most one row, and 1000 matches the sibling id-list
+read rather than inventing a second convention). `test/prod-boot-payload-diet.js`
+now EXECUTES the real pager with both argument sets: it asserts the old ones
+throw — so the test can fail for the reason it names — and the shipped ones
+return.
+
+**P2 — the direct batch view was never served.** `?batch=<id>` is view `batch`
+with `openBatchId`, and `_prodBatchDetail` renders `batch.description` straight
+off the row. The on-demand loader was reached only from view `detail` with an
+`openId`, so that view sat on its loading skeleton forever once the column left
+the boot read. The read now lives in one shared function
+(`_prodReadBatchDescriptionRow`) with a second entry point
+(`_prodEnsureBatchDescription`) called from the render pass for the batch view,
+terminating the same way `_prodEnsureLabels` does: a row that already has the
+column returns before the read, and a failed read is remembered, so
+render → ensure → render cannot spin. A failed read now says
+**Description could not load.** rather than holding the skeleton, and both the
+manual refresh and a delta that moves the batch's stamp clear the remembered
+failure so it is not permanent for the session.
+
+### 182b. A third defect, also from Codex review on #1364: the superseded direct-batch read
+
+`_prodEnsureBatchDescription` guarded its answer on `_prodState.projectionGeneration`
+alone. That counter only advances in `_prodLoadData` — **the operational delta
+never touches it** — so a delta that moved a batch's stamp mid-read left the
+generation equal and the older answer comparing as current:
+
+1. Read A goes out for batch `b1`.
+2. The 30s delta sees a newer `updated_at`, `_prodMergeBatchRows` replaces the
+   row without its description, and the stale-mark drops the read state.
+3. The next render starts read B, which lands with the fresh text.
+4. Read A lands afterwards, passes the generation check, and overwrites the
+   fresh text with **stale text and an older `updated_at`**.
+5. The row now carries the column, so it looks loaded and is never re-read.
+   The stale stamp also lowers `_prodDeliverableWatermark(_prodState.batches)`,
+   so the delta re-fetches ground it has already covered.
+
+Fixed with a per-batch request token (`batchDescriptionTokens`), the same shape
+`descriptionRequestTokens` already gives the deliverable path. Both the manual
+refresh and a delta that moves a batch's stamp now retire the reads in flight
+for those rows rather than only dropping their state.
+
+**A wedge in the first draft of that fix, found by writing the test.** Making a
+superseded read touch nothing at all is correct when a NEWER READ owns the state
+entry, and wrong when only the GENERATION moved: nothing then releases the
+`loading` marker, and the guard that refuses to start a read while one is in
+flight would lock that batch out of ever loading again. A superseded read now
+releases the entry only when its token says it still owns it. Today the full
+load that moves the generation always runs `_prodMarkDescriptionsStale` first,
+which clears the entry anyway — the repair is so this stops depending on that
+ordering holding forever.
+
+The regression test drives the real race, with both reads resolved in the
+damaging order, and asserts the newer text survives, the older stamp is not
+written back, and the newer read keeps ownership of the state.
+
+### 182c. Two more from Codex round three: a second token domain, and a cursor made of local writes
+
+**The two readers of a batch row did not retire each other.** A batch row's
+description has two readers, keyed differently — the synthetic parent panel by
+ISSUE id (`descriptionRequestTokens`) and the direct `?batch=` view by BATCH id
+(`batchDescriptionTokens`). The token added in 182b protected only the second.
+So leaving a `?batch=` view with a read in flight and then opening or editing the
+synthetic parent let the older read land on top of the newer answer. Through the
+save path it is worse than stale text: all four writers of a batch description
+(the optimistic pre-save value, the committed save, and both conflict restores)
+funnel through `_prodSyncBatchDescriptionRow`, so a read that started before a
+save landed after it and **silently reverted text the user had just committed**.
+
+Both readers now take the same shared per-batch token, and every write through
+that funnel retires it. The rule is now one sentence: whichever read STARTED
+LAST is the only one whose answer can land, and any completed write retires
+every read older than it.
+
+**The batch delta cursor was derived from rows that local writes mutate.** It
+was `_prodDeliverableWatermark(_prodState.batches)` — the newest stamp among
+local rows — but a point read and every description save write a fresh
+`updated_at` onto ONE row. Open one batch whose row is newer than the rest and
+the cursor jumps to it, so `updated_at >= cursor` excludes every batch changed
+between the last real read and that stamp; those stay invisible until the
+ten-minute reconcile. There is now a real `batchDeltaCursor` advanced ONLY from
+server answers (seeded on a full load from the raw rows, before the merge lets a
+local value near them), compared as parsed instants rather than strings, and it
+never moves backwards.
+
+**A pre-existing twin, NOT fixed here, deliberately.** `_prodSyncDescriptionRow`
+does the same thing to `deliverables.updated_at`, and the DELIVERABLE delta
+watermark is still `_prodDeliverableWatermark(_prodState.deliverables)`. That is
+the identical defect on the older path and it predates this change; it is left
+alone rather than widening a PR already three review rounds deep. Worth its own
+repair — the fix is the same shape as the one above.
+
+### 182d. Codex round four: two defects the round-three fix created
+
+Both are consequences of the shared per-batch token added in 182c, which is
+worth stating plainly: each repair in this sequence exposed the next layer.
+
+**A displaced reader never released what it owned.** The shared token means one
+read can supersede another. The superseded synthetic read returned bare, leaving
+its panel's `state.refreshing` set — and the guard at the top of
+`_prodEnsureDescription` refuses to start a read while that is set, so the panel
+short-circuited on every later open and **never loaded again**. Reachable by
+switching between the two synthetic parents of a split-team batch, which share a
+`batchId` and therefore share the token. Separately, when a synthetic read
+superseded an in-flight direct read and then FAILED, the direct read's
+`batchDescriptionReads` entry stayed on `loading`, stranding the `?batch=` view
+on its skeleton until an unrelated refresh.
+
+Now: a displaced read releases its OWN per-issue panel state (and only while its
+own issue token still says it owns it), and whichever read holds the shared token
+owns the shared entry on both exits — `loading` on start, `ready` on success,
+`error` on failure. One reader, one truth.
+
+**Stamp equality masked real remote changes.** A description-only read or save
+writes a fresh `updated_at` over otherwise old fields. When a batch's metadata
+changed remotely and a description read landed before the next delta, the delta
+then received the complete row carrying that same stamp, `_prodMergeBatchRows`
+read the equality as "unchanged", and the adapter was never rebuilt — so the
+batch **name, status or `linear_parent_ids` stayed stale** until the ten-minute
+reconcile. Rows advanced by a partial write are now tracked in
+`batchPartialRows`; the merge refuses stamp equality for them, clears the mark
+once a complete row replaces it, and a full load clears the set entirely because
+every row in it came from a complete read.
+
+The regression test executes the second one on the exact shape of the bug: a
+complete row arriving at the SAME stamp as a partially advanced local row still
+counts as changed, its fresh fields land, and the mark is not sticky afterwards.
+
+### 182e. Codex round five: the Refresh button could not clear a failed batch read
+
+`_prodMarkDescriptionsStale` clears the remembered batch-description read states,
+and it is reached from `_prodRefresh`. **The visible topbar Refresh button does
+not go that way.** It runs `_prodManualRefresh` →
+`_prodDeltaRefresh({ full: true })` → `_prodLoadData`, none of which touches
+`_prodMarkDescriptionsStale`. So an `error` left by a failed one-row read
+survived the very control offered to clear it: the full load replaced the batch
+row (still without `description`), `_prodEnsureBatchDescription` returned early
+on the retained `error`, and the batch view kept saying **Description could not
+load.** until a page reload or an unrelated change to that batch.
+
+Fixed by retiring every remembered read inside `_prodLoadData` itself, beside
+where it already clears `batchPartialRows` — the shared
+`_prodInvalidateBatchDescriptionReads(null)` rather than a bare clear, so a read
+still in the air is retired rather than left able to land on the new projection.
+
+The regression test walks the whole button path instead of assuming it: that
+`_prodManualRefresh` goes through `_prodDeltaRefresh({full:true})`, that the full
+branch reaches `_prodLoadData`, and that **neither calls
+`_prodMarkDescriptionsStale`** — the last one being the fact that made the
+original placement wrong, so the test fails for the reason it names.
+
+**Running count on #1364: eight findings across five rounds.** The original
+change (drop a column from a boot read, route tab returns through the existing
+delta) has held up; every finding after the first two came from the machinery
+added to fix the ones before. The cost is concentrated in one place — putting a
+new on-demand read into a surface that already had two readers and two
+invalidation schemes. If a future session touches batch descriptions again, the
+cheaper design is ONE owner for the read with ONE state machine that both
+surfaces render from, not two readers cooperating through a shared token.
+
+### 182f. Round six stopped the patching: the two-reader arrangement was the defect
+
+Codex's sixth round found two more, both inside the machinery added to fix
+rounds three through five, which is the condition #1364 had already committed to
+stopping on.
+
+**Both verified before acting.** A synthetic parent replaced mid-read by a real
+one (hierarchy rebuild) failed the panel's currency check while the shared batch
+token had not moved, so the panel released only its own state and left
+`batchDescriptionReads[batchId]` on `loading` — after which every later direct
+`?batch=` read refused to start. And `batchPartialRows` was marked
+unconditionally, so a read returning the SAME stamp still marked the row partial;
+since the batch delta filter is `updated_at >= cursor` and therefore inclusive,
+the boundary row returned on every tick, the merge called it changed, the
+description was dropped and re-read, and the row was marked partial again. A
+30-second loop costing an extra request and a skeleton flash — undoing the
+saving this change exists for.
+
+**The repair was not a seventh patch.** Four of the ten findings on #1364
+existed only because TWO functions read and wrote one batch row, cooperating
+through a shared token across two state maps: an older answer landing on a newer
+one, a save reverted by a read that started before it, a displaced reader
+stranding its own panel, and a displaced reader stranding the other reader's
+entry. The arrangement was the defect; each fix created the conditions for the
+next.
+
+`_prodEnsureBatchDescription` is now the sole owner, keyed by batch id. The
+synthetic parent panel waits for it and reflects the row instead of running its
+own read. That deletes the shared token, the second writer of the shared read
+state, and the whole "which reader owns this entry" question rather than
+answering it a fifth time. What stays per-panel is what genuinely is per-panel:
+a split-team batch has two synthetic parents sharing one `batchId`, each with
+its own editor state, caret and scope, so each keeps its own token and its own
+release.
+
+Partial marking is now one comparison in one place, against the stamp captured
+before the write.
+
+**The general lesson, for whoever adds the next on-demand read here.** A test
+that asserts a call EXISTS is not a test that it WORKS: the wiring assertions on
+this PR passed while a read that could never terminate and a view that never
+loaded were both live. And when a second reader of the same row starts needing a
+token to coordinate with the first, the reader is the thing to remove, not the
+token to refine.
+
+### 182g. The redesign's own regression: a background read destroyed an open editor
+
+The single-owner collapse in 182f shipped with a defect the unit suite could not
+see, and it is the most user-visible thing found on #1364.
+
+`_prodEnsureBatchDescription` repainted on EVERY completed read, for any batch,
+open or not. `_prodRender` rebuilds the surface, and the description editor is a
+`contenteditable` — so a background read for an unrelated batch tore out an
+in-progress edit on the row the user actually had open, along with the caret and
+focus. Anyone typing a description while a batch read landed would have lost it.
+
+**How it was caught, which is the transferable part.** The mocked browser gate
+failed at `inplace_link` — hover a link in a deliverable's editor, apply an edit,
+expect focus back. That same step had genuinely flaked earlier in the session, so
+the tempting read was "known flake, re-run". It failed twice. The decisive test
+was not another re-run: it was checking out the PREVIOUS commit into a worktree
+and running the gate there in the same sandbox, where it passed. Previous commit
+green + this commit red twice = regression, not flake. A third re-run would have
+been a coin toss dressed up as evidence.
+
+The repaint is now gated on the batch being what the reader is looking at: the
+direct `?batch=` view of that batch, or a synthetic parent of it. The panel that
+delegates does its own repaint afterwards, and a batch nobody has open needs
+none — the state is written either way and the next natural render picks it up.
+
+**Two assertions in `prod-boot-payload-diet` had to be repaired with it**, and
+that is worth recording rather than quietly fixing: they asserted "repaints
+exactly once" while driving a batch that was NOT on screen, so under the correct
+behaviour they were measuring zero repaints and passing for the wrong reason.
+They now put the view on the batch under test. The regression itself is pinned in
+both directions — a read for an unopened batch writes state and does not repaint;
+a read for the batch whose synthetic parent is open still does.
+
+**The standing lesson for this surface:** a description read is a background
+operation, and a background operation must never repaint a surface that owns an
+editor unless its own result is on screen.
+
+### 182h. Concurrent waiters, the first finding the redesign made ordinary
+
+Codex round seven, on the single-owner code. Worth recording because of what KIND
+of finding it is: not another negotiation between two readers of one row, but a
+plain single-flight question — the class the redesign was meant to reduce this
+surface to.
+
+`_prodEnsureBatchDescription` skipped a read already in flight instead of joining
+it. A second caller's `await` therefore resumed BEFORE the column existed, and
+the delegating panel treated an absent column as a completed failure and set
+`error` — which its own guard then used to refuse every later non-forced attempt.
+"Description could not load." until a manual refresh. Reachable with the two
+synthetic parents of a split-team batch (they share a `batchId`), or by moving
+from `?batch=` to that batch's parent mid-read.
+
+Two independent repairs, either of which prevents the wedge:
+
+1. **Join, don't skip.** `batchDescriptionInFlight` maps a batch id to the
+   promise in the air; a caller arriving mid-read awaits that promise. Two panels
+   now issue ONE network read and both resume with the answer.
+2. **Only a recorded failure is a failure.** The panel calls an absent column an
+   error only when the owner actually wrote `error`; otherwise it lands on `idle`,
+   which the guard does not block, so the next render can ask again. A retired
+   read is not a failed one.
+
+**A third gap surfaced while writing the test, and nobody reported it.**
+`_prodInvalidateBatchDescriptionReads` retired a read's token and read state but
+left its in-flight promise, so the next caller would JOIN a read whose answer the
+token check was already guaranteed to discard — resuming with nothing. It now
+drops the in-flight entry too, so the next caller starts fresh; the retired
+promise settles harmlessly against its stale token. Single flight joins live
+reads, not dead ones.
+
+### 182i. The single-flight cleanup evicted the wrong read
+
+Codex round eight, on the round-seven fix. The textbook single-flight bug, and it
+reads as tidying up rather than logic:
+
+```js
+finally { _prodState.batchDescriptionInFlight.delete(batchId); }
+```
+
+Read A is invalidated, read B starts and stores its own promise, then A settles
+and its `finally` evicts **B's** entry. The next render sees nothing in flight,
+starts read C, advances the token, and guarantees B's perfectly good answer is
+discarded. Longer loading and redundant requests, from a line whose only apparent
+job is housekeeping.
+
+The entry is now removed only when the map still holds THIS invocation's promise.
+The regression test drives that exact ordering — A retired, B started, A settling
+late — and asserts B's entry survives and B's answer is the one that lands.
+
+**Why this one is filed as ordinary.** Rounds three through six were each a
+consequence of the previous fix inside the two-reader arrangement, which is why
+#1364 stopped and replaced it. Rounds seven and eight are instead standard
+single-flight questions with standard answers: join a live read, and clean up
+only what you own. That is the shape this surface was meant to have after the
+redesign, and it is the signal that the redesign did what it was for.
+
+## 183. [2026-09-09, OPEN — owner decision, measured] Command-palette description search: what item 182 narrowed, and what it was already
+
+Codex round nine on #1364 raised this, and it is the first finding on that PR that
+is a FEATURE question rather than a defect. Verified before writing it down.
+
+**What the palette actually matched, before and after.** `_prodPaletteItems`
+ranks `i.desc`. For a deliverable that is empty and always has been: `brief` is
+not in `PROD_DELIVERABLE_SELECT`, so a deliverable's description never reaches the
+browser at boot. For a synthetic batch parent it came from
+`node.batch.description`, which the boot read carried until item 182 stopped it.
+
+| Row kind | Description searchable BEFORE 182 | After |
+|---|---|---|
+| Deliverable (6,325 rows) | **No** — `brief` was never in the select | No |
+| Synthetic batch parent (1,540 of 1,688 batches carry one) | Yes | **No** |
+
+So the parity claim at `WIRED-PARITY.md` was already only partly true, and 182
+took the remaining part. `WIRED-PARITY.md` now states this accurately instead of
+claiming search the app does not do.
+
+**Why this is not being patched inside #1364.** The two cheap repairs are both
+wrong. Reinstating `description` in the boot read restores 1 MB on every open,
+which is the entire defect 182 exists to fix. Lazy-loading every batch
+description when the palette opens moves the same megabyte to a keystroke and
+makes the palette feel worse than the boot did.
+
+**The right repair is a different feature: ask the server.** When the palette has
+a query of a few characters, issue a `description=ilike.*<query>*` read against
+`batches` (and, if briefs are ever wanted, the deliverable projection), merge
+those ids into the ranked list, and debounce it. That is a new read path with its
+own ranking and cancellation semantics — a feature, not a bug fix, and not
+something to bolt onto a PR that has already absorbed nine review rounds.
+
+**Owner decision, one line:** is palette search over post/batch description text
+worth building as server-side search, or is title and identifier matching enough?
+Nobody has reported missing it; it is recorded here so the answer is a choice
+rather than an accident.
+
+### 182j. The retraction: no description-only write advances a row's stamp
+
+Codex round eleven found a THIRD defect in the same mechanism, which is the
+signal that the mechanism was the defect.
+
+**The finding.** A batch delta answering from a snapshot taken before a local
+point read could return that batch at an older stamp. Because the row was marked
+partial, the merge bypassed its equality branch, cleared the marker, and replaced
+the newer local row with the older response — discarding a just-loaded or
+just-saved description and regressing the batch's other displayed fields until a
+later delta repaired them.
+
+**The root cause was one decision, not three bugs.** A description-only read or
+save wrote its `updated_at` onto the local row. That makes an otherwise-stale row
+LOOK freshly read, and every consequence needed its own guard:
+
+| Round | Consequence | Guard added |
+|---|---|---|
+| 182f | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| six | marking unconditionally built a 30-second refetch loop | mark only when the stamp advances |
+| eleven | an older snapshot could overwrite the newer local row | *(would have been a third guard)* |
+
+**The repair is removal.** No description-only write advances a row's stamp any
+more — not the one-row read, not the save funnel. `batchPartialRows` is gone from
+the code entirely. The merge can trust stamp equality again, because every stamp
+it sees came from a complete read.
+
+Nothing is lost. A batch nothing changed sits below the delta cursor and never
+comes back. A batch that genuinely moved comes back with a different stamp,
+counts as changed, and its description is re-read. The description's own stamp
+lives in the panel state (`state.sourceUpdatedAt`), which is what the
+compare-and-swap actually reads — the row's copy was never load-bearing for it.
+
+**Codex proposed exactly this in round four** ("avoid copying the row-level stamp
+from that partial read") and I took the marker instead. That was the wrong call,
+it cost three review rounds, and this is the retraction. Two tests that asserted
+the stamp write now assert its absence.
+
+**The rule worth keeping:** a third finding in one mechanism is not a third bug.
+It is the mechanism asking to be deleted.
+
+### 182k. I asserted the CAS read one thing and it read another
+
+Codex round twelve, and the most instructive finding on #1364 because it was an
+error of ASSERTION, not of code.
+
+Justifying the 182j retraction I wrote, in a code comment and again on the PR:
+*"the description's own stamp lives in the panel state (`state.sourceUpdatedAt`),
+which is what the compare-and-swap actually reads — the row's copy was never
+load-bearing for it."*
+
+**That was false.** `_prodGatewayWrite` builds `expected_updated_at` from
+`_prodBatch(payload.id).updated_at` — the ROW's copy — with attachment evidence
+as the only preferred source. I never checked before writing it down twice.
+
+**What it would have cost.** Saving a synthetic-parent description twice before
+the next complete refresh: the first save succeeds and its committed clock is
+discarded, the second sends the pre-save clock and takes a 409, and the conflict
+restore routes through the same helper so the retry conflicts again — until a
+delta or full reconcile happens to replace the row.
+
+**The fix is a split, not a revert.** Those were one field doing two jobs, which
+is the same conflation that generated 182f, round six and 182j:
+
+| Value | Means | Read by |
+|---|---|---|
+| `batches.updated_at` (the row) | freshness of the last COMPLETE read | the delta merge's equality test |
+| `batchDescriptionClocks[batchId]` | the CAS clock for the description column | `_prodGatewayWrite`, for `batch_description` only |
+
+Every description write advances the clock; the one-row read seeds it; a complete
+row retires it, because that row's own stamp is authoritative again.
+
+**And the fix shipped its own defect, caught locally.** The clock was first
+consulted for EVERY batch write, so a `batch_asset` write would have taken a
+clock belonging to a column it does not touch. `test/batch-asset-write.js` caught
+it by pinning that fallback. It is now scoped to `batch_description`, and both
+suites pin the scoping from opposite sides.
+
+**The rule worth keeping:** "X is what actually reads this" is a claim about
+code, and it takes one grep. Writing it from memory into a comment makes it
+durable, and into a PR comment makes it persuasive. Neither makes it true.
+
+### 182l. The batch delta is removed, and five findings go with it
+
+Codex round thirteen raised TWO more findings on the CAS clock added one round
+earlier — a failed save's rollback restoring a stale clock, and a full load
+clearing a clock newer than its own in-flight response. That was the fourth round
+on the same small area, so the mechanism went instead of gaining a fourth guard.
+
+**What was actually at fault, traced back.** #1364 added a 30-second batch delta
+so a filming day planned elsewhere appeared sooner. Nothing else needed it. But a
+delta needs `batches.updated_at` to mean *freshness of the last complete read*,
+and `_prodGatewayWrite` has always needed the same column to mean *the clock to
+send on the next description save*. One field, two meanings, and the fight
+produced every finding after the first two:
+
+| # | Finding | Guard I added |
+|---|---|---|
+| 1 | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| 2 | marking unconditionally built a 30-second refetch loop | mark only on a stamp advance |
+| 3 | an older delta snapshot overwrote a newer local row | *(removal of the marker)* |
+| 4 | the CAS then sent pre-save clocks — a second save 409s | a separate clock map |
+| 5 | that clock map had its own lifecycle holes | *(would have been more guards)* |
+
+**The removal.** Gone: the batch delta read, `batchDeltaCursor`,
+`_prodAdvanceBatchDeltaCursor`, `_prodMergeBatchRows`, `batchPartialRows`,
+`batchDescriptionClocks`, `_prodMarkBatchDescriptionsStale`. 162 deletions
+against 34 insertions. `batches.updated_at` means exactly what the gateway always
+took it to mean, and the description CAS is the two-term expression that shipped
+before this PR.
+
+**The cost, stated rather than buried.** A batch created elsewhere can be up to
+ten minutes stale in an open tab — the full reconcile, the manual Refresh, or any
+full load will bring it in. That is what it was before #1364, so nothing
+regresses against today's behaviour; only the extra freshness this PR briefly
+added is withdrawn. Worth building again one day as its own change, with the
+column conflict designed for rather than discovered.
+
+**Unharmed, and the entire point of #1364:** batch descriptions are still off the
+boot read (~1 MB an open) and a tab return is still incremental (~2 MB a return).
+
+**The rule, now twice-proven:** when one small area produces a third finding, the
+area is the bug. And when the mechanism came in as a nice-to-have rather than the
+goal, removing it costs almost nothing and settles the whole class.
+
+### 182m. A recovery on one split-team parent never reached its sibling
+
+Codex round fourteen. Small, real, and the last behavioural finding on #1364.
+
+A batch that spans video and graphics has TWO synthetic parents sharing ONE row,
+each with its own panel state. When the shared description read failed both
+remembered `error`. Retrying from one populated the row — but the sibling's own
+`error` made the guard at the top of `_prodEnsureDescription` return before it
+ever looked at the row, so it kept saying **Description could not load.** until
+it was retried separately or a full refresh cleared it.
+
+The panel now reconciles from the loaded row BEFORE honouring a remembered
+failure. Scoped to a panel showing nothing (an `error`, or no value yet) so a
+loaded panel is not re-adopted on every render, and idempotent because adopting
+sets `ready` and `hasValue`.
+
+**Also corrected: the test file's own header contract**, which still promised
+that batches ride along in the delta. After 182l that is the opposite of the
+truth, and a stale contract at the top of a gate is worse than none — someone
+debugging a future failure would have read it and set about restoring the
+mechanism this PR deliberately removed. It now states the ten-minute batch
+staleness as the ACCEPTED behaviour rather than a gap to close.

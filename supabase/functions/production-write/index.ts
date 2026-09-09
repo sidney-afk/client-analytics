@@ -1892,19 +1892,32 @@ async function findOutboxId(supabase: SupabaseClient, dedup: string): Promise<nu
 
 async function nativeOrdinaryReceipt(supabase: SupabaseClient, dedup: string): Promise<boolean> {
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("status,payload,linear_result")
+    .select("status,payload,linear_result,entity,entity_id,operation,dedup_key")
     .eq("dedup_key", dedup).maybeSingle();
   if (error) throw new GatewayError(503, "idempotency_lookup_unavailable");
   const row = data as JsonMap | null;
-  const payload = parseJson(row && row.payload);
-  const result = parseJson(row && row.linear_result);
+  if (!row) return false; // provider no-outbox lifecycle completion remains valid.
+  const payload = parseJson(row.payload);
+  if (!("_native_ordinary_receipt" in payload)) return false;
   const marker = parseJson(payload._native_ordinary_receipt);
-  return !!row && clean(row.status) === "skipped"
-    && Number(marker.schema) === 1
-    && result.native_ordinary === true
-    && clean(result.epoch) === clean(marker.epoch)
-    && clean(result.owner) === clean(marker.owner)
-    && clean(result.operation) === clean(marker.operation);
+  const result = parseJson(row.linear_result);
+  const owner = clean(marker.owner);
+  const nativeOperation = clean(marker.operation);
+  const ownerOperation = owner === "deliverable"
+    ? ["status", "due", "title", "priority", "archive", "restore", "parent", "description", "attachment"].includes(nativeOperation)
+    : owner === "batch"
+      ? ["status", "due", "title", "priority", "archive", "restore", "parent", "description"].includes(nativeOperation)
+      : owner === "comment" && ["comment", "edit", "delete", "resolve", "unresolve"].includes(nativeOperation)
+        && clean(row.operation) === "comment";
+  const token = clean(marker.token);
+  const valid = Number(marker.schema) === 1 && String(marker.schema) === "1"
+    && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(clean(marker.epoch))
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)
+    && ownerOperation && clean(row.dedup_key) === dedup && clean(row.status) === "skipped"
+    && result.native_ordinary === true && clean(result.epoch) === clean(marker.epoch)
+    && clean(result.owner) === owner && clean(result.operation) === nativeOperation;
+  if (!valid) throw new GatewayError(503, "native_ordinary_receipt_invalid");
+  return true;
 }
 
 async function assertDedupIntent(

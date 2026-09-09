@@ -551,7 +551,7 @@ and this row used to give one figure for both:
 | `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`) | 3 — `:871`, `:918`, `:946` | 503 `label_catalog_unavailable` | cannot pick a label **on create** (`handleCreateOptions` `:3372`), cannot **read** a card's labels (`handleLabelsRead` `:4974`), and cannot **write** one on an existing card (`handleEntityOperation` `:5518`) — three surfaces, one helper. This row previously named only the first. |
 | `linearRead` (throws `:2325`, code default `:2285`) | 4 — `:2326`, `:2345`, `:2540`, `:2587` | 503 `project_mapping_validation_unavailable` | reaches via `readLinearProject` and `validateLinearBatchParent`. **The create path that used to head this row is CLOSED — see below.** |
 | `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3631` | 503 `linear_team_mapping_unavailable` / 409 / 409 `status_mapping_unavailable` | **not staff-visible today**: its only call site is inside `handleProductionCreate`, below the `production_create_closed` throw — see below |
-| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead — **live**, reached from `handleAssigneeOptions` (`index.html:50163`), which is not behind the create gate |
+| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead — **live**, reached from `handleAssigneeOptions` (`index.html:50165`), which is not behind the create gate |
 
 **WHICH OF THESE IS ACTUALLY STAFF-VISIBLE TODAY — corrected 2026-09-08, because
 this row overstated it.** Production create has been closed since the owner's
@@ -562,7 +562,7 @@ not reference each other**:
   `:3619`, which is **above** its Linear reaches at `:3631`/`:3632`. So that
   handler never touches Linear.
 - **Browser:** `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` as its
-  *first statement* (`index.html:53901`), above code the source labels *"kept,
+  *first statement* (`index.html:53903`), above code the source labels *"kept,
   unreachable, as the exact undo if the ruling is ever revisited"*.
 
 | surface | live today? |

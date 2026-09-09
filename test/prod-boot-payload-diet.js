@@ -11,9 +11,17 @@
  * function exists, EXECUTED:
  *   1. The boot read of batches carries no description. A batch parent's panel
  *      reads its ONE row on open, over the same browser grant.
- *   2. A return to the tab takes the delta path (rows stamped since the
- *      watermark), not the full reload. Batches ride along on their own
- *      watermark so a new filming day still appears promptly.
+ *   2. A return to the tab takes the delta path (DELIVERABLE rows stamped since
+ *      the watermark), not the full reload.
+ *
+ * Batches do NOT ride along. A batch delta was tried and removed (section 5c):
+ * it forced `batches.updated_at` to stop being the CAS clock the description
+ * save sends, and that one conflation produced five findings across four review
+ * rounds. Batches now refresh on the full reconcile, the manual Refresh, or any
+ * full load — so a batch created elsewhere can be up to ten minutes stale in an
+ * open tab, which is what it was before this change. That staleness is the
+ * ACCEPTED behaviour here, not a gap to close; anyone reading this file after a
+ * failure should not go looking to restore the mechanism it deliberately drops.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -480,6 +488,25 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(/if \(fresh\.updated_at\) live\.updated_at = fresh\.updated_at;/.test(
       grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
     'and the one-row read keeps the row stamp current, so the first save after opening a panel is not guessing');
+}
+
+
+// ---- 5d. a recovered description reaches the sibling panel too (round 14) ----
+/* The two synthetic parents of a split-team batch keep separate panel states over
+   ONE shared row. When the shared read failed, both remembered 'error'; retrying
+   from one populated the row, but the sibling's own 'error' made the guard return
+   before it ever looked at the row, so it kept saying "Description could not
+   load." until separately retried. */
+{
+  const ensure = grabFunc('async function _prodEnsureDescription(id, force)');
+  const reconcileAt = ensure.indexOf("if (batchId && (state.status === 'error' || !state.hasValue)) {");
+  const guardAt = ensure.indexOf("if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;");
+  ok(reconcileAt > 0 && guardAt > reconcileAt,
+    'the panel reconciles from the loaded row BEFORE honouring a remembered failure');
+  ok(/_prodAdoptDescriptionValue\(id, loadedRow\.description, loadedRow\.updated_at\)/.test(ensure),
+    '...adopting the row the other panel recovered, rather than re-reading it');
+  ok(/state\.status === 'error' \|\| !state\.hasValue/.test(ensure),
+    '...and only for a panel showing nothing, so a loaded panel is not re-adopted on every render');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

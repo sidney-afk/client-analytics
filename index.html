@@ -57325,8 +57325,33 @@
                    split-team batch has two synthetic parents sharing one
                    batchId, and each has its own editor state, caret and scope.
                    Those still need their own token and their own release. */
-                if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;
                 const batchId = String(issue.batchId || '');
+                /* Reconcile from the ROW before honouring a remembered failure.
+
+                   The two synthetic parents of a split-team batch keep separate
+                   panel states over one shared row. If the shared read fails,
+                   both remember 'error'; when the reader retries from one of
+                   them the row is populated, but the sibling's own 'error' made
+                   the guard below return before it ever looked at the row -- so
+                   it kept saying "Description could not load." until it was
+                   retried separately or a full refresh cleared it. Raised by
+                   Codex on #1364.
+
+                   Scoped to a panel that is actually showing nothing (an error,
+                   or no value yet) so a loaded panel is not re-adopted on every
+                   render, and idempotent: adopting sets 'ready' and hasValue, so
+                   this cannot re-enter. */
+                if (batchId && (state.status === 'error' || !state.hasValue)) {
+                    const loadedRow = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                    if (loadedRow && _prodHasOwn(loadedRow, 'description')) {
+                        _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
+                        const reconciled = _prodState.descriptions.get(id);
+                        if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
+                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                        return state;
+                    }
+                }
+                if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;
                 if (!batchId) {
                     state.refreshing = false;
                     state.status = state.hasValue ? 'ready' : 'error';

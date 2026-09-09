@@ -18291,3 +18291,26 @@ boot read (~1 MB an open) and a tab return is still incremental (~2 MB a return)
 **The rule, now twice-proven:** when one small area produces a third finding, the
 area is the bug. And when the mechanism came in as a nice-to-have rather than the
 goal, removing it costs almost nothing and settles the whole class.
+
+### 182m. A recovery on one split-team parent never reached its sibling
+
+Codex round fourteen. Small, real, and the last behavioural finding on #1364.
+
+A batch that spans video and graphics has TWO synthetic parents sharing ONE row,
+each with its own panel state. When the shared description read failed both
+remembered `error`. Retrying from one populated the row — but the sibling's own
+`error` made the guard at the top of `_prodEnsureDescription` return before it
+ever looked at the row, so it kept saying **Description could not load.** until
+it was retried separately or a full refresh cleared it.
+
+The panel now reconciles from the loaded row BEFORE honouring a remembered
+failure. Scoped to a panel showing nothing (an `error`, or no value yet) so a
+loaded panel is not re-adopted on every render, and idempotent because adopting
+sets `ready` and `hasValue`.
+
+**Also corrected: the test file's own header contract**, which still promised
+that batches ride along in the delta. After 182l that is the opposite of the
+truth, and a stale contract at the top of a gate is worse than none — someone
+debugging a future failure would have read it and set about restoring the
+mechanism this PR deliberately removed. It now states the ten-minute batch
+staleness as the ACCEPTED behaviour rather than a gap to close.

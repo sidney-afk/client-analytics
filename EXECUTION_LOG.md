@@ -6917,7 +6917,7 @@ seconds; its wording was not.
 
 **Shipped: copy only.** The syncing shape now reads "Syncing to Linear" in the
 neutral muted key. No verdict, gate, read, or authority path moves; the write is
-still refused. Ledger OPEN_REPAIRS 186, parity WIRED-PARITY 2026-09-09.
+still refused. Ledger OPEN_REPAIRS 187, parity WIRED-PARITY 2026-09-09.
 
 **Left open, owner call.** Attribution still ignores the row's own
 `client_slug`, so a mirror that fails outright rather than lagging leaves a card

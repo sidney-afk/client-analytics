@@ -732,7 +732,7 @@ is involved and no bundle needs capturing.
 
 **What shipped.** `_prodAttributionSyncPending` and the four strings it selects:
 a natively created row still waiting on the Linear mirror reads "Syncing to
-Linear" rather than "Client attribution needs repair" (OPEN_REPAIRS 186,
+Linear" rather than "Client attribution needs repair" (OPEN_REPAIRS 187,
 WIRED-PARITY 2026-09-09).
 
 **Reversal.** Revert the commit. `index.html` is the only shipped artifact, and

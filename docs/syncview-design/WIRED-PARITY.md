@@ -1087,7 +1087,7 @@ that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
 
 An SMM filed a thumbnail from the content calendar, and the card refused every
 edit under **"Client attribution needs repair."** The client was fine.
-OPEN_REPAIRS 186.
+OPEN_REPAIRS 187.
 
 -   **Candidate behaviour.** Native creation writes the deliverable row first
     and mirrors it into Linear after. `_prodResolveAttributions` derives the

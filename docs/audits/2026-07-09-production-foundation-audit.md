@@ -524,7 +524,7 @@ Two facts belong in a foundation audit rather than only in a changelog:
 `_prodAttributionSyncPending` softens the copy on a natively created row that is
 still waiting for the Linear mirror: chip, notice, side-card project row and
 gate text read "Syncing to Linear" instead of "Client attribution needs repair"
-(OPEN_REPAIRS 186, WIRED-PARITY 2026-09-09).
+(OPEN_REPAIRS 187, WIRED-PARITY 2026-09-09).
 
 It widens no capability. It reads four values already on the row and returns a
 boolean that only ever selects between two strings and one muted chip class. The

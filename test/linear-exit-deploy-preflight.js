@@ -51,6 +51,9 @@ async function rejectsCode(run, code) {
       && query.includes('production_native_client_provisions_immutable_row')
       && query.includes('production_deliverables_browser_v1.raw_attribution_project_id')
       && query.includes("'security_barrier=true'=any"));
+  ok('Workload roster SQL is required before the stricter reader deploys',
+    query.includes('workload_native_snapshot_v1()')
+      && expectedObjects().keys.includes('routine:workload_native_snapshot_v1()'));
   ok('ordinary native receipt owners are pinned to their final successor bodies and catalog shape',
     query.includes('production_native_ordinary_capability(text)')
       && query.includes('production_native_ordinary_event(jsonb,jsonb)')

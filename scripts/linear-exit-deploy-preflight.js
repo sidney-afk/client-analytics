@@ -12,10 +12,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTRACT = 'linear-exit-production-write-sql-v3';
+const CONTRACT = 'linear-exit-production-write-sql-v4';
 const TRANSIENT = new Set([429, 502, 503, 504]);
 
 const ROUTINES = Object.freeze([
+  ['workload_native_snapshot_v1()', 'migrations/2026-09-09-workload-native-roster.sql', 'workload_native_snapshot_v1', 'pg_catalog, public'],
   ['production_native_intake_epochs()', 'migrations/2026-09-05-native-only-intake.sql', 'production_native_intake_epochs', 'public'],
   ['production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_epoch_read', 'public'],
   ['production_intake_root_begin(jsonb,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_root_begin', 'public'],

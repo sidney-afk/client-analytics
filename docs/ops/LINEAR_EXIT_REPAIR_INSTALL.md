@@ -68,10 +68,12 @@ Within that order, the exact gateway/UI prerequisites are:
 
 For Workload, preserve its separate prerequisite chain: the native view before
 the membership/snapshot RPC, then
-`2026-09-08-workload-native-label-state-shape.sql` after the membership SQL.
+`2026-09-08-workload-native-label-state-shape.sql` after the membership SQL, followed by
+`2026-09-09-workload-native-roster.sql` for the authenticated capacity roster.
 Complete this chain before native attribution browser projection step 9. Read
 back the current installed revisions before deciding which steps remain; the
-gateway preflight does not certify the Workload reader.
+preflight pins the final Workload snapshot body and access contract, but does
+not prove the live reader or the underlying view/data composition.
 
 After the SQL set, run the preflight from the same pinned unmerged candidate in
 read-only mode with the already-held operator credential. After that exact

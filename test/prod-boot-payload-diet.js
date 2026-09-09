@@ -17,6 +17,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { stripComments } = require('./helpers/strip-comments');
 const vm = require('node:vm');
 
 
@@ -456,8 +457,14 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   const loadStart = html.indexOf('async function _prodLoadData(opts)');
   const loadEnd = html.indexOf('\n        async function _prodLoadEventsFor', loadStart);
   ok(loadStart > 0 && loadEnd > loadStart, 'HARNESS: _prodLoadData is findable and bounded');
-  const body = html.slice(loadStart, loadEnd)
-    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  /* The SHARED stripper, not a raw regex. test/comment-strip-is-honest.js
+     forbids the naive one for a measured reason: it opens a comment at any
+     "/" followed by "*" -- including inside a string or an attribute like
+     accept="...,video/*" -- and runs to the next closing delimiter anywhere in
+     the file, which once deleted about 64k characters of real index.html and
+     made every negative assertion over that region pass vacuously
+     (OPEN_REPAIRS 145). It caught this file doing exactly that. */
+  const body = stripComments(html.slice(loadStart, loadEnd));
   const called = [...new Set([...body.matchAll(/\b(_prod[A-Za-z0-9_]+)\s*\(/g)].map(m => m[1]))]
     .filter(name => name !== '_prodLoadData');
   ok(called.length > 8, 'HARNESS: the loader really does call a list of helpers (' + called.length + ')');

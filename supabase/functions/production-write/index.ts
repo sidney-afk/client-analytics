@@ -1890,6 +1890,23 @@ async function findOutboxId(supabase: SupabaseClient, dedup: string): Promise<nu
   return Number((data as JsonMap).id);
 }
 
+async function nativeOrdinaryReceipt(supabase: SupabaseClient, dedup: string): Promise<boolean> {
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("status,payload,linear_result")
+    .eq("dedup_key", dedup).maybeSingle();
+  if (error) throw new GatewayError(503, "idempotency_lookup_unavailable");
+  const row = data as JsonMap | null;
+  const payload = parseJson(row && row.payload);
+  const result = parseJson(row && row.linear_result);
+  const marker = parseJson(payload._native_ordinary_receipt);
+  return !!row && clean(row.status) === "skipped"
+    && Number(marker.schema) === 1
+    && result.native_ordinary === true
+    && clean(result.epoch) === clean(marker.epoch)
+    && clean(result.owner) === clean(marker.owner)
+    && clean(result.operation) === clean(marker.operation);
+}
+
 async function assertDedupIntent(
   supabase: SupabaseClient,
   dedup: string,
@@ -5956,6 +5973,7 @@ async function handleEntityOperation(
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
   let nativeLabels = false;
+  let nativeOrdinary = false;
   let suppressLabelDrain = false;
   let labelCatalogVersion = "";
   let projectionReceipt: JsonMap | null = null;
@@ -6584,11 +6602,14 @@ async function handleEntityOperation(
     }
   }
 
-  const syncviewLiveDrain = !nativeLabels && !suppressLabelDrain && authority === "syncview"
+  // A typed terminal native receipt proves the SQL transaction committed. It
+  // has no provider work, including on exact response-loss replay.
+  if (!nativeAssignment && !nativeLabels) nativeOrdinary = await nativeOrdinaryReceipt(supabase, dedup);
+  const syncviewLiveDrain = !nativeLabels && !nativeOrdinary && !suppressLabelDrain && authority === "syncview"
     && !principal.testOnly
     && !legacyParity
     && await outboundLiveForDrain(supabase);
-  const mutationHasMirror = !nativeAssignment && !nativeLabels && (operation !== "comment" || commentMirrorApplicable);
+  const mutationHasMirror = !nativeAssignment && !nativeLabels && !nativeOrdinary && (operation !== "comment" || commentMirrorApplicable);
   const shouldDrain = mutationHasMirror && !suppressLabelDrain && (legacyParity || principal.testOnly || syncviewLiveDrain);
   const awaitedDrain = !suppressLabelDrain && (legacyParity || principal.testOnly);
   const mirror = !mutationHasMirror

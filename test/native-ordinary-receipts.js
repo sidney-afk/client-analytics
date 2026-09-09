@@ -2,6 +2,10 @@
    separate: this host has no disposable PostgreSQL server. */
 const fs = require('fs');
 const assert = require('assert');
+const gateway = fs.readFileSync('supabase/functions/production-write/index.ts','utf8');
+assert(gateway.includes('async function nativeOrdinaryReceipt'), 'gateway must classify the typed receipt without provider calls');
+assert(gateway.includes('!nativeLabels && !nativeOrdinary && !suppressLabelDrain'), 'native receipt must suppress live drain');
+assert(gateway.includes('!nativeAssignment && !nativeLabels && !nativeOrdinary'), 'native receipt must have no mirror pending/drain branch');
 const sql = fs.readFileSync('migrations/2026-09-09-native-ordinary-receipts.sql','utf8');
 const need = text => assert(sql.includes(text), 'missing '+text);
 need('production_native_ordinary_receipt_admissions');

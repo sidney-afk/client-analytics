@@ -18640,24 +18640,48 @@ restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
 lands with the right status and the right sign-off stamp. Nothing is missing.
 
 **A second dead end, found by Codex on the fix's own PR and confirmed in the
-source.** A request that died BEFORE reaching the server (offline, DNS, TLS) had
-no route home at all: `_writeUiReplayRepairIntents` reads the authenticated
-receipt, gets exact `absent`, cannot supersede a row nobody moved, and threw
+source. It is NOT fixed here, and the reason is worth recording.** A request
+that died BEFORE reaching the server (offline, DNS, TLS) has no route home:
+`_writeUiReplayRepairIntents` reads the authenticated receipt, gets exact
+`absent`, cannot supersede a row nobody moved, and throws
 `status_reapply_required`; `_calRetrySave` will not checkpoint without a
-committed repair ref. The write was simply lost while the journal went on
-insisting it was owed. Exact absence is now REPLAYABLE: it is the proof that
-nothing of ours is on the row, so reissuing the same intent through the current
-authority lane is a first write, not a second one, and the gateway's own
-permission and CAS rules decide it. The pinned envelope is still never replayed
-blindly, and a row somebody else moved is still resolved read-only. Harness case
-`A3` covers it end to end.
+committed repair ref. The write is lost while the journal goes on insisting it
+is owed.
+
+This PR DID carry a fix for it -- reissue the intent on proven absence -- and it
+was withdrawn after review, on three findings that were all correct:
+
+1. **No CAS exists on this lane.** Calendar/SXR status payloads carry neither
+   `expected_status` nor `expected_updated_at`, and `production-write` requires
+   them on the `production` surface only. So between the reconcile's read of the
+   row and the reissue, another actor's status change can be overwritten, and
+   the claim that "the gateway's CAS decides it" was simply false.
+2. **The reissue could fall to the legacy lane.** If the reroute flag read is
+   missing, times out or is rolled back mid-repair, `_calPushStatusToLinear`
+   selects `_calLegacyPushStatusToLinear`, fires an unawaited legacy mutation
+   and returns `skipped` rather than `native_committed` -- so the branch would
+   throw anyway and every later resume could resend a stale status.
+3. **The probe did not actually protect it.** Scoring only against the live
+   fingerprint let a broken A3 score "no" for the wrong reason (leg 1 empty
+   because nothing was ever sent), so the suite would have passed with the new
+   behaviour deleted.
+
+Doing it properly needs CAS on the calendar status lane, which is an edge
+function change and another deploy, and it overlaps almost entirely with the
+server-side reconciler below. So the gap stays open and is instead **asserted**:
+harness case `A3` now pins the current behaviour by name (nothing reaches the
+server, leg 2 correctly does not happen, the debt is retained as
+`status_reapply_required`, and the client is told NOT confirmed rather than
+handed a control that would refuse them). It cannot drift silently.
 
 **What is fixed here (browser only, no deploy).** A statusless throw from an
 attempt already in flight is now AMBIGUOUS, not failed: no rollback, no failure
-dialog, the checkpoint armed so the repair owns the write, and honest copy
-("Still saving...") in place of a control that would refuse the reader. After
-the fix no injected fault reproduces the fingerprint, and the probe fails the
-build if one ever does again.
+dialog, the checkpoint armed so the repair owns the write, and copy that says
+"Not confirmed" and asks the reader to reopen the page, in place of a control
+that would refuse them. That closes the measured incident: the rollback was the
+whole mechanism behind 186. After the fix no injected fault reproduces the
+fingerprint, and every case asserts its own recovery contract, so the probe
+fails the build if any of them regresses.
 
 **What is still open, and it is the real one.** That repair runs only in that
 client's browser, only if she comes back. She met an error, reported it, and

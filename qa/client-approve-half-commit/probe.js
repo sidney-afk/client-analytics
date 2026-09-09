@@ -209,10 +209,12 @@ function fingerprint(out) {
     } }],
   ];
   const verdicts = [];
+  const results = [];
   for (const [name, fault] of cases) {
     try {
       const out = await run(name, fault);
       verdicts.push([name, fingerprint(out)]);
+      results.push(out);
       console.log('\n=== ' + name);
       console.log('  leg 1 gateway commits :', JSON.stringify(out.gatewayCommits));
       console.log('  reconcile receipt reads:', out.reconcileReads.length);
@@ -228,15 +230,55 @@ function fingerprint(out) {
   console.log('\n--- which faults reproduce the live fingerprint');
   verdicts.forEach(([name, f]) => console.log('  ' + (f.matchesLive ? 'REPRODUCES' : 'no        ') + '  ' + name));
   const reproducing = verdicts.filter(([, f]) => f.matchesLive).map(([name]) => name);
-  console.log('\nreproducing faults: ' + (reproducing.length ? reproducing.join('; ') : 'none'));
-  /* GUARD. Once the ambiguous-transport fix is in place no fault may reproduce
-     the live fingerprint: a lost response must leave the card showing the
-     approval, keep the sign-off stamp, and arm the repair that finishes leg 2.
-     A fault reappearing here is that regression, not a flake. */
-  if (reproducing.length) {
-    console.error('\nFAIL: the half-commit fingerprint is reachable again via: ' + reproducing.join('; '));
+  console.log('reproducing faults: ' + (reproducing.length ? reproducing.join('; ') : 'none'));
+
+  /* PER-CASE CONTRACTS, not just the fingerprint.
+     `matchesLive` alone is too weak to protect anything: a case whose recovery
+     is broken can leave leg 1 empty and score `no` for the wrong reason, so the
+     summary would print PASS with the behaviour gone. Codex made exactly that
+     point on PR 1373 and it was right. Each case now states what must be true. */
+  const failures = [];
+  const expect = (name, cond, why) => { if (!cond) failures.push(name + ': ' + why); };
+  const by = name => (results.find(r => r.faultName.startsWith(name)) || null);
+
+  const base = by('baseline');
+  expect('baseline', base && base.gatewayCommits.length === 1 && base.upserts.length === 1
+    && base.upserts[0].client_video_approved_at && base.result.video_status === 'Approved' && !base.result.saveError,
+    'a clean approve must commit both legs, stamp the sign-off and show no error');
+
+  const a = by('A: gateway response lost');
+  expect('A', a && a.gatewayCommits.length > 0 && a.upserts.length === 0
+    && a.result.video_status === 'Approved' && a.result.client_video_approved_at && a.result.retrySourceAt,
+    'a committed-but-lost response must KEEP the approval and arm the repair, never roll the card back to Client Approval');
+
+  const a2 = by('A2');
+  expect('A2', a2 && a2.upserts.length === 1 && a2.upserts[0].video_status === 'Approved'
+    && a2.upserts[0].client_video_approved_at && !a2.result.saveError && !a2.result.retrySourceAt,
+    'once connectivity returns the repair must finish leg 2 with the right status and stamp, and clear the debt');
+
+  /* A3 IS THE KNOWN GAP, ASSERTED SO IT CANNOT DRIFT SILENTLY.
+     A request that died before reaching the server is resolvable only with a
+     CAS the Calendar/SXR status lane does not carry (the gateway requires
+     expected_status / expected_updated_at on the `production` surface only), so
+     replaying it here could overwrite a status somebody else set in between.
+     Until the server-side reconciler exists this case must resolve to: nothing
+     reached the server, leg 2 correctly did not happen, the debt is retained by
+     name, and the client is told it is NOT confirmed rather than being handed a
+     control that would refuse them. If any of that changes, this fails. */
+  const a3 = by('A3');
+  expect('A3', a3 && a3.gatewayCommits.length === 0 && a3.upserts.length === 0
+    && a3.reconcileReads.length === 1
+    && String(a3.result.resumeError || '') === 'status_reapply_required'
+    && a3.result.video_status === 'Approved'
+    && /Not confirmed/.test(String(a3.result.saveError || '')),
+    'a never-sent write must check its receipt, retain the debt by name, and say NOT confirmed (the open gap, held explicit)');
+
+  if (reproducing.length) failures.push('the half-commit fingerprint is reachable again via: ' + reproducing.join('; '));
+  if (failures.length) {
+    console.error('\nFAIL');
+    failures.forEach(f => console.error('  ' + f));
     process.exitCode = 1;
   } else {
-    console.log('PASS: no injected fault leaves a committed approve invisible to the client');
+    console.log('PASS: every recovery contract holds, and no fault leaves a committed approve invisible to the client');
   }
 })();

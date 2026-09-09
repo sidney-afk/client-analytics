@@ -40501,7 +40501,7 @@
                 // have written on the server carries this same clock.
                 if (!gatewayAmbiguous) cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                 cur._saveError = gatewayAmbiguous
-                    ? 'Not confirmed. The connection dropped before the write service answered, so this may or may not have saved. Nothing is lost either way: reopening this page checks with the server and finishes it.'
+                    ? 'Not confirmed. The connection dropped before the write service answered, so this may or may not have saved. Nothing you did is lost: reopen this page and it checks with the server.'
                     : _writeUiFailureSentence(e, 'save failed');
                 if (gatewayDurable) {
                     cur._writeUiRetryEdits = Object.assign({}, edits);
@@ -70234,49 +70234,6 @@
                 // A newer native status safely supersedes it; otherwise retain
                 // the journal for an explicit reapply.
                 if (await _writeUiReconcileReplayStatus(group, intent, post)) continue;
-                /* EXACT ABSENCE IS A REPLAYABLE FACT, not a dead end. The
-                   receipt above is the authenticated proof that the atomic
-                   native/outbox transaction did NOT commit, so nothing of ours
-                   is on the row and reissuing the SAME idempotent intent is a
-                   first write, not a second one -- the identical reasoning the
-                   comment branch below already applies to a stable native id.
-
-                   Without this arm, a request that died BEFORE reaching the
-                   server (offline, DNS, TLS) had no route home at all: the
-                   reconcile cannot supersede a row nobody moved, this threw
-                   `status_reapply_required`, and `_calRetrySave` will not
-                   checkpoint without a committed repair ref. The write was
-                   simply lost while the journal kept insisting it was owed.
-                   That is the failure Codex named on PR 1373, and it is the same
-                   shape as OPEN_REPAIRS 186/187: a person's decision recorded
-                   nowhere anyone can act on.
-
-                   Safety is the gateway's, not ours: the reissue goes through
-                   the ordinary write path, so permission, scope and the
-                   server's own CAS decide it, and a row that moved under us
-                   was already adopted as `superseded` by the reconcile above. */
-                if (receipt && String(receipt.outcome || '') === 'absent') {
-                    const statusMeta = {
-                        post, component, sourceEditedAt: intent.source_at || group.source_at,
-                        clientSlug: group.client_slug, repairLane: group.lane, repairEdits: group.edits,
-                        repairRecord: _writeUiRepairRecordForIntent(intent)
-                    };
-                    const statusValue = String(intent.status || post[component + '_status'] || '');
-                    const replayed = statusValue
-                        ? (group.surface === 'sxr'
-                            ? await _sxrPushStatusToLinear(_sxrLinearUrlFor(post, component), statusValue, statusMeta)
-                            : await _calPushStatusToLinear(_calLinearUrlFor(post, component), statusValue, statusMeta))
-                        : null;
-                    if (replayed && replayed.native_committed) {
-                        _writeUiAdoptRepairAck(post, replayed);
-                        const statusRef = replayed.source_repair || await _writeUiMarkRepairCommitted({
-                            key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
-                        }, replayed);
-                        _writeUiAdoptRepairAck(post, { native_committed: true, source_repair: statusRef });
-                        intent.native_committed = true;
-                        continue;
-                    }
-                }
                 throw _writeUiGatewayError(409, 'status_reapply_required');
             }
             const meta = {

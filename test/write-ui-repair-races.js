@@ -482,7 +482,7 @@ async function resumeExactRefBindingCase() {
 function createReceiptReplayHarness(options) {
   const state = {
     receiptRequests: [], nativeReads: 0, marks: [],
-    mutations: { blind: 0, status: 0, comment: 0 }, commentCalls: [], statusCalls: []
+    mutations: { blind: 0, status: 0, comment: 0 }, commentCalls: []
   };
   const mergeComments = (current, incoming) => {
     const rows = new Map((current || []).map(row => [String(row.id || ''), clone(row)]));
@@ -511,19 +511,8 @@ function createReceiptReplayHarness(options) {
       return { ok: true, status: 200, json: async () => clone(options.currentRows || []) };
     },
     _writeUiReplayPinnedIntent: async () => { state.mutations.blind++; throw new Error('blind replay'); },
-    /* A status reissue after PROVEN exact absence is legitimate (nothing of
-       ours is on the row, so this is a first write), and it is the one status
-       mutation the replay may make. It is still counted, so a case that must
-       resolve read-only can assert zero. */
-    _calPushStatusToLinear: async (url, status, meta) => {
-      state.mutations.status++;
-      state.statusCalls.push({ url, status, meta: clone(meta) });
-      return clone(options.statusAck || {
-        ok: true, native_committed: true,
-        source_repair: { key: meta.repairRecord.key, token: meta.repairRecord.token }
-      });
-    },
-    _sxrPushStatusToLinear: async (url, status, meta) => ctx._calPushStatusToLinear(url, status, meta),
+    _calPushStatusToLinear: async () => { state.mutations.status++; throw new Error('status mutation'); },
+    _sxrPushStatusToLinear: async () => { state.mutations.status++; throw new Error('status mutation'); },
     _calPostLinearComment: async (url, body, author, meta) => {
       state.mutations.comment++;
       state.commentCalls.push({ url, body, author, meta: clone(meta) });
@@ -666,40 +655,21 @@ async function clearedHistoricalIssueReceiptCase() {
   assert.strictEqual(state.mutations.blind, 0);
 }
 
-/* CONTRACT CHANGED, deliberately, on PR 1373. This case asserted that an
-   absent, unsuperseded status retains its debt and mutates NOTHING -- which
-   read as caution but was a dead end: the write was lost while the journal
-   went on insisting it was owed, `_calRetrySave` will not checkpoint without a
-   committed repair ref, and the person's decision existed nowhere anyone could
-   act on. That is the same shape as OPEN_REPAIRS 186/187, one layer down.
-
-   Exact absence is the authenticated proof that our write did NOT commit, so
-   reissuing the same intent through the CURRENT authority lane is a first
-   write, not a second one -- the identical reasoning this file already accepts
-   for an absent comment. What must still never happen is a BLIND replay of the
-   stored pinned envelope, and a row somebody else moved is still resolved
-   read-only by the superseded case below; both are asserted here. */
-async function absentStatusReissuesCurrentLaneCase() {
+async function absentStatusRetainsDebtCase() {
   const { ctx, state } = createReceiptReplayHarness({
     receipt: { ok: true, outcome: 'absent' },
     currentRows: [{ id: 'native-video', status: 'approved', status_at: '2026-07-11T23:59:00Z' }]
   });
   const group = statusRepairGroup(true);
   const post = { id: 'card', video_deliverable_id: 'native-video', video_status: 'Approved' };
-  await ctx._writeUiReplayRepairIntents(group, post);
+  await assert.rejects(ctx._writeUiReplayRepairIntents(group, post), error =>
+    error && error.status === 409 && error.code === 'status_reapply_required');
   assert.strictEqual(state.receiptRequests.length, 1, 'the attempted intent checks its server receipt despite local native_committed=true');
   assert.strictEqual(state.receiptRequests[0].reconcile_only, true);
   assert.strictEqual(state.nativeReads, 1, 'absence falls back to one read of native truth');
-  assert.strictEqual(state.mutations.blind, 0, 'the stored pinned mutation envelope is never replayed blindly');
-  assert.strictEqual(state.mutations.status, 1, 'exact absence permits exactly one idempotent status reissue through the current authority lane');
-  assert.strictEqual(state.mutations.comment, 0);
-  assert.strictEqual(state.statusCalls[0].meta.repairRecord.primary_intent_key, group.intents[0].key,
-    'the reissue carries this intent\'s own repair record, never a sibling\'s');
-  // The lane's own receipt resolves the debt, so no separate mark is needed --
-  // the same shape the absent-comment case asserts. What matters is that the
-  // ref reaches the card, which is what lets the source save proceed.
-  assert.deepStrictEqual(clone(post._writeUiRepairRefs), [{ key: 'repair-status', token: 'token-status' }],
-    'a reissued status resolves its repair debt instead of holding it forever');
+  assert.strictEqual(state.marks.length, 0, 'an absent, unsuperseded status retains repair debt');
+  assert.deepStrictEqual(state.mutations, { blind: 0, status: 0, comment: 0 },
+    'an absent status receipt never replays a pinned or current-lane mutation');
   assert.strictEqual(post.video_status, 'Approved');
 }
 
@@ -762,7 +732,7 @@ async function absentCommentReissuesCurrentLaneCase() {
   await runCase('journal resume binds the exact group refs into the source save', resumeExactRefBindingCase);
   await runCase('authenticated exact receipts adopt canonical status and comment state', committedExactReceiptCase);
   await runCase('cleared stale Linear URL still reconciles by bound historical receipt', clearedHistoricalIssueReceiptCase);
-  await runCase('absent status ignores local commit hints and reissues once through the current lane', absentStatusReissuesCurrentLaneCase);
+  await runCase('absent status ignores local commit hints and retains debt without mutation', absentStatusRetainsDebtCase);
   await runCase('newer native status supersedes absent receipt read-only', newerStatusSupersedesAbsentReceiptCase);
   await runCase('absent comment reissues once through the current authority lane', absentCommentReissuesCurrentLaneCase);
 

@@ -518,3 +518,19 @@ Two facts belong in a foundation audit rather than only in a changelog:
   that genuinely has no row, and its archived branch now tests `id` and BOTH
   identifier columns independently, so an archived row linked by its current
   number is described as archived rather than as never imported.
+
+## Addendum, 2026-09-09 — the syncing wording, and what it does not widen
+
+`_prodAttributionSyncPending` softens the copy on a natively created row that is
+still waiting for the Linear mirror: chip, notice, side-card project row and
+gate text read "Syncing to Linear" instead of "Client attribution needs repair"
+(OPEN_REPAIRS 186, WIRED-PARITY 2026-09-09).
+
+It widens no capability. It reads four values already on the row and returns a
+boolean that only ever selects between two strings and one muted chip class. The
+attribution verdict is unchanged, `_prodAttributionGateText` still returns a
+non-empty refusal for that state so `_prodCanWrite` still says no, the grouping
+sentinel is unchanged, and no read, request, or authority path is touched. The
+narrow shape (no persisted stamp, no project from any source, no Linear issue
+yet, an ACTIVE roster slug) is what keeps it from reaching a row Linear
+invalidated, an unmapped project, a conflict, or a former client.

@@ -727,3 +727,25 @@ survives in the ledger event.
 
 **Nothing to reseal.** No Edge Function fingerprint moves, so neither F27 lane
 is involved and no bundle needs capturing.
+
+## 2026-09-09 — the syncing wording on a native card (browser only)
+
+**What shipped.** `_prodAttributionSyncPending` and the four strings it selects:
+a natively created row still waiting on the Linear mirror reads "Syncing to
+Linear" rather than "Client attribution needs repair" (OPEN_REPAIRS 186,
+WIRED-PARITY 2026-09-09).
+
+**Reversal.** Revert the commit. `index.html` is the only shipped artifact, and
+GitHub Pages redeploys it on the next push to `main`; the previous build shows
+the repair wording again on those rows and behaves exactly as it did before.
+
+**Blast radius of a reversal: wording, and nothing else.** The change reads four
+values already on the row and returns a boolean that selects between two strings
+and one muted chip class. No row is written, no schema, view, policy or authority
+value moves, no request is issued, and the attribution verdict, the write gate
+and the grouping sentinel are identical before and after — so reverting can
+neither open a write nor close one, and no data written under the new build
+needs undoing.
+
+**Nothing to reseal.** No Edge Function fingerprint moves, so neither F27 lane is
+involved and no bundle needs capturing.

@@ -2720,6 +2720,22 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string, n
       reason: "native_intake_project_mapped",
     };
   }
+  if (nativeEpoch) {
+    return {
+      ...base,
+      state: "resolved",
+      client_slug: clean(client.slug),
+      owner_kind: lower(client.kind || "client"),
+      // Existing clients keep their reviewed per-team Linear project id as a
+      // stable routing identity after native admission. The accepted epoch is
+      // the proof that no provider lookup or later Linear mirror is required.
+      source: "native_intake_legacy_project",
+      project_id: projectId,
+      native_epoch: clean(nativeEpoch),
+      repair_required: false,
+      reason: "native_intake_legacy_project_mapped",
+    };
+  }
   return {
     ...base,
     state: "resolved",

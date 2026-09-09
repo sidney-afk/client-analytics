@@ -1091,3 +1091,15 @@ that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
     `test/prod-deep-link-open-id-key.js` pins. Suites:
     `test/prod-deep-link-linear-identifier.js` (resolver, executed) and
     `test/identifier-team-move-repair.js` (the repair's shape).
+
+
+### Uninstalled Linear-exit attribution candidate — 2026-09-09
+
+Native-epoch intake for clients retaining existing project mappings must remain
+editable without a Linear mirror. The candidate carries
+`native_intake_legacy_project` through the bounded projection and validates
+active roster/project/team ownership in the browser. Provider-era unresolved
+stamps do not gain a stored-slug fallback. P7 now requires editing the newly
+created card and reloading with Linear unavailable, on both teams and both
+mapping routes. Actual browser and database journeys remain owed; see the
+repair installation contract. No visible control layout changes are intended.

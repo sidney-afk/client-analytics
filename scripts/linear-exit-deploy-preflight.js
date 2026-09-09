@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTRACT = 'linear-exit-production-write-sql-v4';
+const CONTRACT = 'linear-exit-production-write-sql-v5';
 const TRANSIENT = new Set([429, 502, 503, 504]);
 
 const ROUTINES = Object.freeze([
@@ -302,7 +302,8 @@ ${columns}
   select 'relation:production_deliverables_browser_v1',(c.oid is not null),
     coalesce(c.relkind='v' and 'security_barrier=true'=any(coalesce(c.reloptions,array[]::text[]))
       and has_table_privilege('anon',c.oid,'SELECT')
-      and has_table_privilege('authenticated',c.oid,'SELECT'),false)
+      and has_table_privilege('authenticated',c.oid,'SELECT')
+      and strpos(pg_get_viewdef(c.oid,true),'native_intake_legacy_project')>0,false)
     from (values(true)) seed(v) left join pg_class c
       on c.relnamespace='public'::regnamespace and c.relname='production_deliverables_browser_v1'
   union all

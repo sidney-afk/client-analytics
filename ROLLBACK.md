@@ -728,3 +728,15 @@ survives in the ledger event.
 
 **Nothing to reseal.** No Edge Function fingerprint moves, so neither F27 lane
 is involved and no bundle needs capturing.
+
+
+### Local Linear-exit native attribution follow-up (2026-09-09; not installed)
+
+Before installation, discard or revise the local candidate without any live
+rollback. After native-epoch cards exist, do not restore a browser/projection
+that cannot read `native_intake_legacy_project`: that makes accepted cards
+read-only. Hold new native admission through the reviewed retirement/intake
+controls and repair forward, retaining stamps and receipt evidence. This note
+is not a tested production recovery procedure; the complete capture, mixed
+version and recovery requirements in `docs/ops/LINEAR_EXIT_REPAIR_INSTALL.md`
+remain installation gates. No production recovery was executed here.

@@ -53545,6 +53545,37 @@
             const prefix = normalizedTeam === 'video' ? 'svproj_video_' : 'svproj_graphics_';
             return new RegExp('^' + prefix + '[a-f0-9]{32}$', 'i').test(projectId) ? projectId : '';
         }
+        function _prodLinearProjectIdsForTeam(value, team) {
+            const wanted = String(team || '').trim().toLowerCase();
+            if (!['video', 'graphics'].includes(wanted) || !value || typeof value !== 'object') return [];
+            const found = new Set();
+            const normalizedTeam = entry => {
+                const raw = String(entry || '').trim().toLowerCase();
+                if (raw === 'vid') return 'video';
+                if (['graphic', 'gra', 'thumbnail'].includes(raw)) return 'graphics';
+                return raw;
+            };
+            const idsFrom = entry => {
+                if (typeof entry === 'string') return entry.trim() ? [entry.trim()] : [];
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+                return [...new Set(['id', 'project_id', 'linear_project_id'].map(key => String(entry[key] || '').trim()).filter(Boolean))];
+            };
+            const addExplicit = entry => {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+                if (normalizedTeam(entry.team || entry.team_key || entry.key || entry.kind) === wanted) {
+                    idsFrom(entry).forEach(id => found.add(id));
+                }
+            };
+            if (Array.isArray(value)) value.forEach(addExplicit);
+            else {
+                Object.entries(value).forEach(([key, entry]) => {
+                    if (normalizedTeam(key) === wanted) idsFrom(entry).forEach(id => found.add(id));
+                });
+                addExplicit(value);
+                if (Array.isArray(value.projects)) value.projects.forEach(addExplicit);
+            }
+            return [...found].sort();
+        }
         function _prodRawProjectId(row) {
             const projected = String(row && row.raw_project_id || '').trim();
             if (projected) return projected;
@@ -53616,6 +53647,7 @@
             const activeBySlug = new Map();
             const projectOwners = new Map();
             const nativeProjectOwners = new Map();
+            const nativeLegacyProjectOwners = new Map();
             (clients || []).forEach(client => {
                 const slug = String(client && client.slug || '').trim();
                 if (!slug || client.active !== true) return;
@@ -53624,6 +53656,14 @@
                     const prior = projectOwners.get(projectId);
                     if (prior && prior.slug !== slug) projectOwners.set(projectId, { conflict: true });
                     else if (!prior) projectOwners.set(projectId, { slug, kind: String(client.kind || 'client') });
+                });
+                ['video', 'graphics'].forEach(team => {
+                    _prodLinearProjectIdsForTeam(client.linear_project_ids, team).forEach(projectId => {
+                        const key = team + ':' + projectId;
+                        const prior = nativeLegacyProjectOwners.get(key);
+                        if (prior && prior.slug !== slug) nativeLegacyProjectOwners.set(key, { conflict: true });
+                        else if (!prior) nativeLegacyProjectOwners.set(key, { slug, kind: String(client.kind || 'client'), team });
+                    });
                 });
                 ['video', 'graphics'].forEach(team => {
                     const projectId = _prodNativeProjectIdForTeam(client.native_project_ids, team);
@@ -53668,6 +53708,7 @@
                 let candidate = null;
                 let mappedProjectId = '';
                 let directUnmapped = false;
+                let ancestorProjectSeen = false;
                 if (directProjectId) {
                     const owner = projectOwners.get(directProjectId);
                     if (owner && owner.conflict) candidate = conflict({ reason: 'project_mapping_conflict' });
@@ -53686,6 +53727,7 @@
                     distance++;
                     const ancestor = rowById.get(cursor);
                     const projectId = _prodRawProjectId(ancestor);
+                    if (projectId) ancestorProjectSeen = true;
                     const owner = projectId && projectOwners.get(projectId);
                     if (owner && owner.conflict) {
                         candidate = conflict({ reason: 'ancestor_project_mapping_conflict' });
@@ -53723,27 +53765,43 @@
                 } else if (persisted.state === 'resolved') {
                     const persistedActive = activeBySlug.has(persisted.client_slug);
                     const explicit = /^explicit_/.test(persisted.source);
-                    if (persisted.source === 'native_intake_project') {
+                    if (persisted.source === 'native_intake_project' || persisted.source === 'native_intake_legacy_project') {
                         const nativeOwner = nativeProjectOwners.get(persisted.project_id);
-                        const expectedProject = persistedActive
-                            ? _prodNativeProjectIdForTeam(activeBySlug.get(persisted.client_slug).native_project_ids, row.team)
-                            : '';
+                        const legacyOwner = nativeLegacyProjectOwners.get(String(row.team || '').trim().toLowerCase() + ':' + persisted.project_id);
+                        const globalLegacyOwner = projectOwners.get(persisted.project_id);
+                        const expectedProjects = persistedActive
+                            ? (persisted.source === 'native_intake_project'
+                                ? [_prodNativeProjectIdForTeam(activeBySlug.get(persisted.client_slug).native_project_ids, row.team)].filter(Boolean)
+                                : _prodLinearProjectIdsForTeam(activeBySlug.get(persisted.client_slug).linear_project_ids, row.team))
+                            : [];
+                        const noProviderEvidence = !candidate && !directProjectId && !ancestorProjectSeen;
+                        const corroboratingLegacyEvidence = persisted.source === 'native_intake_legacy_project'
+                            && !directUnmapped && candidate && candidate.state === 'resolved'
+                            && candidate.clientSlug === persisted.client_slug
+                            && mappedProjectId === persisted.project_id;
                         const nativeProofValid = persisted.schema === 'syncview_attribution_v1'
                             && persisted.owner_kind === 'client'
                             && persistedActive
                             && String(row.client_slug || '').trim() === persisted.client_slug
                             && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(persisted.native_epoch)
-                            && !!expectedProject
-                            && expectedProject === persisted.project_id
-                            && nativeOwner && !nativeOwner.conflict
-                            && nativeOwner.slug === persisted.client_slug
-                            && nativeOwner.team === String(row.team || '').trim().toLowerCase();
+                            && expectedProjects.length === 1
+                            && expectedProjects[0] === persisted.project_id
+                            && (noProviderEvidence || corroboratingLegacyEvidence)
+                            && (persisted.source === 'native_intake_project'
+                                ? nativeOwner && !nativeOwner.conflict && nativeOwner.slug === persisted.client_slug
+                                    && nativeOwner.team === String(row.team || '').trim().toLowerCase()
+                                : legacyOwner && !legacyOwner.conflict && legacyOwner.slug === persisted.client_slug
+                                    && legacyOwner.team === String(row.team || '').trim().toLowerCase()
+                                    && globalLegacyOwner && !globalLegacyOwner.conflict
+                                    && globalLegacyOwner.slug === persisted.client_slug);
                         attribution = nativeProofValid
-                            ? resolved(persisted.client_slug, 'native_intake_project', {
+                            ? resolved(persisted.client_slug, persisted.source, {
                                 ownerKind: 'client',
                                 mappingRevision: persisted.mapping_revision,
                                 repairRequired: persisted.repair_required,
-                                reason: persisted.reason || 'native_intake_project_mapped'
+                                reason: persisted.reason || (persisted.source === 'native_intake_project'
+                                    ? 'native_intake_project_mapped'
+                                    : 'native_intake_legacy_project_mapped')
                             })
                             : needs({
                                 mappingRevision: persisted.mapping_revision,
@@ -53923,7 +53981,8 @@
              * differently.
              */
             const selfAttributed = (entry) => !!entry && entry.state === 'resolved'
-                && (entry.source === 'direct_project' || /^explicit_/.test(String(entry.source || '')));
+                && (entry.source === 'direct_project' || /^explicit_/.test(String(entry.source || ''))
+                    || /^native_intake_/.test(String(entry.source || '')));
             while (changed && passes++ <= result.size * 2) {
                 changed = false;
                 parentLinks.forEach((parentId, childId) => {

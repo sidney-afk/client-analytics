@@ -51,6 +51,8 @@ async function rejectsCode(run, code) {
       && query.includes('production_native_client_provisions_immutable_row')
       && query.includes('production_deliverables_browser_v1.raw_attribution_project_id')
       && query.includes("'security_barrier=true'=any"));
+  ok('an old projection cannot admit a new gateway that stamps native legacy-project ownership',
+    query.includes("strpos(pg_get_viewdef(c.oid,true),'native_intake_legacy_project')>0"));
   ok('Workload roster SQL is required before the stricter reader deploys',
     query.includes('workload_native_snapshot_v1()')
       && expectedObjects().keys.includes('routine:workload_native_snapshot_v1()'));

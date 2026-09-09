@@ -1,10 +1,10 @@
 -- Native persisted-attribution projection widening.
 --
 -- Adds only bounded native evidence to the existing browser view: the source
--- allowlist admits `native_intake_project`, while `project_id` and
--- `native_epoch` are exposed only in their strict native shapes.  The browser
--- verifies those values against the active client’s exact per-team
--- native_project_ids mapping; no synthetic id enters the Linear resolver.
+-- allowlist admits the two epoch-bound native intake sources. `project_id` is
+-- exposed only as either a strict synthetic native id or a bounded retained
+-- legacy project id. The browser verifies either value against the active
+-- client's exact per-team mapping; no synthetic id enters the Linear resolver.
 --
 -- Apply after 2026-08-23-attribution-slug-guard-widening.sql and
 -- 2026-09-09-native-client-provisioning.sql.  This is source-only; it creates
@@ -70,7 +70,7 @@ SELECT d.id,
             ELSE NULL::text
         END AS raw_attribution_owner_kind,
         CASE
-            WHEN ((root.attribution ->> 'source'::text) = ANY (ARRAY['direct_project'::text, 'nearest_mapped_ancestor'::text, 'native_intake_project'::text, 'explicit_roster_classification'::text, 'explicit_internal_test_classification'::text, 'unanimous_child_family'::text, 'none'::text, 'conflict'::text])) THEN (root.attribution ->> 'source'::text)
+            WHEN ((root.attribution ->> 'source'::text) = ANY (ARRAY['direct_project'::text, 'nearest_mapped_ancestor'::text, 'native_intake_project'::text, 'native_intake_legacy_project'::text, 'explicit_roster_classification'::text, 'explicit_internal_test_classification'::text, 'unanimous_child_family'::text, 'none'::text, 'conflict'::text])) THEN (root.attribution ->> 'source'::text)
             ELSE NULL::text
         END AS raw_attribution_source,
         CASE
@@ -128,9 +128,12 @@ SELECT d.id,
         END AS raw_archived,
     ((wl.projection ->> 'complete'::text))::boolean AS workload_labels_complete,
     (wl.projection -> 'labels'::text) AS workload_labels,
-    CASE
-        WHEN ((root.attribution ->> 'project_id'::text) ~ '^svproj_(video|graphics)_[a-f0-9]{32}$'::text) THEN (root.attribution ->> 'project_id'::text)
-        ELSE NULL::text
+        CASE
+            WHEN (root.attribution ->> 'source'::text) = 'native_intake_project'::text
+              AND ((root.attribution ->> 'project_id'::text) ~ '^svproj_(video|graphics)_[a-f0-9]{32}$'::text) THEN (root.attribution ->> 'project_id'::text)
+            WHEN (root.attribution ->> 'source'::text) = 'native_intake_legacy_project'::text
+              AND ((root.attribution ->> 'project_id'::text) ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'::text) THEN (root.attribution ->> 'project_id'::text)
+            ELSE NULL::text
     END AS raw_attribution_project_id,
     CASE
         WHEN ((root.attribution ->> 'native_epoch'::text) ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'::text) THEN (root.attribution ->> 'native_epoch'::text)

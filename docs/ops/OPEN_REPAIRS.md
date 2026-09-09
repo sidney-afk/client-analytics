@@ -18248,3 +18248,46 @@ suites pin the scoping from opposite sides.
 **The rule worth keeping:** "X is what actually reads this" is a claim about
 code, and it takes one grep. Writing it from memory into a comment makes it
 durable, and into a PR comment makes it persuasive. Neither makes it true.
+
+### 182l. The batch delta is removed, and five findings go with it
+
+Codex round thirteen raised TWO more findings on the CAS clock added one round
+earlier — a failed save's rollback restoring a stale clock, and a full load
+clearing a clock newer than its own in-flight response. That was the fourth round
+on the same small area, so the mechanism went instead of gaining a fourth guard.
+
+**What was actually at fault, traced back.** #1364 added a 30-second batch delta
+so a filming day planned elsewhere appeared sooner. Nothing else needed it. But a
+delta needs `batches.updated_at` to mean *freshness of the last complete read*,
+and `_prodGatewayWrite` has always needed the same column to mean *the clock to
+send on the next description save*. One field, two meanings, and the fight
+produced every finding after the first two:
+
+| # | Finding | Guard I added |
+|---|---|---|
+| 1 | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| 2 | marking unconditionally built a 30-second refetch loop | mark only on a stamp advance |
+| 3 | an older delta snapshot overwrote a newer local row | *(removal of the marker)* |
+| 4 | the CAS then sent pre-save clocks — a second save 409s | a separate clock map |
+| 5 | that clock map had its own lifecycle holes | *(would have been more guards)* |
+
+**The removal.** Gone: the batch delta read, `batchDeltaCursor`,
+`_prodAdvanceBatchDeltaCursor`, `_prodMergeBatchRows`, `batchPartialRows`,
+`batchDescriptionClocks`, `_prodMarkBatchDescriptionsStale`. 162 deletions
+against 34 insertions. `batches.updated_at` means exactly what the gateway always
+took it to mean, and the description CAS is the two-term expression that shipped
+before this PR.
+
+**The cost, stated rather than buried.** A batch created elsewhere can be up to
+ten minutes stale in an open tab — the full reconcile, the manual Refresh, or any
+full load will bring it in. That is what it was before #1364, so nothing
+regresses against today's behaviour; only the extra freshness this PR briefly
+added is withdrawn. Worth building again one day as its own change, with the
+column conflict designed for rather than discovered.
+
+**Unharmed, and the entire point of #1364:** batch descriptions are still off the
+boot read (~1 MB an open) and a tab return is still incremental (~2 MB a return).
+
+**The rule, now twice-proven:** when one small area produces a third finding, the
+area is the bug. And when the mechanism came in as a nice-to-have rather than the
+goal, removing it costs almost nothing and settles the whole class.

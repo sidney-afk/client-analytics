@@ -179,18 +179,8 @@ function grabFunc(source, name) {
     'a batch-asset write reads the target for the SLOT being saved, not one target for the whole panel');
   ok(/if \(target\) \{\s*\n\s*payload\.id = target;\s*\n\s*batchClock = String\(evidence\.writeBatchUpdatedAt \|\| ''\)\.trim\(\);/.test(write),
     'and takes the CAS clock from the same slot, since comparing one row\'s updated_at against another row\'s fails its CAS forever');
-  /* The fallback is still "the row it is already on", but there is now a middle
-     term between them: a per-batch DESCRIPTION clock, added on #1364 because the
-     row's stamp stopped moving on a description write and a second consecutive
-     save was sending a pre-save clock. It is scoped to `batch_description`, so
-     for an ASSET write it contributes nothing and this branch behaves exactly as
-     it shipped. Asserted as that scoping rather than as the old literal text, so
-     the check keeps naming the property instead of the formatting. */
-  ok(/payload\.expected_updated_at = batchClock/.test(write)
-    && /\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(write),
+  ok(/payload\.expected_updated_at = batchClock\s*\n\s*\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(write),
     'with no target -- an older gateway, an unread panel, or a gateway with nothing safe to offer -- it writes the row it is already on, exactly what shipped before');
-  ok(/operation === 'batch_description'\s*\n\s*\? String\(_prodState\.batchDescriptionClocks\.get/.test(write),
-    '...and the description clock is consulted ONLY for a description write, so an asset write cannot pick up a clock that has nothing to do with its column');
 
   /* A deliverable-shaped CAS against a batch row can never match, so it would
      refuse the write forever rather than occasionally. */

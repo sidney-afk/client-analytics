@@ -106,7 +106,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
     Set, Map,
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(), projectionGeneration: 3, adapter: {} },
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), projectionGeneration: 3, adapter: {} },
     /* The owner now asks whether the batch it just loaded is what the reader is
        LOOKING at before repainting; these two feed that question. */
     _prodOpenRowId: () => '',
@@ -130,8 +130,8 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   await ensureVisible('b1', false);
   ok(ctx._prodState.batches[0].description === 'the plan',
     'a successful read writes the column back onto the batch row the view renders');
-  ok(ctx._prodState.batches[0].updated_at === 't1',
-    '...and leaves the row stamp at its last COMPLETE read, which is what makes the merge able to trust stamp equality');
+  ok(ctx._prodState.batches[0].updated_at === 't2',
+    '...and advances the row stamp with it, which is the clock _prodGatewayWrite sends as expected_updated_at for the next description save');
   ok(ctx._prodState.adapter === null && renders.length === 1,
     'and invalidates the adapter and repaints exactly once');
 
@@ -180,7 +180,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodRender: () => {},
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
             projectionGeneration: 7, adapter: {},
     },
     _prodReadBatchDescriptionRow: (id) => new Promise(resolve => { gate.resolve = gate.resolve || []; gate.resolve.push(resolve); }),
@@ -208,46 +208,11 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     const row = ctx._prodState.batches[0];
     ok(row.description === 'FRESH',
       'THE RACE: the superseded answer does not overwrite the newer text');
-      ok(row.updated_at === 't2',
-      '...and neither read touches the row stamp at all, so no answer can move it out from under the delta');
+    ok(row.updated_at === 't3',
+      '...and the winning read is the one whose stamp lands, so the CAS clock follows the text rather than a discarded answer');
     ok(ctx._prodState.batchDescriptionReads.get('b1') === 'ready',
       '...and leaves the newer read owning the state, rather than clearing an entry it no longer owns');
   }
-}
-
-
-// ---- 5d. the batch delta cursor is server truth (Codex #1364, round 3) ----
-/* The cursor was recomputed from local rows, and a point read or a description
-   save writes a fresh `updated_at` onto ONE row. That jumped the cursor past
-   any batch changed in between, hiding it until the ten-minute reconcile. */
-{
-  const delta = grabFunc('async function _prodDeltaRefresh(options)');
-  ok(/const batchWatermark = _prodState\.batchDeltaCursor;/.test(delta),
-    'the batch delta reads its own cursor, not a watermark recomputed from mutated rows');
-  ok(delta.indexOf('_prodAdvanceBatchDeltaCursor(batchRows);') < delta.indexOf('_prodMergeBatchRows(batchRows)'),
-    '...advanced from the server answer BEFORE the merge lets a local value near those rows');
-  const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
-  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 2000)),
-    '...and seeded on a full load from the RAW server rows, not the merged ones');
-
-  const advance = grabFunc('function _prodAdvanceBatchDeltaCursor(rows)');
-  const ctx = {
-    Date, Number, String, Array,
-    _prodState: { batchDeltaCursor: '' },
-    _prodRowUpdatedMs: (row) => { const v = Date.parse(String(row && row.updated_at || '')); return Number.isFinite(v) ? v : -1; },
-  };
-  vm.createContext(ctx);
-  vm.runInContext(grabFunc('function _prodDeliverableWatermark(rows)') + '\n' + advance
-    + '\nthis.advance = _prodAdvanceBatchDeltaCursor;', ctx);
-  ctx.advance([{ updated_at: '2026-09-01T00:00:00+00:00' }, { updated_at: '2026-09-03T00:00:00+00:00' }]);
-  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'the cursor takes the newest stamp in a server answer');
-  ctx.advance([{ updated_at: '2026-09-02T00:00:00+00:00' }]);
-  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00',
-    'THE BUG: and never moves BACKWARDS, so an older answer cannot rewind the delta');
-  ctx.advance([]);
-  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'an empty answer leaves it alone');
-  ctx.advance([{ updated_at: 'not a date' }]);
-  ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'and an unparseable stamp cannot poison it');
 }
 
 
@@ -361,7 +326,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodIssue: () => ({ id: 'open-row', syntheticBatchParent: false, batchId: 'other' }),
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchDescriptionInFlight: new Map(),
       projectionGeneration: 1, adapter: {},
       view: 'detail', openId: 'open-row', openBatchId: '',
     },
@@ -422,7 +387,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => { reads++; return new Promise(r => { resolveRead = r; }); },
   };
@@ -462,7 +427,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
+      batchDescriptionInFlight: new Map(),       projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
     },
     _prodReadBatchDescriptionRow: () => new Promise(r => settle.push(r)),
   };
@@ -490,103 +455,31 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
 }
 
 
-// ---- 5f. no description-only write advances a row's stamp (round 11) --------
-/* Three findings came from advancing it and then guarding the consequences: a
-   complete row at the same stamp looked unchanged, unconditional marking built a
-   30-second refetch loop, and an in-flight delta from an older snapshot
-   overwrote the newer local row. The marker was the problem, not the answer, so
-   it is gone and the stamp is simply left alone — which is what Codex proposed
-   in round four before I took the marker instead. */
+
+// ---- 5c. the batch delta is GONE, and five findings' worth of state with it ----
+/* Five findings on #1364 traced to one added read: a per-batch delta whose
+   watermark forced `batches.updated_at` to stop being the CAS clock the gateway
+   reads. Removing the read removes the conflict at its source. */
 {
-  const owner = grabFunc('async function _prodEnsureBatchDescription(batchId, force)');
+  const delta = grabFunc('async function _prodDeltaRefresh(options)');
+  ok(!/_prodRestRows\('batches'/.test(delta),
+    'the operational delta reads deliverables only — no batch read rides along');
+  /* The SHARED stripper. I reached for the raw regex here a second time tonight,
+     and test/comment-strip-is-honest.js caught it a second time — it opens a
+     comment at any "/" followed by "*", including inside a string or an
+     accept="...,video/*" attribute (OPEN_REPAIRS 145). */
+  const code = stripComments(html);
+  ok(!/batchDeltaCursor|_prodAdvanceBatchDeltaCursor|_prodMergeBatchRows|batchPartialRows|batchDescriptionClocks/.test(code),
+    'and every piece of state that read needed is gone: cursor, advancer, batch merge, partial marker, CAS clock');
   const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
-  const merge = grabFunc('function _prodMergeBatchRows(changed)');
-  ok(!/live\.updated_at = fresh\.updated_at/.test(owner),
-    'the one-row read writes the description and leaves updated_at alone');
-  ok(!/row\.updated_at = updatedAt/.test(sync),
-    'and so does every description write that funnels through the sync helper');
-  ok(!/batchPartialRows/.test(owner + sync + merge) && !/_prodState\.batchPartialRows/.test(html),
-    'the partial-row marker is gone from the code entirely, not merely bypassed');
-  ok(/if \(previous && String\(previous\.updated_at \|\| ''\) === String\(row\.updated_at \|\| ''\)\) \{/.test(merge),
-    'so the merge can believe stamp equality again: every stamp it sees came from a complete read');
-
-  // Executed: a description read must not disturb the row's stamp.
-  const ctx = {
-    Map, Set, String, Number, Promise, console,
-    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
-    document: { getElementById: () => null },
-    _prodRender: () => {}, _prodOpenRowId: () => '', _prodIssue: () => null,
-    _prodState: {
-      batches: [{ id: 'b1', updated_at: 'T1' }],
-      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
-      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
-      projectionGeneration: 1, adapter: {}, view: 'detail', openId: '', openBatchId: '',
-    },
-    _prodReadBatchDescriptionRow: async () => ({ id: 'b1', description: 'text', updated_at: 'T9' }),
-  };
-  vm.createContext(ctx);
-  vm.runInContext(grabFunc('function _prodNextBatchDescriptionToken(batchId)') + '\n'
-    + grabFunc('function _prodInvalidateBatchDescriptionReads(batchIds)') + '\n'
-    + owner + '\nthis.ensure = _prodEnsureBatchDescription;', ctx);
-  await ctx.ensure('b1', true);
-  ok(ctx._prodState.batches[0].description === 'text', 'the description lands');
-  ok(ctx._prodState.batches[0].updated_at === 'T1',
-    'THE RETRACTION: and the row keeps the stamp of its last COMPLETE read, so a later delta answering from any snapshot cannot be mis-ranked against it');
-
-  // And the merge, executed: an older complete row is simply a changed row.
-  const mctx = { Map, Set, String, Array, console,
-    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
-    _prodState: { batches: [{ id: 'b1', updated_at: 'T1', description: 'held' }] } };
-  vm.createContext(mctx);
-  vm.runInContext(merge + '\nthis.merge = _prodMergeBatchRows;', mctx);
-  ok(mctx.merge([{ id: 'b1', updated_at: 'T1' }]).length === 0,
-    'an unchanged stamp is unchanged, and the held description survives');
-  ok(mctx._prodState.batches[0].description === 'held', '...carried onto the incoming row');
-}
-
-
-// ---- 5g. the description CAS clock is separate from row freshness (round 12) ----
-/* I claimed on the PR that state.sourceUpdatedAt was what the compare-and-swap
-   read, and that the row's copy "was never load-bearing for it". That was simply
-   FALSE: _prodGatewayWrite builds expected_updated_at from _prodBatch(...).
-   updated_at. So dropping the stamp write made a SECOND consecutive save send a
-   pre-save clock and take a 409, and the conflict restore conflicted again on
-   retry. The two values needed splitting, not deleting: the row's stamp is the
-   freshness of the last COMPLETE read, and the description has its own clock. */
-{
+  ok(/if \(updatedAt\) row\.updated_at = updatedAt;/.test(sync),
+    'a description write advances the row stamp again, which is what _prodGatewayWrite reads for the CAS');
   const gateway = html.slice(html.indexOf('const batch = _prodBatch(payload.id);'));
-  ok(/operation === 'batch_description'\s*\n\s*\? String\(_prodState\.batchDescriptionClocks\.get\(String\(payload\.id \|\| ''\)\) \|\| ''\)/.test(gateway.slice(0, 1200)),
-    'the batch-description write prefers the description clock over the row freshness stamp');
-  ok(/: ''\)\s*\n\s*\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(gateway.slice(0, 1200)),
-    '...and any OTHER batch write (batch_asset) still falls straight through to the row, which test/batch-asset-write.js pins independently');
-  const sync = grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)');
-  ok(/_prodState\.batchDescriptionClocks\.set\(batchId, String\(updatedAt\)\)/.test(sync)
-    && !/row\.updated_at = updatedAt/.test(sync),
-    'every description write moves the CLOCK and still leaves the row stamp alone');
-  ok(/_prodState\.batchDescriptionClocks\.set\(batchId, String\(fresh\.updated_at\)\)/.test(
+  ok(/payload\.expected_updated_at = batchClock\s*\n\s*\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(gateway.slice(0, 400)),
+    'so the CAS expression is exactly the two-term one that shipped before this PR');
+  ok(/if \(fresh\.updated_at\) live\.updated_at = fresh\.updated_at;/.test(
       grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
-    'and the one-row read seeds that clock, so the first save after a read is not guessing');
-  ok(/_prodState\.batchDescriptionClocks\.delete\(id\);/.test(grabFunc('function _prodMergeBatchRows(changed)')),
-    'a complete row retires its description clock, since its own stamp is authoritative again');
-
-  // Executed: two consecutive saves must not send the same pre-save clock.
-  const ctx = { Map, String, console,
-    _prodIssue: () => ({ id: 'i1', batchId: 'b1' }),
-    _prodState: { batches: [{ id: 'b1', updated_at: 'T1', description: 'a' }],
-                  batchDescriptionClocks: new Map(), batchDescriptionTokens: new Map(),
-                  adapter: {} },
-    _prodNextBatchDescriptionToken: () => 1 };
-  vm.createContext(ctx);
-  vm.runInContext(grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)')
-    + '\nthis.sync = _prodSyncBatchDescriptionRow;', ctx);
-  ctx.sync('i1', 'first save', 'T2');
-  ok(ctx._prodState.batchDescriptionClocks.get('b1') === 'T2',
-    'THE 409: after a save the clock advances, so the NEXT save sends T2 rather than the pre-save T1');
-  ok(ctx._prodState.batches[0].updated_at === 'T1',
-    '...while the row stamp still marks the last complete read, which is what the delta merge compares');
-  ctx.sync('i1', 'second save', 'T3');
-  ok(ctx._prodState.batchDescriptionClocks.get('b1') === 'T3' && ctx._prodState.batches[0].updated_at === 'T1',
-    'and a second save advances the clock again, still without disturbing row freshness');
+    'and the one-row read keeps the row stamp current, so the first save after opening a panel is not guessing');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');
@@ -595,10 +488,14 @@ ok(/descReadFailed \? 'Description could not load\.' : 'No batch description\.'/
   'and a failed read says so, instead of holding the loading skeleton forever');
 ok(/_prodInvalidateBatchDescriptionReads\(null\);/.test(grabFunc('function _prodMarkDescriptionsStale()')),
   'a manual refresh retires every direct-batch read, so a failure is not permanent for the session');
-ok(/_prodInvalidateBatchDescriptionReads\(Array\.from\(targets\)\)/.test(grabFunc('function _prodMarkBatchDescriptionsStale(batchIds)')),
-  'and a batch whose stamp moved in the delta retires its read so the view re-reads');
+/* The per-batch stale-marker went with the batch delta (5c) — nothing calls it
+   now that no delta reports changed batches, so it is deleted rather than left
+   as an unreachable helper. The token guard below still earns its place: the
+   full load bumps the generation, but a save or an invalidation does not. */
+ok(!/_prodMarkBatchDescriptionsStale/.test(html),
+  'the per-batch stale marker is gone with the delta that fed it, not left dead in the file');
 ok(/token === _prodState\.batchDescriptionTokens\.get\(batchId\)/.test(grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
-  'the read is gated on a per-batch token, not on the generation alone — the delta never advances the generation');
+  'the read is still gated on a per-batch token, not on the generation alone');
 
 if (failures) { console.error(`\n${failures} boot payload diet check(s) failed`); process.exit(1); }
 console.log('\nprod-boot-payload-diet: all ok');

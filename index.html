@@ -49360,28 +49360,12 @@
                than returning, so every waiter resumes with the answer instead of
                resuming instantly and concluding the read failed. */
             batchDescriptionInFlight: new Map(),
-            /* The compare-and-swap clock for the DESCRIPTION column, per batch.
-               Separate from the row's `updated_at`, which now means "freshness
-               of the last COMPLETE read" and is what the delta merge compares.
-               Those two were the same value until 2026-09-09 and that conflation
-               is what produced findings across three review rounds; splitting
-               them lets each mean one thing. Written by the one-row read and by
-               every description write; dropped when a complete row lands, since
-               that row's own stamp is authoritative again. */
-            batchDescriptionClocks: new Map(),
             /* Per-batch request tokens for those reads. The generation counter
                alone cannot stand in for these: it only advances in
                _prodLoadData, never on the operational delta, so a delta that
                moves a batch's stamp mid-read leaves the generation equal and an
                older answer comparing as current. Raised by Codex on #1364. */
             batchDescriptionTokens: new Map(),
-            /* How far the batch delta has actually READ, which is not the same
-               question as the newest stamp among local rows. Point reads and
-               description saves write a fresh `updated_at` onto ONE row, so a
-               watermark recomputed from rows can jump past batches that changed
-               in between and hide them until the ten-minute reconcile. Only a
-               server answer ever advances this. Raised by Codex on #1364. */
-            batchDeltaCursor: '',
             createDraft: null,
             createCatalog: [],
             createAssignees: [],
@@ -54848,21 +54832,7 @@
                     }
                 }
                 const batch = _prodBatch(payload.id);
-                /* Attachment evidence first, then the description clock FOR A
-                   DESCRIPTION WRITE ONLY, then the row.
-
-                   The middle term keeps consecutive description saves working:
-                   the row's stamp is the freshness of the last COMPLETE read and
-                   no longer moves when a description is written, so on its own it
-                   would send a pre-save clock and take a 409. It is scoped to
-                   `batch_description` on purpose -- a batch_asset write has
-                   nothing to do with the description column, and consulting the
-                   clock for it changed a shipped behaviour that
-                   test/batch-asset-write.js pins. */
                 payload.expected_updated_at = batchClock
-                    || (operation === 'batch_description'
-                        ? String(_prodState.batchDescriptionClocks.get(String(payload.id || '')) || '')
-                        : '')
                     || (batch ? String(batch.updated_at || '') : '');
             } else if (operation !== 'comment') {
                 payload.expected_updated_at = issue.updatedRaw;
@@ -56848,17 +56818,7 @@
             const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
             if (!row) return;
             row.description = value == null ? '' : String(value);
-            /* The stamp goes to the DESCRIPTION CLOCK, not onto the row.
-               Advancing the row's own stamp from a description-only write made
-               an unrefreshed row look freshly read, which produced findings
-               across three rounds. But the clock still has to move: the
-               compare-and-swap for a batch description reads it (see
-               _prodGatewayWrite), so discarding it outright made a second save
-               send a pre-save clock and take a 409, and the conflict restore
-               conflicted again on retry. An earlier version of this comment
-               claimed `state.sourceUpdatedAt` was what the CAS read; that was
-               simply wrong, and Codex caught it on #1364. */
-            if (updatedAt) _prodState.batchDescriptionClocks.set(batchId, String(updatedAt));
+            if (updatedAt) row.updated_at = updatedAt;
             /* Every write to a batch row's description funnels through here --
                the optimistic pre-save value, the committed save, and both
                conflict restores -- so this is where an in-flight direct
@@ -57295,26 +57255,7 @@
                     return;
                 }
                 live.description = fresh.description == null ? '' : String(fresh.description);
-                if (fresh.updated_at) _prodState.batchDescriptionClocks.set(batchId, String(fresh.updated_at));
-                /* The row stamp is deliberately NOT advanced from a
-                   description-only read.
-
-                   Writing it was the root of three separate findings on #1364:
-                   a complete row arriving at the same stamp looked unchanged,
-                   marking unconditionally built a 30-second refetch loop, and an
-                   in-flight delta answering from an older snapshot overwrote the
-                   newer local row. Each was answered with another guard on a
-                   partial-row marker, and the third made clear the marker was
-                   the problem rather than the answer.
-
-                   Leaving the stamp alone removes all three at once. The row
-                   keeps the stamp of the last COMPLETE read it had, which is
-                   what `updated_at` is supposed to mean here. A batch nothing
-                   changed sits below the delta cursor and never comes back; a
-                   batch that genuinely moved comes back with a different stamp,
-                   counts as changed, and its description is re-read. Codex
-                   proposed exactly this in round four and I took the marker
-                   instead; that was the wrong call and this is the retraction. */
+                if (fresh.updated_at) live.updated_at = fresh.updated_at;
                 _prodState.adapter = null;
                 _prodState.batchDescriptionReads.set(batchId, 'ready');
             } catch (error) {
@@ -61216,8 +61157,6 @@
                 _prodState.clients = mergedClients;
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
-                // Every row is a complete read, so no description clock survives.
-                _prodState.batchDescriptionClocks.clear();
                 /* And no remembered batch-description read outlives a full load.
                    This is the RETRY for a failed one: the visible topbar Refresh
                    runs _prodManualRefresh -> _prodDeltaRefresh({full:true}) ->
@@ -61229,8 +61168,6 @@
                    in the air is retired rather than left able to land on the new
                    projection. */
                 _prodInvalidateBatchDescriptionReads(null);
-                // Seeded from the raw server answer, never from the merged rows.
-                _prodAdvanceBatchDeltaCursor(batches);
                 _prodState.deliverables = mergedDeliverables;
                 _prodState.authority = authority;
                 _prodState.authorityLoaded = true;
@@ -61878,18 +61815,6 @@
             const parsed = value ? Date.parse(value) : NaN;
             return Number.isFinite(parsed) ? parsed : -1;
         }
-        /* Advance the batch delta cursor, from a SERVER answer only. Compared as
-           parsed instants rather than strings: these are two timestamps from the
-           same column, but a lexicographic compare would still be a silent
-           landmine if the rendered precision ever differed. */
-        function _prodAdvanceBatchDeltaCursor(rows) {
-            const candidate = _prodDeliverableWatermark(rows);
-            if (!candidate) return;
-            const candidateMs = Date.parse(candidate);
-            if (!Number.isFinite(candidateMs)) return;
-            const currentMs = _prodState.batchDeltaCursor ? Date.parse(_prodState.batchDeltaCursor) : NaN;
-            if (!Number.isFinite(currentMs) || candidateMs > currentMs) _prodState.batchDeltaCursor = candidate;
-        }
         function _prodDeliverableWatermark(rows) {
             let best = '';
             let bestMs = -1;
@@ -61959,64 +61884,6 @@
             });
             _prodState.deliverables = Array.from(byId.values());
             return changedIds;
-        }
-        /* The batch twin of _prodMergeDeliverableRows. A row whose stamp is
-           unchanged keeps the description it already holds (the delta select
-           does not carry one); a row whose stamp moved arrives without it, so
-           its parent panel reads the text again rather than showing the old
-           one as current. */
-        function _prodMergeBatchRows(changed) {
-            const rows = Array.isArray(changed) ? changed : [];
-            if (!rows.length) return [];
-            const byId = new Map((_prodState.batches || [])
-                .map(row => [String(row && row.id || ''), row])
-                .filter(([id]) => id));
-            const changedIds = [];
-            rows.forEach(row => {
-                const id = String(row && row.id || '');
-                if (!id) return;
-                const previous = byId.get(id);
-                /* Stamp equality means "unchanged" only for a row whose stamp
-                   came from a COMPLETE read. On a partially advanced row the
-                   stamps match while the rest of the row is still old, so this
-                   is the one case where equality must not be believed. */
-                if (previous && String(previous.updated_at || '') === String(row.updated_at || '')) {
-                    if (_prodHasOwn(previous, 'description') && !_prodHasOwn(row, 'description')) row.description = previous.description;
-                    byId.set(id, row);
-                    return;
-                }
-                /* A complete row's own stamp is authoritative again, so the
-                   description clock for it is retired rather than left to
-                   shadow a newer server value. */
-                _prodState.batchDescriptionClocks.delete(id);
-                changedIds.push(id);
-                byId.set(id, row);
-            });
-            _prodState.batches = Array.from(byId.values());
-            return changedIds;
-        }
-        /* After the adapter has been rebuilt: the open panel of a batch whose
-           row moved is told its text may be outdated, so the next render
-           re-reads it through _prodEnsureDescription. Mirrors
-           _prodMarkDescriptionsStale, scoped to the batches that changed. */
-        function _prodMarkBatchDescriptionsStale(batchIds) {
-            const targets = new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
-            if (!targets.size) return;
-            /* The batch-detail view's reads for the same rows: the merge dropped
-               their description, so its next render must re-read -- and any read
-               already in the air for them must be retired, or its older answer
-               lands on the replacement row. */
-            _prodInvalidateBatchDescriptionReads(Array.from(targets));
-            _prodState.descriptions.forEach((state, id) => {
-                if (!state || state.saving) return;
-                const issue = _prodIssue(id);
-                if (!issue || issue.syntheticBatchParent !== true || !targets.has(String(issue.batchId || ''))) return;
-                _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
-                state.refreshing = false;
-                state.refreshError = '';
-                state.refreshSilent = true;
-                state.status = state.hasValue ? 'stale' : 'idle';
-            });
         }
         function _prodRefreshAgeMs() {
             return _prodState.lastSyncAt ? Math.max(0, Date.now() - _prodState.lastSyncAt) : -1;
@@ -62118,37 +61985,42 @@
                     }
                     _prodState.lastFullSyncAt = Date.now();
                 } else {
-                    /* Batches ride along on their own watermark, so a filming
-                       day planned since the last read appears on the next tick
-                       (and on a tab return, which takes this path since
-                       2026-09-08) instead of waiting for the full reconcile.
-                       Same select as boot: no description. A batch whose stamp
-                       moved drops its held description and re-reads it when
-                       its panel is open. */
-                    const batchWatermark = _prodState.batchDeltaCursor;
-                    const [rows, batchRows] = await Promise.all([
-                        _prodRestRows(
-                            'production_deliverables_browser_v1',
-                            PROD_DELIVERABLE_SELECT,
-                            'updated_at=gte.' + encodeURIComponent(watermark),
-                            1000,
-                            50,
-                            { keysetColumn: 'id' }
-                        ),
-                        batchWatermark
-                            ? _prodRestRows('batches', PROD_BATCH_SELECT, 'updated_at=gte.' + encodeURIComponent(batchWatermark), 1000, 25, { keysetColumn: 'id' })
-                            : Promise.resolve([])
-                    ]);
+                    /* Deliverables only. A batch delta used to ride along here
+                       so a filming day planned since the last read appeared
+                       within 30s instead of at the ten-minute reconcile. It is
+                       gone, and removing it is the point rather than a casualty.
+
+                       It forced `batches.updated_at` to stop meaning "the CAS
+                       clock for this row" and start meaning "freshness of the
+                       last complete read", and those two readings fought across
+                       five findings on #1364: a complete row at the same stamp
+                       looked unchanged, the marker for that built a 30-second
+                       refetch loop, an older snapshot could overwrite a newer
+                       row, the CAS then sent pre-save clocks, and the separate
+                       clock added to fix THAT had its own lifecycle holes. Every
+                       one was a consequence of adding this read, and none of
+                       them touched the two changes this PR is actually for.
+
+                       So the row stamp goes back to meaning exactly what the
+                       gateway always took it to mean, and batches refresh where
+                       they always did: the ten-minute full reconcile, the manual
+                       Refresh, and any full load. The cost is bounded and
+                       stated -- a batch created elsewhere can be up to ten
+                       minutes stale in an open tab. Worth having back one day,
+                       as its own change with its own design. */
+                    const rows = await _prodRestRows(
+                        'production_deliverables_browser_v1',
+                        PROD_DELIVERABLE_SELECT,
+                        'updated_at=gte.' + encodeURIComponent(watermark),
+                        1000,
+                        50,
+                        { keysetColumn: 'id' }
+                    );
                     const changedIds = _prodMergeDeliverableRows(rows);
-                    // From the server answer, before the merge lets any local
-                    // value near these rows.
-                    _prodAdvanceBatchDeltaCursor(batchRows);
-                    const changedBatchIds = _prodMergeBatchRows(batchRows);
-                    if (changedIds.length || changedBatchIds.length) {
+                    if (changedIds.length) {
                         repaint = true;
                         _prodInvalidateScopedReadsFor(changedIds);
                         _prodState.adapter = _prodAdapter(_prodState);
-                        _prodMarkBatchDescriptionsStale(changedBatchIds);
                         _prodCacheWrite({
                             clients: _prodState.clients,
                             members: _prodState.members,

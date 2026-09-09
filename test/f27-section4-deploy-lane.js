@@ -453,9 +453,17 @@ const CANDIDATES = new Map([
     // permission. Only policy.mjs moved (clientOperationAllowed) -- no
     // migration, no schema, no new import, file count unchanged at 5, and the
     // entrypoint hash is unchanged because it hashes the PATH.
-    source: 'fc721251eeb6bd5c5f75456657ee51e105e452e6234a4121e61b93dd1b59de90',
+    //
+    // Re-pinned AGAIN on top of that: the native write gateway lift. Intake,
+    // append, component fill, assignee change and labels stop routing through
+    // Linear, and the native urgent handoff lands with them. ALL THREE changes
+    // are in this closure -- the thumbnail-title fix, the client no-op
+    // admission, and the native lift -- and a pin carrying only some of them is
+    // wrong. File count moves 5 -> SIX; _shared/native-brief-media.mjs is the
+    // new import. Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: '122f18bed2d66e5131f72e39b6d0336992d96107912c626de73d830de99f0fe2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 5,
+    files: 6,
   }],
 ]);
 

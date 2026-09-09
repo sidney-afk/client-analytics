@@ -89,12 +89,22 @@ ok(/nativeTeam !== team/.test(app),
   'the browser really does reject a cross-team native target — the rule being mirrored is real');
 
 /* The audited population must be the one the page loads. wlFetchLinearMetadata
- * filters through wlIsActiveStatus and wlIsAllowedClient before anything
+ * filters through wlIsActiveStatus and the client gate before anything
  * reaches the native reader, so counting a parked or off-roster issue produces
  * a permanent nonzero reading for work no designer can see — a gate nobody can
- * satisfy, which is exactly what PRE_FLIP_HEALTH_CHECK.md exists to prevent. */
-ok(/wlIsActiveStatus\(issue\)/.test(app) && /wlIsAllowedClient\(issue\.clientName\)/.test(app),
+ * satisfy, which is exactly what PRE_FLIP_HEALTH_CHECK.md exists to prevent.
+ *
+ * The client gate was SPELLED `wlIsAllowedClient(issue.clientName)` until the
+ * Workload native source landed; it is now `wlIssueClientAllowed(issue)`, which
+ * answers the server-computed `native_client_active` for a native row and
+ * DELEGATES to the same `wlIsAllowedClient` name allowlist for every other one.
+ * Both halves are asserted, so a future change that quietly drops the legacy
+ * delegation — and with it the off-roster exclusion this gate mirrors — still
+ * turns this red rather than passing on the new name alone. */
+ok(/wlIsActiveStatus\(issue\)/.test(app) && /wlIssueClientAllowed\(issue\)/.test(app),
   'the browser really does apply both pre-fetch filters — the population being mirrored is real');
+ok(/issue\.nativeClientActive === true : wlIsAllowedClient\(issue && issue\.clientName\)/.test(app),
+  'the client gate still falls back to the roster allowlist for a non-native row');
 ok(/WL_PARKED_STATUSES/.test(script) && /WL_CLIENT_NAMES/.test(script),
   'the gate reads both filter lists out of the shipped app rather than restating them');
 /* Pin the ASSIGNMENTS, not the predicates. Both predicates also appear in the

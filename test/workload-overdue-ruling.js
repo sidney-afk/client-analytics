@@ -96,7 +96,7 @@ ok(partFrom > -1 && partTo > partFrom, 'the partition loop is findable (harness 
 const partitionSrc = html.slice(partFrom, partTo + 'wlState.unassigned   = unassigned;'.length);
 const runPartition = (subs, overrides) => new Function(
   'subs', 'wlState', 'wlWorkloadTodayISO', 'wlIsInProgress', 'wlIsTweaksNeeded',
-  'wlIsToDo', 'wlPlanDate', 'wlDisplayDate', 'wlIsAllowedEditor',
+  'wlIsToDo', 'wlPlanDate', 'wlDisplayDate', 'wlIssueEditorAllowed',
   partitionSrc + '\nreturn { nowWorking, tweaksNeeded, planned, overdue, undated, unassigned };')(
   subs, {},
   () => '2026-08-27',
@@ -105,7 +105,7 @@ const runPartition = (subs, overrides) => new Function(
   (overrides && overrides.wlIsToDo) || predicates.wlIsToDo,
   () => null,
   s => s.dueDate || null,
-  () => true);
+  new Function('wlIsAllowedEditor', html.slice(html.indexOf('    function wlIssueEditorAllowed('), html.indexOf('    function wlSnapshotIdentity(')) + '; return wlIssueEditorAllowed;')(() => true));
 
 /* Fixtures shaped like the measured plate: approval-wait, tweaks (mirrored
    trailing-space spelling included), late Todo / In Progress, future Todo,
@@ -164,7 +164,7 @@ ok(ungated.overdue.some(s => s.id === 'inprog-late'),
   'remove the To Do gate and the late In Progress row IS called overdue again — the gate is doing work');
 
 // ---- the composition is the app's own -------------------------------------
-const filterAt = html.indexOf('const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIsAllowedClient(i.clientName));');
+const filterAt = html.indexOf('const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));');
 ok(filterAt > -1 && filterAt < partFrom,
   'the app filters through wlIsActiveStatus BEFORE the partition — the order this suite reproduces');
 for (const name of ['for client approval', 'for smm approval', 'for kasper approval']) {

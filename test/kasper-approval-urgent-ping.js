@@ -357,7 +357,13 @@ setTimeout(() => {
       fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8')));
 
   const ledger = fs.readFileSync(path.join(ROOT, 'docs/ops/OPEN_REPAIRS.md'), 'utf8');
-  const item = ledger.slice(ledger.indexOf('## 186.'));
+  // Anchored on the item's TITLE, not its number. The number has already moved
+  // twice (186 -> 187 -> 188) as concurrent branches claimed it on merge, and a
+  // number-anchored slice silently starts reading somebody else's item -- which
+  // is how this check passed for two merges while pointing at the wrong entry.
+  const head = ledger.indexOf('The URGENT ping only ever pointed one way');
+  check('the ledger item is findable by its own title, not by a number that moves', head > 0);
+  const item = ledger.slice(head);
   check('the ledger item does not tell the owner to deploy the frozen writers',
     !/supabase functions deploy calendar-upsert --project-ref/.test(item)
     && item.includes('NOT deployable from this branch'));

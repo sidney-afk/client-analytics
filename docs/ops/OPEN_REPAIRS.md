@@ -19934,6 +19934,211 @@ the tidy one:** six findings, five real, one already fixed. Two were defects in
 lines I wrote, one in a line I quoted without checking, two in lines I had
 correctly left alone but whose in-document corrections the truncation had eaten.
 Eleven rounds in, the review is still finding a category per round.
+
+---
+
+## 180. [2026-09-08, lane LX-FIX, FIXED — browser-only and comment-only, live on merge, no deploy] Four defects already live on the site: a retry message that lied, two stale line citations, two silent discards, and an optional field that could kill a required one
+
+Four PRs merged and auto-deployed in the days before this one. An overnight
+health check on what they left behind found four defects **already on `main`**,
+none introduced by the Linear exit — all pre-existing and simply never looked
+at. Every one of them is a surface stating something it could not know, which
+is the same shape as items 13, 14, 87, 89, 91, 93 and 127.
+
+### 1. `_writeUiFailureText` promised "nothing was committed" about writes it could not see
+
+The unrecognised-code fallback ended `", and nothing was committed. Try once
+more"` for **everything that was not a 4xx**. Two shapes reach it, and the
+sentence is false in both:
+
+- a **5xx**, where the write service received the request and failed part-way
+  *through* handling it, so a row may well exist;
+- a **transport failure** (no status at all), where the browser never learned
+  whether the request arrived — `_writeUiReportFailure` reaches the resolver
+  with `error.message` standing in for a code precisely because there was no
+  HTTP answer to read a status from.
+
+"Try once more" on a write that DID land is how a duplicate gets made. That is
+the 2026-08-26 shape exactly, where "safe to retry" cost a videographer **eleven
+identical submissions**. Both branches now say the outcome is not known, send
+the reader to reload and *look* before repeating, and name the cost of
+repeating. The 4xx branch is unchanged: an unknown code with a client-error
+status is a decision the service made rather than a write it half-did, and it
+never claimed otherwise. A *classified* code may still promise nothing was
+committed — the `wait` class does — because that promise is the gateway's, made
+about a refusal it raised before committing; the fallback has no gateway word to
+pass on, which is the whole distinction.
+
+**Second gap in the same function, same class.** Both text tables are object
+LITERALS, so `WRITE_UI_FAILURE_CODE_TEXT.constructor` is a truthy function and a
+bare lookup returned it as though it were an entry — the notification painted
+the literal `undefined (code: constructor)`. A code is free text on the
+transport path, so `constructor`, `toString`, `valueOf`, `hasOwnProperty`,
+`isPrototypeOf` and `propertyIsEnumerable` are all reachable, and every one of
+them is exactly the shape the fallback exists to catch. Resolved with
+`hasOwnProperty`. `WRITE_UI_FAILURE_CODE_CLASS` was already `Object.create(null)`
+and needed nothing.
+
+Proved counterfactually: against `main`, a 503 with an unknown code answers
+*"and nothing was committed. Try once more"*, and `constructor` answers
+`"undefined" / "undefined"`.
+
+### 2. Two of the naming-mint migration's four line citations pointed at unrelated code
+
+`migrations/2026-09-07-native-identifier-mint.sql` opens with the case for the
+whole lane — `linear_identifier` has three writers, all three are Linear, here
+is each one — and sends the reader to specific lines to check it.
+
+- `index.html:51816` was the `displayId` resolution when it was written. That
+  line now reads `} else if (persisted.state === 'resolved') {`; the resolution
+  had moved. (Corrected to the line in **this PR's** tree, which is 44 lines
+  further down again because fix 1 sits above it — the citation is verified
+  against the tree it ships in, not the tree it was written in.)
+- `linear-outbound/index.ts:857` was cited as a MINT site, twice. 857 is
+  `if (error || clean(linked.id) !== clean(row.entity_id)) {` — the **linkage
+  check** three lines past it. The mint is at 852. Corrected in both places.
+
+The other two (`linear-outbound:868`, `linear-inbound:810`) were and are
+correct. Nothing executes a comment, so nothing had said a word.
+
+`test/mint-migration-line-citations.js` now resolves every citation by CONTENT —
+the anchor line is found by its own text, and the migration must cite that
+number and no other — and fails with the number to write instead. **Known cost,
+flagged rather than hidden:** a citation into `index.html` is a pin on a
+65,000-line file that every browser PR moves, so this will go red on unrelated
+work. The failure message makes it a one-line repair, and the alternative is the
+dead pointer this item exists to remove; if the owner would rather the
+`index.html` citation were by symbol name instead of by line, say so and it
+becomes a two-line change. The suite also holds the header's *claim* — exactly
+three Linear writers — so a fourth appearing fails loudly instead of quietly
+making the migration's argument wrong rather than merely mis-pointed.
+
+### 3. A parked samples edit could be discarded without the person being told, on two branches
+
+Item 155's parking (Codex P1, fourth pass, PR 1342) is right: an edit typed on a
+card whose client the view then left is held against that slug rather than
+flushed under whoever is on screen, and the person is told *"open that client
+again and it will save"*. Two branches then break that promise in silence:
+
+- **The cap.** `_sxrParkEditsForClient` removes the bucket from
+  `_sxrPendingEdits` *before* it reaches the 50-card ceiling, so hitting the cap
+  does not defer the edit — it **destroys** it, through the very mechanism
+  written to prevent that.
+- **The card is gone.** `_sxrRestoreParkedEdits` refuses to restore an edit for
+  a card the reload did not return, correctly — re-queuing it would make the
+  engine INSERT it as a brand-new sample, the defect parking exists to avoid —
+  but this is the branch the person *waited* for.
+
+Both recorded a diagnostic row and said nothing. A diagnostic is read by whoever
+goes looking, and nobody goes looking for an edit they believe was saved. Both
+now notify, in the wording discipline the sibling principal-changed drop already
+had: what happened, that nothing was written, and no promise of a recovery that
+does not exist. Behaviour is otherwise untouched — nothing is now restored that
+was not restored before.
+
+### 4. An optional link could destroy a required one's work in both Linear pull-in dialogs
+
+Import from Linear and Bulk Linear sync take a required video-parent link and an
+optional thumbnail-parent link and fetch both with `Promise.all`, which rejects
+the moment any member does. A thumbnail parent answering a 502 — or any body
+`r.json()` could not parse — threw away a video parent that had **already come
+back cleanly** and dropped the person on the start screen to paste both links
+again.
+
+The tell that this was oversight rather than policy: eight lines further down,
+the same optional half answering `{ ok: false }` was already tolerated. One
+optional field, two failure shapes, two different amounts of damage. Both shapes
+now cost the same thing — the graphics half is dropped and the video import
+proceeds — and the drop is announced, because a screen with no thumbnails on it
+must not be misread as "that parent has none". The REQUIRED half failing still
+stops the import; the suite pins that as a load-bearing negative, since a
+blanket catch would have hidden it too.
+
+### Looked at and deliberately NOT taken
+
+- **`production-write/index.ts:4235`** — one asset slot's evidence write
+  failing discards the three that resolved. Two reasons, either sufficient. The
+  read-only audit ranked it P2 *because* the common failure is correlated across
+  all four slots, so nothing is destroyed in the case that actually happens, and
+  only a genuinely single-slot failure triggers it. And `production-write` is
+  fingerprint-pinned and reaches production only through the owner-only
+  `deploy-f27-section4-closures` sealed-capture lane — so the change would need
+  a re-pin and would sit dead in the repo, diverging from live, until a deploy
+  this PR is explicitly forbidden to trigger. Not small, on the axis that
+  matters here.
+- **The cold-boot board load's `.catch(() => [])` on the batch and parent
+  reads** — the audit's own note governs: partial is safe for the row list and
+  dangerous for batch-derived fields, and the repo has already paid once for
+  printing a loud **Missing** where it merely could not read (item 89). The
+  `Missing` vs `Unavailable` distinction exists ONLY for gateway asset evidence
+  (`_prodAssetStateLabel`), not for batch-derived board fields, so making this
+  honest means introducing a new state vocabulary across the adapter and the
+  renderer. Larger than this PR should carry; left alone deliberately, as the
+  audit instructed.
+
+### Also noticed, no action taken
+
+`docs/ops/OPEN_REPAIRS.md` carries duplicate `## 13.`, `## 14.`, `## 22.` and
+`## 23.` headers. They predate this lane and the ledger is append-only, so
+nothing was touched; recorded here so the next duplicate sweep does not treat
+them as new.
+
+**Corrected the same day: the list is longer.** `## 175.` and `## 176.` are also
+duplicated. That pair collided on 2026-09-08 between the Linear exit's branch and
+PR #1354, and it is deliberately **not** renumbered: the exit's pair is cited 43
+times across the briefs, the handoff, this ledger and several PR comments, and PR
+comments cannot be edited, so renumbering would leave dozens of references
+meaning something other than what they say. All four headers carry disambiguation
+notes naming the date and originating PR instead. The rule that came out of it —
+**cite a ledger item by number AND date** — applies to this item too.
+
+### Proof standard
+
+Every fix carries a test proved **red against `origin/main` first**, in a
+separate worktree of `main`, before the fix existed. Nothing here writes to a
+backend, runs a migration, deploys anything, or touches an n8n workflow; all
+four changes are browser or comment only and are live on merge with no deploy.
+
+
+### Addendum, same day — the design call on citation style, ruled by the coordinator
+
+Fix 2 above asked one question rather than deciding it: cite `index.html` by line
+or by symbol. **Ruled: by symbol, and the two Edge Function citations keep their
+line numbers.** Implemented on this branch.
+
+**The evidence was already in the PR.** That `index.html` citation moved twice
+inside the PR that was correcting it, and a third time when this branch merged
+`main`. Three drifts in one day, none of them caused by anyone touching the code
+being cited.
+
+**Why the churn is the argument and not just an annoyance.** A pin on a
+65,000-line file that every browser PR moves will go red on unrelated work, and
+the repair is always "read the failure, paste the new number." A check whose only
+ever remediation is to accept the new value teaches people to accept the new
+value. That turns a drift detector into a rubber stamp, which is worse than no
+check at all, because it carries the authority of a passing test.
+
+**Why this programme in particular should not add another line pin.** Three
+distinct shapes of one defect landed on 2026-09-08: the truncated briefs, a
+reversibility quote true of its source and false in the scope it was applied to,
+and every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` being dead.
+All three are documents correct about what they say and wrong about where they
+point. A fourth pin into the file that moves most is writing the next instance.
+
+**Deliberately not uniform.** `linear-outbound/index.ts:852,868` and
+`linear-inbound/index.ts:810` stay as line numbers. Those files are ~1,500 lines
+and change rarely, so the precision is real and the churn is not. The rule is the
+ratio of churn to precision **per file**, not a house style for citations.
+
+**The symbol reference is checked harder than the line was**, because a symbol
+that still exists but no longer contains the code it was cited for is exactly as
+dead a pointer as a stale number, and quieter. `test/mint-migration-line-citations.js`
+now holds four things, each proved to fail on purpose before being trusted: the
+migration names the symbol; the symbol is defined exactly once; the line being
+described is still inside that function, computed the way a reader would by
+walking up to the nearest definition; and `index.html` carries no line citation at
+all, so the old style cannot creep back in beside the new one.
+
 ## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
 
 `181` was verified free before writing: the ledger's numbers run 1–129, 134–162,

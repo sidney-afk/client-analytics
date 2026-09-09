@@ -114,6 +114,24 @@ a Linear-side notification. Apply this order:
 4. Prove the urgent route separately. A new browser/gateway sends a native-card urgent request only to `production-write`; a pre-deployment browser may fall back to `send-urgent-slack`, and an older cached browser can still call that n8n webhook directly. The legacy post and native intent share no server-side deduplication key. Before native urgent delivery, require current browser/gateway source proof plus a read-only n8n execution/in-flight check and a provider-channel check around the boundary. Legacy-only cards may retain their documented route; a native card must have exactly one route.
 5. Enable and verify the monitor first. Only after the old notification paths are excluded and every pre-boundary row has an honest disposition may a separately authorized bounded sender invocation deliver the accepted post-boundary backlog. Enable the schedule after its receipt and monitor pass; enable gateway wakes last.
 
+### Exact urgent workflow and editor-map retirement
+
+Workflow `TJVMyfwl85qrFGeK` (`send-urgent-slack`) and its hardcoded email-to-Slack
+fallback are explicitly included in this cutover. The earlier native n8n draft
+reused that map; it is superseded by the owner's zero-new-n8n route. Native
+urgent admission now reads the assigned deliverable and active
+`team_members.slack_user_id`, while protected `urgent_video_destination` selects
+Video Editing. No editor identity is inferred from a Google Sheet column.
+
+Before retirement, privately verify mappings for every active editor who can
+receive urgent work, including new hires, and exercise missing/wrong-recipient
+failures plus exact-recipient provider receipts. Keep the live legacy map
+accurate while any active caller still depends on it. Do not call that upkeep
+wasted effort before the actual switchover. Only after the route/cached-browser/
+in-flight checks above prove native coverage can a separately authorized
+operator retire the old workflow entry and its map. This is not an instruction
+to edit or deactivate n8n during the audit.
+
 Turning the sender schedule and gateway wake off stops new provider calls but
 does not stop the database triggers from recording intents. A gateway rollback
 therefore disables both delivery switches first, preserves and recaptures the

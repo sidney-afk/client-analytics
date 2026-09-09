@@ -1,5 +1,15 @@
 # Native urgent receiver: review-only graph preparation
 
+> **Superseded implementation route — owner clarification, 2026-09-09.**
+> Preserve this draft as historical evidence; do not install its new n8n root.
+> The current repair uses `production-write` and the native notification outbox
+> plus `notify`, with zero new n8n executions. Workflow `TJVMyfwl85qrFGeK`'s
+> hardcoded editor fallback is replaced by active `team_members.slack_user_id`
+> mapping for the assigned native deliverable. The old live map remains an
+> operational dependency until native urgent receipts and the old-route cutoff
+> are verified. See `LINEAR_EXIT_REPAIR_INSTALL.md`; no workflow is changed here.
+
+
 `scripts/n8n-native-urgent-draft.js` prepares an additional authenticated root in
 one privately captured urgent workflow. It preserves every original node, edge,
 credential reference and metadata field. An exact inverse verifies preservation.

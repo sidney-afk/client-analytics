@@ -143,8 +143,8 @@ function matrixEqual(actual, expected, message) {
   ok(!policy.clientOperationAllowed('status', 'approved', 'tweak'),
   'an approved row still refuses a client tweak: only the no-op is admitted');
   /* A client re-sending the status the row already holds is a no-op, not a
-     permission question. Live case, lilybaker card p_mrb65aeu_cjq0m
-     2026-09-09: the client's approve committed server-side at 19:18:09 while
+     permission question. Live case, card p_mrb65aeu_cjq0m on one active client
+     slug, 2026-09-09: the client's approve committed server-side at 19:18:09 while
      the calendar_posts row stayed at "Client Approval", so her Review tab kept
      offering Approve and every click asked approved -> approved. Refusing it
      told her, wrongly and permanently, that her account was not permitted to

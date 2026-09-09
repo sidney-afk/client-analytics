@@ -18504,7 +18504,7 @@ permission problem, no SMM could have helped, and the retry advice was correct
 only by accident: the row was already sitting on the exact status she was
 asking for.
 
-**MEASURED, `lilybaker` card `p_mrb65aeu_cjq0m`, 2026-09-09.**
+**MEASURED, one active client slug, card `p_mrb65aeu_cjq0m`, 2026-09-09.**
 
 | Where | What it says |
 |---|---|
@@ -18546,6 +18546,6 @@ half of this is only recoverable from the client's own `localStorage` ring, in
 her browser, which we do not have. **The client-visible symptom is closed; the
 half-commit is not.**
 
-**Live blast radius at the time of writing**: this card only for `lilybaker`
-(one component, video). Any client on any slug whose approve half-commits lands
+**Live blast radius at the time of writing**: one card on one slug (one
+component, video). Any client on any slug whose approve half-commits lands
 in the same trap until this deploys.

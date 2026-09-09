@@ -505,8 +505,8 @@ export function clientOperationAllowed(operation, currentStatus, nextStatus) {
   if (op === "comment") return true;
   if (op !== "status" || !CLIENT_STATUSES.has(lower(nextStatus))) return false;
   /* A client re-sending the status the row ALREADY holds is not a transition
-     and must never read as a permission refusal. Measured on lilybaker card
-     p_mrb65aeu_cjq0m, 2026-09-09: the client's approve committed here at
+     and must never read as a permission refusal. Measured on one live client
+     card, p_mrb65aeu_cjq0m, 2026-09-09: the client's approve committed here at
      19:18:09 (deliverable_events status_change client_approval -> approved,
      actor role "client") but the calendar_posts row never followed --
      video_status stayed "Client Approval" and client_video_approved_at stayed

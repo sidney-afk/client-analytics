@@ -529,7 +529,11 @@ begin
 end;
 $fn$;
 
-revoke all on function public.production_notification_plain_text(text, integer),
+revoke all on function public.production_notification_intent_guard(),
+  public.production_notification_status_intent_after(),
+  public.production_notification_comment_intent_after(),
+  public.production_notification_client_comment_event_after(),
+  public.production_notification_plain_text(text, integer),
   public.production_notification_actor_valid(uuid, text, text),
   public.production_notification_health_summary(),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),

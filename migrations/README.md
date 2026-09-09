@@ -798,18 +798,17 @@ executes these files (see `README.md` › Repository layout).
   named child from the highest BARE title in it. Check such a batch before
   appending to it again.
 
-- **`2026-09-09-syncview-retirement-admission.sql`** is source-only and seeds
-  an **active** server-side admission contract; applying it does not retire
-  SyncView, switch a flag, deploy a function, or alter any schedule. Its
-  explicit service-only activation RPC takes `mirror_outbox` in a serializing
-  lock, refuses a non-terminal drain, and records the actual outbox high-water.
-  The resulting trigger rejects every new ordinary outbox insert, so the
-  owning status/comment/due/etc. transaction rolls back instead of creating
-  permanent debt after the outbound stops. It preserves the installed F27
-  fence and accepts only independently typed terminal native intake,
-  assignment, and label receipts plus the reserved F27 TEST drill; `skipped`
-  alone is never a native exemption. `docs/ops/SYNCVIEW_RETIREMENT_RUNBOOK.md`
-  defines the release evidence and `scripts/syncview-retirement-census.js`
-  continuously verifies the aggregate post-high-water result. Applying the
-  migration and calling its activation RPC are separate owner-approved release
-  actions.
+- **`2026-09-09-syncview-retirement-admission.sql`** is source-only and **not
+  ready for activation**. It seeds an active server-side admission/census
+  contract without retiring SyncView, switching a flag, deploying a function,
+  or altering any schedule. Its activation RPC deliberately refuses because
+  ordinary status/comment/due/title/description/attachment transactions still
+  create provider-shaped receipts. The trigger correctly would reject those
+  rows rather than hide debt, but that would roll their business mutation back.
+  It therefore must not be activated until every ordinary transaction has a
+  server-issued typed native receipt and exact replay proof. It preserves the
+  installed F27 fence and recognizes only independently typed terminal native
+  intake, assignment, and label receipts plus the reserved F27 TEST drill;
+  `skipped` alone is never a native exemption. The runbook holds the practical
+  capability matrix and `scripts/syncview-retirement-census.js` verifies the
+  aggregate result once activation becomes safe.

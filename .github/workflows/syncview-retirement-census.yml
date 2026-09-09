@@ -1,7 +1,8 @@
 name: SyncView retirement admission census
 
-# This monitor is deliberately active before the release activation: active is
-# reported as DORMANT. It stays scheduled after retirement to prove the SQL
+# This monitor is deliberately active while the retirement contract is NOT
+# READY FOR ACTIVATION: active is reported as DORMANT. Once the common native
+# receipt contract exists, it stays scheduled after retirement to prove the SQL
 # high-water remains clean. Do not unschedule main work here; schedule/retire
 # pairs belong to the workflow they actually govern.
 on:

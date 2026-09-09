@@ -21,9 +21,8 @@ ok(/create trigger zzz_syncview_retirement_admission_guard\s+before insert on pu
   'retirement has a BEFORE INSERT mirror_outbox admission trigger');
 ok(/raise exception 'syncview_retirement_admission_closed:%', new\.operation/i.test(migration),
   'ordinary admission fails loudly rather than becoming hidden skipped debt');
-ok(/lock table public\.mirror_outbox in share row exclusive mode;/i.test(migration)
-  && /high_water_outbox_id/i.test(migration) && /syncview_retirement_drain_required/i.test(migration),
-  'activation serializes writers, requires a drain, and records the actual high-water');
+ok(/high_water_outbox_id/i.test(migration) && /syncview_retirement_native_receipt_contract_required/i.test(migration),
+  'activation is blocked until ordinary writes have server-owned typed native receipts');
 ok(/production_syncview_retirement_typed_native_receipt\(new\)/.test(migration)
   && /new\.status\s*=\s*'skipped'/.test(migration) === false,
   'retirement only recognizes typed native work and never reclassifies a receipt itself');
@@ -38,8 +37,12 @@ ok(/track_b_f27_hold_guard/.test(migration) && /zz_native_intake_receipt_guard/.
   && /zzz_native_assignment_receipt_guard/.test(migration) && /zzz_native_label_receipt_guard/.test(migration),
   'installation refuses to run without the existing F27 and native receipt guards');
 ok(/ordinary_by_operation/.test(migration) && /ordinary_post_cutoff_total/.test(migration)
-  && /nonterminal_total/.test(migration),
+  && /nonterminal_total/.test(migration)
+  && /not coalesce\(public\.production_syncview_retirement_typed_native_receipt\(o\),false\)/.test(migration),
   'aggregate census proves operations cannot grow past the recorded high-water');
+ok(/enable row level security/.test(migration)
+  && /revoke all on table public\.syncview_retirement_admission from public,anon,authenticated,service_role/i.test(migration),
+  'retirement control row has RLS and no direct service-role mutation grant');
 
 const dormant = assessRetirement({ contract: 'syncview-retirement-admission-v1', mode: 'active' });
 ok(dormant.ok && dormant.verdict === VERDICTS.DORMANT, 'unactivated installed contract is dormant and healthy');

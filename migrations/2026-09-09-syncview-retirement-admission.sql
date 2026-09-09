@@ -1,8 +1,9 @@
--- SOURCE-ONLY retirement contract. Installing this migration does not retire a
--- lane. It seeds an active gate; a release operator must call the activation
--- RPC after the drain census is clear. The gate is deliberately on the shared
--- outbox admission point, because status/comment/due and every other ordinary
--- SyncView mutation reach that table through different RPCs.
+-- SOURCE-ONLY, NOT READY FOR ACTIVATION. Installing this migration does not
+-- retire a lane. The shared outbox gate and high-water census are retained as
+-- the bounded admission component, but ordinary SyncView mutations do not yet
+-- carry a server-issued native receipt epoch. Activating this gate today would
+-- roll their native transaction back, so the activation RPC refuses until the
+-- missing common-mutation native receipt contract is implemented.
 --
 -- This migration requires the installed F27 hold/generation fence and the
 -- three typed native receipt guards. It neither replaces nor bypasses any of
@@ -47,6 +48,9 @@ create table if not exists public.syncview_retirement_admission (
 
 insert into public.syncview_retirement_admission(singleton,mode)
 values (true,'active') on conflict(singleton) do nothing;
+
+alter table public.syncview_retirement_admission enable row level security;
+revoke all on table public.syncview_retirement_admission from public,anon,authenticated,service_role;
 
 -- A native receipt is not inferred from status='skipped'. It must retain the
 -- exact marker AND the native guard's terminal result. This is intentionally
@@ -107,8 +111,8 @@ begin
     select o.operation, count(*)::bigint as count
     from public.mirror_outbox o
     where v_state.mode='retired' and o.id > v_state.high_water_outbox_id
-      and not public.production_syncview_retirement_typed_native_receipt(o)
-      and not public.production_syncview_retirement_f27_drill_receipt(o)
+      and not coalesce(public.production_syncview_retirement_typed_native_receipt(o),false)
+      and not coalesce(public.production_syncview_retirement_f27_drill_receipt(o),false)
     group by o.operation
   ) grouped;
   return jsonb_build_object(
@@ -123,10 +127,10 @@ begin
       where status in ('pending','failed','shadow_ok')),
     'native_post_cutoff_total',(select count(*) from public.mirror_outbox o
       where v_state.mode='retired' and o.id > v_state.high_water_outbox_id
-        and public.production_syncview_retirement_typed_native_receipt(o)),
+        and coalesce(public.production_syncview_retirement_typed_native_receipt(o),false)),
     'f27_post_cutoff_total',(select count(*) from public.mirror_outbox o
       where v_state.mode='retired' and o.id > v_state.high_water_outbox_id
-        and public.production_syncview_retirement_f27_drill_receipt(o))
+        and coalesce(public.production_syncview_retirement_f27_drill_receipt(o),false))
   );
 end
 $fn$;
@@ -156,39 +160,20 @@ create trigger zzz_syncview_retirement_admission_guard
 before insert on public.mirror_outbox
 for each row execute function public.production_syncview_retirement_admission_guard();
 
--- Activation takes the outbox table lock BEFORE changing the gate. Existing
--- writers complete before the high-water is recorded; later writers wait for
--- the lock and then see retired mode in their INSERT trigger. This serializes
--- the boundary without a caller-supplied timestamp or a best-effort drain.
+-- Deliberately blocked. The intended activation order is still table lock,
+-- drain, high-water, then gate update, but that must not become executable
+-- until every ordinary mutation has a server-issued typed native receipt.
+-- A trigger that merely changes ordinary rows to skipped would hide debt; a
+-- trigger that rejects them rolls their business operation back. Neither is a
+-- retirement implementation.
 create or replace function public.production_syncview_retirement_activate(p_reason text)
 returns jsonb language plpgsql security definer set search_path=public as $fn$
-declare v_state public.syncview_retirement_admission%rowtype;
-  v_reason text := nullif(btrim(coalesce(p_reason,'')), '');
-  v_nonterminal bigint; v_id bigint; v_created timestamptz;
 begin
-  if v_reason is null or length(v_reason)>128 or v_reason !~ '^[A-Za-z0-9][A-Za-z0-9 ._:-]{0,127}$' then
-    raise exception 'syncview_retirement_reason_invalid';
-  end if;
-  lock table public.mirror_outbox in share row exclusive mode;
-  select * into strict v_state from public.syncview_retirement_admission where singleton for update;
-  if v_state.mode='retired' then
-    if v_state.activated_reason is distinct from v_reason then raise exception 'syncview_retirement_activation_conflict'; end if;
-    return public.production_syncview_retirement_census();
-  end if;
-  select count(*) into v_nonterminal from public.mirror_outbox
-    where status in ('pending','failed','shadow_ok');
-  if v_nonterminal <> 0 then raise exception 'syncview_retirement_drain_required:%',v_nonterminal; end if;
-  select coalesce(max(id),0), coalesce(max(created_at),'epoch'::timestamptz)
-    into v_id,v_created from public.mirror_outbox;
-  update public.syncview_retirement_admission
-    set mode='retired', activated_at=clock_timestamp(), activated_reason=v_reason,
-        high_water_outbox_id=v_id, high_water_created_at=v_created
-    where singleton;
-  return public.production_syncview_retirement_census();
+  raise exception 'syncview_retirement_native_receipt_contract_required'
+    using hint='ordinary status/comment/due/title/description/attachment writes need typed native receipts before activation';
 end
 $fn$;
 
-revoke all on table public.syncview_retirement_admission from public,anon,authenticated;
 revoke all on function public.production_syncview_retirement_census() from public,anon,authenticated;
 revoke all on function public.production_syncview_retirement_activate(text) from public,anon,authenticated;
 grant execute on function public.production_syncview_retirement_census() to service_role;

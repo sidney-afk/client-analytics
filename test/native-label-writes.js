@@ -7,28 +7,6 @@ if(process.env.F63_REQUIRE_POSTGRES!=='1') {
   console.log('SKIP native label writes: explicit disposable PostgreSQL required');
   process.exit(0);
 }
-/* The write proof was authored on a branch stacked on the CARD CHANGE HISTORY
-   draft (PR #1299) and builds its fixture on that draft's rehearsal harness: it
-   imports LocalDatabase and setup from two scripts, and bootstraps from a
-   migration, none of which exist on main or on this branch. Nothing SHIPPED
-   here depends on any of them; only the proof's fixture does. So the honest
-   state is "this proof cannot run in this repository yet", named file by file,
-   rather than a crash that reads as a failure of the label writes themselves,
-   and rather than importing an unrelated draft's migration into this change.
-   It starts running by itself the moment #1299 lands. If that stalls, the work
-   is to rebuild this fixture on scripts/native-intake-manifest/harness.js, the
-   way every other native lane here does. */
-const prerequisites=[
-  '../scripts/card-change-journal-rehearsal.js',
-  '../scripts/card-history-integrated-rehearsal.js',
-  '../migrations/2026-09-05-calendar-feedback-recovery.sql',
-].filter(rel=>!fs.existsSync(path.join(__dirname,rel)));
-if(prerequisites.length) {
-  console.log('SKIP native label writes: the proof fixture needs files this branch does not have, so the'
-    + ' label write path is UNPROVEN here rather than proved: '+prerequisites.map(r=>r.replace('../','')).join(', ')
-    + ' (they arrive with the card change history draft, PR #1299)');
-  process.exit(0);
-}
 if(!['localhost','127.0.0.1'].includes(process.env.PGHOST||''))throw Error('native_labels_loopback_required');
 const port=Number(process.env.PGPORT),user=process.env.PGUSER;
 if(!Number.isInteger(port)||port<1024||port>65535||user!=='postgres')throw Error('native_labels_disposable_binding_required');

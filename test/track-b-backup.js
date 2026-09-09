@@ -483,12 +483,16 @@ ok(serviceCred.client_email === 'backup@example.invalid', 'private Drive auth ac
 const sql = restoreSql(dump);
 ok(/^begin;/.test(sql)
   && /track_b_restore_set_user_triggers\(false\)/.test(sql)
-  && /truncate table[\s\S]+cascade/.test(sql)
+  && /truncate table[^;]+ restrict;/.test(sql)
+  && !/\bcascade\b/i.test(sql)
   && !/restart identity|session_replication_role/.test(sql)
   && !/\\ir |\\!|DROP TABLE|SET row_security/.test(sql)
   && TABLES.every(config => sql.includes(`COPY public."${config.name}"`))
   && /pg_get_serial_sequence/.test(sql)
-  && /set constraints all immediate;\nselect public\.track_b_restore_set_user_triggers\(true\);\ncommit;/.test(sql),
+  && /set constraints all immediate;\nselect public\.track_b_restore_set_user_triggers\(true\);\nselect setval/.test(sql)
+  && sql.indexOf('set constraints all immediate;') < sql.indexOf('select setval(')
+  && /greatest\(coalesce/.test(sql) && /coalesce\(s.last_value, s.start_value\)/.test(sql)
+  && /commit;\n$/.test(sql),
 'restore regenerates only allowlisted COPY data with scratch user triggers disabled transactionally');
 const verificationSql = verifySql();
 ok(Object.keys(INTEGRITY_CHECKS).every(key => verificationSql.includes(`select '${key}'`)),

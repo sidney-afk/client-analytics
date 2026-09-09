@@ -33,6 +33,34 @@ required HMAC-SHA-256 key that is not stored in Drive. A missing/extra table,
 changed byte, wrong HMAC, row-count mismatch, or checksum mismatch fails the
 run. The existing weekly full backup remains independent and unchanged.
 
+## Prepared schema recovery successor (uninstalled)
+
+The active six-hour lane still follows the corpus selected by the protected
+`TRACK_B_BACKUP_CORPUS` repository variable. The legacy 14-table format remains
+its current authenticated value until the matching schema, restricted-role
+grants, and disposable recovery rehearsal are approved together. The workflow
+accepts explicit manual `history-v7`, `history-v8`, and `history-v9` package
+runs; each version has its own signed format and prior versions refuse a newer
+owner instead of claiming empty coverage.
+
+`.github/workflows/track-b-recovery-rehearsal.yml` is dispatch-only. It captures
+an authenticated full `public` schema plus the explicitly selected data corpus,
+then reconstructs it only into a pre-provisioned empty scratch target. It has no
+schedule, Drive upload, alert, flag, n8n, or provider action. The recovery
+package verifies target identity, role restrictions, schema fingerprint,
+selected-table content digests, sequence state, callable dependencies, and
+post-commit state; an unknown or committed-but-unverified target is quarantined
+rather than retried in place.
+
+`history-v9` is a prepared 42-table successor: it includes Calendar, Samples,
+Workload, manifests, card/journal/provenance/feedback recovery evidence, F27
+state, native label catalog, cutoff, public intake provenance, native triage,
+and brief-media occurrence records. It does not restore storage object bytes,
+provider state, n8n configuration, secrets, or client-facing tokens outside the
+selected database rows. The receipt and data corpus must be advanced again when
+a new authoritative table is introduced; never relabel an older package as
+complete.
+
 ## Repository configuration
 
 These are already configured (the schedule is live on `main`); they are documented here for reference and rotation:

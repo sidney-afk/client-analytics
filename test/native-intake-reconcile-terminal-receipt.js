@@ -1,0 +1,12 @@
+'use strict';
+const fs = require('fs');
+const assert = require('assert/strict');
+const sql = fs.readFileSync('migrations/2026-09-05-native-intake-reconcile.sql', 'utf8');
+const runner = fs.readFileSync('scripts/native-intake-reconcile/reconcile-lib.js', 'utf8');
+assert.match(sql, /'terminal_ok', v_terminal_ok/);
+assert.match(sql, /and \(child->>'terminal_ok'\)::boolean/);
+assert.match(sql, /elsif not \(v_child->>'terminal_ok'\)::boolean[\s\S]{0,220}'child_terminal_receipt_missing'/);
+assert.match(sql, /elsif not \(v_slot\.child->>'terminal_ok'\)::boolean[\s\S]{0,160}'child_terminal_receipt_missing'/);
+assert.match(sql, /select \* into v_receipt from public\.mirror_outbox where dedup_key = v_item->>'child_dedup';[\s\S]{0,420}raise exception 'child_terminal_receipt_missing'/);
+assert.match(runner, /'child_terminal_receipt_missing'/);
+console.log('native intake reconciliation terminal-receipt checks passed');

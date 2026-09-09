@@ -176,6 +176,48 @@ ok(TERMINAL_FULL_MS > RECONCILE_MS,
     'and the tail is handed the same decision rather than re-deriving it');
 }
 
+// ---- 2d. a late tail must not revert a row that moved on -------------------
+/* Codex on #1366, second finding: `_prodMergeDeliverableRows` replaces on any
+   timestamp DIFFERENCE, not only a newer one. Safe for the delta, whose
+   watermark is the whole projection's max; unsafe here, where the watermark is
+   the archive's and the read spans seconds. The case that bites is a row
+   LEAVING the archive mid-read. */
+{
+  const sandbox = { console, Map, Array, Number, String, Date };
+  vm.createContext(sandbox);
+  vm.runInContext(
+    grabFunc('function _prodRowUpdatedMs(row)') + '\n'
+    + grabFunc('function _prodDropSupersededRows(rows, previous)') + '\n',
+    sandbox);
+  const drop = vm.runInContext('_prodDropSupersededRows', sandbox);
+
+  const held = [
+    { id: 'a', status: 'in_progress', updated_at: '2026-09-09T12:00:00Z' },
+    { id: 'b', status: 'approved', updated_at: '2026-09-01T00:00:00Z' },
+  ];
+  const late = [
+    // Selected as approved before the write that reopened it.
+    { id: 'a', status: 'approved', updated_at: '2026-09-08T00:00:00Z' },
+    // Genuinely newer than the copy held.
+    { id: 'b', status: 'archived', updated_at: '2026-09-09T09:00:00Z' },
+    { id: 'c', status: 'posted', updated_at: '2026-09-05T00:00:00Z' },
+  ];
+  const kept = drop(late, held);
+  ok(!kept.some(row => row.id === 'a'),
+    'a tail row older than the copy held is dropped, so a reopened row is not reverted');
+  ok(kept.some(row => row.id === 'b' && row.status === 'archived'),
+    'a genuinely newer tail row still lands');
+  ok(kept.some(row => row.id === 'c'),
+    'a row not held at all is always kept');
+
+  ok(drop([{ id: 'a', status: 'approved', updated_at: '2026-09-09T12:00:00Z' }], held).length === 1,
+    'an identical stamp is kept, so a same-second echo is not mistaken for a stale one');
+  ok(drop([{ id: 'a', status: 'approved' }], [{ id: 'a', status: 'x' }]).length === 1,
+    'a row with no parseable stamp on either side is kept: absence of proof is not proof');
+  ok(drop([], held).length === 0 && drop(null, held).length === 0,
+    'an empty or missing response is handled without throwing');
+}
+
 // ---- 3. the reader itself, executed ---------------------------------------
 function makeTail() {
   const calls = [];
@@ -221,6 +263,7 @@ function makeTail() {
     + grabFunc('function _prodDeliverableWatermark(rows)') + '\n'
     + grabFunc('function _prodTerminalWatermark()') + '\n'
     + grabFunc('function _prodMergeDeliverableRows(changed)') + '\n'
+    + grabFunc('function _prodDropSupersededRows(rows, previous)') + '\n'
     + grabFunc('async function _prodLoadTerminalTail(opts)') + '\n',
     sandbox);
   return { sandbox, calls, run: (opts) => vm.runInContext('_prodLoadTerminalTail', sandbox)(opts) };

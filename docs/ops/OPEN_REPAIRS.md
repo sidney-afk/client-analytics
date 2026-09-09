@@ -18419,3 +18419,32 @@ caller establishes the precondition, the test has to establish it the same way.
 The suite now runs the phase-one replacement first and asserts the watermark
 survives it, and pins that the decision and the carry both precede the
 replacement.
+
+### 184c. A late incremental tail could revert a row that had moved on
+
+Codex on #1366, second round, P2, and also right.
+
+`_prodMergeDeliverableRows` replaces a held row whenever the incoming
+`updated_at` *differs* — it never checks that the incoming one is NEWER. That is
+safe for the 30-second delta, whose watermark is the maximum over the whole
+projection, so no response it returns can predate a row already held. It is not
+safe for the incremental tail, whose watermark is the **archive's** (routinely
+older than any live row) and whose read spans several seconds across pages.
+
+The case that bites is a row **leaving** the archive. The tail selects it while
+it is still `approved`; a delta tick or a user write moves it to `in_progress`
+while the read is in flight; the late response reverts the row's status in the
+open tab until a later refresh — and someone can then act against that stale
+state, which is the same shape as the reverts item 101 exists for.
+
+`_prodDropSupersededRows(rows, previous)` filters the tail response against the
+copies currently held before the merge sees it. An identical stamp is kept (a
+same-second echo is not stale), and a row with no parseable stamp on either
+side is kept, because absence of proof that it is stale is not proof. The full
+pass needs none of this: it appends only ids it has never seen, so it cannot
+overwrite anything.
+
+Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
+merge refuse older rows would be a no-op for the delta by the argument above,
+so it would buy nothing there while quietly changing the contract of the path
+that every write already depends on.

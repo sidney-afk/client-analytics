@@ -60991,7 +60991,8 @@
                        that must be replaced. `_prodMergeDeliverableRows` is the
                        merge the 30-second delta already uses, and it assigns
                        `_prodState.deliverables` itself. */
-                    _prodMergeDeliverableRows(tail);
+                    _prodMergeDeliverableRows(
+                        _prodDropSupersededRows(tail, _prodState.deliverables));
                 } else {
                     // De-duplicate by id rather than concatenating blind: a status
                     // edited between the two reads can legitimately appear in both
@@ -61939,6 +61940,35 @@
            the live half moves every few minutes and the finished half does not,
            so the whole-projection stamp is almost always newer than every
            terminal row. Reading from it would skip the rows this is for. */
+        /* Drop a tail row that is OLDER than the copy already held.
+
+           `_prodMergeDeliverableRows` replaces on any timestamp DIFFERENCE, not
+           only on a newer one. That is safe for the 30-second delta, whose
+           watermark is the max over the whole projection, so no response it
+           returns can predate a row already held. It is NOT safe here: this
+           read's watermark is the ARCHIVE's, which is routinely older than a
+           live row, and the read itself spans several seconds.
+
+           The case that bites is a row LEAVING the archive. The tail selects it
+           while it is still `approved`; a delta or a user write moves it to
+           `in_progress` while the read is in flight; the late response then
+           reverts the row's status in the open tab until a later refresh, and
+           someone can act on that stale state. Raised by Codex on #1366.
+
+           A row with no parseable stamp on either side is kept: absence of
+           proof that it is stale is not proof that it is. */
+        function _prodDropSupersededRows(rows, previous) {
+            const incoming = Array.isArray(rows) ? rows : [];
+            if (!incoming.length) return incoming;
+            const held = new Map((Array.isArray(previous) ? previous : [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            return incoming.filter(row => {
+                const current = held.get(String(row && row.id || ''));
+                if (!current) return true;
+                return _prodRowUpdatedMs(row) >= _prodRowUpdatedMs(current);
+            });
+        }
         function _prodTerminalWatermark() {
             return _prodDeliverableWatermark(
                 (_prodState.deliverables || []).filter(_prodCacheIsTerminal));

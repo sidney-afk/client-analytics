@@ -196,6 +196,12 @@
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-05"
+    },
+    "notify": {
+      "counts": {},
+      "total": 0,
+      "measured_on": null,
+      "required_zero_unmeasured": true
     }
   }
 }

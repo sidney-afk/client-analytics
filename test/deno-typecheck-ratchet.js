@@ -156,9 +156,19 @@ for (const [name, entry] of Object.entries(raw.targets)) {
 }
 /* The date belongs to the MEASUREMENT, not to the file: a --target=<slug>
    --update must not restamp the five targets it never looked at. */
+const unmeasuredZeroTargets = Object.entries(raw.targets)
+    .filter(([, entry]) => entry && entry.required_zero_unmeasured === true);
+ok(unmeasuredZeroTargets.length === 1 && unmeasuredZeroTargets[0][0] === 'notify'
+    && unmeasuredZeroTargets[0][1].total === 0
+    && Object.keys(unmeasuredZeroTargets[0][1].counts).length === 0
+    && unmeasuredZeroTargets[0][1].measured_on === null,
+    'notify is an explicitly unmeasured zero-error requirement, not invented Deno evidence');
 for (const [name, entry] of Object.entries(raw.targets)) {
-    ok(/^\d{4}-\d{2}-\d{2}$/.test(String(entry.measured_on || '')),
-        name + ' records when IT was measured, in a shape that cannot be mistaken for prose');
+    const pendingZero = entry && entry.required_zero_unmeasured === true;
+    ok(pendingZero || /^\d{4}-\d{2}-\d{2}$/.test(String(entry.measured_on || '')),
+        name + (pendingZero
+            ? ' has an explicit unmeasured zero-error requirement'
+            : ' records when IT was measured, in a shape that cannot be mistaken for prose'));
 }
 ok(raw.measured_on === undefined,
     'and there is no single global date left to be restamped by a run that measured one target');
@@ -304,9 +314,11 @@ fs.unlinkSync(mixedReport);
 
 /* A single-target update leaves every other target's date alone. */
 const beforeDates = Object.fromEntries(
-    Object.entries(raw.targets).map(([k, v]) => [k, v.measured_on]));
+    Object.entries(raw.targets)
+        .filter(([, v]) => !v.required_zero_unmeasured)
+        .map(([k, v]) => [k, v.measured_on]));
 ok(Object.values(beforeDates).every(Boolean) && new Set(Object.values(beforeDates)).size >= 1,
-    'every target carries its own measurement date, so a one-target update cannot restamp the rest');
+    'every measured target carries its own measurement date, so a one-target update cannot restamp the rest');
 
 /* ---- 3e. the graph checked is the graph deployed ------------------------ */
 

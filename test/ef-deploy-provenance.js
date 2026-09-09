@@ -106,15 +106,24 @@ const validateAt = workflow.indexOf('Validate the dispatched commit is on main')
 const ancestryAt = workflow.indexOf('git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main');
 const validatedCheckoutAt = workflow.indexOf('Check out the validated deploy commit');
 const jobEnvAt = workflow.indexOf('    env:\n      PROJECT_REF:');
+const sqlPreflightAt = workflow.indexOf('- name: Assert the Linear-exit SQL contract before a manual deployment');
+const sqlPreflightEnd = workflow.indexOf('\n      - ', sqlPreflightAt + 1);
+const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
+const firstDeployAt = workflow.indexOf('- name: Deploy push-safe staff-sensitive functions');
 ok(validateAt >= 0 && ancestryAt >= 0 && validatedCheckoutAt >= 0
   && ancestryAt < validatedCheckoutAt
   && /Check out the trusted default branch for validation\n\s*uses: actions\/checkout@v4\n\s*with:\n\s*ref: \$\{\{ github\.event\.repository\.default_branch \}\}/.test(workflow),
 'main-ancestry validation runs from the trusted default branch before the dispatched commit is checked out');
 ok(jobEnvAt >= 0
   && !/^    env:\n(?:      [^\n]*\n)*      SUPABASE_ACCESS_TOKEN:/m.test(workflow)
-  && (workflow.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g) || []).length === 3
-  && workflow.slice(jobEnvAt, ancestryAt).indexOf('SUPABASE_ACCESS_TOKEN') === -1,
-'the production token never lives at job scope; only the three deploy/attestation steps carry it, all after validation');
+  && (workflow.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g) || []).length === 4
+  && workflow.slice(jobEnvAt, ancestryAt).indexOf('SUPABASE_ACCESS_TOKEN') === -1
+  && sqlPreflightAt > validatedCheckoutAt && sqlPreflightAt < firstDeployAt
+  && /if: github\.event_name == 'workflow_dispatch'/.test(sqlPreflightBlock)
+  && (sqlPreflightBlock.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g) || []).length === 1
+  && sqlPreflightBlock.includes('node scripts/linear-exit-deploy-preflight.js')
+  && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON/.test(sqlPreflightBlock),
+'the production token never lives at job scope; the manual SQL preflight receives one scoped token only after validation and before deployment');
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow),
 'the deploy job runs in the production Environment so a branch copy cannot reach the secret');
 

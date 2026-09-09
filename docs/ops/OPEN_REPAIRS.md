@@ -17919,3 +17919,39 @@ watermark is still `_prodDeliverableWatermark(_prodState.deliverables)`. That is
 the identical defect on the older path and it predates this change; it is left
 alone rather than widening a PR already three review rounds deep. Worth its own
 repair — the fix is the same shape as the one above.
+
+### 182d. Codex round four: two defects the round-three fix created
+
+Both are consequences of the shared per-batch token added in 182c, which is
+worth stating plainly: each repair in this sequence exposed the next layer.
+
+**A displaced reader never released what it owned.** The shared token means one
+read can supersede another. The superseded synthetic read returned bare, leaving
+its panel's `state.refreshing` set — and the guard at the top of
+`_prodEnsureDescription` refuses to start a read while that is set, so the panel
+short-circuited on every later open and **never loaded again**. Reachable by
+switching between the two synthetic parents of a split-team batch, which share a
+`batchId` and therefore share the token. Separately, when a synthetic read
+superseded an in-flight direct read and then FAILED, the direct read's
+`batchDescriptionReads` entry stayed on `loading`, stranding the `?batch=` view
+on its skeleton until an unrelated refresh.
+
+Now: a displaced read releases its OWN per-issue panel state (and only while its
+own issue token still says it owns it), and whichever read holds the shared token
+owns the shared entry on both exits — `loading` on start, `ready` on success,
+`error` on failure. One reader, one truth.
+
+**Stamp equality masked real remote changes.** A description-only read or save
+writes a fresh `updated_at` over otherwise old fields. When a batch's metadata
+changed remotely and a description read landed before the next delta, the delta
+then received the complete row carrying that same stamp, `_prodMergeBatchRows`
+read the equality as "unchanged", and the adapter was never rebuilt — so the
+batch **name, status or `linear_parent_ids` stayed stale** until the ten-minute
+reconcile. Rows advanced by a partial write are now tracked in
+`batchPartialRows`; the merge refuses stamp equality for them, clears the mark
+once a complete row replaces it, and a full load clears the set entirely because
+every row in it came from a complete read.
+
+The regression test executes the second one on the exact shape of the bug: a
+complete row arriving at the SAME stamp as a partially advanced local row still
+counts as changed, its fresh fields land, and the mark is not sticky afterwards.

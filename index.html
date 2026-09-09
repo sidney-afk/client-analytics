@@ -49368,6 +49368,14 @@
                in between and hide them until the ten-minute reconcile. Only a
                server answer ever advances this. Raised by Codex on #1364. */
             batchDeltaCursor: '',
+            /* Batch ids whose LOCAL `updated_at` was advanced by a write that
+               only touched the description -- a point read or a save. The row
+               now carries a fresh stamp over otherwise old fields, so the delta
+               cannot read stamp equality as "nothing changed" for it: the name,
+               status or linear_parent_ids may have moved remotely in the same
+               window and would stay stale until the reconcile. Raised by Codex
+               on #1364. */
+            batchPartialRows: new Set(),
             createDraft: null,
             createCatalog: [],
             createAssignees: [],
@@ -56820,7 +56828,11 @@
             const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
             if (!row) return;
             row.description = value == null ? '' : String(value);
-            if (updatedAt) row.updated_at = updatedAt;
+            if (updatedAt) {
+                row.updated_at = updatedAt;
+                // Description-only write: fresh stamp, otherwise unrefreshed row.
+                _prodState.batchPartialRows.add(batchId);
+            }
             /* Every write to a batch row's description funnels through here --
                the optimistic pre-save value, the committed save, and both
                conflict restores -- so this is where an in-flight direct
@@ -57241,7 +57253,11 @@
                     return;
                 }
                 live.description = fresh.description == null ? '' : String(fresh.description);
-                if (fresh.updated_at) live.updated_at = fresh.updated_at;
+                if (fresh.updated_at) {
+                    live.updated_at = fresh.updated_at;
+                    // Description-only read: see _prodState.batchPartialRows.
+                    _prodState.batchPartialRows.add(batchId);
+                }
                 _prodState.adapter = null;
                 _prodState.batchDescriptionReads.set(batchId, 'ready');
             } catch (error) {
@@ -57302,10 +57318,29 @@
                 state.refreshError = '';
                 state.refreshSilent = !force;
                 state.status = state.hasValue ? 'stale' : 'loading';
+                /* While this read holds the shared token it also owns the shared
+                   read state, so the direct `?batch=` view sees one truth rather
+                   than the leftovers of whoever ran last. */
+                _prodState.batchDescriptionReads.set(batchId, 'loading');
+                /* Releasing a DISPLACED read. Returning bare left `state.refreshing`
+                   true forever, and the guard at the top of this function refuses
+                   to start a read while that is set -- so the panel short-circuited
+                   on every later open and never loaded again. Reachable by switching
+                   between the two synthetic parents of a split-team batch, which
+                   share a batchId and so share the token. Only this panel's OWN
+                   per-issue state is released, and only while its own token still
+                   says it owns it; the shared entry belongs to whoever holds the
+                   shared token now. Raised by Codex on #1364. */
+                const releasePanel = () => {
+                    if (batchToken !== _prodState.descriptionRequestTokens.get(id)) return;
+                    state.refreshing = false;
+                    state.refreshError = '';
+                    state.status = state.hasValue ? 'stale' : 'idle';
+                };
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 try {
                     const row = await _prodReadBatchDescriptionRow(batchId);
-                    if (!batchStillCurrent()) return null;
+                    if (!batchStillCurrent()) { releasePanel(); return null; }
                     _prodState.batchDescriptionReads.set(batchId, 'ready');
                     _prodSyncBatchDescriptionRow(id, row.description, row.updated_at);
                     _prodAdoptDescriptionValue(id, row.description, row.updated_at);
@@ -57314,7 +57349,12 @@
                     if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                     return state;
                 } catch (error) {
-                    if (!batchStillCurrent()) return null;
+                    if (!batchStillCurrent()) { releasePanel(); return null; }
+                    /* This read owns the shared entry, so a failure must record
+                       itself there too. Leaving it on 'loading' stranded the
+                       direct view on its skeleton -- the case where a synthetic
+                       read supersedes an in-flight direct read and then fails. */
+                    _prodState.batchDescriptionReads.set(batchId, 'error');
                     state.refreshing = false;
                     if (state.hasValue) {
                         state.status = 'stale';
@@ -61095,6 +61135,8 @@
                 _prodState.clients = mergedClients;
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
+                // Every row here came from a complete read, so no row is partial.
+                _prodState.batchPartialRows.clear();
                 // Seeded from the raw server answer, never from the merged rows.
                 _prodAdvanceBatchDeltaCursor(batches);
                 _prodState.deliverables = mergedDeliverables;
@@ -61842,11 +61884,17 @@
                 const id = String(row && row.id || '');
                 if (!id) return;
                 const previous = byId.get(id);
-                if (previous && String(previous.updated_at || '') === String(row.updated_at || '')) {
+                /* Stamp equality means "unchanged" only for a row whose stamp
+                   came from a COMPLETE read. On a partially advanced row the
+                   stamps match while the rest of the row is still old, so this
+                   is the one case where equality must not be believed. */
+                const partial = _prodState.batchPartialRows.has(id);
+                if (previous && !partial && String(previous.updated_at || '') === String(row.updated_at || '')) {
                     if (_prodHasOwn(previous, 'description') && !_prodHasOwn(row, 'description')) row.description = previous.description;
                     byId.set(id, row);
                     return;
                 }
+                _prodState.batchPartialRows.delete(id);
                 changedIds.push(id);
                 byId.set(id, row);
             });

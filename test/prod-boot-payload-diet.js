@@ -100,7 +100,7 @@ const helpers = [
 ].join('\n');
 const hasOwnDecl = html.match(/\n\s*(?:const|function) _prodHasOwn[^\n]*\n/);
 ok(!!hasOwnDecl, '_prodHasOwn is findable (harness is not vacuous)');
-const ctx = { _prodState: { batches: [] }, console };
+const ctx = { _prodState: { batches: [], batchPartialRows: new Set() }, console, Set };
 vm.createContext(ctx);
 vm.runInContext('const _prodHasOwn = (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key);\n' + helpers
   + '\nthis.carry = _prodCarryBatchDescriptions; this.merge = _prodMergeBatchRows;', ctx);
@@ -191,7 +191,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     document: { getElementById: () => ({}) },
     _prodRender: () => renders.push(1),
     Set, Map,
-    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), projectionGeneration: 3, adapter: {} },
+    _prodState: { batches: [{ id: 'b1', updated_at: 't1' }], batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(), batchPartialRows: new Set(), projectionGeneration: 3, adapter: {} },
     _prodReadBatchDescriptionRow: async () => ctx.__answer(),
   };
   vm.createContext(ctx);
@@ -252,6 +252,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
     _prodState: {
       batches: [{ id: 'b1', updated_at: 't1' }],
       batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchPartialRows: new Set(),
       projectionGeneration: 7, adapter: {},
     },
     _prodReadBatchDescriptionRow: (id) => new Promise(resolve => { gate.resolve = gate.resolve || []; gate.resolve.push(resolve); }),
@@ -325,7 +326,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(delta.indexOf('_prodAdvanceBatchDeltaCursor(batchRows);') < delta.indexOf('_prodMergeBatchRows(batchRows)'),
     '...advanced from the server answer BEFORE the merge lets a local value near those rows');
   const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
-  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 300)),
+  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 700)),
     '...and seeded on a full load from the RAW server rows, not the merged ones');
 
   const advance = grabFunc('function _prodAdvanceBatchDeltaCursor(rows)');
@@ -346,6 +347,70 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'an empty answer leaves it alone');
   ctx.advance([{ updated_at: 'not a date' }]);
   ok(ctx._prodState.batchDeltaCursor === '2026-09-03T00:00:00+00:00', 'and an unparseable stamp cannot poison it');
+}
+
+
+// ---- 5e. a displaced reader releases what it owns (Codex #1364, round 4) ----
+/* The shared token means one reader can displace another. The displaced one
+   returned bare, leaving state.refreshing true — and the guard at the top of
+   _prodEnsureDescription refuses to start a read while that is set, so the panel
+   short-circuited on every later open and never loaded again. Reachable by
+   switching between the two synthetic parents of a split-team batch, which share
+   a batchId and therefore share the token. */
+{
+  const ensureDesc = grabFunc('async function _prodEnsureDescription(id, force)');
+  ok(/const releasePanel = \(\) => \{/.test(ensureDesc)
+    && /if \(batchToken !== _prodState\.descriptionRequestTokens\.get\(id\)\) return;/.test(ensureDesc),
+    'a displaced synthetic read releases its OWN panel state, and only while its own token still owns it');
+  ok((ensureDesc.match(/\{ releasePanel\(\); return null; \}/g) || []).length === 2,
+    '...on both exits, the superseded answer and the superseded failure');
+  ok(/_prodState\.batchDescriptionReads\.set\(batchId, 'loading'\);/.test(ensureDesc),
+    'the synthetic read takes the SHARED read state while it holds the shared token');
+  ok(/_prodState\.batchDescriptionReads\.set\(batchId, 'error'\);/.test(ensureDesc),
+    "...and records a failure there, so a synthetic read that supersedes a direct one and then fails cannot strand the direct view on its skeleton");
+  const guard = ensureDesc.indexOf("if (!force && (state.status === 'ready' || state.refreshing");
+  ok(guard > 0, 'HARNESS: the refreshing guard this protects against is real and still present');
+}
+
+// ---- 5f. a partially advanced row is never "unchanged" (Codex #1364, round 4) ----
+/* A description-only read or save writes a fresh updated_at over otherwise old
+   fields. The delta then saw matching stamps, called the row unchanged, and left
+   the batch name/status/linear_parent_ids stale until the ten-minute reconcile. */
+{
+  const merge = grabFunc('function _prodMergeBatchRows(changed)');
+  ok(/const partial = _prodState\.batchPartialRows\.has\(id\);/.test(merge)
+    && /if \(previous && !partial && String\(previous\.updated_at/.test(merge),
+    'the merge refuses to read stamp equality as unchanged for a partially advanced row');
+  ok(/_prodState\.batchPartialRows\.delete\(id\);/.test(merge),
+    '...and clears the mark once a complete row has replaced it');
+  ok(/_prodState\.batchPartialRows\.add\(batchId\);/.test(grabFunc('function _prodSyncBatchDescriptionRow(id, value, updatedAt)')),
+    'a description save marks the row partial');
+  ok(/_prodState\.batchPartialRows\.add\(batchId\);/.test(grabFunc('async function _prodEnsureBatchDescription(batchId, force)')),
+    'and so does a description-only read');
+  const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
+  ok(/_prodState\.batchPartialRows\.clear\(\);/.test(load.slice(0, 400)),
+    'a full load clears every mark, because every row in it came from a complete read');
+
+  // Executed, on the exact shape of the bug.
+  const ctx = {
+    Map, Set, String, Array, console,
+    _prodHasOwn: (row, key) => !!row && Object.prototype.hasOwnProperty.call(row, key),
+    _prodState: {
+      batches: [{ id: 'b1', name: 'OLD NAME', updated_at: 'T2' }],
+      batchPartialRows: new Set(['b1']),
+    },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(grabFunc('function _prodMergeBatchRows(changed)') + '\nthis.merge = _prodMergeBatchRows;', ctx);
+  const changed = ctx.merge([{ id: 'b1', name: 'NEW NAME', updated_at: 'T2' }]);
+  ok(changed.length === 1 && changed[0] === 'b1',
+    'THE BUG: a complete row arriving at the SAME stamp as a partially advanced local row still counts as changed');
+  ok(ctx._prodState.batches[0].name === 'NEW NAME', '...so the fresh fields land');
+  ok(!ctx._prodState.batchPartialRows.has('b1'), '...and the row is no longer marked partial');
+
+  const again = ctx.merge([{ id: 'b1', name: 'NEW NAME', updated_at: 'T2' }]);
+  ok(again.length === 0,
+    'and once it is a complete row, stamp equality means unchanged again — the mark is not sticky');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

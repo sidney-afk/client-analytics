@@ -214,6 +214,34 @@ const LANES = Object.freeze([
    */
   { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160,
     hosts: ['assurance-ledger-freshness.yml'], retired: null },
+  /*
+   * Added 2026-09-08 for the Linear exit (OPEN_REPAIRS 174). Both lanes are
+   * deliberately Linear-free: they exist to report what breaks BECAUSE Linear
+   * is gone, so a Linear credential in either would be the watcher dying with
+   * the thing it watches.
+   *
+   * Neither script pages. Each exits non-zero on a finding — and on a census it
+   * could not take — and beats under `if: always()`; this switch does the
+   * paging, with the latching, the (kind,lane) separation and the dedup already
+   * built and proven. Every watcher in this repository that grew its own alarm
+   * grew the same defect: both nightlies sat red for WEEKS because their only
+   * alarm was a Slack webhook step that degrades to a log warning when its
+   * secret is unset.
+   *
+   * The exit code is also the only channel that survives an n8n outage.
+   * `SLACK_ALERT_WEBHOOK` points at the n8n relay `Tfhc3vebZyG6obOg`
+   * (monitoring-alert-relay.js:53), so no PAGE in this estate survives n8n being
+   * down — but a red run still emails the owner through GitHub, which touches
+   * no n8n. That is why `--ok=` is bound to `job.status` and why the scripts
+   * throw rather than warn.
+   *
+   * 90 minutes for two ~30-minute lanes: three missed runs, the same
+   * cadence-plus-drift shape as the other sub-hourly lanes here.
+   */
+  { key: 'workload_source_freshness', label: 'workload source freshness', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['workload-source-freshness.yml'], retired: null },
+  { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['outbox-debt-census.yml'], retired: null },
 ]);
 
 function clean(value) {

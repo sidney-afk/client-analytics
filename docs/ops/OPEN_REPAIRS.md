@@ -20139,6 +20139,454 @@ described is still inside that function, computed the way a reader would by
 walking up to the nearest definition; and `index.html` carries no line citation at
 all, so the old style cannot creep back in beside the new one.
 
+
+## 180. [2026-09-08, lane LX-F, PART 2 PREPARED AND UNEXECUTED — the cutoff order, three watchers, and the rehearsal that turns the deadline into a test] Linear is switched off with runtime flags, no deploy, and no merge freeze
+
+**Number.** 174 is this lane's reserved number and holds part 1 (the dead-man's
+switch repair, merged separately). This entry was drafted as 175 with a note
+saying to renumber it if 175 collided. It did: by the time this branch merged
+main, `175` and `176` were each claimed twice on main already (the calendar
+deep-link pair from PR #1354, plus the exit's own naming-mint finding and the
+lane-A acceptance measurement), and `178`/`179` were taken as well. Item 168's
+rule of "spares from 176 up" is therefore exhausted. **Renumbered to 180 here,
+in the merge that discovered the collision** — the content is self-contained and
+nothing cites it by number, so no reference had to move. This entry first said
+the next free spare was 181; lane LX-N8N took 181 on `main` in the very next
+merge, having verified it free against a `main` this branch had not yet reached.
+**The next free spare is 182**, and the fact that this line went stale inside one
+merge is exactly the decay item 168 was written about.
+
+---
+
+### 1. The schedule cut: this cutoff needs no Edge Function deploy
+
+The lane was scoped to install `migrations/2026-09-06-linear-outbound-cutoff.sql`
+and deploy a cutoff-aware `linear-outbound`. That costs an **F27 Section 4
+dispatch**, which costs a **merge freeze for all six exit sessions** — the lane
+requires `commit_sha` to equal main's tip at dispatch time, and dispatches were
+rejected on 2026-09-02 and 2026-08-08 for exactly that.
+
+**It is not needed. Computed, not assumed:**
+
+- `linear-outbound/index.ts:1355` gates EVERY provider request:
+  `if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue)`. With
+  `mode:"off"` and parity false and no replay, no rows are read, `readViewer()`
+  (`:1371`) never fires, and nothing reaches `api.linear.app`.
+- `readRows` agrees independently: `mode === "off"` resolves the normal lane to
+  `[]` (`:1083`) and `parityEnabled === false` resolves the parity lane to `[]`
+  (`:1084`).
+- Both flags **fail closed**. `modeFrom` (`:164-167`) returns `off` for any
+  value outside `off`/`shadow`/`live`, so a typo stops traffic and cannot start
+  it. `readFlag` (`:183-194`) **throws** on a missing or malformed row, so a
+  deleted flag errors the drain loudly rather than falling through to live.
+  `parityEnabled` requires `.enabled === true` exactly.
+- **The deployed isolate is this code.** Live `linear-outbound` is v47 /
+  `1489a4c2…` (EXECUTION_LOG; ROLLBACK §4 deploy #28, run `34151869293`), and
+  `node scripts/ef-fingerprint.js <branch HEAD> --slugs=linear-outbound --expected-only`
+  returns the same `1489a4c2…`. There is no flag caching — `readFlag` runs per
+  invocation — so an old isolate obeys a new flag on its next request. **This
+  closes the candidate doc's "old-isolate quiescence" RED HOLD by evidence
+  rather than by a deploy.**
+
+**Recommendation: drop F1 and F2 from the exit.** Ship flags, schedulers and
+watchers. What it costs is stated in full in the runbook §0 and is not waved
+past: no server-side one-way fence, the read path stays unauthorized at the
+transport boundary, one in-flight invocation can still finish (window: one
+drain, once), no `cutoff_disposition` census, and no F27 recovery-contract
+extension. The first three are bounded; the last two are savings. F1+F2 stay
+lift-ready on `5bcc03bd` for a calm day after the exit.
+
+---
+
+### 2. What ships
+
+- **`docs/ops/LINEAR_CUTOFF_RUNBOOK.md`** — STEP 0 census through STEP 7
+  revocation, each with the fenced exact-prior-value UPDATE from
+  `FLIP_RUNBOOK.md:893-916`, what it stops, and its restore statement. Ordered
+  so the cheapest-to-reverse comes first; **there is deliberately no
+  irreversible database step.**
+- **Two watchers**, both Linear-free, both registered dead-man lanes:
+  `scripts/workload-source-freshness.js` (the board freeze nobody would see) and
+  `scripts/outbox-debt-census.js` (the debt that never reaches `failed`).
+- **The rehearsal**: `SYNCVIEW_QA_LINEAR_DEAD` in `qa/sxr_courier_lib.js`, with
+  `docs/audits/2026-09-15-linear-dead-rehearsal.md` as protocol and result form.
+
+**Neither watcher pages.** Each exits non-zero on a finding *and* on a census it
+could not take, and beats under `if: always()`; the dead-man's switch owns the
+paging, latching and dedup. Every watcher in this repository that grew its own
+alarm grew the same defect — both nightlies sat red for WEEKS because their only
+alarm was a Slack webhook step that degrades to a log warning when its secret is
+unset, and it was.
+
+---
+
+### 3. Findings, each verified against the tree
+
+**a. Ordering, and why parity must go off BEFORE the drain.** `normalStatuses`
+is `["pending","failed","shadow_ok"]` only when `mode === "live"` (`:1050`); in
+`shadow` it drops `shadow_ok`, which is never consumed. **So the drain must run
+while the mode is still `live`, and `shadow` must never be used as an
+intermediate.** And because the parity lane is dead across the stack with a
+silent-infinite-retry failure mode (item 75), draining with it on can spin on
+rows that can never leave. Order: parity off, drain, outbound off.
+
+**b. The Workload freeze has a second half the exit scoping missed.** Freeze is
+the happy path. `index.html:14553` (zero active rows) and `:14555` (read failed)
+both fall through to `LINEAR_ISSUES_WEBHOOK` — the n8n endpoint that reads
+Linear. Post-cutoff that is a dead endpoint. So the two outcomes are a silently
+frozen board or a board reaching for a corpse, and neither announces itself:
+`_wlV2CheckWatermark` (`:14485-14505`) refreshes only when the watermark moves
+FORWARD (`:14501`), and on no watermark at all it CLEARS the failure banner and
+returns (`:14491-14494`).
+
+**c. EVERY page in this estate goes through ONE n8n workflow.**
+`SLACK_ALERT_WEBHOOK` is not a Slack incoming webhook — it points at the n8n
+relay `Tfhc3vebZyG6obOg` (`monitoring-alert-relay.js:53`), and
+`confirmRelayDelivery` correlates through the same n8n API. **No Slack page in
+this repository survives an n8n outage.** The alarm and the thing it watches
+share a dependency, which is the same shape as the documented Actions-outage
+residual. What survives is the **red run**: a non-zero exit leaves the GitHub run
+failed and GitHub emails the owner, touching no n8n. That is the whole reason
+the new watchers' exit codes are load-bearing. Recorded in MONITORING.md's gaps
+section rather than fixed — a non-n8n alert path is real work and out of this
+exit's scope, and pretending the exit closed it would be worse than naming it.
+
+**d. The QA harness had the wrong polarity AND was incomplete.** It fulfilled
+`200 {ok:true}` for four hand-named webhooks, i.e. it simulated Linear WORKING,
+with no failure-injection path anywhere in the file. So every "Linear-mocked"
+result here is evidence the app survives a HEALTHY Linear. **And the browser
+calls seven, not four** — `linear-issues`, `linear-projects` and
+`linear-tweak-comments` were never intercepted, so in an open-egress environment
+a probe could reach live n8n on those three. Now a prefix match covers every
+`/webhook/linear-*`, and `api.linear.app`/`uploads.linear.app` are aborted in
+every mode.
+
+**e. Webhook count correction.** The brief says ten Linear webhooks; the review
+says "four of the ten". The tree holds **eight** distinct `/webhook/linear-*`
+names; **seven** are called by `index.html`; the eighth (`linear-status-sync`)
+is an inbound receiver Linear posts to, on a workflow MONITORING.md records as
+inactive. Honest figure: **four of seven intercepted before, seven of seven
+after.**
+
+**f. `log-linear-submission` stays untouched, and the suite enforces it.**
+Despite the name it appends to a Google Sheet and touches no Linear API. The new
+prefix regex cannot match it, and `test/linear-dead-rehearsal.js` asserts that
+directly, so the 2026-08-26 incident (the only copy of a videographer's submitted
+work living in his own browser) cannot be re-opened by a future widening.
+
+**g. The rehearsal must inject a 200.** OPEN_REPAIRS 78 records twenty legacy
+webhook calls that were silent 409s which n8n logged as `success`. A dead lane
+that still answers 200 is an OBSERVED shape here and the only one `resp.ok`
+cannot catch. The `ok_lie` fault carries `{"ok":true}` and nothing else.
+
+**h. STEP 7 gates on FOUR call sites, not two.** Confirmed against
+`production-write/index.ts`: `linearLabelsRequest` `:832` (throws `:834`/`:843`/
+`:847`), `linearRead` (`:2325`), `linearStateIdForCreate` (`:2539`/`:2548`/
+`:2556`), `assigneeProviderPool` (`:2600`). This corroborates item 165 point 3
+against the brief's "two". A rehearsal observing only two codes would be
+recorded complete while status mapping and the assignee picker were never
+exercised.
+
+---
+
+### 4. What is NOT done, and deliberately
+
+- **Nothing is executed.** No flag written, no workflow disabled, no lane
+  retired, no credential revoked, no migration installed, no n8n workflow
+  touched. The runbook is prepared and sits until the coordinator says A/B/C/D
+  are live and observed.
+- **`ROLLBACK.md` is untouched.** Its Live State table describes live behaviour,
+  and this PR changes none. Rewriting those rows now would be claiming a
+  post-cutoff state that has not happened. They move in the PR that executes the
+  cutoff. *(Separately: the `App -> Linear pushes` row still reads "current
+  Linear/Linear authority" while both teams are syncview. That looks stale, but
+  it is a claim about live state this lane did not read, so it is flagged here
+  rather than edited.)*
+- **F7 (native write drill), F9 (client-continuity lift), F10 (alarm-proof
+  lane)** are not built. F7 writes to the live backend and belongs with the
+  execution PR. F9 is a ~1,000-line lift from `5bcc03bd` whose cost is entirely
+  configuration — ~12 `CONTINUITY_*` secrets plus a read credential with proven
+  unfiltered visibility of the client scope — and it is an owner decision, not a
+  code one. F10 is small and should be done, but its whole value is a page
+  actually arriving in the SyncViewbot DM, which cannot be proven from here.
+- **No live state was read.** Not the database, not n8n's live inventory, not an
+  Actions run. Every number above is from the tree or from a computation over
+  it. STEP 0 exists precisely because the mirror_outbox census is still unread.
+- **`linear-outbound-drain.yml` still has no heartbeat and no lane.** STEP 2
+  leans on it. Registering it needs its post-cutoff disposition decided first.
+
+**Addendum, 2026-09-08, after lane B (PR #1349) merged.** Two corrections to
+this entry's own runbook, both made in the same push that merged `main` in:
+
+1. **P1 is "applied and seeded", not "merged".** `docs/ops/NATIVE_IDENTIFIER_MINT.md`
+   opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql`
+   has not been applied to the live database and no team has been seeded."* So
+   lane B landing does NOT satisfy the gate on STEP 3. Until the migration is
+   applied and each team seeded, the trigger `zzz_production_native_identifier_mint`
+   does not exist and flipping outbound off still costs every new card its name.
+   The runbook now says so and names the read-back that proves it.
+2. **The mint is at `:852`, not `:857`.** Items 162 and 163 name `:857`; the
+   runbook copied that. Verified against the source: the two minted values are
+   `clean(completeIssue.identifier)` at `:852` (into
+   `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into
+   `deliverable_write`). Lane B's item 170 records the identical correction
+   independently. The conclusion is unchanged; only the line number was off.
+
+Ledger numbering after the merge: `main` holds 160, 161, 162, 170 (lane B) and
+174 (this lane's part 1); this branch adds 175. No collision — lane C's claim on
+175 has not merged. Duplicate check after merging `main` returns only the four
+headers (`13`, `14`, `22`, `23`) item 168 records as predating this program.
+
+**Addendum 2, 2026-09-08 — three P1 findings from the Codex review of PR #1350,
+all verified against the tree and all fixed in the same push.** Recorded because
+one of them is a real gap that is NOT closed here and belongs to someone else.
+
+**F1. Four probes bypass the dead-Linear interceptor entirely (NOT FIXED — needs
+an owner for `qa/probes/**`).** `SYNCVIEW_QA_LINEAR_DEAD` is honoured by
+`qa/sxr_courier_lib.js`. `p28_linear_sync.js`, `p29_linear_kasper.js`,
+`p30_linear_client.js` and `p36_full_sync.js` each register their own
+`ctx.route('**/webhook/linear-…')` fulfilling `200 {"ok":true}` unconditionally,
+and a later-registered Playwright route wins. **So a full-manifest run with dead
+mode on exercises HEALTHY Linear for exactly the status-and-comment write flows
+the rehearsal most needs to see die.** This is the same defect one layer out from
+the wrong-polarity mock this lane was created to correct, which is itself the
+lesson: the correction has to be checked, not assumed.
+
+Not fixed here because `qa/probes/**` is not among this lane's files and the
+house rule is to write the need into the ledger rather than edit another lane's
+file. **The fix is small and mechanical: four files, roughly four lines each —
+each probe's `route.fulfill` becomes a call that honours the mode.** Until then
+the audit names all four as unrehearsed and
+`test/linear-dead-rehearsal.js` enforces the exclusion list against the probe
+directory in both directions: a fifth self-mocking probe fails the suite until
+it is converted or listed, and removing a probe from the list while it still
+self-mocks fails too. Both mutations confirmed red.
+
+**F2. The runbook named workflows without their direct Actions URL.**
+`AGENTS.md` carries an explicit owner directive (2026-09-01, "after being asked
+twice in one session"): when telling the owner to run a workflow, always give
+`https://github.com/sidney-afk/client-analytics/actions/workflows/<file>.yml`,
+never the display name in prose, because he runs these by hand from the Actions
+UI. STEP 2's drain dispatch and STEP 6's disable list now carry direct links.
+`CLAUDE.md` says the same thing; the runbook simply did not follow it.
+
+**F3. The documented epoch switch was impossible, and the design behind it was
+wrong.** The watcher exposed `WORKLOAD_SOURCE_TABLE` and told lane A to repoint
+it at the native source at handover. Both arms of
+`migrations/2026-09-02-workload-native-view.sql` return
+`null::timestamptz as synced_at` (`:177`, `:294`), and the migration says why at
+`:147` — *"`synced_at` IS NULL. Native IS the source; there is no sync to
+stamp."* Repointing would have failed `no_timestamp` on **every** run and
+latched a permanent incident on the day of the handover.
+
+That null is correct, and it exposes the deeper error: **freshness is the wrong
+question for a native source.** This lane exists because `workload_issues` is a
+MIRROR, and a mirror can stop being refreshed while still looking full. A native
+table cannot go stale that way — it IS the data. So the handover is a
+RETIREMENT, not a repoint: `retired: {at, reason}` on the lane plus unscheduling
+its workflow, in one commit, with `test/monitoring-watchdog.js` enforcing the
+pairing both ways. The workflow, the script and the MONITORING.md row now all
+say so, and `WORKLOAD_SOURCE_TIMESTAMP_COLUMN` is exposed alongside the table so
+the variables remain usable for a genuinely different mirror if one ever exists.
+
+**Worth noting for the program:** all three were caught by an automated reviewer
+reading a PR whose own subject is "monitors that lie about what they cover".
+F1 and F3 are both instances of that same shape. The estate's habit of checking
+its claims with a test rather than a sentence is what turned two of them into
+one-line enforcement instead of a note nobody re-reads.
+
+**Addendum 3, 2026-09-08 — F1 is CLOSED, by another session, and the guard that
+keeps it closed changed shape.** Addendum 2 recorded F1 (four probes bypassing
+the dead-Linear interceptor) as a real gap this lane declined to fix because
+`qa/probes/**` is not its files. A coordinator session took it and pushed
+`4553bb3` onto this branch: p28/p29/p30/p36 now answer through one shared
+`qa/probes/linear-hook-fulfil.js`, which consults the same rotation
+`qa/sxr_courier_lib.js` uses. They could not simply drop their routes and inherit
+the library's because they still need to RECORD the calls they intercept.
+Measured in that commit, six calls in dead mode:
+`ABORT · 502 · 504 · 200 · ABORT · 502`; healthy mode `200 · 200 · 200 · 200`;
+before it, dead mode was `200` every time.
+
+**The guard this lane wrote for F1 was the wrong shape, and two mutations proved
+it.** It asserted that a self-mocking probe must be NAMED in the audit as
+unrehearsed. Two things were wrong with that:
+
+1. **It was a list, and lists rot.** An exclusion list has to be maintained by
+   whoever adds the next probe — exactly the person who does not know it exists.
+2. **It was per-FILE, not per-HANDLER.** Each of these probes registers TWO
+   Linear routes. Reverting one of them to a hard-coded `200 {"ok":true}` left
+   the other `fulfilLinearHook` reference in the file and the check stayed green.
+   A second mutation — deleting the helper's `if (!LINEAR_DEAD)` branch entirely —
+   also passed, because the token `LINEAR_DEAD` still appeared in the file's
+   import and exports. **Both mutations proved the assertion rather than the
+   code, which is the exact failure this lane spent its whole length hunting.**
+
+Replaced with the property that actually matters and cannot rot: every Linear
+route handler in `qa/probes/` is sliced out by BALANCING PARENS from its
+`.route(` — the probes are written both multi-line and single-line, and a regex
+tuned to one shape found nothing in the other — and each handler must answer
+through the helper and must never fulfil directly. The helper must branch on
+`LINEAR_DEAD`, must ABORT for the refused shape rather than fulfil it (reporting
+an aborted request as a 200 says the opposite of what happened), and must keep
+healthy mode byte-identical. All four mutations now go red, including the two
+that previously slipped past.
+
+**Worth recording for the program, because it happened three times in this one
+lane:** the wrong-polarity mock, the freshness watcher pointed at a source with
+no watermark, and now a guard that passed while the thing it guarded was broken.
+Each was a claim that looked checked and was not. The only thing that caught any
+of them was running the mutation and watching it fail to go red.
+
+**Addendum 4, 2026-09-08 — a second Codex pass, and the guard had a hole from the
+start.** Three more P1 findings on PR #1350, all verified, all fixed.
+
+**G1. A rotating dead-mode run proves the fault DISTRIBUTION, not that any given
+write flow met any given fault.** The rotation hands each intercepted call
+whichever shape is next on a shared counter; probes record payloads but not the
+shape they were given; `p30` starts several actions before settling and `p36`
+shares one counter across three contexts. A probe making only two calls (`p29`
+typically) can never see all four shapes in one run — so R10 read as satisfied
+while a flow might never have met `ok_lie`, the one shape `resp.ok` cannot catch.
+The audit now requires FOUR PINNED RUNS, one per shape, and adds R11 (the four
+runs happened) and R12 (the write flows survived `ok_lie` specifically, judged by
+a person).
+
+**G2. The detector this lane wrote to make F1 un-rottable was itself rotten, and
+this is the fourth instance of the same shape in this lane.** It matched only
+route patterns that spelled a Linear webhook LITERALLY. Three more probes build
+theirs by concatenation —
+`for (const wh of ['linear-set-status', …]) ctx.route('**/webhook/' + wh, …)` —
+so `p47_title_review.js`, `p60_modal_smm.js` and `p68_linear_link_clear.js` were
+never seen, and the offline test passed while all three still exercised a healthy
+Linear during the documented full-manifest dead run. **There were seven, not
+four.** All three are now converted to the shared helper, and the detector keys on
+the WEBHOOK NAMES near the registration — pattern plus a 250-character lookback
+that reaches the loop header — rather than on the shape of the pattern string.
+
+One deliberate exclusion, recorded so nobody "fixes" it:
+`ot4_t1_submit_intake_guards.js` has a `route('**/*')` catch-all naming two Linear
+paths, but it is a sealed fixture whose default is `route.abort` — it refuses
+everything it does not name and is not pretending Linear is healthy. Classifying
+on the PATTERN rather than the whole handler body keeps it out without loosening
+the check, which matters: the alternative was a false alarm that someone would
+eventually silence by weakening the rule.
+
+**G3.** `qa/probes/linear-hook-fulfil.js` was missing from `REPO_MAP.md`. Added.
+
+**The count for this lane is now four guards that looked checked and were not:**
+the wrong-polarity mock, the freshness watcher aimed at a source with no
+watermark, a per-file assertion that survived reverting one of two handlers, and
+now a detector blind to string concatenation. Every one was found by an
+adversarial reader or a mutation, never by reading the code again. That is the
+transferable lesson from this lane, and it is worth more than any single fix in
+it: **write the mutation and watch it fail to go red.**
+
+**Addendum, 2026-09-08, after merging main (`81a7b55`) — the LX-RESTORE
+correction that lands on this lane, and the one it does not.** Item 179 point 6
+reports that brief F's cutoff `undo:` drops "the four functions" where
+`migrations/2026-09-06-linear-outbound-cutoff.sql` creates **seven** — four
+service-only RPCs plus three trigger functions sharing their triggers' names.
+Checked against the runbook rather than assumed: cost item 5 of §0 already counts
+"7 functions, 3 triggers, 1 view, 1 table, 4 columns, 1 check constraint", so the
+runbook was independently right and needs no correction. The brief is the wrong
+document, and this lane does not execute it — §0's whole argument is that the
+migration is not installed at all, so its undo is never taken on the prepared
+path. **What did change:** the "if the owner wants the fence anyway" pointer at
+the end of §0 now carries an explicit warning not to reuse the brief's undo for
+that later lift, plus the fact that the migration is not re-runnable, so a partial
+undo cannot be repaired by re-applying it. That pointer was the one place a reader
+could have left this runbook holding a defective procedure.
+
+**Ledger numbering, same merge.** This entry moved 175 → 180 (see **Number.**
+above). Item 168's "spares from 176 up" rule is spent: on `81a7b55` the numbers
+175 and 176 are each claimed twice and 178/179 are taken. **Superseded one merge
+later:** lane LX-N8N claimed 181 on `main`, so the next free spare is **182** —
+see the **Number.** paragraph above. The four pre-existing duplicate headers item
+168 baselines (13, 14, 22, 23) are still four; neither merge added a new one.
+
+**Proof bar on the merge.** `npm test` on the merge commit: 1 of 419 suites
+failed, `test/truth-sync.js`, at **515 passed / 14 failed** — the documented
+shallow-clone baseline, no delta. `node test/f27-reconciler-closure.js` passes 37
+assertions, so the `scripts/monitoring-watchdog.js` closure pin still verifies
+after main absorbed part 1 (PR #1348, `e797444`). The merge brought main's
+`index.html` changes into the branch, as merges do; `git diff origin/main...HEAD`
+lists no `index.html`, so this lane still touches none of it.
+
+
+**Addendum, 2026-09-08, after merging main (`7291b55`) — a fifth guard that
+looked checked and was not, found by another lane.** OPEN_REPAIRS 181 (lane
+LX-N8N) names four webhooks that reach Linear through their n8n workflow while
+carrying no `linear-` prefix: `editors-week`, `send-urgent-slack` (shaped like a
+Slack write, but it resolves the issue's *current Linear assignee* to pick the
+mention), `video-form` and `graphic-form`. Verified against this tree —
+`index.html` calls all four, and `LINEAR_HOOK`'s prefix match sees none of them.
+
+**Why this mattered more than a missed pattern.** The rehearsal's whole purpose
+is to answer "does the app survive Linear being unreachable". Counting `linear-*`
+names answers a different question — "which Linear-NAMED webhooks are
+intercepted" — and the two look identical until something reaches Linear without
+the name. Left as it was, a dead-Linear run would have sent these four to real
+n8n and a **healthy** Linear, then reported four Linear-dependent flows as
+surviving Linear's death on the strength of them having used a live one. That is
+this mode's own founding polarity error, one layer further out, and **it would
+have passed every assertion already in the suite.**
+
+**The fix is dead-mode only.** `LINEAR_BACKED_HOOK` intercepts the four under
+`if (LINEAR_DEAD)` and nowhere else. Healthy mode is untouched deliberately: the
+courier has never mocked these four (one probe,
+`ot4_t1_submit_intake_guards.js`, mocks `video-form`/`graphic-form` itself), so
+mocking them in normal mode would silently change every existing probe rather
+than only the rehearsal. `kasper-queue` is excluded alongside
+`log-linear-submission` — it reads Sheets and survives Linear untouched.
+
+Six mutations, each confirmed red before the fix was called done: dropping
+`send-urgent-slack` from the pattern; widening it until it swallows
+`log-linear-submission`; unanchoring the path boundary so it matches by prefix;
+pinning the backed branch to one fixed fault instead of the rotating sequence;
+firing the branch in healthy mode; and swallowing the `refused` shape with a 200
+instead of aborting.
+
+**The count for this lane is now five**, and the fifth is the one worth keeping:
+the four before it were found by an adversarial reader or a mutation of my own
+code. This one was found by **another lane's inventory of a system I had not
+inventoried** — I had counted the webhooks whose names contained the word I was
+looking for. No amount of re-reading my own regex would have surfaced it, and no
+mutation of my own file would either, because the missing names were never in it.
+
+**Addendum, 2026-09-08, after merging main (`8ea7809`) — my STEP 3 precondition
+was one step short, and the missing step is the whole gate.** The coordination
+lane's `docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` landed on `main` and
+flagged that an earlier draft of its own P1 named only three of the mint's four
+live actions. This runbook's P1 had the same defect: it said the mint must be
+"APPLIED AND SEEDED", which is steps 1-3.
+
+Verified against the primary source rather than the summary —
+`docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` lists four actions and says of the
+fourth, in its own words, *"Step 4 is what lane F's outbound-off step waits on."*
+Step 4 flips `syncview_runtime_flags.production_native_identifier_mint` to
+`{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`,
+and `production_native_identifier_capability(team)` returns `native` only when
+the flag says native **and** a seed row exists. Stop after step 3 and the
+allocator is installed and refusing: the mint is inert, a new card still takes
+its name from Linear, and STEP 3 produces the precise nameless-card failure P1
+exists to prevent.
+
+**Why this one is worth recording rather than just fixing.** A precondition that
+is three-quarters right is more dangerous than one that is absent, because it
+gets ticked. An operator who applied the migration and seeded both teams would
+have read P1, found it satisfied, and run STEP 3 into an inert mint. P1 and STEP
+3 now both name all four steps and mark step 4 as the gate, with its undo
+(`{"mode":"provider"}` per team) beside it.
+
+**The check that already covered this, and why it stays.** P1 has always ended
+with an empirical readback — create one card on `sidneylaruel` and read back a
+non-null `deliverables.linear_identifier` that Linear did not mint. That test
+fails correctly against a half-done gate no matter how the prose is worded, which
+is the argument for ending every precondition in an observation rather than a
+checklist. It is now stated as the check that cannot be satisfied by a half-done
+gate, and ordered before the second team is seeded.
+
+
 ## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
 
 `181` was verified free before writing: the ledger's numbers run 1–129, 134–162,
@@ -20266,6 +20714,261 @@ code. Its dispositions remain the best thinking available; only the coordinates
 are gone. This is the same defect class as the truncated briefs and the
 mis-scoped reversibility quote, in its third distinct shape: **a document that is
 correct about what it says and wrong about where it points.**
+
+**Addendum, 2026-09-08 — the §0 headline was scoped correctly in its evidence and
+not in its sentence, and STEP 7 counted the wrong unit.** PR #1360 (the
+coordination lane, unmerged at the time of writing) reports that labels reach
+Linear from `production-write` ungated, and — more usefully — describes the trap
+that produced it: *"I replaced a generalisation with an enumeration and did not
+verify the enumeration, which produces a more confident wrong statement than the
+vague one it replaced."* Both halves apply here, verified against the tree rather
+than taken from the report.
+
+**1. §0's claim was true and read wider than it is.** Every citation in it is to
+`supabase/functions/linear-outbound/index.ts`, and the conclusion — the outbound
+mirror stops on a flag, with no deploy — holds exactly as computed. But the
+sentence *"no request reaches `api.linear.app`"* sits under a heading about the
+whole cutoff, and a reader can carry it further than the evidence goes.
+`production-write` reaches `api.linear.app` (`:241`, `:2291`) through four helper
+functions that **no runtime flag gates**. It declares
+`const OUTBOUND_FLAG = "linear_outbound_enabled"` at `:239` and never reads it
+again — **the constant is dead**, so nothing in STEP 1-4 touches those reads. §0
+now states the scope in its own words: the flags stop the outbound mirror, they do
+not stop production-write, and nothing in this runbook claims otherwise. Which
+was already the runbook's structure — P5 and STEP 7 exist for precisely these
+reaches — but structure is not a sentence, and the sentence is what gets quoted.
+
+**2. STEP 7 said "all FOUR of production-write's Linear call sites" and there are
+nine.** Four HELPERS reach the API, through nine direct call sites, depended on by
+five request handlers (`handleLabelsRead`, `handleEntityOperation`,
+`handleCreateOptions`, `handleProductionCreate`, `handleAssigneeOptions`) plus five
+intermediates. "Four" was right about helpers and wrong about call sites, and the
+row gave one number for both. Worse, the label row's staff-visible column named
+only *"cannot pick a label"* — the same helper also serves the label **read**
+(`:4947`) and the label **write on an existing card** (`:5491`). Three surfaces,
+one helper, one named. The table now separates helpers from call sites, because
+they answer different questions: helpers are the unit for *what lane B removes*,
+call sites are the unit for *whether they all went*.
+
+**The pattern, stated because it is now three for three today.** P1 named three of
+four mint steps. The rehearsal counted `linear-*` names instead of Linear
+dependencies. STEP 7 counted helpers and called them call sites. Every one is an
+enumeration that replaced a vaguer statement and was never itself checked against
+the tree — and each read as *more* authoritative than what it replaced, which is
+the actual harm. **An enumeration is a claim about completeness; it needs the same
+verification as any other claim, and more than the generalisation it improves on.**
+
+**Addendum, 2026-09-08 — STEP 7 named a failure that cannot happen, and P1 copied
+a line its own source has since retracted.** Two more from PR #1360's later
+rounds, both verified against the tree here rather than accepted from the report.
+
+**1. "Revoking turns *create a deliverable* and *pick a label* into 503 for
+staff" was half wrong, in the direction that inflates urgency.** Production
+create has been closed since the owner's 2026-08-23 ruling, and the closure is
+enforced in **two independent places that do not reference each other**:
+`handleProductionCreate` throws `403 production_create_closed` at
+`production-write:3592`, which is **above** its Linear reaches at `:3604`/`:3605`;
+and `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` as its *first
+statement* at `index.html:53854`, above code the source labels *"kept,
+unreachable, as the exact undo if the ruling is ever revisited"*. So the create
+path never touches Linear from either side.
+
+The surfaces that ARE live on revocation are label **read** (`handleLabelsRead`
+`:4947`), label **write** on an existing card (`handleEntityOperation` `:5491`),
+and the **assignee picker** (`handleAssigneeOptions`, reached from
+`index.html:50116`, not behind the create gate). STEP 7 now names those three and
+says why creating is not among them. Naming a failure that cannot happen is not a
+harmless over-warning: it spends the reader's attention on the wrong row and
+makes the other three look like part of a list they can discount.
+
+**One that is neither live nor safe, and needs its own row:** `handleCreateOptions`
+has **no closure check at all** — it validates surface and goes straight to
+`linearLabelCatalog` + `mappedCreateAssignees`. It is unreachable only because both
+browser entry points render disabled. **A live endpoint behind a dead UI**, which
+becomes staff-visible the moment the create ruling is revisited. The transferable
+fact about this codebase: **reachability here has two halves that do not cite each
+other, and tracing one teaches you nothing about the other.**
+
+**2. P1's proof step said "before seeding the second team". Its own source
+retracted that.** Steps 2 and 3 seed both teams; a seed row is inert until the
+flag moves, so the per-team caution belongs on the **step-4 flag transition**, the
+only step that changes behaviour. I had copied the source's sentence at the same
+time as correcting the source's omission of step 4 — reading it closely enough to
+find one defect and not closely enough to notice it contradicted its own table
+four lines above. Now reads *"before flipping the second team's flag"*.
+
+**The through-line for whoever reads this ledger later.** Every defect in this
+lane's docs today has been a **derived artefact disagreeing with a source that was
+itself correct** — the table, the checklist, the summary sentence. The facts have
+been right and the restatements wrong. That is the opposite of where review
+attention naturally goes, and it is concentrated in exactly what a hurried
+operator actually reads.
+
+**Addendum, 2026-09-08 — the live-surface table I had just corrected was still
+missing the common case.** One round after STEP 7's live/not-live table was
+written, PR #1360 found that appends reach the provider by a route nobody had
+traced. Verified here independently against the tree:
+
+`parentRouteForAppend` (`production-write:2359`) calls `validateLinearBatchParent`
+— a `linearRead` caller — whenever `validateExternal` is true, and it is true at
+all three append sites. `handleComponentFill:6038` passes **seven** positional
+arguments, so `validateExternal` takes its default `true`. `handleIntakeCreate`
+`:6701` and `:6721` pass **eight**, with `validateExternal = !exactRowRetry`,
+which is `true` on any normal append. Counted argument by argument rather than
+inferred from the signature, because the positional default is the whole
+mechanism.
+
+**So two more staff surfaces go 503 on revocation — component fill, and every
+append into an existing batch — and the second is the case most staff hit most
+often**, since most posts join a batch that already exists. STEP 7 now carries
+both rows and says so in the summary sentence.
+
+**Why this one is instructive rather than just another miss.** The route reaches
+Linear through neither the create path nor `projectForIntake`. Anyone tracing "how
+does a post reach the provider" from the create flow — which is the obvious place
+to start, and where I started — never arrives at it. The same blind spot produced
+a proposed repair AND the acceptance checks meant to prove that repair, because
+both were derived from the same reading. **A check derived from the same trace as
+the fix cannot catch what the trace missed.** The argument that follows, and it
+is the one worth carrying out of this lane: derive acceptance criteria from an
+inventory of the operations a person performs, not from the code path you happened
+to follow.
+
+**Running count for this lane's documents today: six.** Three of four mint steps;
+`linear-*` names counted as Linear dependencies; helpers counted as call sites; a
+warning about a failure that cannot happen; a retracted line copied forward; and
+now a live-surface table missing the commonest surface — written one round after
+the table itself was the correction. Every one a derived artefact disagreeing with
+a source that stayed correct.
+
+**Addendum, 2026-09-08 — a DELIBERATE sweep of this runbook's own derived
+artefacts, run instead of waiting for the seventh finding.** Six corrections
+today had all arrived the same way: another lane found a restatement of mine that
+had drifted from a source that stayed correct. Rather than wait, I swept the
+runbook's tables and preconditions against their sources. Four findings, all mine,
+none reported by anyone.
+
+**1. STEP 6's list omitted a scheduled job it should have decided about.**
+`linear-outbound-drain.yml` (cron `*/10`) keeps invoking `linear-outbound` every
+ten minutes forever after STEP 3. It is genuinely harmless — `mode:"off"` makes
+`readRows` return `[]` — and that is exactly why it survives: it holds no Linear
+credential so the cutoff inventory never flags it, and it has no lane so the
+dead-man's switch never mentions it. STEP 6 now requires a decision (disable, or
+register as retired) rather than leaving it running by omission.
+
+**2. The nightlies will keep proving the app survives a Linear that is gone.**
+`grep -l SYNCVIEW_QA_LINEAR_DEAD .github/workflows/` returns **nothing**.
+`samples-e2e-nightly.yml` and `calendar-e2e-nightly.yml` run the probe manifest on
+a schedule with Linear mocked HEALTHY, and nothing flips them at the cutoff. From
+2026-09-16 both go on passing, green, every night, against a Linear that has been
+switched off. **This is this lane's founding polarity error at the schedule level
+rather than the harness level** — and it would have shipped inside the very PR that
+exists to correct that error. STEP 6 now carries the flip, with its one-line undo,
+its verification (a run whose `linear_calls.jsonl` has `dead` values), and the
+reason it must happen AT the cutoff and not before: flipping today turns both
+nightlies red for a condition that is not yet true, and a red nightly everyone
+learns to ignore costs more than the gap it announces. **The runbook does not edit
+those workflows** — they are not this lane's, and the change would alter behaviour
+before the cutoff.
+
+**3. Extending STEP 6 silently invalidated its own abort row.** §4 row 6 said
+"re-enable workflows/nodes; un-retire the lanes". Two paragraphs after adding two
+new actions to STEP 6 I had left its undo describing the old step. Caught in the
+same pass that created it, which is the argument for sweeping a change against the
+table that summarises it *in the same edit* rather than trusting the next reader.
+
+**4. P4 gated nothing.** `P4` appeared exactly once in the document: its own row.
+P1/P2/P3 name STEP 3, P2 names STEP 6, P5 names STEP 7 — and the census
+precondition named no step at all. It now gates STEP 3, which is where it belongs:
+after outbound goes off the queue stops being consumed, so whatever the census
+would have shown is what you freeze in place. **A precondition no step references
+is decoration, and a reader who notices that is entitled to conclude the same
+about its neighbours.** Also corrected in the same table: P1's row TITLE still read
+"APPLIED AND SEEDED", the exact three-of-four formulation whose correction is
+spelled out inside the cell — the stale summary sitting directly above its own fix,
+which is the one line a hurried reader actually scans.
+
+**What the sweep is worth as a method.** Six findings came from other lanes reading
+my documents; four came from reading my own with the specific question *"which
+sentence here is a restatement, and have I checked it against what it restates?"*
+That question is cheap, it is answerable without any live access, and it found
+things in twenty minutes that six rounds of review had not. It belongs in this
+lane's handover as the standing check, not as a one-off.
+
+**Addendum, 2026-09-08 — the sweep continued, and its first catch was the sweep's
+own newest sentence.** Four more, all mine, all found by the same question.
+
+**5. `dead` in the log does not mean dead mode ran, and I had just written a
+verification that assumed it did.** The `api.linear.app` guard writes
+`{path:"api.linear.app", dead:"refused"}` **in every mode, healthy included** —
+deliberately, as a belt so a real-browser probe can never mutate a real editor's
+issue (`sxr_courier_lib.js:595-600`, comment: *"ALWAYS refused, in every mode"*).
+So any check of the form *"the log contains `dead` values"* passes on an ordinary
+healthy run. STEP 6's nightly-flip verification said exactly that, written **hours
+earlier in the same sitting that established sweeping restatements as this lane's
+standing check**, and the rehearsal's R10 row was loose in the same direction.
+Both now require `dead` values on rows whose `path` is a webhook name, or a
+`backed:true` row, which exists only in dead mode. The check caught its own
+author's newest sentence, which is the most useful thing it could have done.
+
+**6. The rehearsal gated nothing — the same defect as P4, in this lane's
+headline deliverable.** The session brief called the Linear-dead rehearsal the
+thing that converts the deadline from a hope into a test. It was mentioned in §0's
+argument and in the "what this runbook does not cover" list, and **no step
+required it.** Now **P6**, gating STEP 3 and STEP 6's nightly flip.
+
+**7. And P6 turned out to be load-bearing for the monitoring estate, not just for
+confidence.** `samples_e2e_nightly` and `calendar_e2e_nightly` are REGISTERED
+dead-man lanes (`monitoring-watchdog.js:135-138`, `max_age_minutes: 2160`). The
+STEP 6 nightly flip I had added 30 minutes earlier would, if done before the app
+actually survives a dead Linear, fail both nightly — latching `failing` and
+emailing a red run every day. **That is precisely the harm this lane's part 1
+(#1348) existed to remove for the four Linear-credentialed lanes, re-created with
+two different lanes by my own newest instruction.** I had checked the flip against
+the nightlies and not against the watchdog's lane list. Both documents were mine
+and I had read both today.
+
+**8. A placeholder path in the one line telling a reader where the rehearsal is.**
+§5 cited `docs/audits/2026-09-XX-linear-dead-rehearsal.md`. The file is
+`2026-09-15-...`. `XX` resolves to nothing; the citation had never been followed by
+anyone, including me. Same class as LX-N8N's finding that every line number in
+`LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead — a reference that was correct
+when written as a placeholder and never became real.
+
+**Where the count stands: six from other lanes, eight from sweeping my own.** The
+sweep is now clearly the higher-yield of the two, and finding 7 says why: it caught
+an interaction between two documents I had *both* written and *both* read the same
+day. Reading a document for correctness and reading it against every other
+document that constrains it are different activities, and only the second one finds
+this class.
+
+**Addendum, 2026-09-08 — the sweep's last pass, and a gap measured rather than
+filled.** Comparing `docs/ops/MONITORING.md` against `LANES` in
+`scripts/monitoring-watchdog.js` line by line: **three registered lanes appear
+nowhere in the coverage document** — `monitoring_watchdog`, `samples_e2e_nightly`
+and `calendar_e2e_nightly`. All three latch and page exactly like the lanes the
+document does list. An operator reading MONITORING.md to answer *"what will wake
+me, and why"* gets an answer short by three, **including the watchdog's own lane**
+— the mechanism that reports every other lane's silence is itself absent from the
+file that catalogues what reports what.
+
+This is pre-existing and not created by this PR. Two of the three, though, became
+load-bearing for this lane an hour ago: STEP 6's nightly flip acts on precisely
+`samples_e2e_nightly` and `calendar_e2e_nightly`, which is finding 7 above, and P6
+now gates it.
+
+**Recorded, not fixed, and the distinction is deliberate.** Writing coverage rows
+for three lanes this lane did not build would mean inventing detail about other
+people's work — what each proves, what its failure means, what an operator should
+do about it. **A confidently wrong row in a coverage document is worse than an
+acknowledged absence**, because the absence at least prompts someone to look. The
+measurement is the deliverable; the rows belong to whoever owns those lanes.
+
+**Final count for the day: six findings from other lanes reading my documents,
+nine from reading them myself against the documents that constrain them.** The
+method is written up in this ledger and in the runbook's own handover section
+rather than left as a habit, because the next session will not have watched it
+work.
 
 ### Addendum, 2026-09-08 — there is a SECOND Linear exit programme, and the document that spans every lane did not know
 
@@ -21166,3 +21869,113 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+**Addendum, 2026-09-08, after merging main (`b42f702`) — PR #1360 merged and hands
+this lane a precondition, correctly.** The coordination lane's own words, now on
+main: its entry gate *"is a note in a coordination document rather than an enforced
+precondition"* until this runbook carries it, because **the operator at cutoff time
+has `LINEAR_CUTOFF_RUNBOOK.md` open, not that file.** That reasoning is right and
+the handoff is accepted in full: **P7, P7a, P7b, P7c**, gating STEP 3.
+
+**The finding underneath it is a real defect in this lane's rehearsal, and it is
+the sharpest one of the day.** My result form R1-R12 checks that surfaces render,
+that two writes commit, and that the harness did its job. **Not one row requires a
+post to be creatable.** So a rehearsal in which Calendar post, Samples/SXR post,
+staff submission, append, component fill, label, assignee and client-link
+submission **all refused cleanly** would have completed the form and been read as a
+pass — because "fails cleanly" is what a rehearsal is usually looking for.
+
+**On the intake paths, failing cleanly is the DEFECT, not the proof.** Those
+surfaces read Linear through `production-write`, and none of the held PRs changes
+that file. This is not a wording problem: the rehearsal is this lane's answer to
+"does the app survive Linear being unreachable", and it was capable of answering
+yes while every write path was dead.
+
+Both documents now carry the eight checks as behaviour that must **succeed**, with
+`3b` (append into an existing batch) and `4` (component fill) as separate rows
+because `projectForIntake` alone does not cover them — `parentRouteForAppend`
+reaches `validateLinearBatchParent` independently, which this lane confirmed at
+`handleComponentFill:6038` and `handleIntakeCreate:6701`/`:6721` before the handoff
+arrived. **P7a** carries the live `write_ui_reroute_clients` read, without which all
+eight can pass on TEST while real clients still take the legacy lane, and which the
+two live-state docs disagree about. **P7b** carries the three read checks with the
+cache defeats each requires: `_kasperLoadEditors(false)` returns **with no network
+call at all** on a cache hit, and `wlFetchTweakComments` skips inside a five-minute
+TTL, so "I set dead mode and the panel rendered a real week" proves nothing.
+**P7c** requires the `send-urgent-slack` decision to be recorded either way.
+
+**The pair worth keeping, because this lane has now produced one of each.** A clean
+refusal read as a pass (the write trap) and a cached render read as a pass (the read
+trap). **Both come from checking the surface instead of the path** — and both were
+invisible to me while I was checking that my documents agreed with each other,
+because the documents did agree. They were agreeing about the wrong question.
+
+**Running total: fifteen findings from sweeping my own documents and from other
+lanes reading them, plus this one — the first that no amount of internal
+consistency-checking could have surfaced.**
+
+**Addendum, 2026-09-08, after merging main (`2c87a94`) — the decaying-citation
+failure arrived on schedule, one merge after I wrote about it.** PR #1361 changed
+`supabase/functions/production-write/index.ts` by 89 lines. **Ten of this
+runbook's line citations shifted in that single merge:** `handleCreateOptions`
+3335→3362, `handleProductionCreate` 3523→3550, the `production_create_closed`
+throw 3592→3619, the create-path Linear reads 3604/3605→3631/3632, the label
+snapshots 4947→4974 and 5491→5518, component fill 6038→6065, the appends
+6701/6721→6746/6766, plus `_prodCreateGateText` 53854→53860 and the
+`assignee_options` caller 50116→50122 in `index.html`. Eighteen occurrences
+corrected against `2c87a94`.
+
+**This is exactly what OPEN_REPAIRS 181 records against
+`LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`** — *"not one range still points at its
+code"* — happening to a document written by a session that had read that finding
+the same day and used it as an example. The gap between knowing a failure mode and
+being subject to it is apparently one merge.
+
+**The fix is a convention, not a correction.** STEP 7's table now opens with a
+warning that these numbers decay, lists which ones already did, and instructs the
+reader to **read the symbol, not the number**: every citation names a function or a
+literal precisely so `grep -n 'function handleComponentFill'` re-finds it in one
+command. A line number is a cache of a lookup, with no invalidation; the symbol is
+the lookup itself. The numbers stay because they are useful when fresh, and are now
+labelled with the commit they were fresh at.
+
+**What this says about the cutoff, and it is the reason this is a ledger entry
+rather than a commit note:** the runbook will be read on a day when `main` has
+moved again, by an operator following it literally, on the surfaces that break
+clients. **Every `production-write` citation in it must be re-verified by symbol at
+cutoff time.** That instruction is now in the document rather than only here.
+
+**Addendum, 2026-09-08, after merging main (`709b79c`) — two lanes moved the same
+pinned file, and neither side's pin described the result.** PR #1363 changed
+`scripts/monitoring-watchdog.js`, which this lane's brief reserves to it, while
+this branch was also changing it. Both sides therefore re-pinned the same closure
+member, and **the merge produced content that neither recorded hash matched** —
+mine (`4a884593…`) described a file with two lanes registered and the old
+threshold; main's (`c1a773a3…`) described one with the new threshold and no new
+lanes. The merged file has both.
+
+Resolved by recomputing against the merged content (`c2cc93ab…`) and writing **one
+note covering both changes**, since a pin whose note explains only half of what
+moved is a pin nobody can review. The note keeps main's distinction between the
+**threshold** (180 → 360 for `monitoring_watchdog`) and the **detection time**
+(threshold plus the observation interval, near 634 minutes, an estimate from the
+worst observed host gap rather than a bound) — that separation is the error main's
+lane had to correct twice, and flattening it back on merge would have undone their
+work silently.
+
+`MONITORING.md` conflicted the same way: my three new coverage rows against main's
+rewritten dead-man row. Kept all three of mine plus **main's** version of the row
+they changed, rather than mine.
+
+**Worth noting for the coordinator, without complaint:** the brief assigned
+`scripts/monitoring-watchdog.js` to this lane exclusively, and another lane changed
+it anyway — correctly, as it happens, since the switch was paging about itself on
+five of its last eight runs and that is worth fixing immediately. **The exclusivity
+rule did its job even when broken**, because the collision surfaced as a merge
+conflict on a pinned hash rather than as two silently diverging thresholds. The
+lesson is not "enforce the rule harder": it is that **a content pin catches a
+coordination failure that a file-ownership rule only discourages.**
+
+Verified after committing, because this suite reads from git HEAD: closure 37
+assertions, `monitoring-watchdog` passes with all ten lanes present and the new
+threshold, `repo-map-sync` 316, `repo-identity-exposure` clean.

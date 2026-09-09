@@ -17,6 +17,7 @@ let cluster;
 function scalar(sql) { return cluster.run('', null, { sql, tuplesOnly: true }).trim(); }
 function refuses(sql, expected) { assert.throws(() => cluster.exec(sql), new RegExp(expected)); }
 function service(sql) { cluster.exec(`begin; set local role service_role; ${sql}; commit;`); }
+function serviceScalar(sql) { return scalar(`begin; set local role service_role; ${sql}; commit;`); }
 function intentId(where) { return scalar(`select id from public.production_notification_intents where ${where}`); }
 function nativeStatus(from, to, suffix) {
   cluster.exec(`begin;
@@ -83,7 +84,9 @@ try {
   // Direct DML and non-service execution are denied, while service inspection is read-only.
   refuses("begin; set local role anon; select public.production_notification_claim(1); rollback;", 'permission denied');
   refuses("insert into public.production_notification_intents(intent_key,kind,state,client_slug,deliverable_id,source_event_id,actor_member_id,destination_kind,message) values ('bad-direct','status_tweak','blocked','fixture-client','legacy-native-id',1,'11111111-1111-4111-8111-111111111111','client_creative_channel','{}');", 'production_notification_intent_insert_forbidden');
-  assert.doesNotThrow(() => service('select count(*) from public.production_notification_intents; select count(*) from public.production_notification_delivery_receipts; select * from public.production_notification_monitor_v1'));
+  assert.equal(serviceScalar('select count(*) from public.production_notification_intents'), '2');
+  assert.equal(serviceScalar('select count(*) from public.production_notification_delivery_receipts'), '0');
+  assert.equal(serviceScalar('select count(*) from public.production_notification_monitor_v1'), '2');
 
   // A claimed uncertain provider outcome cannot be retried without an explicit duplicate-risk decision.
   const statusIntent = intentId("kind='status_smm_approval'");
@@ -159,7 +162,7 @@ try {
   assert.equal(scalar(`select state || ':' || last_failure_code from public.production_notification_intents where id='${urgentIntent}'`), 'blocked:urgent_target_changed');
 
   // Aggregate health observes unresolved debt without a capped row scan.
-  const health = JSON.parse(scalar('select public.production_notification_health_summary()'));
+  const health = JSON.parse(serviceScalar('select public.production_notification_health_summary()'));
   assert.ok(Number(health.blocked) >= 1, 'stale urgent is observable as blocked debt');
   assert.ok(Number(health.total_open) >= Number(health.blocked), 'aggregate counts unresolved queue debt');
   console.log('ok native notifications PostgreSQL proof');

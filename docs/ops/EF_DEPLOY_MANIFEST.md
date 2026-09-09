@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 36 |
+| Deployable function slugs | 37 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 7 |
+| Manual-dispatch-only paths | 8 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 3 |
 
@@ -38,6 +38,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `linear-inbound` | [deploy-f27-inbound](../../.github/workflows/deploy-f27-linear-inbound.yml) | workflow_dispatch only (pinned SHA guard) | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
 | `linear-outbound` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
+| `notify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `notify/slack-api.ts` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

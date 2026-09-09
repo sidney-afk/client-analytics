@@ -86,12 +86,12 @@ ok(/method:\s*['"]GET['"]/.test(fingerprintSource)
 const attestBlock = workflow.slice(workflow.indexOf('- name: Attest pinned manual release'));
 ok(/- name: Attest pinned manual release\n\s*# [\s\S]*?\n\s*if: github\.event_name == 'workflow_dispatch'/.test(attestBlock)
   && !/if: always\(\)/.test(workflow)
-  && workflow.includes('Fingerprint scope: 12 functions deployed by this workflow')
+  && workflow.includes('Fingerprint scope: 13 functions deployed by this workflow')
   && workflow.includes('Drill outcome: \\`PENDING\\`')
   && workflow.includes('--format=markdown | tee -a "$GITHUB_STEP_SUMMARY"'),
 'the attestation is gated on success (never always()) and appends a scoped public-safe fingerprint + drill placeholder');
 
-const providerAt = workflow.indexOf('for fn in linear-outbound production-write production-comments production-archive');
+const providerAt = workflow.indexOf('for fn in linear-outbound notify production-write production-comments production-archive');
 const attestationAt = workflow.indexOf('- name: Attest pinned manual release');
 const attestorPreflightAt = workflow.indexOf('node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only');
 ok(attestorPreflightAt >= 0 && attestorPreflightAt < providerAt
@@ -260,8 +260,8 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
-ok(manifestCheck.status === 0 && slugRows.length === 36,
-`generated deploy manifest is current and contains all 36 slugs (${(manifestCheck.stderr || '').trim()})`);
+ok(manifestCheck.status === 0 && slugRows.length === 37,
+`generated deploy manifest is current and contains all 37 slugs (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
@@ -303,6 +303,8 @@ ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUA
 ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
+ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'notify is owned by the pinned-SHA onboarding lane rather than a push or laptop deploy');
 ok(/\| `linear-inbound` \| \[deploy-f27-inbound\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'linear-inbound has one dispatch-only pinned-SHA owner and no push deploy path');
 ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
@@ -310,8 +312,8 @@ ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboard
   && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `batch-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'the manifest records the exact reviewed Section 4 ownership, including only the two deliberate onboarding overlaps');
-ok(/for fn in linear-outbound production-write production-comments production-archive/.test(workflow),
-'the Track-B deploy set deploys the provider and write gateway before the comment/archive readers from one pinned commit');
+ok(/for fn in linear-outbound notify production-write production-comments production-archive/.test(workflow),
+'the Track-B deploy set deploys the provider and notification sender before the write gateway, then its readers, from one pinned commit');
 ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
 'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
 

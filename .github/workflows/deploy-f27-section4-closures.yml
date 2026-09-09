@@ -774,6 +774,26 @@ jobs:
           node -e 'const r=JSON.parse(process.argv[1]);if(r.status!=="PASS"||r.read_only!==true)process.exit(1)' "$receipt"
           echo "- Linear-exit native SQL preflight before any closure deploy: PASS" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Require the compatible notification sender before the F27 gateway
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          export PROJECT_REF="$F27_PROJECT_REF"
+          # F27 owns exactly four functions and cannot install notify. Refuse
+          # its forward gateway release until the onboarding owner has already
+          # installed and attested the exact sender source/JWT posture.
+          receipt="$(node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=notify --format=json)"
+          node -e 'const r=JSON.parse(process.argv[1]);const x=r.results&&r.results[0];if(r.pinned_sha!==process.env.DEPLOY_COMMIT||r.results.length!==1||x.slug!=="notify"||x.result!=="PASS"||x.verify_jwt!==false)process.exit(1)' "$receipt"
+          echo "- Compatible live notify source/JWT prerequisite: PASS" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Deploy and verify 1 of 4 - linear-outbound
         if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
         shell: bash

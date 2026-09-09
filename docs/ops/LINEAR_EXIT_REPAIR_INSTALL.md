@@ -12,8 +12,8 @@ Both workflows capable of deploying the lifted `production-write` now run
 `scripts/linear-exit-deploy-preflight.js` before their **first** forward
 deployment:
 
-- [manual onboarding lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml): all 12 functions are one manual release scope. The check runs before the eight staff functions, not merely before `production-write` at position 10.
-- [F27 Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml): the check runs before `linear-outbound`, the first of four functions.
+- [manual onboarding lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml): all 13 functions are one manual release scope. The check runs before the eight staff functions, not merely before the pinned provider/notification/gateway group. That group deploys `linear-outbound`, then `notify`, then `production-write`, then the two readers; the gateway cannot precede the sender it may wake.
+- [F27 Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml): the SQL check runs before `linear-outbound`, the first of four functions. Because this lane does not own `notify`, a second read-only gate requires the exact candidate `notify` closure and `verify_jwt=false` to be live before its first deploy.
 
 The check issues one catalog-only `SELECT` through the Supabase Management API
 using the workflows' existing protected access token. It compares exact
@@ -48,7 +48,7 @@ The concrete dependency order for a target on the audited baseline is:
 3. Install `2026-09-05-native-intake-reconcile.sql` after root manifest plus native epochs/receipts, then `2026-09-06-native-card-materialization-boundary.sql`, then `2026-09-07-legacy-intake-native-triage.sql`. The triage migration explicitly depends on root reconciliation and card materialization. Installing them does not run reconciliation or triage.
 4. Install `2026-09-07-native-brief-media.sql` before a gateway can accept that private media contract. Verify the private bucket/table/ACL contract without printing object data.
 5. Install `2026-09-06-linear-outbound-cutoff.sql` inactive before deploying cutoff-aware outbound source. Its presence is not authority to activate it, and the current retirement contract remains held while it blocks ordinary business writes.
-6. Install assignment, labels, identifier mint, native client provisioning, the native browser projection and Editors attribution as detailed below.
+6. Install assignment, labels, identifier mint, native client provisioning, the native browser projection, Editors attribution, ordinary native receipts and the notification outbox as detailed below.
 7. Build and execute the integrated versioned backup/recovery package over this **final** owner set. Older selected-table snapshots do not prove the new schema, and recovery scripts are proof tooling rather than migrations to apply to production.
 
 Within that order, the exact gateway/UI prerequisites are:
@@ -63,6 +63,8 @@ Within that order, the exact gateway/UI prerequisites are:
 8. `migrations/2026-09-09-native-client-provisioning.sql` adds `clients.native_project_ids` and the service-only provisioning receipt/RPC. Installation enrolls no client and changes no routing flag; invoking the RPC is a separately reviewed onboarding operation after serving proof.
 9. `migrations/2026-09-09-native-attribution-browser-projection.sql` must follow native client provisioning **and** the complete Workload chain below, because the replaced view calls `production_workload_label_projection`. It precedes the browser source that reads its bounded `raw_attribution_project_id` and `raw_attribution_native_epoch` fields.
 10. `migrations/2026-09-09-editors-event-assignee.sql` adds server-stamped event-time assignee attribution. It must precede the browser query that selects `event_assignee_id` and `event_assignee_attribution`; existing history remains honestly `unknown`.
+11. Install `migrations/2026-09-09-native-ordinary-receipts.sql`, then the dormant `migrations/2026-09-09-syncview-retirement-admission.sql`, then `migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql`, `migrations/2026-09-11-native-ordinary-receipt-repair.sql` and `migrations/2026-09-12-native-ordinary-envelope-repair.sql`. The recognizer explicitly requires the dormant retirement routine and admissions table; none of these steps authorizes activation. Only deliverable and comment writers own ordinary receipts. Batch creation remains intake-owned, batch comments use the comment owner, and batch description/assets keep their separate native paths; the pre-existing `production_batch_write` is not replaced or ratified as an ordinary owner.
+12. Install `migrations/2026-09-09-native-notification-outbox.sql` only after the current foundational B0/B1 schema, `migrations/2026-07-12-production-comments.sql`, step 10's event attribution, and the current `deleted_at` columns on cards, batches and deliverables are present. Read back all four private tables, their RLS/ACLs and sequences, the service-only RPCs, the exact four trigger definitions, and the security-invoker monitor view. Before any function deployment, a separately authorized service-only configuration write must create the protected `urgent_video_destination` object with exactly one valid `channel_id`; the deploy preflight reads only its shape and never prints the value.
 
 For Workload, preserve its separate prerequisite chain: the native view before
 the membership/snapshot RPC, then
@@ -82,11 +84,11 @@ or any capability should be enabled.
 
 ## Serving order
 
-1. Keep every new native capability in its installed dormant/provider state. Do not change authority, intake, assignment, label, identifier, client-enrollment or cutoff flags.
-2. Under a separate future database authorization, install the exact pinned unmerged candidate SQL and complete its schema/grant/trigger readback. The native client provisioning and native attribution projection migrations, plus the Editors event-assignee migration, must be present before the new browser reaches Pages.
+1. Keep every new native capability in its installed dormant/provider state. Do not change authority, intake, assignment, label, identifier, ordinary-receipt, client-enrollment or cutoff flags. Leave notification sender/monitor variables and the gateway wake disabled.
+2. Under a separate future database authorization, install the exact pinned unmerged candidate SQL and complete its schema/grant/trigger readback. The native client provisioning and native attribution projection migrations, plus the Editors event-assignee migration, must be present before the new browser reaches Pages. The ordinary-receipt final owners and notification outbox/config must be present before the corresponding gateway can deploy.
 3. Complete the live read-only SQL preflight from that pinned candidate. Any `CONFIG_MISSING`, `READ_FAILED*`, `READ_RESPONSE_INVALID`, `CONTRACT_ABSENT` or `CONTRACT_MISMATCH` result stops before merge and before all Edge Function deployment.
 4. Prove the old browser and old gateway tolerate the installed dormant schema, then merge only the byte-identical reviewed candidate. Pages publishes `main`, so its newly selected database fields must already exist. If policy prohibits applying SQL from an unmerged pinned candidate, the release is blocked until the new browser is changed and proved backward-compatible; elapsed time between publishes is not a substitute.
-5. After merge, use the release manifest to choose **one** gateway owner lane. The onboarding lane deploys 12 functions; F27 Section 4 deploys exactly four and requires its fresh sealed prior-four capture/upload plus merge freeze. Each workflow rechecks source-compatible SQL from the reviewed-main checkout before its first deploy. Do not dispatch both merely because both are listed.
+5. After merge, use the release manifest to choose **one** gateway owner lane. The onboarding lane deploys 13 functions and is the only existing lane that establishes the new `notify` sender before `production-write`. F27 Section 4 still deploys exactly four and requires its fresh sealed prior-four capture/upload plus merge freeze; it may serve a later gateway release only after the exact compatible `notify` source is already live. Each workflow rechecks source-compatible SQL from the reviewed-main checkout before its first deploy. Do not dispatch both merely because both are listed, and do not enable `NOTIFY_WAKE_ENABLED` before sender source/JWT readback passes.
 6. Require exact source/JWT/version readback for every function the selected workflow actually deployed. A preflight PASS cannot turn a partial function deployment into success.
 7. Only after the compatible gateway and browser are serving, run separately authorized TEST journeys and re-read every still-dormant capability. Flag changes, catalogue attestation, identifier seeding, client provisioning and final retirement remain distinct actions with their own receipts.
 
@@ -104,13 +106,30 @@ acceptable way to make mirror debt stay at zero.
 | During SQL | A transaction refuses or a post-step readback differs | Start no Edge Function deploy. Preserve the failure receipt and inspect partial earlier transactions; never “finish” by applying an old append replacement. |
 | Preflight | Any non-PASS result | Zero functions deploy. Correct or complete SQL, then rerun the read-only check. |
 | Partial F27 forward deploy | A deploy/readback fails after an earlier function changed | Hold affected admission, inspect exact live versions, then use the already-sealed `restore-captured-prior-four` operation or complete the reviewed compatible set. Restore remains independent of the new preflight. |
-| Partial onboarding manual deploy | Any of the 12 deploys or final attestation fails | Hold affected admission and identify every live closure. This lane has no equivalent bundled 12-function restore; do not infer rollback from the job's final red state. |
+| Partial onboarding manual deploy | Any of the 13 deploys or final attestation fails | Hold affected admission and identify every live closure. This lane has no equivalent bundled 13-function restore; do not infer rollback from the job's final red state. In particular, never enable gateway notification wakes until compatible `notify` readback passes. |
 | After accepted native work | A later canary or capability fails | Hold new admission and repair forward while preserving names, epochs, manifests, event attribution and receipts. Do not restore provider-only/bare-title functions or delete retained evidence. |
+
+## Pending owner choices
+
+The questionnaire returned no answers for the following product/operational
+choices, so this repair does not ratify any of them:
+
+1. When one post has work for only one team, should the absent team see the post at all, and if so in what read-only state?
+2. Should a reply inherit the parent comment's audience, or require the author to choose its audience each time?
+3. Should resolved feedback remain visible in a dimmed/history state or disappear from the normal thread?
+4. Which human escalation route should receive an unrepairable legacy card after automated recovery stops?
+
+Existing behavior and permissions remain in force while these choices are open;
+the repair does not widen any audience automatically. The separately recorded
+Slack notification scope remains status-only for `smm_approval`/`tweak`, routes
+ordinary comments to the client creative channel without tags, and routes
+urgent video work separately. Those settled choices are not reopened here.
 
 ## Evidence still required before installation or cancellation
 
 - Upgrade rehearsal over a current private production-schema capture, including interruption after every separately committed migration, plus empty-target schema/data/object recovery.
 - A live read-only preflight PASS from the exact selected deploy workflow, followed by source/JWT/version readback for its complete function set.
+- Disposable PostgreSQL notification proof for status, staff/client comments, urgent admission and claim-time revalidation, blocked/unknown reconciliation and concurrent claim/receipt paths; then a separately authorized provider sandbox proof that no intent is marked sent without its durable provider receipt. Source inspection and a configured channel row are not delivery evidence.
 - Old/new browser and old/new compatible gateway coverage for intake, picker, assignment, labels, names, client provisioning and Editors; both teams; failed flag/config reads; and no change to the frozen tokenless calendar/review writers.
 - Actual-handler plus disposable-SQL journeys with provider transport denied, including provider-era and native parents, lost response/browser, partial child/card completion, replay after actor/capability changes and concurrent activation.
 - Private archive/assets/export completeness, accepted provider-era work disposition, complete backup corpus and recovery, and the live read-only n8n/webhook/cron/OAuth inventory.

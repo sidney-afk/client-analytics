@@ -38,8 +38,8 @@ async function rejectsCode(run, code) {
       && query.includes('zzz_native_assignment_receipt_guard')
       && query.includes('zzz_native_label_receipt_guard'));
   ok('a missing one-team config member is false rather than ignored as SQL NULL',
-    (query.match(/bool_and\(coalesce\(/g) || []).length === 3
-      && (query.match(/unnest\(array\['video','graphics'\]\) team/g) || []).length === 3);
+    (query.match(/bool_and\(coalesce\(/g) || []).length === 4
+      && (query.match(/unnest\(array\['video','graphics'\]\) team/g) || []).length === 4);
   ok('trigger compatibility binds timing, event set, row/statement scope and an unqualified predicate',
     query.includes("t.tgtype=e.tgtype and t.tgqual is null")
       && query.includes("'zz_native_intake_receipt_guard','production_native_intake_receipt_guard',23")
@@ -51,6 +51,30 @@ async function rejectsCode(run, code) {
       && query.includes('production_native_client_provisions_immutable_row')
       && query.includes('production_deliverables_browser_v1.raw_attribution_project_id')
       && query.includes("'security_barrier=true'=any"));
+  ok('ordinary native receipt owners are pinned to their final successor bodies and catalog shape',
+    query.includes('production_native_ordinary_capability(text)')
+      && query.includes('production_native_ordinary_event(jsonb,jsonb)')
+      && query.includes('production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)')
+      && query.includes('production_native_ordinary_receipt_admissions.receipt_id')
+      && query.includes('production_native_ordinary_receipt_admissions.receipt_id_fkey')
+      && query.includes('x.condeferrable and x.condeferred')
+      && query.includes('zzz_native_ordinary_receipt_guard')
+      && query.includes('config:production_native_ordinary_receipts')
+      && !query.includes('routine:production_batch_write'));
+  ok('notification delivery is gated on exact routines, trigger shape, private storage and protected routing config',
+    query.includes('production_notification_enqueue_urgent(uuid,text,text,text,text,timestamp with time zone,uuid,uuid)')
+      && query.includes('production_notification_urgent_status(text,text,timestamp with time zone)')
+      && query.includes('production_notification_reconcile(uuid,text,text,text)')
+      && query.includes('production_notification_claim(integer)')
+      && query.includes('production_notification_record_delivery(uuid,integer,text,text,text)')
+      && query.includes("'production_notification_intent_guard_before','production_notification_intent_guard',23")
+      && query.includes("'production_notification_status_intent_after','production_notification_status_intent_after',5")
+      && query.includes('relation:production_notification_reconciliations')
+      && query.includes('production_notification_reconciliations.provider_message_id')
+      && query.includes('sequence:production_notification_reconciliations_id_seq')
+      && query.includes('config:urgent_video_destination')
+      && query.includes("jsonb_object_keys(c.value)")
+      && query.includes("'^[CG][A-Z0-9]{8,}$'"));
   ok('routine compatibility binds each final owner body and its actual security mode',
     query.includes('security_definer,service_execute')
       && query.includes('p.prosecdef=e.security_definer'));
@@ -87,9 +111,10 @@ async function rejectsCode(run, code) {
   const f27 = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-f27-section4-closures.yml'), 'utf8');
   const onboardingGate = onboarding.indexOf('node scripts/linear-exit-deploy-preflight.js');
   const onboardingFirstDeploy = onboarding.indexOf('supabase functions deploy');
-  ok('manual onboarding gates SQL before the first of its 12 function deployments',
+  ok('manual onboarding gates SQL before the first of its 13 function deployments',
     onboardingGate > 0 && onboardingGate < onboardingFirstDeploy
-      && onboarding.includes('Fingerprint scope: 12 functions deployed by this workflow'));
+      && onboarding.includes('Fingerprint scope: 13 functions deployed by this workflow')
+      && onboarding.includes('for fn in linear-outbound notify production-write production-comments production-archive'));
   const f27Gate = f27.indexOf('node scripts/linear-exit-deploy-preflight.js');
   const f27FirstDeploy = f27.indexOf('supabase functions deploy linear-outbound');
   ok('F27 Section 4 gates SQL before its first forward deployment', f27Gate > 0 && f27Gate < f27FirstDeploy);

@@ -541,17 +541,28 @@ ok(workflow.includes('F27_PROJECT_REF=$project_ref')
 const sqlPreflightAt = workflow.indexOf('- name: Assert compatible native SQL before the first forward deployment');
 const sqlPreflightEnd = workflow.indexOf('\n      - name:', sqlPreflightAt + 1);
 const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
+const notifyPreflightAt = workflow.indexOf('- name: Require the compatible notification sender before the F27 gateway');
+const notifyPreflightEnd = workflow.indexOf('\n      - name:', notifyPreflightAt + 1);
+const notifyPreflightBlock = workflow.slice(notifyPreflightAt, notifyPreflightEnd);
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
   && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 7
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 8
   && validationAt < firstSecretAt
   && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
   && occurrences(sqlPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
   && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|restore-captured-prior-four/.test(sqlPreflightBlock),
-'production credentials are protected-Environment and step-scoped, with the native-SQL credential available only at its forward preflight boundary');
+'production credentials are protected-Environment and step-scoped, with separate forward-only SQL and notify proof boundaries');
+
+ok(notifyPreflightAt > sqlPreflightAt && notifyPreflightAt < firstDeployAt
+  && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(notifyPreflightBlock)
+  && occurrences(notifyPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && /--slugs=notify --format=json/.test(notifyPreflightBlock)
+  && /x\.slug!=="notify"\|\|x\.result!=="PASS"\|\|x\.verify_jwt!==false/.test(notifyPreflightBlock)
+  && !/restore-captured-prior-four/.test(notifyPreflightBlock),
+'F27 forward deployment requires exact live notify source/JWT proof, while prior-four restore remains independent');
 
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(workflow)
   && workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')

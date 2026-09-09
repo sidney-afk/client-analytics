@@ -1084,6 +1084,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const pushBlock = (deployWorkflow.match(/  push:\r?\n([\s\S]*?)  workflow_dispatch:/) || [])[1] || '';
   const forbiddenPushPaths = [
     'supabase/functions/linear-outbound/**',
+    'supabase/functions/notify/**',
     'supabase/functions/production-write/**',
     'supabase/functions/client-review-link/**',
     'supabase/functions/_shared/**',
@@ -1095,7 +1096,8 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
   const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
   ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
-    && pinnedLoop === 'linear-outbound production-write production-comments production-archive'
+    && pinnedLoop === 'linear-outbound notify production-write production-comments production-archive'
+    && pinnedLoop.indexOf('notify') < pinnedLoop.indexOf('production-write')
     && pinnedLoop.indexOf('production-write') < pinnedLoop.indexOf('production-comments'),
   'manual deploy step is dispatch-only and deploys the provider and write gateway before the comment/archive readers');
 

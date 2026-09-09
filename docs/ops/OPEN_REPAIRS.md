@@ -17955,3 +17955,35 @@ every row in it came from a complete read.
 The regression test executes the second one on the exact shape of the bug: a
 complete row arriving at the SAME stamp as a partially advanced local row still
 counts as changed, its fresh fields land, and the mark is not sticky afterwards.
+
+### 182e. Codex round five: the Refresh button could not clear a failed batch read
+
+`_prodMarkDescriptionsStale` clears the remembered batch-description read states,
+and it is reached from `_prodRefresh`. **The visible topbar Refresh button does
+not go that way.** It runs `_prodManualRefresh` →
+`_prodDeltaRefresh({ full: true })` → `_prodLoadData`, none of which touches
+`_prodMarkDescriptionsStale`. So an `error` left by a failed one-row read
+survived the very control offered to clear it: the full load replaced the batch
+row (still without `description`), `_prodEnsureBatchDescription` returned early
+on the retained `error`, and the batch view kept saying **Description could not
+load.** until a page reload or an unrelated change to that batch.
+
+Fixed by retiring every remembered read inside `_prodLoadData` itself, beside
+where it already clears `batchPartialRows` — the shared
+`_prodInvalidateBatchDescriptionReads(null)` rather than a bare clear, so a read
+still in the air is retired rather than left able to land on the new projection.
+
+The regression test walks the whole button path instead of assuming it: that
+`_prodManualRefresh` goes through `_prodDeltaRefresh({full:true})`, that the full
+branch reaches `_prodLoadData`, and that **neither calls
+`_prodMarkDescriptionsStale`** — the last one being the fact that made the
+original placement wrong, so the test fails for the reason it names.
+
+**Running count on #1364: eight findings across five rounds.** The original
+change (drop a column from a boot read, route tab returns through the existing
+delta) has held up; every finding after the first two came from the machinery
+added to fix the ones before. The cost is concentrated in one place — putting a
+new on-demand read into a surface that already had two readers and two
+invalidation schemes. If a future session touches batch descriptions again, the
+cheaper design is ONE owner for the read with ONE state machine that both
+surfaces render from, not two readers cooperating through a shared token.

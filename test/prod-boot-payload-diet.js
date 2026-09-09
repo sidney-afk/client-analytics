@@ -326,7 +326,7 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   ok(delta.indexOf('_prodAdvanceBatchDeltaCursor(batchRows);') < delta.indexOf('_prodMergeBatchRows(batchRows)'),
     '...advanced from the server answer BEFORE the merge lets a local value near those rows');
   const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
-  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 700)),
+  ok(/_prodAdvanceBatchDeltaCursor\(batches\);/.test(load.slice(0, 2000)),
     '...and seeded on a full load from the RAW server rows, not the merged ones');
 
   const advance = grabFunc('function _prodAdvanceBatchDeltaCursor(rows)');
@@ -411,6 +411,30 @@ ok(detailBranchAt > 0 && detailBranchAt < guardAt,
   const again = ctx.merge([{ id: 'b1', name: 'NEW NAME', updated_at: 'T2' }]);
   ok(again.length === 0,
     'and once it is a complete row, stamp equality means unchanged again — the mark is not sticky');
+}
+
+
+// ---- 5g. the visible Refresh button actually clears a failed read (round 5) ----
+/* _prodMarkDescriptionsStale is reached from _prodRefresh, NOT from the topbar
+   button: that runs _prodManualRefresh -> _prodDeltaRefresh({full:true}) ->
+   _prodLoadData. So an 'error' remembered by a failed batch-description read
+   survived the very control offered to clear it, and the batch view kept saying
+   "Description could not load." until a page reload. The whole path is walked
+   here rather than assumed. */
+{
+  const manual = grabFunc('function _prodManualRefresh()');
+  ok(/_prodDeltaRefresh\(\{ force: true, full: true \}\)/.test(manual),
+    'HARNESS: the topbar Refresh really does go through _prodDeltaRefresh({full:true})');
+  const delta = grabFunc('async function _prodDeltaRefresh(options)');
+  const needsFullAt = delta.indexOf('if (needsFull) {');
+  const loadCallAt = delta.indexOf('_prodLoadData({ silent: true })', needsFullAt);
+  ok(needsFullAt > 0 && loadCallAt > needsFullAt,
+    'HARNESS: ...which reaches _prodLoadData on the full branch');
+  ok(!/_prodMarkDescriptionsStale\(\)/.test(manual) && !/_prodMarkDescriptionsStale\(\)/.test(delta),
+    'HARNESS: ...and neither of them calls _prodMarkDescriptionsStale, which is why clearing there was not enough');
+  const load = html.slice(html.indexOf('_prodState.batches = mergedBatches;'));
+  ok(/_prodInvalidateBatchDescriptionReads\(null\);/.test(load.slice(0, 1200)),
+    'THE FIX: the full load itself retires every remembered batch-description read, so the Refresh button is a real retry');
 }
 
 const batchDetail = grabFunc('function _prodBatchDetail(');

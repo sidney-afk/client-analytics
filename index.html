@@ -61137,6 +61137,17 @@
                 _prodState.batches = mergedBatches;
                 // Every row here came from a complete read, so no row is partial.
                 _prodState.batchPartialRows.clear();
+                /* And no remembered batch-description read outlives a full load.
+                   This is the RETRY for a failed one: the visible topbar Refresh
+                   runs _prodManualRefresh -> _prodDeltaRefresh({full:true}) ->
+                   here, and never touches _prodMarkDescriptionsStale, so an
+                   'error' left by a failed read survived the very button offered
+                   to clear it -- the batch view kept saying "Description could
+                   not load." until a page reload. Raised by Codex on #1364.
+                   The shared helper rather than a bare clear(), so a read still
+                   in the air is retired rather than left able to land on the new
+                   projection. */
+                _prodInvalidateBatchDescriptionReads(null);
                 // Seeded from the raw server answer, never from the merged rows.
                 _prodAdvanceBatchDeltaCursor(batches);
                 _prodState.deliverables = mergedDeliverables;

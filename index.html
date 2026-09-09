@@ -5760,13 +5760,22 @@
         .kcard-urgent-btn { padding: 9px 13px; border-radius: 10px; font-size: 0.72rem; letter-spacing: 0.04em; }
         .kcard-urgent-btn svg { width: 13px; height: 13px; }
         /* The Kasper flavour of the same button (a card parked at Kasper
-           Approval, pinging HIM rather than the editor). Deliberately identical
-           in weight and warmth to the editor one — it is the same escalation,
-           aimed at a different person — and every state (hover, disabled,
-           is-sent green) is inherited rather than redeclared, so the two can
-           never drift apart. */
-        .cal-urgent-btn.is-kasper { background: var(--cal-urgent-bg); }
-        .cal-urgent-btn.is-kasper:hover { background: var(--cal-urgent-hover-bg); }
+           Approval, pinging HIM rather than the editor) deliberately has NO
+           rules of its own. It is the same escalation aimed at a different
+           person, so it inherits every state — base, hover, disabled grey,
+           is-sent green — from .cal-urgent-btn above.
+
+           It briefly carried two `.cal-urgent-btn.is-kasper` rules that merely
+           repeated the base background and hover. They changed nothing on a
+           fresh button and broke the finished ones: equal specificity but LATER
+           in the sheet, so they beat `:disabled` and `.is-sent` and repainted a
+           sent ping orange. A redundant override is not free — it silently
+           outranks the states declared above it. (Codex P2 on PR 1370.)
+
+           The title-row variant only re-rounds its corners: it docks beside the
+           title square rather than on the end of a segmented pill, so it has no
+           flat edge to meet. */
+        .cal-title-urgent-btn { flex: 0 0 auto; border-radius: 7px; }
         /* Second Linear slot (graphics) in the title row — purple ONLY when
            linked, so an unlinked graphic slot falls back to the neutral
            gray (default) or warn-orange (cal-linear-btn-warn) the same way
@@ -6854,6 +6863,11 @@
         .kasper-history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; cursor: pointer; user-select: none; }
         .kasper-history-title { font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .kasper-history-count { font-size: 0.68rem; font-weight: 700; background: var(--border-light); color: var(--text-secondary); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        /* A focusable head needs a visible focus ring, or keyboard users can
+           tab to it and have no idea where they are. Scoped to the Urgent
+           heads because they are the only ones carrying tabindex today. */
+        .kasper-urgent-wrap .kasper-history-head:focus-visible {
+            outline: 2px solid var(--cal-urgent-bg); outline-offset: 3px; border-radius: 4px; }
         /* "Urgent" section head. Same section as its three siblings — only the
            title and count carry the urgent colour, so the group reads as more
            pressing without becoming a different kind of object on the page. */
@@ -33419,16 +33433,30 @@
         if (!sentFor && !now) return true;
         return _calUrgentSameRound(sentFor, now);
     }
-    /* Affordance gate for the Kasper ping, the sibling of _calShowUrgent: any
-       component actually sitting at Kasper Approval, and only one that is
-       genuinely reviewable -- an unlinked thumbnail is gated out for the same
-       reason _calCompKasperVisible gates it out of his queue (pinging him about
-       a panel he cannot act on is worse than not pinging at all). */
+    /* Affordance gate for the Kasper ping, the sibling of _calShowUrgent: a
+       component actually sitting at Kasper Approval that he can actually act on.
+
+       BOTH exclusions exist because his QUEUE applies them, and a ping the queue
+       will not honour is worse than no ping at all -- the DM says "it is in the
+       Urgent section at the top" and it is not there:
+         · an unlinked thumbnail is not reviewable (_calCompKasperVisible drops it);
+         · a component whose CONTENT never arrived -- a video with no file, an
+           empty caption, an untitled title -- is dropped by the queue's own
+           `anyReviewable` gate into the "waiting on content, not on you" notice,
+           which is a different message and a different bucket.
+       So this asks _kasperCompReviewable, the very predicate that gate uses,
+       rather than a second opinion that could drift from it. (Codex P1 on
+       PR 1370: the ping persisted a marker for a card Kasper could never see.)
+
+       This is NOT the over-strict client AGENTS.md warns against. It hides
+       nothing that would have worked: reviewability is read off columns the
+       browser already holds, not guessed at, and the correct move for a card
+       with no video is to attach the video, not to chase Kasper about it. */
     function _calShowKasperUrgent(p, c) {
         if (!p || !c) return false;
         if (_calNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
         if (c === 'graphic' && !_calCompLinked(p, c)) return false;
-        return true;
+        return _kasperCompReviewable(p, c);
     }
     function _calApplyUrgentButtonState(btn, p, kind) {
         if (!btn) return;
@@ -33441,7 +33469,7 @@
     function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind) {
         const k = kind === 'kasper' ? 'kasper' : 'editor';
         const sent = _calUrgentSentForCurrentRound(post, k);
-        const cls = 'cal-urgent-btn' + (k === 'kasper' ? ' is-kasper' : '') + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
+        const cls = 'cal-urgent-btn' + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
         const preClick = stopPropagation ? 'event.stopPropagation();' : '';
         return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-kind="${k}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="${_calEscAttr(_urgentKind(k).btnTitle)}"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
     }
@@ -38967,6 +38995,17 @@
             const ts = _calNormStatus(p.title_status || 'In Progress');
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+            // The title is the one review component with no pill in the
+            // sub-status row -- that row maps CAL_COMPONENTS, which deliberately
+            // excludes it (see CAL_REVIEW_COMPONENTS). Without this the URGENT
+            // ping was unreachable for a card whose TITLE alone was waiting on
+            // Kasper, while the marker schema and the server guard both accepted
+            // 'title' perfectly happily. (Codex P1 on PR 1370.) The button docks
+            // beside the square in the same flex row; the name input shrinks,
+            // exactly as it does for the save indicator.
+            if (_calShowKasperUrgent(p, 'title')) {
+                titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
+            }
         }
         return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
@@ -47244,6 +47283,19 @@
         // keep its colour in lockstep with title_status on in-place / realtime
         // updates too, not just full re-renders.
         const titleSq = document.querySelector(`.cal-title-status-sq[data-substatus-pid="${sel}"][data-substatus-comp="title"]`);
+        // The title's URGENT ping lives beside that square rather than on a
+        // sub-status pill, so the pill loop above never sees it. Reconcile it
+        // here with the same predicate and the same remove-and-rebuild rule.
+        if (titleSq && titleSq.parentNode) {
+            const wantTitleUrgent = _calShowKasperUrgent(post, 'title');
+            let titleUrgentEl = titleSq.parentNode.querySelector(':scope > .cal-title-urgent-btn');
+            if (titleUrgentEl && !wantTitleUrgent) { titleUrgentEl.remove(); titleUrgentEl = null; }
+            if (wantTitleUrgent && !titleUrgentEl) {
+                titleSq.insertAdjacentHTML('afterend', _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, 'cal-title-urgent-btn', true, 'kasper'));
+            } else if (wantTitleUrgent && titleUrgentEl) {
+                _calApplyUrgentButtonState(titleUrgentEl, post, 'kasper');
+            }
+        }
         if (titleSq) {
             const tcs = _calNormStatus(post.title_status || 'In Progress');
             titleSq.setAttribute('data-val', tcs);
@@ -66727,7 +66779,16 @@
         return !!String(p.linear_issue_id || '').trim();
     }
     /* Kasper-ping gate for samples. Same rule as the calendar's
-       _calShowKasperUrgent, over the two components samples actually carry. */
+       _calShowKasperUrgent over the two components samples carries, MINUS the
+       content check -- and that asymmetry is deliberate, not an oversight.
+       The calendar queue drops a content-less card into its stranded notice, so
+       a ping there would point at a card Kasper cannot see; the samples queue
+       keeps it (membership is _sxrPostKasperVisible, which asks about status and
+       the graphic link only), so the ping lands on a card that really is in his
+       list. Copying the calendar's gate here would hide a working affordance,
+       which is the failure AGENTS.md's permissive directive is about. The two
+       gates track their own queues; if the samples queue ever starts stranding
+       cards, this is the line that has to follow it. */
     function _sxrShowKasperUrgent(p, c) {
         if (!p || !c) return false;
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
@@ -71158,7 +71219,7 @@
     function _sxrKasperRenderUrgentSection(urgent) {
         if (!urgent.length) return '';
         return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
                 <span class="kasper-history-title">Urgent</span>
                 <span class="kasper-history-count">${urgent.length}</span>
                 <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
@@ -71196,7 +71257,14 @@
             <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
         </div>`;
     }
-    function _sxrKasperToggleUrgent() { _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed; const w = document.getElementById('sxrKasperUrgentWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed); }
+    function _sxrKasperToggleUrgent() {
+        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
+        const w = document.getElementById('sxrKasperUrgentWrap');
+        if (!w) return;
+        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
+        const head = w.querySelector('.kasper-history-head');
+        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
+    }
     function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
     function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
     function _sxrKasperToggleHistory() { _sxrKasperState.historyCollapsed = !_sxrKasperState.historyCollapsed; const w = document.getElementById('sxrKasperHistoryWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.historyCollapsed); }
@@ -78713,12 +78781,34 @@
        Hidden entirely when empty, like Tweaks pending: a permanent empty
        "Urgent" header would train him to ignore the one thing it exists to
        make unignorable. */
+    /* Keyboard + AT semantics for a collapsible section head. The heads are
+       styled `div`s, so without this they are mouse-only: not focusable, not
+       announced as controls, and with no way to report collapsed state. New
+       visible UI has to carry keyboard, focus and ARIA as part of the feature
+       (AGENTS.md; docs/features/UI_DESIGN_STANDARDS.md), so the Urgent heads
+       below take these attributes and _svSectionHeadKey handles Enter/Space.
+
+       Emitted as attributes rather than by swapping the element for a <button>
+       on purpose: the three sibling heads (Waiting / Tweaks pending / Approved
+       history) share `.kasper-history-head`'s styling, and a <button> there
+       would need its own reset to keep the four identical. Those three still
+       lack this and are unchanged here -- widening an urgent-ping PR into them
+       is a separate change. (Codex P2 on PR 1370.) */
+    function _svSectionHeadA11y(expanded) {
+        return ` role="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" onkeydown="_svSectionHeadKey(event)"`;
+    }
+    function _svSectionHeadKey(ev) {
+        if (!ev || (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar')) return;
+        ev.preventDefault();                       // Space must not scroll the queue
+        if (ev.currentTarget && ev.currentTarget.click) ev.currentTarget.click();
+    }
+    window._svSectionHeadKey = _svSectionHeadKey;
     function _kasperRenderUrgentSection(urgent) {
         if (!urgent.length) return '';
         const collapsedCls = _kasperState.urgentCollapsed ? ' collapsed' : '';
         const cards = urgent.map(_kasperRenderCard).join('');
         return `<div class="kasper-history-wrap kasper-urgent-wrap${collapsedCls}" id="kasperUrgentWrap">
-            <div class="kasper-history-head" onclick="_kasperToggleUrgent()">
+            <div class="kasper-history-head" onclick="_kasperToggleUrgent()"${_svSectionHeadA11y(!_kasperState.urgentCollapsed)}>
                 <span class="kasper-history-title">Urgent</span>
                 <span class="kasper-history-count">${urgent.length}</span>
                 <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
@@ -78729,7 +78819,13 @@
     function _kasperToggleUrgent() {
         _kasperState.urgentCollapsed = !_kasperState.urgentCollapsed;
         const wrap = document.getElementById('kasperUrgentWrap');
-        if (wrap) wrap.classList.toggle('collapsed', _kasperState.urgentCollapsed);
+        if (wrap) {
+            wrap.classList.toggle('collapsed', _kasperState.urgentCollapsed);
+            // A stale aria-expanded is worse than none: it tells a screen reader
+            // the section is open while it is collapsed.
+            const head = wrap.querySelector('.kasper-history-head');
+            if (head) head.setAttribute('aria-expanded', _kasperState.urgentCollapsed ? 'false' : 'true');
+        }
     }
     window._kasperToggleUrgent = _kasperToggleUrgent;
 

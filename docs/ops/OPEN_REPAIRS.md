@@ -18543,9 +18543,37 @@ rebuilds the review-tab link, accepting a URL from the request only when it is o
 the SyncView origin. Same reason the editor ping never trusted a mention: a webhook
 that takes its recipient from an open page is a spam relay with extra steps.
 
-**Owner steps, in this order.** The migration FIRST (the guard writes
-`caption_status_at` / `title_status_at`, which do not exist until it runs), then
-`calendar-upsert` and `sample-review-upsert` — both are `NO CI DEPLOY PATH` in
-`docs/ops/EF_DEPLOY_MANIFEST.md`, so they deploy by hand. Until the two EFs are
-live the allow-list drops the marker fields: the DM still sends, and the Urgent
-section stays empty. That failure mode is quiet, which is the one to watch for.
+**The deploy instruction this item first carried was the 2026-07-15 landmine,
+verbatim.** It read: run the migration, then deploy `calendar-upsert` and
+`sample-review-upsert` by hand because both are `NO CI DEPLOY PATH`. That is
+true of the manifest and catastrophic in practice. Those two writers are the
+⛔ FROZEN pair: live is `calendar-upsert` v43 / `sample-review-upsert` v44,
+**owner-un-gated**, reverted to the pre-#836 tokenless source so clients' existing
+review links keep saving. The repo source still calls `authorizeBrowserWrite`.
+A plain `supabase functions deploy` of the repo source therefore RE-GATES them and
+`401`s every client approval and comment on a pre-existing link — the outage that
+happened **twice on 2026-07-15**, and `--no-verify-jwt` does not help because the
+refusal is application-level, not JWT-level.
+
+The generalisation, and the reason this keeps recurring: **`NO CI DEPLOY PATH`
+reads like "deploy it by hand" and for these two it means "there is a live
+divergence CI is deliberately not allowed to overwrite".** The manifest states
+deploy ownership; it does not state whether the repo source is what is live. For
+every other function those are the same sentence. For these two they are opposite
+ones, and nothing in the manifest says so. PR #813's readiness pass already had to
+replace these two functions' stale "deploy after merge" notes with freeze markers
+once (`EXECUTION_LOG.md`, 2026-07-16). This is the third time the instruction has
+been re-derived from the manifest and been wrong.
+
+**So the marker columns are NOT deployable from this branch, and this item does
+not claim otherwise.** The source change here is correct as *source* — it is what
+the reviewed tree should say — but shipping it to the live writers means porting
+the allow-list delta onto the exact live un-gated sources and deploying those,
+which is an owner-approved operation under the freeze, not a step in a PR
+description. Until that happens the allow-list drops the four marker fields: the
+DM still sends and the Urgent section stays empty. **That failure mode is quiet**,
+and it is now the expected state rather than a symptom of something broken.
+
+**Owner step that IS safe and self-contained:** the migration
+(`migrations/2026-09-09-kasper-urgent-pings.sql`). It only adds columns and widens
+an existing trigger — it touches no Edge Function and cannot re-gate anything.

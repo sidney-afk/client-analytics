@@ -75,6 +75,7 @@ const PRED = [
   grabFunc('_calEscAttr'),
   grabFunc('_calCompLinked'),
   grabFunc('_calShowUrgent'),
+  grabFunc('_kasperCompReviewable'),
   grabFunc('_calShowKasperUrgent'),
   grabFunc('_calKasperUrgentComp'),
   grabFunc('_calKasperUrgentActive'),
@@ -97,6 +98,11 @@ const R2 = '2026-09-09T13:00:00.000Z';
 function card(extra) {
   return Object.assign({
     id: 'p1', name: 'Video 1',
+    // Content matters now: the affordance asks _kasperCompReviewable, the same
+    // predicate that decides whether Kasper's queue keeps the card at all.
+    asset_url: 'https://drive.example/v1.mp4',
+    thumbnail_url: 'https://drive.example/t1.jpg',
+    caption: 'a caption',
     video_status: 'Kasper Approval', video_status_at: R1,
     graphic_status: 'In Progress', caption_status: 'In Progress', title_status: 'In Progress',
     linear_issue_id: 'https://linear.app/synchro-social/issue/VID-1/v',
@@ -120,6 +126,26 @@ check('a linked thumbnail does',
   P._calShowKasperUrgent(card({ graphic_status: 'Kasper Approval' }), 'graphic') === true);
 check('the marker records the first waiting component, so one card = one ping',
   P._calKasperUrgentPingComp(card({ caption_status: 'Kasper Approval' })) === 'video');
+
+// Codex P1 on PR 1370: the affordance offered a ping for cards Kasper's queue
+// throws away. The DM says "it is in the Urgent section at the top", so a ping
+// the queue will not honour is a lie told to the person being escalated to.
+check('a video whose FILE never arrived offers no ping — the queue strands it',
+  P._calShowKasperUrgent(card({ asset_url: '' }), 'video') === false);
+check('an EMPTY caption at Kasper Approval offers no ping either',
+  P._calShowKasperUrgent(card({ caption_status: 'Kasper Approval', caption: '', caption_alt: '' }), 'caption') === false);
+check('a caption with only caption_alt still counts as content',
+  P._calShowKasperUrgent(card({ caption_status: 'Kasper Approval', caption: '', caption_alt: 'alt text' }), 'caption') === true);
+check('a thumbnail with no file offers no ping',
+  P._calShowKasperUrgent(card({ graphic_status: 'Kasper Approval', thumbnail_url: '' }), 'graphic') === false);
+// The MARKER deliberately does not repeat the content check. Section membership
+// comes from _kasperState.items, which the queue has already stranded such a card
+// out of, and the button is hidden by the affordance gate above — so re-asking
+// here would only add a second place for the two answers to disagree.
+check('the marker itself stays keyed to status, not to content',
+  P._calKasperUrgentActive(card({
+    asset_url: '', kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video',
+  })) === true);
 
 console.log('\n-- the round: a ping outlives neither his decision nor the round --');
 const pinged = card({ kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video' });
@@ -242,6 +268,55 @@ setTimeout(() => {
     && INDEX.includes("_calUrgentButtonHtml(pid, '_sxrSendKasperUrgentSlack', p, '', false, 'kasper')"));
   check('an in-place status change swaps the button rather than re-aiming it',
     (INDEX.match(/urgentEl\.dataset\.urgentKind \|\| 'editor'\) !== wantKind/g) || []).length === 2);
+
+  // Codex P1: the sub-status row maps CAL_COMPONENTS (video/graphic/caption).
+  // The title has no pill there, so its ping has to dock beside the title square
+  // or a title-only Kasper Approval is unreachable.
+  check('the TITLE gets the ping beside its status square, not only on a pill',
+    INDEX.includes("_calShowKasperUrgent(p, 'title')")
+    && INDEX.includes("_calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper')"));
+  check('and the in-place updater reconciles that one too',
+    INDEX.includes('cal-title-urgent-btn') && INDEX.includes("_calShowKasperUrgent(post, 'title')"));
+
+  // Codex P2: two redundant .is-kasper rules sat AFTER :disabled and .is-sent at
+  // equal specificity, so they repainted a finished ping orange. The fix is that
+  // the Kasper button carries no background rules of its own at all.
+  // Matched as a RULE (`.cal-urgent-btn.is-kasper {`), not as a mention: the
+  // stylesheet comment above the deletion names the class on purpose, so that a
+  // future reader re-adding it knows exactly what it broke.
+  check('the Kasper button declares no background that could outrank Sent/disabled',
+    !/^\s*\.cal-urgent-btn\.is-kasper[^{\n]*\{/m.test(INDEX) && !INDEX.includes("' is-kasper'"));
+  check('.cal-urgent-btn still owns the disabled and is-sent states',
+    INDEX.includes('.cal-urgent-btn:disabled') && INDEX.includes('.cal-urgent-btn.is-sent'));
+
+  // Codex P2: a click-only div is mouse-only. Both new heads are operable and
+  // announce their state, and a focusable head has a visible ring.
+  check('both Urgent heads are keyboard-operable and announce collapsed state',
+    (INDEX.match(/_svSectionHeadA11y\(/g) || []).length === 3);   // 1 definition + 2 uses
+  check('Enter and Space activate the head, and Space does not scroll',
+    /_svSectionHeadKey\(ev\)[\s\S]{0,320}ev\.preventDefault\(\)/.test(INDEX));
+  // Scoped to the two toggles themselves — aria-expanded is set in ~26 unrelated
+  // places, so a repo-wide count proves nothing about these.
+  check('toggling keeps aria-expanded honest on both queues',
+    [grabFunc('_kasperToggleUrgent'), grabFunc('_sxrKasperToggleUrgent')]
+      .every(fn => /setAttribute\('aria-expanded',\s*_\w+\.urgentCollapsed \? 'false' : 'true'\)/.test(fn)));
+  check('a focusable head has a visible focus ring',
+    INDEX.includes('.kasper-urgent-wrap .kasper-history-head:focus-visible'));
+
+  // Codex P1, the dangerous one: the frozen writers must not carry a
+  // copy-pasteable deploy line, and must say why.
+  for (const slug of ['calendar-upsert', 'sample-review-upsert']) {
+    const ef = fs.readFileSync(path.join(ROOT, 'supabase/functions', slug, 'index.ts'), 'utf8');
+    check(slug + ' carries no bare deploy command to copy',
+      !new RegExp('supabase functions deploy ' + slug + ' --project-ref').test(ef));
+    check(slug + ' says it is FROZEN and why deploying it re-gates clients',
+      ef.includes('⛔ FROZEN') && ef.includes('authorizeBrowserWrite') && ef.includes('NO CI DEPLOY PATH'));
+  }
+  const ledger = fs.readFileSync(path.join(ROOT, 'docs/ops/OPEN_REPAIRS.md'), 'utf8');
+  const item = ledger.slice(ledger.indexOf('## 186.'));
+  check('the ledger item does not tell the owner to deploy the frozen writers',
+    !/supabase functions deploy calendar-upsert --project-ref/.test(item)
+    && item.includes('NOT deployable from this branch'));
 
   for (const [slug, comps] of [['calendar-upsert', 4], ['sample-review-upsert', 2]]) {
     const ef = fs.readFileSync(path.join(ROOT, 'supabase/functions', slug, 'index.ts'), 'utf8');

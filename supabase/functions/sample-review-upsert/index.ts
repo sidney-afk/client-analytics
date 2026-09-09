@@ -5,6 +5,23 @@
 // comments_base_at scalar conflict guard, link clear/carry-forward guards,
 // sample_review_merge_comments RPC, and best-effort sample_review_events ledger.
 //
+// ⛔ FROZEN — DO NOT DEPLOY THIS FILE AS-IS. Live is the OWNER-UN-GATED source
+//    (sample-review-upsert v44), reverted to the pre-#836 tokenless build on
+//    2026-07-15 so clients' existing review links keep saving. THIS SOURCE STILL CALLS
+//    `authorizeBrowserWrite`, so deploying it re-applies the F35 gate and 401s
+//    every client approval and comment on a pre-existing link — the outage that
+//    happened TWICE on 2026-07-15. `--no-verify-jwt` does NOT help: the refusal
+//    is application-level, not JWT-level.
+//
+//    `docs/ops/EF_DEPLOY_MANIFEST.md` marks this slug `NO CI DEPLOY PATH`. For
+//    every other function that means "deploy it by hand". For this one it means
+//    "there is a live divergence CI is deliberately not allowed to overwrite",
+//    and reading it the first way is how a bare `supabase functions deploy`
+//    keeps being handed to the owner (most recently PR 1370). To ship a change
+//    from here: port the delta onto the exact live un-gated source and deploy
+//    THAT, with the owner's explicit approval. See the freeze banner in
+//    AGENTS.md, the F35 row of ROLLBACK.md, and EXECUTION_LOG.md 2026-07-15.
+//
 // Required env:
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY

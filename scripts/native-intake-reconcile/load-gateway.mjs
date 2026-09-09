@@ -42,6 +42,8 @@ export async function loadGateway() {
     `from "${pathToFileURL(path.join(FN_DIR, 'selected-label-pages.mjs')).href}";`);
   source = rewriteOnce(source, 'from "../_shared/linear-create-id.mjs";',
     `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'linear-create-id.mjs')).href}";`);
+  source = rewriteOnce(source, 'from "../_shared/native-brief-media.mjs";',
+    `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'native-brief-media.mjs')).href}";`);
   source = rewriteOnce(source, 'Deno.serve(', 'globalThis.__nirServe(');
 
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nir-reconcile-'));

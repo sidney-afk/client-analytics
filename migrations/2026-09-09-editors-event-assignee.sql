@@ -105,6 +105,7 @@ declare
   v_event jsonb := coalesce(p_event, '{}'::jsonb);
   v_id text := nullif(v_row->>'id', '');
   v_old_status text;
+  v_required_scope jsonb;
   v_result public.deliverables%rowtype;
   v_action text;
   v_event_is_status_change boolean;
@@ -114,10 +115,15 @@ begin
     v_id := 'del_' || replace(gen_random_uuid()::text, '-', '');
   end if;
 
-  select d.status into v_old_status
+  select d.status, jsonb_build_object('batch_id', d.batch_id,
+    'client_slug', d.client_slug, 'team', d.team) into v_old_status, v_required_scope
     from public.deliverables d
    where d.id = v_id
    for update;
+
+  -- INSERT checks NOT NULL before ON CONFLICT. Preserve the locked row's
+  -- required scope for sparse updates without changing optional-field masks.
+  v_row := coalesce(v_required_scope, '{}'::jsonb) || v_row;
 
   perform set_config('app.event_written', '1', true);
 

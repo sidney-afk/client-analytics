@@ -145,6 +145,7 @@ async function main() {
       '2026-08-06-artifact-projection-scope-and-revision.sql',
       '2026-08-30-artifact-video-projection.sql',
       '2026-09-05-artifact-card-binding-first.sql',
+      '2026-09-09-editors-event-assignee.sql',
       '2026-09-09-native-ordinary-receipts.sql',
       '2026-09-11-native-ordinary-receipt-repair.sql',
       '2026-09-12-native-ordinary-envelope-repair.sql',
@@ -527,7 +528,7 @@ async function main() {
       "delete from public.mirror_outbox where dedup_key='native-title'", /native_ordinary_receipt_retained/,
     ));
     ok('terminal receipts reject table truncation', rejection(
-      'truncate table public.mirror_outbox', /native_ordinary_receipt_retained/,
+      'truncate table public.mirror_outbox cascade', /native_ordinary_receipt_retained/,
     ));
     ok('admission table remains inaccessible to service_role',
       scalar(cluster, "select not has_table_privilege('service_role','public.production_native_ordinary_receipt_admissions','select')") === 't');
@@ -539,6 +540,7 @@ async function main() {
     // classification; the real ordinary guard and retirement guard remain the
     // subjects exercised below.
     cluster.exec(`
+      alter table public.mirror_outbox add column if not exists f27_drill_rollback_id uuid;
       create or replace function public.nir_fixture_admission_prerequisite()
       returns trigger language plpgsql as $fn$ begin return new; end $fn$;
       create trigger track_b_f27_hold_guard before insert on public.mirror_outbox

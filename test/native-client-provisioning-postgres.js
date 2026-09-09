@@ -48,10 +48,10 @@ try {
   assert.match(first.native_project_ids.graphics, /^svproj_graphics_[0-9a-f]{32}$/);
   assert.equal(Object.prototype.hasOwnProperty.call(first, 'display_name'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(first, 'review_token'), false);
-  const tokenHash = cluster.run('', null, { sql: "select encode(digest(review_token, 'sha256'), 'hex') from public.client_access where slug = 'fixture-native-client'", tuplesOnly: true }).trim();
+  const tokenHash = cluster.run('', null, { sql: "select encode(extensions.digest(review_token, 'sha256'), 'hex') from public.client_access where slug = 'fixture-native-client'", tuplesOnly: true }).trim();
   const replay = JSON.parse(cluster.run('', null, { sql: call, tuplesOnly: true }).trim());
   assert.equal(replay.outcome, 'replayed');
-  assert.equal(cluster.run('', null, { sql: "select encode(digest(review_token, 'sha256'), 'hex') from public.client_access where slug = 'fixture-native-client'", tuplesOnly: true }).trim(), tokenHash, 'replay does not rotate a token');
+  assert.equal(cluster.run('', null, { sql: "select encode(extensions.digest(review_token, 'sha256'), 'hex') from public.client_access where slug = 'fixture-native-client'", tuplesOnly: true }).trim(), tokenHash, 'replay does not rotate a token');
   assert.equal(cluster.run('', null, { sql: "select count(*) from public.production_native_client_provisions", tuplesOnly: true }).trim(), '1');
   assert.equal(cluster.run('', null, { sql: "select count(*) from public.client_access where slug = 'fixture-native-client' and review_token <> ''", tuplesOnly: true }).trim(), '1');
   assert.equal(cluster.run('', null, { sql: "select count(*) from public.syncview_runtime_flags where key in ('calendar_upsert_ef_clients','sample_review_ef_clients','settings_ef_clients','write_ui_reroute_clients') and value->'clients' @> '[\"fixture-native-client\"]'::jsonb", tuplesOnly: true }).trim(), '4');

@@ -279,8 +279,19 @@ class Cluster {
     const args = ['-v', 'ON_ERROR_STOP=1', '-h', this.host, '-p', this.port, '-U', this.user, '-d', database, '-X', '-q'];
     if (opts.tuplesOnly) args.push('-t', '-A');
     if (opts.file) args.push('-f', opts.file);
-    else args.push('-c', opts.sql != null ? opts.sql : '');
-    const r = spawnSync(this.psql, args, { encoding: 'utf8' });
+    else {
+      // Cluster lifecycle commands must run outside a transaction block.
+      if (!/^\s*(?:create|drop|alter)\s+database\b/i.test(opts.sql || '')) args.push('--single-transaction');
+      args.push('-f', '-');
+    }
+    // Windows psql converts command-line SQL through the system code page.
+    // Feed UTF-8 bytes on stdin so non-ASCII SQL survives unchanged; retain
+    // the single implicit transaction that a multi-statement -c command had.
+    const r = spawnSync(this.psql, args, {
+      encoding: 'utf8', windowsHide: true,
+      env: { ...process.env, PGCLIENTENCODING: 'UTF8' },
+      ...(opts.file ? {} : { input: opts.sql != null ? opts.sql : '' }),
+    });
     if (r.status !== 0) throw new Error(`psql failed: ${(r.stderr || r.stdout || '').trim()}`);
     return (r.stdout || '').trim();
   }

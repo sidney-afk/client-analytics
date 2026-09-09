@@ -54,6 +54,9 @@ function have(bin) {
 const FIXTURE_SQL = `
 set time zone 'UTC';
 alter table public.clients add column if not exists linear_project_ids jsonb;
+-- Current gateway selects this prerequisite even for provider-mapped clients.
+-- The complete provisioning migration is exercised by its dedicated SQL lane.
+alter table public.clients add column if not exists native_project_ids jsonb not null default '{}'::jsonb;
 insert into public.clients(slug, display_name, active, kind, linear_project_ids)
 values ('fixture-client', 'Fixture Client', true, 'client',
         '{"video":"proj_fixture_shared","graphics":"proj_fixture_shared"}'::jsonb),

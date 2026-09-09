@@ -32,6 +32,7 @@ function Assert-CleanPostgresEnvironment {
       $name -match '^(?i:DATABASE_URL|SUPABASE_DB_URL)$' -or
       $name -match '^(?i:WORKLOAD_TEST_)' -or $name -match '^(?i:F42_REHEARSAL_)' -or $name -match '^(?i:NIR_)' -or
       $name -match '^(?i:NATIVE_LABEL_PG_CONFIG)$' -or $name -match '^(?i:CARD_.*PG)' -or
+      $name -match '^(?i:NATIVE_CARD_TEST_PSQL|NATIVE_LABEL_TEST_PSQL|NATIVE_IDENTIFIER_MINT_PSQL)$' -or
       $name -match '^(?i:F63_REQUIRE_POSTGRES|ARTIFACT_REQUIRE_POSTGRES|INTAKE_MANIFEST_REQUIRE_POSTGRES)$'
   } | Sort-Object)
   if ($present.Count -gt 0) {
@@ -116,6 +117,7 @@ function Invoke-PostgresLane {
     $env:PGPASSWORD = $password
     $env:PGDATABASE = 'postgres'
     $env:PGSSLMODE = 'disable'
+    $env:PGCLIENTENCODING = 'UTF8'
 
     if ($Kind -eq 'Unit') {
       $env:F63_REQUIRE_POSTGRES = '1'
@@ -125,6 +127,9 @@ function Invoke-PostgresLane {
       $env:WORKLOAD_TEST_PSQL = $Psql
       $env:WORKLOAD_TEST_PORT = [string]$port
       $env:WORKLOAD_TEST_PASSWORD = $password
+      $env:NATIVE_CARD_TEST_PSQL = $Psql
+      $env:NATIVE_LABEL_TEST_PSQL = $Psql
+      $env:NATIVE_IDENTIFIER_MINT_PSQL = $Psql
       $exitCode = Invoke-LoggedProcess -Program $Node -Arguments @('test/run-all.js') -LogPath $LogPath
       if ($exitCode -ne 0) { throw "PostgreSQL 16 unit lane failed with code $exitCode." }
     } else {
@@ -142,7 +147,10 @@ function Invoke-PostgresLane {
     foreach ($name in @('WORKLOAD_TEST_CONFIRM','WORKLOAD_TEST_REQUIRE','WORKLOAD_TEST_PSQL','WORKLOAD_TEST_PORT','WORKLOAD_TEST_PASSWORD')) {
       Remove-Item "Env:$name" -ErrorAction SilentlyContinue
     }
-    foreach ($name in @('PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE')) {
+    foreach ($name in @('NATIVE_CARD_TEST_PSQL','NATIVE_LABEL_TEST_PSQL','NATIVE_IDENTIFIER_MINT_PSQL')) {
+      Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+    }
+    foreach ($name in @('PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCLIENTENCODING')) {
       Remove-Item "Env:$name" -ErrorAction SilentlyContinue
     }
     if ($containerId) {

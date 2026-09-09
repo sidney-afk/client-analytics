@@ -257,14 +257,14 @@ try {
   const race3Item = race3.m.expected_items[0], race3Row = race3Item.row;
   const race3Parent = (await receipts(race3.m.batch_id)).find(r => r.dedup_key === race3.m.parent_receipt.dedup_key);
   const race3Generation = Number(await sql(`select generation from public.track_b_f27_team_fences where team=${q(race3Row.team)}`));
-  const race3Payload = { project_id: 'proj_fixture_shared', title: 'Human wins race', status: 'Kasper Approval', assignee_id: race3Row.assignee_id,
+  const race3Payload = { project_id: 'proj_fixture_shared', title: 'Human wins race', status: 'kasper_approval', assignee_id: race3Row.assignee_id,
     _intent_fingerprint: race3Item.child_fingerprint, _native_intake_epoch: race3.m.native_epochs[race3Row.team], _native_intake_request: race3.body.request_id,
     _f27_authority_generation: race3Generation, _f27_legacy_parity: false };
   const race3Event = { source: 'ui', action: 'create', actor: race3Parent.actor, actor_key: race3.m.actor_key, role: race3.m.actor_role,
-    auth_kind: race3.m.auth_kind, surface: race3.m.surface, ts: race3.m.source_edited_at, from_status: null, to_status: 'Kasper Approval', outbound: {
+    auth_kind: race3.m.auth_kind, surface: race3.m.surface, ts: race3.m.source_edited_at, from_status: null, to_status: 'kasper_approval', outbound: {
       entity: 'deliverable', entity_id: race3Row.id, team: race3Row.team, operation: 'create', dedup_key: race3Item.child_dedup,
       source_edited_at: race3.m.source_edited_at, test_only: race3Parent.test_only, legacy_parity: false, depends_on_id: race3Parent.id, payload: race3Payload } };
-  const race3HumanRow = { ...race3Row, title: 'Human wins race', status: 'Kasper Approval' };
+  const race3HumanRow = { ...race3Row, title: 'Human wins race', status: 'kasper_approval' };
   const race3Hold = runSql(`begin; select pg_advisory_xact_lock(hashtextextended('production-deliverable:' || ${q(race3Row.id)},0)); select pg_sleep(1.2); set role service_role; select public.production_deliverable_write(${j(race3HumanRow)},${j(race3Event)}); commit;`);
   await new Promise(resolve => setTimeout(resolve, 250));
   const race3Result = await children(race3.body.request_id);
@@ -272,7 +272,7 @@ try {
   const race3After = (await dels(race3.m.batch_id)).find(d => d.id === race3Row.id);
   ok('S3b-concurrent-production-child-create-after-plan-is-rechecked-under-the-shared-lock', race3Writer.status === 0
     && race3Result.outcome === 'unresolved' && race3Result.unresolved.some(u => u.reason === 'reconcile_child_identity_changed')
-    && race3After && race3After.title === 'Human wins race' && race3After.status === 'Kasper Approval'
+    && race3After && race3After.title === 'Human wins race' && race3After.status === 'kasper_approval'
     && (await receipts(race3.m.batch_id)).filter(r => r.dedup_key === race3Item.child_dedup).length === 1,
     { writer: race3Writer.stderr, reconcile: race3Result, preserved: race3After && [race3After.title, race3After.status] });
 
@@ -510,14 +510,23 @@ try {
     && (await state(s17.body.request_id)).complete === true && (await cards(s17.body.request_id)).outcome === 'complete',
     [s17r.outcome, s17c.outcome, s17retry.status, s17resume.error]);
 
-  // S18. Missing terminal receipt is reported, never invented. (A deleted
-  // receipt row is the only way to reach this state in the fixture.)
-  const s18id = s2after[0].id;
-  await sql(`delete from public.mirror_outbox where entity='deliverable' and entity_id=${q(s18id)}`);
-  const s18state = await state(s2.body.request_id);
-  const s18r = await children(s2.body.request_id);
+  // S18. Retained receipts cannot be deleted. Construct historical incomplete
+  // data with a new interrupted manifest and a fixture-only child insert;
+  // never disable a guard or erase a receipt to manufacture this condition.
+  const retained = await runSql(`delete from public.mirror_outbox where entity='deliverable' and entity_id=${q(s2after[0].id)}`);
+  ok('S18-terminal-receipt-deletion-refused', retained.status !== 0
+    && /native_intake_receipt_retained/.test(retained.stderr));
+  const s18 = await interrupted('video', 1);
+  const s18row = s18.m.expected_items[0].row;
+  const s18id = s18row.id;
+  await sql(`insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id)
+    values (${q(s18id)},${q(s18.m.batch_id)},${q(s18.m.client_slug)},${q(s18row.team)},
+      ${q(s18row.kind)},'Synthetic incomplete historical child','todo',${q(s18row.origin || 'manual')},${q(s18row.card_id || null)})`);
+  const s18state = await state(s18.body.request_id);
+  const s18r = await children(s18.body.request_id);
   ok('S18-missing-terminal-receipt-reported-not-recreated', s18state.owed.missing_terminal_receipts === 1 && s18state.complete === false
-    && s18r.outcome === 'complete' && (await count(`select 1 from public.mirror_outbox where entity_id=${q(s18id)}`)) === 0, s18state.owed);
+    && s18r.outcome === 'unresolved' && s18r.unresolved.some(r => r.reason === 'child_terminal_receipt_missing')
+    && (await count(`select 1 from public.mirror_outbox where entity_id=${q(s18id)}`)) === 0, s18state.owed);
 
   // S19. Roles: only the service role may call the reconciler.
   for (const role of ['anon', 'authenticated']) {

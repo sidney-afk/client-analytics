@@ -194,3 +194,30 @@ urgent video work in the separate Video Editing channel. Those decisions are set
   true.
 
 Until those receipts exist, the install decision remains **HOLD**.
+
+## Unreleased local Windows rehearsal repairs
+
+The supplied `6b8637b47264f9df090e988c7c9c22d5cfe31822` candidate was rehearsed
+against owned loopback PostgreSQL 16 and 17 instances on Windows. The initial
+PG16 run failed 15 of 485 suites; this result is retained, not a clean baseline.
+Two application defects were reproduced: sparse `deliverable_write` updates
+failed required-scope constraints before `ON CONFLICT`, including through the
+artifact owner; urgent notification routines could not resolve `digest` when
+pgcrypto lived in `extensions`. The local repairs preserve scope from the locked
+existing row and add the trusted extension schema to the two urgent routines.
+
+Test repairs make the boot helpers importable without running their CLI,
+correct Windows file URLs and UTF-8 SQL transport, provide current fixture
+prerequisites, and fix an event-assignee assertion helper that checked the
+message instead of the condition. The notification SQL lane now exercises
+`deliverable_write` and `production_comment_upsert` rather than manually
+stamping the positive status/comment events. Negative observer fixtures remain
+explicit. Ordinary-receipt tests include the current event-assignee owner;
+their separately disclosed F27/native-owner prerequisite triggers remain
+no-ops, so this still does not prove the full owner composition.
+
+The native Windows fallback is separate from the supplied Docker runner, which
+still needs WSL and a running Docker engine. Chromium tests with synthetic HTTP
+responses do not establish an end-to-end browser/HTTP/SQL journey. Local provider
+receipt simulations do not establish Slack delivery. No local result authorizes
+installation, publication, activation, production data changes, or n8n execution.

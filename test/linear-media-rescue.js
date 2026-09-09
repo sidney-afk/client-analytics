@@ -266,7 +266,7 @@ const angleForm = `![](<${HOST}${P1}${SIG_A}>)`;
 }
 {
   let ok_ = true;
-  try { M.assertPrivatePath('/tmp/nowhere-near-git/manifest.json'); } catch (_) { ok_ = false; }
+  try { M.assertPrivatePath(path.join(require('node:os').tmpdir(), 'nowhere-near-git', 'manifest.json')); } catch (_) { ok_ = false; }
   ok(ok_, 'a path outside any git tree is allowed');
 }
 

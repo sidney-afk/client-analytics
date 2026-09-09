@@ -20,7 +20,8 @@ const A = '00000000-0000-4000-8000-000000000101';
 const B = '00000000-0000-4000-8000-000000000102';
 const EVENT = 'event-assignee-proof';
 const checks = [];
-function ok(label, condition) {
+function ok(condition, label) {
+  assert.equal(typeof condition, 'boolean', 'the assertion must receive a boolean condition');
   assert.ok(condition, label);
   checks.push(label);
   console.log('  ok  ' + label);
@@ -44,10 +45,15 @@ let cluster;
 try {
   cluster = bootCluster();
   cluster.runFile(path.join(MIGRATIONS, '2026-09-09-editors-event-assignee.sql'));
-  ok('the exact event-assignee migration applies on the F63 disposable native schema', true);
+  ok(true, 'the exact event-assignee migration applies on the F63 disposable native schema');
 
-  cluster.exec(`insert into public.deliverables(id,client_slug,team,kind,title,status,assignee_id)
-    values ('${EVENT}','fixture-client','video','video','Synthetic event owner','todo','${A}'::uuid);`);
+  cluster.exec(`insert into public.team_members(id,name,role,team,active) values
+    ('${A}','Synthetic Editor A','editor','video',true),
+    ('${B}','Synthetic Editor B','editor','video',true);
+    insert into public.batches(id,client_slug,team,name,status)
+    values ('event-assignee-batch','fixture-client','video','Synthetic event batch','active');
+    insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,assignee_id)
+    values ('${EVENT}','event-assignee-batch','fixture-client','video','video','Synthetic event owner','todo','${A}'::uuid);`);
   let row = write(cluster, { id: EVENT, status: 'in_progress' }, { action: 'status_change', source: 'ui' });
   ok(row.event_assignee_id === A && row.event_assignee_attribution === 'native_transaction',
     'a native status change snapshots the transaction-current assignee');
@@ -67,7 +73,7 @@ try {
     action: 'status_change', source: 'ui', ts: '2002-03-04T05:06:07.000Z'
   });
   ok(row.event_assignee_id === null && row.event_assignee_attribution === 'unknown'
-    && row.ts === '2002-03-04T05:06:07+00:00',
+    && Date.parse(row.ts) === Date.parse('2002-03-04T05:06:07.000Z'),
   'an explicit source timestamp remains unknown and keeps the caller-provided ledger timestamp');
 
   row = write(cluster, { id: EVENT, status: 'tweak', assignee_id: '' }, { action: 'status_change', source: 'ui' });

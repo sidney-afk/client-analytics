@@ -21,19 +21,20 @@ function serviceScalar(sql) { return scalar(`begin; set local role service_role;
 function intentId(where) { return scalar(`select id from public.production_notification_intents where ${where}`); }
 function nativeStatus(from, to, suffix) {
   cluster.exec(`begin;
-    select set_config('app.event_assignee_stamp','native-status-v1',true);
-    select set_config('app.event_assignee_id','${EDITOR}',true);
-    select set_config('app.event_assignee_attribution','native_transaction',true);
-    insert into public.deliverable_events(deliverable_id,batch_id,client_slug,action,source,from_status,to_status,payload)
-    values ('legacy-native-id','notification-batch','fixture-client','status_change','ui','${from}','${to}',
-      jsonb_build_object('auth_kind','staff','actor_key','member:${ACTOR}','proof','${suffix}'));
+    update public.deliverables set status='${from}' where id='legacy-native-id';
+    select public.deliverable_write(
+      jsonb_build_object('id','legacy-native-id','status','${to}'),
+      jsonb_build_object('action','status_change','source','ui',
+        'auth_kind','staff','actor_key','member:${ACTOR}','proof','${suffix}'));
     commit;`);
 }
 function staffComment(id) {
-  cluster.exec(`insert into public.production_comments(
-    id,idempotency_key,native_comment_id,deliverable_id,client_slug,team,author_key,author_member_id,author_name,role,body,audience,origin,source
-  ) values ('${id}','${id}-key','${id}-native','legacy-native-id','fixture-client','video',
-    'member:${ACTOR}','${ACTOR}','Synthetic Staff','smm','A safe comment','client','native','ui');`);
+  cluster.exec(`select public.production_comment_upsert(jsonb_build_object(
+    'id','${id}','idempotency_key','${id}-key','native_comment_id','${id}-native',
+    'deliverable_id','legacy-native-id','client_slug','fixture-client','team','video',
+    'author_key','member:${ACTOR}','author_member_id','${ACTOR}',
+    'author_name','Synthetic Staff','role','smm','body','A safe comment',
+    'audience','client','origin','native','source','ui'));`);
 }
 function claimOne() { service('select * from public.production_notification_claim(1)'); }
 try {
@@ -50,7 +51,8 @@ try {
     alter table public.sample_reviews add column if not exists video_status text;
     alter table public.sample_reviews add column if not exists video_status_at timestamptz;
     alter table public.sample_reviews add column if not exists deleted_at timestamptz;
-    alter table public.clients alter column slack_channel_id drop not null;
+    alter table public.clients add column if not exists slack_channel_id text;
+    alter table public.team_members add column if not exists slack_user_id text;
     update public.clients set slack_channel_id = 'C1234567890' where slug = 'fixture-client';
     update public.team_members set slack_user_id = 'U1234567890' where id = '${EDITOR}';
     insert into public.batches(id,client_slug,team,name,status,purpose) values ('notification-batch','fixture-client','video','Notification batch','active','calendar');

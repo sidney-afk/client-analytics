@@ -405,7 +405,7 @@ create or replace function public.production_notification_enqueue_urgent(
 ) returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
 declare
   v_del public.deliverables%rowtype;
@@ -537,7 +537,7 @@ create or replace function public.production_notification_urgent_status(
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $fn$
   select coalesce((
     select jsonb_build_object('state', i.state, 'sent', i.state = 'sent')

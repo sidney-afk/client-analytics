@@ -5763,6 +5763,23 @@
            (green) and disabled (grey) all inherit from .cal-urgent-btn. */
         .kcard-urgent-btn { padding: 9px 13px; border-radius: 10px; font-size: 0.72rem; letter-spacing: 0.04em; }
         .kcard-urgent-btn svg { width: 13px; height: 13px; }
+        /* The Kasper flavour of the same button (a card parked at Kasper
+           Approval, pinging HIM rather than the editor) deliberately has NO
+           rules of its own. It is the same escalation aimed at a different
+           person, so it inherits every state — base, hover, disabled grey,
+           is-sent green — from .cal-urgent-btn above.
+
+           It briefly carried two `.cal-urgent-btn.is-kasper` rules that merely
+           repeated the base background and hover. They changed nothing on a
+           fresh button and broke the finished ones: equal specificity but LATER
+           in the sheet, so they beat `:disabled` and `.is-sent` and repainted a
+           sent ping orange. A redundant override is not free — it silently
+           outranks the states declared above it. (Codex P2 on PR 1370.)
+
+           The title-row variant only re-rounds its corners: it docks beside the
+           title square rather than on the end of a segmented pill, so it has no
+           flat edge to meet. */
+        .cal-title-urgent-btn { flex: 0 0 auto; border-radius: 7px; }
         /* Second Linear slot (graphics) in the title row — purple ONLY when
            linked, so an unlinked graphic slot falls back to the neutral
            gray (default) or warn-orange (cal-linear-btn-warn) the same way
@@ -6850,6 +6867,16 @@
         .kasper-history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; cursor: pointer; user-select: none; }
         .kasper-history-title { font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .kasper-history-count { font-size: 0.68rem; font-weight: 700; background: var(--border-light); color: var(--text-secondary); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        /* A focusable head needs a visible focus ring, or keyboard users can
+           tab to it and have no idea where they are. Scoped to the Urgent
+           heads because they are the only ones carrying tabindex today. */
+        .kasper-urgent-wrap .kasper-history-head:focus-visible {
+            outline: 2px solid var(--cal-urgent-bg); outline-offset: 3px; border-radius: 4px; }
+        /* "Urgent" section head. Same section as its three siblings — only the
+           title and count carry the urgent colour, so the group reads as more
+           pressing without becoming a different kind of object on the page. */
+        .kasper-urgent-wrap .kasper-history-title { color: var(--cal-urgent-bg); }
+        .kasper-urgent-wrap .kasper-history-count { background: var(--cal-urgent-bg); color: var(--cal-urgent-fg); }
         .kasper-history-chev { color: var(--text-muted); transition: transform 0.2s; margin-left: auto; }
         .kasper-history-wrap.collapsed .kasper-history-chev { transform: rotate(-90deg); }
         .kasper-history-wrap.collapsed .kasper-history-body { display: none; }
@@ -22455,6 +22482,14 @@
        user via the Video Editors sheet tab, and posts to #video-editing as the
        SyncView Bot. The editor/mention is never trusted from the client. */
     const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* "URGENT — WAITING ON YOU" ping for a card parked at Kasper Approval. The
+       twin of the one above, aimed the other way: the SMM fires it when a card
+       has been sitting in Kasper's queue too long, and the send-urgent-kasper-slack
+       workflow DMs Kasper as the SyncView Bot with a link straight to his review
+       tab. As with the editor ping the front-end sends only card context — the
+       recipient is resolved inside the workflow and is never trusted from the
+       browser. */
+    const URGENT_KASPER_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-kasper-slack';
     /* ============================================================
        CALENDAR v2 (Supabase realtime) — Phase 2 config
        See docs/archive/CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
@@ -25507,6 +25542,63 @@
         }
         return Promise.resolve();
     }
+    /* KILL-SWITCH for the Kasper-approval URGENT ping, and it is the reason this
+       feature can merge before its Edge Function half exists.
+
+       The marker columns live behind the ⛔ FROZEN writers (see the banner in
+       supabase/functions/calendar-upsert/index.ts). Until their live un-gated
+       source carries the four kasper_urgent_* fields, a ping would post a patch
+       whose fields the allow-list drops -- leaving an UPDATE that writes nothing
+       but `updated_at`. That is not harmless: dedupeByLinearIssue in
+       scripts/linear-sync-reconcile.js picks the canonical row by most-recent
+       `updated_at`, so on a card sharing a Linear link with another, a no-op
+       ping can flip which row the calendar shows. And the DM would say "it is in
+       the Urgent section at the top" of a section that cannot populate.
+
+       So the affordance is OFF until this flag says otherwise, and it FAILS
+       CLOSED: no flag row, no key, a failed read, a malformed value -> off. With
+       it off the feature is completely inert -- no button, so no click, no write
+       and no DM. Turning it on after the EF port is one row, no deploy:
+
+         insert into public.syncview_runtime_flags (key, value)
+         values ('kasper_urgent_ping_enabled', '{"enabled": true}'::jsonb)
+         on conflict (key) do update set value = excluded.value;
+    */
+    const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
+    let _kasperUrgentPingEnabled = false;
+    function _kasperUrgentPingOn() { return _kasperUrgentPingEnabled === true; }
+    /* Re-read at CLICK time, not just at boot. A flag cached at boot makes the
+       advertised one-step rollback untrue: a tab that saw `enabled: true` keeps
+       sending DMs and writing markers after the row is flipped off, which is
+       precisely the situation the switch exists for. So the dispatch path asks
+       again and fails closed, and a stale-cached render can only ever offer a
+       button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
+    async function _kasperUrgentPingOnLive() {
+        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentPingEnabled = false; }
+        return _kasperUrgentPingOn();
+    }
+    async function _calFetchKasperUrgentFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentPingEnabled = false; return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const was = _kasperUrgentPingEnabled;
+            _kasperUrgentPingEnabled = !!(row && row.value && row.value.enabled === true);
+            // A render that won the race against this read is buttonless; repaint
+            // it rather than making activation require a reload.
+            if (was !== _kasperUrgentPingEnabled) _kasperUrgentRepaintSurfaces();
+        } catch (e) {
+            _kasperUrgentPingEnabled = false;   // fail closed, always
+        }
+    }
+    function _kasperUrgentRepaintSurfaces() {
+        try { if (typeof renderCalendarView === 'function' && calState && Array.isArray(calState.posts) && calState.posts.length) renderCalendarView(); } catch (e) {}
+        try { if (typeof _kasperPaintReview === 'function') _kasperPaintReview(); } catch (e) {}
+        try { if (typeof _sxrKasperRenderQueue === 'function') _sxrKasperRenderQueue(); } catch (e) {}
+    }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
         try {
@@ -25678,7 +25770,7 @@
     }
     function _calPrimeUpsertRoutingFlag() {
         if (!_calUpsertFlagPromise) {
-            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _writeUiPrimeRerouteFlag()])
+            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
                 .then(() => _calSubscribeUpsertFlag()).catch(() => null);
         }
         return _calUpsertFlagPromise;
@@ -33323,6 +33415,44 @@
        resolves the editor and posts to #video-editing as the SyncView Bot. A
        disclaimer gates the send, and the button latches to "Sent" for the rest
        of the session so a card can't be spam-pinged on re-render. */
+    /* The URGENT ping has TWO flavours, and they are deliberately ONE machine:
+       same button, same confirm -> POST -> latch dispatch, same four-column
+       marker shape, same "the marker dies with its round" rule. Only the
+       destination, the copy and which columns hold the marker differ, and all
+       of that lives in this table so every call site downstream stays flavour-
+       blind. Adding a third would be a row here and nothing else.
+
+         editor - a VIDEO at Tweaks Needed         -> #video-editing, tags the editor
+         kasper - ANY component at Kasper Approval -> DMs Kasper, links his review tab
+
+       `kind` defaults to 'editor' EVERYWHERE, so every pre-existing call site
+       keeps its exact old behaviour without being touched. */
+    const URGENT_PING_KINDS = {
+        editor: {
+            url: () => URGENT_SLACK_URL,
+            btnTitle: 'Ping the editor in #video-editing that this needs urgent tweaks',
+            confirmTitle: 'Send urgent tweak ping?',
+            confirmBody: 'This posts an \u201cURGENT TWEAKS NEEDED\u201d message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            confirmCta: 'Send urgent ping',
+            sentTitle: 'Urgent ping sent',
+            sentWhere: 'Posted to #video-editing',
+            alreadySent: 'An urgent ping for this video was already sent in this session.',
+            failBody: 'The urgent ping failed to send. Try again, or post in #video-editing manually.'
+        },
+        kasper: {
+            url: () => URGENT_KASPER_SLACK_URL,
+            btnTitle: 'Ping Kasper in Slack that this card is waiting on his review',
+            confirmTitle: 'Ping Kasper for this review?',
+            confirmBody: 'This sends Kasper a direct Slack message from the SyncView Bot with a link to his review tab, and moves the card into the Urgent section at the top of it. Only use it when the card genuinely cannot wait for his next pass.',
+            confirmCta: 'Ping Kasper',
+            sentTitle: 'Kasper pinged',
+            sentWhere: 'Sent Kasper a Slack DM',
+            alreadySent: 'Kasper was already pinged for this card in this session.',
+            persistFirst: true,
+            failBody: 'The ping to Kasper was not sent. Nothing was saved and no message went out, so it is safe to try again.'
+        }
+    };
+    function _urgentKind(kind) { return URGENT_PING_KINDS[kind] || URGENT_PING_KINDS.editor; }
     function _calUrgentSameRound(a, b) {
         const as = String(a || '').trim(), bs = String(b || '').trim();
         if (!as || !bs) return false;
@@ -33330,24 +33460,82 @@
         const at = Date.parse(as), bt = Date.parse(bs);
         return Number.isFinite(at) && Number.isFinite(bt) && Math.abs(at - bt) < 1000;
     }
-    function _calUrgentSentForCurrentRound(p) {
+    function _calUrgentSentForCurrentRound(p, kind) {
+        if (kind === 'kasper') return _calKasperUrgentActive(p);
         if (!_calShowUrgent(p, 'video')) return false;
         if (!String((p && p.video_urgent_pinged_at) || '').trim()) return false;
         return _calUrgentSameRound(p && p.video_urgent_status_at, p && p.video_status_at);
     }
-    function _calApplyUrgentButtonState(btn, p) {
+    /* Which pill the Kasper ping was fired from. Stored rather than assumed
+       because the ping is card-level but its ROUND is a single component's:
+       reading the wrong component's status would keep a spent marker alive. */
+    function _calKasperUrgentComp(p) {
+        const raw = String((p && p.kasper_urgent_comp) || '').trim();
+        return CAL_REVIEW_COMPONENTS.indexOf(raw) >= 0 ? raw : 'video';
+    }
+    /* Is this card's Kasper ping still live? Live means: it was sent, the
+       component it was sent for is STILL at Kasper Approval, and that component
+       has not left and re-entered since (the round key). This one predicate is
+       the whole feature's source of truth -- it drives the button's Sent latch
+       AND membership of the Urgent section in Kasper's review tab, so the two
+       can never disagree.
+
+       The unstamped case is deliberately generous: rows that predate the
+       caption/title change-stamps carry no *_status_at at all, and treating
+       that as "wrong round" would silently drop cards OUT of the Urgent
+       section, which is the one failure mode that matters here. With neither
+       side stamped the component still sitting at Kasper Approval is proof
+       enough. */
+    function _calKasperUrgentActive(p) {
+        if (!p) return false;
+        if (!String(p.kasper_urgent_pinged_at || '').trim()) return false;
+        const comp = _calKasperUrgentComp(p);
+        if (_calNormStatus(p[comp + '_status'] || '') !== 'Kasper Approval') return false;
+        const sentFor = String(p.kasper_urgent_status_at || '').trim();
+        const now = String(p[comp + '_status_at'] || '').trim();
+        if (!sentFor && !now) return true;
+        return _calUrgentSameRound(sentFor, now);
+    }
+    /* Affordance gate for the Kasper ping, the sibling of _calShowUrgent: a
+       component actually sitting at Kasper Approval that he can actually act on.
+
+       BOTH exclusions exist because his QUEUE applies them, and a ping the queue
+       will not honour is worse than no ping at all -- the DM says "it is in the
+       Urgent section at the top" and it is not there:
+         · an unlinked thumbnail is not reviewable (_calCompKasperVisible drops it);
+         · a component whose CONTENT never arrived -- a video with no file, an
+           empty caption, an untitled title -- is dropped by the queue's own
+           `anyReviewable` gate into the "waiting on content, not on you" notice,
+           which is a different message and a different bucket.
+       So this asks _kasperCompReviewable, the very predicate that gate uses,
+       rather than a second opinion that could drift from it. (Codex P1 on
+       PR 1370: the ping persisted a marker for a card Kasper could never see.)
+
+       This is NOT the over-strict client AGENTS.md warns against. It hides
+       nothing that would have worked: reviewability is read off columns the
+       browser already holds, not guessed at, and the correct move for a card
+       with no video is to attach the video, not to chase Kasper about it. */
+    function _calShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn()) return false;      // kill-switch, fails closed
+        if (!p || !c) return false;
+        if (_calNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
+        if (c === 'graphic' && !_calCompLinked(p, c)) return false;
+        return _kasperCompReviewable(p, c);
+    }
+    function _calApplyUrgentButtonState(btn, p, kind) {
         if (!btn) return;
-        const sent = _calUrgentSentForCurrentRound(p);
+        const sent = _calUrgentSentForCurrentRound(p, kind || btn.dataset.urgentKind);
         btn.disabled = sent;
         btn.textContent = sent ? 'Sent' : 'URGENT';
         btn.dataset.urgentSent = sent ? '1' : '0';
         btn.classList.toggle('is-sent', sent);
     }
-    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation) {
-        const sent = _calUrgentSentForCurrentRound(post);
+    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind) {
+        const k = kind === 'kasper' ? 'kasper' : 'editor';
+        const sent = _calUrgentSentForCurrentRound(post, k);
         const cls = 'cal-urgent-btn' + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
         const preClick = stopPropagation ? 'event.stopPropagation();' : '';
-        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
+        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-kind="${k}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="${_calEscAttr(_urgentKind(k).btnTitle)}"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
     }
     function _calBuildUrgentPatch(post, ping) {
         const issue = String((ping && ping.issue) || (post && post.linear_issue_id) || '').trim();
@@ -33377,6 +33565,98 @@
         }
         return echo;
     }
+    /* ── The Kasper half of the ping ──────────────────────────────────────
+       Same four-column marker shape as the video ping, one card-level marker
+       instead of a per-component one, because the ping means "this CARD is
+       waiting on you" and Kasper's review card covers every component at once.
+       `kasper_urgent_comp` records which pill fired it purely so the round key
+       has a component to belong to (see _calKasperUrgentActive). */
+    function _calBuildKasperUrgentPatch(post, comp, ping) {
+        return {
+            id: post.id,
+            kasper_urgent_pinged_at: String((ping && ping.sentAt) || new Date().toISOString()),
+            kasper_urgent_status_at: String((post && post[comp + '_status_at']) || ''),
+            kasper_urgent_comp: comp,
+            kasper_urgent_by: String((ping && ping.by) || _calUrgentActorName())
+        };
+    }
+    function _calUrgentActorName() {
+        try {
+            if (_isClientLink) return 'Client';
+            if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') return 'Kasper';
+        } catch (e) {}
+        return 'SyncView';
+    }
+    /* Kasper works in his own tab, on a different device, from the SMM who
+       fired the ping — so the marker has to be on the ROW, not in this session.
+       Without the write the DM would arrive and his Urgent section would still
+       be empty, which is the exact failure the editor ping's marker was added
+       for on 2026-07-10. */
+    async function _calPersistKasperUrgentForPost(clientOrSlug, post, comp, ping) {
+        if (!post || !post.id) return null;
+        const slug = calClientSlug(clientOrSlug);
+        const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
+        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
+        Object.assign(post, patch, echo);
+        // Mirror of the video ping's back-fill: on a row whose component has no
+        // change-stamp yet, adopt the one the server settled on so the local
+        // copy agrees with what the round key will compare against next paint.
+        if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
+            post[comp + '_status_at'] = post.kasper_urgent_status_at;
+        }
+        // A card with two components at Kasper Approval renders TWO buttons, and
+        // the dispatcher only disables the one that was clicked. Without this the
+        // sibling stays live and can fire a duplicate DM before the next render.
+        // (Codex P2 on PR 1370 — the samples path already did this.)
+        try { _calUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    /* Where the DM points. Kasper's review tab is one hash away on the live
+       app, and the two surfaces have different subtabs — a sample must land on
+       Samples, not on the calendar queue where it is nowhere to be found. */
+    function _calKasperReviewUrl(surface) {
+        const base = 'https://syncview.synchrosocial.com/';
+        return base + '#kasper' + (surface === 'samples' ? '/samples' : '');
+    }
+    /* Ping Kasper about a card parked at Kasper Approval. Reuses the SAME
+       confirm → POST → latch dispatch as the editor ping; only the flavour
+       differs. */
+    async function _calSendKasperUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') {
+            showNotify('Already sent', _urgentKind('kasper').alreadySent);
+            return;
+        }
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _calKasperUrgentPingComp(post);
+        if (!comp) {
+            showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
+            return;
+        }
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
+            kind: 'kasper',
+            payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
+            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping)
+        });
+    }
+    /* Which component the ping is recorded against. The button can be clicked
+       on any pill at Kasper Approval, but a card with several of them still
+       gets ONE marker — first in component order wins, so two SMMs clicking
+       different pills on the same card cannot produce two different rounds. */
+    function _calKasperUrgentPingComp(post) {
+        return CAL_REVIEW_COMPONENTS.find(c => _calShowKasperUrgent(post, c)) || '';
+    }
     function _calSendUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
@@ -33403,23 +33683,49 @@
        -byte identical no matter who triggers it. `btn` may be null (no element to
        latch). */
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
+        const kind = (opts && opts.kind === 'kasper') ? 'kasper' : 'editor';
+        const spec = _urgentKind(kind);
         showConfirm(
-            'Send urgent tweak ping?',
-            'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            spec.confirmTitle,
+            spec.confirmBody,
             () => {
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
                     try {
-                        const resp = await fetch(URGENT_SLACK_URL, {
+                        /* ORDER MATTERS, and it differs by flavour.
+                           editor: Slack first. The message IS the deliverable;
+                             its marker only drives a Sent latch, so a failed
+                             write is cosmetic and must not cost the ping.
+                           kasper: MARKER FIRST. The DM says "it is in the Urgent
+                             section at the top", so sending it before the marker
+                             lands can promise a section that never populates. A
+                             failed write now aborts before Slack: no marker, no
+                             DM, nothing to reconcile. (Codex P1 on PR 1370.) */
+                        // The pre-dialog read is not enough: the confirm can sit
+                        // open indefinitely while the flag is flipped off. Ask
+                        // again HERE, before the first side effect, or the
+                        // rollback still cannot stop an open tab. (Codex P1 r3.)
+                        if (spec.persistFirst && typeof _kasperUrgentPingOnLive === 'function'
+                            && !(await _kasperUrgentPingOnLive())) {
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Urgent pings are off', 'The Kasper urgent ping was disabled while this dialog was open. Nothing was saved and nothing was sent.');
+                            return;
+                        }
+                        let sentAtPre = '';
+                        if (spec.persistFirst && opts && typeof opts.persist === 'function') {
+                            sentAtPre = new Date().toISOString();
+                            await opts.persist({ sentAt: sentAtPre, issue, editor: '' });
+                        }
+                        const resp = await fetch(spec.url(), {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ issue, client, name: String(name || '') })
+                            body: JSON.stringify(Object.assign({ issue, client, name: String(name || '') }, (opts && opts.payload) || {}))
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
-                        const sentAt = new Date().toISOString();
-                        if (opts && typeof opts.persist === 'function') {
+                        const sentAt = sentAtPre || new Date().toISOString();
+                        if (!spec.persistFirst && opts && typeof opts.persist === 'function') {
                             try {
                                 await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
                             } catch (persistErr) {
@@ -33429,14 +33735,14 @@
                         }
                         if (btn) { btn.disabled = true; btn.textContent = 'Sent'; btn.dataset.urgentSent = '1'; btn.classList.add('is-sent'); }
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
-                        showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
+                        showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
-                        showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
+                        showNotify('Could not send', spec.failBody);
                     }
                 })();
             },
-            'Send urgent ping'
+            spec.confirmCta
         );
     }
     /* ── Parent-link detection ───────────────────────────────────────────
@@ -38784,6 +39090,17 @@
             const ts = _calNormStatus(p.title_status || 'In Progress');
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+            // The title is the one review component with no pill in the
+            // sub-status row -- that row maps CAL_COMPONENTS, which deliberately
+            // excludes it (see CAL_REVIEW_COMPONENTS). Without this the URGENT
+            // ping was unreachable for a card whose TITLE alone was waiting on
+            // Kasper, while the marker schema and the server guard both accepted
+            // 'title' perfectly happily. (Codex P1 on PR 1370.) The button docks
+            // beside the square in the same flex row; the name input shrinks,
+            // exactly as it does for the save indicator.
+            if (_calShowKasperUrgent(p, 'title')) {
+                titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
+            }
         }
         return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
@@ -39145,14 +39462,18 @@
                    Approved rather than disappearing behind N/A. */
             const shownStatus = _calPillDisplayStatus(p, c, cs);
             const slug = _calStatusSlug(shownStatus);
-            // URGENT ping — Video only, and only once it's actually in Tweaks
-            // Needed with a Linear sub-issue we can resolve the editor from.
-            // (Shared predicate so the in-place updater stays in lockstep.)
+            // URGENT ping. Two flavours, never both at once because their
+            // statuses are mutually exclusive: Video at Tweaks Needed pings the
+            // editor; ANY component at Kasper Approval pings Kasper. Shared
+            // predicates so the in-place updater stays in lockstep.
             const showUrgent = _calShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(p, c);
             const urgentBtn = showUrgent
                 ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
-                : '';
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
@@ -47029,24 +47350,47 @@
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
                 if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, shown);
             }
-            // Reconcile the URGENT badge in place, same predicate as the full
+            // Reconcile the URGENT badge in place, same predicates as the full
             // render — otherwise it lingered next to "For Client Approval" after
-            // a tweak was resolved and the component left Tweaks Needed.
+            // a tweak was resolved and the component left Tweaks Needed. Both
+            // flavours are reconciled here, and a pill that changes flavour
+            // (Tweaks Needed → Kasper Approval) has its button REPLACED rather
+            // than restyled: the two carry different handlers, and leaving the
+            // old one in place is how a pill ends up pinging the wrong person.
             const showUrgent = _calShowUrgent(post, c);
-            subWrap.classList.toggle('has-urgent', showUrgent);
-            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
-            if (showUrgent && !urgentEl) {
-                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
-            } else if (showUrgent && urgentEl) {
-                _calApplyUrgentButtonState(urgentEl, post);
-            } else if (!showUrgent && urgentEl) {
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
                 urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
             }
         }
         // Title status square (lives in the title row, not the sub-status row) —
         // keep its colour in lockstep with title_status on in-place / realtime
         // updates too, not just full re-renders.
         const titleSq = document.querySelector(`.cal-title-status-sq[data-substatus-pid="${sel}"][data-substatus-comp="title"]`);
+        // The title's URGENT ping lives beside that square rather than on a
+        // sub-status pill, so the pill loop above never sees it. Reconcile it
+        // here with the same predicate and the same remove-and-rebuild rule.
+        if (titleSq && titleSq.parentNode) {
+            const wantTitleUrgent = _calShowKasperUrgent(post, 'title');
+            let titleUrgentEl = titleSq.parentNode.querySelector(':scope > .cal-title-urgent-btn');
+            if (titleUrgentEl && !wantTitleUrgent) { titleUrgentEl.remove(); titleUrgentEl = null; }
+            if (wantTitleUrgent && !titleUrgentEl) {
+                titleSq.insertAdjacentHTML('afterend', _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, 'cal-title-urgent-btn', true, 'kasper'));
+            } else if (wantTitleUrgent && titleUrgentEl) {
+                _calApplyUrgentButtonState(titleUrgentEl, post, 'kasper');
+            }
+        }
         if (titleSq) {
             const tcs = _calNormStatus(post.title_status || 'In Progress');
             titleSq.setAttribute('data-val', tcs);
@@ -65261,18 +65605,26 @@
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
                 if (labelEl) labelEl.textContent = _sxrStatusLabel(shown);
             }
-            // Reconcile the URGENT badge in place, same predicate as the full
-            // render, so it can't linger after the component leaves Tweaks Needed.
+            // Reconcile the URGENT badge in place, same predicates as the full
+            // render, so it can't linger after the component leaves the status
+            // that earned it — and so a pill changing flavour swaps its button
+            // rather than keeping the handler for the wrong recipient.
             const showUrgent = _sxrShowUrgent(post, c);
-            subWrap.classList.toggle('has-urgent', showUrgent);
-            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
-            if (showUrgent && !urgentEl) {
-                const escPid = _sxrEscAttr(pid);
-                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
-            } else if (showUrgent && urgentEl) {
-                _calApplyUrgentButtonState(urgentEl, post);
-            } else if (!showUrgent && urgentEl) {
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
                 urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                const escPid = _sxrEscAttr(pid);
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(escPid, '_sxrSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
             }
         }
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
@@ -66576,6 +66928,65 @@
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
         return !!String(p.linear_issue_id || '').trim();
     }
+    /* Kasper-ping gate for samples. Same rule as the calendar's
+       _calShowKasperUrgent over the two components samples carries, MINUS the
+       content check -- and that asymmetry is deliberate, not an oversight.
+       The calendar queue drops a content-less card into its stranded notice, so
+       a ping there would point at a card Kasper cannot see; the samples queue
+       keeps it (membership is _sxrPostKasperVisible, which asks about status and
+       the graphic link only), so the ping lands on a card that really is in his
+       list. Copying the calendar's gate here would hide a working affordance,
+       which is the failure AGENTS.md's permissive directive is about. The two
+       gates track their own queues; if the samples queue ever starts stranding
+       cards, this is the line that has to follow it. */
+    function _sxrShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn()) return false;      // same kill-switch as the calendar
+        if (!p || !c) return false;
+        if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
+        if (c === 'graphic' && !_calCompLinked(p, c)) return false;
+        return true;
+    }
+    function _sxrKasperUrgentPingComp(post) {
+        return SXR_REVIEW_COMPONENTS.find(c => _sxrShowKasperUrgent(post, c)) || '';
+    }
+    async function _sxrPersistKasperUrgentForPost(clientOrSlug, post, comp, ping) {
+        if (!post || !post.id) return null;
+        const slug = sxrClientSlug(clientOrSlug);
+        const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
+        const resp = await fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
+            post[comp + '_status_at'] = post.kasper_urgent_status_at;
+        }
+        try { _sxrUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    /* Ping Kasper about a SAMPLE waiting on him. Same dispatch, same marker;
+       the DM link points at his Samples subtab rather than the calendar queue,
+       because that is the only place this card is visible to him. */
+    async function _sxrSendKasperUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _sxrKasperUrgentPingComp(post);
+        if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
+            kind: 'kasper',
+            payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping)
+        });
+    }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
@@ -66629,10 +67040,13 @@
             // URGENT ping — Video only, once it's at Tweaks Needed with a Linear
             // sub-issue we can tag the editor from.
             const showUrgent = _sxrShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(p, c);
             const urgentBtn = showUrgent
                 ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
-                : '';
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_sxrSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
@@ -70781,7 +71195,7 @@
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), urgentCollapsed: false, waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -70848,9 +71262,16 @@
     }
     // Waiting = he still has a call to make; Tweaks pending = finished + handed off.
     function _sxrKasperPartitionItems(items) {
-        const waiting = [], tweaks = [];
-        for (const it of items) { if (_sxrKasperIsFinished(it.post)) tweaks.push(it); else waiting.push(it); }
-        return { waiting, tweaks };
+        // Urgent is a split of waiting, exactly as on the calendar queue, and
+        // over the SAME predicate — a sample and a post read as urgent for the
+        // same reason, so the two queues can never disagree about a ping.
+        const urgent = [], waiting = [], tweaks = [];
+        for (const it of items) {
+            if (_sxrKasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
+            else waiting.push(it);
+        }
+        return { urgent, waiting, tweaks };
     }
     // Approved-history (in-session — a "recently approved" list; clears on reload).
     function _sxrKasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -70924,7 +71345,7 @@
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
         if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
         if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
-        const { waiting, tweaks } = _sxrKasperPartitionItems(st.items);
+        const { urgent, waiting, tweaks } = _sxrKasperPartitionItems(st.items);
         // Waiting bucket (collapsible head matches Tweaks-pending / history so the
         // three feel like siblings). Defaults open — it's where Kasper works.
         const waitingBody = waiting.length
@@ -70943,8 +71364,21 @@
         // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
         // swap, gated to #kasperContent so we never steal focus from elsewhere.
         _svPreserveFocus(() => {
-            host.innerHTML = head + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
+            host.innerHTML = head + _sxrKasperRenderUrgentSection(urgent) + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
         }, host);
+    }
+    /* Samples twin of _kasperRenderUrgentSection — above "Waiting for your
+       review", hidden when empty, same cards and same chrome. */
+    function _sxrKasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${urgent.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
+        </div>`;
     }
     function _sxrKasperRenderTweaksSection(tweaks) {
         if (!tweaks.length) return '';
@@ -70975,6 +71409,14 @@
             </div>
             <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
         </div>`;
+    }
+    function _sxrKasperToggleUrgent() {
+        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
+        const w = document.getElementById('sxrKasperUrgentWrap');
+        if (!w) return;
+        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
+        const head = w.querySelector('.kasper-history-head');
+        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
     }
     function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
     function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
@@ -75002,6 +75444,7 @@
         // that shouldn't visually compete with the live review queue.
         historyCollapsed: true,
         tweaksCollapsed: true,
+        urgentCollapsed: false,
         waitingCollapsed: false,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
@@ -77485,7 +77928,11 @@
         // also restored from cache on entry, so a returning Kasper sees a real
         // number before the network round-trip even finishes.
         if (Array.isArray(_kasperState.items) && _kasperState.lastLoaded) {
-            _kasperSetTabCount('review', _kasperPartitionItems(_kasperState.items).waiting.length);
+            // Urgent is carved OUT of waiting, so the tab pill has to add it
+            // back -- otherwise pinging a card silently decrements the count of
+            // work he still owes.
+            const _parts = _kasperPartitionItems(_kasperState.items);
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
         }
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
@@ -77494,7 +77941,10 @@
         // Count only the WAITING partition — finished/"Tweaks pending" cards are
         // not awaiting Kasper, same rule as the review count above.
         if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
-            _kasperSetTabCount('samples', _sxrKasperPartitionItems(_sxrKasperState.items || []).waiting.length);
+            // urgent + waiting, for the same reason as the review pill: a ping
+            // relocates a card inside his queue, it does not clear it.
+            const _sxrParts = _sxrKasperPartitionItems(_sxrKasperState.items || []);
+            _kasperSetTabCount('samples', _sxrParts.urgent.length + _sxrParts.waiting.length);
         }
         // filming = clients not yet covered (a plan is needed now or soon).
         const fd = _kasperState.filmingData;
@@ -78361,12 +78811,19 @@
         // Needed, but the card must STAY in "Waiting" so he can keep layering
         // decisions; it moves to "Tweaks pending" only when he explicitly
         // finishes, and returns to "Waiting" on a fresh ask (see _kasperIsFinished).
-        const waiting = [], tweaks = [];
+        // The Urgent bucket is a SPLIT OF WAITING, not a fourth kind of card:
+        // an urgent card is a waiting card someone has pinged him about, and it
+        // behaves like every other waiting card in every other respect (same
+        // render, same actions, same finish path). Splitting here rather than
+        // anywhere downstream is what keeps that true -- nothing else in the
+        // review tab has to learn the word "urgent".
+        const urgent = [], waiting = [], tweaks = [];
         for (const it of items) {
             if (_kasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
             else waiting.push(it);
         }
-        return { waiting, tweaks };
+        return { urgent, waiting, tweaks };
     }
 
     let _kasperPaintRetry = null;
@@ -78393,10 +78850,13 @@
             return;
         }
         if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
-        const { waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
-        if (count) count.textContent = String(waiting.length);
+        const { urgent, waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
+        // Both counters cover urgent + waiting: the ping changes where a card
+        // SITS, never whether it is still his to do.
+        const openCount = urgent.length + waiting.length;
+        if (count) count.textContent = String(openCount);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
-        if (tabCount) tabCount.textContent = String(waiting.length);
+        if (tabCount) tabCount.textContent = String(openCount);
         // Waiting section uses the same collapsible-style head as Tweaks
         // pending and Approved history so the three buckets feel like
         // siblings rather than "the main queue plus two add-ons". Waiting
@@ -78418,7 +78878,7 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
-        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 
@@ -78462,6 +78922,65 @@
             <ul class="kasper-stranded-list">${rows}${more}</ul>
         </div>`;
     }
+
+    /* Cards somebody has explicitly pinged Kasper about — the ones that could
+       not wait for his next pass. Sits ABOVE "Waiting for your review" because
+       that is the entire point of it, and is otherwise the same section as its
+       three siblings: same collapsible chrome, same _kasperRenderCard, same
+       actions. A card leaves on its own the moment the ping stops being live
+       (he decides the component, or it leaves Kasper Approval) — see
+       _calKasperUrgentActive — so nothing has to be cleared by hand.
+
+       Hidden entirely when empty, like Tweaks pending: a permanent empty
+       "Urgent" header would train him to ignore the one thing it exists to
+       make unignorable. */
+    /* Keyboard + AT semantics for a collapsible section head. The heads are
+       styled `div`s, so without this they are mouse-only: not focusable, not
+       announced as controls, and with no way to report collapsed state. New
+       visible UI has to carry keyboard, focus and ARIA as part of the feature
+       (AGENTS.md; docs/features/UI_DESIGN_STANDARDS.md), so the Urgent heads
+       below take these attributes and _svSectionHeadKey handles Enter/Space.
+
+       Emitted as attributes rather than by swapping the element for a <button>
+       on purpose: the three sibling heads (Waiting / Tweaks pending / Approved
+       history) share `.kasper-history-head`'s styling, and a <button> there
+       would need its own reset to keep the four identical. Those three still
+       lack this and are unchanged here -- widening an urgent-ping PR into them
+       is a separate change. (Codex P2 on PR 1370.) */
+    function _svSectionHeadA11y(expanded) {
+        return ` role="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" onkeydown="_svSectionHeadKey(event)"`;
+    }
+    function _svSectionHeadKey(ev) {
+        if (!ev || (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar')) return;
+        ev.preventDefault();                       // Space must not scroll the queue
+        if (ev.currentTarget && ev.currentTarget.click) ev.currentTarget.click();
+    }
+    window._svSectionHeadKey = _svSectionHeadKey;
+    function _kasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        const collapsedCls = _kasperState.urgentCollapsed ? ' collapsed' : '';
+        const cards = urgent.map(_kasperRenderCard).join('');
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${collapsedCls}" id="kasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleUrgent()"${_svSectionHeadA11y(!_kasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${cards}</div></div>
+        </div>`;
+    }
+    function _kasperToggleUrgent() {
+        _kasperState.urgentCollapsed = !_kasperState.urgentCollapsed;
+        const wrap = document.getElementById('kasperUrgentWrap');
+        if (wrap) {
+            wrap.classList.toggle('collapsed', _kasperState.urgentCollapsed);
+            // A stale aria-expanded is worse than none: it tells a screen reader
+            // the section is open while it is collapsed.
+            const head = wrap.querySelector('.kasper-history-head');
+            if (head) head.setAttribute('aria-expanded', _kasperState.urgentCollapsed ? 'false' : 'true');
+        }
+    }
+    window._kasperToggleUrgent = _kasperToggleUrgent;
 
     /* Cards Kasper has already tweaked but hasn't hit Done reviewing on
        yet. Shares the same collapsible chrome as the Approved history

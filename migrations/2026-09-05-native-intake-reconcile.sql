@@ -485,6 +485,14 @@ begin
         order by id limit 1;
       v_project := coalesce(v_project, v_client.linear_project_ids->>(v_row->>'team'));
       if v_project is null then raise exception 'project_mapping_missing'; end if;
+      -- The state snapshot above can be stale: an ordinary writer may have
+      -- created or edited this id after planning. Take the exact advisory key
+      -- used by production_deliverable_write, then re-read absence before
+      -- constructing the recovery write. The called writer re-enters this
+      -- transaction-owned lock and therefore cannot overwrite that newer row.
+      perform pg_advisory_xact_lock(hashtextextended('production-deliverable:' || (v_row->>'id'), 0));
+      select * into v_d from public.deliverables where id = v_row->>'id' for key share;
+      if v_d.id is not null then raise exception 'reconcile_child_identity_changed'; end if;
       v_payload := jsonb_build_object(
         'project_id', v_project,
         'title', v_row->>'title',

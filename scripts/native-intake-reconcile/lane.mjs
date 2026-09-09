@@ -249,6 +249,33 @@ try {
     && (await dels(s3.m.batch_id)).length === 2 && (await receipts(s3.m.batch_id)).filter(r => r.entity === 'deliverable').length === 2
     && (await reasons(s3.body.request_id, 'children')).length === 1, [s3a, s3b]);
 
+  // S3b. A normal production writer can create a child after reconcile's
+  // state snapshot but before its per-deliverable lock. It holds the exact
+  // production key while the reconciler plans; after it commits, reconciliation
+  // re-reads under that key and refuses to overwrite the human row.
+  const race3 = await interrupted('video', 1, { client_slug: BC });
+  const race3Item = race3.m.expected_items[0], race3Row = race3Item.row;
+  const race3Parent = (await receipts(race3.m.batch_id)).find(r => r.dedup_key === race3.m.parent_receipt.dedup_key);
+  const race3Generation = Number(await sql(`select generation from public.track_b_f27_team_fences where team=${q(race3Row.team)}`));
+  const race3Payload = { project_id: 'proj_fixture_shared', title: 'Human wins race', status: 'Kasper Approval', assignee_id: race3Row.assignee_id,
+    _intent_fingerprint: race3Item.child_fingerprint, _native_intake_epoch: race3.m.native_epochs[race3Row.team], _native_intake_request: race3.body.request_id,
+    _f27_authority_generation: race3Generation, _f27_legacy_parity: false };
+  const race3Event = { source: 'ui', action: 'create', actor: race3Parent.actor, actor_key: race3.m.actor_key, role: race3.m.actor_role,
+    auth_kind: race3.m.auth_kind, surface: race3.m.surface, ts: race3.m.source_edited_at, from_status: null, to_status: 'Kasper Approval', outbound: {
+      entity: 'deliverable', entity_id: race3Row.id, team: race3Row.team, operation: 'create', dedup_key: race3Item.child_dedup,
+      source_edited_at: race3.m.source_edited_at, test_only: race3Parent.test_only, legacy_parity: false, depends_on_id: race3Parent.id, payload: race3Payload } };
+  const race3HumanRow = { ...race3Row, title: 'Human wins race', status: 'Kasper Approval' };
+  const race3Hold = runSql(`begin; select pg_advisory_xact_lock(hashtextextended('production-deliverable:' || ${q(race3Row.id)},0)); select pg_sleep(1.2); set role service_role; select public.production_deliverable_write(${j(race3HumanRow)},${j(race3Event)}); commit;`);
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const race3Result = await children(race3.body.request_id);
+  const race3Writer = await race3Hold;
+  const race3After = (await dels(race3.m.batch_id)).find(d => d.id === race3Row.id);
+  ok('S3b-concurrent-production-child-create-after-plan-is-rechecked-under-the-shared-lock', race3Writer.status === 0
+    && race3Result.outcome === 'unresolved' && race3Result.unresolved.some(u => u.reason === 'reconcile_child_identity_changed')
+    && race3After && race3After.title === 'Human wins race' && race3After.status === 'Kasper Approval'
+    && (await receipts(race3.m.batch_id)).filter(r => r.dedup_key === race3Item.child_dedup).length === 1,
+    { writer: race3Writer.stderr, reconcile: race3Result, preserved: race3After && [race3After.title, race3After.status] });
+
   // S4. Reconciler racing the explicit gateway retry of the same request.
   const s4 = await interrupted('both', 2);
   reset();

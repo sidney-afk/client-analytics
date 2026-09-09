@@ -6,6 +6,7 @@
 //   • title has no Linear sub-issue, so a title status change/ tweak NEVER pushes to Linear
 //     (we route every Linear webhook and assert ZERO title-driven calls).
 const Q = require('./lib.js');
+const NW = require('../native_work_item_fixture.js');
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 const PID = 'p_ttl_' + Math.floor(Date.now() / 1000);
 
@@ -14,18 +15,27 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
 (async () => {
   const S = Q.makeOk('P47 title review lifecycle + invariants');
   const browser = await Q.launch();
-  // Kasper context with Linear interception so we can prove title never pushes.
+  // Kasper context with BOTH lanes intercepted so we can prove title never pushes on either.
   const kctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(kctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(kctx);  // route the TEST client the way production routes a real one (see lib.js)
   await kctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  const linearCalls = [];
-  for (const wh of ['linear-set-status', 'linear-add-comment']) {
-    await kctx.route('**/webhook/' + wh, async (r) => {
-      let body = {}; try { body = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
-      linearCalls.push({ wh, body });
-      await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
-    });
+  // Through the shared helper rather than a hand-rolled route: one place owns the retired
+  // webhook URLs, and it only supports COUNTING them, which is the only thing a probe on the
+  // production roster may do with them (test/probes-assert-native-write-lane.js).
+  // EVERY CONTEXT THAT ACTS, not just the one that was convenient. Step 4 performs the title
+  // approval through the separate client context below, so captures installed only here would
+  // leave those arrays empty and let the zero-transport assertion pass while a regressed
+  // client push went to the live TEST backend. Codex finding on cfe251d — the third time on
+  // this PR that a guard only looked where its author looked.
+  const retiredCaptures = [];
+  const gateway = [];
+  async function watch(ctx) {
+    retiredCaptures.push(await NW.captureRetiredWebhooks(ctx));
+    await NW.stubNativeGateway(ctx, { onCall: payload => gateway.push(payload) });
   }
+  // Title owns no work item, so nothing should reach the native gateway either — the check
+  // below is stronger than the Linear-only one it replaces.
+  await watch(kctx);
   const kas = await kctx.newPage(); kas._errs = [];
   kas.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) kas._errs.push(m.text()); });
   kas.on('pageerror', e => kas._errs.push(String(e && e.message)));
@@ -33,6 +43,10 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   await kas.waitForTimeout(8000);
 
   const cli = await Q.clientPage(browser);
+  // The client page is built by the shared helper, so its context can only be watched once it
+  // exists. Every action under test happens after this point; the uncovered window is the
+  // helper's own initial load, which performs no title write.
+  await watch(cli.context());
   try {
     // YouTube card: video/graphic/caption all Approved; TITLE engaged at Kasper Approval.
     await Q.up({ id: PID, name: 'TTL ' + PID.slice(-6), platforms: 'youtube', scheduled_date: '2026-06-29',
@@ -73,7 +87,9 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
 
     // 5) title NEVER pushed to Linear across the whole flow
     await kas.waitForTimeout(1500);
-    S.ok(linearCalls.length === 0, 'ZERO Linear pushes from title (title has no Linear sub-issue); got ' + JSON.stringify(linearCalls.map(c => c.wh)));
+    S.ok(NW.retiredCallCount(retiredCaptures) === 0 && gateway.length === 0,
+      'ZERO transport from title on EITHER lane, from BOTH surfaces — title owns no work item '
+      + '(retired=' + NW.retiredCallCount(retiredCaptures) + ', gateway=' + gateway.length + ')');
 
     S.ok(kas._errs.length === 0 && cli._errs.length === 0, 'no JS errors (' + JSON.stringify([...kas._errs, ...cli._errs].slice(0, 3)) + ')');
   } finally { try { await Q.archive(PID); } catch (e) {} await browser.close(); }

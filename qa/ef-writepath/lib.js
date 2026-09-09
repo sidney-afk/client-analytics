@@ -1,3 +1,4 @@
+const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
 // ============================================================================
 // qa/ef-writepath/lib.js — REAL-browser harness for validating the Supabase
 // Edge-Function (EF) write path end-to-end on the TEST client `sidneylaruel`.
@@ -293,15 +294,27 @@ async function makeCtx(browser, opts = {}) {
     if (method !== 'OPTIONS') rec.requests.push(entry);
     // CORS preflight -> answer locally
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-    // write_ui_reroute_clients flag -> DARK for the harness: the TEST client
-    // is the sole live allowlist member, so the real flag would put it on the
-    // #850 gateway lane, which fails Linear-linkless harness cards closed
-    // before the source save. Real clients run legacy; keep the stand-in
-    // faithful. Only this one flag is stubbed — the Track-A rosters this
-    // suite exists to exercise stay live. (Rationale: qa/probes/lib.js.)
-    if (url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
+    // write_ui_reroute_clients flag -> the PRODUCTION roster, which enrolls
+    // the TEST client the way it enrolls every one of the 43 active clients
+    // (measured 2026-09-07, OPEN_REPAIRS 175). This served `[]` and called it
+    // faithful because "real clients run legacy" — false then, and after the
+    // fail-closed repair `[]` no longer produces a legacy lane at all.
+    // Reasoning and the fixture half still owed: qa/write_ui_reroute_fixture.js.
+    // Only this one flag is pinned — the Track-A rosters this suite exists to
+    // exercise stay live.
+    // The Pipe B lanes (10-status-linear, 12-samples) assert that a RETIRED
+    // webhook fired, so their subject is the legacy write path and they ask for
+    // the explicit legacy roster. Before this PR they received `[]`, which meant
+    // legacy; after the item-175 fail-closed repair `[]` routes NATIVE, so an
+    // explicit usable-roster-without-this-client is the only honest way to ask.
+    // Codex finding on d6e26c3. Default stays production. Both lanes stay on the
+    // owed-migration list in test/probes-assert-native-write-lane.js.
+    if (REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
       entry.status = 200;
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+      const body = process.env.EF_WRITEPATH_LEGACY_ROSTER === '1'
+        ? REROUTE_FIXTURE.legacyRosterBody()
+        : REROUTE_FIXTURE.productionRosterBody();
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Speed/robustness: STUB the heavy analytics Google-Sheets (Metrics/TopVideos/
     // briefs/summaries) — they are irrelevant to the write path and otherwise

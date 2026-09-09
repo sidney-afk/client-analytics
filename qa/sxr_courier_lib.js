@@ -1,3 +1,4 @@
+const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
 // ============================================================================
 // sxr_courier_lib.js — REAL-browser test harness for the Samples (Review) tab.
 //
@@ -379,9 +380,11 @@ function appErrs(page) {
 }
 
 async function _ctx(browser, opts) {
-  // opts.writeUiRerouteLive: p95's guard probe opts back into the LIVE
-  // write_ui_reroute_clients flag; every other probe gets it stubbed dark
-  // (see the route case below).
+  // opts.writeUiRerouteLive: p95's guard probe opts into the genuinely LIVE
+  // write_ui_reroute_clients flag, to pin what the roster actually holds;
+  // every other probe gets the pinned production roster (see the route case
+  // below), which enrolls the TEST client the way production enrolls a real
+  // one.
   //
   // opts.courierCommitThenFail: one-shot lost-ack injection. For the first
   // matching POST whose forwarded JSON response confirms a 2xx commit, record
@@ -389,7 +392,7 @@ async function _ctx(browser, opts) {
   // Strip the harness-only keys before newContext. clientEntryCtx marks a
   // client-share context (openClient): its review token is its credential, so
   // the staff-key injection below must never touch it.
-  const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
+  const { writeUiRerouteLive, writeUiRerouteLegacy, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
@@ -408,17 +411,28 @@ async function _ctx(browser, opts) {
   await ctx.route('**/*', async (route) => {
     const req = route.request();
     const url = req.url();
-    // 0) write_ui_reroute_clients flag → DARK for the harness. The TEST
-    //    client is the sole live allowlist member; with the flag loaded the
-    //    page takes the #850 gateway lane, which fails Linear-linkless
-    //    harness cards closed (kind='test' → native_link_required) before
-    //    the source save the probes assert on. Real clients run legacy —
-    //    keep the stand-in faithful. Only this flag is stubbed; p95 opts
-    //    back in via writeUiRerouteLive to cover the guard itself.
-    if (!writeUiRerouteLive && url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
-      const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+    // 0) write_ui_reroute_clients flag → the PRODUCTION roster, with the TEST
+    //    client enrolled exactly as all 43 active clients are (measured
+    //    2026-09-07, OPEN_REPAIRS 175). This served `[]` and called that
+    //    faithful because "real clients run legacy" — a claim that was false
+    //    when written, and that after the fail-closed repair no longer even
+    //    produces a legacy lane, since a successful read with no usable
+    //    roster now routes a live write NATIVE. Full reasoning and the
+    //    fixture half still owed: qa/write_ui_reroute_fixture.js. Only this
+    //    flag is pinned; p95 opts into the genuinely live one via
+    //    writeUiRerouteLive to pin the roster's real contents.
+    //    opts.writeUiRerouteLegacy: a lane whose SUBJECT is the legacy write path
+    //    (the outbox drain and its quarantine, the ef-writepath Pipe B push) asks
+    //    for an explicit, usable roster that simply does not enrol this client.
+    //    Not `[]` — after the fail-closed repair that routes NATIVE, which is the
+    //    opposite of what it used to mean. Codex finding on d6e26c3.
+    if (!writeUiRerouteLive && REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
+      const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+      const body = writeUiRerouteLegacy
+        ? REROUTE_FIXTURE.legacyRosterBody()
+        : REROUTE_FIXTURE.productionRosterBody();
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Fully intercepted share-link tests can supply one fictional strict
     // verifier contract. Live TEST lanes never set this option and therefore

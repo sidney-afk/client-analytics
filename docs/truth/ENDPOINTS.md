@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-09-05 @ 3d534cf (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
@@ -99,7 +99,6 @@ Templates:
 - `webhook/templates-get`, `webhook/templates-save`
 
 Other:
-- `webhook/editors-week` — editor workload panel
 - `webhook/kasper-queue` — Kasper review queue
 - `webhook/send-urgent-slack` — urgent pings to Slack
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post

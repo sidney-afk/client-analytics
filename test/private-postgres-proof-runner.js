@@ -10,11 +10,15 @@ assert.match(source, /ValidateSet\('All', 'Unit', 'F27'\)/);
 assert.match(source, /postgres:\$Major/);
 assert.match(source, /--publish '127\.0\.0\.1::5432'/);
 assert.match(source, /Assert-CleanPostgresEnvironment/);
-for (const forbiddenPattern of ['PG', 'DATABASE_URL|SUPABASE_DB_URL', '_DATABASE_URL', 'F42_REHEARSAL_', 'NIR_', 'NATIVE_LABEL_PG_CONFIG', 'CARD_.*PG']) {
+for (const forbiddenPattern of ['PG', 'DATABASE_URL|SUPABASE_DB_URL', '_DATABASE_URL', 'WORKLOAD_TEST_', 'F42_REHEARSAL_', 'NIR_', 'NATIVE_LABEL_PG_CONFIG', 'CARD_.*PG']) {
   assert.ok(source.includes(forbiddenPattern), `runner must reject inherited ${forbiddenPattern} selectors`);
 }
 assert.match(source, /\$env:F63_REQUIRE_POSTGRES = '1'/);
 assert.match(source, /\$env:ARTIFACT_REQUIRE_POSTGRES = '1'/);
+assert.match(source, /\$env:WORKLOAD_TEST_CONFIRM = 'LOCAL_DISPOSABLE_ONLY'/);
+assert.match(source, /\$env:WORKLOAD_TEST_REQUIRE = '1'/);
+assert.match(source, /\$env:WORKLOAD_TEST_PSQL = \$Psql/);
+assert.match(source, /\$env:WORKLOAD_TEST_PORT = \[string\]\$port/);
 assert.match(source, /test\/run-all\.js/);
 assert.match(source, /scripts\/f27-team-rollback-proof\.sql/);
 assert.match(source, /Require-Command 'psql'/);

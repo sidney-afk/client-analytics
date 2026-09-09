@@ -30,7 +30,7 @@ function Assert-CleanPostgresEnvironment {
     $name = [string]$_
     $name -match '^(?i:PG)' -or $name -match '(?i:_DATABASE_URL)$' -or
       $name -match '^(?i:DATABASE_URL|SUPABASE_DB_URL)$' -or
-      $name -match '^(?i:F42_REHEARSAL_)' -or $name -match '^(?i:NIR_)' -or
+      $name -match '^(?i:WORKLOAD_TEST_)' -or $name -match '^(?i:F42_REHEARSAL_)' -or $name -match '^(?i:NIR_)' -or
       $name -match '^(?i:NATIVE_LABEL_PG_CONFIG)$' -or $name -match '^(?i:CARD_.*PG)' -or
       $name -match '^(?i:F63_REQUIRE_POSTGRES|ARTIFACT_REQUIRE_POSTGRES|INTAKE_MANIFEST_REQUIRE_POSTGRES)$'
   } | Sort-Object)
@@ -120,6 +120,11 @@ function Invoke-PostgresLane {
     if ($Kind -eq 'Unit') {
       $env:F63_REQUIRE_POSTGRES = '1'
       $env:ARTIFACT_REQUIRE_POSTGRES = '1'
+      $env:WORKLOAD_TEST_CONFIRM = 'LOCAL_DISPOSABLE_ONLY'
+      $env:WORKLOAD_TEST_REQUIRE = '1'
+      $env:WORKLOAD_TEST_PSQL = $Psql
+      $env:WORKLOAD_TEST_PORT = [string]$port
+      $env:WORKLOAD_TEST_PASSWORD = $password
       $exitCode = Invoke-LoggedProcess -Program $Node -Arguments @('test/run-all.js') -LogPath $LogPath
       if ($exitCode -ne 0) { throw "PostgreSQL 16 unit lane failed with code $exitCode." }
     } else {
@@ -134,6 +139,9 @@ function Invoke-PostgresLane {
   } finally {
     Remove-Item Env:F63_REQUIRE_POSTGRES -ErrorAction SilentlyContinue
     Remove-Item Env:ARTIFACT_REQUIRE_POSTGRES -ErrorAction SilentlyContinue
+    foreach ($name in @('WORKLOAD_TEST_CONFIRM','WORKLOAD_TEST_REQUIRE','WORKLOAD_TEST_PSQL','WORKLOAD_TEST_PORT','WORKLOAD_TEST_PASSWORD')) {
+      Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+    }
     foreach ($name in @('PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE')) {
       Remove-Item "Env:$name" -ErrorAction SilentlyContinue
     }

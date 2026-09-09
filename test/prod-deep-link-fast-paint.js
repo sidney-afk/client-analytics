@@ -89,6 +89,16 @@ function newHarness(opts) {
       projectionGeneration: 0, deepLink: o.deepLink === undefined ? { kind: 'issue', id: 'VID-1' } : o.deepLink,
       openId: 'VID-1', view: 'detail', deepLinkMissing: '',
       terminalTailPending: false, terminalTailFailed: false, terminalTailLoadedAt: 0,
+      /* Mirrors of real _prodState fields that _prodLoadData touches directly.
+         This sandbox runs the REAL function against a hand-built state, so any
+         field the loader reaches for has to exist here or the loader throws into
+         its own catch and every assertion below runs against a load that never
+         happened -- which reads as a deep-link regression rather than a missing
+         stub. Twice now (#1364). */
+      batchPartialRows: new Set(),
+      batchDescriptionReads: new Map(), batchDescriptionTokens: new Map(),
+      batchDescriptionInFlight: new Map(), batchDescriptionClocks: new Map(),
+      batchDeltaCursor: '',
     },
     _prodIssue(id) {
       const sid = String(id || '');
@@ -111,6 +121,15 @@ function newHarness(opts) {
       throw new Error('unexpected projection read ' + params);
     },
     _prodPreserveProjectedFields: incoming => incoming,
+    _prodCarryBatchDescriptions: incoming => incoming,
+    // Added 2026-09-09 with the incremental archive read: the loader decides
+    // whether the next tail is a full pass, and carries the finished rows
+    // across phase one when it is not. Neither affects the deep-link paint,
+    // so both are mirrored at their identity behaviour.
+    _prodTerminalTailFullDue: () => true,
+    _prodCarryTerminalRows: (live) => live,
+    _prodAdvanceBatchDeltaCursor() {},
+    _prodInvalidateBatchDescriptionReads() {},
     _prodInvalidateScopedReads() {},
     _prodCacheWrite() { log.cacheWrites++; },
     _prodCachePurge() {},
@@ -232,8 +251,9 @@ const landPhaseOne = (h, live) => {
     const load = extractFunction('_prodLoadData');
     ok(load.indexOf('_prodDeepLinkFastPaint(') > 0 && load.indexOf('_prodDeepLinkFastPaint(') < load.indexOf('await Promise.all('),
       '_prodLoadData starts the fast paint BEFORE awaiting phase one');
-    ok(/const mergedDeliverables = _prodCarryDeepLinkRows\(deliverables\)/.test(load),
-      'and carries the painted rows across the phase-one replacement');
+    ok(/_prodCarryDeepLinkRows\(deliverables\)/.test(load)
+       && load.indexOf('_prodCarryDeepLinkRows(deliverables)') < load.indexOf('_prodState.deliverables = mergedDeliverables'),
+      'and carries the painted rows across the phase-one replacement (both branches of the archive-carry decision run it)');
     const paint = extractFunction('_prodDeepLinkFastPaint');
     ok(!/_prodCacheWrite|_prodApplyDeepLinkFallback|deepLink = /.test(paint),
       'the fast paint never writes the cache, never applies or consumes the deep link');

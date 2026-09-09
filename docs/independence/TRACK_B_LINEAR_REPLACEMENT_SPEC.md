@@ -1590,10 +1590,12 @@ Every send must have an observable event and provider receipt. Destination confi
 identity validation for urgent mentions, retry behavior, and installation proof remain
 implementation/evidence work; this scope decision is not deployment authorization.
 
-**Source discrepancy found during the 2026-09-09 repair:** the candidate already contains a
+**Source discrepancy and repair, 2026-09-09:** the earlier candidate contained a
 `native_urgent_dispatch` handoff to an n8n URL in `production-write`, although the general
-notification EF was not built. That handoff must be accounted for when implementing the
-zero-new-n8n approach; a new Slack sender alone does not replace the existing urgent route.
+notification EF was not built. The repaired candidate now routes urgent requests through
+the native notification outbox and includes `supabase/functions/notify/index.ts`, post-commit
+wakes, and dormant sender/monitor workflows. This is source implementation, not installed
+or verified Slack delivery. Existing provider notification overlap still needs a cutover boundary.
 
 **Exact-recipient contract (URGENT / targeted editor delivery):** a channel post is not delivery success. Resolve the immutable native
 assignee to exactly one active notification identity before sending; missing/ambiguous mappings
@@ -1798,7 +1800,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-32 | Staged reroute rollout via per-client allowlist (amended the original #813 merge model; satisfies D-28's soak intent) | audit F02/F23: the original “#813 ships inert” claim was false — merging without a cohort boundary could freeze every Linear-linked approval company-wide, and GitHub Pages deploys to 100% of users at once with no canary | **RATIFIED by owner 2026-07-13; implementation landed via #850:** the reroute ships behind per-client runtime flag `write_ui_reroute_clients`, defaulting to the TEST client only. The merge is dark; parity is armed only in an owner-approved Phase 1; real clients enroll in separately approved staged cohorts with watchers green between cohorts; a full-roster clean week satisfies D-28's soak. Any allowlist change remains owner-gated. | write-UI epoch |
 | D-33 | No notification of the 21 affected people | onboarding contact data was anonymously reachable (F77) | **RATIFIED by owner 2026-07-15:** no notification of the 21 people whose onboarding contact data was anonymously reachable. | privacy / F77 |
 | D-34 | F64 public-history PII purge parked | schema-only clean files are ready, but GitHub still expands deleted rows even behind a diff guard; no live endpoint serves the file | **PARKED by owner 2026-07-15:** accepted residual documented in F64; reopen when the owner schedules the freeze/rewrite. | privacy / F64 |
-| D-35 | F15 slack_user_id backfill deferred | The earlier "no consumer exists" statement described the July state. The candidate has an n8n urgent adapter, while general native notifications are being built. Untagged client-channel comments do not need personal Slack identities; targeted URGENT still does. | **Owner deferral retained:** perform identity mapping/backfill when the post-Linear notify consumer requires it. Do not infer blanket closure from D-14 or silently remove urgent recipient validation. | write-UI epoch / F15 |
+| D-35 | F15 slack_user_id backfill deferred | The earlier "no consumer exists" statement described the July state. The repaired candidate now has a native urgent consumer and notification sender; the earlier candidate used an n8n urgent adapter. Untagged client-channel comments do not need personal Slack identities; targeted URGENT still does. | **Owner deferral retained:** perform identity mapping/backfill when the post-Linear notify consumer requires it. Do not infer blanket closure from D-14 or silently remove urgent recipient validation. | write-UI epoch / F15 |
 
 ---
 

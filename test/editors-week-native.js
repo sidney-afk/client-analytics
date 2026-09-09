@@ -523,7 +523,7 @@ function ev(deliverable_id, ts, from_status, to_status, ownerId, attribution) {
     'source-timed, backfill, and reconcile writes remain unknown instead of pretending a later database snapshot proves past ownership');
   ok(/event_assignee_server_stamp_required/.test(EVENT_ASSIGNEE_MIGRATION)
     && /app\.event_assignee_stamp/.test(EVENT_ASSIGNEE_MIGRATION),
-    'direct callers cannot fabricate an owner; the native status transaction alone opens and consumes the stamp');
+    'ordinary RPC/application writers cannot claim an owner without the native transaction stamp; privileged SQL remains separately trusted');
   ok(!/update\s+public\.deliverable_events[\s\S]{0,240}assignee_id/i.test(EVENT_ASSIGNEE_MIGRATION),
     'the migration contains no current-assignee backfill of historical ledger rows');
 

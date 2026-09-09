@@ -30,10 +30,14 @@ create index if not exists deliverable_events_status_event_assignee_ts_idx
   on public.deliverable_events (ts desc, event_assignee_id)
   where action in ('status_change', 'mirror_in_status_change');
 
--- Direct writers may continue to create legacy/mirror/import events, but they
--- cannot claim an event owner. Only deliverable_write opens this one-row local
--- stamp and the trigger consumes it immediately. Attribution fields are then
--- immutable for every role, including service_role.
+-- Ordinary application writers may continue to create legacy/mirror/import
+-- events, but cannot claim an event owner without the native transaction's
+-- local protocol stamp. The trigger consumes that stamp immediately and
+-- attribution fields are immutable through ordinary UPDATE paths. This is not
+-- a boundary against an SQL-capable privileged role: service_role can set a
+-- custom GUC and has direct ledger INSERT in the base schema. The protocol
+-- prevents accidental/caller-payload fabrication; privileged SQL remains a
+-- separately trusted database authority.
 create or replace function public.deliverable_events_event_assignee_guard()
 returns trigger
 language plpgsql
@@ -84,10 +88,12 @@ CREATE TRIGGER deliverable_events_event_assignee_guard_before
   FOR EACH ROW EXECUTE FUNCTION public.deliverable_events_event_assignee_guard();
 
 -- Source-time and imported/backfill events are intentionally NOT stamped as
--- native-transaction proof. New callers that know an upstream source time
--- must put it in p_event.ts (or p_event.source_event_at); a delayed/import
--- event is then recorded as unknown until a separately evidenced history
--- migration exists. Callers cannot provide the event-assignee columns.
+-- native-transaction proof. `p_event.ts` remains the existing ledger-time
+-- override. `p_event.source_event_at` is only a proof-disqualifying marker,
+-- so without `ts` the event keeps the existing arrival-time timestamp. A
+-- delayed/import event is recorded as unknown until separately evidenced
+-- history exists. Caller payload cannot provide attribution through the normal
+-- RPC protocol; privileged SQL is separately trusted authority.
 create or replace function public.deliverable_write(p_row jsonb, p_event jsonb default '{}'::jsonb)
 returns public.deliverables
 language plpgsql

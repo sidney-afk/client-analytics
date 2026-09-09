@@ -9,12 +9,15 @@ executes these files (see `README.md` › Repository layout).
 ## How to read this folder
 
 - **`2026-09-09-editors-event-assignee.sql`** is source-only until an
-  owner-authorized manual apply. It adds immutable, nullable event-time
-  assignee identity to `deliverable_events`, stamped only by the native status
-  transaction. Existing/imported/source-timed rows remain explicitly
+  owner-authorized manual apply. It adds nullable event-time assignee identity
+  to `deliverable_events`, stamped through the native status-write protocol.
+  Existing/imported/source-timed rows remain explicitly
   `unknown`; an event observed unassigned is `unassigned`. It never backfills
   from `deliverables.assignee_id`, which is current state, and it does not add
   roster names, email snapshots, flags, authority changes, or external writes.
+  The stamp guards normal RPC/application callers; a SQL-capable privileged
+  database role remains independently trusted and is not prevented from setting
+  custom session configuration before a direct ledger insert.
 
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To

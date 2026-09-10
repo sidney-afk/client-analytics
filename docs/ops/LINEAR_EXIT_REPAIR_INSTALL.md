@@ -337,3 +337,47 @@ authentication remains divergent from the frozen serving contract: do not deploy
 these repository writers as part of Linear exit. Any later authorized SQL plan
 must first compare actual installed trigger/function definitions and retained
 ledger evidence; this document does not authorize rerunning a live backfill.
+
+## Shared installation manifest: next implementation contract
+
+Status: specified, not built. Existing schema composition and recovery evidence
+remain valid in their bounded scopes; neither is an executable installation plan.
+
+The shared manifest must be consumed by both installation and recovery
+rehearsals. Each entry must contain a stable identifier, repository path and
+SHA256 of exact source bytes, explicit predecessor entries, transaction boundary,
+expected pre/post catalog signatures, and a reviewed resume rule. The atomic
+intake composer is one entry with its generated hash and all input hashes;
+never split its two inputs into independently resumable steps. Include the
+upstream marker/ledger owner, its backfill and associated tests explicitly.
+
+Concrete reconciliation work, based on current source:
+
+- Move journal/feedback/crosswalk ownership before admitting repaired writes;
+  current composition intentionally installs these only after48 assertions.
+- Resolve the ordinary-receipt repair versus retirement-admission/recognizer
+  order against final function definitions. The fixture and document currently
+  differ; neither order may be declared authoritative merely because it exists.
+- Include the complete intake composer/input chain, receipt retention, Workload
+  label-state/roster, browser projection and inherited baseline owners. Recovery
+  SOURCES currently pins only part of this transitive installation inventory.
+- Separate platform/baseline requirements from executable candidate migrations.
+  The eight dated card definitions and F42/Storage scaffolding are not a complete
+  current target baseline; their presence cannot authorize production execution.
+
+Acceptance requires one ordered run retaining representative accepted receipts,
+then interruption after every separately committed entry. Reconnect with a new
+connection and classify each step as absent, exact-installed, or divergent from
+its pinned post-state. Resume only from proven compatible state; divergent
+definitions require refusal. Prove an interrupted atomic entry rolled back and
+a nontransactional entry's partial application is detected. Never blindly replay
+an owner or use a table count as a substitute for function/trigger/ACL identity.
+Keep accepted receipts, names, epochs and ordinary writes intact through every
+supported resume boundary, and retain every failed receipt.
+
+A fresh hosted schema capture and all live installation/cutover actions remain
+separate gates. The current read-only preflight stops on absent notification
+configuration with SQLSTATE42P01. A future diagnostic-only improvement could
+validate metadata before querying optional configuration tables and guard JSON
+object inspection against scalar input; it must preserve fail-closed behavior.
+No preflight implementation change or hosted migration was made for this finding.

@@ -1,5 +1,26 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Installation-manifest preparation checkpoint
+
+The combined source is published at `d2bb2279`. A current read-only hosted
+preflight returned `READ_FAILED_HTTP_400`; its database diagnostic identifies
+missing `public.production_notification_config` (SQLSTATE42P01). This is a
+failed preflight, not an inventory of every missing prerequisite and not a
+reason to apply SQL. No hosted state changed.
+
+Review of the existing rehearsals identifies concrete remaining manifest work:
+composition installs journal/feedback/crosswalk after behavioral writes, and
+its ordinary-receipt repair order differs from the installation document.
+Recovery source pins omit parts of the transitive intake/Workload/projection
+chain. Both use a scoped synthetic baseline. Only one committed installation
+interruption boundary has been exercised. The77/31 proofs therefore do not
+close complete installation or per-boundary resumption.
+
+See the shared manifest specification at the end of
+`docs/ops/LINEAR_EXIT_REPAIR_INSTALL.md` for the next implementation and its
+acceptance criteria. The manifest is not yet built. Installation HOLD.
+
+
 ## Latest combined preparation source
 
 The reviewed upstream changes through `fcebb856` are now applied to the

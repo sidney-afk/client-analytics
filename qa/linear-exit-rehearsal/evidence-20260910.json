@@ -214,5 +214,15 @@
       "private_receipt_sha256": "78755a829076a1e44363ba6a2a52fe89323a16b534d6859d91f53f0dff2065ec"
     },
     "hosted_proof": false
+  },
+  "hosted_preflight_observation": {
+    "classification": "LIVE_READ",
+    "source_commit": "d2bb2279e67a39d2aa30d9b7dd6ef36b3d205894",
+    "status": "FAIL",
+    "code": "READ_FAILED_HTTP_400",
+    "sqlstate": "42P01",
+    "absent_relation": "public.production_notification_config",
+    "complete_missing_inventory": false,
+    "hosted_mutation": false
   }
 }

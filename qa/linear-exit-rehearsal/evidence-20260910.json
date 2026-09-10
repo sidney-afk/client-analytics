@@ -152,5 +152,20 @@
       "private_log_sha256": "6c2ce7cd0db4741b6b012477992d4e1ec206d0dbdd7950b9965c077b61d22f57"
     },
     "upstream_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
+  },
+  "verified_local_recovery": {
+    "status": "PASS",
+    "classification": "ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY",
+    "checks": 25,
+    "table_count": 52,
+    "corpus": "history-v11",
+    "execution_base": "677a1c4ea15dbbf75db5ea9bca7090380fc9fd66",
+    "execution_note": "Working-tree v11 helper-name repair; not clean-checkout attestation.",
+    "server_stopped": true,
+    "private_log_sha256": "a87227cca02f62e06cb1259e1f7406d7d6db5e37c6496befa46cdebce7dff354",
+    "private_report_sha256": "f616887336dc8301a3d6fbf68bc916e05c893e8a1ca7c6a1a0e443ab4a753e92",
+    "hosted_recovery_proven": false,
+    "storage_custody_proven": false,
+    "upstream_integration_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
   }
 }

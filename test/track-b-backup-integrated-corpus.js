@@ -60,6 +60,14 @@ check('v11 retains ordinary admissions plus notification evidence, identities, F
   const sql=restore.restoreSql(dump,'history-v11');assert.match(sql,/track_b_restore_set_history_v11_user_triggers\(false\)/);assert.ok(sql.indexOf('set constraints all deferred;')<sql.indexOf('COPY public."mirror_outbox"'));
   for(const table of ['production_notification_delivery_receipts','production_notification_reconciliations'])assert.ok(sql.includes("pg_get_serial_sequence('public."+table+"', 'id')"));
   const grants=fs.readFileSync(path.join(__dirname,'../scripts/track-b-history-v11-backup-prerequisites.sql'),'utf8');
+  const helper='track_b_restore_set_history_v11_user_triggers';
+  assert.match(grants,/if mode='scratch' and to_regprocedure\('public\.track_b_restore_set_history_v11_user_triggers\(boolean\)'\) is not null then\s+raise exception 'Existing history helper/);
+  assert.ok(grants.includes(`create or replace function public.${helper}(enabled boolean)`));
+  assert.ok(grants.includes(`revoke all on function public.${helper}(boolean) from public;`));
+  assert.ok(grants.includes(`revoke all on function public.${helper}(boolean) from anon, authenticated, service_role;`));
+  assert.ok(grants.includes(`grant execute on function public.${helper}(boolean) to :"existing_role";`));
+  assert.ok(sql.includes(`${helper}(false)`) && sql.includes(`${helper}(true)`));
+  assert.doesNotMatch(grants,/track_b_restore_set_history_v10_user_triggers/);
   for(const table of corpus.tables)assert.ok(grants.includes("'"+table.name+"'"));
   const noIdentity=grants.match(/if relation_name = any\(array\[([^\]]*)\]\)\s+and pg_get_serial_sequence\('public\.' \|\| relation_name,case relation_name([^]*?)Materialization owner must not use an identity sequence/);
   assert.ok(noIdentity,'nonidentity owner contract required');

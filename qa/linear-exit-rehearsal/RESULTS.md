@@ -1,6 +1,25 @@
 # Completed isolated evidence
 
-## Latest preparation: 65 schema checks, recovery still held
+## Latest verified local recovery
+
+The full isolated history-v11 rehearsal now **PASSES all 25 checks for 52
+tables**. It verifies authenticated capture, exact reconstructed rows/sequences,
+unchanged tokens/defaults, retained receipt replay, restricted grants, rollback
+on late failure and post-commit quarantine behavior. The owned server stopped.
+Classification: `ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY`. This uses a
+synthetic source; hosted reconstruction, real Storage bytes/configuration and
+private receipt custody remain UNPROVEN. Installation remains HOLD.
+
+The last prerequisite repair aligns all five v11 trigger-helper names with
+the restore renderer; 32 offline contract checks also pass. Execution used
+working-tree changes over `677a1c4e`, not a clean-checkout attestation. The
+earlier five-, 16- and 21-check failures below are historical and preserved.
+The 65-check source composition and separate deferred-generator proof retain
+their own scopes. Next: integrate and rehearse upstream `fcebb856`, then close
+remaining installation/configuration/custody/notification handover gates.
+
+
+## Previous preparation: 65 schema checks, recovery still held
 
 Composition passes 65 assertions and contains all 52 corpus table names; this
 is table-presence evidence, not complete installation proof. The supported

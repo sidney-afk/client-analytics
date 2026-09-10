@@ -55,7 +55,7 @@ begin
     or current_setting('track_b.setup_scratch_ref')='uzltbbrjidmjwwfakwve') then
     raise exception 'Independent non-production scratch ref required';
   end if;
-  if mode='scratch' and to_regprocedure('public.track_b_restore_set_history_v10_user_triggers(boolean)') is not null then
+  if mode='scratch' and to_regprocedure('public.track_b_restore_set_history_v11_user_triggers(boolean)') is not null then
     raise exception 'Existing history helper requires independent owner and ACL review before replacement';
   end if;
   select * into role_record from pg_roles where rolname=role_name;
@@ -264,7 +264,7 @@ end $prerequisites$;
 \if :is_scratch
 -- Distinct helper; it is called only inside the restore transaction. A COPY
 -- failure rolls its trigger-state change back with the data transaction.
-create or replace function public.track_b_restore_set_history_v10_user_triggers(enabled boolean)
+create or replace function public.track_b_restore_set_history_v11_user_triggers(enabled boolean)
 returns void language plpgsql security definer set search_path=pg_catalog as $helper$
 declare relation_name text;
 relations constant text[] := array[
@@ -284,8 +284,8 @@ begin
     execute format('alter table public.%I %s trigger user',relation_name,case when enabled then 'enable' else 'disable' end);
   end loop;
 end $helper$;
-revoke all on function public.track_b_restore_set_history_v10_user_triggers(boolean) from public;
-revoke all on function public.track_b_restore_set_history_v10_user_triggers(boolean) from anon, authenticated, service_role;
-grant execute on function public.track_b_restore_set_history_v10_user_triggers(boolean) to :"existing_role";
+revoke all on function public.track_b_restore_set_history_v11_user_triggers(boolean) from public;
+revoke all on function public.track_b_restore_set_history_v11_user_triggers(boolean) from anon, authenticated, service_role;
+grant execute on function public.track_b_restore_set_history_v11_user_triggers(boolean) to :"existing_role";
 \endif
 commit;

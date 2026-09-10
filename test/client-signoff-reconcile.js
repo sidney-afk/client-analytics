@@ -622,6 +622,45 @@ check('a half repair of a RESOLVED request is left alone', () => {
   assert.equal(findings.length, 0, 'no status leg was ever owed for a resolved request');
 });
 
+/* CODEX ROUND 7. loadWorld may read the source comment BEFORE someone resolves
+   it, so pc.resolved_at can be stale while the card already shows the entry
+   done. The card was read later, so where the two disagree the card wins. */
+check('a claimed entry marked done overrules a stale source snapshot', () => {
+  for (const state of [{ done: true }, { deleted: true }]) {
+    const halfRepaired = JSON.stringify([Object.assign({
+      id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true,
+      recovered_by: 'client-signoff-reconcile',
+    }, state)]);
+    const { findings } = detect(world({
+      comments: [TWEAK({ resolved_at: null })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: halfRepaired })],
+    }));
+    assert.equal(findings.length, 0,
+      `an entry marked ${Object.keys(state)[0]} must not reopen the component`);
+  }
+});
+
+/* A resolved request on a closed round is REPORTED under its own reason rather
+   than written. Measured: 100 such rows live, none of them missing from their
+   card, so writing them would repair nothing while making 100 closed cards
+   writable. Reported so the row is never silently forgotten. */
+check('a resolved request on a closed round is reported under its own reason', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ resolved_at: '2026-09-07T12:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Approved' })],
+  }));
+  assert.equal(findings.length, 0, 'a closed round is still not written to');
+  assert.equal(skipped[0].reason, 'review_round_closed_resolved',
+    'and it is distinguishable from an unresolved one, so it is visible');
+});
+
+check('an unresolved request on a closed round keeps the plain reason', () => {
+  const { skipped } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Approved' })],
+  }));
+  assert.equal(skipped[0].reason, 'review_round_closed');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

@@ -396,6 +396,13 @@ function detect(world) {
       if (pc.resolved_at) continue;           // no status leg was ever owed
       const entry = list[claimOf.get(row)];
       if (!entry || entry.recovered_by !== 'client-signoff-reconcile') continue;
+      /* THE CARD ENTRY'S OWN LIFECYCLE OVERRULES A STALE SNAPSHOT. `loadWorld`
+       * may have read the source comment before someone resolved it, leaving
+       * `pc.resolved_at` empty while the card already shows the entry done. In
+       * that window this pass would move a resolved component back to Tweaks
+       * Needed and the sweep would strip its sign-off. The card was read later,
+       * so where the two disagree the card wins. */
+      if (entry.done === true || entry.deleted === true) continue;
       if (_calNormStatus(hit.card[STATUS_FIELD(comp)] || '') !== 'Client Approval') continue;
       findings.push({ kind: 'status_only', card: hit.card, component: comp, comment: pc,
         detail: `a request this job delivered never got its status leg (${pc.id})` });
@@ -491,8 +498,20 @@ function detect(world) {
     if (claimed >= 0) { consumed.add(claimed); claimOf.set(row, claimed); continue; }
     const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
     if (status !== 'Client Approval' && status !== 'Tweaks Needed') {
-      skipped.push({ kind: 'comment', reason: 'review_round_closed', card: hit.card.id,
-        component: comp, card_status: status, comment: pc.id });
+      /* A RESOLVED request on a closed round is reported under its own reason
+       * rather than written. Since round 6 a resolved patch is status-neutral,
+       * so restoring one here would reopen nothing — but measured against live
+       * rows, 100 resolved requests sit on closed rounds and NOT ONE of them is
+       * missing from its card. Writing them would repair nothing today while
+       * making a class of 100 closed cards writable, and this job's standing
+       * bias is to leave a card alone. Reported, so an operator can see it and
+       * the row is never silently forgotten; the gate is one line to relax if
+       * that count ever stops being zero. */
+      skipped.push({
+        kind: 'comment',
+        reason: pc.resolved_at ? 'review_round_closed_resolved' : 'review_round_closed',
+        card: hit.card.id, component: comp, card_status: status, comment: pc.id,
+      });
       continue;
     }
     findings.push({ kind: 'comment', card: hit.card, component: comp, comment: pc, existing: list,

@@ -19400,3 +19400,45 @@ which the test caught immediately.
 49 checks, four more controls, all confirmed to fail the suite.
 
 **Six rounds, nineteen findings, all real.**
+
+### 195g. [2026-09-10] Round 7: one tightening taken, one suggestion declined with the number behind it
+
+**Taken.** The unfinished-status-leg pass ignored the card entry's own
+lifecycle. `loadWorld` reads the source comments once and the card is re-read
+later, so `pc.resolved_at` can be stale while the card already shows the entry
+done. In that window the pass would have moved a resolved component back to
+`Tweaks Needed` and the sweep would have stripped its sign-off. It now refuses
+any claimed entry marked `done` or `deleted`: the card was read later, so where
+the two disagree the card is the better evidence.
+
+**Declined, and this is the first suggestion in seven rounds not implemented as
+proposed.** The suggestion was to exempt resolved requests from the closed-round
+refusal, since round 6 made resolved patches status-neutral, so restoring one
+would reopen nothing. The reasoning is sound. The measurement is what decided
+it:
+
+```sql
+-- resolved client requests whose round has closed, and how many are
+-- actually missing from their card
+-- (full query in the round-7 session; the shape is: production_comments
+--  role=client is_tweak, joined to deliverables and calendar_posts on
+--  (client, id), component status not in Client Approval / Tweaks Needed,
+--  and NOT EXISTS a card entry matching by id, native id, or normalised body)
+```
+
+**100 resolved requests sit on closed rounds. Zero are missing from their
+card.** So the change repairs nothing today, while making a class of 100 closed
+cards writable by a job whose matching logic has been wrong in six of the last
+seven rounds. The standing bias is to leave a card alone, and this is exactly
+the case for it.
+
+What was done instead: those rows are now reported under their own reason,
+`review_round_closed_resolved`, so a dry run shows them and the concern behind
+the finding — "the request remains absent forever" — is answered by visibility
+rather than by a write. If that count ever stops being zero the gate is one line
+to relax, and the doc says so.
+
+52 checks, two more controls.
+
+**Seven rounds, twenty-one findings, twenty implemented, one declined on
+measured evidence.**

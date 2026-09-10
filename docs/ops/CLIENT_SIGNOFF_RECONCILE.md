@@ -97,7 +97,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 49 checks, each
+construction through fixtures — no credentials, no network. 52 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must
@@ -213,6 +213,31 @@ exceeds one page. A **skipped** row is the dangerous direction: if it is a later
 reopen, the supersession test never sees it and a stale approval is restored. So
 `restRows` refuses to run without a unique order column, checked before the
 credential because a missing order is a defect in every environment.
+
+## Where the card and the source snapshot disagree, the card wins
+
+`loadWorld` reads the source comments once; the pre-write re-read happens later.
+So `pc.resolved_at` can be stale while the card already shows the entry as done.
+The unfinished-status-leg pass therefore refuses any claimed entry marked `done`
+or `deleted`, whatever the snapshot says: the card was read later, so it is the
+better evidence, and the failure it prevents is moving a resolved component back
+to `Tweaks Needed` and stripping its sign-off.
+
+## One thing deliberately NOT repaired, with the number behind it
+
+A resolved request whose round has since closed is **reported**
+(`review_round_closed_resolved`), never written.
+
+Since resolved patches are status-neutral, restoring one would reopen nothing,
+so this is a judgement rather than a safety rule. The judgement rests on a
+measurement: **100 resolved requests sit on closed rounds and not one of them is
+missing from its card.** Writing them would repair nothing today while making a
+class of 100 closed cards writable, and this job's standing bias is to leave a
+card alone. Reporting them under their own reason keeps the rows visible in a
+dry run rather than silently forgotten.
+
+Re-check with the query in OPEN_REPAIRS 195g. If that count ever stops being
+zero, the gate is one line to relax.
 
 ## The race this does not close
 

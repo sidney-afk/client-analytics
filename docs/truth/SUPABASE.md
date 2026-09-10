@@ -178,10 +178,14 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   ledger". All three parts were wrong**, and the counts by roughly 80x. Re-measured
   2026-09-10 by grouping each table on `source`:
 
+  Snapshot at **2026-09-10 ~23:15Z** — these are live counts and the `ui` column
+  moves continuously, so treat the shape as the finding and re-derive the numbers
+  rather than quoting these:
+
   | | rows | `ui` | other sources |
   |---|---|---|---|
-  | `calendar_post_events` | **39,506** | 32,173 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 1 |
-  | `sample_review_events` | **62,173** | 62,026 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** |
+  | `calendar_post_events` | **39,550** | 32,216 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 2 |
+  | `sample_review_events` | **62,185** | 62,038 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** |
 
   So `reconcile` does NOT bypass the ledger: it has written 2,159 calendar and 68
   sample events, continuously from 2026-07-07 to today. **The mechanism is worth
@@ -213,9 +217,18 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   on a premise that was never true. Track B still must not be bypassable, but that is
   a requirement, not an inherited property.
 
-  `db` is the Kasper urgent ping's source. Its triggers were attached and verified
-  end to end on 2026-09-10, so every ping now writes one; the earliest `db` row is
-  the backfill of the one ping that predated them.
+  `db` is the Kasper urgent ping's source; both rows above are it (one backfill of
+  the ping that predated the triggers, one from the end-to-end verification, which
+  is deliberately retained and labelled `LedgerVerification`).
+
+  **The ledger write is BEST EFFORT, by design, and marker count is NOT a
+  guaranteed match for ledger count.** The trigger body swallows every exception
+  (`migrations/2026-09-10-kasper-urgent-ping-ledger.sql`), so a future schema or
+  privilege change on the events tables loses the audit row rather than failing
+  the client's save. That trade is deliberate — a ledger row is never worth a
+  refused approval — but it means "attached" is not "guaranteed". Reconcile a gap
+  against `kasper_urgent_pinged_at` on the cards, which is the durable record; do
+  not assume parity.
   See `migrations/2026-09-10-kasper-urgent-ping-ledger.sql` and OPEN_REPAIRS 195.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.

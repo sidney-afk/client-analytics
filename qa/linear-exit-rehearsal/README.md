@@ -121,3 +121,18 @@ the standard52-table PASS report and an explicit
 `upstream_ledger_verified: true` result; a plain recovery PASS cannot satisfy
 this lane. The source remains synthetic, and hosted recovery/Storage custody
 remain outside its scope.
+
+## Inventory-ordered installation attempt
+
+Use `-Lane installation-order` with the same owned local PG16 prerequisites.
+This lane verifies the source inventory, reuses the established scoped baseline
+bootstrap, and applies each remaining owner once in declared dependency order.
+The dated baseline capture is only partially represented by that bootstrap;
+it is never blindly replayed as a complete target snapshot.
+
+The lane records catalog fingerprints after entries and stops at the first
+failed owner. These are after-entry checkpoints, not proof of every internal
+commit in autocommit or multi-transaction files. A complete pass would establish
+only declared-order execution on this synthetic baseline; accepted-work
+continuity, per-commit interruption/resumption and hosted installation remain
+separate requirements. The runner requires an explicit completion marker.

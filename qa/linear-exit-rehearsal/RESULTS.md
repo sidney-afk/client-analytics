@@ -1,5 +1,27 @@
 # Completed isolated evidence
 
+## Latest ordered installation experiment
+
+The supported `installation-order` lane passes on the scoped local baseline:
+20 fully sourced bootstrap owners, the separately disclosed partial dated
+baseline, then42 entries in inventory order. It records43 after-entry catalog
+MD5 fingerprints and verifies the exact published inventory before and after
+execution. The owned server stopped. The aggregate evidence retains all
+after-entry fingerprints without raw database contents.
+
+This run used working-tree test changes over `6b3d2520`. Review corrected an
+initial fresh-inventory binding gap; the final run verifies the published JSON.
+An earlier fingerprint-format test failure remains private historical evidence.
+No implicit transaction wrapper was added: per-file boundaries are preserved.
+
+Declared-order execution now has isolated evidence. Complete hosted baseline,
+accepted-business-work preservation, cumulative resume classification and
+interruption at every internal commit remain unproven. The recovery lane still
+uses its own installation order. Next: use these checkpoints to test actual
+interruption/resumption and divergent-prefix refusal, preserving accepted
+receipts. Installation HOLD.
+
+
 ## Latest shared source binding
 
 Composition and full upstream-ledger recovery now verify the same63-entry

@@ -255,5 +255,237 @@
       "server_stopped": true,
       "private_log_sha256": "7fd43d5163826b9d32ef8127eec9a7802541116ede312a9282207eb6bc0d7dba"
     }
+  },
+  "ordered_installation_attempt": {
+    "status": "PASS",
+    "classification": "ISOLATED_POSTGRES_ORDER_ONLY",
+    "execution_base": "6b3d25206b6f4e9311e3ba484732ec2063018180",
+    "working_tree_changes": true,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "bootstrap_full_source_owners": 20,
+    "partial_dated_baseline": true,
+    "applied_entries": 42,
+    "after_entry_checkpoints": [
+      {
+        "entry": "bootstrap_partial_baseline",
+        "catalog_md5": "11275ed5cdd6c00329cc33e89576be8e",
+        "transaction_classification": "scoped_bootstrap"
+      },
+      {
+        "entry": "2026-07-04-a2-writer-edge-functions.sql",
+        "catalog_md5": "11275ed5cdd6c00329cc33e89576be8e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-04-a4-settings-edge-functions.sql",
+        "catalog_md5": "baa9782257fa61f268f187c1db78a109",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-13-write-ui-reroute-allowlist.sql",
+        "catalog_md5": "baa9782257fa61f268f187c1db78a109",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-08-04-client-access-auto-provision.sql",
+        "catalog_md5": "e038346ac1590404205c0faa8df66456",
+        "transaction_classification": "mixed_or_multiple_transactions"
+      },
+      {
+        "entry": "workload-issues-supabase-migration.sql",
+        "catalog_md5": "33a727e8b300241301945a24477028cf",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-19-workload-plan.sql",
+        "catalog_md5": "6a6860be6285e73d35a09f241921e6fe",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "sample-reviews-migration.sql",
+        "catalog_md5": "2391fa7c863c32354f248b3e69241b85",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-11-b4-write-attribution.sql",
+        "catalog_md5": "31dfd8b22c9808be83f973573224a538",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-14-linear-intake-receipts.sql",
+        "catalog_md5": "848b194b33082b5f7666d74bd672cd49",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-07-15-pto-tracker.sql",
+        "catalog_md5": "08f468c7e3fe97fad2be44c3a476071e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-28-linear-project-ids-team-shape.sql",
+        "catalog_md5": "bf18260c6e95b63fa9fea6e4e4aeebc8",
+        "transaction_classification": "mixed_or_multiple_transactions"
+      },
+      {
+        "entry": "2026-09-05-card-change-journal.sql",
+        "catalog_md5": "04c81e8cbb1b56274c359543a52c50c1",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-calendar-feedback-recovery.sql",
+        "catalog_md5": "5f5d42a02b1fa4061a6ab9b0cda1ab4d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-crosswalk-bind-and-import.sql",
+        "catalog_md5": "b5599f48e42d833cfc03153bed67b544",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-05-native-intake-root-manifest.sql",
+        "catalog_md5": "fafe8611905183b12ac5775c7c714b8a",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-native-label-catalog-foundation.sql",
+        "catalog_md5": "47cf915126df04ae8ddb5622bea50a38",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "atomic-native-intake",
+        "catalog_md5": "d6c52f12d59eda8e92ba621985d1f92c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-08-native-intake-receipt-retention.sql",
+        "catalog_md5": "0a681286dea784af5b47887a6c7568e2",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-native-intake-reconcile.sql",
+        "catalog_md5": "74f2f38c990a70c82eac6a7151a6e350",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-card-materialization-boundary.sql",
+        "catalog_md5": "46a3f5fede26ede9bab847ae5e5edf2c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-legacy-intake-native-triage.sql",
+        "catalog_md5": "4a93f12c009b538c7e6acee375663278",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-native-brief-media.sql",
+        "catalog_md5": "42c8f6d24148925f2736346eb7d89472",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-linear-outbound-cutoff.sql",
+        "catalog_md5": "4ca780211e1252c76d877118227fba18",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-existing-assignment.sql",
+        "catalog_md5": "6f601836f91b07a4665320c1d2c47d8e",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-label-writes.sql",
+        "catalog_md5": "3f939f541b861c57b2e02c66b08b0e80",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-native-identifier-mint.sql",
+        "catalog_md5": "8b6d6bfbbe8357edd43a05a8d0bff295",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-client-provisioning.sql",
+        "catalog_md5": "8e482ceef5b570d6ada6953c6991536c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-02-workload-native-view.sql",
+        "catalog_md5": "9e85681aa238033b3766e52fd00e5302",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-workload-native-membership.sql",
+        "catalog_md5": "c3fc3051d38799fb0b573bd28797445d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-08-workload-native-label-state-shape.sql",
+        "catalog_md5": "3f8a5269ed5025ae76195187d3fb28b5",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-09-workload-native-roster.sql",
+        "catalog_md5": "24a88fa58ac7aea042a00f1805356b1b",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-attribution-browser-projection.sql",
+        "catalog_md5": "f0d2b67682202e59fc7c929dddcc3d65",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-editors-event-assignee.sql",
+        "catalog_md5": "71482ab9549f2ac5ffcb4df07cb3144e",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-ordinary-receipts.sql",
+        "catalog_md5": "97b9450f881bc30b46816118c64f5a46",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-syncview-retirement-admission.sql",
+        "catalog_md5": "3d837ef4f166cec95395e7fa38afb425",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
+        "catalog_md5": "852fb308c4492bbdd6fe2c12b07ce0b8",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-11-native-ordinary-receipt-repair.sql",
+        "catalog_md5": "38701bbe56b3d3e2b2c052d17a890b5d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-12-native-ordinary-envelope-repair.sql",
+        "catalog_md5": "0db27cd7d6f5913b468b98d63fab1bea",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-notification-outbox.sql",
+        "catalog_md5": "0151d2a3fedc1d3cd2f5a7a27799de0a",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-description-images.sql",
+        "catalog_md5": "89f2e7b3079195b1cb81d880e42fd07e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-09-kasper-urgent-pings.sql",
+        "catalog_md5": "9acf2bce114fa807dbe9e8867646d52e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-10-kasper-urgent-ping-ledger.sql",
+        "catalog_md5": "0f8dc0871287538e1d626ec0821b7825",
+        "transaction_classification": "autocommit_statements"
+      }
+    ],
+    "server_stopped": true,
+    "private_log_sha256": "10cb85e8155952085a48f6e086aad429180e49f7adefea816cebf7dc9296aba3",
+    "per_commit_interruption_proven": false,
+    "business_operations_proven": false,
+    "full_hosted_baseline_proven": false
   }
 }

@@ -1,0 +1,36 @@
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -40490,6 +40490,8 @@
+                     const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                     const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
+                         post, component: 'video', sourceEditedAt,
++                        // Preserve only this action's sign-off edit, never invent one from a status.
++                        repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
+                         repairRecord: companion && companion.record,
+                         deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                     });
+@@ -40514,6 +40516,8 @@
+                     const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                     const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
+                         post, component: 'graphic', sourceEditedAt,
++                        // Preserve only this action's sign-off edit, never invent one from a status.
++                        repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
+                         repairRecord: companion && companion.record,
+                         deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                     });
+@@ -70315,6 +70319,14 @@
+                 applied[key] = _calStringifyComments(merged);
+             }
+         }
++        // A receipt can return a newer reviewer state. Keep the existing stale-
++        // approval rule when applying a captured stamp to that current state.
++        for (const component of ['video', 'graphic']) {
++            const key = 'client_' + component + '_approved_at';
++            if (applied[key] && !['Client Approval', 'Approved', 'Scheduled', 'Posted'].includes(String(post[component + '_status'] || ''))) {
++                post[key] = applied[key] = '';
++            }
++        }
+         return applied;
+     }
+     function _writeUiRepairGroups(principal) {

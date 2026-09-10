@@ -258,7 +258,7 @@ class of 100 closed cards writable, and this job's standing bias is to leave a
 card alone. Reporting them under their own reason keeps the rows visible in a
 dry run rather than silently forgotten.
 
-Re-check with the query in OPEN_REPAIRS 195g. If that count ever stops being
+Re-check with the query in OPEN_REPAIRS 196g. If that count ever stops being
 zero, the gate is one line to relax.
 
 ## Revalidation refreshes every source detection used, not just the card

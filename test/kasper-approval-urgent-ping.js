@@ -28,6 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
+const { evActions } = require('./helpers/ev-actions.js');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 function grabFunc(name) {
@@ -435,7 +436,72 @@ setTimeout(() => {
       ef.includes('const statusAtCol = comp + "_status_at";'));
     check(slug + ' knows its ' + comps + ' components',
       (ef.match(/const KASPER_URGENT_COMPONENTS = \[([^\]]*)\]/) || [, ''])[1].split(',').length === comps);
-    check(slug + ' writes a ledger row for the ping', ef.includes('ev("kasper_urgent_ping"'));
+    /* The ledger row is NOT written here. This assertion is inverted on
+       purpose: the branch used to live in these files, was never in the
+       deployed functions, and so produced a paper trail only a non-running
+       file could see (OPEN_REPAIRS 195). A database trigger owns it now, and
+       putting it back would double-write. */
+    /* Same extractor the register gate uses, so the two cannot disagree about
+       what this file emits, and neither can be walked past with a quote style
+       or a variable. An unresolvable argument fails here too. */
+    const { actions: efActions, unresolved: efUnresolved } = evActions(ef);
+    check(slug + ' does NOT claim to write the ping ledger row itself',
+      !efActions.includes('kasper_urgent_ping')
+      && efUnresolved.length === 0
+      && ef.includes('written by a DATABASE TRIGGER'));
+  }
+
+  /* The trigger that actually records the ping. It runs on two of the hottest
+     tables in the system, so what is checked here is mostly that it CANNOT
+     hurt them: it does not execute unless a ping marker appeared, and its body
+     can never propagate an error into the write it is observing. */
+  const led = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-10-kasper-urgent-ping-ledger.sql'), 'utf8');
+  check('the ledger trigger writes both event tables',
+    led.includes('insert into public.calendar_post_events')
+    && led.includes('insert into public.sample_review_events'));
+  check('it can never fail the client write it observes',
+    /exception when others then\s*(--[^\n]*\n\s*)*null;/.test(led));
+  check('it does not run at all unless a ping marker actually appeared',
+    (led.match(/when \(new\.kasper_urgent_pinged_at is not null/g) || []).length === 4
+    && (led.match(/is distinct from old\.kasper_urgent_pinged_at/g) || []).length === 2);
+  check('it covers INSERT as well as UPDATE, on both tables',
+    (led.match(/after insert on public\.(calendar_posts|sample_reviews)/g) || []).length === 2
+    && (led.match(/after update on public\.(calendar_posts|sample_reviews)/g) || []).length === 2);
+  check('it takes no privileges it does not need',
+    !/security definer/i.test(led));
+  check('the backfill is idempotent and marks itself as backfilled',
+    (led.match(/and not exists \(select 1 from public\./g) || []).length === 2
+    && led.includes("'via',       'backfill'"));
+  /* The de-dup key is (client, id, action, PINGED-AT). Dropping any part loses
+     rows silently: without client, one client's ping suppresses another's
+     (ids repeat across clients); without pinged-at, a card pinged again in a
+     LATER round is skipped forever, because its columns only ever hold the
+     latest ping. Both were real defects here. (Codex P2 on PR 1383, twice.) */
+  /* Per STATEMENT, not per file. Counting matches across the whole migration
+     and asserting "=== 2" reads as "on both tables" and is not: two in the
+     Calendar backfill and none in the Samples one still totals two, so a
+     Samples ping could again be suppressed by that sample's older event with
+     the suite green. This is the third time a check here described more than
+     it enforced, so the slices also pin the ALIAS and the id COLUMN, which
+     differ between the two. (Codex P2 on PR 1383, rounds 9, 10 and 11.) */
+  const stmts = led.split(/\binsert into public\./).slice(1);
+  const backfill = (evTable, srcTable, alias) =>
+    stmts.find(x => x.startsWith(evTable)
+      && new RegExp('from public\\.' + srcTable + ' ' + alias + '\\b').test(x));
+  for (const [label, slice, alias, idCol] of [
+    ['the Calendar backfill', backfill('calendar_post_events', 'calendar_posts', 'p'), 'p', 'post_id'],
+    ['the Samples backfill',  backfill('sample_review_events', 'sample_reviews', 's'), 's', 'sample_id'],
+  ]) {
+    check(label + ' is present as its own statement', !!slice);
+    if (!slice) continue;
+    for (const [part, re] of [
+      ['the client',     new RegExp('where e\\.client = ' + alias + '\\.client', 'g')],
+      ['the card id',    new RegExp('and e\\.' + idCol + ' = ' + alias + '\\.id', 'g')],
+      ['the action',     /and e\.action = 'kasper_urgent_ping'/g],
+      ['the ping round', new RegExp("and e\\.payload->'pinged_at' = to_jsonb\\(" + alias + "\\.kasper_urgent_pinged_at\\)", 'g')],
+    ]) {
+      check(label + ' de-dups on ' + part, (slice.match(re) || []).length === 1);
+    }
   }
 
   const mig = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8');

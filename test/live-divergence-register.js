@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { evActions, coveredBy } = require('./helpers/ev-actions.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const REGISTER = 'docs/ops/LIVE_DIVERGENCE_REGISTER.md';
@@ -59,6 +60,59 @@ for (const rel of registered) {
   const slug = rel.split('/')[2];
   check(rel + ' has no copy-pasteable deploy command',
     !new RegExp('supabase functions deploy\\s+' + slug).test(src));
+}
+
+/* ── capability parity: does live actually DO what the repo claims? ──────────
+ *
+ * The two checks above keep a KNOWN divergence visible. They cannot see a NEW
+ * one, and on 2026-09-09 a new one shipped: both repo copies gained an
+ * `ev("kasper_urgent_ping")` branch, a test asserted it was there, and it was
+ * never in the deployed functions. Every guard pointed at the repo, so the
+ * feature ran for a day with a paper trail that existed only in a file which
+ * does not execute (OPEN_REPAIRS 195).
+ *
+ * This check closes that direction. The register records the event actions each
+ * DEPLOYED function was observed to emit; a repo copy that claims an action the
+ * register does not record as live fails here. It cannot reach production from
+ * CI, and does not pretend to: it compares the repo against a human-verified
+ * record, and the register says how to refresh that record. The failure it
+ * prevents is believing the repo by default. */
+console.log('\n-- capability parity: repo claims vs verified live --');
+const CAP = /^- `([a-z-]+)` live v(\d+) verified (\d{4}-\d{2}-\d{2}) events: (.+)$/gm;
+const caps = new Map();
+for (const m of registerText.matchAll(CAP)) {
+  caps.set(m[1], { version: m[2], verified: m[3], events: m[4].split(',').map(x => x.trim()).filter(Boolean) });
+}
+check('the register records a verified live capability row per registered writer',
+  registered.every(rel => caps.has(rel.split('/')[2])));
+
+for (const rel of registered) {
+  const slug = rel.split('/')[2];
+  const cap = caps.get(slug);
+  if (!cap) continue;
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const { actions: repoActions, unresolved } = evActions(src);
+  /* An argument the extractor cannot resolve is a HOLE in this gate, so it is
+     a failure rather than a silent skip. Otherwise `const a = "x"; ev(a)`
+     re-introduces a branch with every check green. (Codex P2 on PR 1383.) */
+  check(slug + ' has no ev() argument this gate cannot resolve'
+    + (unresolved.length ? ' — UNRESOLVED: ' + unresolved.join(' | ') : ''),
+    unresolved.length === 0);
+  const unproven = repoActions.filter(a => !coveredBy(a, cap.events));
+  check(slug + ' claims no event the deployed v' + cap.version + ' was not verified to emit'
+    + (unproven.length ? ' — UNPROVEN: ' + unproven.join(', ') : ''),
+    unproven.length === 0);
+  /* And the reciprocal, because parity is equality, not containment. If a
+     future edit deletes or renames ev("urgent_ping") in the repo copy, the
+     check above only sees the set shrink and stays green — while the deployed
+     function still emits it. The next owner-approved port of this frozen
+     source would then silently drop a live capability, which is the same class
+     of loss this PR exists to close, pointing the other way.
+     (Codex P2 on PR 1383.) */
+  const dropped = cap.events.filter(a => !coveredBy(a, repoActions));
+  check(slug + ' still carries every event the deployed v' + cap.version + ' emits'
+    + (dropped.length ? ' — MISSING FROM REPO: ' + dropped.join(', ') : ''),
+    dropped.length === 0);
 }
 
 console.log('\n-- a change touching a registered path must touch the register --');

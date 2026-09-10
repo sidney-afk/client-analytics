@@ -28,6 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
+const { evActions } = require('./lib/ev-actions.js');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 function grabFunc(name) {
@@ -440,8 +441,13 @@ setTimeout(() => {
        deployed functions, and so produced a paper trail only a non-running
        file could see (OPEN_REPAIRS 195). A database trigger owns it now, and
        putting it back would double-write. */
+    /* Same extractor the register gate uses, so the two cannot disagree about
+       what this file emits, and neither can be walked past with a quote style
+       or a variable. An unresolvable argument fails here too. */
+    const { actions: efActions, unresolved: efUnresolved } = evActions(ef);
     check(slug + ' does NOT claim to write the ping ledger row itself',
-      !/ev\(\s*(['"`])kasper_urgent_ping\1/.test(ef)
+      !efActions.includes('kasper_urgent_ping')
+      && efUnresolved.length === 0
       && ef.includes('written by a DATABASE TRIGGER'));
   }
 

@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { evActions, coveredBy } = require('./lib/ev-actions.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const REGISTER = 'docs/ops/LIVE_DIVERGENCE_REGISTER.md';
@@ -90,12 +91,14 @@ for (const rel of registered) {
   const cap = caps.get(slug);
   if (!cap) continue;
   const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-  // Quote-agnostic on purpose: a gate that only sees ev("x") can be walked
-  // straight past with ev('x'), which is valid TypeScript and would reintroduce
-  // the branch with every new guard still green. (Codex P2 on PR 1383.)
-  const repoActions = [...new Set([...src.matchAll(/ev\(\s*(['"`])([a-z_]+)\1/g)].map(m => m[2]))].sort();
-  const live = new Set(cap.events);
-  const unproven = repoActions.filter(a => !live.has(a));
+  const { actions: repoActions, unresolved } = evActions(src);
+  /* An argument the extractor cannot resolve is a HOLE in this gate, so it is
+     a failure rather than a silent skip. Otherwise `const a = "x"; ev(a)`
+     re-introduces a branch with every check green. (Codex P2 on PR 1383.) */
+  check(slug + ' has no ev() argument this gate cannot resolve'
+    + (unresolved.length ? ' — UNRESOLVED: ' + unresolved.join(' | ') : ''),
+    unresolved.length === 0);
+  const unproven = repoActions.filter(a => !coveredBy(a, cap.events));
   check(slug + ' claims no event the deployed v' + cap.version + ' was not verified to emit'
     + (unproven.length ? ' — UNPROVEN: ' + unproven.join(', ') : ''),
     unproven.length === 0);

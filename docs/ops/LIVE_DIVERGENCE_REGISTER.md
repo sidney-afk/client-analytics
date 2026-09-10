@@ -44,12 +44,29 @@ contain, read straight off the deployed source on the date given. They exist so
 that a capability the repo copy claims can be checked against one production
 actually has.
 
-This section is machine-read by `test/live-divergence-register.js`. The `events:`
-list is every literal `ev("…")` action the live function can emit. A repo copy
-that gains an action missing from its live row fails the gate, which forces the
-divergence to be either deployed or declared instead of quietly believed.
+This section is machine-read by `test/live-divergence-register.js` via
+`test/lib/ev-actions.js`. The `events:` list is every action the live function
+can emit. A repo copy that gains an action missing from its live row fails the
+gate, which forces the divergence to be either deployed or declared instead of
+quietly believed.
 
-- `calendar-upsert` live v49 verified 2026-09-10 events: approve_, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+Two conventions in that list, both load-bearing:
+
+- **`name*` is a PREFIX form**, for an action the source composes at runtime —
+  `ev("approve_" + comp)` is recorded as `approve_*`, because the exact set
+  depends on a value the reader cannot see. Production currently holds
+  `approve_caption`, `approve_graphic`, `approve_title` and `approve_video`
+  under that one prefix. A literal is covered by a prefix it falls under; a
+  prefix is covered only by the identical prefix, since it can emit more than
+  any one literal proves.
+- **An `ev(…)` argument the extractor cannot resolve fails the gate by name**
+  rather than being skipped. This is the whole reason it is not a regex: the
+  first version read only bare double-quoted literals, so it reported
+  `ev("approve_" + comp)` as the non-existent action `approve_`, and would have
+  missed `ev('x')`, a template literal, or `const a = "…"; ev(a)` entirely —
+  silently, which is the one thing a guard must never be.
+
+- `calendar-upsert` live v49 verified 2026-09-10 events: approve_*, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
 - `sample-review-upsert` live v50 verified 2026-09-10 events: approve_graphic, approve_video, archive, comment_add, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
 
 **Why this section exists.** On 2026-09-09 the Kasper urgent ping shipped with an
@@ -67,9 +84,10 @@ again. The trigger cannot drift from the live functions, because it is not in
 them.
 
 **Refreshing a row.** Read the deployed source (Supabase → Edge Functions, or
-`get_edge_function`), list its `ev("…")` actions, and update the row with the new
-version and today's date. Never copy the list out of the repo file — that is the
-exact mistake this section exists to catch.
+`get_edge_function`), run it through `evActions()` from `test/lib/ev-actions.js`
+rather than reading it by eye, and update the row with the new version and
+today's date. Never copy the list out of the repo file — that is the exact
+mistake this section exists to catch.
 
 ---
 

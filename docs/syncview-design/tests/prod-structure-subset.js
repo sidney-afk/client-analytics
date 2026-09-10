@@ -8,6 +8,7 @@
  * verifies the wired ?prod=1 tab has the same structure while remaining write-silent.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -183,8 +184,8 @@ async function assertNoWriteRequests(requests) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   const readConsoleAudit = installReadConsoleAudit(page);
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
+  await seedStaffGate(page);
   await page.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

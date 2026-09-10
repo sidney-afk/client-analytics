@@ -11,6 +11,7 @@
 // clicking the top nav tabs actually navigates.
 const lib = require('../sxr_courier_lib.js');
 
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com)/;
 
 function forwardExternal(method, url, headers, postData) {
@@ -29,6 +30,7 @@ async function run() {
   const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
   const browser = await lib.launch();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
+  await seedStaffGate(ctx);
   // Tunnel backend so fetchEssentials succeeds and the app fully boots.
   await ctx.route('**/*', async (route) => {
     const req = route.request(); const url = req.url();
@@ -48,7 +50,6 @@ async function run() {
   // real near-full quota behaves once the big cache keys already occupy it).
   await ctx.addInitScript(() => {
     try {
-      localStorage.setItem('syncview_auth_v1', 'ok');
       const proto = Object.getPrototypeOf(localStorage);
       const orig = proto.setItem;
       proto.setItem = function (k, v) {

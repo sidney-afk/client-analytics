@@ -17,6 +17,7 @@
  * Optional: set SYNCVIEW_PROD_SCREENSHOT_DIR to save screenshots.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -133,7 +134,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   return page;
 }
 

@@ -19115,3 +19115,59 @@ Built so it cannot hurt the tables it watches: the WHEN clauses mean the body ne
 **Three things this turned up that were already wrong.** (a) The extractor's own first row recorded `approve_`, an action production has never held. (b) `docs/truth/SUPABASE.md` described the two event ledgers as "~22k rows / ~473 rows, 100% `source='ui'` to date … inbound/reconcile bypass the ledger" — all three parts false, and the counts off by roughly 80x. Re-measured by grouping on `source`: `calendar_post_events` holds 39,506 rows (32,173 `ui`, plus `calendar-reorder` 4,883, **`reconcile` 2,159**, `linear` 230, `calendar-upsert` 58, `sql` 2, `db` 1) and `sample_review_events` holds 62,173 (62,026 `ui`, `sample-review-reorder` 79, **`reconcile` 68**). Reconcile has written to the ledger continuously since 2026-07-07; it never bypassed it. That matters beyond bookkeeping, because AGENTS.md directs sessions to trust `docs/truth/` before re-auditing, and the doc's Track-B conclusion rested on the false premise. (c) The first draft of the shared extractor hand-rolled a comment stripper, when `test/helpers/strip-comments.js` already existed, is used across the suite, and its header rejects exactly that stateful approach with measurements. It now delegates, and lives in `test/helpers/` rather than an undocumented `test/lib/`, with a `REPO_MAP.md` row.
 
 **The guard that would have caught this.** `docs/ops/LIVE_DIVERGENCE_REGISTER.md` now carries a Verified live capability section: per registered writer, the version, the date it was read, and the event actions the DEPLOYED function was observed to emit. `test/live-divergence-register.js` fails when a repo copy claims an action the register does not record as live, naming it. It cannot reach production from CI and does not pretend to — it compares the repo against a human-verified record and tells you how to refresh it. The failure it removes is believing the repo by default. Verified with a negative control: an invented action added to a repo copy fails the gate by name. Both repo copies now drop the branch entirely and point at the trigger, so repo and live agree again.
+
+## 196. The staff entry gate replaces the shared password (2026-09-10)
+
+**What was there.** Two doors, and the wrong one was load-bearing. The outer
+one asked for a single password shared by everyone, hardcoded in `index.html`
+(a public repo) and therefore readable by anyone who opened the page source;
+passing it identified nobody and set `localStorage.syncview_auth_v1='ok'`. The
+inner one — pick your roster name, enter your personal role key, verified by
+the `key-verify` Edge Function — was already the thing gating every capability
+in `_syncviewStaffCan`, but it was OPTIONAL: prompted once a session and
+dismissible with "Not now".
+
+**What it is now.** The shared password is gone (markup, `submitPassword`,
+`boot-password`, and the stale storage marker, which is swept on load). The
+verified identity is the door. Signed-out staff land on `#staffGateOverlay`
+with the sign-in card on it, in entry mode: no "Not now", and neither Escape
+nor a backdrop click dismisses it, because there is nothing behind it to
+dismiss to. Signing out returns there, in every open tab.
+
+**The distinction this turns on, and the trap in it.** ADMISSION (may the shell
+be used) is now separate from VERIFICATION (may this action touch data), and
+only the second is a credential. The pre-paint check in the `<head>` boot
+script is synchronous and reads localStorage, which anyone can write by hand,
+so it decides only what to PAINT: a stored blob boots the app optimistically so
+returning staff never see a gate flash. `_syncviewStaffIdentityBoot()` then
+verifies against the server and drops the gate back on a 401, clearing the
+blob. Writing the naive version of this — gate on presence of the blob — would
+have made the door forgeable in devtools, which is why `test/staff-entry-gate.js`
+drives that exact case in a real browser.
+
+**The grace window, and what it deliberately does not grant.** When the
+verifier is unreachable (network/5xx, never a 401) and this browser holds an
+identity verified within 24h, the shell stays open. It is read-only by
+construction: `_syncviewStaffIdentityValid()` still reports false, so every
+capability check and every outbound staff header still fails closed. A Supabase
+blip is a nuisance, not a team-wide lockout; an expired grace gates. Both
+branches are covered.
+
+**Blast radius that mattered more than the feature.** Surfaces with their own
+access model must never meet this gate: `?c=` client share links, `?intake=1`,
+the onboarding funnels, `onboarding_view`, and the SMM weekly entry. All four
+are asserted. About 40 harnesses used the retired password to get in; they now
+seed a stub identity and fulfil `key-verify` locally via the new
+`qa/staff-gate-seed.js`, which grants exactly what the password granted (the
+shell) and nothing more — the stub key still reaches the real backend and is
+still rejected, so no probe can write with it.
+
+**Two suites encoded the old design and were updated, not silenced.**
+`b4-staff-login.js` asserted that sign-out leaves a calm signed-out app with no
+prompt; that posture no longer exists on a staff surface. `prod-write-gateway-browser.js`
+signs out mid-run to prove sensitive state is purged, then keeps clicking — it
+now signs back in, because the gate is over the app. Verified: `staff-entry-gate`,
+`boot-gate-parity`, `prod-write-gateway-browser`, `prod-boot-budget`,
+`kasper-cal-cache-bounded`, and all 23 `client-entry-sequence` scenarios pass.
+`b4-staff-login` reaches a failure that reproduces identically on `origin/main`
+(a creative-role toast, unrelated to this change).

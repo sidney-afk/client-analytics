@@ -130,7 +130,6 @@ async function installMocks(page) {
 
 async function seedStaffApp(page, identity) {
   await page.addInitScript(value => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     if (sessionStorage.getItem('b4_staff_login_fixture_seeded') === '1') return;
     if (value) localStorage.setItem('syncview_staff_identity_v1', JSON.stringify(value));
     else localStorage.removeItem('syncview_staff_identity_v1');
@@ -335,7 +334,6 @@ async function selectMember(page, member) {
     assert(await page.locator('#staffIdentityOverlay').count() === 0, 'valid boot revalidation does not re-prompt');
 
     const sibling = await context.newPage();
-    await sibling.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
     await installMocks(sibling);
     await sibling.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
     await sibling.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name);
@@ -378,10 +376,16 @@ async function selectMember(page, member) {
     assert(await page.locator('#ccOverlay').count() === 0 && purged.modalRows === 0 && purged.kasperRows === 0 && purged.reveals === 0, 'Sign out closes credentials UI and purges sensitive credential state');
     assert(purged.onboarding === null && purged.onboardingMode === 'edge', 'Sign out purges full-onboarding cache and returns to stripped mode');
     assert(purged.legacyCredentials === null && purged.legacyFilming === null, 'Sign out removes retired surface-specific keys from browser storage');
-    assert(await page.locator('#staffIdentityOverlay').count() === 0
+    // Sign-out used to leave a usable signed-out app behind a calm header
+    // button. Since the staff password was retired (2026-09-10) the verified
+    // identity IS the door, so signing out returns to it: the gate cover and
+    // its entry card come back, with that same calm button behind them.
+    await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
+    assert(await page.evaluate(() => getComputedStyle(document.getElementById('staffGateOverlay')).display !== 'none')
+      && await page.locator('#staffIdentityCancel').count() === 0
       && await page.locator('#headerMenuButton').getAttribute('aria-haspopup') === 'menu'
       && await page.locator('#headerMenuButton').getAttribute('aria-expanded') === 'false'
-      && await page.locator('#headerMenuButton').getAttribute('aria-label') === 'Open staff menu', 'Sign out leaves the calm signed-out header menu button without an automatic prompt');
+      && await page.locator('#headerMenuButton').getAttribute('aria-label') === 'Open staff menu', 'Sign out returns to the entry gate, with the calm signed-out header button behind it');
     await sibling.waitForFunction(() => localStorage.getItem('syncview_staff_identity_v1') === null
       && document.getElementById('headerMenuButton')?.getAttribute('aria-haspopup') === 'menu'
       && document.getElementById('headerMenuButton')?.getAttribute('aria-label') === 'Open staff menu'
@@ -390,24 +394,26 @@ async function selectMember(page, member) {
     assert(true, 'Sign out propagates across tabs and purges sibling sensitive state');
     await sibling.close();
 
-    await page.evaluate(() => _fpToggleAdd());
-    await page.waitForSelector('#staffIdentityForm', { timeout: 5000 });
-    assert(await page.locator('#staffIdentityOverlay').count() === 1, 'a signed-out gated action opens the single global staff sign-in');
+    // Signed out on a staff surface now means AT THE DOOR, not inside a
+    // signed-out app: the entry card is already open from the sign-out above,
+    // it is the only sign-in surface, and it does not dismiss. (The dismissible
+    // sign-in dialog still exists for surfaces that are not gated, such as the
+    // standalone onboarding viewer.)
+    assert(await page.locator('#staffIdentityOverlay').count() === 1
+      && await page.locator('#staffIdentityForm').count() === 1,
+      'a signed-out staff surface shows the single global staff sign-in');
     await page.keyboard.press('Escape');
-    await page.waitForSelector('#staffIdentityOverlay', { state: 'detached' });
-    assert(await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'Escape closes the sign-in dialog and restores focus to the header menu button');
-    await page.click('#headerMenuButton');
-    await page.locator('#staffAccountPopover').waitFor({ state: 'visible' });
-    assert(await page.locator('#headerMenuButton').getAttribute('aria-expanded') === 'true'
-      && (await page.locator('.staff-account-line').textContent()).trim() === 'SyncView staff'
-      && (await page.locator('#staffIdentityMenuLabel').textContent()).trim() === 'Staff sign in', 'signed-out header click opens the staff menu with its identity action');
-    assert(await page.evaluate(() => document.activeElement.id) === 'staffIdentitySignOut', 'signed-out staff menu moves focus to the identity action');
-    await page.click('#staffIdentitySignOut');
-    await page.waitForSelector('#staffIdentityForm');
-    assert(await page.locator('#staffAccountPopover').isHidden(), 'identity action closes the staff menu before opening the sign-in dialog');
     await page.locator('#staffIdentityOverlay').click({ position: { x: 4, y: 4 } });
-    await page.waitForSelector('#staffIdentityOverlay', { state: 'detached' });
-    assert(await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'clicking the backdrop closes sign-in and restores focus to the header menu button');
+    await page.waitForTimeout(200);
+    assert(await page.locator('#staffIdentityOverlay').count() === 1
+      && await page.evaluate(() => getComputedStyle(document.getElementById('staffGateOverlay')).display !== 'none'),
+      'THE LOAD-BEARING NEGATIVE: Escape and the backdrop do NOT dismiss the entry gate, '
+      + 'because there is no signed-out app to dismiss it to');
+    assert(await page.evaluate(() => _fpToggleAdd() === undefined || true)
+      && await page.locator('#staffIdentityOverlay').count() === 1,
+      'a gated action behind the cover cannot open a second sign-in surface');
+    assert((await page.locator('#staffIdentityIntro').textContent()).includes('personal role key'),
+      'the entry card asks for the person and their personal role key');
 
     await page.evaluate(member => {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({ key: 'invalid-dummy-key', role: 'admin', member }));

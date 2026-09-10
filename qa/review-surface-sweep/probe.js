@@ -15,6 +15,7 @@
  * and can disagree honestly (a visible failure with the debt retained).
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -95,7 +96,7 @@ async function run(actor, action, fault) {
   let nativeStatusAt = new Date(Date.now() - 3600 * 1000).toISOString();
   page.on('pageerror', e => errors.push(String(e.message).slice(0, 160)));
 
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   await page.route('**/functions/v1/key-verify', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ ok: true, role: 'admin', member: { id: 'admin', name: 'Sweep Admin', role: 'admin', team: 'graphics' } }) }));
   await page.route('**/functions/v1/filming-plans**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, plans: [] }) }));

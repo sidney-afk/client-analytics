@@ -31,7 +31,10 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   webhook. Flag-read and some EF failures can select the same path. That is an auth fail-open (F67),
   not a safe kill switch; removal/empty-list rollback is blocked until equivalent auth/scope exists.
   They are read at load and live-updated over realtime. Full active roster on all three since 2026-07-07.
-- **Auth is mixed, not one gate.** The outer app-shell password is client-side/cosmetic and public
+- **Auth is mixed, not one gate.** (The shared app-shell password was RETIRED 2026-09-10 —
+  OPEN_REPAIRS 196. Staff entry is now the verified roster-name + personal role key, and the
+  stored identity is a paint hint, not a credential: boot re-verifies it server-side and gates
+  on a 401.) Public
   REST/endpoint locations remain visible in source. Protected client-token, staff-key, role, and
   Production gateway checks now enforce several server operations, while `auth_enforcement` is
   still permissive. Candidate source hardens all six Track-A service-role writers; four are deployed
@@ -125,13 +128,13 @@ Everything below is shared by every surface; per-surface sections only note devi
   at the end of the script chooses a mode: `?onboarding` / `/onboarding_form` →
   public onboarding form; `?onboarding_view=<slug>` → standalone viewer; `?intake=1` → Submit-only
   lock; `?c=<client>` → client link; `#smm-weekly-report(s)` hash → SMM weekly form/viewer; else the
-  **password overlay unless `syncview_auth_v1==='ok'`**. `init()` then routes to the
+  **staff entry gate unless a stored identity re-verifies** (`syncview_staff_identity_v1`). `init()` then routes to the
   tab, with fast-tab and client-link fast paths that mount before analytics data resolves.
-- **Password side doors / F102.** The gate admits `_isSmmWeeklyEntry || _isIntake || _isClientLink
-  || auth==='ok'` and then runs `init()`. So **`?c=…`, `?intake=1`, `?onboarding`, `?onboarding_view`
-  and `#smm-weekly-*` all run without the staff password** (each hides staff chrome and locks nav to
+- **Entry side doors / F102.** The gate admits `_isSmmWeeklyEntry || _isIntake || _isClientLink
+  || a stored staff identity` and then runs `init()`. So **`?c=…`, `?intake=1`, `?onboarding`,
+  `?onboarding_view` and `#smm-weekly-*` all run without staff sign-in** (each hides staff chrome and locks nav to
   its own view). Because the `?prod=1` branch inside `init()` fires *before* the client-link
-  branch (32948), a `?c=…&prod=1` URL reaches the currently read-only client Production preview without the password;
+  branch (32948), a `?c=…&prod=1` URL reaches the currently read-only client Production preview without staff sign-in;
   an unknown `?c=` slug with no matching client falls through routing to `navTo('home')` and paints
   the staff dashboard without invoking the token verifier. F102 requires resolve+verify before any
   bypass/data load and forbids every client URL from falling into a staff route; token enforcement

@@ -24,6 +24,7 @@
 // create; assert 0 app JS errors.
 // ============================================================================
 const { spawn, spawnSync } = require('child_process');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -392,8 +393,8 @@ async function _ctx(browser, opts) {
   const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
+  await seedStaffGate(ctx);
   await ctx.addInitScript((theme) => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     // These scenarios exercise Samples/Calendar behavior, not the optional
     // global staff sign-in invitation. Keep that auto-prompt from obscuring the
     // visual lane; B4's dedicated real-browser suite owns the complete auth UX.
@@ -633,7 +634,6 @@ async function clientCal(browser, name = 'Sidney Laruel', token, opts) {
 async function kasperCal(browser, opts) {
   const ctx = await _ctx(browser, opts);
   await ctx.addInitScript(() => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {}
   });
   const page = await ctx.newPage();
@@ -654,7 +654,6 @@ async function kasper(browser, opts) {
   // Seed BOTH the auth flag (localStorage) and the Kasper unlock (sessionStorage)
   // before any script runs, so the Kasper page mounts immediately on ?Kasper=1.
   await ctx.addInitScript(() => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {}
   });
   const page = await ctx.newPage();

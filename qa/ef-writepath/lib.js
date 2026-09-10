@@ -26,6 +26,7 @@
 // ============================================================================
 'use strict';
 const { spawnSync } = require('child_process');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
@@ -275,8 +276,8 @@ function makeRecorder() {
 async function makeCtx(browser, opts = {}) {
   const rec = makeRecorder();
   const ctx = await browser.newContext({ viewport: { width: 1480, height: 950 }, ignoreHTTPSErrors: true });
+  await seedStaffGate(ctx);
   await ctx.addInitScript((kasper) => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     if (kasper) { try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {} }
   }, !!opts.kasper);
   await ctx.route('**/*', async (route) => {

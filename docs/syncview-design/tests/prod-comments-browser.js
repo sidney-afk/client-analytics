@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -66,7 +67,7 @@ function expect(condition, message) {
     }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   await page.route('**/functions/v1/production-comments', async route => {
     const request = route.request();
     commentReads++;

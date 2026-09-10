@@ -6,6 +6,7 @@
  *   (3) client_<comp>_approved_at stayed null
  * A candidate cause only counts if it reproduces ALL THREE. */
 const fs = require('fs');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -49,7 +50,7 @@ async function run(faultName, fault) {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message).slice(0, 200)));
 
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   if (fault.initScript) await page.addInitScript(fault.initScript);
 
   await page.route('**/functions/v1/key-verify', r => r.fulfill({ status: 200, contentType: 'application/json',

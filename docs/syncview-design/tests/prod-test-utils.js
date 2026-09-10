@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 
@@ -44,8 +45,8 @@ function isWriteLikeRequest(req) {
 }
 
 async function installProductionInit(page) {
+  await seedStaffGate(page);
   await page.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     window.__prodBootMarks = [];
     const record = () => {
       try {

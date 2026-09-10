@@ -4,6 +4,7 @@
 //   G. cancel-then-late-caption → does a late 'done' still land after cancel?            [audit#1]
 //   H. archive-mid-generation → the late caption must NOT resurrect the archived card    [audit#4]
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const EDIT = 'p_cr_edit_' + TS, CANCEL = 'p_cr_cancel_' + TS, ARCH = 'p_cr_arch_' + TS;
 const FRAME = 'https://frame.io/test/' + TS;
@@ -15,7 +16,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   const respFor = {};
   const cancelledJobs = new Set();   // jobIds the user requested cancel on (production-accurate: backend then returns cancelled)
   await ctx.route('**/webhook/generate-caption', async (r) => {

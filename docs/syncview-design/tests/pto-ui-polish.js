@@ -5,6 +5,7 @@
 // TEST fixture. All external requests are intercepted; this suite never reads
 // or writes live HR data.
 const { chromium } = require('playwright');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const { AxeBuilder } = require('@axe-core/playwright');
 const { serveStatic } = require('./prod-test-utils');
 
@@ -182,8 +183,8 @@ function initialOverview() {
 }
 
 async function installFixture(page, state) {
+  await seedStaffGate(page);
   await page.addInitScript(({ identity, key }) => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     localStorage.removeItem('syncview_theme');
     localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({
       key,

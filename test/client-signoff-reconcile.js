@@ -395,6 +395,84 @@ check('a request naming nothing still falls back to the deliverable kind', () =>
   assert.equal(findings[0].component, 'video');
 });
 
+/* CODEX ROUND 4, AND THE MOST DANGEROUS CLASS IN THIS FILE.
+   calendar_posts is keyed by (client, id), not by id alone: 13 live card ids
+   are used by more than one client and 17 deliverables point at one of them.
+   Keying by id alone lets one client's card stand in for another's, and on an
+   apply run that writes a client's approval, or their words, onto a DIFFERENT
+   CLIENT'S CARD. */
+check('a card id shared by two clients never crosses between them', () => {
+  const shared = [
+    CARD({ id: 'dup-1', client: 'clienta', video_status: 'Approved', client_video_approved_at: null }),
+    CARD({ id: 'dup-1', client: 'clientb', video_status: 'Approved', client_video_approved_at: null }),
+  ];
+  const { findings } = detect({
+    outbox: [APPROVE()],
+    comments: [],
+    deliverables: [DEL({ card_id: 'dup-1', client_slug: 'clientb' })],
+    cards: shared,
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].card.client, 'clientb',
+    'the deliverable belongs to clientb, so clienta must not be touched');
+});
+
+check('a request crosses to no other client either', () => {
+  const shared = [
+    CARD({ id: 'dup-2', client: 'clienta', video_status: 'Client Approval' }),
+    CARD({ id: 'dup-2', client: 'clientb', video_status: 'Client Approval' }),
+  ];
+  const { findings } = detect({
+    outbox: [],
+    comments: [TWEAK()],
+    deliverables: [DEL({ card_id: 'dup-2', client_slug: 'clienta' })],
+    cards: shared,
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].card.client, 'clienta');
+});
+
+/* Doubly enforced: the explicit guard, and the composite key itself, which a
+   blank client can never match. Asserted against a card whose client IS blank,
+   so the composite key alone would resolve it and only the guard refuses. */
+check('a deliverable naming no client resolves to no card at all', () => {
+  const { findings } = detect({
+    outbox: [APPROVE()],
+    comments: [],
+    deliverables: [DEL({ client_slug: '' })],
+    cards: [CARD({ client: '' })],
+  });
+  assert.equal(findings.length, 0, 'an unidentifiable card must never be guessed');
+});
+
+/* BOTH cards must already hold the request, so that a tally shared between the
+   two clients would let the first client consume the entry and leave the second
+   looking undelivered — a duplicate written onto the second client's card.
+   Giving only one client the entry does NOT discriminate: the other client's
+   list is empty either way. */
+check('two clients sharing an id each keep their own consumption tally', () => {
+  const onCard = () => JSON.stringify([
+    { id: 'x1', body: 'Please fix the intro', role: 'client' },
+  ]);
+  const { findings } = detect({
+    outbox: [],
+    comments: [
+      TWEAK({ id: 'pc_a', deliverable_id: 'del-a' }),
+      TWEAK({ id: 'pc_b', deliverable_id: 'del-b' }),
+    ],
+    deliverables: [
+      DEL({ id: 'del-a', card_id: 'dup-3', client_slug: 'clienta' }),
+      DEL({ id: 'del-b', card_id: 'dup-3', client_slug: 'clientb' }),
+    ],
+    cards: [
+      CARD({ id: 'dup-3', client: 'clienta', video_status: 'Client Approval', video_tweaks: onCard() }),
+      CARD({ id: 'dup-3', client: 'clientb', video_status: 'Client Approval', video_tweaks: onCard() }),
+    ],
+  });
+  assert.equal(findings.length, 0,
+    'each client already holds its own copy; a shared tally would duplicate one');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

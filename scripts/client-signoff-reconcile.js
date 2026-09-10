@@ -248,8 +248,16 @@ function couldBeClientTweak(entry) {
   return !STAFF_ROLES.has(role);
 }
 
+/* calendar_posts is keyed by (client, id), NOT by id alone: 13 live card ids are
+ * used by more than one client, and 17 deliverables point at one of them. Keying
+ * anything here by id alone lets one client's card stand in for another's, which
+ * on an apply run would write a client's approval or their words onto a
+ * different client's card. Every lookup, consumption key and re-read is
+ * therefore composite. */
+const cardKey = (client, id) => String(client || '').trim().toLowerCase() + '|' + String(id || '');
+
 function detect(world) {
-  const cardById = new Map(world.cards.map(c => [String(c.id), c]));
+  const cardById = new Map(world.cards.map(c => [cardKey(c.client, c.id), c]));
   const delById = new Map(world.deliverables.map(d => [String(d.id), d]));
   const findings = [];
   const skipped = [];
@@ -257,7 +265,10 @@ function detect(world) {
   const resolve = (deliverableId) => {
     const del = delById.get(String(deliverableId || ''));
     if (!del || !del.card_id) return null;
-    const card = cardById.get(String(del.card_id));
+    /* No client on the deliverable means the card cannot be identified, and
+     * guessing is what this whole guard exists to prevent. */
+    if (!String(del.client_slug || '').trim()) return null;
+    const card = cardById.get(cardKey(del.client_slug, del.card_id));
     if (!card) return null;
     /* Archived is the card's OVERALL status, not a column — same test
      * scripts/linear-sync-reconcile.js applies. */
@@ -307,7 +318,7 @@ function detect(world) {
      * last resort. */
     const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
     if (!at) continue;
-    const key = hit.card.id + '|' + comp;
+    const key = cardKey(hit.card.client, hit.card.id) + '|' + comp;
     const prev = latestApprove.get(key);
     if (!prev || Date.parse(at) > Date.parse(prev.at)) {
       latestApprove.set(key, { at, card: hit.card, comp, deliverableId: String(hit.del.id) });
@@ -399,7 +410,7 @@ function detect(world) {
       skipped.push({ kind: 'comment', reason: 'card_cell_unparseable', card: hit.card.id, component: comp });
       continue;
     }
-    resolved.push({ pc, hit, comp, body, list, cellKey: hit.card.id + '|' + comp });
+    resolved.push({ pc, hit, comp, body, list, cellKey: cardKey(hit.card.client, hit.card.id) + '|' + comp });
   }
 
   /* PASS 1 — EXACT IDENTITY FIRST, ACROSS EVERY REQUEST.
@@ -535,7 +546,8 @@ async function revalidate(world, finding) {
     + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
     + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
     + 'client_title_approved_at,kasper_approved_at'
-    + `&id=eq.${encodeURIComponent(finding.card.id)}`);
+    + `&id=eq.${encodeURIComponent(finding.card.id)}`
+    + `&client=eq.${encodeURIComponent(finding.card.client)}`);
   if (!fresh.length) return null;
   const again = detect({
     outbox: world.outbox, comments: world.comments,
@@ -545,6 +557,7 @@ async function revalidate(world, finding) {
     f.kind === finding.kind
     && f.component === finding.component
     && String(f.card.id) === String(finding.card.id)
+    && cardKey(f.card.client, f.card.id) === cardKey(finding.card.client, finding.card.id)
     && (f.kind !== 'comment' || String(f.comment.id) === String(finding.comment.id)));
   return match || null;
 }

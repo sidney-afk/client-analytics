@@ -19278,3 +19278,36 @@ nothing else.
 
 33 checks; two more controls (silent fallback restored, title dropped from the
 map) both confirmed to fail the suite.
+
+### 195d. [2026-09-10] Round 4: cards are keyed by (client, id), and this job was keying by id
+
+The most serious finding of the four rounds, caught before a single write.
+
+`calendar_posts` has the composite primary key `(client, id)`. **Card ids are
+not globally unique: 13 live ids are used by more than one client, and 17
+deliverables point at one of them.** This job kept its card map, its comment
+consumption tallies and its pre-write re-read keyed by id alone, so one client's
+card could stand in for another's. On an apply run that means writing a client's
+approval, or their own words, onto **a different client's card**.
+
+Nothing had been written, so nothing leaked. Every lookup, tally and re-read is
+now composite, and a deliverable naming no client resolves to no card rather
+than being guessed. `deliverables.client_slug` and `calendar_posts.client` both
+hold the slug and compare directly (unlike `calState.client` in the browser,
+which holds a display name — the trap PR #1381 hit).
+
+**Two of the four new controls did not fire on the first attempt, and the tests
+were wrong rather than the code.** A tally shared across clients only produces a
+wrong answer when BOTH cards already hold the request; giving only one client
+the entry leaves the other's list empty either way, so the assertion passed
+under both implementations. Same shape for the blank-client case, which the
+composite key refuses on its own unless the fixture's card also has a blank
+client. Both fixtures were rebuilt until removing the rule actually fails.
+
+That is the third time in this thread a check has been found to pass for the
+wrong reason. It is the reason every rule here carries a sabotage control, and
+the reason a control that does not fire is treated as a broken test rather than
+a redundant one.
+
+Also this round: the runbook still published 30 checks after Round 3 raised it
+to 33. Corrected, now 37, with a note to keep it current.

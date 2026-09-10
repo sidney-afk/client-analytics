@@ -97,9 +97,10 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 30 checks, each
+construction through fixtures — no credentials, no network. 37 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
-removed. The cases that must
+removed. Keep this number current: a runbook that publishes a stale count is
+evidence a later session will plan against. The cases that must
 NOT repair are asserted first and in the most detail, because a false positive
 here republishes settled work or duplicates a client's own words back at them.
 
@@ -145,6 +146,20 @@ Both directions err toward leaving the card alone. `source_edited_at` must also
 be named in the projection: without it the code that prefers the client's own
 clock silently falls back to `created_at`, which is the kind of bug that passes
 every fixture test and is wrong in production.
+
+## Cards are keyed by (client, id), never by id
+
+`calendar_posts` has the composite primary key `(client, id)`. Card ids are
+**not** globally unique: 13 live ids are used by more than one client, and 17
+deliverables point at one of them.
+
+So every lookup, every consumption tally and the pre-write re-read are keyed by
+client **and** id, and a deliverable that names no client resolves to no card at
+all rather than being guessed. Keying by id alone would let one client's card
+stand in for another's, and on an apply run that writes a client's approval, or
+their own words, onto a different client's card. `deliverables.client_slug` and
+`calendar_posts.client` both hold the slug, so they compare directly here (this
+is not true of `calState.client` in the browser, which holds a display name).
 
 ## The race this does not close
 

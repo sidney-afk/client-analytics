@@ -1294,10 +1294,12 @@ check('a lost approval that cannot resolve a card is still reported', () => {
   ]) {
     const { skipped } = detect(world(Object.assign({ outbox: [APPROVE({ status: 'pending' })] }, over)));
     assert.equal(skipped.length, 1, reason + ' must not vanish on the unwritten path');
-    /* The reason states only what is KNOWN — the carrier did not write and the
-       card cannot be identified — with the refusal carried alongside. Claiming
-       "reached neither leg" here would assert a card leg nobody can check. */
-    assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
+    /* ROUND 38. Both refusals are raised AFTER resolve() located the card, so
+       the reason may not say the card is unknown while the row prints it. What
+       is unknown is the card LEG, which is what still forbids "reached neither
+       leg" here and keeps the row in the same bucket. */
+    assert.equal(skipped[0].reason, 'carrier_did_not_write_and_crosswalk_refused');
+    assert.equal(skipped[0].card, 'card-1', 'the card was located; the crosswalk is what refused');
     assert.equal(skipped[0].refusal, reason);
     assert.equal(skipped[0].deliverable, 'del-1', 'the row must name what it could not resolve');
   }
@@ -1362,16 +1364,18 @@ check('a lost approval that could not resolve a card counts as needing a person'
    The row is kept, since nothing else in the system names that approval, and
    its claim is narrowed to what is known. */
 check('a lost approval with no identifiable card does not claim the card leg failed', () => {
-  /* `unknown_team` genuinely identifies no card; a stale REVERSE LINK does, and
-     round 30 made that refusal carry it. Both must still refuse to claim a card
-     leg they could not test. */
+  /* ROUND 38 CORRECTED THIS FIXTURE'S PREMISE. It used `unknown_team` as the
+     case that "genuinely identifies no card" — but resolve() looks the card up
+     BEFORE the team mapping, so that refusal always had one and the check was
+     asserting a belief the code order contradicted. The case that truly
+     identifies no card is one where the lookup itself fails. */
   const { skipped } = detect(world({
     outbox: [APPROVE({ status: 'pending' })],
-    deliverables: [DEL({ team: '' })],
+    deliverables: [DEL({ card_id: 'no-such-card' })],
   }));
   assert.equal(skipped.length, 1);
   assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
-  assert.equal(skipped[0].refusal, 'unknown_team');
+  assert.equal(skipped[0].refusal, 'card_not_found');
   assert.equal(skipped[0].card, '(unidentified)', 'not "(unlinked)": the claim is about knowledge');
 });
 
@@ -1386,7 +1390,7 @@ check('a stale reverse link names the card it found', () => {
     cards: [CARD({ video_deliverable_id: 'other' })],
   }));
   assert.equal(skipped.length, 1);
-  assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
+  assert.equal(skipped[0].reason, 'carrier_did_not_write_and_crosswalk_refused');
   assert.equal(skipped[0].card, 'card-1', 'the card was located; only the link failed');
   assert.equal(skipped[0].client, 'testclient');
 });
@@ -2146,6 +2150,65 @@ check('the crosswalk columns are actually fetched, in every read', () => {
     assert.match(q, /video_deliverable_id/, 'reverse link must be projected: ' + q);
     assert.match(q, /graphic_deliverable_id/, 'reverse link must be projected: ' + q);
   }
+});
+
+/* ROUND 38, first finding. `unmapped_component` and `card_cell_unparseable`
+   mean the job could not tell whether or where a request was delivered, on a
+   card that is still live. They carried neither a carrier status nor
+   `crosswalk_broken`, so `classify()` filed them under "left alone (a card that
+   moved on is never overwritten)" and `NEEDS A PERSON` read 0. Live both are 0
+   rows today, which is the cheapest moment to fix a report. */
+check('an undecidable row needs a person, not the moved-on bucket', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { undecidable, leftAlone, lines } = classify({ findings: [], skipped: [
+    { kind: 'comment', reason: 'unmapped_component', card: 'card-1', client: 'testclient',
+      component: 'thumbnail', comment: 'pc_1' },
+    { kind: 'comment', reason: 'card_cell_unparseable', card: 'card-2', client: 'testclient',
+      component: 'video' },
+    { kind: 'stamp', reason: 'superseded_status', card: 'card-3', component: 'video' },
+  ] });
+  assert.equal(undecidable.length, 2);
+  assert.equal(leftAlone.length, 1, 'only the genuinely intentional skip is left alone');
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /NEEDS A PERSON \(never written\): 2\b/, needs);
+  assert.match(needs, /undecidable on a live card 2/, needs);
+  assert.match(lines.find(l => l.startsWith('left alone')), /left alone: 1\b/);
+});
+
+/* ROUND 38, second finding, and the same defect as round 30 three lines up in
+   the same function: resolve() locates the card BEFORE the team mapping, so a
+   refusal there knows the card. Returned bare, the row printed "(unidentified)"
+   and was counted as an action whose card is missing, sending an operator after
+   a card that is sitting right there. */
+check('a team-mapping refusal names the card it found', () => {
+  for (const [over, refusal] of [
+    [{ team: '' }, 'unknown_team'],
+    [{ team: 'graphics', kind: 'video' }, 'kind_and_team_disagree'],
+  ]) {
+    const { skipped } = detect(world({
+      comments: [TWEAK()],
+      deliverables: [DEL(over)],
+    }));
+    assert.equal(skipped.length, 1, refusal + ' must still be reported');
+    assert.equal(skipped[0].reason, refusal);
+    assert.equal(skipped[0].card, 'card-1', refusal + ' knows the card it refused on');
+    assert.equal(skipped[0].client, 'testclient');
+  }
+});
+
+check('a team-mapping refusal is not counted as a missing card', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { cardMissing, teamUnusable, lines } = classify({ findings: [], skipped: [
+    { kind: 'comment', reason: 'unknown_team', crosswalk_broken: true,
+      card: 'card-1', client: 'testclient', component: '', comment: 'pc_1' },
+    { kind: 'comment', reason: 'card_not_found', crosswalk_broken: true,
+      card: '(unidentified)', client: 'testclient', component: '', comment: 'pc_2' },
+  ] });
+  assert.equal(teamUnusable.length, 1);
+  assert.equal(cardMissing.length, 1, 'only the row whose card really is missing');
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /whose card is missing 1/, needs);
+  assert.match(needs, /team names no review 1/, needs);
 });
 
 check('body comparison ignores only whitespace shape', () => {

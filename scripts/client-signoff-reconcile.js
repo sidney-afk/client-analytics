@@ -550,10 +550,17 @@ function detect(world) {
      * "either slot will do" rule this replaces. Where `kind` DOES map to a
      * component it must agree, since a disagreement means the row cannot say
      * which review it belongs to at all. */
+    /* THESE TWO CARRY THE CARD FOR THE SAME REASON `card_does_not_link_back`
+     * does, and they sit three lines above it: resolve() has ALREADY located
+     * the exact (client, id) row. What failed is the deliverable's team
+     * mapping, not the lookup. Returned as bare strings they were counted and
+     * printed as an action "whose card is missing", sending an operator after a
+     * card that is sitting right there — the round-25 defect, in the same
+     * function, one round after the neighbouring case was fixed. */
     const teamComp = COMPONENT_FOR_TEAM[String(del.team || '').trim().toLowerCase()];
-    if (!teamComp) return 'unknown_team';
+    if (!teamComp) return { refused: 'unknown_team', card };
     const kindComp = COMPONENT_FOR_KIND[String(del.kind || '').toLowerCase()];
-    if (kindComp && kindComp !== teamComp) return 'kind_and_team_disagree';
+    if (kindComp && kindComp !== teamComp) return { refused: 'kind_and_team_disagree', card };
     const id = String(del.id || '').trim();
     if (!id || String(card[REVERSE_LINK_FIELD[teamComp]] || '').trim() !== id) {
       /* THE CARD IS KNOWN HERE. resolve() has already located the exact
@@ -697,7 +704,12 @@ function detect(world) {
        * that matter most: both delivery legs failed AND the crosswalk is stale,
        * so nothing else in the system names this approval either. */
       if (unwritten && unwritten.refused) {
-        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+        /* A DIFFERENT REASON FROM THE BRANCH BELOW, because a different thing
+         * is known. Every refusal that arrives here carries the card resolve()
+         * located, so calling this row `..._and_card_unknown` while printing
+         * that card contradicts itself. What is unknown is the card LEG, which
+         * is what keeps both rows in the same bucket. */
+        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_crosswalk_refused',
           refusal: unwritten.refused, carrier_status: carrier || '(none)',
           card: unwritten.card.id, client: unwritten.card.client,
           deliverable: String((row && row.entity_id) || ''), component: '' });
@@ -1342,6 +1354,12 @@ function failureLine(finding, message) {
  * approval that reached neither leg. Both land in `skipped` only because nothing
  * here can be written for them. */
 const NEEDS_A_PERSON = new Set(['ambiguous_repeat_of_completed_request', 'carrier_did_not_write']);
+/* Refusals raised AFTER resolve() located the card. Each carries the card it
+ * found, so none of them may be counted or printed as a card that is missing. */
+const CARD_KNOWN_REFUSALS = new Set(['card_does_not_link_back', 'unknown_team', 'kind_and_team_disagree']);
+/* Reasons that mean "this job could not tell", on a card that is still live.
+ * Neither is a card that moved on, so neither belongs in `left alone`. */
+const UNDECIDABLE = new Set(['unmapped_component', 'card_cell_unparseable']);
 /* Returns the BUCKETS as well as the lines. Returning only the lines is what
  * left `main()` referencing bucket names that no longer existed there — the
  * whole run died with a ReferenceError before any write, and 83 offline checks
@@ -1372,8 +1390,14 @@ function classify({ findings, skipped }) {
    * link back failed, and the row now carries it. Counting and printing it as
    * "cannot be found" sends an operator after a card that is sitting there. */
   const linkStale = crosswalkBroken.filter(row => row.reason === 'card_does_not_link_back');
+  /* THE CARD IS KNOWN FOR THESE TOO. A deliverable whose team names no review,
+   * or whose kind and team name different ones, is a mapping problem on a card
+   * that was found. Counting either as "missing" is the same false headline
+   * over the same correct detail line. */
+  const teamUnusable = crosswalkBroken.filter(row => CARD_KNOWN_REFUSALS.has(row.reason));
   const cardMissing = crosswalkBroken.filter(row =>
-    row.reason !== 'named_component_contradicts_link' && row.reason !== 'card_does_not_link_back');
+    row.reason !== 'named_component_contradicts_link' && row.reason !== 'card_does_not_link_back'
+    && !CARD_KNOWN_REFUSALS.has(row.reason));
   /* SPLIT, because only one of these two knows what happened to the card leg.
    * A resolved carrier failure was qualified against four tests, so "reached
    * neither leg" is established. A crosswalk refusal establishes only that the
@@ -1381,14 +1405,24 @@ function classify({ findings, skipped }) {
    * explicitly calls UNKNOWN. */
   const carrierFailedKnown = carrierFailed.filter(row => row.reason === 'carrier_did_not_write');
   const carrierFailedUnknownCard = carrierFailed.filter(row => row.reason !== 'carrier_did_not_write');
+  /* UNDECIDABLE IS NOT INTENTIONAL. Neither of these says the card moved on:
+   * a cell that will not parse and a component the app's map does not name both
+   * mean the job could not determine whether or where the request was
+   * delivered, on a card that is still live. Filed under "left alone (a card
+   * that moved on is never overwritten)" they read as a deliberate skip and
+   * were invisible in `NEEDS A PERSON`. Live today both are 0 rows — no cell
+   * fails to parse and every named component is mapped — so this changes a
+   * report nobody has seen yet, which is the cheapest time to change it. */
+  const undecidable = skipped.filter(row => UNDECIDABLE.has(row.reason));
   const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
+    && !UNDECIDABLE.has(row.reason)
     && !row.crosswalk_broken
     && !(row.kind === 'stamp'
       && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write'))));
   const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
     `NEEDS A PERSON (never written): `
-      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length}  `
+      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length + undecidable.length}  `
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
       + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
       + `ambiguous repeat ${ambiguous.length}, `
@@ -1396,12 +1430,14 @@ function classify({ findings, skipped }) {
       + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
       + `carried client action whose card is missing ${cardMissing.length}, `
       + `card found but its link back is stale ${linkStale.length}, `
-      + `request naming a review its deliverable cannot carry ${componentAmbiguous.length})`,
+      + `request naming a review its deliverable cannot carry ${componentAmbiguous.length}, `
+      + `card found but its deliverable's team names no review ${teamUnusable.length}, `
+      + `undecidable on a live card ${undecidable.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
   return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
     carrierFailedUnknownCard, crosswalkBroken, cardMissing, linkStale, componentAmbiguous,
-    leftAlone, lines };
+    teamUnusable, undecidable, leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 

@@ -20475,3 +20475,48 @@ known (`ef-deploy-provenance`, `truth-sync`) fail identically on `origin/main`;
 browser gate were all run before pushing 196al, and all three passed. None of
 them runs the rest of `test/`, so this reached CI. The full runner takes several
 minutes, which is why it was skipped — that trade cost a red CI and a cycle.
+
+### 196an. Round 38: two more reporting surfaces, and a fixture asserting a belief the code contradicted
+
+Two findings, both in the family this PR has hit most often: **a row, its count
+and its line are three surfaces.**
+
+**1. Undecidable was filed as intentional.** `unmapped_component` and
+`card_cell_unparseable` carried neither a carrier status nor `crosswalk_broken`,
+so `classify()` put them in `leftAlone` under the headline "a card that moved on
+is never overwritten" and `NEEDS A PERSON` read 0. Neither is a card moving on:
+both mean the job could not determine whether or where a request was delivered,
+on a card that is still live. Now their own bucket, counted and printed.
+
+**2. A team-mapping refusal knows its card.** `unknown_team` and
+`kind_and_team_disagree` were returned as bare strings, so the callers replaced
+the card with `(unidentified)` and counted the row as an action whose card is
+missing. `resolve()` looks the card up BEFORE the team mapping, so both always
+knew it — this is round 30's defect exactly, three lines up in the same
+function, one round after its neighbour was fixed. Both now return
+`{ refused, card }`, and a new `teamUnusable` term counts them apart from a card
+that really is missing.
+
+**The fixture that had it backwards.** Fixing (2) failed a round-19 check
+asserting `unknown_team` prints `(unidentified)` "because it genuinely
+identifies no card". That was never true: the lookup precedes the team check.
+The check had encoded a belief the code order contradicted and had been passing
+on it since. Repointed at `card_not_found`, which is the case that actually
+identifies no card. **A green check is not evidence its premise is true.**
+
+Also split `carrier_did_not_write_and_card_unknown`: the branch reached by a
+structured refusal always carries a card, so that name contradicted the row it
+printed. It is now `carrier_did_not_write_and_crosswalk_refused`. Both stay in
+the same bucket, because what is unknown there is the card LEG, and that is
+still what forbids claiming "reached neither leg".
+
+Measured live first, as always: **0 unparseable cells** of 5,198 non-empty, and
+every named component on `production_comments` is `video` (683), `graphic` (331)
+or `caption` (103), all mapped. Both new buckets are 0 rows today. Third
+consecutive round with no live victim — the reports being fixed are ones nobody
+has read yet, which is the cheapest time to fix them.
+
+150 checks, three controls by exit status: undecidable back in `leftAlone`,
+`unknown_team` bare again, and team refusals counted as missing cards. Full
+runner before pushing this time (196am): 2 of 427, both failing identically on
+`origin/main`.

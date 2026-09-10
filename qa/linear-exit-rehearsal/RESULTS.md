@@ -1,6 +1,36 @@
 # Completed isolated evidence
 
-## Expanded composition: installation blocker exposed
+## Current notification lifecycle repair
+
+Prepared source: `93486bb421459255691bb603102f31a80dbfbd17`.
+These runs executed its working-tree repair before commit; browser receipts
+record the prior Git base, not a clean-checkout attestation. Aggregate receipts
+and private-log hashes are under `latest_repair` in `evidence-20260910.json`.
+
+- Composition: 48 assertions PASS, including actual ordinary-writer intent
+  creation, with no synthetic deletion columns.
+- Dedicated notification PostgreSQL proof: PASS, including archived cards,
+  raw marker variants, comment deletion before claim, changed batches and
+  valid video children under mixed/other batch summary labels.
+- Captured-positive browser: 24 checkpoints PASS, exit 0.
+- Repository-negative browser: 23 checkpoints, then preserved public 401,
+  overall FAIL/exit 1.
+- Both browser runs report zero external forwards after teardown; all four
+  owned servers stopped. Gateway regressions, notification source contract,
+  SQL preflight and prepared release-pin checks pass.
+
+The repair consumes existing lifecycle fields and leaves both frozen writers
+unchanged. Ordinary done-batch work and canceled visibility are preserved;
+urgent still requires an active batch and the actual video's ownership.
+Claim checks eligibility at that instant; a later external send is not atomic
+with archive. No hosted notification delivery or full schema/restore proof.
+The earlier 492-suite programme was not rerun for this new source revision.
+
+Retained intermediate failures include the incorrect batch-summary-team guard
+caught by the unchanged browser journey and a malformed synthetic provider
+receipt caught by the dedicated SQL test. Their fixes did not relax assertions.
+
+## Historical expanded composition: installation blocker exposed
 
 The next composition revision reaches 44 passing assertions, then exits with
 `NOTIFICATION_SOURCE_SCHEMA_REQUIRED`. It preserves the original 41 checks and

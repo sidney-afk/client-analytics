@@ -2,7 +2,22 @@
 
 **Installation HOLD. Documentation only; no runtime changes or deployment authorization.**
 
-## Latest preparation update: expanded composition
+## Latest preparation update: notification lifecycle repair
+
+Prepared code `93486bb421459255691bb603102f31a80dbfbd17` replaces the mistaken
+four-column deletion assumption with existing archive/lifecycle ownership.
+Isolated composition now passes 48 assertions, dedicated notification SQL
+passes, and the captured-serving browser passes all 24 checkpoints. The
+repository-writer control still fails with the required 401 after 23 checkpoints.
+Both browser runs verify zero external forwards after teardown. Results were
+executed in the working tree before commit; see the evidence's explicit source
+binding limit in `../../qa/linear-exit-rehearsal/RESULTS.md`.
+
+No frozen writer changed. No merge, deployment, workflow dispatch, n8n execution
+or hosted write occurred. Full schema/recovery composition, interrupted install,
+hosted configuration/notification handover and retirement gates remain open.
+
+## Historical preparation update: expanded composition
 
 Draft PR #1382 contains the integrated build and portable rehearsal package.
 The expanded composition preserves 41 earlier assertions and adds three real

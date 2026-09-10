@@ -38,5 +38,47 @@
     "Composition covers selected real owners, not full schema or crash/Storage recovery",
     "Negative application failure retained; exit 1 is intentional",
     "Raw records, paths, databases, screenshots and request traces excluded"
-  ]
+  ],
+  "latest_repair": {
+    "prepared_source_commit": "93486bb421459255691bb603102f31a80dbfbd17",
+    "execution_note": "Executed the working-tree repair before its commit; recorded Git HEAD in browser receipts is the prior base, not a clean-checkout attestation.",
+    "application_changes_since_6276251f": true,
+    "results": [
+      {
+        "mode": "captured-positive",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "258b1544e8337e05168983ad79d19292a1005a4de86a68b47213b7e69540394f",
+        "checkpoints": 24,
+        "recorded_base_commit": "f8cc9c8bc24706774a38fbc0e2728b130fd9642f",
+        "external_forwards": 0,
+        "checked_after_teardown": true,
+        "private_receipt_sha256": "f79175224675340b7f81a9685c3dd47a54504146d769857751f3ab6c3a181543"
+      },
+      {
+        "mode": "repository-negative",
+        "exit_code": 1,
+        "server_stopped": true,
+        "private_log_sha256": "80d407cebf32d59c725725538976ab9ea2f3e09411cbd9f5a6f3e6c3fca24bb2",
+        "checkpoints": 23,
+        "recorded_base_commit": "f8cc9c8bc24706774a38fbc0e2728b130fd9642f",
+        "external_forwards": 0,
+        "checked_after_teardown": true,
+        "private_receipt_sha256": "8c44630295e9fe7597c21ce540269dcdc169ac4df416927b08797c820a75e5fa"
+      },
+      {
+        "mode": "composition",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "8360b449b768bf585e203e4859d261e76de13dde174e473126c3412114b03772",
+        "assertions": 48
+      },
+      {
+        "mode": "notifications",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "fb88aeab606b3f090a9fc5587df95bd6013a1ebce4e97872d3e902e206ecf8a1"
+      }
+    ]
+  }
 }

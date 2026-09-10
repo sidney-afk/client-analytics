@@ -460,7 +460,8 @@ const CANDIDATES = new Map([
     // persist the validated native epoch; closure membership remains six.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
     // Integrated main client status no-op authorization and due-bump guard.
-    source: '715f32e1ab0c68ab4782967cdb00cbbf4aff487237f73a861d5b72ffe209beae',
+    // Prepared canonical archive-lifecycle notification repair.
+    source: '807a4fb0a8e7afe401c633842fd9c14e4a7f23b8884430b699e1afedae90ac69',
     entrypoint: '7126f7eb9cc166be39cab7fe28395e9d0c2521ba16cb2e92495d8110e710711e',
     files: 6,
   }],

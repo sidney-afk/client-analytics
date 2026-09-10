@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -102,11 +102,12 @@ try {
  if ($Lane -eq 'journey') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'bootstrap.cjs' }
  if ($Lane -eq 'optional') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'optional.cjs' }
  if ($Lane -eq 'composition') { $entry=Join-Path $repoRoot 'test\linear-exit-owner-composition.js' }
+ if ($Lane -eq 'notifications') { $entry=Join-Path $repoRoot 'test\native-notifications-postgres.js' }
  $arguments=@($entry)
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
- if ($result -eq 0 -and $Lane -in @('composition','f27')) {
-  $marker=if ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } else { 'F27_PROOF_OK' }
+ if ($result -eq 0 -and $Lane -in @('composition','f27','notifications')) {
+  $marker=if ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
  }
 } catch {

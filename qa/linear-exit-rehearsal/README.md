@@ -28,6 +28,7 @@ From the repository root, replace the example local binary path:
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane journey -ServingMode repository-negative
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane optional
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane composition
+& ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane notifications
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane unit
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql17/bin' -Lane f27
 ```

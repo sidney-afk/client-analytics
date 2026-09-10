@@ -52,6 +52,8 @@ const ROUTINES = Object.freeze([
   ['production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)', 'migrations/2026-09-12-native-ordinary-envelope-repair.sql', 'production_comment_lifecycle_write', 'public'],
   ['production_notification_intent_guard()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_intent_guard', 'public, pg_temp'],
   ['production_notification_plain_text(text,integer)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_plain_text', 'public, pg_temp', false],
+  ['production_notification_deliverable_live(text,jsonb)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_deliverable_live', 'public, pg_temp', false],
+  ['production_notification_target_live(text)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_target_live', 'public, pg_temp'],
   ['production_notification_actor_valid(uuid,text,text)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_actor_valid', 'public, pg_temp'],
   ['production_notification_status_intent_after()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_status_intent_after', 'public, pg_temp'],
   ['production_notification_comment_intent_after()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_comment_intent_after', 'public, pg_temp'],

@@ -8,11 +8,7 @@ module.exports=(cluster,root)=>{
  run('2026-08-04-client-access-auto-provision.sql');
  cluster.exec(`alter table clients add column if not exists emoji text, add column if not exists board_status text default 'in_progress', add column if not exists lead_member_id uuid references team_members(id), add column if not exists target_date date, add column if not exists board_desc text;`);
  for(const file of ['2026-07-23-f201-production-labels.sql','2026-07-23-f202-production-descriptions.sql','2026-07-23-production-comment-thread-lifecycle.sql','2026-07-23-f34-f53-production-attachments.sql','2026-08-06-artifact-projection-scope-and-revision.sql','2026-08-30-artifact-video-projection.sql','2026-09-05-artifact-card-binding-first.sql','2026-09-09-editors-event-assignee.sql','2026-09-09-native-ordinary-receipts.sql','2026-09-11-native-ordinary-receipt-repair.sql','2026-09-12-native-ordinary-envelope-repair.sql'])run(file);
- cluster.exec(`alter table deliverables add column if not exists deleted_at timestamptz;
- alter table batches add column if not exists deleted_at timestamptz;
- alter table calendar_posts add column if not exists deleted_at timestamptz;
- alter table sample_reviews add column if not exists deleted_at timestamptz;
- alter table clients add column if not exists slack_channel_id text;
+ cluster.exec(`alter table clients add column if not exists slack_channel_id text;
  alter table team_members add column if not exists slack_user_id text;
  create table if not exists workload_issues(id text primary key,active boolean,is_sub_issue boolean,team_key text,team_name text,client_name text,status_type text,assignee_id text);
  insert into syncview_runtime_flags(key,value) values

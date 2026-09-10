@@ -42,15 +42,11 @@ try {
   cluster.runFile(path.join(MIGRATIONS, '2026-09-09-editors-event-assignee.sql'));
   // The reusable fixture stubs cards as id-only. Add the real claim predicate
   // columns before compiling the notification routines with function checks on.
-  cluster.exec(`alter table public.deliverables add column if not exists deleted_at timestamptz;
-    alter table public.batches add column if not exists deleted_at timestamptz;
-    alter table public.batches add column if not exists purpose text;
+  cluster.exec(`alter table public.batches add column if not exists purpose text;
     alter table public.calendar_posts add column if not exists video_status text;
     alter table public.calendar_posts add column if not exists video_status_at timestamptz;
-    alter table public.calendar_posts add column if not exists deleted_at timestamptz;
     alter table public.sample_reviews add column if not exists video_status text;
     alter table public.sample_reviews add column if not exists video_status_at timestamptz;
-    alter table public.sample_reviews add column if not exists deleted_at timestamptz;
     alter table public.clients add column if not exists slack_channel_id text;
     alter table public.team_members add column if not exists slack_user_id text;
     update public.clients set slack_channel_id = 'C1234567890' where slug = 'fixture-client';
@@ -167,5 +163,79 @@ try {
   const health = JSON.parse(serviceScalar('select public.production_notification_health_summary()'));
   assert.ok(Number(health.blocked) >= 1, 'stale urgent is observable as blocked debt');
   assert.ok(Number(health.total_open) >= Number(health.blocked), 'aggregate counts unresolved queue debt');
+  // This proof must run without invented soft-delete columns.
+  assert.equal(scalar("select count(*) from information_schema.columns where table_schema='public' and table_name in ('deliverables','batches','calendar_posts','sample_reviews') and column_name='deleted_at'"),'0');
+  for (const key of ['webhook_delete','deleted','delete','removed','archived']) {
+    for (const value of [null,false,0,'','false','0','null',' FALSE ']) {
+      const raw=JSON.stringify({[key]:value}).replace(/'/g,"''");
+      assert.equal(serviceScalar(`select public.production_notification_deliverable_live('tweak','${raw}'::jsonb)`),'t',key+' false-like marker stays visible');
+    }
+    assert.equal(serviceScalar(`select public.production_notification_deliverable_live('tweak','{"${key}":true}'::jsonb)`),'f',key+' marker hides work');
+  }
+  for (const [raw,expected] of [
+    [JSON.stringify({deleted:false}),'t'],[JSON.stringify({archived:true}),'f'],
+    ['malformed-json','f'],[[], 'f'],[42,'f'],[false,'f'],
+    [JSON.stringify([]),'f'],[JSON.stringify(null),'f'],[null,'t'],
+    [{deleted:[]},'f'],[{archived:{}},'f'],
+  ]) {
+    const encoded=JSON.stringify(raw).replace(/'/g,"''");
+    assert.equal(serviceScalar(`select public.production_notification_deliverable_live('tweak','${encoded}'::jsonb)`),expected,'raw normalization '+encoded);
+  }
+  assert.equal(serviceScalar(`select public.production_notification_deliverable_live('canceled','{}')`),'t');
+  assert.equal(serviceScalar(`select public.production_notification_deliverable_live('todo','{"issue":{"archivedAt":"2030-01-01"}}')`),'f');
+  refuses("begin; set local role anon; select public.production_notification_target_live('legacy-native-id'); rollback;",'permission denied');
+
+  cluster.exec("update public.calendar_posts set status='Archived' where id='notification-card'");
+  const beforeArchived=scalar('select count(*) from public.production_notification_intents');
+  nativeStatus('todo','tweak','archived-source');staffComment('archived-source-comment');
+  assert.equal(scalar('select count(*) from public.production_notification_intents'),beforeArchived,'archived source excludes actual status/comment writers');
+  cluster.exec("update public.calendar_posts set status='In Progress' where id='notification-card'; update public.batches set status='done' where id='notification-batch'");
+  assert.equal(serviceScalar("select public.production_notification_target_live('legacy-native-id')"),'t','done batch does not hide ordinary work');
+  cluster.exec("update public.batches set status='active' where id='notification-batch'");
+  cluster.exec(`insert into public.sample_reviews(id,client,status,video_deliverable_id,video_status,video_status_at)
+    values ('archived-sample','fixture-client',' Archived ','legacy-native-id','Tweaks Needed','${ROUND_UTC}'::timestamptz);
+    update public.deliverables set origin='samples',card_id='archived-sample',status='tweak' where id='legacy-native-id';
+    update public.batches set purpose='samples' where id='notification-batch';`);
+  refuses(`select public.production_notification_enqueue_urgent(gen_random_uuid(),'fixture-client','legacy-native-id','archived-sample','samples','${ROUND_UTC}'::timestamptz,'${ACTOR}','${EDITOR}')`,'notification_urgent_target_changed');
+  cluster.exec("update public.deliverables set origin='calendar',card_id='notification-card' where id='legacy-native-id'; update public.batches set purpose='calendar' where id='notification-batch'");
+  cluster.exec("insert into public.batches(id,client_slug,team,name,status,purpose) values ('notification-other','fixture-client','video','Other fixture','active','calendar')");
+  const staleCases=[
+    ["update public.batches set status='done' where id='notification-batch'","update public.batches set status='active' where id='notification-batch'"],
+    ["update public.deliverables set batch_id='notification-other' where id='legacy-native-id'","update public.deliverables set batch_id='notification-batch' where id='legacy-native-id'"],
+    ["update public.calendar_posts set status='Archived' where id='notification-card'","update public.calendar_posts set status='In Progress' where id='notification-card'"],
+    ["update public.deliverables set linear_raw='{\"webhook_delete\":true}'::jsonb where id='legacy-native-id'","update public.deliverables set linear_raw='{}'::jsonb where id='legacy-native-id'"],
+  ];
+  for (let n=0;n<staleCases.length;n++) {
+    const round=`2030-02-0${n+1} 00:00:00+00`;
+    cluster.exec(`update public.calendar_posts set video_status_at='${round}'::timestamptz where id='notification-card'`);
+    service(`select public.production_notification_enqueue_urgent(gen_random_uuid(),'fixture-client','legacy-native-id','notification-card','calendar','${round}'::timestamptz,'${ACTOR}','${EDITOR}')`);
+    const queued=intentId(`kind='urgent' and (message->>'round')::timestamptz='${round}'::timestamptz`);
+    cluster.exec(staleCases[n][0]);service('select * from public.production_notification_claim(10)');
+    assert.equal(scalar(`select state || ':' || last_failure_code from public.production_notification_intents where id='${queued}'`),'blocked:urgent_target_changed','claim refuses changed target '+n);
+    assert.equal(scalar(`select attempt_count from public.production_notification_intents where id='${queued}'`),'0');
+    cluster.exec(staleCases[n][1]);
+  }
+  // Batch.team summarizes the batch, not its child membership. Mixed/native
+  // batches may have NULL; imported summaries can name the other team.
+  for (const [n,team] of [[0,null],[1,'graphics']]) {
+    const round=`2030-03-0${n+1} 00:00:00+00`;
+    cluster.exec(`update public.batches set team=${team ? "'"+team+"'" : 'null'} where id='notification-batch';
+      update public.calendar_posts set video_status_at='${round}'::timestamptz where id='notification-card';`);
+    service(`select public.production_notification_enqueue_urgent(gen_random_uuid(),'fixture-client','legacy-native-id','notification-card','calendar','${round}'::timestamptz,'${ACTOR}','${EDITOR}')`);
+    const queued=intentId(`kind='urgent' and (message->>'round')::timestamptz='${round}'::timestamptz`);
+    service('select * from public.production_notification_claim(10)');
+    assert.equal(scalar(`select state from public.production_notification_intents where id='${queued}'`),'sending','valid video child survives batch summary '+team);
+    assert.equal(scalar(`select attempt_count from public.production_notification_intents where id='${queued}'`),'1');
+    service(`select public.production_notification_record_delivery('${queued}',1,'sent','2030000000.${String(n+1).padStart(6,'0')}','')`);
+  }
+  cluster.exec("update public.batches set team='video' where id='notification-batch'");
+
+  // The comment table really owns deleted_at; a later deletion suppresses delivery.
+  staffComment('deleted-before-delivery');
+  const deletedCommentIntent=intentId("source_comment_id='deleted-before-delivery'");
+  cluster.exec(`select public.production_comment_upsert(jsonb_build_object('id','deleted-before-delivery','native_comment_id','deleted-before-delivery-native','idempotency_key','deleted-before-delivery-key','deliverable_id','legacy-native-id','client_slug','fixture-client','team','video','operation','delete','deleted_at',now()::text,'author_key','member:${ACTOR}','author_member_id','${ACTOR}','author_name','Synthetic Staff','role','smm','origin','native','source','ui'))`);
+  service('select * from public.production_notification_claim(10)');
+  assert.equal(scalar(`select state || ':' || last_failure_code from public.production_notification_intents where id='${deletedCommentIntent}'`),'blocked:notification_target_changed');
+  assert.equal(scalar(`select attempt_count from public.production_notification_intents where id='${deletedCommentIntent}'`),'0');
   console.log('ok native notifications PostgreSQL proof');
 } finally { if (cluster) cluster.stop(); }

@@ -655,11 +655,27 @@ async function main() {
     const workload = jsonRows(cluster,'select public.workload_native_snapshot_v1() as result')[0].result;
     ok('final Workload RPC includes the native provisioned client row', workload.ok === true && workload.complete === true && workload.rows.some(row => row.id === 'composition-deliverable' && row.source === 'native' && row.client_slug === 'compositionclient'));
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_READERS_OK ${passed} assertions`);
-    // Refuse to manufacture notification prerequisites absent from source owners.
-    const missing = jsonRows(cluster, `select e.table_name from (values ('deliverables'),('batches'),('calendar_posts'),('sample_reviews')) e(table_name)
-      where not exists (select 1 from information_schema.columns c where c.table_schema='public' and c.table_name=e.table_name and c.column_name='deleted_at') order by e.table_name`);
-    assert.equal(missing.length,0,'NOTIFICATION_SOURCE_SCHEMA_REQUIRED: '+missing.map(row=>row.table_name+'.deleted_at').join(','));
+    // The repaired notification owner must work without invented soft-delete fields.
+    const supplied = jsonRows(cluster, `select table_name from information_schema.columns
+      where table_schema='public' and table_name in ('deliverables','batches','calendar_posts','sample_reviews') and column_name='deleted_at'`);
+    ok('composition supplies no synthetic deletion columns', supplied.length === 0);
     cluster.runFile(path.join(MIGRATIONS,'2026-09-09-native-notification-outbox.sql'));
+    ok('notification liveness accepts the real provisioned native deliverable', scalar(cluster,
+      "select public.production_notification_target_live('composition-deliverable')") === 't');
+    cluster.exec("update public.batches set status='archived' where id='composition-batch'");
+    ok('notification liveness rejects the archived owning batch', scalar(cluster,
+      "select public.production_notification_target_live('composition-deliverable')") === 'f');
+    const notificationEvent = {
+      ...event({ dedup: 'composition-notification', id: 'nor-d2' }),
+      auth_kind: 'staff', actor_key: 'member:11111111-1111-4111-8111-111111111111',
+    };
+    // Earlier parity cases deliberately use kind=test and source-timed events.
+    // This case models a current native staff write for a synthetic client.
+    cluster.exec("update public.clients set kind='client' where slug='fixture-client'");
+    delete notificationEvent.ts;
+    deliverableWrite('nor-d2', { status: 'smm_approval' }, notificationEvent);
+    ok('real ordinary writer produces a notification intent under composed owners', scalar(cluster,
+      "select count(*) from public.production_notification_intents where deliverable_id='nor-d2' and kind='status_smm_approval'") === '1');
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_OK ${passed} assertions`);
   } finally {
     try {

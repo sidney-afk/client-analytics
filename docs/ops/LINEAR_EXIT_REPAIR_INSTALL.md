@@ -64,9 +64,9 @@ Within that order, the exact gateway/UI prerequisites are:
 9. `migrations/2026-09-09-native-attribution-browser-projection.sql` must follow native client provisioning **and** the complete Workload chain below, because the replaced view calls `production_workload_label_projection`. Preflight v6 also requires the `native_intake_legacy_project` source marker in the installed view definition; columns alone cannot distinguish the older projection that hides the new stamp. It precedes the browser source that reads its bounded `raw_attribution_project_id` and `raw_attribution_native_epoch` fields.
 10. `migrations/2026-09-09-editors-event-assignee.sql` adds server-stamped event-time assignee attribution. It must precede the browser query that selects `event_assignee_id` and `event_assignee_attribution`; existing history remains honestly `unknown`.
 11. Install `migrations/2026-09-09-native-ordinary-receipts.sql`, then the dormant `migrations/2026-09-09-syncview-retirement-admission.sql`, then `migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql`, `migrations/2026-09-11-native-ordinary-receipt-repair.sql` and `migrations/2026-09-12-native-ordinary-envelope-repair.sql`. The recognizer explicitly requires the dormant retirement routine and admissions table; none of these steps authorizes activation. Only deliverable and comment writers own ordinary receipts. Batch creation remains intake-owned, batch comments use the comment owner, and batch description/assets keep their separate native paths; the pre-existing `production_batch_write` is not replaced or ratified as an ordinary owner.
-12. Install `migrations/2026-09-09-native-notification-outbox.sql` only after the current foundational B0/B1 schema, `migrations/2026-07-12-production-comments.sql`, step 10's event attribution, and the current `deleted_at` columns on cards, batches and deliverables are present. Read back all four private tables, their RLS/ACLs and sequences, the service-only RPCs, the exact four trigger definitions, and the security-invoker monitor view. Before any function deployment, a separately authorized service-only configuration write must create the protected `urgent_video_destination` object with exactly one valid `channel_id`; the deploy preflight reads only its shape and never prints the value.
+12. Install `migrations/2026-09-09-native-notification-outbox.sql` only after the current foundational B0/B1 schema, `migrations/2026-07-12-production-comments.sql`, step 10's event attribution, and the existing card/batch status and deliverable raw lifecycle owners are present. The repaired source does not require four new deletion columns. Read back all four private tables, their RLS/ACLs and sequences, the service-only RPCs, the exact four trigger definitions, and the security-invoker monitor view. Before any function deployment, a separately authorized service-only configuration write must create the protected `urgent_video_destination` object with exactly one valid `channel_id`; the deploy preflight reads only its shape and never prints the value.
 
-### Unresolved notification schema prerequisite (2026-09-10)
+### Notification lifecycle repair (2026-09-10; prepared source only)
 
 A read-only `information_schema.columns` check confirmed that `deleted_at` is
 absent from all four hosted tables: `calendar_posts`, `sample_reviews`,
@@ -75,12 +75,11 @@ inspection found notification consumers of these fields, but no migration
 creating them on those four tables. The production-comments deletion column
 is a separate owner and does not satisfy this prerequisite.
 
-Consequently, step 12 above describes a required contract, **not an existing
-baseline**. Notification installation remains blocked until the canonical
-card/batch/deliverable deletion semantics and their schema owner are resolved,
-reviewed and rehearsed together. Adding nullable columns to a test fixture
-does not establish that lifecycle contract. The prior isolated browser and
-notification tests used synthetic columns and do not prove this prerequisite.
+The earlier source and rehearsal incorrectly assumed those four columns.
+The prepared notification owner now uses existing lifecycle state instead;
+adding nullable columns would not establish that lifecycle contract. Earlier
+isolated browser and notification results used synthetic columns and remain
+historical evidence, not proof of this repaired source.
 This metadata inspection read no application rows and changed no hosted state.
 
 Source tracing narrows the repair: adding four nullable columns would not fix
@@ -102,8 +101,9 @@ include archived Samples retaining tweak substatus, archived Calendar after
 failed parking, archived batches, raw-marked deliverables, and archive between
 intent creation and claim. Retain positive active-target and canceled-status
 semantics. Do not alter frozen card writers or create dummy deletion columns
-to make the existing fixture pass. This repair is specified, **not built or
-verified**; the current expanded composition failure remains authoritative.
+to make the existing fixture pass. The repair is implemented in the prepared
+candidate; exact isolated results and remaining limits are recorded in
+`qa/linear-exit-rehearsal/RESULTS.md`. It has not been installed or served.
 
 Use the existing normalized card-status predicate from component-fill and
 reconciliation (`lower(btrim(coalesce(status,''))) <> 'archived'`). Deliverable
@@ -114,6 +114,16 @@ physical row absence between enqueue and claim. Validate retained receipts
 across archive/restore, and rerun existing status/comment cases. A shared SQL
 eligibility predicate should prevent enqueue and claim checks from diverging;
 its access contract must remain restricted with the other notification owners.
+
+The shared liveness helpers preserve scalar false-like marker values and parse
+one JSON-encoded object. Malformed/nonobject roots and array/object marker
+values refuse eligibility consistently in SQL and gateway code. Canonical
+comment deletion is rechecked before claim. Ordinary work on done batches
+remains eligible; urgent work requires an active batch. Batch `team` is a
+summary, not child authority: the intake owner creates mixed-team batches with
+NULL there, and the append contract explicitly rejects using it as membership
+proof. Urgent ownership remains the linked deliverable's video team. No new
+batch-summary-team refusal is permitted.
 
 For Workload, preserve its separate prerequisite chain: the native view before
 the membership/snapshot RPC, then

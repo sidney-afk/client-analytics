@@ -181,6 +181,51 @@ as $fn$
   )
 $fn$;
 
+-- These four application tables use status/raw archive markers, not deleted_at.
+-- Canceled remains a visible status. False-like markers do not hide live work.
+create or replace function public.production_notification_deliverable_live(p_status text, p_raw jsonb)
+returns boolean language plpgsql immutable
+set search_path = public, pg_temp
+as $fn$
+declare v_raw jsonb := p_raw;
+begin
+  if lower(btrim(coalesce(p_status,''))) = 'archived' then return false; end if;
+  if v_raw is null or jsonb_typeof(v_raw)='null' then v_raw := '{}'::jsonb;
+  elsif jsonb_typeof(v_raw)='string' then
+    begin v_raw := (v_raw #>> '{}')::jsonb;
+    exception when invalid_text_representation then return false;
+    end;
+  end if;
+  if jsonb_typeof(v_raw) is distinct from 'object' then return false; end if;
+  return lower(btrim(coalesce(v_raw #>> '{issue,archivedAt}',''))) in ('','false','0','null')
+    and not exists (
+      select 1 from jsonb_each(v_raw) e
+      where e.key in ('webhook_delete','deleted','delete','removed','archived')
+        and (jsonb_typeof(e.value) in ('array','object')
+          or lower(btrim(coalesce(e.value #>> '{}',''))) not in ('','false','0','null'))
+    );
+end;
+$fn$;
+
+create or replace function public.production_notification_target_live(p_deliverable_id text)
+returns boolean language sql stable security definer
+set search_path = public, pg_temp
+as $fn$
+  select exists (
+    select 1 from public.deliverables d join public.batches b on b.id=d.batch_id
+    where d.id=p_deliverable_id and b.client_slug=d.client_slug and b.status <> 'archived'
+      and public.production_notification_deliverable_live(d.status,d.linear_raw)
+      and case d.origin
+        when 'calendar' then exists (select 1 from public.calendar_posts p where p.id=d.card_id and p.client=d.client_slug
+          and lower(btrim(coalesce(p.status,''))) <> 'archived'
+          and (p.video_deliverable_id=d.id or p.graphic_deliverable_id=d.id))
+        when 'samples' then exists (select 1 from public.sample_reviews p where p.id=d.card_id and p.client=d.client_slug
+          and lower(btrim(coalesce(p.status,''))) <> 'archived'
+          and (p.video_deliverable_id=d.id or p.graphic_deliverable_id=d.id))
+        else true end
+  )
+$fn$;
+
 create or replace function public.production_notification_status_intent_after()
 returns trigger
 language plpgsql
@@ -213,7 +258,7 @@ begin
   end if;
   v_actor_id := substring(v_actor_key from 8)::uuid;
   select d.* into v_deliverable from public.deliverables d where d.id = new.deliverable_id;
-  if not found or v_deliverable.client_slug <> new.client_slug or v_deliverable.deleted_at is not null then return new; end if;
+  if not found or v_deliverable.client_slug <> new.client_slug or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
   if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
   if not public.production_notification_actor_valid(v_actor_id, v_actor_key, v_deliverable.team) then return new; end if;
   select c.* into v_client from public.clients c where c.slug = v_deliverable.client_slug and c.active = true and c.kind = 'client';
@@ -258,7 +303,7 @@ begin
   -- One freshly-created internal native subissue comment only.  Existing
   -- comment upserts return their prior row, and mirror/import/system rows fail
   -- this predicate, so they cannot generate a second channel post.
-  if new.deliverable_id is null
+  if new.deliverable_id is null or new.deleted_at is not null
      or new.origin <> 'native' or new.source <> 'ui' or new.import_run_id is not null
      or new.backfill_tag is not null or new.native_comment_id is null
      or new.author_member_id is null or new.author_key <> 'member:' || new.author_member_id::text
@@ -266,7 +311,7 @@ begin
      or coalesce(new.provenance->>'legacy_parity', 'false') in ('true', '1') then return new; end if;
   select d.* into v_deliverable from public.deliverables d where d.id = new.deliverable_id;
   if not found or v_deliverable.client_slug <> new.client_slug or v_deliverable.team <> new.team
-     or v_deliverable.deleted_at is not null then return new; end if;
+     or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
   if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
   if not public.production_notification_actor_valid(new.author_member_id, new.author_key, v_deliverable.team) then return new; end if;
   select c.* into v_client from public.clients c where c.slug = v_deliverable.client_slug and c.active = true and c.kind = 'client';
@@ -321,7 +366,7 @@ begin
      or new.client_slug is null or new.deliverable_id is null or v_comment_id is null
      or new.payload->>'actor_key' is distinct from 'client:' || new.client_slug then return new; end if;
   select c.* into v_comment from public.production_comments c where c.id = v_comment_id;
-  if not found or v_comment.deliverable_id is distinct from new.deliverable_id or v_comment.client_slug is distinct from new.client_slug
+  if not found or v_comment.deleted_at is not null or v_comment.deliverable_id is distinct from new.deliverable_id or v_comment.client_slug is distinct from new.client_slug
      or v_comment.author_member_id is not null or v_comment.author_key is distinct from 'client:' || new.client_slug
      or v_comment.role is distinct from 'client' or v_comment.origin is distinct from 'native' or v_comment.source is distinct from 'ui'
      or v_comment.import_run_id is not null or v_comment.backfill_tag is not null
@@ -329,7 +374,7 @@ begin
      or coalesce(v_comment.provenance->>'legacy_parity', 'false') in ('true', '1') then return new; end if;
   select d.* into v_deliverable from public.deliverables d where d.id = v_comment.deliverable_id;
   if not found or v_deliverable.client_slug <> v_comment.client_slug or v_deliverable.team <> v_comment.team
-     or v_deliverable.deleted_at is not null then return new; end if;
+     or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
   if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
   select c.* into v_client from public.clients c where c.slug = v_comment.client_slug and c.active = true and c.kind = 'client';
   if not found then return new; end if;
@@ -424,7 +469,7 @@ begin
   end if;
   select d.* into v_del from public.deliverables d where d.id = p_deliverable_id for update;
   if not found or v_del.client_slug <> v_slug or v_del.team <> 'video' or v_del.kind <> 'video'
-     or v_del.origin <> v_surface or v_del.card_id <> p_card_id or v_del.status <> 'tweak' or v_del.deleted_at is not null then
+     or v_del.origin <> v_surface or v_del.card_id <> p_card_id or v_del.status <> 'tweak' or not public.production_notification_target_live(v_del.id) then
     raise exception 'notification_urgent_target_changed';
   end if;
   if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>'video' = 'syncview') then
@@ -436,17 +481,17 @@ begin
   select c.* into v_client from public.clients c where c.slug = v_slug and c.active = true and c.kind = 'client';
   if not found then raise exception 'notification_urgent_client_invalid'; end if;
   if not exists (select 1 from public.batches b where b.id = v_del.batch_id and b.client_slug = v_slug
-    and b.status = 'active' and b.deleted_at is null and coalesce(b.purpose, 'calendar') = v_surface) then
+    and b.status = 'active' and coalesce(b.purpose, 'calendar') = v_surface) then
     raise exception 'notification_urgent_target_changed';
   end if;
   if v_surface = 'calendar' then
     select exists (select 1 from public.calendar_posts p where p.id = p_card_id and p.client = v_slug
       and p.video_deliverable_id = p_deliverable_id and p.video_status = 'Tweaks Needed'
-      and p.video_status_at = v_round and p.deleted_at is null) into v_card_ok;
+      and p.video_status_at = v_round and lower(btrim(coalesce(p.status,''))) <> 'archived') into v_card_ok;
   else
     select exists (select 1 from public.sample_reviews p where p.id = p_card_id and p.client = v_slug
       and p.video_deliverable_id = p_deliverable_id and p.video_status = 'Tweaks Needed'
-      and p.video_status_at = v_round and p.deleted_at is null) into v_card_ok;
+      and p.video_status_at = v_round and lower(btrim(coalesce(p.status,''))) <> 'archived') into v_card_ok;
   end if;
   if not v_card_ok then raise exception 'notification_urgent_target_changed'; end if;
   select m.* into v_editor from public.team_members m where m.id = p_intended_member_id;
@@ -468,7 +513,7 @@ begin
     'video_editing_channel', v_channel,
     jsonb_build_object('schema', 1, 'text', '<@' || v_editor.slack_user_id || '> URGENT: ' || public.production_notification_plain_text(v_del.title, 300) || ' needs tweaks.',
       'parse', 'none', 'link_names', false, 'allow_mentions', true, 'actor_member_id', p_actor_member_id::text,
-      'intended_member_id', p_intended_member_id::text, 'round', v_round::text, 'surface', v_surface, 'card_id', p_card_id)
+      'intended_member_id', p_intended_member_id::text, 'round', v_round::text, 'batch_id', v_del.batch_id, 'surface', v_surface, 'card_id', p_card_id)
   ) on conflict (intent_key) do nothing;
   return jsonb_build_object('status', 'pending', 'dispatch_id', p_dispatch_id::text, 'intent_key',
     'urgent:' || encode(digest(p_deliverable_id || '|' || to_char(v_round at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), 'sha256'), 'hex'));
@@ -569,21 +614,25 @@ begin
      limit v_limit
   ), stale as (
     update public.production_notification_intents i
-       set state = 'blocked', last_failure_code = 'urgent_target_changed', updated_at = now()
+       set state = 'blocked', last_failure_code = case when i.kind='urgent' then 'urgent_target_changed' else 'notification_target_changed' end, updated_at = now()
       from candidates c
-     where i.id = c.id and i.kind = 'urgent'
-       and not exists (
+     where i.id = c.id and (not public.production_notification_target_live(i.deliverable_id)
+       or (i.kind='comment' and not exists (select 1 from public.production_comments comment where comment.id=i.source_comment_id and comment.deliverable_id=i.deliverable_id and comment.client_slug=i.client_slug and comment.deleted_at is null))
+       or (i.kind = 'urgent' and not exists (
          select 1 from public.deliverables d
          join public.team_members m on m.id = i.intended_member_id
          join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
          join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
          where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
-           and d.kind = 'video' and d.status = 'tweak' and d.deleted_at is null
+           and d.kind = 'video' and d.status = 'tweak' and public.production_notification_target_live(d.id)
+           and d.origin = i.message->>'surface' and d.card_id = i.message->>'card_id'
+           and d.batch_id = i.message->>'batch_id'
+           and exists (select 1 from public.batches b where b.id=d.batch_id and b.client_slug=i.client_slug and b.status='active' and coalesce(b.purpose,'calendar')=i.message->>'surface')
            and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
            and cfg.value->>'channel_id' = i.destination_channel_id
-           and ((i.message->>'surface' = 'calendar' and exists (select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null))
-             or (i.message->>'surface' = 'samples' and exists (select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and p.deleted_at is null)))
-       ) returning i.id
+           and ((i.message->>'surface' = 'calendar' and exists (select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived'))
+             or (i.message->>'surface' = 'samples' and exists (select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived')))
+       ))) returning i.id
   ), claimed as (
     update public.production_notification_intents i
        set state = 'sending', attempt_count = i.attempt_count + 1,
@@ -634,7 +683,9 @@ begin
 end;
 $fn$;
 
-revoke all on function public.production_notification_intent_guard(),
+revoke all on function public.production_notification_deliverable_live(text,jsonb),
+  public.production_notification_target_live(text),
+  public.production_notification_intent_guard(),
   public.production_notification_status_intent_after(),
   public.production_notification_comment_intent_after(),
   public.production_notification_client_comment_event_after(),
@@ -646,7 +697,9 @@ revoke all on function public.production_notification_intent_guard(),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),
   public.production_notification_claim(integer),
   public.production_notification_record_delivery(uuid, integer, text, text, text) from public, anon, authenticated;
-grant execute on function public.production_notification_health_summary(),
+grant execute on function public.production_notification_deliverable_live(text,jsonb),
+  public.production_notification_target_live(text),
+  public.production_notification_health_summary(),
   public.production_notification_urgent_status(text, text, timestamptz),
   public.production_notification_reconcile(uuid, text, text, text),
   public.production_notification_enqueue_urgent(uuid, text, text, text, text, timestamptz, uuid, uuid),

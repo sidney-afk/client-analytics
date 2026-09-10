@@ -3847,6 +3847,27 @@ function urgentRound(value: unknown): string {
   }
   catch { throw new GatewayError(409, "urgent_round_unavailable"); }
 }
+function urgentMarkerTruthy(value: unknown): boolean {
+  // Composite marker values are malformed lifecycle evidence, never false-like.
+  if (value !== null && typeof value === "object") return true;
+  const marker = String(value == null ? "" : value).trim().toLowerCase();
+  return !!marker && marker !== "false" && marker !== "0" && marker !== "null";
+}
+function urgentDeliverableLive(row: JsonMap): boolean {
+  // Base-table equivalent of the browser's projected lifecycle markers.
+  // Canceled remains visible; there is no deleted_at column on these owners.
+  let raw = row.linear_raw;
+  if (typeof raw === "string") {
+    try { raw = JSON.parse(raw); } catch { return false; }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  }
+  if (raw != null && (typeof raw !== "object" || Array.isArray(raw))) return false;
+  const markers = raw == null ? {} : raw as JsonMap;
+  const issue = markers.issue && typeof markers.issue === "object" && !Array.isArray(markers.issue) ? markers.issue as JsonMap : {};
+  return lower(row.status) !== "archived"
+    && !urgentMarkerTruthy(issue.archivedAt)
+    && !["webhook_delete", "deleted", "delete", "removed", "archived"].some(key => urgentMarkerTruthy(markers[key]));
+}
 async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: JsonMap) {
   const clientSlug = urgentText(body.client_slug);
   const id = urgentText(body.deliverable_id), cardId = urgentText(body.card_id);
@@ -3869,7 +3890,7 @@ async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: Json
   };
   const row = await one("deliverables", "id", id);
   if (row.client_slug !== clientSlug || row.team !== "video" || row.kind !== "video"
-      || row.origin !== surface || row.card_id !== cardId || row.status !== "tweak" || row.deleted_at) {
+      || row.origin !== surface || row.card_id !== cardId || row.status !== "tweak" || !urgentDeliverableLive(row)) {
     throw new GatewayError(409, "urgent_target_changed");
   }
   const assignment = await existingAssignmentContext(supabase, {
@@ -3878,14 +3899,14 @@ async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: Json
   });
   if (!clean(assignment.epoch) || assignment.replay !== false) throw new GatewayError(409, "urgent_assignment_unavailable");
   const batch = await one("batches", "id", urgentText(row.batch_id));
-  if (batch.client_slug !== clientSlug || batch.status !== "active" || batch.deleted_at
+  if (batch.client_slug !== clientSlug || batch.status !== "active"
       || (batch.purpose || "calendar") !== surface) {
     throw new GatewayError(409, "urgent_target_changed");
   }
   const card = await one(surface === "calendar" ? "calendar_posts" : "sample_reviews", "id", cardId, true);
   const round = urgentRound(body.video_status_at);
   if (card.client !== clientSlug || card.video_deliverable_id !== id
-      || card.video_status !== "Tweaks Needed" || urgentRound(card.video_status_at) !== round || card.deleted_at) {
+      || card.video_status !== "Tweaks Needed" || urgentRound(card.video_status_at) !== round || lower(card.status) === "archived") {
     throw new GatewayError(409, "urgent_target_changed");
   }
   const editor = await one("team_members", "id", urgentText(row.assignee_id));

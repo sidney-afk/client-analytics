@@ -6978,7 +6978,7 @@ Ledger OPEN_REPAIRS 195; capability parity gate in
 
 ## 2026-09-10 — Kasper ping ledger triggers attached, verified end to end; DM copy corrected
 
-**Ledger triggers, owner-applied.** The four triggers from
+**Ledger triggers, owner-applied — the feature is now fully installed.** The four triggers from
 `migrations/2026-09-10-kasper-urgent-ping-ledger.sql` were run by the owner and
 read back as attached and enabled on both tables, each calling
 `public.syncview_kasper_urgent_ping_ledger()`.
@@ -7010,10 +7010,14 @@ publishing `f442f701`.
 why `docs/truth/SUPABASE.md` believed reconcile bypassed the ledger. It does not
 write events itself: it sets `X-Syncview-Source: reconcile` and posts through the
 ordinary writer, which logs the change under the declared source. Ledger coverage
-is a property of the ROUTE, not the caller — and `upsertUrlForClient` picks the EF
-or the legacy n8n lane per the `calendar_upsert_ef_clients` roster, so reconciler
-writes only became visible as clients were enrolled. The claim was almost
-certainly true when written and went stale silently as the roster filled. Nothing
-is broken; the ledger is MORE complete than the doc claimed. Mechanism recorded
-in the truth doc so the next reader does not re-derive it.
+is a property of the ROUTE, not the caller — `upsertUrlForClient` picks the EF or
+the legacy n8n lane per `calendar_upsert_ef_clients` (calendar) and
+`sample_review_ef_clients` (Samples). A first draft of this entry said
+pre-enrollment reconciler writes were invisible; review caught that as too
+strong. The retained legacy writer appends `sample_review_events` as well, with
+`source: 'ui'` hard-coded, so a reconcile through that lane was recorded and
+MIS-LABELLED rather than lost. 2026-07-07 marks when source attribution became
+truthful, not when coverage began; whether the original claim was ever true is
+open. Nothing is broken and the ledger is MORE complete than the doc claimed.
+Mechanism and caveat both recorded in the truth doc.
 

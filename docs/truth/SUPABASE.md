@@ -2,8 +2,8 @@
 
 > Last verified: 2026-08-24 @ c7f088a + scoped 2026-09-10 re-measurement of the two event
 > ledgers (row counts and the `source` breakdown, which corrected a "100% `source='ui'`"
-> claim that was never true) and the `kasper_urgent_ping_enabled` flag + half-installed
-> ledger trigger (see the runtime-flags and event-ledger bullets)
+> claim that was never true) and the `kasper_urgent_ping_enabled` flag + the
+> fully-installed ledger trigger (see the runtime-flags and event-ledger bullets)
 > + scoped kasper_ad_performance v2 and v3 additions (see
 > callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
@@ -191,20 +191,31 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   WRITER logs the change under whatever source the caller declared. Ledger
   coverage is therefore a property of the ROUTE, not of the caller.
 
-  That also explains the 2026-07-07 start: `upsertUrlForClient` sends each client
-  to the edge function or to the legacy n8n lane depending on the
-  `calendar_upsert_ef_clients` roster, so reconciler writes only became visible
-  as clients were enrolled onto the EF. Before that they really were invisible,
-  which is presumably when "reconcile bypasses the ledger" was written and true.
-  It went stale silently as the roster filled, and nothing re-checked it. A `linear`
+  **What the 2026-07-07 date does and does not establish.** `upsertUrlForClient`
+  sends each client to the edge function or to the legacy n8n lane, per
+  `calendar_upsert_ef_clients` for the calendar and `sample_review_ef_clients`
+  for Samples, so `source='reconcile'` appears as clients are enrolled onto the
+  EF. It is tempting to read that as "before this, reconciler writes were
+  invisible". **Do not** — the retained legacy writer
+  (`n8n-backups/sample-review-upsert.2026-06-25.initial.json`) also appends
+  `sample_review_events`, with `source: 'ui'` HARD-CODED. A reconcile routed
+  through it would therefore have been recorded and mis-attributed, not lost.
+
+  So 2026-07-07 marks when source ATTRIBUTION became truthful, not when ledger
+  coverage began, and some share of the `ui` rows before it are very likely
+  reconciler writes wearing the wrong label. How large a share is not known and
+  is not derivable from the `source` column, which is the point: it is the
+  column that was lying. Whether "reconcile bypasses the ledger" was ever true
+  is therefore open, not settled. A `linear`
   source wrote 230 calendar rows between 2026-07-06 and 2026-07-11 and has been
   silent since. Do not reason from "the ledger is UI-only" — a session did, and the
   conclusion it drew about `deliverable_events` (Track B) inheriting a bypass rested
   on a premise that was never true. Track B still must not be bypassable, but that is
   a requirement, not an inherited property.
 
-  The single `db` row is the Kasper urgent ping's backfill (2026-09-10); once the
-  four ledger triggers are attached, `db` is the source for every Kasper ping.
+  `db` is the Kasper urgent ping's source. Its triggers were attached and verified
+  end to end on 2026-09-10, so every ping now writes one; the earliest `db` row is
+  the backfill of the one ping that predated them.
   See `migrations/2026-09-10-kasper-urgent-ping-ledger.sql` and OPEN_REPAIRS 195.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.

@@ -1,5 +1,28 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest recovery under the shared installation order
+
+The recovery-upstream-ledger lane now builds its source using the same published
+63-entry inventory, disclosed bootstrap and remaining 42-entry order as the
+installation rehearsal. All 31 recovery checks across the 52-table history-v11
+corpus passed on disposable PG16, including authenticated capture/reconstruction,
+row replay and restored ledger behavior. The owned server stopped, exit 0.
+
+Ledger fixtures are inserted before the ledger owner and its exact two-event
+backfill assertion runs immediately afterward; owners are not reapplied. The
+source uses working-tree changes over `bcf27d1c`. Two earlier fixture failures
+remain retained: premature ledger count assertion, then native epoch setup after
+provisioning. Neither was bypassed; assertion/setup ordering was corrected and
+focused independent review found no blocker. No extra schema was introduced.
+
+This aligns ordered installation with this recovery lane, not every historical
+rehearsal or the hosted database. The older filming-plans schema prefix is not
+needed by these 31 cases and is not newly covered. Complete baseline/dependency
+closure, all data/Storage custody, remaining interruption boundaries, parent
+restart and hosted configuration/notification handover remain unproven.
+Installation HOLD; no merge, deployment or production mutation.
+
+
 ## Latest selected internal-step interruption proof
 
 Normal resume was rerun on the final shared test code: all 42 entries, 44

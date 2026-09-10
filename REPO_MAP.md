@@ -185,3 +185,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-install-resume.js`, `test/helpers/linear-exit-install-step.js`: disposable fresh-process entry continuation and private checkpoint validation; not a production resume controller.
 
 - `test/linear-exit-install-interruption.js` ? isolated atomic rollback and partial-owner refusal entry point.
+
+- `scripts/linear-exit-composition/recovery-ordered.js` ? shared inventory-ordered source setup for the upstream-ledger recovery lane.

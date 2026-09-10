@@ -599,5 +599,39 @@
       "test/helpers/linear-exit-install-step.js": "9db3c3384071ca77213b7c3e612208ddb2b29fc256f977cc8a3a370534a19b0c",
       "test/linear-exit-install-interruption.js": "a03dc1e93ed930529277482e80bfe002e1838e79c4282cdf662c27f46830300c"
     }
+  },
+  "shared_order_recovery": {
+    "status": "PASS",
+    "passed": 31,
+    "table_count": 52,
+    "install_source_inventory": {
+      "identity": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+      "sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+      "classification": "SOURCE_ONLY",
+      "execution_order": "PUBLISHED_INVENTORY_DEPENDENCY_ORDER"
+    },
+    "classification": "ISOLATED_POSTGRES_ORDERED_SCHEMA_DATA_RECOVERY",
+    "receipt": "linear-exit-recovery-upstream-ledger-bcbc40cfeba64556a43790d7d95f8eee",
+    "source_base": "bcf27d1c426f4b940660c140e89f981d7128340e",
+    "working_tree_changes": true,
+    "unit_log_sha256": "ab4cea7651fc630c64686c0e834b1bfb416ebf17bfc97c54633f80484e012f30",
+    "server_stopped": true,
+    "ordered_entries": 42,
+    "source_hashes": {
+      "scripts/linear-exit-composition/recovery-ordered.js": "973153398920d7d0eb633c2807b08e3ac9d01aba8bdbc78538a752b7afaec325",
+      "scripts/track-b-recovery-rehearsal.js": "a64e57128c9b7102701706e9e7f5ff240dea8759202f107f7667526b61c2a71d"
+    },
+    "prior_failed_attempts": [
+      {
+        "receipt_prefix": "65acf7fcc520418c832772daff2c051f",
+        "reason": "ledger count asserted before backfill owner"
+      },
+      {
+        "receipt_prefix": "b3130070d1ee4f4eb394470e47fa7929",
+        "reason": "native_client_provision_epochs_unavailable; fixture epoch ordering"
+      }
+    ],
+    "full_baseline_proven": false,
+    "filming_plans_covered": false
   }
 }

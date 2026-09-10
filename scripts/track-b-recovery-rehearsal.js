@@ -38,20 +38,22 @@ const UPSTREAM_LEDGER_OWNERS = [
   ['2026-09-10-kasper-urgent-ping-ledger.sql','21c6e1b95b9a5fde8fc3e2d75b91a25d959d422f5eb8578648dc9b87611e45b7'],
 ];
 const LEDGER_SURFACES = [['calendar_posts','calendar_post_events','post_id'],['sample_reviews','sample_review_events','sample_id']];
-function seedUpstreamLedger(source) {
+function seedUpstreamLedger(source, applyOwners = true) {
   // Exact reviewed upstream bytes are executed only in this disposable source.
   const owners=UPSTREAM_LEDGER_OWNERS.map(([name,expected])=>{
     const bytes=cp.execFileSync('git',['show',`${UPSTREAM_LEDGER_COMMIT}:migrations/${name}`],{cwd:ROOT,maxBuffer:1024*1024,windowsHide:true});
     assert.equal(sha(bytes),expected,'upstream ledger source hash mismatch');return bytes.toString('utf8');
   });
-  source.query(owners[0]);
+  if(applyOwners) source.query(owners[0]);
   for(const [table,events,key]of LEDGER_SURFACES)source.query(`
     insert into public.${table}(client,id,name,status,kasper_urgent_pinged_at,kasper_urgent_status_at,kasper_urgent_comp,kasper_urgent_by)
     values ('fixture-client','recovery-upstream-ledger','Synthetic recovery ledger','In Progress','2030-01-02Z','2030-01-01Z','video','Synthetic staff');
     insert into public.${events}(client,${key},ts,action,source,payload)
     values ('fixture-client','recovery-upstream-ledger','2030-01-01Z','kasper_urgent_ping','db',jsonb_build_object('pinged_at',to_jsonb('2030-01-01Z'::timestamptz)));`);
-  source.query(owners[1]);
-  for(const [,events,key]of LEDGER_SURFACES)assert.equal(source.query(`select count(*) from public.${events} where ${key}='recovery-upstream-ledger' and action='kasper_urgent_ping'`),'2');
+  if(applyOwners) source.query(owners[1]);
+  const verify=()=>{for(const [,events,key]of LEDGER_SURFACES)assert.equal(source.query(`select count(*) from public.${events} where ${key}='recovery-upstream-ledger' and action='kasper_urgent_ping'`),'2');};
+  if(applyOwners)verify();
+  return verify;
 }
 function verifyRestoredLedger(source,target,check) {
   for(const [table,events,key]of LEDGER_SURFACES){
@@ -96,7 +98,7 @@ function unionImages(db) {
   const sql = backup.resolveCorpus(CORPUS).tables.map(t => `select ${quote(t.name)} as table_name,to_jsonb(t)::text as image from public.${t.name} t`).join(' union all ');
   return db.rows(`select table_name,image from (${sql}) images order by table_name,image`);
 }
-const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recovery-reconstruct.js',
+const SOURCES = ['scripts/linear-exit-composition/recovery-ordered.js','scripts/linear-exit-composition/harness.js','test/helpers/linear-exit-install-step.js','scripts/track-b-recovery-package.js', 'scripts/track-b-recovery-reconstruct.js',
   'scripts/track-b-recovery-prerequisites.sql', 'scripts/track-b-recovery-rehearsal.js',
   'scripts/track-b-backup.js', 'scripts/track-b-restore-rehearsal.js',
   'scripts/card-history-integrated-rehearsal.js', 'scripts/card-history-backup-rehearsal.js',
@@ -212,6 +214,12 @@ async function run() {
   const hmac = crypto.randomBytes(32).toString('base64'); let complete = false;
   let labelReplaySql, labelNewSql, labelCurrent, cutoffReceipt, cutoffState, cutoffDebt;
   try {
+    if(UPSTREAM_LEDGER){
+      for(const db of [target,quarantine])db.create();
+      inventory.binding.execution_order='PUBLISHED_INVENTORY_DEPENDENCY_ORDER';
+      const ordered=require('./linear-exit-composition/recovery-ordered').install(source,db=>seedUpstreamLedger(db,false));
+      fs.writeFileSync(path.join(cfg.output,'ORDERED_SOURCE.private.json'),JSON.stringify(ordered,null,2));
+    }else{
     for (const db of databases) db.create();
     setup(source, fs.readFileSync(path.join(ROOT, 'migrations/2026-09-05-calendar-feedback-recovery.sql'), 'utf8'));
     // Same declaration and two real Workload migrations as the integrated
@@ -248,7 +256,14 @@ async function run() {
         source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
       source.query("insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);");
     }
-    if (UPSTREAM_LEDGER) seedUpstreamLedger(source);
+    }
+    if(UPSTREAM_LEDGER){
+      // Synthetic data only; all owners were installed once in inventory order.
+      source.query("update public.syncview_runtime_flags set value='{\"video\":{\"enabled\":true,\"epoch\":\"integrated-video\"},\"graphics\":{\"enabled\":true,\"epoch\":\"integrated-graphics\"}}' where key='native_intake_epochs';");
+      source.query("set role service_role;select public.production_native_client_provision('schema-v10-native-client','schema-v10-native-client','Schema V10 Native Client');");
+      source.query("insert into public.description_images(id,storage_path,public_url,mime_type,byte_length,width,height,actor_key,actor_name,actor_role,client_slug) values ('00000000-0000-4000-8000-000000000910','schema-v10-image.png','https://storage.invalid/schema-v10-image.png','image/png',1,1,1,'schema-v10-actor','Schema V10 Actor','admin','schema-v10-native-client');");
+      source.query("insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);");
+    }
     const seeded = phase(cfg, source, 'seed', '', 'source');
     const continuity = CORPUS_VERSION>=9 ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {

@@ -166,3 +166,8 @@ A PASS covers these selected interruption points only. It does not establish
 every internal boundary, operating-system process kill, parent restart/key
 custody, concurrent-worker exclusion or recovery of a partial installation.
 The complete normal resume lane remains a separate proof.
+
+The recovery-upstream-ledger lane now uses the same published inventory order
+and scoped bootstrap as installation-order. It retains 31 recovery assertions
+across 52 history-v11 tables. Older recovery lanes retain their original setup.
+See RESULTS.md for revision-specific evidence and retained failed attempts.

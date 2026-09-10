@@ -455,3 +455,12 @@ partial autocommit refusal after 29 completed entries. The partial state is left
 unrepaired; accepted business-call replay preserves current rows. All remaining
 internal boundaries, parent/process-kill recovery and safe partial-state repair
 remain unproven. This does not permit resuming a real installation.
+
+### Shared-order recovery evidence
+
+The recovery-upstream-ledger lane now installs the remaining 42 owners from the
+published inventory in dependency order on the same scoped bootstrap. Its
+31 checks across 52 history-v11 tables pass, including reconstructed ledger
+behavior. The ledger backfill fixture is seeded before its owner and asserted
+afterward, without reapplication. Older recovery corpus lanes retain their
+original setup. This does not close full baseline/coverage or hosted custody.

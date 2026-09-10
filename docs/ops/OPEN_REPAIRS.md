@@ -18602,7 +18602,7 @@ carry no `raw_project_id`, so this read path reaches further than the one card.
 
 - Done when: shipped (copy). The verdict question above stays open.
 
-## 188. [2026-09-09, lane LX-URGENT, BUILT and HELD — front-end + EF source shipped; the EF half is NOT deployable from the repo, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+## 188. [2026-09-09, lane LX-URGENT, SUPERSEDED STATUS — the EF half is deployed (see 193) and the front end was corrected (see 194); the repo's writer copies are still NOT deployable, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
 
 The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
 editor in `#video-editing`. The mirror case had no affordance at all. A card parked
@@ -19078,3 +19078,13 @@ Follow-up to 188. Calendar v48 → v49 and Samples v49 → v50 were deployed fro
 Twenty offline cases pass. Real tokenless name/comment saves and all six supported component-marker writes returned HTTP 200/ok:true; separate database reads confirmed persistence and server-derived marker clocks. Dedicated test cards were removed with last-write guards. No notification or interactive-browser behavior is claimed. The feature flag was absent and remains off.
 
 Full versions, bundle hashes, evidence limits, rollback and next action: [deployment receipt](FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). Next: owner decides when to enable and check the visible ping flow; no additional marker deployment is owed. Separate approval-recovery work is unchanged.
+
+## 194. [2026-09-10, FIXED in the browser; ships on merge, no deploy] The two urgent pings stopped being one machine, and the switch could only be thrown for everybody at once
+
+Follow-up to 188 and 193. Two things were wrong with the front end the moment the writers went live, and both were the same mistake: a Kasper-flavoured special case where the whole design was that there is no special case.
+
+**The ordering.** The Kasper ping wrote its marker BEFORE sending the DM; the editor ping has always sent Slack first. That was introduced to stop a failed write producing a DM about an Urgent section that never populates. It bought that by trading the failure for its exact mirror: marker written, DM never sent, and the blank-field guard then refusing the retry — a card that looks pinged, to a reviewer who was never told. Slack and Postgres share no transaction, so SOME window exists whichever way round it goes; ordering only chooses which half can be lost, and the lost DM is the worse half because it is the deliverable. Reverted to Slack-first, so the dispatch path is now one code path with no per-flavour branch. `persistFirst` is gone from the source, and a test fails if the string comes back.
+
+**The switch.** `kasper_urgent_ping_enabled` was read as `{enabled:true}` and nothing else, so the only rollout available was all clients at once. It now takes `{"clients":[…]}` as well — the same roster shape `calendar_upsert_ef_clients` and `write_ui_reroute_clients` already use — and both affordance gates pass their own surface's client (`calState.client`, `sxrState.client`). Every other shape is still OFF, including a roster that does not name the client asking, a slug of `''`, `{"enabled":"true"}`, a malformed value, a failed read and a missing row. The click-time re-read added in 1370 round 3 now carries the slug too, so a client can be dropped from the roster mid-dialog and the ping still refuses.
+
+Verified: unit suite green including three new sandboxes (roster naming this client / roster naming another / no flag at all), `prod-write-gateway-browser.js` green, `prod-boot-budget.js` green, live-divergence register green, identity-exposure clean. Test fixtures use a synthetic slug, never a live one. Next: the n8n DM copy still asserts "It is in the Urgent section at the top", which Slack-first can send a beat early — that edit is the owner's call and has not been made.

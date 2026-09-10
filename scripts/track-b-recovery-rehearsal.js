@@ -242,12 +242,15 @@ async function run() {
     const comment = { id: 'schema-v7-comment', native_comment_id: 'schema-v7-comment', idempotency_key: 'schema-v7-add',
       deliverable_id: deliverable.id, team: deliverable.team, author_key: 'synthetic-staff', author_name: 'Synthetic staff',
       role: 'admin', body: 'Synthetic retained canonical note', audience: 'internal', source_updated_at: '2026-09-06T00:00:00Z' };
-    const event = { actor: 'synthetic-staff', role: 'admin', action: 'add', source: 'ui', outbound: { entity: 'comment',
+    const event = { actor: comment.author_name, role: 'admin', action: 'add', source: 'ui', outbound: { entity: 'comment',
       entity_id: deliverable.id, operation: 'comment', team: 'video', dedup_key: 'schema-v7-add', payload: {
         _intent_fingerprint: 'synthetic-schema-v7-add', _f27_legacy_parity: false,
         _f27_authority_generation: Number(source.query("select generation from public.track_b_f27_team_fences where team='video'")) } } };
     const commentSql = `set role service_role;select public.production_comment_write(${quote(JSON.stringify(comment))}::jsonb,${quote(JSON.stringify(event))}::jsonb);`;
     source.query(commentSql);
+    check('source canonical receipt replays the same gateway-shaped actor without mutation before capture', () => {
+      const beforeReplay = unionImages(source); source.query(commentSql); assert.deepEqual(unionImages(source), beforeReplay);
+    });
     check('canonical note and its accepted receipt coexist with actual native card receipts', () => {
       assert.equal(source.query("select count(*) from public.production_comments where id='schema-v7-comment'"), '1');
       assert.equal(source.query("select count(*) from public.mirror_outbox where dedup_key='schema-v7-add'"), '1');
@@ -309,6 +312,7 @@ async function run() {
     source.query('drop table public.synthetic_capture_negative;drop function public.synthetic_capture_check(text);drop function public.synthetic_capture_write();');
     const summary = await recovery.captureRecoveryPackage({ ...opts, output: packet });
     const bytes = fs.readFileSync(packet), pkg = recovery.readRecoveryPackage(bytes, hmac), before = unionImages(source), sequences = captureSequences(source);
+    const tokenImages = CORPUS_VERSION >= 10 ? source.rows("select slug,md5(review_token) as digest,octet_length(review_token) as bytes from public.client_access order by slug") : null;
     check('authenticated schema and all selected corpus data sections bind exact observed corpus', () => {
       assert.equal(summary.ok, true); assert.equal(summary.corpus, CORPUS); assert.equal(summary.data_table_count, backup.resolveCorpus(CORPUS).tables.length);
       assert.deepEqual(Object.keys(pkg.manifest.data.tables).sort(), backup.resolveCorpus(CORPUS).tables.map(t => t.name).sort());
@@ -356,6 +360,11 @@ async function run() {
         assert.equal(db.query("select nextval('public.synthetic_uncalled_seq')::text"), '9000');
         assert.equal(db.query("select nextval('public.synthetic_fresh_seq')::text"), '1');
       }
+    });
+    if (CORPUS_VERSION >= 10) check('restored review tokens retain captured bytes and their original deferred default', () => {
+      assert.ok(tokenImages.length > 0, 'token preservation requires captured rows');
+      assert.deepEqual(target.rows("select slug,md5(review_token) as digest,octet_length(review_token) as bytes from public.client_access order by slug"), tokenImages);
+      assert.equal(target.query("select pg_get_expr(d.adbin,d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum where d.adrelid='public.client_access'::regclass and a.attname='review_token'"), 'client_access_mint_review_token()');
     });
     const current = unionImages(target), replay = phase(cfg, target, 'replay', seeded.report, 'replay');
     check('restored receipts replay four current human-edited cards in hold without rewriting any owner', () => {

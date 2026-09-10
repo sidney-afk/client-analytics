@@ -297,6 +297,73 @@ function callNamesIn(text) {
 
 // Texts an expression evaluates during reconstruction, drawn from the package
 // statements themselves (read-time) so the contract does not trust the manifest.
+// A deferred default is never evaluated: only a direct, qualified zero-argument
+// VOLATILE INVOKER call is admitted. No casts, operators or argument planning.
+function deferredDefaultPlan(statements, enabled = false) {
+  const functions = new Map(), columnTypes = {}, overloads = new Map();
+  for(const text of statements){const named=text.match(/^CREATE (?:OR REPLACE )?FUNCTION public\.([a-z_][a-z0-9_]*)\(/i);if(named)overloads.set(named[1],(overloads.get(named[1])||0)+1);}
+  for (const text of statements) {
+    const match = text.match(/^CREATE (?:OR REPLACE )?FUNCTION public\.([a-z_][a-z0-9_]*)\(\)\s+RETURNS (text|uuid|boolean|integer|bigint|smallint|bytea)\s/i);
+    if (!match || overloads.get(match[1])!==1) continue;
+    const head = sqlTokens(text).filter(t => !['dollar','string','line_comment','block_comment'].includes(t.kind)).map(t => t.raw).join(' ');
+    if (/\b(?:immutable|stable)\b/i.test(head) || /\bsecurity\s+definer\b/i.test(head) || !/\blanguage\s+(?:sql|plpgsql)\b/i.test(head)) continue;
+    // SET search_path prevents scalar SQL inlining, including immutable body
+    // subexpressions. PL/pgSQL functions are not scalar SQL inline candidates.
+    if (/\blanguage\s+sql\b/i.test(head) && !/\bSET\s+search_path\s+(?:TO|=)/i.test(head)) continue;
+    if (functions.has(match[1])) throw new Error('Duplicate deferred function signature');
+    functions.set(match[1], {sha256:crypto.createHash('sha256').update(text).digest('hex'),type:match[2].toLowerCase()});
+  }
+  const defaults = [], storedColumns = {}, rewritten = [];
+  function replaceDefault(text, table, column) {
+    return text.replace(/\bDEFAULT\s+(public\.([a-z_][a-z0-9_]*)\(\))(?=\s*(?:NOT\s+NULL\s*)?$)/i, (whole, expression, name) => {
+      if (!enabled || !functions.has(name)) return whole;
+      if(columnTypes[table+'.'+column]!==functions.get(name).type)throw new Error('Deferred default requires exact builtin return/column type');
+      defaults.push({table,column,expression,signature:'public.'+name+'()',function_sha256:functions.get(name).sha256,return_type:functions.get(name).type});
+      return '';
+    });
+  }
+  for (const statement of statements) {
+    const create = statement.match(/^CREATE (?:UNLOGGED )?TABLE public\.([a-z_][a-z0-9_]*)\s*\(/i);
+    if (create) {
+      const tokens = sqlTokens(statement); let depth = 0, start = 0, offset = 0; const segments = [];
+      for (const token of tokens) {
+        if (token.kind === 'symbol' && token.value === '(') { depth++; if (depth === 1) start=offset+token.raw.length; }
+        if (token.kind === 'symbol' && token.value === ',' && depth === 1) { segments.push([start,offset]);start=offset+1; }
+        if (token.kind === 'symbol' && token.value === ')') { if (depth === 1) segments.push([start,offset]);depth--; }
+        offset += token.raw.length;
+      }
+      let text=statement; const columns=[];
+      for (const [from,to] of segments.slice().reverse()) {
+        const segment=statement.slice(from,to); const significant=sqlTokens(segment).filter(t=>!['space','line_comment','block_comment'].includes(t.kind));
+        const first=significant[0];
+        if (!first || !['word','identifier'].includes(first.kind)) throw new Error('Unsupported stored column definition');
+        if (['constraint','check','primary','unique','foreign','exclude'].includes(first.value)) continue;
+        columnTypes[create[1]+'.'+first.value]=['[','(','.'].includes(significant[2]?.value)?null:significant[1]?.value;
+        if (!significant.some(t=>t.kind==='word'&&t.value==='generated') || significant.some(t=>t.kind==='word'&&t.value==='identity')) columns.unshift(first.value);
+        text=text.slice(0,from)+replaceDefault(segment,create[1],first.value)+text.slice(to);
+      }
+      storedColumns[create[1]]=columns;rewritten.push(text);continue;
+    }
+    const alter=statement.match(/^ALTER TABLE (?:ONLY )?public\.([a-z_][a-z0-9_]*)\s+ALTER COLUMN ([a-z_][a-z0-9_]*) SET DEFAULT (public\.([a-z_][a-z0-9_]*)\(\))$/i);
+    if(enabled && alter && functions.has(alter[4])){if(columnTypes[alter[1]+'.'+alter[2]]!==functions.get(alter[4]).type)throw new Error('Deferred default requires exact builtin return/column type');defaults.push({table:alter[1],column:alter[2],expression:alter[3],signature:'public.'+alter[4]+'()',function_sha256:functions.get(alter[4]).sha256,return_type:functions.get(alter[4]).type});continue;}
+    rewritten.push(statement);
+  }
+  defaults.sort((a,b)=>(a.table+'.'+a.column).localeCompare(b.table+'.'+b.column));
+  if(new Set(defaults.map(d=>d.table+'.'+d.column)).size!==defaults.length)throw new Error('Duplicate deferred default');
+  return {statements:rewritten,defaults,storedColumns};
+}
+function verifyDeferredDefaults(statements, manifest, parsedData) {
+  if (!manifest.deferred_defaults) return {statements,defaults:[]};
+  const contract=manifest.deferred_defaults;
+  if(contract.version!==1)throw new Error('Unsupported deferred default contract');
+  const plan=deferredDefaultPlan(statements,true);
+  if(backup.canonicalJson(plan.defaults)!==backup.canonicalJson(contract.defaults))throw new Error('Deferred default contract differs from authenticated schema');
+  const expected=Object.fromEntries(Object.keys(parsedData.tables).map(name=>[name,plan.storedColumns[name]]));
+  if(backup.canonicalJson(expected)!==backup.canonicalJson(contract.stored_columns))throw new Error('Deferred stored column contract differs from schema');
+  for(const [name,columns]of Object.entries(expected))if(!Array.isArray(columns)||backup.canonicalJson(columns)!==backup.canonicalJson(parsedData.tables[name].columns))throw new Error('Deferred restore requires every stored COPY column: '+name);
+  return plan;
+}
+
 function evaluatedExpressionTexts(statements) {
   const texts = [];
   for (const text of statements) {
@@ -836,8 +903,9 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
     const created = text.match(new RegExp(`^CREATE SEQUENCE public\\.(${IDENT})`, 'i')) || text.match(new RegExp(`SEQUENCE NAME public\\.(${IDENT})`, 'i'));
     if (created && !sequenceNames.has(unquote(created[1]))) throw new Error('Track-B recovery manifest lacks the state of a package sequence');
   }
-  const callable = verifyCallableContract([...pre.statements, ...post.statements], manifest);
-  return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable };
+  const deferred = verifyDeferredDefaults([...pre.statements, ...post.statements], manifest, parsed);
+  const callable = verifyCallableContract(deferred.statements, manifest);
+  return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable, deferred };
 }
 
 // ---------------------------------------------------------------------------
@@ -963,14 +1031,18 @@ function inTransactionVerificationSql(manifest) {
 
 function reconstructSql(pkg) {
   const { manifest, corpus, data, schema } = pkg;
+  const deferred = verifyDeferredDefaults([...schema.pre.statements, ...schema.post.statements], manifest, backup.parseStrictPgDump(data, corpus));
+  const before = deferredDefaultPlan(schema.pre.statements, !!manifest.deferred_defaults);
+  if(backup.canonicalJson(before.defaults)!==backup.canonicalJson(deferred.defaults))throw new Error('Deferred defaults must belong to pre-data');
   return [
     'begin;',
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '30min';",
     targetPrerequisiteSql(manifest),
-    ...schema.pre.statements.map(text => `${text};`),
+    ...before.statements.map(text => `${text};`),
     backup.renderSafeCopySections(data, corpus).trimEnd(),
     ...sequenceValueSql(manifest),
+    ...deferred.defaults.map(item => `ALTER TABLE public.${item.table} ALTER COLUMN ${item.column} SET DEFAULT ${item.expression};`),
     ...schema.post.statements.map(text => `${text};`),
     inTransactionVerificationSql(manifest),
     'commit;',
@@ -1169,7 +1241,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const dir = tempDir || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-recovery-'));
   const files = { pre: path.join(dir, 'pre-data.sql'), post: path.join(dir, 'post-data.sql'), data: path.join(dir, 'data.sql') };
   const session = await openSnapshotSession(env, psql);
-  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections;
+  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections; let deferredContract;
   try {
     const query = sql => runPsql(env, sql, { psql, snapshot: session.snapshot });
     fingerprintBefore = query(fingerprintSql());
@@ -1193,14 +1265,26 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
       pre: validateSchemaSection(fs.readFileSync(files.pre).toString('utf8'), roles),
       post: validateSchemaSection(fs.readFileSync(files.post).toString('utf8'), roles),
     };
+    const plan = deferredDefaultPlan([...sections.pre.statements, ...sections.post.statements], true);
+    const storedColumns = Object.fromEntries(corpus.tables.map(item=>[item.name,plan.storedColumns[item.name]]));
+    if(plan.defaults.some(item=>!storedColumns[item.table]))throw new Error('Deferred default table absent from COPY corpus');
+    const catalogColumns=JSON.parse(query("select json_object_agg(name,cols) from (select c.relname name,json_agg(a.attname order by a.attnum) cols from pg_catalog.pg_class c join pg_catalog.pg_attribute a on a.attrelid=c.oid where c.relnamespace='public'::regnamespace and a.attnum>0 and not a.attisdropped and a.attgenerated='' group by c.relname) s"));
+    for(const [name,columns]of Object.entries(storedColumns))if(backup.canonicalJson(columns)!==backup.canonicalJson(catalogColumns[name]))throw new Error('Stored columns differ from source catalog');
+    for(const item of plan.defaults){
+      const metadata=JSON.parse(query("select json_build_object('count',count(*),'safe',coalesce(bool_and(p.provolatile='v' and not p.prosecdef and p.pronargs=0 and (exists(select 1 from pg_catalog.pg_language l where l.oid=p.prolang and l.lanname='plpgsql') or (exists(select 1 from pg_catalog.pg_language l where l.oid=p.prolang and l.lanname='sql') and exists(select 1 from unnest(p.proconfig) setting where setting like 'search_path=%'))) and p.prorettype="+sqlLiteral('pg_catalog.'+item.return_type)+"::regtype),false)) from pg_catalog.pg_proc p where p.pronamespace='public'::regnamespace and p.proname="+sqlLiteral(item.signature.slice(7,-2))));
+      if(metadata.count!==1||metadata.safe!==true)throw new Error('Deferred default requires unambiguous volatile invoker signature');
+    }
+    deferredContract={version:1,defaults:plan.defaults,stored_columns:storedColumns};
+    verifyDeferredDefaults([...sections.pre.statements,...sections.post.statements],{deferred_defaults:deferredContract},backup.parseStrictPgDump(fs.readFileSync(files.data),corpus.name));
     const seedTokens = new Set();
-    for (const item of evaluatedTexts) for (const name of callNamesIn(item.text)) seedTokens.add(name);
-    for (const item of evaluatedExpressionTexts([...sections.pre.statements, ...sections.post.statements])) {
+    const deferredNames=new Set(plan.defaults.flatMap(item=>[item.expression,item.expression.slice(7)]));
+    for (const item of evaluatedTexts) { if(item.kind==='default'&&deferredNames.has(item.text))continue;for (const name of callNamesIn(item.text)) seedTokens.add(name); }
+    for (const item of evaluatedExpressionTexts(plan.statements)) {
       for (const name of callNamesIn(item.text)) seedTokens.add(name);
     }
     // Bodies stay private in the resolution query; references retain hashes,
     // never body text. This replaces the earlier equivalent query injection.
-    references = resolveCallableContract(query, seedTokens, edges, requiredExtensionNames);
+    references = resolveCallableContract(query, seedTokens, edges.filter(edge=>!(edge.kind==='default'&&plan.defaults.some(item=>(edge.relation===item.table||edge.relation==='public.'+item.table)&&edge.function===item.signature.slice(0,-2)))), requiredExtensionNames);
     if (typeof hooks.afterDumps === 'function') await hooks.afterDumps();
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');
@@ -1240,6 +1324,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     omitted_data_tables: omitted,
     sequences,
     callable_references: strippedReferences,
+    deferred_defaults: deferredContract,
     prerequisites: {
       server_version: prerequisites.server_version,
       server_version_num: prerequisites.server_version_num,
@@ -1255,7 +1340,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   if (Number(prerequisites.foreign_servers) > 0) throw new Error('Track-B recovery source has a foreign server; capture refused');
   // Resolve STABLE candidates provisionally, but reject non-view uses and an
   // unsafe transitive closure before publishing any authenticated package.
-  verifyCallableContract([...pre.statements, ...post.statements], manifest);
+  verifyCallableContract(verifyDeferredDefaults([...pre.statements,...post.statements],manifest,backup.parseStrictPgDump(data,corpus.name)).statements, manifest);
   const packed = packRecoveryPackage({ preData, postData, data, manifest }, key.toString('base64'));
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), packed.bytes, { mode: 0o600 });
@@ -1336,6 +1421,8 @@ module.exports = {
   dependencyEdgesSql,
   evaluateRecoveryWatch,
   evaluatedExpressionTexts,
+  deferredDefaultPlan,
+  verifyDeferredDefaults,
   evaluatedSourceTextsSql,
   fingerprintSql,
   functionPurity,

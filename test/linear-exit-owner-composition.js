@@ -708,9 +708,44 @@ async function main() {
     const request={actor:{name:'Fixture Client',role:'client'},client:'compositionclient',card_id:'crosswalk-card',component:'video',deliverable_id:'crosswalk-deliverable',comment:{native_comment_id:canonical.native_comment_id,canonical_id:canonical.id,dedup_key:canonical.idempotency_key,intent_fingerprint:'fp-recovery-client-add',body:canonical.body,is_tweak:false,round:canonical.round,entry_created_at:canonical.source_created_at},source:{expected_updated_at:'2030-01-01T00:00:00Z',fields:{},previous:{}}};
     const recovered=jsonRows(cluster,`select public.calendar_feedback_recovery_apply_v1(${json(request)}) as result`)[0].result;
     ok('feedback recovery holds after actual canonical deletion without materialization',recovered.outcome==='held' && recovered.reason==='native_lifecycle_changed' && count(cluster,'select * from public.calendar_feedback_materializations')===0);
+    // Extend the declared source-owner group only after the prior behavior
+    // checks; this staged rehearsal is not a production installation schedule.
+    for(const file of [
+      'sample-reviews-migration.sql',
+      '2026-07-11-b4-write-attribution.sql',
+      '2026-07-14-linear-intake-receipts.sql',
+      '2026-07-15-pto-tracker.sql',
+      '2026-07-28-linear-project-ids-team-shape.sql',
+      '2026-09-05-native-intake-reconcile.sql',
+      '2026-09-06-native-card-materialization-boundary.sql',
+      '2026-09-06-linear-outbound-cutoff.sql',
+      '2026-09-07-legacy-intake-native-triage.sql',
+      '2026-09-07-native-identifier-mint.sql',
+      '2026-09-07-native-brief-media.sql',
+      '2026-09-05-description-images.sql',
+    ]) { console.log('COMPOSITION_APPLY '+file);cluster.runFile(path.join(MIGRATIONS,file)); }
+    const ptoStart=jsonRows(cluster,"select public.pto_set_member_start_v1('33333333-3333-4333-8333-333333333331','2030-01-01',true,null) as result")[0].result;
+    ok('actual PTO owner enables existing member',ptoStart.status==='ok' && ptoStart.member.pto_enabled===true);
+    const ptoStale=jsonRows(cluster,"select public.pto_set_member_start_v1('33333333-3333-4333-8333-333333333331','2031-01-01',true,null) as result")[0].result;
+    ok('PTO replay without expected version refuses stale write',ptoStale.status==='stale' && scalar(cluster,"select pto_start_date::text from public.pto_members where member_id='33333333-3333-4333-8333-333333333331'")==='2030-01-01');
+    const orphanBody=JSON.stringify({client:'compositionclient',post:{id:'composition-orphan-card',order_index:1}});
+    const orphanCall=`select public.production_card_materialize('calendar','submission-native',${literal(orphanBody)}) as result`;
+    const orphan=jsonRows(cluster,orphanCall)[0].result;
+    ok('materialization conserves refused request with missing manifest',orphan.outcome==='held' && orphan.reason==='manifest_unresolved' && orphan.conserved===true && scalar(cluster,`select raw_body=${literal(orphanBody)} and raw_sha256=encode(sha256(convert_to(raw_body,'UTF8')),'hex') from public.production_card_materialization_ingress where card_id='composition-orphan-card'`)==='t');
+    jsonRows(cluster,orphanCall);
+    ok('materialization retry conserves each ingress without creating card or receipt',count(cluster,"select * from public.production_card_materialization_ingress where card_id='composition-orphan-card'")===2 && count(cluster,"select * from public.calendar_posts where id='composition-orphan-card'")===0 && count(cluster,"select * from public.production_card_materialization_receipts where card_id='composition-orphan-card'")===0);
+    cluster.exec("select public.production_native_identifier_seed('video',100000); update public.syncview_runtime_flags set value=jsonb_set(value,'{video,mode}','\"native\"') where key='production_native_identifier_mint'; insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status) values ('composition-minted','composition-batch','compositionclient','video','other','Mint fixture','todo');");
+    const minted=scalar(cluster,"select linear_identifier from public.deliverables where id='composition-minted'");
+    ok('actual insert trigger mints and records native identifier',/^VID-\d+$/.test(minted) && count(cluster,"select * from public.production_native_identifier_grants where deliverable_id='composition-minted'")===1);
+    cluster.exec("update public.deliverables set linear_identifier='VID-1' where id='composition-minted'");
+    ok('provider rename preserves native identity and refusal evidence',scalar(cluster,"select linear_identifier from public.deliverables where id='composition-minted'")===minted && scalar(cluster,"select provider_identifier_refused from public.production_native_identifier_grants where deliverable_id='composition-minted'")==='VID-1');
+    ok('mint refuses reseeding established allocation cursor',rejection("select public.production_native_identifier_seed('video',100000)",/native_identifier_already_seeded/));
+    ok('source media owner refuses verification without custody evidence',rejection(`insert into public.native_brief_media_occurrences(id,deliverable_id,source_kind,source_entity_id,client_slug,team,source_updated_at,source_sha256,source_offset,source_length,original_url_sha256,audience,state,source_receipt_sha256) values ('88888888-8888-4888-8888-888888888888','composition-minted','native_brief','composition-minted','compositionclient','video',now(),repeat('a',64),0,1,repeat('b',64),'staff','verified',repeat('c',64))`,/check constraint/));
+    ok('media history forbids service-role update and delete',scalar(cluster,"select not has_table_privilege('service_role','public.native_brief_media_occurrences','UPDATE') and not has_table_privilege('service_role','public.native_brief_media_occurrences','DELETE')")==='t');
+    ok('description image audit is inaccessible to browser roles',rejection('set role anon; select * from public.description_images',/permission denied/) && rejection('set role authenticated; select * from public.description_images',/permission denied/));
     const corpus=require('../scripts/track-b-backup').resolveCorpus('history-v11');
     const missing=corpus.tables.filter(table=>scalar(cluster,`select to_regclass(${literal('public.'+table.name)}) is null`)==='t').map(table=>table.name);
-    console.log(JSON.stringify({classification:'RECOVERY_COVERAGE_INCOMPLETE',corpus:'history-v11',expected_tables:corpus.tables.length,missing_tables:missing}));
+    console.log(JSON.stringify({classification:missing.length?'RECOVERY_COVERAGE_INCOMPLETE':'RECOVERY_TABLE_PRESENCE_ONLY',corpus:'history-v11',expected_tables:corpus.tables.length,missing_tables:missing,full_restore_proven:false}));
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_OK ${passed} assertions`);
   } finally {
     try {

@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -103,6 +103,7 @@ try {
  if ($Lane -eq 'optional') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'optional.cjs' }
  if ($Lane -eq 'composition') { $entry=Join-Path $repoRoot 'test\linear-exit-owner-composition.js' }
  if ($Lane -eq 'notifications') { $entry=Join-Path $repoRoot 'test\native-notifications-postgres.js' }
+ if ($Lane -eq 'deferred-defaults') { $entry=Join-Path $repoRoot 'test\track-b-recovery-deferred-defaults-postgres.js' }
  if ($Lane -eq 'recovery') {
   $dumpBinary=Join-Path $pgPath 'pg_dump.exe'
   if (!(Test-Path -LiteralPath $dumpBinary -PathType Leaf)) { throw 'Recovery lane requires the supplied PostgreSQL pg_dump binary.' }
@@ -128,6 +129,10 @@ try {
  if ($result -eq 0 -and $Lane -in @('composition','f27','notifications')) {
   $marker=if ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
+ }
+ if ($result -eq 0 -and $Lane -eq 'deferred-defaults') {
+  $marker='PASS PG deferred default proof: direct and SQL-inner raising generators not invoked; token bytes/defaults retained; omitted columns trigger real failure; late failure restores empty target'
+  if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required deferred-default completion marker missing; zero exit alone is insufficient.' }
  }
 } catch {
  [IO.File]::WriteAllText((Join-Path $runRoot 'runner-error.log'),$_.Exception.Message)

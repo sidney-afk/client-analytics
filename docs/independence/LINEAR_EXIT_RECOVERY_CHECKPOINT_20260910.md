@@ -1,8 +1,53 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest preparation: 65 schema checks, recovery still held
+
+Composition passes 65 assertions and contains all 52 corpus table names; this
+is table-presence evidence, not complete installation proof. The supported
+`deferred-defaults` lane passes real PostgreSQL generator non-execution,
+value/default preservation, omission refusal and late rollback checks.
+
+The full recovery journey now completes 21 checks, including exact reconstructed
+row images and sequences, token preservation, canonical replay and quarantine
+handling. It then FAILS because the history-v11 backup prerequisite references
+an absent `id` column on `production_native_ordinary_receipt_admissions`.
+A prepared prerequisite correction now uses the actual token/key columns and
+retains required notification identity sequences. Its full recovery rerun is
+still pending; the 21-check failure remains the latest full-run result.
+The previous 16-check failure was a fixture actor-key/name mismatch: the gateway
+uses the same actor name in both envelopes. The fixture now mirrors that mapping
+and proves source replay before capture. Inconsistent direct service RPC input
+remains a separate contract limitation; this fixture correction does not fix it.
+
+All three owned local servers stopped. Results bind to working-tree changes
+over `8616df22`; no full recovery or hosted readiness is claimed. Upstream
+`fcebb856` remains pending integration. Installation HOLD.
+
+
 **Installation HOLD. Documentation only; no runtime changes or deployment authorization.**
 
-## Latest preparation update: schema and recovery
+## Earlier run: recovery advances, replay remains red
+
+The source-composed schema rehearsal now passes **65 assertions** and contains
+all 52 `history-v11` table names. This is `RECOVERY_TABLE_PRESENCE_ONLY`;
+synthetic external Storage scaffolding does not prove hosted configuration,
+object custody, or complete installation order.
+
+The authenticated deferred-default engine is implemented in preparation code.
+The full isolated recovery run advances from five to **16 completed checks**:
+restricted reconstruction verifies exact corpus row images, sequences and
+schema fingerprints, including unchanged review-token bytes and their restored
+default. The overall journey still **FAILS** at canonical comment replay with
+`idempotency_conflict`; retain that failure until its cause is resolved.
+These are working-tree results over `8616df22`, not clean-checkout evidence.
+
+Upstream `main` advanced to `fcebb856d3f5ea607cf5665ac391c258ad173abb`
+(PR #1383, urgent-ping ledger and serving-divergence checks). This branch still
+uses integration baseline `340a3be037c6622982c9ebaf563ea3ba3abda683`.
+The newer work requires a separate integration review, including its writer
+changes; it has not been incorporated or deployed by this preparation.
+
+## Previous preparation update: schema and recovery
 
 Composition now passes **55 assertions** with dated source-backed card keys
 and the actual journal/crosswalk/feedback owners. Seven new cases cover tenant

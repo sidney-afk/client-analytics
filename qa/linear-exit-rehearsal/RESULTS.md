@@ -1,6 +1,29 @@
 # Completed isolated evidence
 
-## Current schema/recovery preparation
+## Latest preparation: 65 schema checks, recovery still held
+
+Composition passes 65 assertions and contains all 52 corpus table names; this
+is table-presence evidence, not complete installation proof. The supported
+`deferred-defaults` lane passes real PostgreSQL generator non-execution,
+value/default preservation, omission refusal and late rollback checks.
+
+The full recovery journey now completes 21 checks, including exact reconstructed
+row images and sequences, token preservation, canonical replay and quarantine
+handling. It then FAILS because the history-v11 backup prerequisite references
+an absent `id` column on `production_native_ordinary_receipt_admissions`.
+A prepared prerequisite correction now uses the actual token/key columns and
+retains required notification identity sequences. Its full recovery rerun is
+still pending; the 21-check failure remains the latest full-run result.
+The previous 16-check failure was a fixture actor-key/name mismatch: the gateway
+uses the same actor name in both envelopes. The fixture now mirrors that mapping
+and proves source replay before capture. Inconsistent direct service RPC input
+remains a separate contract limitation; this fixture correction does not fix it.
+
+All three owned local servers stopped. Results bind to working-tree changes
+over `8616df22`; no full recovery or hosted readiness is claimed. Upstream
+`fcebb856` remains pending integration. Installation HOLD.
+
+## Previous schema/recovery preparation
 
 Composition extends the previous 48 cases to **55 PASS** using sourced dated
 card definitions and actual journal/crosswalk/feedback owners. New assertions

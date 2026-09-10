@@ -1,5 +1,47 @@
 # Track-B private backup and restore rehearsal
 
+## Latest preparation: 65 schema checks, recovery still held
+
+Composition passes 65 assertions and contains all 52 corpus table names; this
+is table-presence evidence, not complete installation proof. The supported
+`deferred-defaults` lane passes real PostgreSQL generator non-execution,
+value/default preservation, omission refusal and late rollback checks.
+
+The full recovery journey now completes 21 checks, including exact reconstructed
+row images and sequences, token preservation, canonical replay and quarantine
+handling. It then FAILS because the history-v11 backup prerequisite references
+an absent `id` column on `production_native_ordinary_receipt_admissions`.
+A prepared prerequisite correction now uses the actual token/key columns and
+retains required notification identity sequences. Its full recovery rerun is
+still pending; the 21-check failure remains the latest full-run result.
+The previous 16-check failure was a fixture actor-key/name mismatch: the gateway
+uses the same actor name in both envelopes. The fixture now mirrors that mapping
+and proves source replay before capture. Inconsistent direct service RPC input
+remains a separate contract limitation; this fixture correction does not fix it.
+
+All three owned local servers stopped. Results bind to working-tree changes
+over `8616df22`; no full recovery or hosted readiness is claimed. Upstream
+`fcebb856` remains pending integration. Installation HOLD.
+
+
+## Earlier deferred-default preparation evidence
+
+The deferred-default contract is now implemented and independently source
+reviewed. Its version-1 authenticated section pins supported direct volatile
+invoker defaults and exact stored COPY columns; SQL wrappers require a configured
+search path to prevent inlining. The actual prior reader at `8616df22` refuses
+the new package in the offline compatibility test (that test requires the Git
+object to be available). Evaluated expressions retain strict callable checks.
+
+The first full run with this implementation completes 16 checks, including
+restricted reconstruction of the 52-table corpus, unchanged row images and
+sequences, and unchanged token bytes with the original default restored. It
+then fails at canonical comment replay with `idempotency_conflict`. This is
+an overall FAIL, not full recovery proof. The historical five-check failure
+and design below describe the prior revision. Generator non-execution still
+requires its dedicated runtime proof; hosted recovery and Storage custody
+remain unproven. Installation remains HOLD.
+
 ## Linear-exit preparation checkpoint — 2026-09-10
 
 The new isolated `history-v11` schema/data rehearsal **fails after five checks**.

@@ -155,13 +155,15 @@ begin
       and pg_get_serial_sequence('public.' || relation_name,'id') is null then
       raise exception 'History identity sequence missing';
     end if;
-    if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress','production_label_catalog_versions','native_brief_media_occurrences','production_native_client_provisions','syncview_retirement_admission','production_native_identifier_mint','production_native_identifier_grants','description_images','production_native_ordinary_receipt_admissions','production_notification_config','production_notification_intents','production_notification_delivery_receipts','production_notification_reconciliations'])
+    if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress','production_label_catalog_versions','native_brief_media_occurrences','production_native_client_provisions','syncview_retirement_admission','production_native_identifier_mint','production_native_identifier_grants','description_images','production_native_ordinary_receipt_admissions','production_notification_config','production_notification_intents'])
       and pg_get_serial_sequence('public.' || relation_name,case relation_name
       when 'production_label_catalog_versions' then 'version_id'
       when 'production_native_client_provisions' then 'request_id'
       when 'syncview_retirement_admission' then 'singleton'
       when 'production_native_identifier_mint' then 'team'
       when 'production_native_identifier_grants' then 'identifier'
+      when 'production_native_ordinary_receipt_admissions' then 'token'
+      when 'production_notification_config' then 'key'
       else 'id' end) is not null then
       raise exception 'Materialization owner must not use an identity sequence';
     end if;

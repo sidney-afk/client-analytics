@@ -30,6 +30,7 @@ From the repository root, replace the example local binary path:
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane composition
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane notifications
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane recovery
+& ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane deferred-defaults
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane unit
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql17/bin' -Lane f27
 ```
@@ -48,6 +49,13 @@ to the recovery engine's checks. Results remain private under the owned run
 directory. This is a migration-shaped synthetic source, not the current hosted
 database or Storage objects; a successful run would not authorize installation.
 The runner requires the versioned PASS report and stops its server on failure.
+
+The `deferred-defaults` lane is a smaller real PostgreSQL proof. It uses raising
+direct and SQL-wrapper generators to verify no invocation during explicit-column
+COPY and deferred default restoration, preserved synthetic token bytes, actual
+failure when a stored COPY column is omitted, and complete rollback after a late
+failure. The runner requires its full completion marker. This focused lane does
+not replace authenticated full-schema recovery or hosted data/Storage proof.
 
 ## Source contract and assertions
 

@@ -118,6 +118,12 @@ function bootCluster() {
   const boundary = FOUNDATION_SQL.indexOf('create table if not exists public.team_members');
   if (boundary < 0) throw Error('foundation boundary changed');
   cluster.exec(FOUNDATION_SQL.slice(0,boundary));
+  // Synthetic external platform scaffold, column shapes confirmed by read-only
+  // hosted catalog on 2026-09-10. This is not an application schema owner or
+  // Storage custody/configuration proof; no hosted bucket rows are copied.
+  cluster.exec(`alter table storage.buckets alter column name set not null;
+    alter table storage.buckets add column public boolean,
+      add column file_size_limit bigint, add column allowed_mime_types text[];`);
   installDatedCardBaseline(cluster);
   cluster.runFile(path.join(MIGRATIONS,'2026-07-03-a1-calendar-upsert.sql'));
   console.log('COMPOSITION_APPLY 2026-07-05-b0-linear-auth-scaffold.sql');

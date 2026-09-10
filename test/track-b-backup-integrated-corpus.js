@@ -61,6 +61,12 @@ check('v11 retains ordinary admissions plus notification evidence, identities, F
   for(const table of ['production_notification_delivery_receipts','production_notification_reconciliations'])assert.ok(sql.includes("pg_get_serial_sequence('public."+table+"', 'id')"));
   const grants=fs.readFileSync(path.join(__dirname,'../scripts/track-b-history-v11-backup-prerequisites.sql'),'utf8');
   for(const table of corpus.tables)assert.ok(grants.includes("'"+table.name+"'"));
+  const noIdentity=grants.match(/if relation_name = any\(array\[([^\]]*)\]\)\s+and pg_get_serial_sequence\('public\.' \|\| relation_name,case relation_name([^]*?)Materialization owner must not use an identity sequence/);
+  assert.ok(noIdentity,'nonidentity owner contract required');
+  const nonIdentityTables=noIdentity[1];
+  for(const table of ['production_notification_delivery_receipts','production_notification_reconciliations'])assert.ok(!nonIdentityTables.includes("'"+table+"'"),'generated identity owner must not be forbidden: '+table);
+  assert.match(noIdentity[2],/when 'production_native_ordinary_receipt_admissions' then 'token'/);
+  assert.match(noIdentity[2],/when 'production_notification_config' then 'key'/);
   for(const text of ['HISTORY_V11_BACKUP_GRANTS_ONLY','Ordinary native admission requires deferred mirror outbox foreign key','Ordinary native receipt guard trigger/function required','Notification immutable intent guard trigger/function required','Notification source observer trigger/functions required','v11 durable owner requires row level security','Notification config service-only writer privilege required','Notification durable identity sequence missing'])assert.match(grants,new RegExp(text));
 });
 check('all prior formats refuse installed continuity owners before destructive restore',()=>{

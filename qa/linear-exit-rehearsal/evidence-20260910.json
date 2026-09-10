@@ -122,5 +122,35 @@
       "private_failure_sha256": "4b20671fe7de417ccd92f01e4825711e48a02225cab860fca8443dc005c13abd",
       "deferred_default_design": "PROPOSED_UNBUILT"
     }
+  },
+  "deferred_recovery_preparation": {
+    "execution_base": "8616df2219f289c263a6c367155fafc952aba470",
+    "execution_note": "Working-tree preparation; no application or production migration changes.",
+    "composition": {
+      "status": "PASS",
+      "assertions": 65,
+      "expected_tables": 52,
+      "missing_tables": [],
+      "classification": "RECOVERY_TABLE_PRESENCE_ONLY",
+      "full_restore_proven": false,
+      "server_stopped": true,
+      "private_log_sha256": "45a1757fdaf0c0e9fb36ed7c6e478392b72752ae77400d927ebdb51e7a112506"
+    },
+    "deferred": {
+      "status": "PASS",
+      "scope": "Isolated PostgreSQL raising generators, preserved explicit values/defaults, late rollback; separate from full recovery",
+      "server_stopped": true,
+      "private_log_sha256": "36ce9d27719dcdd9678a89ed4319041a54fd8041ca7ad58615fd74d9aa47c2e7"
+    },
+    "recovery": {
+      "status": "FAIL",
+      "completed_checks": 21,
+      "corpus": "history-v11",
+      "reason": "backup prerequisite references absent id column on production_native_ordinary_receipt_admissions",
+      "full_restore_proven": false,
+      "server_stopped": true,
+      "private_log_sha256": "6c2ce7cd0db4741b6b012477992d4e1ec206d0dbdd7950b9965c077b61d22f57"
+    },
+    "upstream_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
   }
 }

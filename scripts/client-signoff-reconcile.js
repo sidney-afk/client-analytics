@@ -438,6 +438,7 @@ function detect(world) {
    * deliberately broader. Erring narrow here and broad there both err toward
    * leaving the card alone. */
   const latestApprove = new Map();
+  const unwrittenApprove = new Map();
   for (const row of world.outbox) {
     if (row && row.test_only === true) continue;
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
@@ -456,13 +457,23 @@ function detect(world) {
      * lost client approval that this job named nowhere before now. */
     const carrier = String((row && row.status) || '').toLowerCase();
     if (carrier !== 'written') {
+      /* COLLECTED, NOT REPORTED HERE. Reporting at this point skips the
+       * supersession checks the written path runs below, which would raise an
+       * actionable-looking "lost approval" for a sign-off that is missing ON
+       * PURPOSE — reopened after the client approved, or sitting on a component
+       * that has since moved below Approved. A false lead in a report a person
+       * reads is the same class of harm as a false repair. */
       const unwritten = resolve(row && row.entity_id, row && row.client_slug);
-      if (unwritten && typeof unwritten !== 'string'
-          && unwritten.component
-          && !String(unwritten.card[STAMP_FIELD(unwritten.component)] || '').trim()) {
-        skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write',
-          carrier_status: carrier || '(none)',
-          card: unwritten.card.id, component: unwritten.component });
+      if (unwritten && typeof unwritten !== 'string' && unwritten.component) {
+        const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
+        if (at) {
+          const key = cardKey(unwritten.card.client, unwritten.card.id) + '|' + unwritten.component;
+          const prev = unwrittenApprove.get(key);
+          if (!prev || Date.parse(at) > Date.parse(prev.at)) {
+            unwrittenApprove.set(key, { at, card: unwritten.card, comp: unwritten.component,
+              deliverableId: String(unwritten.del.id), carrier: carrier || '(none)' });
+          }
+        }
       }
       continue;
     }
@@ -528,6 +539,25 @@ function detect(world) {
     findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
       deliverable_id: deliverableId,
       detail: `sign-off stamp missing for a committed client approve (${at})` });
+  }
+
+  /* THE SAME SUPERSESSION TESTS THE WRITTEN PATH RUNS, over the approvals whose
+   * carrier never wrote. A row surviving both is a client approval that reached
+   * neither the card nor the outbound: the case an operator is hunting, and the
+   * only one worth a line. A row failing either is a stamp that is absent by
+   * design, and reporting it would send someone after nothing. */
+  for (const [key, cand] of unwrittenApprove) {
+    if (latestApprove.has(key)) continue;   // a written approve for the same review wins
+    const { at, card, comp, deliverableId, carrier } = cand;
+    if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
+    const approvedMs = Date.parse(at);
+    const reopened = (transitionsByDeliverable.get(deliverableId) || []).some(t => {
+      const ms = Date.parse(t.at);
+      return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
+    });
+    if (reopened || !stampSurvives(card, comp, at)) continue;
+    skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
+      card: card.id, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
   }
 
   /* B2. PARTIAL REPAIR — the postcondition on this job's own work.
@@ -905,6 +935,33 @@ async function writePatch(card, patch, kind) {
   return body;
 }
 
+/* The run summary, as a pure function, because the COUNTS are a rule too: the
+ * workflow tells the operator to read these lines, so a row that needs a person
+ * being filed under "left alone" is a defect, not a cosmetic one. Extracted so
+ * the suite can assert the bucketing instead of trusting it.
+ *
+ * Reasons that are WORK, not "a card that moved on": an ambiguous repeat is a
+ * delivery decision the job cannot make, and a carrier failure is a client
+ * approval that reached neither leg. Both land in `skipped` only because nothing
+ * here can be written for them. */
+const NEEDS_A_PERSON = new Set(['ambiguous_repeat_of_completed_request', 'carrier_did_not_write']);
+function summaryLines({ findings, skipped }) {
+  const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
+  const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
+  const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
+  const carrierFailed = skipped.filter(row => row.reason === 'carrier_did_not_write');
+  const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason));
+  return [
+    `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
+    `NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length + carrierFailed.length}  `
+      + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
+      + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
+      + `ambiguous repeat ${ambiguous.length}, `
+      + `client approve that reached neither leg ${carrierFailed.length})`,
+    `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
+  ];
+}
+
 /* ── run ────────────────────────────────────────────────────────────────── */
 async function main() {
   const world = await loadWorld();
@@ -916,18 +973,7 @@ async function main() {
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
   const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
   const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
-  /* An AMBIGUOUS request is delivery work that needs a person just as much as a
-   * plainly absent one; it lands in `skipped` only because the job cannot
-   * decide it. Counting it as "left alone" would let this summary report zero
-   * delivery work while eight requests wait for a decision. */
-  const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
-  const leftAlone = skipped.filter(row => row.reason !== 'ambiguous_repeat_of_completed_request');
-  log(`REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`);
-  log(`NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length}  `
-    + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
-    + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
-    + `ambiguous repeat ${ambiguous.length})`);
-  log(`left alone: ${leftAlone.length} (a card that moved on is never overwritten)`);
+  for (const line of summaryLines({ findings, skipped })) log(line);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
@@ -1005,4 +1051,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };
+module.exports = { detect, summaryLines, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

@@ -19756,3 +19756,32 @@ out of `deliverables`, `calendar_posts` and `mirror_outbox` at all, or should
 the crosswalk live behind ONE shared helper that `index.html`,
 `scripts/f42-card-comment-import.js` and this job all call? Four consecutive
 rounds have been that question arriving in pieces.
+
+### 195p. Round 15: a true reason, reported at the wrong moment and filed in the wrong bucket
+
+Two defects in 195o's own addition.
+
+**It reported before the supersession tests.** A sign-off can be absent *on
+purpose* — the work was reopened after the client approved, or the component has
+since moved below Approved. Reporting at the carrier filter skipped both checks,
+so those produced an actionable-looking "lost client approval". A false lead in
+a report is the same class of harm as a false repair: someone spends their
+afternoon on it. Unwritten candidates are now collected and run through the same
+two tests as written ones, and a written approve for the same review supersedes
+the unwritten row entirely.
+
+**The summary buried it.** `carrier_did_not_write` was counted under "left alone
+(a card that moved on is never overwritten)", so a run whose only result was the
+one genuinely lost approval printed `NEEDS A PERSON: 0`. The workflow tells the
+operator to read that line. A reason nobody is pointed at is barely better than
+no reason. The summary is now a pure exported `summaryLines()` and the suite
+asserts the bucketing, because the counts are a rule too.
+
+83 checks, three controls, all confirmed by exit status.
+
+**Fifteen rounds, 35 findings.** Rounds 11 through 15 were each a defect in the
+previous round's fix. Round 14 was added *after* the session had told the owner
+it would stop and escalate, on the argument that it completed 195n's contract
+rather than starting something new — and it promptly produced two more findings.
+That argument was wrong, and this entry is the evidence. The structural question
+in 195o stands and is the owner's to answer.

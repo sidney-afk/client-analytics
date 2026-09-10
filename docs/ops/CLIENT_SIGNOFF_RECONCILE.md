@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 79 checks, each
+construction through fixtures — no credentials, no network. 83 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -341,10 +341,21 @@ That contract reaches the **narrow write filter** too. Only a row the carrier
 actually wrote is ever acted on, but an approval whose carrier status is
 `pending`, `skipped`, `stale` or a failure is precisely what an operator is
 hunting when BOTH legs went wrong — the outbound never landed and the browser
-never wrote the card. It is reported as `carrier_did_not_write`, and only when
-the stamp is genuinely absent: of the five such rows live, four are already
-stamped and would be noise, and one is a lost client approval this job named
-nowhere before. A report nobody can act on is worse than a shorter one.
+never wrote the card. It is reported as `carrier_did_not_write`, and only after the SAME two
+supersession tests the written path runs — a stamp missing because the work was
+reopened, or because the component has since moved below Approved, is missing on
+purpose, and reporting it sends a person after nothing. A false lead in a report
+is the same class of harm as a false repair.
+
+Of the five such rows live, four are already stamped and would be noise, and one
+is a lost client approval this job named nowhere before. A report nobody can act
+on is worse than a shorter one.
+
+The summary's own counts are a rule, not decoration: the workflow tells the
+operator to read them, so `summaryLines()` is a pure exported function and the
+suite asserts the bucketing. A lost client approval counts under **NEEDS A
+PERSON**, not under "left alone" — a run whose only result was that one row used
+to print `NEEDS A PERSON: 0`.
 
 This lives in `resolve()` next to the client rule, for the reason round 10
 established: identity questions answered per call site get answered

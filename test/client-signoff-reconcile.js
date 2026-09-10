@@ -959,6 +959,40 @@ check('an unwritten approval on an already-stamped card is not reported', () => 
   assert.equal(skipped.length, 0, 'a report nobody can act on is worse than a shorter report');
 });
 
+/* ROUND 15. The round-14 report ran BEFORE the supersession checks, so a
+   sign-off that is missing on purpose — reopened after the client approved, or
+   on a component that has since moved below Approved — produced an
+   actionable-looking "lost approval". A false lead in a report a person reads is
+   the same class of harm as a false repair. The unwritten candidates now go
+   through the same two tests as the written ones. */
+check('a superseded approval whose carrier never wrote is not reported as lost', () => {
+  const reopen = { entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'pending',
+    role: 'designer', payload: { status: 'tweak' }, source_edited_at: '2026-09-06T10:00:00.000Z',
+    created_at: '2026-09-06T10:00:00.000Z', test_only: false };
+  const { findings, skipped } = detect(world({ outbox: [APPROVE({ status: 'stale' }), reopen] }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0, 'a stamp absent by design is not a lost approval');
+});
+
+check('a carrier failure on a component that moved on is not reported as lost', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE({ status: 'skipped' })],
+    cards: [CARD({ video_status: 'Tweaks Needed' })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0);
+});
+
+/* A written approve for the same review is the operative one; the unwritten row
+   must not also raise a lead against the repair that is about to be made. */
+check('a written approve for the same review supersedes the unwritten report', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE({ status: 'stale', source_edited_at: '2026-09-04T10:00:00.000Z' }), APPROVE()],
+  }));
+  assert.equal(findings.length, 1, 'the written approve is still repaired');
+  assert.equal(skipped.filter(x => x.reason === 'carrier_did_not_write').length, 0);
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');
@@ -1011,6 +1045,24 @@ check('the crosswalk columns are actually fetched, in every read', () => {
 check('body comparison ignores only whitespace shape', () => {
   assert.equal(normText('  a   b \n c '), 'a b c');
   assert.notEqual(normText('fix the intro'), normText('fix the outro'));
+});
+
+/* ROUND 15, second finding: the reason existed but the SUMMARY buried it under
+   "left alone (a card that moved on is never overwritten)", so a run whose only
+   result was the lost approval printed `NEEDS A PERSON: 0`. The workflow tells
+   the operator to read that line. A reason nobody is pointed at is barely
+   better than no reason. */
+check('a lost client approval is counted as needing a person, not as left alone', () => {
+  const { summaryLines } = require('../scripts/client-signoff-reconcile.js');
+  const lines = summaryLines({ findings: [], skipped: [
+    { kind: 'stamp', reason: 'carrier_did_not_write', card: 'card-1', component: 'video' },
+    { kind: 'stamp', reason: 'superseded_status', card: 'card-2', component: 'video' },
+  ] });
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  const alone = lines.find(l => l.startsWith('left alone'));
+  assert.match(needs, /NEEDS A PERSON \(never written\): 1\b/, needs);
+  assert.match(needs, /reached neither leg 1/, needs);
+  assert.match(alone, /left alone: 1\b/, alone);
 });
 
 (async () => {

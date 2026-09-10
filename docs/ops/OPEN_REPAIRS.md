@@ -19854,3 +19854,33 @@ whose approval was lost. This is the fourth finding in this PR that traces to
 90 checks, four controls, all confirmed by exit status.
 
 **Seventeen rounds, 41 findings.**
+
+### 195s. Round 18: the fifth source, and the bucket that lost its urgent case
+
+**Revalidation refreshed four sources while detection read five.** 195r made
+committed client requests a supersession clock; revalidation kept refreshing the
+card, the source row, the deliverable and the transitions. A request committing
+between `loadWorld` and the write, whose own status leg then fails, leaves the
+freshly read card at `Approved` with no reopen in the refreshed outbox — and the
+stamp goes back on over a change the client had just asked for. The rule "detection
+reads N sources, so revalidation refreshes all N" is written at the top of that
+doc section. This is the **fifth** time in this PR that a rule already recorded
+here was not applied one place over.
+
+Keyed to the DELIVERABLE, not to a comment id: the stamp path carries no
+`finding.comment`, which is exactly how the source was missed. Asserted against
+the source text rather than through fixtures — the failure mode is a read that
+never happens, and no fixture can show you a query the code does not make.
+
+**The crosswalk-refusal rows were filed under "left alone".** A carrier failure
+that could not even resolve a card is *more* urgent than one that could: both
+delivery legs failed AND the crosswalk is stale, so nothing else in the system
+names that approval. The summary reduced it to
+`card (unlinked) [] left alone: ...` with the deliverable and carrier status
+dropped. It now counts as carrier-failure work and prints the deliverable.
+Bucketed on the carrier status the row carries rather than on the reason string,
+so a future refusal reason cannot quietly fall out the way this one did.
+
+92 checks, two controls, both confirmed by exit status.
+
+**Eighteen rounds, 43 findings.**

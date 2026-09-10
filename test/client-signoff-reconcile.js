@@ -744,16 +744,19 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
   const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
   const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
   fs.writeFileSync(fixture, JSON.stringify({
-    outbox: [APPROVE(), APPROVE({ entity_id: 'del-2', status: 'stale' })],
+    outbox: [APPROVE(), APPROVE({ entity_id: 'del-2', status: 'stale' }),
+      APPROVE({ entity_id: 'del-3', status: 'pending' })],
     comments: [],
-    deliverables: [DEL(), DEL({ id: 'del-2', card_id: 'card-2' })],
-    cards: [CARD(), CARD({ id: 'card-2', video_deliverable_id: 'del-2' })],
+    deliverables: [DEL(), DEL({ id: 'del-2', card_id: 'card-2' }),
+      DEL({ id: 'del-3', card_id: 'card-3' })],
+    cards: [CARD(), CARD({ id: 'card-2', video_deliverable_id: 'del-2' }),
+      CARD({ id: 'card-3', video_deliverable_id: 'someone-else' })],
   }));
   const out = execFileSync(process.execPath,
     [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
     { encoding: 'utf8' });
   assert.match(out, /REPAIRS \(written on --apply\): 1 sign-off stamp\(s\)/, out);
-  assert.match(out, /NEEDS A PERSON \(never written\): 1\b/, out);
+  assert.match(out, /NEEDS A PERSON \(never written\): 2\b/, out);
   /* The per-row line, not just the count: a count with no rows tells the
      operator that one approval needs attention and nothing about which one. */
   /* The client is part of the row: calendar_posts is keyed by (client, id) and
@@ -761,6 +764,10 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
      whose approval was lost. */
   assert.match(out, /card card-2 \(testclient\) \[video\] a client APPROVE reached neither leg/, out);
   assert.match(out, /carrier stale/, out);
+  /* And the unresolvable one names what it could not resolve, or the operator
+     has nothing to look up. */
+  assert.match(out, /deliverable del-3 a client APPROVE reached neither leg/, out);
+  assert.match(out, /card_does_not_link_back/, out);
 });
 
 /* A dry run must never reach the write path, and the entry point is where that
@@ -1115,6 +1122,53 @@ check('a lost approval that cannot resolve a card is still reported', () => {
     assert.equal(skipped[0].reason, reason);
     assert.equal(skipped[0].deliverable, 'del-1', 'the row must name what it could not resolve');
   }
+});
+
+/* ROUND 18. Round 17 made committed client requests a fifth source detection
+   reads, and revalidation kept refreshing four. The doc's own rule is that
+   revalidation refreshes EVERY source detection uses or it is validating
+   against a partial snapshot — written down, then not applied, for the fifth
+   time in this PR. A request committing between loadWorld and the write, whose
+   own status leg then fails, leaves the fresh card reading Approved with no
+   reopen in the refreshed outbox, and the stamp goes back over it.
+
+   Asserted against the SOURCE, like the projections check, because the failure
+   mode is a read that never happens — a fixture cannot show you a query the
+   code does not make. */
+check('revalidation refreshes every source detection reads', () => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8');
+  const body = src.slice(src.indexOf('async function revalidate('),
+    src.indexOf('async function writePatch('));
+  for (const [table, why] of [
+    ['calendar_posts', 'the card'],
+    ['deliverables', 'the crosswalk, mid card-move'],
+    ['mirror_outbox', 'a reopen that landed after the scan'],
+    ['production_comments', 'a client request that landed after the scan'],
+  ]) {
+    assert.ok(body.includes(`restRows('${table}'`), `revalidation must re-read ${table} (${why})`);
+  }
+  /* Keyed to the deliverable, not the one comment id: the stamp path has no
+     finding.comment, which is exactly how the fifth source was missed. */
+  assert.match(body, /deliverable_id=eq\.\$\{encodeURIComponent\(finding\.deliverable_id\)\}/,
+    'client requests must be refreshed for stamp findings, which carry no comment');
+});
+
+/* The crosswalk-refusal rows landed under "left alone (a card that moved on is
+   never overwritten)", which is the opposite of what they are: both delivery
+   legs failed AND the crosswalk is stale, so nothing else names that approval.
+   Bucketed on the carrier status the row carries rather than on the reason, so
+   a future refusal reason cannot silently fall out again. */
+check('a lost approval that could not resolve a card counts as needing a person', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { carrierFailed, leftAlone, lines } = classify({ findings: [], skipped: [
+    { kind: 'stamp', reason: 'card_does_not_link_back', carrier_status: 'pending',
+      card: '(unlinked)', deliverable: 'del-9', component: '' },
+    { kind: 'stamp', reason: 'superseded_status', card: 'card-2', component: 'video' },
+  ] });
+  assert.equal(carrierFailed.length, 1, 'a refusal on the unwritten path is carrier-failure work');
+  assert.equal(leftAlone.length, 1);
+  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /reached neither leg 1/);
 });
 
 check('a properly linked card is still stamped normally', () => {

@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 90 checks, each
+construction through fixtures — no credentials, no network. 92 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -262,6 +262,17 @@ Re-check with the query in OPEN_REPAIRS 195g. If that count ever stops being
 zero, the gate is one line to relax.
 
 ## Revalidation refreshes every source detection used, not just the card
+
+Five sources now: the card, the source comment row, the deliverable, the status
+transitions, and the deliverable's committed client requests. The last one was
+added a round late — client requests became a supersession clock while
+revalidation still refreshed four, which is this rule being written down and
+then not applied. The stamp path carries no `finding.comment`, so the refresh is
+keyed to the **deliverable**, not to one comment id.
+
+The suite asserts this against the source rather than through fixtures, because
+the failure mode is a read that never happens, and no fixture can show you a
+query the code does not make.
 
 Before each write the job re-reads **the card, the source comment row, the
 deliverable, and the deliverable's status transitions**. Each was added because the previous scope

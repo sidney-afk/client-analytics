@@ -935,7 +935,25 @@ async function revalidate(world, finding) {
       .concat(rows);
   }
 
+  /* AND THE CLIENT REQUESTS ON THIS DELIVERABLE. A committed client request is a
+   * supersession clock now, so it is a source detection reads — and the rule
+   * this doc leads with is that revalidation refreshes EVERY source detection
+   * used, or it is validating against a partial snapshot. A request committing
+   * between `loadWorld` and the write, whose own status leg then fails, leaves
+   * the fresh card reading Approved with no reopen in the refreshed outbox: the
+   * stamp would be restored over a change the client had just asked for.
+   * Scoped to the one deliverable, so it is a single keyed read per repair. */
   let comments = world.comments;
+  if (finding.deliverable_id) {
+    const rows = await restRows('production_comments',
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&role=eq.client&is_tweak=is.true`
+      + `&deliverable_id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    comments = comments
+      .filter(c => String(c && c.deliverable_id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
   if (finding.comment) {
     const row = await restRows('production_comments',
       'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
@@ -1007,8 +1025,15 @@ function classify({ findings, skipped }) {
   const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
   const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
   const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
-  const carrierFailed = skipped.filter(row => row.reason === 'carrier_did_not_write');
-  const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason));
+  /* A carrier failure that could not even resolve a card is MORE urgent than one
+   * that could, not less: both delivery legs failed AND the crosswalk is stale,
+   * so nothing else in the system names that approval. Keyed on the carrier
+   * status the row carries rather than on the reason, so a future refusal reason
+   * cannot quietly fall out of this bucket the way this one did. */
+  const carrierFailed = skipped.filter(row =>
+    row.reason === 'carrier_did_not_write' || (row.kind === 'stamp' && row.carrier_status));
+  const leftAlone = skipped.filter(row =>
+    !NEEDS_A_PERSON.has(row.reason) && !(row.kind === 'stamp' && row.carrier_status));
   const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
     `NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length + carrierFailed.length}  `
@@ -1051,9 +1076,13 @@ async function main() {
   for (const row of carrierFailed) {
     /* calendar_posts is keyed by (client, id) and 13 live ids are shared across
      * clients, so a card id alone does not say whose approval was lost. */
-    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} [${row.component}] `
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''}`
+      + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+      + `${row.component ? ` [${row.component}]` : ''} `
       + 'a client APPROVE reached neither leg '
-      + `(carrier ${row.carrier_status}, card reads ${row.card_status || 'unknown'}) `
+      + `(carrier ${row.carrier_status}`
+      + `${row.reason === 'carrier_did_not_write' ? '' : `, ${row.reason}`}`
+      + `, card reads ${row.card_status || 'unknown'}) `
       + '— REPORT ONLY, a person decides');
   }
   for (const row of ambiguous) {

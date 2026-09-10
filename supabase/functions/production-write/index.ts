@@ -1556,7 +1556,11 @@ function eventFor(
     role: principal.actorRole,
     auth_kind: principal.kind,
     surface,
-    ts: sourceEditedAt,
+    // A live status change belongs to the write transaction. A caller clock
+    // in `ts` marks a historical import to the event-assignee owner and would
+    // suppress its native notification intent. The outbound receipt retains
+    // source_edited_at for exact retries; other event clocks stay unchanged.
+    ...(operation === "status" ? {} : { ts: sourceEditedAt }),
     from_status: clean(existing && existing.status) || null,
     to_status: clean(nextStatus || (existing && existing.status)) || null,
     /*

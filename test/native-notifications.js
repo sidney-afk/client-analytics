@@ -8,6 +8,20 @@ const sender = fs.readFileSync('supabase/functions/notify/index.ts', 'utf8');
 const adapter = fs.readFileSync('supabase/functions/notify/slack-api.ts', 'utf8');
 function ok(condition, message) { assert.ok(condition, message); }
 
+// Execute the gateway's actual event builder. Transaction attribution must
+// not be disqualified by a browser clock, while receipt replay keeps its clock.
+const { extractFunction } = require('./helpers/extract-function');
+const eventBuilder = extractFunction(gateway, 'eventFor').replace(/^[\s\S]*?\): JsonMap \{/, 'function eventFor(operation, principal, sourceEditedAt, surface, outbound, existing = null, nextStatus = "") {');
+const eventScope = { clean: value => String(value == null ? '' : value).trim() };
+vm.runInNewContext(eventBuilder + '; this.eventFor = eventFor;', eventScope);
+const clock = '2026-09-10T00:00:00.000Z';
+const outbound = { source_edited_at: clock, dedup_key: 'synthetic-retry' };
+const actor = { actorName: 'Synthetic Admin', actorKey: 'member:synthetic', actorRole: 'admin', kind: 'staff' };
+const event = eventScope.eventFor('status', actor, clock, 'production', outbound, {status:'todo'}, 'smm_approval');
+ok(!Object.hasOwn(event, 'ts') && !Object.hasOwn(event, 'source_event_at'), 'live status event uses transaction clock for native attribution');
+assert.strictEqual(event.outbound.source_edited_at, clock, 'exact retry receipt retains caller clock');
+assert.strictEqual(eventScope.eventFor('create', actor, clock, 'production', outbound).ts, clock, 'create replay keeps historical timestamp contract');
+
 ok(/create table if not exists public\.production_notification_intents/i.test(sql), 'durable intent outbox exists');
 ok(/create table if not exists public\.production_notification_delivery_receipts/i.test(sql), 'durable provider receipts exist');
 ok(/create or replace view public\.production_notification_monitor_v1/i.test(sql) && /production_notification_health_summary/.test(sql), 'pending/unknown/lease debt has an aggregate observable monitor');

@@ -181,3 +181,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `scripts/linear-exit-install-manifest.js`, `test/linear-exit-install-manifest.js`, `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json`: non-executable source inventory, dependency/transaction validation, and dated generated hashes; installation and cumulative-prefix resume proof remain unresolved.
 
 - `test/linear-exit-install-order.js`: inventory-ordered disposable installation attempt with after-entry catalog fingerprints and explicit baseline/interruption limits.
+
+- `test/linear-exit-install-resume.js`, `test/helpers/linear-exit-install-step.js`: disposable fresh-process entry continuation and private checkpoint validation; not a production resume controller.

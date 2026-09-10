@@ -1,5 +1,27 @@
 # Completed isolated evidence
 
+## Latest entry-boundary resume evidence
+
+The supported `installation-resume` lane passed 42 ordered entries in 44 fresh
+worker processes on the scoped disposable PG16 baseline. Two negative workers
+refused a forged longer completed prefix and committed catalog drift before
+owner execution. The parent remained alive. The owned server stopped; exit 0.
+
+The exact published inventory bytes and source hashes are checked before each
+entry and before checkpoint advancement. HMAC binds each checkpoint to the run,
+database, inventory, completed prefix and catalog; its ephemeral key is supplied
+separately. Focused independent source review found the prior binding gaps resolved.
+This run used working-tree test changes over `98d93c6b`. The earlier unsigned,
+freshly generated inventory run is superseded for this stronger claim.
+
+This is entry-boundary process resumption, not a production installer. Parent
+crash/key custody, concurrent workers, internal-commit interruption, the gap
+between SQL commit and checkpoint save, complete hosted baseline and accepted
+business-work preservation remain unproven. The next concrete case is the real
+synthetic native parent/child intake receipt preservation recipe in the repair
+installation guide. Installation remains **HOLD**. No merge or deployment.
+
+
 ## Latest ordered installation experiment
 
 The supported `installation-order` lane passes on the scoped local baseline:

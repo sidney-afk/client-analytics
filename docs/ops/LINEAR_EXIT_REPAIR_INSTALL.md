@@ -414,3 +414,20 @@ before database creation and before PASS, while retaining their independent
 execution orders. Manifest-driven ordered installation remains unproven.
 Savepoint validation resets state across transactions and models nested release
 and rollback semantics; it does not execute the SQL or prove installed behavior.
+
+### Next accepted-work preservation case
+
+Use the real root-intake and deliverable writer RPCs immediately after the
+atomic intake entry, before later retention/ordinary/admission owners. The
+existing seed in `scripts/card-history-backup-rehearsal.js` provides a starting
+shape, but its older child dedup must be aligned with the root manifest's exact
+expected child dedup. Read the actual local F27 generation and use a synthetic
+native epoch/request; never assume generation zero or bypass the native guard.
+
+Require actual skipped native receipts, matching request/epoch, and zero pending
+provider debt. Preserve parent, child, root manifest, receipt and event identities
+and admitted values through each later entry and resume boundary, then replay
+the exact accepted calls without duplicate rows. Schema extensions may add new
+columns: explicitly distinguish those additions from changes to pre-existing
+values, rather than accepting changed old values or weakening failure checks.
+This recipe is source-reviewed but has not yet been executed in the ordered lane.

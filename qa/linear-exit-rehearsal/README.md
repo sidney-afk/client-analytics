@@ -136,3 +136,18 @@ commit in autocommit or multi-transaction files. A complete pass would establish
 only declared-order execution on this synthetic baseline; accepted-work
 continuity, per-commit interruption/resumption and hosted installation remain
 separate requirements. The runner requires an explicit completion marker.
+
+## Entry-boundary resume rehearsal
+
+Use `-Lane installation-resume` for fresh-process continuation across the
+ordered entries. A parent owns the disposable database; each child verifies
+the published inventory, checkpoint authentication, exact completed prefix and
+current catalog before executing one owner. The per-run signing key stays
+separate from the private checkpoint. Deliberate catalog drift and checkpoint
+cursor tampering must refuse before owner execution.
+
+This is entry-boundary continuation with the parent still alive. It does not
+prove parent/process-kill recovery, concurrent-worker exclusion, internal commit
+recovery, or the gap between SQL commit and checkpoint replacement. Catalog
+fingerprints do not attest business data; accepted-work preservation remains
+a separate requirement. No production resume mechanism is authorized.

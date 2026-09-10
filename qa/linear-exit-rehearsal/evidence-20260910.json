@@ -487,5 +487,30 @@
     "per_commit_interruption_proven": false,
     "business_operations_proven": false,
     "full_hosted_baseline_proven": false
+  },
+  "entry_boundary_resume": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "classification": "ISOLATED_POSTGRES_ENTRY_RESUME",
+    "source_base": "98d93c6b96b9d64123b58ee7545e9128fed675be",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-resume-7c7236f0791b4a20b3e059fdd48e0e08",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "unit_log_sha256": "4f91f1e235c8af5728e02d23e94bc5258f02cdc70e70d5d76bbfdf0083e4a639",
+    "server_stopped": true,
+    "accepted_business_work_preservation_proven": false,
+    "commit_checkpoint_gap_recovery_proven": false,
+    "source_hashes": {
+      "test/linear-exit-install-resume.js": "be5ed3a96635a60ab2b5a7d518e2de0fc6ac6bb69028aed221d4df2fce55999d",
+      "test/helpers/linear-exit-install-step.js": "3c6555bce430a0d540974418945fdd886b5cd8c1811bc7d3aaef224e9e23c786"
+    }
   }
 }

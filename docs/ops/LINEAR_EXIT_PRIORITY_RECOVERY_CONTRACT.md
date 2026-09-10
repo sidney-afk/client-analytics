@@ -100,3 +100,42 @@ complete schema/ACL/trigger restoration, identity sequence state, semantic
 references and object/document custody remain unproven. Integrating this row
 component with the existing recovery package is still required. Installation
 remains HOLD; no merge, deployment, hosted write or n8n operation occurred.
+
+## Required integration boundary
+
+Pair verification must read and validate the actual parent package bytes using
+`readRecoveryPackage`, require history-v11, and derive the parent SHA256/catalog
+fingerprint itself. A caller-supplied identity or a previously parsed object is
+not sufficient. Valid linkage still does not prove a shared capture snapshot.
+
+The existing parent capture owns an exported repeatable-read snapshot and closes
+it before final package construction. The nine-table test currently owns a
+separate transaction. A future integrated capture must collect companion rows
+through the parent's still-open snapshot, validate the exact row contract there,
+and publish neither artifact as a complete set after any component fails. Bind
+the finalized parent bytes after successful capture. Do not reopen a snapshot
+later or infer consistency from timestamps or catalog fingerprints. Sequence
+state is non-MVCC and still needs a separate writer fence or equivalent proof.
+
+Acceptance must include a concurrent source write between capture stages: the
+parent and companion must retain the same snapshot view, while a deliberately
+separate capture must fail the consistency requirement. Also exercise companion
+capture failure, parent validation failure and incomplete set publication.
+These are pending requirements, not assertions covered by the current row test.
+
+## Authenticated parent/companion pair verification
+
+OFFLINE_TEST: `node test/linear-exit-priority-companion-pair.js` passes nine
+checks; the existing companion test retains 17 passes. `verifyPair` validates
+actual parent bytes with the existing recovery reader, requires history-v11,
+then derives the package SHA256 and catalog fingerprint before validating the
+companion. It rejects caller-provided identity objects, altered packages, wrong
+corpus and a different valid parent even when its catalog fingerprint matches.
+The synthetic parent exercises the real parser for 52 tables; it is not a
+PostgreSQL-restorable or hosted backup receipt. No database operations occur.
+
+This closes offline pair-linkage validation only. Shared-snapshot capture and
+combined database restoration remain pending; the API reports
+`same_snapshot_proven:false`. See the priority recovery contract's required
+integration boundary for concurrent-write and incomplete-publication tests.
+Full schema, sequence and object custody remain open. Installation stays HOLD.

@@ -1177,5 +1177,16 @@
     "object_custody_proven": false,
     "report_only_flag_added_after_run": "parent_package_validation_proven:false",
     "installation_ready": false
+  },
+  "priority_companion_pair": {
+    "classification": "OFFLINE_TEST",
+    "checks_passed": 9,
+    "parent_corpus": "history-v11",
+    "parent_tables": 52,
+    "actual_recovery_reader_used": true,
+    "synthetic_packages_only": true,
+    "same_snapshot_proven": false,
+    "combined_postgres_restore_proven": false,
+    "installation_ready": false
   }
 }

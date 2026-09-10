@@ -77,4 +77,15 @@ function decode(bytes, expectedParent, hmacInput) {
   if (!Buffer.from(canonicalJson(payload), 'utf8').equals(unsigned.subarray(MAGIC.length))) fail('NONCANONICAL');
   return validate(payload, expectedParent);
 }
-module.exports = { FORMAT, SCHEMA_SHA256, schema, encode, decode };
+function verifyPair(companionBytes, parentBytes, hmacInput) {
+  if (typeof hmacInput !== 'string') fail('EXPLICIT_KEY_REQUIRED');
+  if (!Buffer.isBuffer(parentBytes)) fail('PARENT_BYTES_REQUIRED');
+  const recovery = require('./track-b-recovery-package');
+  const parent = recovery.readRecoveryPackage(parentBytes, hmacInput);
+  if (parent.corpus !== 'history-v11') fail('PARENT_CORPUS');
+  const identity = { package_sha256: sha(parentBytes), schema_fingerprint: parent.manifest.schema.fingerprint };
+  const companion = decode(companionBytes, identity, hmacInput);
+  // Authentication binds these exact packages; it cannot prove a shared snapshot.
+  return { parent, companion, identity, same_snapshot_proven: false };
+}
+module.exports = { FORMAT, SCHEMA_SHA256, schema, encode, decode, verifyPair };

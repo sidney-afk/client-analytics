@@ -809,3 +809,20 @@ complete schema/ACL/trigger restoration, identity sequence state, semantic
 references and object/document custody remain unproven. Integrating this row
 component with the existing recovery package is still required. Installation
 remains HOLD; no merge, deployment, hosted write or n8n operation occurred.
+
+## Authenticated parent/companion pair verification
+
+OFFLINE_TEST: `node test/linear-exit-priority-companion-pair.js` passes nine
+checks; the existing companion test retains 17 passes. `verifyPair` validates
+actual parent bytes with the existing recovery reader, requires history-v11,
+then derives the package SHA256 and catalog fingerprint before validating the
+companion. It rejects caller-provided identity objects, altered packages, wrong
+corpus and a different valid parent even when its catalog fingerprint matches.
+The synthetic parent exercises the real parser for 52 tables; it is not a
+PostgreSQL-restorable or hosted backup receipt. No database operations occur.
+
+This closes offline pair-linkage validation only. Shared-snapshot capture and
+combined database restoration remain pending; the API reports
+`same_snapshot_proven:false`. See the priority recovery contract's required
+integration boundary for concurrent-write and incomplete-publication tests.
+Full schema, sequence and object custody remain open. Installation stays HOLD.

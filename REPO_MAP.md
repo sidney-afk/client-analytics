@@ -204,3 +204,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - test/linear-exit-priority-companion.js: synthetic offline companion contract checks.
 
 - test/linear-exit-priority-companion-postgres.js: isolated typed row capture and companion restore rehearsal.
+
+- test/linear-exit-priority-companion-pair.js: actual recovery parser and companion linkage with synthetic packages.

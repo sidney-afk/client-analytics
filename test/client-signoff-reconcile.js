@@ -12,6 +12,7 @@
  * wrong eight times running because its checks were biased toward finding
  * something, so the negative cases are asserted first and in the most detail. */
 const assert = require('node:assert/strict');
+const { stripComments } = require('./helpers/strip-comments');
 const {
   detect, patchFor, parseComments, normText, stampSurvives, restRows,
   writePatch, WRITABLE_KINDS,
@@ -426,8 +427,13 @@ check('both claim passes share one visibility definition', () => {
   const src = require('node:fs')
     .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8');
   /* Strip comments first: this file explains the rule in prose right above it,
-     and a prose mention is not a second implementation. */
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+     and a prose mention is not a second implementation. Stripped with the shared
+     helper, never the raw regex — OPEN_REPAIRS 145: `/\*[\s\S]*?\*\//` opens a
+     comment at any "/" followed by "*", including inside a string or a MIME
+     type, and deletes to the next delimiter anywhere in the file. A negative
+     assertion over a region that has been deleted passes vacuously, which is
+     exactly the failure mode this check exists to prevent. */
+  const code = stripComments(src);
   const roleTests = code.match(/role[^\n]*===\s*'kasper'/g) || [];
   assert.equal(roleTests.length, 1,
     'the Kasper exclusion must be written once, not once per pass: ' + JSON.stringify(roleTests));

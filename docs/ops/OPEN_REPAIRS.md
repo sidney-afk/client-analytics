@@ -20446,3 +20446,32 @@ and now better evidenced: within this file the rules are written once, but
 `index.html`, `scripts/f42-card-comment-import.js` and this job still hold three
 separate understandings of the same crosswalk. Six rounds is what one such
 duplication cost, measured.
+
+### 196am. Round 37's own check broke a rule this repo already wrote down
+
+`unit` went red on `cc4b425`. The cause was the structural check added in 196al:
+to count implementations rather than prose it stripped comments with
+
+    src.replace(/\/\*[\s\S]*?\*\//g, '')
+
+which is precisely the raw regex OPEN_REPAIRS 145 banned and
+`test/comment-strip-is-honest.js` gates against. That gate caught it on the
+first CI run and named the file.
+
+The irony is the point, and it is worth recording rather than quietly fixing: a
+check written to stop this file's rules being restated instead of called was
+itself a restatement of a rule that already had a shared helper
+(`test/helpers/strip-comments.js`). **The lesson generalizes past the crosswalk:
+this repo has a habit of rewriting rules it has already centralized, and the
+gates that catch it are the ones that check for the COPY, not for the wrong
+answer.** 145's gate did here exactly what 196al's new gate is meant to do
+later.
+
+Fixed by calling `stripComments`. Local: 3 of 427 suites fail, of which the two
+known (`ef-deploy-provenance`, `truth-sync`) fail identically on `origin/main`;
+`comment-strip-is-honest` is the one this fixes and it is green again.
+
+**One process note.** The offline reconcile suite, the identity gate and the
+browser gate were all run before pushing 196al, and all three passed. None of
+them runs the rest of `test/`, so this reached CI. The full runner takes several
+minutes, which is why it was skipped — that trade cost a red CI and a cycle.

@@ -20297,3 +20297,29 @@ eligible before and are not now.
 written as "the cases I can think of" and had to become "the rule the app
 already applies" — after the crosswalk, the component/team map, and the
 video/caption/title contract.
+
+### 196ah. Round 33: the right instinct, the wrong copy of the rule
+
+**196ag replaced a staff-role blacklist with the wrong audience rule.** These
+cells are rendered by `_calCommentsForView`, which calls `_calMsgAudience` —
+and Calendar defaults only `kasper` and `smm` to internal. I took the
+**Production surface's** normalization instead, which defaults every non-client
+role to internal, so a `creative` note or an entry with no role at all would
+have been called invisible when Calendar shows it to the client, and their
+requests reported as never delivered.
+
+The fix is not a more careful copy. `_calMsgAudience` is now **extracted from
+`index.html`** like `_calNormStatus` and `_calClearStaleApprovals` already are,
+which is the technique that makes those three incapable of drifting. 196ag's own
+entry said "a rule restated is a rule that drifts" and then restated one; this
+is that sentence being paid for one round later.
+
+**The exact-id pass claimed entries the client cannot see.** An id match is the
+strongest evidence this job has, and it is still not evidence of DELIVERY: an
+internal root is hidden from the client exactly as a `hidden` one is. Gated by
+the same predicate, with the round-30 rule preserved and controlled — a DELETED
+client entry claimed by id is still a claim, because withdrawn is not unseen.
+
+138 checks, two controls, both confirmed by exit status.
+
+**Thirty-three rounds, 74 findings.**

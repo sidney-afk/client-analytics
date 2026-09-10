@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 135 checks, each
+construction through fixtures — no credentials, no network. 138 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -134,14 +134,25 @@ stale sweep each makes it fail. Re-run those controls if you change a rule.
 
 Two forms of the same rule, both taken from the app rather than restated.
 
-**Audience.** Eligibility is `index.html`'s own derivation — an explicit
-`client`/`internal` wins, otherwise role `client` means client and everything
-else means internal — not a blacklist of known staff roles. A blacklist is wrong
-by construction: it admits every role nobody thought to add (`creative` is one
-the product already preserves) and ignores `audience`, so a client-authored note
-explicitly marked internal counted as a delivery. Note the direction is not
-"staff cannot deliver": **779 live root entries carry role `smm` with audience
-`client`**, and the app shows those to the client, so they can.
+**Audience.** Eligibility is `_calMsgAudience`, **extracted from `index.html`**
+alongside `_calNormStatus` and `_calClearStaleApprovals` rather than restated —
+because that is the function `_calCommentsForView` actually calls on these
+cells. Calendar defaults only `kasper` and `smm` to internal; everything else
+without an explicit `audience` is client-visible, including a role this job has
+never seen and an entry with no role at all.
+
+Two wrong versions preceded it, and both are worth knowing about. A **blacklist
+of six staff roles** admitted every role nobody thought to add and ignored
+`audience` entirely. Replacing it with the **Production surface's**
+normalization — which defaults every non-client role to internal — was closer
+but still wrong for these cells, and would have reported delivered requests as
+absent for exactly the roles the two surfaces treat differently. The direction
+is not "staff cannot deliver": **779 live root entries carry role `smm` with
+audience `client`**, and the app shows those to the client.
+
+The same predicate gates the **exact-id** claim. An id match is the strongest
+evidence this job has and still is not evidence of delivery: an internal root is
+hidden from the client exactly as a `hidden` one is.
 
 ## An entry the app never renders cannot be a delivery
 

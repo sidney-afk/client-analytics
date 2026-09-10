@@ -1865,17 +1865,18 @@ check('a stale reverse link is counted as a stale link, not a missing card', () 
   assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /link back is stale 1/);
 });
 
-/* ROUND 32. `couldBeClientTweak` was a BLACKLIST of staff roles, so it admitted
-   every role nobody had thought to add — `creative` is one the product already
-   preserves — and ignored `audience` entirely. It now mirrors index.html's own
-   derivation: an explicit client/internal wins, else role client means client
-   and everything else means internal. An internal entry is never shown to the
-   client, so it cannot be the delivery of their request. */
+/* ROUND 32, CORRECTED BY ROUND 33. Eligibility is `_calMsgAudience`, the
+   function `_calCommentsForView` actually calls — extracted, not restated.
+   Round 32 replaced a staff-role blacklist with the PRODUCTION surface's
+   normalization, which defaults every non-client role to internal; Calendar
+   defaults only `kasper` and `smm` to internal, so a `creative` note or an
+   entry with no role at all IS client-visible there. Restating the wrong rule
+   would have reported delivered requests as absent. */
 check('an internal entry never delivers a client request, whatever its role', () => {
   for (const over of [
-    { role: 'creative' },                       // a role the blacklist never listed
+    { role: 'kasper' },                         // internal by Calendar's default
+    { role: 'smm' },                            // the other default-internal role
     { role: 'client', audience: 'internal' },   // explicitly internal, 4 live rows
-    {},                                          // neither field: the app calls it internal
   ]) {
     const onCard = JSON.stringify([Object.assign(
       { id: 'cal-9', body: 'Please fix the intro', is_tweak: true }, over)]);
@@ -1885,6 +1886,22 @@ check('an internal entry never delivers a client request, whatever its role', ()
     }));
     assert.equal(findings.length, 1,
       `${JSON.stringify(over)} is internal; the client never saw it`);
+  }
+});
+
+/* And the other side of Calendar's rule: anything that is NOT kasper or smm,
+   without an explicit audience, is client-visible — including a role this job
+   has never seen and an entry carrying no role at all. */
+check('a role Calendar does not default to internal still delivers', () => {
+  for (const over of [{ role: 'creative' }, { role: 'designer' }, {}]) {
+    const onCard = JSON.stringify([Object.assign(
+      { id: 'cal-9', body: 'Please fix the intro', is_tweak: true }, over)]);
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 0,
+      `${JSON.stringify(over)} is client-visible on Calendar; the request reached the client`);
   }
 });
 
@@ -1899,6 +1916,34 @@ check('an explicit client audience delivers even on a staff role', () => {
   }));
   assert.equal(findings.length, 0,
     'the app shows it to the client, so it can be the delivery — 779 live rows look like this');
+});
+
+/* ROUND 33, second finding. The ID pass claimed an entry the client cannot see.
+   An exact id match is the strongest evidence this job has and it is still not
+   evidence of DELIVERY: `_calCommentsForView` hides an internal root from the
+   client exactly as it hides a `hidden` one. */
+check('an internal entry does not deliver even on an exact id match', () => {
+  const onCard = JSON.stringify([
+    { id: 'pc_x1', body: 'totally different text', role: 'kasper', is_tweak: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1, 'the id matches, but the client sees nothing');
+});
+
+/* AND THE RULE THAT MUST SURVIVE IT, again: a DELETED entry claimed by id is
+   still a claim. Round 30's first draft broke this; so could this one. */
+check('a deleted CLIENT entry claimed by id is still a claim after the audience rule', () => {
+  const onCard = JSON.stringify([
+    { id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true, deleted: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0, 'withdrawn is still not unseen');
 });
 
 check('a properly linked card is still stamped normally', () => {

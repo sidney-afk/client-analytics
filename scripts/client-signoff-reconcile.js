@@ -112,9 +112,9 @@ const grabConst = (name) => SRC.match(new RegExp('^\\s*const ' + name + '\\s*=.*
 const mod = new Function([
   grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'),
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'), grabFunc('_calClearStaleApprovals'),
-  grabFunc('_calMapNativeStatusStrict'),
-].join('\n') + ';return { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict };')();
-const { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict } = mod;
+  grabFunc('_calMapNativeStatusStrict'), grabFunc('_calMsgAudience'),
+].join('\n') + ';return { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict, _calMsgAudience };')();
+const { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict, _calMsgAudience } = mod;
 
 /* Does a later committed transition REOPEN the component, i.e. take it back
  * below Approved? Ranked with the app's own CAL_PRIORITY after the app's own
@@ -310,25 +310,19 @@ function stampSurvives(card, comp, stampValue) {
 /* Could this card entry be a client's own change-request root? Staff-authored
  * entries, replies and deleted entries never represent one. Absent role is
  * allowed (legacy rows predate the field); an explicit staff role is not. */
-/* THE APP'S OWN AUDIENCE DERIVATION, not a blacklist of staff roles. A list of
- * known staff roles is wrong by construction: it admits every role nobody
- * thought to add — `creative` is one the product already preserves — and it
- * ignores `audience` entirely, so a client-authored note explicitly marked
- * internal counted as a client request delivery.
+/* THE CALENDAR'S OWN AUDIENCE RULE, taken as a function rather than restated.
  *
- * index.html derives it as: an explicit `client`/`internal` wins; otherwise
- * role `client` means client and everything else means internal. An INTERNAL
- * entry is never shown to the client, so it cannot be the delivery of their
- * request — the same argument as `hidden`, one field over.
+ * These cells are `calendar_posts.*_tweaks`, rendered by `_calCommentsForView`,
+ * which calls `_calMsgAudience` — and that rule is NOT the one the Production
+ * surface uses. Calendar defaults only `kasper` and `smm` to internal;
+ * everything else without an explicit audience is CLIENT-VISIBLE. I first wrote
+ * this from `index.html`'s Production normalization, which defaults every
+ * non-client role to internal, and it would have reported delivered requests as
+ * absent for exactly the roles that surface treats differently.
  *
- * Live root entries this changes: 4 carry role=client with audience=internal,
- * and 2 carry neither field (the app calls both internal). It admits no role
- * this job has not seen; it simply stops guessing about the ones it has not. */
-const audienceOf = (entry) => {
-  const a = String((entry && entry.audience) || '').trim().toLowerCase();
-  if (a === 'client' || a === 'internal') return a;
-  return String((entry && entry.role) || '').trim().toLowerCase() === 'client' ? 'client' : 'internal';
-};
+ * Extracting the function is the fix for that class of error, not a more
+ * careful copy: the same technique the job already uses for `_calNormStatus`
+ * and `_calClearStaleApprovals`, and the reason those three cannot drift. */
 /* An entry the app never renders cannot be a delivery of anything. `hidden` is
  * the app's audit-suppression flag — `_calCommentsForView` filters it out for
  * EVERY audience, and index.html names the case it exists for: "legacy
@@ -345,13 +339,14 @@ const audienceOf = (entry) => {
  * these cells hold schema-less JSON — a legacy or imported entry carrying
  * `hidden: 1` or `hidden: "true"` is invisible in the app, so testing `=== true`
  * would let exactly the entry this rule exists to refuse claim a request. */
-const isVisibleOnCard = (entry) => !!entry && !entry.hidden;
+const isVisibleOnCard = (entry) => !!entry && !entry.hidden
+  && _calMsgAudience(entry) === 'client';
 function couldBeClientTweak(entry) {
   if (!entry) return false;
   if (entry.hidden) return false;
   if (entry.deleted === true) return false;
   if (entry.parent_id) return false;
-  return audienceOf(entry) === 'client';
+  return _calMsgAudience(entry) === 'client';
 }
 
 /* calendar_posts is keyed by (client, id), NOT by id alone: 13 live card ids are

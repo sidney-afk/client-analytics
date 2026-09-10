@@ -763,6 +763,9 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
      13 live ids are shared across clients, so a card id alone does not say
      whose approval was lost. */
   assert.match(out, /card card-2 \(testclient\) \[video\] a client APPROVE reached neither leg/, out);
+  /* Every finding line names its client too: 13 live card ids are shared across
+     clients, so a bare id does not say whose card to open. */
+  assert.match(out, /· card card-1 \(testclient\) \[video\] sign-off stamp missing/, out);
   assert.match(out, /carrier stale/, out);
   /* And the unresolvable one names what it could not resolve, or the operator
      has nothing to look up. */
@@ -1455,6 +1458,35 @@ check('a completed CLIENT twin is still an ambiguous repeat', () => {
     cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
   }));
   assert.equal(skipped.some(x => x.reason === 'ambiguous_repeat_of_completed_request'), true);
+});
+
+/* ROUND 25. The same two defects rounds 21 and 23 fixed on the stamp path,
+   unfixed one function below on the COMMENT path — which is where they matter
+   most, since reporting lost requests is the entire delivery-side result. */
+check('a lost change request with no identifiable card is operator work', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    comments: [TWEAK({ client_slug: 'testclient' })],
+    cards: [CARD({ video_status: 'Client Approval', video_deliverable_id: 'other' })],
+  }));
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
+  assert.equal(skipped[0].deliverable, 'del-1');
+  assert.equal(skipped[0].client, 'testclient');
+  assert.equal(skipped[0].comment, 'pc_x1', 'the operator needs the request, not just the card');
+  const { crosswalkBroken, leftAlone } = classify({ findings: [], skipped });
+  assert.equal(crosswalkBroken.length, 1, 'a lost request is the delivery half\'s whole result');
+  assert.equal(leftAlone.length, 0);
+});
+
+check('a cross-client request is still not counted as a broken crosswalk', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    comments: [TWEAK({ client_slug: 'previousclient' })],
+    cards: [CARD({ client: 'testclient', video_status: 'Client Approval' })],
+  }));
+  assert.equal(skipped[0].reason, 'request_belongs_to_another_client');
+  assert.equal(classify({ findings: [], skipped }).crosswalkBroken.length, 0);
 });
 
 check('a properly linked card is still stamped normally', () => {

@@ -764,9 +764,18 @@ function detect(world) {
   for (const pc of commentsInOrder) {
     const hit = resolve(pc.deliverable_id, pc.client_slug);
     if (typeof hit === 'string') {
+      /* THE SAME RULE AS THE STAMP PATH. A committed client REQUEST whose card
+       * cannot be found is the delivery half's whole result — reporting lost
+       * requests is all this job does for them — so filing it under "a card
+       * that moved on" buries the one thing an operator can act on. It carries
+       * its own identity for the same reason, and claims nothing about a card
+       * leg it could not look at. */
       skipped.push({ kind: 'comment',
         reason: hit === 'client_mismatch' ? 'request_belongs_to_another_client' : hit,
-        card: '(unlinked)', component: '', comment: pc.id });
+        crosswalk_broken: hit !== 'client_mismatch',
+        deliverable: String(pc.deliverable_id || ''),
+        client: String(pc.client_slug || ''),
+        card: '(unidentified)', component: '', comment: pc.id });
       continue;
     }
     if (!hit) continue;
@@ -850,7 +859,7 @@ function detect(world) {
       !consumed.has(i) && normText(c.body) === body && c.done === true && couldBeClientTweak(c));
     if (doneTwin && !pc.resolved_at) {
       skipped.push({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
-        card: hit.card.id, component: comp, comment: pc.id });
+        card: hit.card.id, client: hit.card.client, component: comp, comment: pc.id });
       continue;
     }
     const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
@@ -1173,8 +1182,10 @@ async function main() {
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
+    /* calendar_posts is keyed by (client, id) and 13 live ids are shared across
+     * clients, so a bare card id does not say whose card to open. */
     log(`  ${WRITABLE_KINDS.has(finding.kind) ? '·' : '»'} card ${finding.card.id} `
-      + `[${finding.component}] ${finding.detail}`
+      + `(${finding.card.client}) [${finding.component}] ${finding.detail}`
       + `${WRITABLE_KINDS.has(finding.kind) ? '' : '  — REPORT ONLY, a person decides'}`);
     /* The arrow means "this is written"; a report-only row shows what a person
      * WOULD have to do, and must not read as a pending write. */
@@ -1200,11 +1211,14 @@ async function main() {
   }
   for (const row of crosswalkBroken) {
     log(`  » deliverable ${row.deliverable}${row.client ? ` (${row.client})` : ''} `
-      + `carried a client APPROVE, and its card cannot be found (${row.reason}) `
-      + '— the carrier wrote; the crosswalk is broken — REPORT ONLY, a person decides');
+      + `carried a client ${row.kind === 'comment' ? 'CHANGE REQUEST' : 'APPROVE'}`
+      + `${row.comment ? ` (request ${row.comment})` : ''}`
+      + `, and its card cannot be found (${row.reason}) `
+      + '— the crosswalk is broken — REPORT ONLY, a person decides');
   }
   for (const row of ambiguous) {
-    log(`  » card ${row.card} [${row.component}] request ${row.comment} matches only a `
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} `
+      + `[${row.component}] request ${row.comment} matches only a `
       + 'COMPLETED entry — cannot tell a repeat from a duplicate; a person decides');
   }
   for (const row of leftAlone) {

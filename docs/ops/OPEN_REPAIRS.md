@@ -20047,3 +20047,29 @@ absent — two answers from the same facts, a line apart.
 107 checks, four controls, all confirmed by exit status.
 
 **Twenty-four rounds, 53 findings.**
+
+### 195z. Round 25: the same two fixes, one function further down
+
+Both of these are 195v and 195x applied to the **comment** path, which had been
+left exactly as the stamp path was two rounds ago.
+
+**A committed client REQUEST whose card cannot be found was filed under "left
+alone"**, with no deliverable, client or request id. Reporting lost requests is
+the delivery half's entire result — the owner's round-8 decision made that the
+deliverable for that half — so burying one under "a card that moved on is never
+overwritten" removes the only thing an operator could act on. It is carrier-
+failure-adjacent work now, with its own identity, and claims nothing about a
+card leg it could not look at.
+
+**The finding lines printed a card id with no client.** 13 live ids are shared
+across clients; a bare id does not say whose card to open. Fixed on the repair
+lines, the report-only lines and the ambiguous-request lines together, rather
+than one at a time — which is what produced this round in the first place.
+
+109 checks, three controls, all confirmed by exit status, including one against
+the over-correction of counting a cross-client request as a broken crosswalk.
+
+**Twenty-five rounds, 55 findings.** The shape here is worth naming: rounds 21
+and 23 fixed these on the stamp path and I did not look one function down. That
+is the same failure as 195j–195n — a rule applied where I was looking — and it
+is now the most durable pattern in this PR.

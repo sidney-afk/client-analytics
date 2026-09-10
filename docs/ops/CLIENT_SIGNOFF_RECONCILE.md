@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 107 checks, each
+construction through fixtures — no credentials, no network. 109 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -381,6 +381,16 @@ nobody will hear about). Both vanished identically. Every structural failure now
 names itself and is reported on both paths; only the deliberate cases stay
 silent. Live: 2 written approvals name a card that is not there, and they were
 invisible until this.
+
+The same holds for a committed client **REQUEST** whose card cannot be found:
+reporting lost requests is the entire delivery-side result, so filing one under
+"a card that moved on" buries the one thing an operator can act on. It carries
+its deliverable, its client and its request id, and claims nothing about a card
+leg it could not look at.
+
+**Every detail line names its client**, not just its card id: `calendar_posts` is
+keyed by `(client, id)` and 13 live ids are shared across clients, so a bare id
+does not say whose card to open.
 
 **A carried approve whose card is missing is its own kind of work** — once
 another surface has been excluded. Live: all the approvals whose Calendar card

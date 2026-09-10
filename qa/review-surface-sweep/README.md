@@ -45,11 +45,17 @@ Being wrong in both directions simultaneously is the signal that this needs
 rebuilding around a different measurement model, not another patch. Stopping
 here was a pre-committed rule, stated on the PR before this round ran.
 
-## The one finding that stands on evidence OUTSIDE this harness
+## The one finding that stood on evidence OUTSIDE this harness [FIXED 2026-09-10]
 
-**A client approve loses the sign-off stamp.** The status recovers to
-`Approved`; `client_video_approved_at` is never written. The no-fault control
-writes it correctly.
+**FIXED, see OPEN_REPAIRS 191. Read what follows as the historical measurement
+that found the defect, not as live behaviour.** On current main the sweep flags
+ZERO sign-off rows: the stamp survives recovery, and the click-Retry path clears
+it when the component has moved below client approval rather than writing a
+sign-off onto work nobody signed off.
+
+**What it was: a client approve lost the sign-off stamp.** The status recovered
+to `Approved`; `client_video_approved_at` was never written. The no-fault
+control wrote it correctly.
 
 This one survives the harness being untrustworthy because **the live production
 row agrees**: OPEN_REPAIRS 186's card ended at `video_status = Approved` with

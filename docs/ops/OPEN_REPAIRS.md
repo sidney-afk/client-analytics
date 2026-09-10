@@ -19011,3 +19011,69 @@ card, now confirmed from a real tokened client context by the predecessor
 session), the closed-tab case, the server-side reconciler, and repair of rows
 ALREADY carrying an approved status with no stamp. This patch stops new losses;
 it does not go back for the old ones.
+
+## 192. [2026-09-10, BUILT — dry-run until dispatched with `dry_run=false`] The closed-tab case closes: a committed client action is now completable server-side, and two of the three "still open" items were badly mis-sized
+
+**Closes the mechanism behind items 189 and 190.** Item 189 named the real one:
+"the completion of a committed write still depends on one particular browser
+session surviving." `scripts/client-signoff-reconcile.js` +
+`.github/workflows/client-signoff-reconcile.yml` remove that dependency. A
+committed client action whose card never received it is a repairable fact,
+visible without any browser. Full design in
+`docs/ops/CLIENT_SIGNOFF_RECONCILE.md`.
+
+**The two rules it is built on**, both of which the tests attack rather than
+confirm: evidence repairs and never invents (a stamp is the COMMIT TIME of the
+client's approve, never `now()` and never derived from a status), and a card
+that has moved on is never overwritten (staleness is decided by `index.html`'s
+own `_calClearStaleApprovals`, extracted at runtime, so this job and the browser
+cannot drift apart on the definition).
+
+### Measuring first changed two of the three tasks
+
+The ledger's own framing of what remained was wrong in both directions, and only
+querying the live rows showed it.
+
+| item as recorded | as measured | what it actually was |
+|---|---|---|
+| "rows already carrying an approved status with no stamp" | 8,316 rows | **not damage.** Most work is approved by staff or through Linear and no client sign-off is ever claimed. A null stamp is the NORMAL state; only a stamp missing against a *committed client approve* is a defect. |
+| the same, scoped to committed client approvals | 11 | of which 6 sit on cards that have since moved to Tweaks Needed / In Progress and must NOT be stamped. |
+| **repairable today** | **5** | |
+| "the confirmed comment/card split" | 78 of 82 "lost" | **an artifact of the measurement.** The card stores comments as a JSON array, so any request containing a quote or a newline is held escaped and a raw-text search reports a miss. |
+| the same, parsing the cell | 21 | 10 are backfill rows derived FROM the card; most of the rest are the same escaping artifact. |
+| **repairable today** | **1** | one request from 2026-08-24, still at `Client Approval`, that the team has never seen. |
+
+**Item 190's finding 2 was recorded as "confirmed"; it is real but roughly two
+orders of magnitude smaller than the number attached to it.** That is the third
+time in this thread that a count from a text-shaped comparison has been wrong,
+which is why the repair parses the cell and the test pins a body that defeats a
+raw search.
+
+### Proof
+
+| check | result |
+|---|---|
+| `test/client-signoff-reconcile.js` | 19 checks pass, offline, no credentials |
+| negative control: stale-approval gate removed | **fails** (stamp resurrected onto a moved-on card) |
+| negative control: closed-round gate removed | **fails** (settled work reopened) |
+| negative control: body comparison removed | **fails** (duplicate delivered) |
+| negative control: stamp taken as `now()` | **fails** |
+| negative control: stale sweep skipped on delivery | **fails** (sign-off kept on a component asked to change) |
+| `node test/run-all.js` | see the PR; the two pre-existing failures fail identically on `origin/main` |
+
+A bug caught while writing it, worth recording because it would have failed the
+first live run with a confusing error rather than a clear one: the read named an
+`archived` column, which `calendar_posts` does not have. PostgREST errors the
+whole select on an unknown column. Archived is the card's OVERALL status, the
+same test `scripts/linear-sync-reconcile.js` applies.
+
+### Not done here
+
+- **Nothing has been written to any client's card.** The job is dry-run until
+  dispatched with an explicit `dry_run=false`, and the workflow fails closed on
+  a missing or malformed input rather than defaulting to apply.
+- No cadence. The other reconcilers are dispatched by a monitored n8n pager;
+  this one is dispatch-only until the owner decides it has earned a schedule.
+- The browser-side write path is untouched. Item 189 records why patching it was
+  abandoned after seven review findings, and this is the alternative that item
+  named.

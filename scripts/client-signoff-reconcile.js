@@ -1054,8 +1054,14 @@ function detect(world) {
     if (!body) continue;
     const list = parseComments(hit.card[TWEAKS_FIELD(comp)]);
     if (list === null) {
+      /* THE REQUEST ID BELONGS ON THIS ROW TOO. One cell can be the target of
+       * several committed requests, and the renderer prints a request only when
+       * the row carries one — so without it every reported row for that cell is
+       * the same line and the operator cannot tell which `production_comments`
+       * records to open. The sibling `unmapped_component` skip has carried it
+       * all along, which is what made the omission easy to miss. */
       skip({ kind: 'comment', reason: 'card_cell_unparseable',
-        card: hit.card.id, client: hit.card.client, component: comp });
+        card: hit.card.id, client: hit.card.client, component: comp, comment: pc.id });
       continue;
     }
     resolved.push({ pc, hit, comp, body, list, cellKey: cardKey(hit.card.client, hit.card.id) + '|' + comp });

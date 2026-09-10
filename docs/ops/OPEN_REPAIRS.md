@@ -20606,3 +20606,28 @@ because the pattern contained a bare apostrophe the source escapes — an
 instrument error caught by the check failing, not by the code being wrong.
 
 Full runner before pushing: 2 of 427, both failing identically on `origin/main`.
+
+### 196aq. Round 41: the smallest finding yet, and the one that says the most about the last four rounds
+
+A committed request whose card cell will not parse produced a skip row without
+`comment: pc.id`. The renderer prints a request only when the row carries one,
+so several requests targeting the same cell all printed the identical line and
+an operator could not tell which `production_comments` records to open.
+
+One field. The sibling `unmapped_component` skip has carried it all along, which
+is exactly what made the omission invisible: the two rows were written together,
+one round apart in the same block, and only one was complete.
+
+Fixed, with the CLI check tightened to require the request id in that line rather
+than just the card and the phrase — the assertion it should have made when the
+line was first added in 196ao. **A check that asserts part of a line will pass
+over the missing part of it forever.**
+
+156 checks (no new check; the existing CLI one is now strict enough to fail
+without the field, confirmed by exit status). Full runner: 2 of 427, baseline.
+
+**Where this leaves the PR.** Rounds 36 through 41 have all been report-surface
+or identity-scoping work, and the last four were each created by the fix before
+them. The findings are getting smaller, which is the signal to stop iterating and
+merge rather than to keep going: the write path itself has been unchanged since
+round 40's clock fix, and the report is now internally consistent.

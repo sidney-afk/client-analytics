@@ -2284,7 +2284,10 @@ checkAsync('the run prints the rows behind every count it reports', async () => 
   /* Undecidable: counted AND printed, each naming its card and client. */
   assert.match(out, /undecidable on a live card 2/, out);
   assert.match(out, /card card-1 \(testclient\)[\s\S]*no mapping for/, out);
-  assert.match(out, /card card-2 \(testclient\)[\s\S]*cannot parse/, out);
+  /* ROUND 41. The row must name its REQUEST as well as its card: one cell can
+     be the target of several committed requests, and without the id every
+     reported row for that cell is the same line. */
+  assert.match(out, /card card-2 \(testclient\)[^\n]*request pc_u2[^\n]*cannot parse/, out);
   /* Team-mapping refusals: the card was FOUND, so no line may say otherwise. */
   assert.match(out, /card card-3 \(testclient\)[\s\S]*team names no review this job can carry/, out);
   assert.match(out, /card card-4 \(testclient\)[\s\S]*kind and team name different reviews/, out);

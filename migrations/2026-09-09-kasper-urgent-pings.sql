@@ -102,11 +102,16 @@ create trigger trg_calendar_posts_stamp_status_at
 -- Kasper Approval pill, which means no click, no write and no DM. Running the
 -- schema above WITHOUT this row is the correct intermediate state.
 -- ============================================================
+-- The value is a ROSTER, so a rollout starts with one client rather than the
+-- whole book. Substitute the slug; do not commit a real one to this repo.
 -- insert into public.syncview_runtime_flags (key, value)
--- values ('kasper_urgent_ping_enabled', '{"enabled": true}'::jsonb)
+-- values ('kasper_urgent_ping_enabled', '{"clients": ["<slug>"]}'::jsonb)
 -- on conflict (key) do update set value = excluded.value;
 --
--- To turn it back off (instant, no deploy):
+-- '{"enabled": true}' opens it for every client instead. Keep that for after
+-- the roster has proven itself.
+--
+-- To turn it back off (instant, no deploy) -- either value is OFF:
 -- update public.syncview_runtime_flags
 --    set value = '{"enabled": false}'::jsonb
 --  where key = 'kasper_urgent_ping_enabled';

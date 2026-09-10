@@ -76,6 +76,9 @@ const PRED = [
   grabFunc('_calCompLinked'),
   grabFunc('_calShowUrgent'),
   grabFunc('_kasperCompReviewable'),
+  grabFunc('wlNormalizeClient'),
+  grabFunc('calClientSlug'),
+  grabFunc('_calRuntimeFlagClients'),
   grabFunc('_kasperUrgentPingOn'),
   grabFunc('_calShowKasperUrgent'),
   grabFunc('_calKasperUrgentComp'),
@@ -88,16 +91,24 @@ const PRED = [
   grabFunc('_calKasperReviewUrl'),
 ].join('\n\n');
 
-const P = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentPingEnabled',
+const P = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentFlagValue', 'calState', 'sxrState',
   PRED + ';return { _calShowUrgent, _calShowKasperUrgent, _calKasperUrgentActive, _calKasperUrgentComp,'
        + ' _calKasperUrgentPingComp, _calUrgentSentForCurrentRound, _calUrgentButtonHtml,'
        + ' _calBuildKasperUrgentPatch, _calKasperReviewUrl, URGENT_PING_KINDS };'
-)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView', true);
+)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
+  { clients: ['testclient'] }, { client: 'Test Client' }, { client: 'Test Client' });
 
 // The same predicates with the kill-switch OFF, which is the shipped default.
-const OFF = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentPingEnabled',
+const OFF = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentFlagValue', 'calState', 'sxrState',
   PRED + ';return { _calShowKasperUrgent };'
-)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView', false);
+)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
+  null, { client: 'Test Client' }, { client: 'Test Client' });
+
+// A roster that does NOT name this client is just as closed as no roster at all.
+const OTHER = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentFlagValue', 'calState', 'sxrState',
+  PRED + ';return { _calShowKasperUrgent };'
+)('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
+  { clients: ['someoneelse'] }, { client: 'Test Client' }, { client: 'Test Client' });
 
 const R1 = '2026-09-09T12:00:00.000Z';
 const R2 = '2026-09-09T13:00:00.000Z';
@@ -158,9 +169,42 @@ check('the marker itself stays keyed to status, not to content',
 // write, and no DM pointing at a section that cannot populate.
 check('the kill-switch OFF hides the affordance entirely',
   OFF._calShowKasperUrgent(card(), 'video') === false);
-check('and it fails CLOSED — a non-true value is off, not on',
-  new Function('_kasperUrgentPingEnabled', grabFunc('_kasperUrgentPingOn') + ';return _kasperUrgentPingOn();')(undefined) === false
-  && new Function('_kasperUrgentPingEnabled', grabFunc('_kasperUrgentPingOn') + ';return _kasperUrgentPingOn();')('yes') === false);
+// The roster is what lets a rollout start with one client instead of everybody.
+const GATE_PRED = [grabFunc('wlNormalizeClient'), grabFunc('calClientSlug'),
+  grabFunc('_calRuntimeFlagClients'), grabFunc('_kasperUrgentPingOn')].join('\n\n');
+const gate = (v, who) => new Function('_kasperUrgentFlagValue',
+  GATE_PRED + ';return _kasperUrgentPingOn(' + JSON.stringify(who) + ');')(v);
+check('a roster naming this client opens it', gate({ clients: ['testclient'] }, 'testclient') === true);
+check('a roster NOT naming it keeps it shut',
+  OTHER._calShowKasperUrgent(card(), 'video') === false
+  && gate({ clients: ['someoneelse'] }, 'testclient') === false);
+check('enabled:true opens it for everyone', gate({ enabled: true }, 'anyclient') === true);
+check('and it fails CLOSED on every other shape',
+  gate(null, 'testclient') === false
+  && gate(undefined, 'testclient') === false
+  && gate('yes', 'testclient') === false
+  && gate({ enabled: 'true' }, 'testclient') === false
+  && gate([{ clients: ['testclient'] }], 'testclient') === false
+  && gate({ clients: ['testclient'] }, '') === false
+  && gate({ clients: ['testclient'] }, null) === false);
+
+/* calState.client / sxrState.client are DISPLAY NAMES; the roster is slugs. A
+   trim-and-lowercase compare matches only the clients whose name happens to be
+   its own slug already, and silently hides the feature from the rest -- no
+   button, no error, nothing to notice. Both sides go through the same
+   normalizer the calendar-upsert and reroute rosters already use. (Codex P2.) */
+check('a display name matches its slug in the roster, and so does the reverse',
+  gate({ clients: ['testclient'] }, 'Test Client') === true
+  && gate({ clients: ['Test Client'] }, 'testclient') === true
+  && P._calShowKasperUrgent(card(), 'video') === true);
+check('the normalizer handles the shapes a plain lowercase compare loses',
+  gate({ clients: ['test&client'] }, 'Test and Client') === true
+  && gate({ clients: ['test&client'] }, 'Test & Client') === true
+  && gate({ clients: ['testclient'] }, 'Dr. Test Client') === true
+  && gate({ clients: ['testclient'] }, '  Test  Client  ') === true);
+check('normalizing widens nothing: a different client still fails closed',
+  gate({ clients: ['testclient'] }, 'Test Clients') === false
+  && gate({ clients: ['testclient'] }, 'Best Client') === false);
 
 console.log('\n-- the round: a ping outlives neither his decision nor the round --');
 const pinged = card({ kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video' });
@@ -330,18 +374,26 @@ setTimeout(() => {
       ef.includes('⛔ FROZEN') && ef.includes('authorizeBrowserWrite') && ef.includes('NO CI DEPLOY PATH'));
   }
   // Codex round 2, all four findings.
-  check('the kill-switch is re-read again INSIDE the confirm, before any side effect',
-    /confirm can sit[\s\S]{0,400}await _kasperUrgentPingOnLive\(\)/.test(INDEX));
-  check('the kill-switch is re-read at CLICK time, not just cached at boot',
-    INDEX.includes('async function _kasperUrgentPingOnLive()')
-    && (INDEX.match(/await _kasperUrgentPingOnLive\(\)/g) || []).length === 3);   // 2 handlers + inside the confirm
+  check('the switch is re-read again INSIDE the confirm, before any side effect',
+    /confirm can sit[\s\S]{0,400}await _kasperUrgentPingOnLive\(client\)/.test(INDEX));
+  check('the switch is re-read at CLICK time, not just cached at boot',
+    INDEX.includes('async function _kasperUrgentPingOnLive(clientOrSlug)')
+    && (INDEX.match(/await _kasperUrgentPingOnLive\(/g) || []).length === 3);   // 2 handlers + inside the confirm
+  /* Counting the call sites was not enough: all three were present and two of
+     them passed nothing, so the roster was asked about the empty client and
+     refused every click on a button that had rendered fine. (Codex P1.) */
+  check('and every one of those re-reads names a client',
+    (INDEX.match(/await _kasperUrgentPingOnLive\(\s*\)/g) || []).length === 0
+    && INDEX.includes('await _kasperUrgentPingOnLive(calState && calState.client)')
+    && INDEX.includes('await _kasperUrgentPingOnLive(sxrState && sxrState.client)')
+    && INDEX.includes('await _kasperUrgentPingOnLive(client)'));
   check('activation repaints, so it does not need a reload',
     INDEX.includes('_kasperUrgentRepaintSurfaces()'));
-  check('the KASPER ping persists BEFORE Slack; the editor ping is unchanged',
-    /kasper:[\s\S]{0,900}persistFirst: true,/.test(INDEX)
-    && INDEX.includes('if (spec.persistFirst && opts && typeof opts.persist')
-    && INDEX.includes('if (!spec.persistFirst && opts && typeof opts.persist')
-    && !/editor:[\s\S]{0,600}persistFirst/.test(INDEX));
+  // The whole point of the feature: ONE machine, not two that merely resemble
+  // each other. No flavour may reorder the two side effects.
+  check('both flavours send Slack first, with no per-flavour ordering left',
+    !INDEX.includes('persistFirst')
+    && INDEX.includes('SLACK FIRST, for BOTH flavours'));
   check('a card with two waiting components reconciles ALL its buttons after saving',
     /_calPersistKasperUrgentForPost[\s\S]{0,2200}_calUpdateCardStatusDisplay\(post\.id\)/.test(INDEX));
   check('the EF strips all four *_status_at before writing, not just two',
@@ -350,10 +402,11 @@ setTimeout(() => {
         .includes('delete out.' + c + ';')));
 
   check('the flag read fails closed on every error path',
-    /_kasperUrgentPingEnabled = false;\s*\/\/ fail closed/.test(INDEX)
-    && INDEX.includes("row.value.enabled === true"));
-  check('both affordances are gated on it',
-    (INDEX.match(/if \(!_kasperUrgentPingOn\(\)\) return false;/g) || []).length === 2);
+    /_kasperUrgentFlagValue = null;\s*\/\/ fail closed/.test(INDEX)
+    && INDEX.includes("(row && row.value && typeof row.value === 'object') ? row.value : null"));
+  check('both affordances are gated on it, each asking about ITS OWN client',
+    INDEX.includes("_kasperUrgentPingOn(calState && calState.client)")
+    && INDEX.includes("_kasperUrgentPingOn(sxrState && sxrState.client)"));
   check('the migration ships the flag row COMMENTED OUT, so schema alone is inert',
     /^-- insert into public\.syncview_runtime_flags/m.test(
       fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8')));

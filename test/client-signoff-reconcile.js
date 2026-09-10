@@ -749,6 +749,25 @@ check('an approval belonging to another client never stamps this one', () => {
   assert.equal(skipped[0].reason, 'approval_belongs_to_another_client');
 });
 
+/* ROUND 10. The same hole, one table over: production_comments rows also keep
+   the client they were written for when a card is moved. Round 9 fixed the
+   outbox inline, which is why round 10 found the identical thing in comments —
+   so the check now lives in resolve(), once, for every source. */
+check('a request belonging to another client is never reported against this one', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ client_slug: 'previousclient' })],
+    cards: [CARD({ client: 'testclient', video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 0, 'a cross-client repair instruction is a wrong report');
+  assert.equal(skipped[0].reason, 'request_belongs_to_another_client');
+});
+
+check('a row whose client column is empty is absent, not conflicting', () => {
+  const { findings } = detect(world({ comments: [TWEAK({ client_slug: '' })],
+    cards: [CARD({ video_status: 'Client Approval' })] }));
+  assert.equal(findings.length, 1, 'legacy rows carry no client and must still resolve');
+});
+
 check('an approval whose event client matches is stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE({ client_slug: 'testclient' })] }));
   assert.equal(findings.length, 1);

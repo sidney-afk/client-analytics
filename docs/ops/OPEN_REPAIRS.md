@@ -19578,3 +19578,42 @@ that hides the work is a defect in the product, not the log. They are now
 counted under `NEEDS A PERSON` with their request ids.
 
 62 checks, two more controls.
+
+### 195k. [2026-09-10] Round 10: the same hole one table over, which is what a narrow fix earns you
+
+Two P1s, both cross-client identity again, and the pair is more instructive than
+either one.
+
+**Round 9 fixed the outbox client inline. Round 10 found the identical hole in
+`production_comments`.** Both tables keep the client they were written for when
+`move-card-client.js` moves a card, and I had closed exactly one of them where I
+happened to be looking. The reviewer was, in effect, enumerating instances of a
+rule I had already written down and then failed to apply.
+
+So the check is now **structural rather than per-table**: `resolve()` takes the
+row's own client as a REQUIRED argument and throws when a caller omits it, so a
+future source cannot be wired in without answering the question. An absent
+client is absent (legacy rows); a different one is refused. The inline round-9
+check is gone, because two places to get this right is one too many.
+
+An implementation note worth keeping: the required argument is enforced with
+`arguments.length`, not a default value or a sentinel, because a row whose
+client column is empty legitimately passes `undefined` and a default parameter
+fires on `undefined` too. `resolve` became a plain function for that. The first
+two attempts (default sentinel, then `=== undefined`) both failed the suite,
+correctly.
+
+**Second finding: revalidation did not re-read the deliverable.**
+`move-card-client.js` rewrites `deliverables.client_slug` and
+`calendar_posts.client` as two separate PATCHes, so a revalidation landing
+between them resolves through the stale mapping and stamps a card mid-move.
+Revalidation now refreshes four sources: card, source row, deliverable,
+transitions. Rounds 7, 8, 9 and 10 each added one.
+
+Live exposure in both tables today: **zero rows**. Both fields are always
+populated, so both checks are free.
+
+64 checks, two more controls.
+
+**Ten rounds, 28 findings.** Rounds 9 and 10 were both on the stamp path, which
+the round-8 narrowing had called the settled half.

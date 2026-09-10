@@ -249,8 +249,8 @@ async function loadWorld() {
       + 'role,client_slug,test_only'
       + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`, 'id'),
     restRows('production_comments',
-      'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,'
-      + 'created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
       + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`, 'id'),
     restRows('deliverables', 'select=id,card_id,kind,client_slug,status,status_at', 'id'),
   ]);
@@ -308,7 +308,24 @@ function detect(world) {
   const findings = [];
   const skipped = [];
 
-  const resolve = (deliverableId) => {
+  /* EVERY ROW THAT TAKES PART IN A REPAIR MUST AGREE ABOUT THE CLIENT, and the
+   * check belongs in ONE place rather than being rediscovered per table.
+   *
+   * `scripts/move-card-client.js` moves a card between clients by rewriting
+   * `calendar_posts.client` and `deliverables.client_slug`; historical rows in
+   * `mirror_outbox` and `production_comments` keep the client they were written
+   * for. Round 9 closed this for the outbox and round 10 found the identical
+   * hole one table over, which is the argument for making it structural: the
+   * caller MUST pass the client its own row carries, so a future source cannot
+   * be wired in without answering the question.
+   *
+   * An absent client is not a conflict (legacy rows), but a DIFFERENT one is. */
+  /* A plain function, not an arrow, so `arguments.length` can tell "the caller
+   * did not pass a client" (a programming error) from "this row's client column
+   * is empty" (legitimate, and treated as absent rather than conflicting). A
+   * default parameter cannot distinguish those: it fires on `undefined` too. */
+  function resolve(deliverableId, rowClient) {
+    if (arguments.length < 2) throw new Error("resolve() needs the row's own client");
     const del = delById.get(String(deliverableId || ''));
     if (!del || !del.card_id) return null;
     /* No client on the deliverable means the card cannot be identified, and
@@ -316,12 +333,14 @@ function detect(world) {
     if (!String(del.client_slug || '').trim()) return null;
     const card = cardById.get(cardKey(del.client_slug, del.card_id));
     if (!card) return null;
+    const owner = String(rowClient || '').trim().toLowerCase();
+    if (owner && owner !== String(card.client || '').trim().toLowerCase()) return 'client_mismatch';
     /* Archived is the card's OVERALL status, not a column — same test
      * scripts/linear-sync-reconcile.js applies. */
     if (String(card.status || '').toLowerCase() === 'archived') return null;
     if (ONLY_CLIENT && String(card.client || '').toLowerCase() !== ONLY_CLIENT) return null;
     return { del, card };
-  };
+  }
 
   /* A. A committed client APPROVE whose card carries no sign-off stamp.
    * Keyed to the latest committed approve per (card, component): a later
@@ -353,7 +372,12 @@ function detect(world) {
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
     const to = String((row && row.payload && row.payload.status) || '').toLowerCase();
     if (to !== 'approved') continue;
-    const hit = resolve(row && row.entity_id);
+    const hit = resolve(row && row.entity_id, row && row.client_slug);
+    if (hit === 'client_mismatch') {
+      skipped.push({ kind: 'stamp', reason: 'approval_belongs_to_another_client',
+        card: '(another client)', component: '' });
+      continue;
+    }
     if (!hit) continue;
     const comp = COMPONENT_FOR_KIND[String(hit.del.kind || '').toLowerCase()];
     if (!comp) continue;
@@ -364,21 +388,6 @@ function detect(world) {
      * last resort. */
     const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
     if (!at) continue;
-    /* THE EVENT CARRIES ITS OWN CLIENT, AND IT IS NOT REDUNDANT.
-     * `scripts/move-card-client.js` moves a card between clients by rewriting
-     * `calendar_posts.client` and `deliverables.client_slug`, and historical
-     * outbox rows keep the ORIGINAL client. Resolving purely through the
-     * deliverable's CURRENT client would therefore stamp the new client's card
-     * with the previous client's sign-off. Zero live rows today; a single card
-     * move creates them silently, and the field is always populated, so the
-     * check is free. */
-    const eventClient = String(row.client_slug || '').trim().toLowerCase();
-    const cardClient = String(hit.card.client || '').trim().toLowerCase();
-    if (eventClient && eventClient !== cardClient) {
-      skipped.push({ kind: 'stamp', reason: 'approval_belongs_to_another_client',
-        card: hit.card.id, component: comp });
-      continue;
-    }
     const key = cardKey(hit.card.client, hit.card.id) + '|' + comp;
     const prev = latestApprove.get(key);
     if (!prev || Date.parse(at) > Date.parse(prev.at)) {
@@ -479,7 +488,12 @@ function detect(world) {
    * across every request before any body fallback does. */
   const resolved = [];
   for (const pc of commentsInOrder) {
-    const hit = resolve(pc.deliverable_id);
+    const hit = resolve(pc.deliverable_id, pc.client_slug);
+    if (hit === 'client_mismatch') {
+      skipped.push({ kind: 'comment', reason: 'request_belongs_to_another_client',
+        card: '(another client)', component: '', comment: pc.id });
+      continue;
+    }
     if (!hit) continue;
     /* A request NAMES its component. Falling back to the deliverable's kind
      * when that name is unrecognised is how title feedback lands in
@@ -707,6 +721,21 @@ async function revalidate(world, finding) {
    * reopen is missing from the snapshot, so the obsolete approval is restored.
    * The card cannot see that; only the outbox can. Scoped to the one
    * deliverable, so it is a single keyed read per repair. */
+  /* And the DELIVERABLE. `move-card-client.js` rewrites `deliverables.client_slug`
+   * and `calendar_posts.client` as two separate PATCHes; a revalidation landing
+   * between them would otherwise resolve through the stale mapping and stamp a
+   * card that is mid-move. Re-read it, so the composite mapping checked here is
+   * the one that exists now. */
+  let deliverables = world.deliverables;
+  if (finding.deliverable_id) {
+    const rows = await restRows('deliverables',
+      'select=id,card_id,kind,client_slug,status,status_at'
+      + `&id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    deliverables = world.deliverables
+      .filter(d => String(d && d.id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
+
   let outbox = world.outbox;
   if (finding.deliverable_id) {
     const rows = await restRows('mirror_outbox',
@@ -722,8 +751,8 @@ async function revalidate(world, finding) {
   let comments = world.comments;
   if (finding.comment) {
     const row = await restRows('production_comments',
-      'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,'
-      + 'created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
       + `&id=eq.${encodeURIComponent(finding.comment.id)}`, 'id');
     /* Gone entirely means gone: drop it rather than fall back to the snapshot. */
     comments = world.comments
@@ -738,10 +767,7 @@ async function revalidate(world, finding) {
     + `&id=eq.${encodeURIComponent(finding.card.id)}`
     + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
   if (!fresh.length) return null;
-  const again = detect({
-    outbox, comments,
-    deliverables: world.deliverables, cards: fresh,
-  });
+  const again = detect({ outbox, comments, deliverables, cards: fresh });
   const match = again.findings.find(f =>
     f.kind === finding.kind
     && f.component === finding.component

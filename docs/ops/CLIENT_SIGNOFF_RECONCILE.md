@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 62 checks, each
+construction through fixtures — no credentials, no network. 64 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must
@@ -261,8 +261,8 @@ zero, the gate is one line to relax.
 
 ## Revalidation refreshes all three sources, not just the card
 
-Before each write the job re-reads **the card, the source comment row, and the
-deliverable's status transitions**. Each was added because the previous scope
+Before each write the job re-reads **the card, the source comment row, the
+deliverable, and the deliverable's status transitions**. Each was added because the previous scope
 was not enough:
 
 - the **card** alone misses a resolution that happened only on the server;
@@ -271,20 +271,35 @@ was not enough:
   write passes `stampSurvives` on the fresh card while the reopen is invisible,
   and the obsolete approval gets restored.
 
-All three are keyed reads scoped to the one row being repaired.
+The **deliverable** is re-read too: `move-card-client.js` rewrites
+`deliverables.client_slug` and `calendar_posts.client` as two separate PATCHes,
+and a revalidation landing between them would otherwise resolve through the
+stale mapping and stamp a card mid-move.
 
-## An approval is bound to the client it was made for
+All four are keyed reads scoped to the one row being repaired.
+
+## Every row that takes part in a repair must agree about the client
 
 `scripts/move-card-client.js` moves a card between clients by rewriting
-`calendar_posts.client` and `deliverables.client_slug`; historical
-`mirror_outbox` rows keep the **original** client. Resolving purely through the
-deliverable's current client would therefore stamp the new client's card with
-the previous client's sign-off.
+`calendar_posts.client` and `deliverables.client_slug`. Historical rows in
+`mirror_outbox` **and** `production_comments` keep the client they were written
+for. Resolving purely through the deliverable's *current* client would stamp the
+new client's card with the previous client's sign-off, or report the previous
+client's request as missing from the new client's card.
 
-So the event's own `client_slug` must match the card's, or the approval is
-refused as `approval_belongs_to_another_client`. Zero live rows today; one card
-move creates them silently, and the field is always populated, so the check
-costs nothing.
+**The check lives in `resolve()`, once, for every source.** It is not optional:
+`resolve()` takes the row's own client as a required argument and throws if a
+caller omits it, so a new source cannot be wired in without answering the
+question. An absent client is treated as absent (legacy rows), a *different* one
+is refused.
+
+This was fixed twice. Round 9 closed it inline for the outbox; round 10 found
+the identical hole one table over, in comments. That is why it is structural
+now rather than per-table — **identity here is never a single column, and the
+next source will not remember to ask.**
+
+Zero live rows in either table today; one card move creates them silently, and
+both fields are always populated, so the check costs nothing.
 
 ## The race this does not close
 

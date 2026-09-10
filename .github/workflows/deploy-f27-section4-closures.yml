@@ -71,7 +71,7 @@ jobs:
       LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
-      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 0af969b71dc1f222b7278ad3fc654ee0dc1b897727dadc2104819a582e4ba761
+      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7126f7eb9cc166be39cab7fe28395e9d0c2521ba16cb2e92495d8110e710711e
       PRODUCTION_WRITE_FILE_COUNT: '6'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
@@ -300,7 +300,7 @@ jobs:
       # (Prior pins: 65647320... first lifted gateway; 27d1a608... files=5,
       # #1361 2026-09-08; ccbdd136f4...
       # production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: c71d5ab51ba4c3f0600c51d2f13cbc845f79a37de3ba195a26fe3f6a94dce69a
+      PRODUCTION_WRITE_SOURCE_SHA256: 555c968f09c9faf97e3f23eee8adfa678c8a48995006405540f8bd34618d6410
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -45,28 +45,37 @@ that a capability the repo copy claims can be checked against one production
 actually has.
 
 This section is machine-read by `test/live-divergence-register.js` via
-`test/lib/ev-actions.js`. The `events:` list is every action the live function
+`test/helpers/ev-actions.js`. The `events:` list is every action the live function
 can emit. A repo copy that gains an action missing from its live row fails the
 gate, which forces the divergence to be either deployed or declared instead of
 quietly believed.
 
-Two conventions in that list, both load-bearing:
+Three properties of that list, all load-bearing:
 
-- **`name*` is a PREFIX form**, for an action the source composes at runtime —
-  `ev("approve_" + comp)` is recorded as `approve_*`, because the exact set
-  depends on a value the reader cannot see. Production currently holds
-  `approve_caption`, `approve_graphic`, `approve_title` and `approve_video`
-  under that one prefix. A literal is covered by a prefix it falls under; a
-  prefix is covered only by the identical prefix, since it can emit more than
-  any one literal proves.
+- **Every entry is a CONCRETE action.** There is no wildcard. An action the
+  source composes — `ev("approve_" + comp)` inside
+  `for (const comp of ["video", "graphic", "caption", "title"])` — is expanded
+  to the four names it can actually produce. Cross-checked against production,
+  which holds exactly `approve_caption`, `approve_graphic`, `approve_title` and
+  `approve_video`. An earlier draft recorded this as the prefix `approve_*`,
+  which is worse than it looks: the prefix hides the operand's DOMAIN, and the
+  domain is the part that drifts. Add `"audio"` to that loop and the repo can
+  emit `approve_audio` while both sides still read `approve_*`, so parity stays
+  green over a brand-new capability.
 - **An `ev(…)` argument the extractor cannot resolve fails the gate by name**
-  rather than being skipped. This is the whole reason it is not a regex: the
+  rather than being skipped, and a composition whose domain cannot be resolved
+  statically is one of those. This is the whole reason it is not a regex: the
   first version read only bare double-quoted literals, so it reported
   `ev("approve_" + comp)` as the non-existent action `approve_`, and would have
   missed `ev('x')`, a template literal, or `const a = "…"; ev(a)` entirely —
   silently, which is the one thing a guard must never be.
+- **Parity is equality, not containment.** The gate fails both when the repo
+  claims an action the live row does not carry, and when the repo has LOST one
+  the live row still has. The second direction matters because these files are
+  ported by hand: a capability quietly dropped from the repo copy would be
+  quietly dropped from production at the next owner-approved port.
 
-- `calendar-upsert` live v49 verified 2026-09-10 events: approve_*, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+- `calendar-upsert` live v49 verified 2026-09-10 events: approve_caption, approve_graphic, approve_title, approve_video, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
 - `sample-review-upsert` live v50 verified 2026-09-10 events: approve_graphic, approve_video, archive, comment_add, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
 
 **Why this section exists.** On 2026-09-09 the Kasper urgent ping shipped with an
@@ -84,7 +93,7 @@ again. The trigger cannot drift from the live functions, because it is not in
 them.
 
 **Refreshing a row.** Read the deployed source (Supabase → Edge Functions, or
-`get_edge_function`), run it through `evActions()` from `test/lib/ev-actions.js`
+`get_edge_function`), run it through `evActions()` from `test/helpers/ev-actions.js`
 rather than reading it by eye, and update the row with the new version and
 today's date. Never copy the list out of the repo file — that is the exact
 mistake this section exists to catch.

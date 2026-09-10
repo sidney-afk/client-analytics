@@ -60,12 +60,52 @@ function firstArg(src, openIdx) {
 }
 
 const LITERAL = /^(['"`])([A-Za-z0-9_]+)\1$/;
-const PREFIXED = /^(['"`])([A-Za-z0-9_]+)\1\s*\+/;
+// Exactly `"prefix" + identifier`, nothing more. `"a" + b + "c"` does not match
+// and therefore lands in UNRESOLVED, which is the safe direction.
+const COMPOSED = /^(['"`])([A-Za-z0-9_]+)\1\s*\+\s*([A-Za-z_$][A-Za-z0-9_$]*)$/;
+
+// The values an identifier can take, when it is bound by an enclosing
+// `for (const ident of ["a", "b"])` whose block contains the call. Returns null
+// when there is no such loop, when the array holds anything that is not a plain
+// string literal, or when the loop does not actually enclose the call site.
+//
+// WHY THIS MATTERS. Reporting ev("approve_" + comp) as the wildcard `approve_*`
+// hides the operand's DOMAIN, and the domain is the part that drifts: add
+// "audio" to that loop and the repo can emit approve_audio while the register
+// still reads approve_* on both sides, so parity stays green over a real new
+// capability. Resolving the domain turns that into a named failure. An
+// unresolvable composition is UNRESOLVED rather than a wildcard, because a
+// wildcard is precisely the silent answer this file exists to refuse.
+// (Codex P2 on PR 1383.)
+function resolveDomain(src, callIdx, ident) {
+  const re = new RegExp('for\\s*\\(\\s*const\\s+' + ident + '\\s+of\\s*\\[([^\\]]*)\\]\\s*\\)\\s*\\{', 'g');
+  let found = null;
+  let m;
+  while ((m = re.exec(src))) {
+    if (m.index > callIdx) break;
+    const openIdx = m.index + m[0].length - 1;         // the loop body's `{`
+    let depth = 0;
+    let closeIdx = -1;
+    for (let i = openIdx; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (depth === 0) { closeIdx = i; break; } }
+    }
+    if (closeIdx > callIdx) found = m[1];               // this loop encloses it
+  }
+  if (found === null) return null;
+  const items = [...found.matchAll(/(['"`])([A-Za-z0-9_]+)\1/g)].map(x => x[2]);
+  // Refuse the whole domain if any element is not a plain string literal.
+  const leftover = found.replace(/(['"`])[A-Za-z0-9_]+\1/g, '').replace(/[\s,]/g, '');
+  if (leftover.length || !items.length) return null;
+  return items;
+}
 
 // -> { actions: string[], unresolved: string[] }
-// A composed action such as ev("approve_" + comp) is reported as the PREFIX
-// form `approve_*`, which is the honest description of what the source can
-// emit; the exact set depends on a runtime value this cannot see.
+// A composed action such as ev("approve_" + comp) is expanded to the concrete
+// set its loop can produce -- approve_video, approve_graphic, approve_caption,
+// approve_title -- so a change to that loop's domain is visible here. If the
+// domain cannot be resolved statically, the call is UNRESOLVED, never a
+// wildcard.
 function evActions(source) {
   const src = stripComments(source);
   const actions = new Set();
@@ -79,20 +119,21 @@ function evActions(source) {
     if (/[A-Za-z0-9_$.]/.test(before)) continue;   // not a bare `ev(` call
     const arg = firstArg(src, j);
     let m;
-    if ((m = arg.match(LITERAL))) actions.add(m[2]);
-    else if ((m = arg.match(PREFIXED))) actions.add(m[2] + '*');
-    else unresolved.add(arg.replace(/\s+/g, ' ').slice(0, 60));
+    if ((m = arg.match(LITERAL))) { actions.add(m[2]); continue; }
+    if ((m = arg.match(COMPOSED))) {
+      const domain = resolveDomain(src, i, m[3]);
+      if (domain) { for (const v of domain) actions.add(m[2] + v); continue; }
+    }
+    unresolved.add(arg.replace(/\s+/g, ' ').slice(0, 60));
   }
   return { actions: [...actions].sort(), unresolved: [...unresolved].sort() };
 }
 
-// Is `action` proven by a verified-live list? A literal is covered by a prefix
-// it falls under; a prefix is covered only by the identical prefix, since it
-// can emit more than any one literal proves.
+// Every action is concrete now, so coverage is plain membership. There is no
+// wildcard to be generous about, which is the point: `approve_*` on both sides
+// would have matched even when the two sides could emit different sets.
 function coveredBy(action, liveList) {
-  if (liveList.includes(action)) return true;
-  if (action.endsWith('*')) return false;
-  return liveList.some(l => l.endsWith('*') && action.startsWith(l.slice(0, -1)));
+  return liveList.includes(action);
 }
 
 module.exports = { evActions, coveredBy };

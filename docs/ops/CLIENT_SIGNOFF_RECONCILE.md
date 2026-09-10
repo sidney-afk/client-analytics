@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 122 checks, each
+construction through fixtures — no credentials, no network. 126 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -511,6 +511,11 @@ contradiction, and the falsest positive this job could produce.
 So the committed client requests already loaded for the delivery half are also a
 supersession clock: a request newer than the approval blocks the stamp
 (`superseded_by_later_client_request`) and suppresses the lost-approval report.
+
+A request whose component this job cannot map supersedes **nothing**: the report
+declines to say which review it belongs to, so the clock must not decide it
+either. The deliverable's link is the fallback only for an EMPTY name, which is
+the one case with nothing to contradict.
 
 That clock is keyed by **(deliverable, component)**, not by deliverable. One
 deliverable carries the video work *and* the caption and title reviews, so

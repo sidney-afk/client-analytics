@@ -525,11 +525,18 @@ function detect(world) {
      * component. Adding the exclusion anyway produced a control that would not
      * fire, which this PR treats as a broken test rather than a redundant one —
      * so the rule came back out. */
-    if (named && COMPONENT_FOR_KIND[named]) {
+    if (named) {
+      /* A NAME THIS JOB CANNOT MAP SUPERSEDES NOTHING. The request path reports
+       * such a row as `unmapped_component` and refuses to say which review it
+       * belongs to; falling back to the deliverable's link here would have the
+       * clock decide the very question the report declines to answer, and
+       * suppress a valid missing approval on the strength of it. Reserved for an
+       * EMPTY name, which is the only case with nothing to contradict. */
       const comp = COMPONENT_FOR_KIND[named];
+      if (!comp) return '';
       /* A request that names a review its deliverable cannot carry supersedes
-       * nothing: the run refuses it as unplaceable in the same pass, and a
-       * caption label on graphics work must not stop the graphic sign-off. */
+       * nothing either: the run refuses it as unplaceable in the same pass, and
+       * a caption label on graphics work must not stop the graphic sign-off. */
       return componentFitsLink(comp, linked) ? comp : '';
     }
     return linked || '';
@@ -1234,6 +1241,13 @@ function classify({ findings, skipped }) {
    * because the operator looks in a different place, and separate from "left
    * alone" because there is something to do. */
   const crosswalkBroken = skipped.filter(row => row.crosswalk_broken && !row.carrier_status);
+  /* SPLIT AGAIN, for the same reason the carrier terms were split: these two
+   * are different work. A missing card is a broken crosswalk; a contradicting
+   * component is an ambiguity between two KNOWN reviews on a card that is
+   * right there. Counting the second as "whose card is missing" is a false
+   * headline over a correct detail line. */
+  const cardMissing = crosswalkBroken.filter(row => row.reason !== 'named_component_contradicts_link');
+  const componentAmbiguous = crosswalkBroken.filter(row => row.reason === 'named_component_contradicts_link');
   /* SPLIT, because only one of these two knows what happened to the card leg.
    * A resolved carrier failure was qualified against four tests, so "reached
    * neither leg" is established. A crosswalk refusal establishes only that the
@@ -1254,11 +1268,13 @@ function classify({ findings, skipped }) {
       + `ambiguous repeat ${ambiguous.length}, `
       + `client approve that reached neither leg ${carrierFailedKnown.length}, `
       + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
-      + `carried approve whose card is missing ${crosswalkBroken.length})`,
+      + `carried client action whose card is missing ${cardMissing.length}, `
+      + `request naming a review its deliverable cannot carry ${componentAmbiguous.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
   return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
-    carrierFailedUnknownCard, crosswalkBroken, leftAlone, lines };
+    carrierFailedUnknownCard, crosswalkBroken, cardMissing, componentAmbiguous,
+    leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 
@@ -1381,7 +1397,10 @@ async function main() {
       findings: plan.map(({ finding, patch }) => ({
         kind: finding.kind,
         writable: WRITABLE_KINDS.has(finding.kind),
-        card: finding.card.id, component: finding.component, patch,
+        /* --json suppresses every detail line, so this projection is the only
+         * representation a consumer gets. A card id alone does not say whose. */
+        card: finding.card.id, client: finding.card.client,
+        component: finding.component, patch,
       })),
       skipped, applied, failures,
     }, null, 2));

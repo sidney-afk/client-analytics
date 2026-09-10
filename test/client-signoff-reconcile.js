@@ -1680,10 +1680,74 @@ check('a caption request on graphics work supersedes no sign-off', () => {
    nothing offline reaches it. Extracted as a pure function so it can be
    asserted rather than trusted: a repair that was attempted and FAILED is the
    one record an operator has, and a bare card id does not say whose. */
+/* --json suppresses every detail line, so the projection is all a consumer
+   gets. Driven through the CLI because that flag is read at module load. */
+checkAsync('every JSON finding names its client', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [APPROVE()], comments: [], deliverables: [DEL()], cards: [CARD()],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'),
+      `--fixtures=${fixture}`, '--json'], { encoding: 'utf8' });
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.findings.length, 1);
+  assert.equal(parsed.findings[0].client, 'testclient',
+    'a card id alone does not say whose card: ' + out);
+});
+
 check('a failed write names the client and component', () => {
   const { failureLine } = require('../scripts/client-signoff-reconcile.js');
   const line = failureLine({ card: CARD(), component: 'video' }, 'HTTP 500');
   assert.match(line, /card card-1 \(testclient\) \[video\]: HTTP 500/, line);
+});
+
+/* ROUND 29. The supersession clock fell back to the deliverable's linked
+   component for a request naming something this job cannot map (`sizzle-reel`).
+   The request path reports exactly that row as `unmapped_component` and refuses
+   to say which review it belongs to — so the clock was deciding the question the
+   report declines to answer, and suppressing a valid missing approval on the
+   strength of it. The fallback is now reserved for an EMPTY name. */
+check('a request naming an unmapped component supersedes nothing', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ component: 'sizzle-reel', created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp' && f.writable).length, 1,
+    'the clock must not decide what the report refuses to decide');
+  assert.equal(skipped.some(x => x.reason === 'unmapped_component'), true);
+});
+
+check('a request with NO component still supersedes its deliverable\'s review', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ component: '', created_at: '2026-09-06T10:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Approved' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 0,
+    'an empty name has nothing to contradict; the link is the answer');
+  assert.equal(skipped.some(x => x.reason === 'superseded_by_later_client_request'), true);
+});
+
+/* The headline lumped a contradicting component in with missing cards. They are
+   different work: one card cannot be found, the other is right there and the
+   question is which of two known reviews the client meant. */
+check('the headline separates a missing card from an ambiguous review', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { cardMissing, componentAmbiguous, lines } = classify({ findings: [], skipped: [
+    { kind: 'stamp', reason: 'card_not_found', crosswalk_broken: true,
+      card: '(unidentified)', client: 'testclient', deliverable: 'del-9', component: '' },
+    { kind: 'comment', reason: 'named_component_contradicts_link', crosswalk_broken: true,
+      card: 'card-1', client: 'testclient', component: 'video',
+      linked_component: 'graphic', comment: 'pc_x1' },
+  ] });
+  assert.equal(cardMissing.length, 1);
+  assert.equal(componentAmbiguous.length, 1);
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /card is missing 1/, needs);
+  assert.match(needs, /cannot carry 1/, needs);
 });
 
 check('a properly linked card is still stamped normally', () => {

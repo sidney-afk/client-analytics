@@ -20165,3 +20165,27 @@ that extraction, which is exactly the point.
 the over-correction of barring caption and title from video-linked work.
 
 **Twenty-eight rounds, 64 findings.**
+
+### 195ad. Round 29: the clock deciding what the report refuses to decide
+
+**A request naming an unmapped component (`sizzle-reel`) fell back to the
+deliverable's linked component in the supersession clock.** The request path
+reports that same row as `unmapped_component` and explicitly refuses to say
+which review it belongs to — so one half of the run declined the question while
+the other half answered it, and suppressed a valid missing approval on the
+strength of that answer. The fallback is now reserved for an EMPTY name, the one
+case with nothing to contradict. Controlled in both directions, since removing
+the fallback entirely would break the normal unnamed-request case.
+
+**The `--json` projection discarded the card's client.** `--json` suppresses
+every detail line, so that projection is the whole output for a consumer. Seventh
+instance of the identity defect, and the last surface that had it.
+
+**The headline counted a contradicting component as "a carried approve whose
+card is missing".** Its card is right there; the question is which of two known
+reviews the client meant. Split, for the same reason the carrier terms were split
+in 195x: a false headline over a correct detail line is worse than either alone.
+
+126 checks, four controls, all confirmed by exit status.
+
+**Twenty-nine rounds, 67 findings.**

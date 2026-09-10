@@ -1,5 +1,25 @@
 # Completed isolated evidence
 
+## Current schema/recovery preparation
+
+Composition extends the previous 48 cases to **55 PASS** using sourced dated
+card definitions and actual journal/crosswalk/feedback owners. New assertions
+cover tenant keys, rollback, import/replay/identity checks and feedback refusal
+after actual canonical deletion. The local catalog still lacks 16 of the
+52 `history-v11` tables; its diagnostic names them without claiming full schema
+coverage. Raw receipt: `linear-exit-composition-e260fd574add45bca9e3edc6d0c51dff`.
+
+The separately exposed portable recovery lane **FAILS after five checks**.
+Its stale extracted browser helper was repaired and its source setup now
+includes both final ordinary-receipt repairs. Capture then refuses the real
+volatile `client_access_mint_review_token()` default before the intended
+catalog-race test. No backup/restore PASS is claimed. Both owned servers stopped.
+Raw receipt: `linear-exit-recovery-631e6d7f09204d7fa9e18588f3777fcb`.
+See `docs/ops/TRACK_B_BACKUP.md` for the proposed, unbuilt deferred-default
+contract. These runs executed working-tree changes over `6437dedd`; prior
+runtime/browser evidence below was not rerun because application code and
+production migrations did not change in this preparation step.
+
 ## Current notification lifecycle repair
 
 Prepared source: `93486bb421459255691bb603102f31a80dbfbd17`.

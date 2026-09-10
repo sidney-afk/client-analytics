@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -28,7 +28,7 @@ $git=(Get-Command git -CommandType Application -ErrorAction Stop).Source
 $gitRoot=Split-Path (Split-Path $git -Parent) -Parent
 $bash=Join-Path $gitRoot 'bin\bash.exe'
 if (!(Test-Path -LiteralPath $bash -PathType Leaf)) { throw 'Git Bash bin/bash.exe must be installed alongside Git.' }
-$routingPattern='(?i)^(PG|F42_|NIR_|WORKLOAD_TEST_|SUPABASE|DATABASE_URL|NATIVE_|F63_|ARTIFACT_|INTAKE_MANIFEST_|PROOF_)|_DATABASE_URL$'
+$routingPattern='(?i)^(PG|F42_|NIR_|WORKLOAD_TEST_|TRACK_B_RECOVERY_TEST_|SUPABASE|DATABASE_URL|NATIVE_|F63_|ARTIFACT_|INTAKE_MANIFEST_|PROOF_)|_DATABASE_URL$'
 $inherited=@([Environment]::GetEnvironmentVariables('Process').Keys | Where-Object { [string]$_ -match $routingPattern })
 if ($inherited.Count) { throw ('Inherited database/proof environment refused (names only): '+($inherited -join ', ')) }
 if (!$OutputRoot) { $OutputRoot=[IO.Path]::GetTempPath() }
@@ -103,9 +103,28 @@ try {
  if ($Lane -eq 'optional') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'optional.cjs' }
  if ($Lane -eq 'composition') { $entry=Join-Path $repoRoot 'test\linear-exit-owner-composition.js' }
  if ($Lane -eq 'notifications') { $entry=Join-Path $repoRoot 'test\native-notifications-postgres.js' }
+ if ($Lane -eq 'recovery') {
+  $dumpBinary=Join-Path $pgPath 'pg_dump.exe'
+  if (!(Test-Path -LiteralPath $dumpBinary -PathType Leaf)) { throw 'Recovery lane requires the supplied PostgreSQL pg_dump binary.' }
+  $entry=Join-Path $repoRoot 'scripts\track-b-recovery-rehearsal.js'
+  $recoverySettings=@{
+   TRACK_B_RECOVERY_TEST_CONFIRM='LOCAL_DISPOSABLE_ONLY';TRACK_B_RECOVERY_TEST_CORPUS='history-v11';
+   TRACK_B_RECOVERY_TEST_PGHOST='127.0.0.1';TRACK_B_RECOVERY_TEST_PGPORT=[string]$port;
+   TRACK_B_RECOVERY_TEST_PGUSER='postgres';TRACK_B_RECOVERY_TEST_PGPASSWORD=$password;
+   TRACK_B_RECOVERY_TEST_PSQL=(Join-Path $pgPath 'psql.exe');TRACK_B_RECOVERY_TEST_PG_DUMP=$dumpBinary;
+   TRACK_B_RECOVERY_TEST_OUTPUT=(Join-Path $runRoot 'recovery')
+  }
+  foreach ($key in $recoverySettings.Keys) { Set-ProofEnvironment $key $recoverySettings[$key] }
+ }
  $arguments=@($entry)
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
+ if ($result -eq 0 -and $Lane -eq 'recovery') {
+  $recoveryDirectories=@(Get-ChildItem -LiteralPath (Join-Path $runRoot 'recovery') -Directory -Filter 'schema-history-v11-*')
+  if ($recoveryDirectories.Count -ne 1) { throw 'Expected exactly one owned versioned recovery run.' }
+  $recoveryReport=Get-Content -LiteralPath (Join-Path $recoveryDirectories[0].FullName 'REPORT.private.json') -Raw | ConvertFrom-Json
+  if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
+ }
  if ($result -eq 0 -and $Lane -in @('composition','f27','notifications')) {
   $marker=if ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }

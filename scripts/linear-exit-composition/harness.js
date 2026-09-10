@@ -83,6 +83,33 @@ create unique index if not exists calendar_posts_client_id_nir on public.calenda
 create unique index if not exists sample_reviews_client_id_nir on public.sample_reviews (client, id);
 `;
 
+function installDatedCardBaseline(cluster) {
+  // Exact statements from the dated public catalog capture, not a declaration
+  // that all current hosted schema has been reproduced.
+  const { splitSqlStatements } = require('../track-b-recovery-package');
+  const baseline=fs.readFileSync(path.join(MIGRATIONS,'live-schema-baseline-2026-07-03.sql'),'utf8');
+  const statements = splitSqlStatements(baseline);
+  const selected = [];
+  const one = pattern => {
+    const found=statements.filter(row=>row.kind==='statement' && pattern.test(row.text));
+    if(found.length!==1) throw Error('dated_card_baseline_statement_not_unique: '+pattern.source);
+    selected.push(found[0].text+';');
+  };
+  for(const table of ['calendar_posts','sample_reviews']) one(new RegExp('^create table if not exists public\\.'+table+'\\s*\\(','i'));
+  for(const table of ['calendar_posts','sample_reviews']) one(new RegExp('^alter table only public\\.'+table+' add constraint '+table+'_pkey PRIMARY KEY \\(client, id\\)','i'));
+  // Captured pg_get_functiondef blocks lack terminating semicolons. Extract
+  // the exact two dollar-quoted definitions and add only their SQL terminator.
+  for(const table of ['calendar_posts','sample_reviews']) {
+    const pattern=new RegExp('^CREATE OR REPLACE FUNCTION public\\.'+table+'_stamp_status_at\\(\\)[\\s\\S]*?^\\$function\\$','gm');
+    const found=[...baseline.matchAll(pattern)];
+    if(found.length!==1) throw Error('dated_card_stamp_definition_not_unique: '+table);
+    selected.push(found[0][0]+';');
+  }
+  for(const table of ['calendar_posts','sample_reviews']) one(new RegExp('^CREATE TRIGGER trg_'+table+'_stamp_status_at\\s','i'));
+  cluster.exec(selected.join('\n'));
+  console.log('COMPOSITION_DATED_CARD_BASELINE 2026-07-03 eight exact statements; current hosted schema not asserted');
+}
+
 function bootCluster() {
   const cluster = new Cluster();
   try {
@@ -91,6 +118,7 @@ function bootCluster() {
   const boundary = FOUNDATION_SQL.indexOf('create table if not exists public.team_members');
   if (boundary < 0) throw Error('foundation boundary changed');
   cluster.exec(FOUNDATION_SQL.slice(0,boundary));
+  installDatedCardBaseline(cluster);
   cluster.runFile(path.join(MIGRATIONS,'2026-07-03-a1-calendar-upsert.sql'));
   console.log('COMPOSITION_APPLY 2026-07-05-b0-linear-auth-scaffold.sql');
   cluster.runFile(path.join(MIGRATIONS,'2026-07-05-b0-linear-auth-scaffold.sql'));

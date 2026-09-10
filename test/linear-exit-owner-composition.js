@@ -676,6 +676,41 @@ async function main() {
     deliverableWrite('nor-d2', { status: 'smm_approval' }, notificationEvent);
     ok('real ordinary writer produces a notification intent under composed owners', scalar(cluster,
       "select count(*) from public.production_notification_intents where deliverable_id='nor-d2' and kind='status_smm_approval'") === '1');
+    for(const file of ['2026-09-05-card-change-journal.sql','2026-09-05-calendar-feedback-recovery.sql','2026-09-05-crosswalk-bind-and-import.sql']) {
+      console.log('COMPOSITION_APPLY '+file);cluster.runFile(path.join(MIGRATIONS,file));
+    }
+    cluster.exec(`insert into public.calendar_posts(client,id,status,updated_at) values
+      ('fixture-client','journal-shared','In Progress','2030-01-01T00:00:00Z'),
+      ('fixture-split','journal-shared','In Progress','2030-01-01T00:00:00Z');`);
+    ok('journal preserves same card id under two client primary keys',scalar(cluster,"select count(distinct entity_key_after->>'client')=2 from public.card_change_journal where relation_name='calendar_posts' and entity_key_after->>'id'='journal-shared'")==='t');
+    const journalBefore=count(cluster,'select * from public.card_change_journal');
+    cluster.exec("begin; update public.calendar_posts set name='Rolled back' where client='fixture-client' and id='journal-shared'; rollback;");
+    ok('rolled-back source write leaves no journal entry',count(cluster,'select * from public.card_change_journal')===journalBefore);
+    cluster.exec(`insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,linear_identifier)
+      values ('crosswalk-deliverable','composition-batch','compositionclient','video','other','Crosswalk fixture','todo','VID-909090');
+      insert into public.calendar_posts(client,id,status,updated_at,video_deliverable_id,linear_issue_id)
+      values ('compositionclient','crosswalk-card','In Progress','2030-01-01T00:00:00Z','crosswalk-deliverable','VID-909090');`);
+    const binding={source_surface:'calendar',client_slug:'compositionclient',card_id:'crosswalk-card',component:'video',deliverable_id:'crosswalk-deliverable'};
+    const imported=[{native_comment_id:'crosswalk-legacy-comment',source_fingerprint:'crosswalk-fixture-fingerprint',client_slug:'compositionclient',author_key:'legacy-fixture',author_name:'Legacy fixture',role:'client',body:'Retained legacy feedback',audience:'client',component:'video',source_created_at:'2030-01-01T00:00:00Z'}];
+    const bound=jsonRows(cluster,`select public.production_comment_card_bind_and_import(${json(binding)},${json(imported)},'{}') as result`)[0].result;
+    ok('actual crosswalk owner binds and imports matching source identity',bound.bound===true && bound.imported===1 && scalar(cluster,"select origin='calendar' and card_id='crosswalk-card' and kind='video' from public.deliverables where id='crosswalk-deliverable'")==='t');
+    const replayBinding=jsonRows(cluster,`select public.production_comment_card_bind_and_import(${json(binding)},${json(imported)},'{}') as result`)[0].result;
+    ok('crosswalk replay retains one imported link',replayBinding.imported===0 && replayBinding.already_linked===1);
+    cluster.exec("update public.calendar_posts set linear_issue_id='VID-909091' where client='compositionclient' and id='crosswalk-card'");
+    ok('crosswalk refuses a source pointer with different work identity',rejection(`select public.production_comment_card_bind_and_import(${json(binding)},'[]','{}')`,/crosswalk_bind_linear_identity_disagrees/));
+    cluster.exec("update public.calendar_posts set linear_issue_id='VID-909090' where client='compositionclient' and id='crosswalk-card'");
+    const recoveryEvent=event({dedup:'recovery-client-add',entity:'comment',id:'crosswalk-deliverable',operation:'comment',actor:'Fixture Client',role:'client'});
+    const recoveryComment={id:'recovery-client-comment',native_comment_id:'recovery-client-comment',idempotency_key:'recovery-client-add',deliverable_id:'crosswalk-deliverable',team:'video',operation:'add',author_key:'client:compositionclient',author_name:'Fixture Client',role:'client',body:'Owned original feedback',audience:'client',component:'video',is_tweak:false,origin:'native',source:'ui',source_created_at:recoveryEvent.ts,source_updated_at:recoveryEvent.ts};
+    cluster.exec(`select public.production_comment_write(${json(recoveryComment)},${json(recoveryEvent)})`);
+    const canonical=jsonRows(cluster,"select * from public.production_comments where id='recovery-client-comment'")[0];
+    cluster.exec(`select public.production_comment_upsert(${json({...recoveryComment,operation:'delete',deleted_at:'2030-01-02T00:00:00Z'})})`);
+    ok('actual native comment lifecycle is captured by journal',scalar(cluster,"select exists(select 1 from public.card_change_journal where relation_name='production_comments' and entity_key_after->>'id'='recovery-client-comment' and operation='UPDATE' and row_after->>'deleted_at' is not null)")==='t');
+    const request={actor:{name:'Fixture Client',role:'client'},client:'compositionclient',card_id:'crosswalk-card',component:'video',deliverable_id:'crosswalk-deliverable',comment:{native_comment_id:canonical.native_comment_id,canonical_id:canonical.id,dedup_key:canonical.idempotency_key,intent_fingerprint:'fp-recovery-client-add',body:canonical.body,is_tweak:false,round:canonical.round,entry_created_at:canonical.source_created_at},source:{expected_updated_at:'2030-01-01T00:00:00Z',fields:{},previous:{}}};
+    const recovered=jsonRows(cluster,`select public.calendar_feedback_recovery_apply_v1(${json(request)}) as result`)[0].result;
+    ok('feedback recovery holds after actual canonical deletion without materialization',recovered.outcome==='held' && recovered.reason==='native_lifecycle_changed' && count(cluster,'select * from public.calendar_feedback_materializations')===0);
+    const corpus=require('../scripts/track-b-backup').resolveCorpus('history-v11');
+    const missing=corpus.tables.filter(table=>scalar(cluster,`select to_regclass(${literal('public.'+table.name)}) is null`)==='t').map(table=>table.name);
+    console.log(JSON.stringify({classification:'RECOVERY_COVERAGE_INCOMPLETE',corpus:'history-v11',expected_tables:corpus.tables.length,missing_tables:missing}));
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_OK ${passed} assertions`);
   } finally {
     try {

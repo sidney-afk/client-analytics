@@ -29,6 +29,7 @@ From the repository root, replace the example local binary path:
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane optional
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane composition
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane notifications
+& ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane recovery
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql16/bin' -Lane unit
 & ./qa/linear-exit-rehearsal/run-portable.ps1 -PgBin 'C:/local/pgsql17/bin' -Lane f27
 ```
@@ -39,6 +40,14 @@ private results to a unique temporary directory and stops that database in
 must exit 1**, preserving the original public materialization failure; it is
 not relabelled as a successful application journey. Do not reuse a production
 server or replace public browser headers with staff credentials.
+
+The recovery lane uses the existing `history-v11` rehearsal and requires
+`pg_dump` beside the supplied PostgreSQL binaries. It reconstructs the selected
+52-table data corpus plus its public schema into an empty local target, subject
+to the recovery engine's checks. Results remain private under the owned run
+directory. This is a migration-shaped synthetic source, not the current hosted
+database or Storage objects; a successful run would not authorize installation.
+The runner requires the versioned PASS report and stops its server on failure.
 
 ## Source contract and assertions
 

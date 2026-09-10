@@ -80,5 +80,47 @@
         "private_log_sha256": "fb88aeab606b3f090a9fc5587df95bd6013a1ebce4e97872d3e902e206ecf8a1"
       }
     ]
+  },
+  "schema_recovery_preparation": {
+    "execution_base": "6437deddfef2d23614c73665617261eabf1b488e",
+    "execution_note": "Working-tree preparation changes; no application or production migration changes in this step.",
+    "composition": {
+      "status": "PASS",
+      "assertions": 55,
+      "server_stopped": true,
+      "private_log_sha256": "0c126fc41d736229267c5a8e6eda429d3773fdf00afa56be534e3744bf993f2e",
+      "coverage": {
+        "classification": "RECOVERY_COVERAGE_INCOMPLETE",
+        "corpus": "history-v11",
+        "expected_tables": 52,
+        "missing_tables": [
+          "settings_events",
+          "sample_review_events",
+          "pto_members",
+          "pto_requests",
+          "pto_adjustments",
+          "linear_project_ids_shape_migration_20260728",
+          "linear_intake_receipts",
+          "production_card_provenance",
+          "production_card_materialization_receipts",
+          "production_card_materialization_ingress",
+          "linear_outbound_cutoff_control",
+          "legacy_intake_native_triage",
+          "native_brief_media_occurrences",
+          "production_native_identifier_mint",
+          "production_native_identifier_grants",
+          "description_images"
+        ]
+      }
+    },
+    "recovery": {
+      "status": "FAIL",
+      "completed_checks": 5,
+      "corpus": "history-v11",
+      "reason": "volatile review-token default refused before catalog-race check",
+      "server_stopped": true,
+      "private_failure_sha256": "4b20671fe7de417ccd92f01e4825711e48a02225cab860fca8443dc005c13abd",
+      "deferred_default_design": "PROPOSED_UNBUILT"
+    }
   }
 }

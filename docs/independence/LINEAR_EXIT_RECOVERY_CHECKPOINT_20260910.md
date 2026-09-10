@@ -2,7 +2,22 @@
 
 **Installation HOLD. Documentation only; no runtime changes or deployment authorization.**
 
-## Latest preparation update: notification lifecycle repair
+## Latest preparation update: schema and recovery
+
+Composition now passes **55 assertions** with dated source-backed card keys
+and the actual journal/crosswalk/feedback owners. Seven new cases cover tenant
+separation, rollback, imports and stale-feedback refusal. The bounded local
+catalog still lacks 16 of the 52 recovery-corpus tables; the public aggregate
+evidence records the exact names for the next extension.
+
+The portable `recovery` lane reaches a real **FAIL after five checks**: capture
+refuses the volatile review-token default before its catalog-race test. See
+`../ops/TRACK_B_BACKUP.md` for the proposed versioned deferred-default design,
+which is not implemented. Do not drop the default, omit tokens or weaken the
+capture assertion. Both owned local servers stopped. No application source,
+production migration, frozen writer or hosted state changed in this step.
+
+## Previous preparation update: notification lifecycle repair
 
 Prepared code `93486bb421459255691bb603102f31a80dbfbd17` replaces the mistaken
 four-column deletion assumption with existing archive/lifecycle ownership.

@@ -1,5 +1,19 @@
 # Linear exit owner composition rehearsal
 
+Current extension: 55 assertions pass. Calendar/Samples table definitions,
+composite keys and status-stamp functions/triggers come from eight statements
+in `migrations/live-schema-baseline-2026-07-03.sql`. Function bodies are retained
+with SQL terminators added; they are installed before their captured triggers.
+A fresh catalog-only read confirmed the six journal-owner primary keys match,
+but this dated extraction is not a complete current hosted schema.
+
+After the earlier 48 cases, the lane installs journal, feedback recovery and
+crosswalk owners, then checks tenant-separated journal keys, rollback, actual
+canonical comment mutation, matching crosswalk import/replay, identity refusal
+and feedback hold after canonical deletion. This late installation is a bounded
+test sequence, not the recommended production installation order. The lane
+reports missing `history-v11` tables explicitly; full recovery remains unproven.
+
 Current extension: the lane also installs the actual provisioning and complete
 Workload owners, then verifies provisioning, browser attribution and the native
 Workload row. The notification owner now consumes existing archive status and

@@ -1,5 +1,38 @@
 # Track-B private backup and restore rehearsal
 
+## Linear-exit preparation checkpoint — 2026-09-10
+
+The new isolated `history-v11` schema/data rehearsal **fails after five checks**.
+Capture rejects `client_access_mint_review_token()`, the volatile default of
+`client_access.review_token` installed by
+`2026-08-04-client-access-auto-provision.sql`. Its random-byte generation does
+not satisfy the recovery engine's immutable public-callable contract. The
+catalog-race assertion therefore never reaches its intended boundary. Preserve
+this failure; removing the default/table or relaxing that assertion would not
+prove recovery. The owned local server stopped; no hosted backup or restore
+was attempted. Historical scheduled-backup facts below were not refreshed.
+
+The proposed next engine change is a **versioned, authenticated deferred-default
+section**, not an exception allowing arbitrary volatile callables. Recognized
+default expressions would be restored after explicit-column COPY and sequence
+restoration, before final schema/data/ACL verification in the same transaction.
+Require every applicable stored column, especially `review_token`, in COPY;
+omission must refuse rather than mint replacement values. Preserve strict
+callable checks for CHECK/generated/index/materialized-view expressions that
+can execute while restoring. Deferred expressions still require parsing and
+dependency review, including unsafe immutable subexpressions that planning
+might evaluate. Unsupported forms must refuse.
+
+Required proof: captured token bytes unchanged; generator never invoked during
+restore; omitted COPY column refused; malicious evaluated expression refused;
+exact default and ACL restored; late failure rolls back to an empty target;
+and the existing catalog-race test reaches its intended rejection. This design
+is **not implemented**. The 52-table corpus and current recovery package format
+retain their existing meanings. Local schema composition or a table count is
+not installation or full data/Storage recovery proof. Run the prepared lane
+using `qa/linear-exit-rehearsal/run-portable.ps1 -Lane recovery` with the required
+local PostgreSQL binary path; see that package's README.
+
 > **Status: MERGED & ACTIVE since 2026-07-15 (PR #840, merge `4f9d919`).** The recurring 6-hourly
 > schedule is live on `main`; all repository configuration below is provisioned. Proof run
 > `29444939853` uploaded and independently re-read a real 14-table Shared Drive package, and a 229 s

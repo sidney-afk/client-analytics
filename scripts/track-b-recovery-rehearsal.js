@@ -62,6 +62,8 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'migrations/2026-09-09-syncview-retirement-admission.sql'] : []),
   ...(CORPUS_VERSION >= 11 ? ['migrations/2026-09-09-native-ordinary-receipts.sql',
   'migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql',
+  'migrations/2026-09-11-native-ordinary-receipt-repair.sql',
+  'migrations/2026-09-12-native-ordinary-envelope-repair.sql',
   'migrations/2026-09-09-editors-event-assignee.sql',
   'migrations/2026-09-09-native-notification-outbox.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
@@ -186,6 +188,7 @@ async function run() {
       // migration order preserves ordinary receipt/recognizer prerequisites and
       // applies notification observers after the native event-assignee stamp.
       for (const file of ['2026-09-09-native-ordinary-receipts.sql','2026-09-10-syncview-retirement-native-ordinary-recognizer.sql',
+        '2026-09-11-native-ordinary-receipt-repair.sql','2026-09-12-native-ordinary-envelope-repair.sql',
         '2026-09-09-editors-event-assignee.sql','2026-09-09-native-notification-outbox.sql'])
         source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
       source.query("insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);");

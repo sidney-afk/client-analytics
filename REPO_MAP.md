@@ -202,3 +202,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - scripts/linear-exit-priority-companion.js: offline authenticated nine-table row envelope.
 - test/linear-exit-priority-companion.js: synthetic offline companion contract checks.
+
+- test/linear-exit-priority-companion-postgres.js: isolated typed row capture and companion restore rehearsal.

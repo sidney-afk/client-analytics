@@ -1159,5 +1159,23 @@
     "complete_schema_proven": false,
     "object_custody_proven": false,
     "installation_ready": false
+  },
+  "priority_companion_postgres": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 7,
+    "tables": 9,
+    "columns": 106,
+    "receipt": "linear-exit-priority-companion-7258d9870f96441ab456be0905c6e78e",
+    "exit": 0,
+    "server_stopped": true,
+    "typed_synthetic_row_roundtrip": true,
+    "parent_package_validation_proven": false,
+    "full_schema_restore_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_capture_proven": false,
+    "object_custody_proven": false,
+    "report_only_flag_added_after_run": "parent_package_validation_proven:false",
+    "installation_ready": false
   }
 }

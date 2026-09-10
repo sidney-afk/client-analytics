@@ -195,3 +195,9 @@ with `-RecoveryPostgres17` and PostgreSQL 17 binaries. The switch is refused for
 other lanes; the normal recovery lane still requires PostgreSQL 16. Report exact
 versions separately: matching a hosted major version does not prove matching
 patch versions, platform configuration or live recovery.
+
+Use `-Lane priority-companion` with PostgreSQL 16 binaries for the isolated
+nine-table row companion rehearsal. It uses synthetic schemas built from the
+pinned observed column/key contract. It is not a production capture tool or a
+complete schema restore: defaults, triggers, policies, semantic dependencies,
+sequence custody and referenced objects require separate recovery proof.

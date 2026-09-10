@@ -80,3 +80,23 @@ contract, including exact rows and duplicate multiplicities. Full schema,
 sequence consistency, semantic dependencies, object/document custody and the
 remaining 25 tables still require evidence. Existing v11 and scheduled v3 are
 unchanged. Installation remains HOLD. No merge, deployment or production writes.
+
+## Priority companion typed rehearsal
+
+ISOLATED_POSTGRES: the PG16 `priority-companion` lane passes seven checks for
+nine synthetic tables and all 106 pinned columns. Receipt:
+`linear-exit-priority-companion-7258d9870f96441ab456be0905c6e78e`.
+The runner exited zero and the owned server stopped. Actual typed rows survived
+capture, authenticated packaging and transactional restore with exact textual
+multisets, including large integers, escaping and keyless duplicates. Tampering,
+source/target column drift and nonempty targets were refused; a late timestamp
+conversion failure left every target table empty.
+
+This is a test-only restore algorithm over synthetic row schemas, not an
+operational backup tool. The parent identity is synthetic. The final source adds
+`parent_package_validation_proven:false` to the report after this run; assertions
+are unchanged. Real parent-package validation, concurrent capture/DDL behavior,
+complete schema/ACL/trigger restoration, identity sequence state, semantic
+references and object/document custody remain unproven. Integrating this row
+component with the existing recovery package is still required. Installation
+remains HOLD; no merge, deployment, hosted write or n8n operation occurred.

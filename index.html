@@ -42875,12 +42875,16 @@
          * invisible absence — an absence is the one thing a user cannot debug.
          */
         const needed = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        // A fresh native capability read can offer a parentless batch. The
+        // gateway still validates its retained parent receipt and ownership.
+        if (Array.isArray(batch._nativeAppendTeams) && needed.every(t => batch._nativeAppendTeams.includes(t))) return true;
         const parentTeams = _calNativeBatchParentTeams(batch);
         if (!needed.every(t => parentTeams.has(t))) return false;
         return true;
     }
 
     function _calNativeBatchHasLinearParents(batch) {
+        if (batch && Array.isArray(batch._nativeAppendTeams) && batch._nativeAppendTeams.length) return true;
         // Orphan filter for the Create Post picker. Appending to a batch
         // nests its Linear issues under the parents recorded in
         // linear_parent_ids or, while the mirror is still draining, under a
@@ -43225,7 +43229,20 @@
                 + '&order=created_at.desc,id.desc',
             100, 10
         );
-        return Array.isArray(rows) ? rows : [];
+        if (!Array.isArray(rows)) return [];
+        // No provider parent is expected after native intake. Enrich only
+        // this freshly read picker result; stale/malformed capability reads
+        // cannot authorize a native option, and do not change provider rows.
+        let nativeTeams = [];
+        try {
+            const flags = await _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.native_intake_epochs', 2, 1);
+            const value = flags.length === 1 && flags[0].key === 'native_intake_epochs' && flags[0].value;
+            nativeTeams = ['video', 'graphics'].filter(team => value && value[team]
+                && value[team].enabled === true && typeof value[team].epoch === 'string'
+                && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch));
+        } catch (_) { /* Existing parent-backed choices remain available. */ }
+        return rows.map(batch => !batch.linear_parent_ids || !Object.keys(batch.linear_parent_ids).length
+            ? { ...batch, _nativeAppendTeams: nativeTeams } : batch);
     }
     function _calRenderNativePostChoice() {
         const state = _calNativePostState;

@@ -7000,7 +7000,12 @@ async function handleComponentFill(
     sort_key: sibling.sort_key == null ? null : Number(sibling.sort_key),
     created_by: principal.actorKey,
     created_at: sourceEditedAt,
-    linear_raw: { attribution: intakeAttribution(client, team, projectId, nativeEpoch) },
+    linear_raw: {
+      attribution: intakeAttribution(client, team, projectId, nativeEpoch),
+      // A newly created native component has a known empty label selection.
+      // Do not apply this to existing or provider-era rows with unknown state.
+      ...(nativeEpoch ? { issue: { labelIds: [], labels: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } : {}),
+    },
   };
 
   const dedup = dedupKey("create", "deliverable", deliverableId, requestId);
@@ -7621,7 +7626,10 @@ async function handleIntakeCreate(
       // No Linear issue exists yet; `linear-outbound` adds `issue` alongside
       // this on drain via a spread, so the stamp survives. Without it the row
       // reaches the reconciler unstamped and diffs until B1's next pass.
-      linear_raw: { attribution: intakeAttribution(client, team, projectByTeam[team] || "", nativeEpochByTeam[team] || "") },
+      linear_raw: {
+        attribution: intakeAttribution(client, team, projectByTeam[team] || "", nativeEpochByTeam[team] || ""),
+        ...(nativeEpochByTeam[team] ? { issue: { labelIds: [], labels: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } : {}),
+      },
     };
     const existing = existingById.get(deliverableIds[index]);
     if (intakeExistingRowConflict(existing, row)) {

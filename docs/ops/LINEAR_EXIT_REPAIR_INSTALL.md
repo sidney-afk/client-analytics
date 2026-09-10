@@ -256,3 +256,7 @@ This test-only portability correction does not alter application SQL or
 provisioning expectations. Browser/SQL journeys and final source pins are
 recorded in the separate private reproducible handoff; these local results
 retain all installation and production restrictions above.
+
+### Local browser findings after reviewed candidate c3397f9
+
+Isolated Chromium -> current handler -> synthetic PostgreSQL journeys reproduced two defects. Fresh native intake rows now initialize a complete empty label snapshot only under an accepted native epoch; provider rows and existing unknown label state retain their prior behavior. Calendar/Samples append discovery now accepts parentless batches only when the fresh native-intake flag confirms every selected team. Failed or malformed capability reads retain the orphan refusal. The historical whole-handler comparison explicitly accounts for the bounded label initialization and retains equality outside that block. Frozen card writers are unchanged. Evidence and limitations are supplied separately in the private final-evidence harness; this is not production or installation approval.

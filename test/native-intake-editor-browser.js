@@ -106,6 +106,14 @@ function attributionCallLine(sha){
 const nativeAttributionAfter=attributionCallLine(nativeAttributionRelease);
 const nativeAttributionBefore=attributionCallLine(preNativeAttributionRelease);
 assert.notEqual(nativeAttributionAfter,nativeAttributionBefore);
+// New native rows have a known empty label set. Account for this exact bounded
+// initialization while retaining whole-handler equality for every other line.
+const nativeLabelInitialization=`      linear_raw: {
+        attribution: intakeAttribution(client, team, projectByTeam[team] || "", nativeEpochByTeam[team] || ""),
+        ...(nativeEpochByTeam[team] ? { issue: { labelIds: [], labels: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } : {}),
+      },`;
+assert.equal(intakeWithoutNaming.split(nativeLabelInitialization).length,2);
+intakeWithoutNaming=intakeWithoutNaming.replace(nativeLabelInitialization,nativeAttributionAfter);
 assert.equal(intakeWithoutNaming.split(nativeAttributionAfter).length,2);
 intakeWithoutNaming=intakeWithoutNaming.replace(nativeAttributionAfter,nativeAttributionBefore);
 assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')

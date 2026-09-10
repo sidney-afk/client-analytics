@@ -20268,3 +20268,32 @@ check that proved nothing until it was aimed properly.
 133 checks, three controls, all confirmed by exit status.
 
 **Thirty-one rounds, 71 findings.**
+
+### 196ag. Round 32: a blacklist of the roles I happened to know
+
+`couldBeClientTweak` listed six staff roles and refused those. That is wrong by
+construction twice over: it admits **every role nobody thought to add** —
+`creative` is one the product already preserves — and it never looked at
+`audience` at all, so a client-authored note explicitly marked internal counted
+as the delivery of a client's request.
+
+It now mirrors `index.html`'s own derivation: an explicit `client`/`internal`
+wins, otherwise role `client` means client and everything else means internal.
+An internal entry is never shown to the client, so it cannot be the delivery of
+their request — the same argument as `hidden`, one field over.
+
+The direction matters and is controlled: this is **not** "staff cannot deliver".
+**779 live root entries carry role `smm` with audience `client`**, and the app
+shows those to the client, so they can and do. A role-only allowlist would have
+discarded all 779; that over-correction fails the suite.
+
+What it changes live: 4 root entries carry role `client` with audience
+`internal`, and 2 carry neither field (the app calls both internal). Both were
+eligible before and are not now.
+
+135 checks, two controls, both confirmed by exit status.
+
+**Thirty-two rounds, 72 findings.** This is the fourth rule in this PR that was
+written as "the cases I can think of" and had to become "the rule the app
+already applies" — after the crosswalk, the component/team map, and the
+video/caption/title contract.

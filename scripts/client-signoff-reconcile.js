@@ -310,7 +310,25 @@ function stampSurvives(card, comp, stampValue) {
 /* Could this card entry be a client's own change-request root? Staff-authored
  * entries, replies and deleted entries never represent one. Absent role is
  * allowed (legacy rows predate the field); an explicit staff role is not. */
-const STAFF_ROLES = new Set(['kasper', 'smm', 'admin', 'editor', 'designer', 'system']);
+/* THE APP'S OWN AUDIENCE DERIVATION, not a blacklist of staff roles. A list of
+ * known staff roles is wrong by construction: it admits every role nobody
+ * thought to add — `creative` is one the product already preserves — and it
+ * ignores `audience` entirely, so a client-authored note explicitly marked
+ * internal counted as a client request delivery.
+ *
+ * index.html derives it as: an explicit `client`/`internal` wins; otherwise
+ * role `client` means client and everything else means internal. An INTERNAL
+ * entry is never shown to the client, so it cannot be the delivery of their
+ * request — the same argument as `hidden`, one field over.
+ *
+ * Live root entries this changes: 4 carry role=client with audience=internal,
+ * and 2 carry neither field (the app calls both internal). It admits no role
+ * this job has not seen; it simply stops guessing about the ones it has not. */
+const audienceOf = (entry) => {
+  const a = String((entry && entry.audience) || '').trim().toLowerCase();
+  if (a === 'client' || a === 'internal') return a;
+  return String((entry && entry.role) || '').trim().toLowerCase() === 'client' ? 'client' : 'internal';
+};
 /* An entry the app never renders cannot be a delivery of anything. `hidden` is
  * the app's audit-suppression flag — `_calCommentsForView` filters it out for
  * EVERY audience, and index.html names the case it exists for: "legacy
@@ -333,8 +351,7 @@ function couldBeClientTweak(entry) {
   if (entry.hidden) return false;
   if (entry.deleted === true) return false;
   if (entry.parent_id) return false;
-  const role = String(entry.role || '').trim().toLowerCase();
-  return !STAFF_ROLES.has(role);
+  return audienceOf(entry) === 'client';
 }
 
 /* calendar_posts is keyed by (client, id), NOT by id alone: 13 live card ids are

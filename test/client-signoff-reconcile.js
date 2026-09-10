@@ -1865,6 +1865,42 @@ check('a stale reverse link is counted as a stale link, not a missing card', () 
   assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /link back is stale 1/);
 });
 
+/* ROUND 32. `couldBeClientTweak` was a BLACKLIST of staff roles, so it admitted
+   every role nobody had thought to add — `creative` is one the product already
+   preserves — and ignored `audience` entirely. It now mirrors index.html's own
+   derivation: an explicit client/internal wins, else role client means client
+   and everything else means internal. An internal entry is never shown to the
+   client, so it cannot be the delivery of their request. */
+check('an internal entry never delivers a client request, whatever its role', () => {
+  for (const over of [
+    { role: 'creative' },                       // a role the blacklist never listed
+    { role: 'client', audience: 'internal' },   // explicitly internal, 4 live rows
+    {},                                          // neither field: the app calls it internal
+  ]) {
+    const onCard = JSON.stringify([Object.assign(
+      { id: 'cal-9', body: 'Please fix the intro', is_tweak: true }, over)]);
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 1,
+      `${JSON.stringify(over)} is internal; the client never saw it`);
+  }
+});
+
+check('an explicit client audience delivers even on a staff role', () => {
+  const onCard = JSON.stringify([
+    { id: 'cal-9', body: 'Please fix the intro', is_tweak: true,
+      role: 'smm', audience: 'client' },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0,
+    'the app shows it to the client, so it can be the delivery — 779 live rows look like this');
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

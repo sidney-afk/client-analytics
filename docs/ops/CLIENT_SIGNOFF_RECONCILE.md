@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 133 checks, each
+construction through fixtures — no credentials, no network. 135 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -129,6 +129,19 @@ here republishes settled work or duplicates a client's own words back at them.
 The suite is proven by sabotage, not by passing: removing the stale-approval
 gate, the closed-round gate, the body comparison, the commit-time stamp, or the
 stale sweep each makes it fail. Re-run those controls if you change a rule.
+
+## An entry the client never sees cannot be a delivery
+
+Two forms of the same rule, both taken from the app rather than restated.
+
+**Audience.** Eligibility is `index.html`'s own derivation — an explicit
+`client`/`internal` wins, otherwise role `client` means client and everything
+else means internal — not a blacklist of known staff roles. A blacklist is wrong
+by construction: it admits every role nobody thought to add (`creative` is one
+the product already preserves) and ignores `audience`, so a client-authored note
+explicitly marked internal counted as a delivery. Note the direction is not
+"staff cannot deliver": **779 live root entries carry role `smm` with audience
+`client`**, and the app shows those to the client, so they can.
 
 ## An entry the app never renders cannot be a delivery
 

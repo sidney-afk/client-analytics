@@ -244,3 +244,15 @@ the tested SQL declarations; a regression check now compares every declared
 routine search path with its source migration. Application SQL is unchanged
 from the returned local repair. This does not replace a real catalog readback
 or turn the reported 482/485 PG16 run into a full green database run.
+
+### Final local database continuation
+
+The reviewed `c3397f93f` candidate completed the full 485-suite Docker PG16
+lane and the separate PG17 F27 proof. Three optional SQL rehearsals skipped
+inside that run. Explicit follow-up execution passed component fill and
+crosswalk binding; client-access provisioning required normalizing Windows
+CRLF output before comparing rows, then its real SQL assertions passed too.
+This test-only portability correction does not alter application SQL or
+provisioning expectations. Browser/SQL journeys and final source pins are
+recorded in the separate private reproducible handoff; these local results
+retain all installation and production restrictions above.

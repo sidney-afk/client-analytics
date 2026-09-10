@@ -19820,3 +19820,37 @@ human-readable output these rows ever get.
 **Sixteen rounds, 38 findings.** The lesson worth keeping is not any of the three
 fixes: it is that a green suite and green CI were both satisfied by a program
 that could not start. Coverage of rules is not coverage of the run.
+
+### 195r. Round 17: the delivery half was already holding the evidence
+
+Two P1s and a P2, and the first one is the falsest positive this job could
+produce.
+
+**A later client change request supersedes an approval.** A tweak commits its
+comment leg and its status leg separately; when the status leg fails there is no
+transition for the reopen test to find, and the component still reads
+`Approved`. An apply run would have restored the older sign-off stamp — claiming
+the client approved work they had since asked to change — while the SAME run
+reported their request as `review_round_closed`. The two halves of one
+contradiction, in one report. The evidence was already loaded in
+`world.comments` for the delivery half; the stamp half simply never looked at
+it. Committed client requests are now a supersession clock for both paths.
+
+Measured: **none of the four repair candidates has a later client request**, so
+no repair changes. Checked because of what it would mean if it ever did.
+
+**A lost approval that cannot resolve a card vanished.** The unwritten branch
+accepted only resolved rows and then continued, so an approval that failed both
+delivery legs AND has a stale crosswalk appeared in neither `findings` nor
+`skipped` — precisely the rows where nothing else in the system names the
+approval either. The written path had reported these all along; the asymmetry
+was the bug.
+
+**The carrier row named a card but not a client.** `calendar_posts` is keyed by
+`(client, id)` and 13 live ids are shared across clients, so the row did not say
+whose approval was lost. This is the fourth finding in this PR that traces to
+"an id is not an identity here".
+
+90 checks, four controls, all confirmed by exit status.
+
+**Seventeen rounds, 41 findings.**

@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 86 checks, each
+construction through fixtures — no credentials, no network. 90 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -385,6 +385,21 @@ shipped doing nothing. Three columns were added to the reads for this rule, so
 the suite asserts the projections themselves: every deliverable read must
 project `origin` and `team`, and every card read must project both reverse-link
 columns.
+
+## A later client request supersedes an approval, and the outbox cannot say so
+
+A change request commits its comment leg and its status leg **separately**. When
+the status leg fails there is no transition for the reopen test to find, and the
+component can still read `Approved`. Restoring the older stamp there claims the
+client signed off on work they had since asked to change — while the same run
+separately reports their request as `review_round_closed`. Two halves of one
+contradiction, and the falsest positive this job could produce.
+
+So the committed client requests already loaded for the delivery half are also a
+supersession clock: a request newer than the approval blocks the stamp
+(`superseded_by_later_client_request`) and suppresses the lost-approval report.
+Live: none of the four repair candidates has a later client request, so it
+changes no repair today.
 
 ## The race this does not close
 

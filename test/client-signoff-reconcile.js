@@ -756,7 +756,10 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
   assert.match(out, /NEEDS A PERSON \(never written\): 1\b/, out);
   /* The per-row line, not just the count: a count with no rows tells the
      operator that one approval needs attention and nothing about which one. */
-  assert.match(out, /card card-2 \[video\] a client APPROVE reached neither leg/, out);
+  /* The client is part of the row: calendar_posts is keyed by (client, id) and
+     13 live ids are shared across clients, so a card id alone does not say
+     whose approval was lost. */
+  assert.match(out, /card card-2 \(testclient\) \[video\] a client APPROVE reached neither leg/, out);
   assert.match(out, /carrier stale/, out);
 });
 
@@ -1057,6 +1060,61 @@ check('an older written approve does not suppress a newer lost one', () => {
   assert.equal(findings.length, 0, 'the old written approve is superseded by the reopen');
   assert.equal(skipped.filter(x => x.reason === 'carrier_did_not_write').length, 1,
     'the newer lost approval must still be reported');
+});
+
+/* ROUND 17. A client change request commits its comment leg and its status leg
+   SEPARATELY. When the status leg fails there is no transition for the reopen
+   test to find, and the card can still read Approved — so an apply run would
+   restore the older sign-off while the same run reported the newer request as
+   `review_round_closed`. Two halves of one contradiction, and the falsest
+   positive this job could produce: claiming a client signed off on work they
+   had asked to change. Live: none of the four repair candidates has a later
+   client request, so this changes no repair today. */
+check('a client request after the approval blocks the stamp', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ created_at: '2026-09-06T10:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Approved' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 0,
+    'the card reads Approved, and the client has since asked for changes');
+  assert.equal(skipped.some(x => x.reason === 'superseded_by_later_client_request'), true);
+});
+
+check('a client request BEFORE the approval does not block it', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ created_at: '2026-09-04T10:00:00.000Z' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp' && f.writable).length, 1,
+    'approving after asking for changes is the normal flow');
+});
+
+/* The unwritten path shares the rule: a lost approval the client has since
+   superseded is not a lead either. */
+check('a superseded lost approval is not reported as needing a person', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ status: 'stale' })],
+    comments: [TWEAK({ created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(skipped.some(x => x.reason === 'carrier_did_not_write'), false);
+});
+
+/* The unwritten branch accepted only RESOLVED rows and then continued, so an
+   approval that failed both delivery legs AND has a stale crosswalk appeared in
+   neither findings nor skipped — the rows where nothing else in the system names
+   the approval either. The written path reported these all along. */
+check('a lost approval that cannot resolve a card is still reported', () => {
+  for (const [over, reason] of [
+    [{ deliverables: [DEL({ origin: 'samples' })] }, 'not_a_calendar_deliverable'],
+    [{ cards: [CARD({ video_deliverable_id: 'other' })] }, 'card_does_not_link_back'],
+    [{ deliverables: [DEL({ team: '' })] }, 'unknown_team'],
+  ]) {
+    const { skipped } = detect(world(Object.assign({ outbox: [APPROVE({ status: 'pending' })] }, over)));
+    assert.equal(skipped.length, 1, reason + ' must not vanish on the unwritten path');
+    assert.equal(skipped[0].reason, reason);
+    assert.equal(skipped[0].deliverable, 'del-1', 'the row must name what it could not resolve');
+  }
 });
 
 check('a properly linked card is still stamped normally', () => {

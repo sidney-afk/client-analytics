@@ -433,6 +433,34 @@ function detect(world) {
     });
   }
 
+  /* A LATER CLIENT CHANGE REQUEST SUPERSEDES AN APPROVAL, and the outbox cannot
+   * always say so. A tweak commits its comment leg and its status leg
+   * separately; when the status leg fails, no transition exists for the reopen
+   * test to find, and the card can still read Approved. Restoring the older
+   * stamp there claims the client signed off on work they had since asked to
+   * change — while this same run separately reports their request as
+   * `review_round_closed`. The two halves of one contradiction.
+   *
+   * `world.comments` is already filtered to committed, non-deleted client
+   * tweaks, so their clock is available without another read.
+   * Live: none of the four repair candidates has a later client request, so
+   * this changes no repair today. It is the falsest positive this job could
+   * produce, which is why it is checked anyway. */
+  const latestClientRequest = new Map();
+  for (const pc of world.comments) {
+    if (!pc || pc.deleted_at) continue;
+    const id = String(pc.deliverable_id || '');
+    if (!id) continue;
+    const at = String(pc.created_at || '');
+    const prev = latestClientRequest.get(id);
+    if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(id, at);
+  }
+  const supersededByRequest = (deliverableId, approvedAt) => {
+    const req = latestClientRequest.get(String(deliverableId));
+    const reqMs = Date.parse(req || ''), apprMs = Date.parse(approvedAt || '');
+    return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
+  };
+
   /* The REPAIR side stays narrow: only a row the carrier actually wrote is
    * taken as a client approval to act on. The supersession side above is
    * deliberately broader. Erring narrow here and broad there both err toward
@@ -464,7 +492,18 @@ function detect(world) {
        * that has since moved below Approved. A false lead in a report a person
        * reads is the same class of harm as a false repair. */
       const unwritten = resolve(row && row.entity_id, row && row.client_slug);
-      if (unwritten && typeof unwritten !== 'string' && unwritten.component) {
+      /* THE SAME REFUSAL THE WRITTEN PATH REPORTS. Accepting only resolved
+       * objects here made the unwritten branch silently drop exactly the rows
+       * that matter most: both delivery legs failed AND the crosswalk is stale,
+       * so nothing else in the system names this approval either. */
+      if (typeof unwritten === 'string') {
+        skipped.push({ kind: 'stamp',
+          reason: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
+          carrier_status: carrier || '(none)', card: '(unlinked)',
+          deliverable: String((row && row.entity_id) || ''), component: '' });
+        continue;
+      }
+      if (unwritten && unwritten.component) {
         const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
         if (at) {
           const key = cardKey(unwritten.card.client, unwritten.card.id) + '|' + unwritten.component;
@@ -531,6 +570,11 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
+    if (supersededByRequest(deliverableId, at)) {
+      skipped.push({ kind: 'stamp', reason: 'superseded_by_later_client_request',
+        card: card.id, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
+      continue;
+    }
     if (!stampSurvives(card, comp, at)) {
       skipped.push({ kind: 'stamp', reason: 'superseded_status', card: card.id, component: comp,
         card_status: card[STATUS_FIELD(comp)] || '' });
@@ -563,8 +607,10 @@ function detect(world) {
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
     });
     if (reopened || !stampSurvives(card, comp, at)) continue;
+    if (supersededByRequest(deliverableId, at)) continue;
     skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
-      card: card.id, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
+      card: card.id, client: card.client, component: comp,
+      card_status: card[STATUS_FIELD(comp)] || '' });
   }
 
   /* B2. PARTIAL REPAIR — the postcondition on this job's own work.
@@ -1003,7 +1049,10 @@ async function main() {
    * and nothing about which one. The dispatched workflow passes no --json, so
    * this loop is the only human-readable output these rows ever get. */
   for (const row of carrierFailed) {
-    log(`  » card ${row.card} [${row.component}] a client APPROVE reached neither leg `
+    /* calendar_posts is keyed by (client, id) and 13 live ids are shared across
+     * clients, so a card id alone does not say whose approval was lost. */
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} [${row.component}] `
+      + 'a client APPROVE reached neither leg '
       + `(carrier ${row.carrier_status}, card reads ${row.card_status || 'unknown'}) `
       + '— REPORT ONLY, a person decides');
   }

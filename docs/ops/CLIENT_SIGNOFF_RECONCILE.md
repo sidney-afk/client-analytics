@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 94 checks, each
+construction through fixtures — no credentials, no network. 97 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -370,6 +370,22 @@ stayed green. A suite that never executes the program cannot tell you the
 program runs. Two checks now drive the real CLI in a real process over fixtures,
 and `classify()` returns the buckets rather than only the lines, so no caller
 can name a grouping that is not there.
+
+**`null` means deliberately out of scope, and nothing else.** It used to mean
+two opposite things: a card that is archived or outside a `--client` run (a
+decision, correctly silent) and a crosswalk that is structurally broken —
+deliverable missing, no card id, no client, card gone (a lost client approval
+nobody will hear about). Both vanished identically. Every structural failure now
+names itself and is reported on both paths; only the deliberate cases stay
+silent. Live: 2 written approvals name a card that is not there, and they were
+invisible until this.
+
+**The `--client` scope is applied before any refusal is produced.** A run
+advertised as limited to one client must not report or count another client's
+rows, or the operator is sent to investigate work they did not ask about. Scoped
+on the row's own client, since the refusals are precisely the cases where no card
+is identified, then re-checked against the card's client for the rows that do
+resolve.
 
 **A row whose card cannot be identified does not claim the card leg failed.**
 The four qualifying tests — stamp already present, a later reopen, a later

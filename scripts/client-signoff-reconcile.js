@@ -340,12 +340,30 @@ function detect(world) {
   function resolve(deliverableId, rowClient) {
     if (arguments.length < 2) throw new Error("resolve() needs the row's own client");
     const del = delById.get(String(deliverableId || ''));
-    if (!del || !del.card_id) return null;
+    /* THE CLIENT SCOPE COMES FIRST, before any refusal is produced. A run
+     * advertised as limited to one client must not report another client's rows
+     * or count them — the operator would be sent to investigate work they did
+     * not ask about. Scoped on the row's own client (or the deliverable's) since
+     * the refusals below are precisely the cases where no card is identified. */
+    if (ONLY_CLIENT) {
+      const scope = String((del && del.client_slug) || rowClient || '').trim().toLowerCase();
+      if (scope && scope !== ONLY_CLIENT) return null;
+    }
+    /* STRUCTURAL FAILURES ARE REPORTABLE; INTENTIONAL SUPPRESSION IS NOT.
+     * `null` used to mean both, so a client approval whose deliverable is
+     * missing, carries no card_id or no client, or names a card that is not
+     * there, vanished from the report exactly like an archived card that is
+     * meant to be ignored. Those are opposite things: one is a lost approval
+     * nobody will hear about, the other is a decision. From here `null` means
+     * ONLY "deliberately out of scope" — archived, or another client on a
+     * scoped run — and everything else names itself. */
+    if (!del) return 'deliverable_unknown';
+    if (!String(del.card_id || '').trim()) return 'deliverable_names_no_card';
     /* No client on the deliverable means the card cannot be identified, and
      * guessing is what this whole guard exists to prevent. */
-    if (!String(del.client_slug || '').trim()) return null;
+    if (!String(del.client_slug || '').trim()) return 'deliverable_names_no_client';
     const card = cardById.get(cardKey(del.client_slug, del.card_id));
-    if (!card) return null;
+    if (!card) return 'card_not_found';
     const owner = String(rowClient || '').trim().toLowerCase();
     if (owner && owner !== String(card.client || '').trim().toLowerCase()) return 'client_mismatch';
     /* CARRYING A CARD ID IS NOT THE SAME AS BEING LINKED TO THAT CARD.
@@ -405,6 +423,8 @@ function detect(world) {
     /* Archived is the card's OVERALL status, not a column — same test
      * scripts/linear-sync-reconcile.js applies. */
     if (String(card.status || '').toLowerCase() === 'archived') return null;
+    /* Re-checked against the CARD's own client: the early scope test used the
+     * deliverable's, and a card mid-move can disagree with it. */
     if (ONLY_CLIENT && String(card.client || '').toLowerCase() !== ONLY_CLIENT) return null;
     /* The component travels WITH the resolution, from the same validated team
      * that chose the reverse-link slot. Deriving it again at the call site from

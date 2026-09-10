@@ -19910,3 +19910,30 @@ costs an operator a lookup; suppressing a real one costs a client their sign-off
 rule left unapplied, but a claim stated more confidently than the evidence
 supported. Worth naming separately, because the fix for the first kind is
 discipline and the fix for this kind is saying less.
+
+### 195u. Round 20: one return value meaning two opposite things
+
+**`null` from `resolve()` meant both "deliberately out of scope" and "the
+crosswalk is structurally broken".** Archived cards and out-of-scope clients are
+decisions and should be silent. A deliverable that is missing, carries no card
+id or no client, or names a card that is not there is a **lost client approval
+nobody will hear about**. Both returned `null` and both vanished. From here
+`null` means only the first; every structural failure names itself
+(`deliverable_unknown`, `deliverable_names_no_card`, `deliverable_names_no_client`,
+`card_not_found`) and is reported on the written and unwritten paths alike.
+
+Measured: **0** unwritten approvals hit these today; **2 written ones name a card
+that is not there**, and they were invisible before this. One archived card stays
+correctly silent — controlled, so making archived reportable also fails the
+suite. An over-correction here would fill the report with rows nobody intends to
+act on, and the real ones would drown.
+
+**The `--client` scope was applied after the refusals were produced**, so a run
+advertised as limited to one client still reported and counted other clients'
+rows. Scoped now before any refusal, on the row's own client, then re-checked
+against the card's client for rows that resolve. Driven through the CLI in the
+suite, since the scope is read from the environment at module load.
+
+97 checks, three controls, all confirmed by exit status.
+
+**Twenty rounds, 46 findings.**

@@ -773,6 +773,32 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
 
 /* A dry run must never reach the write path, and the entry point is where that
    is actually decided. Asserted through the CLI for the same reason as above. */
+/* ROUND 20, second finding. A crosswalk refusal was produced BEFORE the
+   `--client` scope was applied, so a run advertised as limited to one client
+   still reported other clients' rows and counted them — sending the operator to
+   investigate work outside the scope they asked for. Driven through the CLI
+   because the scope is read from the environment at module load. */
+checkAsync('a client-scoped run reports nothing outside that client', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    /* Every row here belongs to testclient, and two of them are broken in ways
+       that WOULD be reported on an unscoped run. */
+    outbox: [APPROVE(), APPROVE({ entity_id: 'del-3', status: 'pending' })],
+    comments: [],
+    deliverables: [DEL(), DEL({ id: 'del-3', card_id: 'card-3' })],
+    cards: [CARD(), CARD({ id: 'card-3', video_deliverable_id: 'someone-else' })],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8', env: Object.assign({}, process.env, { ONLY_CLIENT: 'someotherclient' }) });
+  assert.match(out, /REPAIRS \(written on --apply\): 0 sign-off stamp\(s\)/, out);
+  assert.match(out, /NEEDS A PERSON \(never written\): 0\b/, out);
+  assert.equal(/testclient|card-1|card-3|del-3/.test(out), false,
+    'a scoped run must not name another client\'s rows: ' + out);
+});
+
 checkAsync('a dry run writes nothing, proven through the entry point', async () => {
   const { execFileSync } = require('node:child_process');
   const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
@@ -1205,6 +1231,43 @@ check('a resolvable carrier failure still gets the full qualification', () => {
     cards: [CARD({ client_video_approved_at: '2026-09-04T00:00:00.000Z' })],
   }));
   assert.equal(skipped.length, 0, 'an already-stamped card is not a lost approval');
+});
+
+/* ROUND 20. `null` from resolve() meant two opposite things: "deliberately out
+   of scope" (archived, another client on a scoped run) and "the crosswalk is
+   structurally broken" (deliverable missing, no card id, no client, card gone).
+   Both vanished. The second is a lost client approval nobody will hear about.
+   From here `null` means only the first, and every structural failure names
+   itself. Live: 0 unwritten approvals hit these today; 2 written ones name a
+   card that is not there, and they were silent until now. */
+check('a structurally broken crosswalk is reported, not silently dropped', () => {
+  for (const [over, reason] of [
+    [{ deliverables: [] }, 'deliverable_unknown'],
+    [{ deliverables: [DEL({ card_id: '' })] }, 'deliverable_names_no_card'],
+    [{ deliverables: [DEL({ client_slug: '' })] }, 'deliverable_names_no_client'],
+    [{ cards: [] }, 'card_not_found'],
+  ]) {
+    for (const carrier of ['written', 'pending']) {
+      const { findings, skipped } = detect(world(Object.assign(
+        { outbox: [APPROVE({ status: carrier })] }, over)));
+      assert.equal(findings.length, 0, reason);
+      assert.equal(skipped.length, 1, `${reason} must be reported on the ${carrier} path`);
+      assert.equal(skipped[0].reason === reason
+        || skipped[0].refusal === reason, true, JSON.stringify(skipped[0]));
+    }
+  }
+});
+
+/* An archived card is a DECISION, not a breakage. It must stay silent, or the
+   report fills with rows nobody intends to act on and the real ones drown. */
+check('an archived card stays out of the report entirely', () => {
+  for (const carrier of ['written', 'pending']) {
+    const { findings, skipped } = detect(world({
+      outbox: [APPROVE({ status: carrier })], cards: [CARD({ status: 'Archived' })],
+    }));
+    assert.equal(findings.length, 0);
+    assert.equal(skipped.length, 0, 'archived is deliberate, not a lost approval');
+  }
 });
 
 check('a properly linked card is still stamped normally', () => {

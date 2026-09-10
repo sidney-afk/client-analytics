@@ -321,3 +321,19 @@ retain all installation and production restrictions above.
 Isolated Chromium -> current handler -> synthetic PostgreSQL journeys reproduced two defects. Fresh native intake rows now initialize a complete empty label snapshot only under an accepted native epoch; provider rows and existing unknown label state retain their prior behavior. Calendar/Samples append discovery now accepts parentless batches only when the fresh native-intake flag confirms every selected team. Failed or malformed capability reads retain the orphan refusal. The historical whole-handler comparison explicitly accounts for the bounded label initialization and retains equality outside that block. Frozen card writers are unchanged. Evidence and limitations are supplied separately in the private final-evidence harness; this is not production or installation approval.
 
 The expanded local status-to-notification journey also reproduced a timestamp mismatch: eventFor always supplied a caller `ts`, while the event-assignee owner intentionally treats that field as historical provenance. Live status events now omit that ledger override and retain source_edited_at inside the exact outbound retry receipt. Create events keep their original timestamp. The actual event builder is regression-tested; the browser/SQL harness verifies committed notification intents without manually stamping events. No imported/source-timed SQL policy was relaxed.
+
+### Incorporated upstream urgent-ping ledger source
+
+The preparation branch now includes the source changes from upstream
+`fcebb856d3f5ea607cf5665ac391c258ad173abb` (applied as a reviewed patch,
+not a PR merge). The marker owner precedes
+`2026-09-10-kasper-urgent-ping-ledger.sql`; that ledger migration creates four
+triggers and backfills per-client/per-round event history. Its exact upstream
+bytes passed isolated composition and authenticated recovery with restored
+trigger behavior. These are synthetic results, not a refreshed hosted catalog.
+
+The upstream writer edits remove duplicate event emission only. Their repository
+authentication remains divergent from the frozen serving contract: do not deploy
+these repository writers as part of Linear exit. Any later authorized SQL plan
+must first compare actual installed trigger/function definitions and retained
+ledger evidence; this document does not authorize rerunning a live backfill.

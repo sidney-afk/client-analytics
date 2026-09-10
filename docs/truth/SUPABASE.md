@@ -1,6 +1,10 @@
 # Supabase — current truth
 
-> Last verified: 2026-09-07 @ 4e57e744 + scoped kasper_ad_performance v2 and v3 additions (see
+> Last verified: 2026-09-07 @ 4e57e744 + scoped 2026-09-10 re-measurement of the two event
+> ledgers (row counts and the `source` breakdown, which corrected a "100% `source='ui'`"
+> claim that was never true) and the `kasper_urgent_ping_enabled` flag + half-installed
+> ledger trigger (see the runtime-flags and event-ledger bullets)
+> + scoped kasper_ad_performance v2 and v3 additions (see
 > callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
 > `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
@@ -164,10 +168,34 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   now routes a live write NATIVE rather than to the legacy lane, owner decision 2026-09-07, LX-C /
   OPEN_REPAIRS 175; the allowlist still answers factually for the outbox drain) and `pto_v1` (staff PTO
   tracker, live ON since 2026-07-15, owner decision D-36).
-- Event ledgers `sample_review_events` (~22k rows) + `calendar_post_events` (~473):
-  **100% `source='ui'` to date** — the `linear_in`/`linear_out`/`reconcile` paths have never
-  written events; inbound/reconcile bypass the ledger. `deliverable_events` (Track B) must
-  not inherit that bypassability.
+  Added 2026-09-10: `kasper_urgent_ping_enabled`, the Kasper-approval URGENT ping switch.
+  It takes EITHER shape — `{"clients": […]}` for a roster or `{"enabled": true}` for
+  everyone — and everything else, including an unknown client, reads as OFF. It went in
+  as a one-client roster and was widened to `{"enabled": true}` the same day on the
+  owner's instruction, so it is ON for all clients now. The browser re-reads it at CLICK
+  time rather than caching at boot, so flipping it off contains open tabs without a
+  reload. Rollback row in `ROLLBACK.md` §2.
+- Event ledgers `sample_review_events` + `calendar_post_events`. **This entry said
+  "~22k rows / ~473 rows, 100% `source='ui'` to date … inbound/reconcile bypass the
+  ledger". All three parts were wrong**, and the counts by roughly 80x. Re-measured
+  2026-09-10 by grouping each table on `source`:
+
+  | | rows | `ui` | other sources |
+  |---|---|---|---|
+  | `calendar_post_events` | **39,506** | 32,173 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 1 |
+  | `sample_review_events` | **62,173** | 62,026 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** |
+
+  So `reconcile` does NOT bypass the ledger and never has: it has written 2,159
+  calendar and 68 sample events, continuously from 2026-07-07 to today. A `linear`
+  source wrote 230 calendar rows between 2026-07-06 and 2026-07-11 and has been
+  silent since. Do not reason from "the ledger is UI-only" — a session did, and the
+  conclusion it drew about `deliverable_events` (Track B) inheriting a bypass rested
+  on a premise that was never true. Track B still must not be bypassable, but that is
+  a requirement, not an inherited property.
+
+  The single `db` row is the Kasper urgent ping's backfill (2026-09-10); once the
+  four ledger triggers are attached, `db` is the source for every Kasper ping.
+  See `migrations/2026-09-10-kasper-urgent-ping-ledger.sql` and OPEN_REPAIRS 195.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.
 - F27 is installed. Attempt 2 on 2026-08-02 entered from the exact retained

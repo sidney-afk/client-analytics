@@ -198,5 +198,21 @@
     "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
     "hosted_recovery_proven": false,
     "full_upstream_integration_proven": false
+  },
+  "combined_upstream_source": {
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "execution_base": "19dd9593827a881a20c29242b3b94756de38c6dd",
+    "working_tree_source": true,
+    "focused_tests": "PASS",
+    "negative_control": {
+      "status": "FAIL",
+      "checkpoints": 23,
+      "exit_code": 1,
+      "reason": "PUBLIC_INTAKE_MATERIALIZATION_401",
+      "external_forwards": 0,
+      "server_stopped": true,
+      "private_receipt_sha256": "78755a829076a1e44363ba6a2a52fe89323a16b534d6859d91f53f0dff2065ec"
+    },
+    "hosted_proof": false
   }
 }

@@ -25,7 +25,7 @@ divergence cannot be discovered afterwards.
 
 | | |
 |---|---|
-| **Live** | `calendar-upsert` v43 / `sample-review-upsert` v44 — the pre-#836 **un-gated, tokenless** source |
+| **Live** | `calendar-upsert` v49 / `sample-review-upsert` v50 (2026-09-10) — still the **un-gated, tokenless** lineage, with the additive Kasper marker patch applied to it |
 | **Repo** | still calls `authorizeBrowserWrite` (the F35 gate) |
 | **Since** | 2026-07-15 |
 | **Why** | Re-gating `401`s every client approval and comment on a link issued before the gate. It broke clients **twice** in one day. |
@@ -33,6 +33,70 @@ divergence cannot be discovered afterwards.
 | **To ship a change** | Capture the exact live source, apply the delta to *that*, deploy it, with the owner's explicit approval. Never a bare `supabase functions deploy`. |
 | **To close the divergence** | Re-issue every active client link, then re-gate. Owner has declined this for now, so the divergence is permanent until they say otherwise. |
 | **Sources** | `AGENTS.md` freeze banner · F35 row of `ROLLBACK.md` · `EXECUTION_LOG.md` 2026-07-15 |
+
+---
+
+## Verified live capability
+
+The repo copy is not deployable, so **nothing in it is evidence of what
+production does**. These rows record what the DEPLOYED function was observed to
+contain, read straight off the deployed source on the date given. They exist so
+that a capability the repo copy claims can be checked against one production
+actually has.
+
+This section is machine-read by `test/live-divergence-register.js` via
+`test/helpers/ev-actions.js`. The `events:` list is every action the live function
+can emit. A repo copy that gains an action missing from its live row fails the
+gate, which forces the divergence to be either deployed or declared instead of
+quietly believed.
+
+Three properties of that list, all load-bearing:
+
+- **Every entry is a CONCRETE action.** There is no wildcard. An action the
+  source composes — `ev("approve_" + comp)` inside
+  `for (const comp of ["video", "graphic", "caption", "title"])` — is expanded
+  to the four names it can actually produce. Cross-checked against production,
+  which holds exactly `approve_caption`, `approve_graphic`, `approve_title` and
+  `approve_video`. An earlier draft recorded this as the prefix `approve_*`,
+  which is worse than it looks: the prefix hides the operand's DOMAIN, and the
+  domain is the part that drifts. Add `"audio"` to that loop and the repo can
+  emit `approve_audio` while both sides still read `approve_*`, so parity stays
+  green over a brand-new capability.
+- **An `ev(…)` argument the extractor cannot resolve fails the gate by name**
+  rather than being skipped, and a composition whose domain cannot be resolved
+  statically is one of those. This is the whole reason it is not a regex: the
+  first version read only bare double-quoted literals, so it reported
+  `ev("approve_" + comp)` as the non-existent action `approve_`, and would have
+  missed `ev('x')`, a template literal, or `const a = "…"; ev(a)` entirely —
+  silently, which is the one thing a guard must never be.
+- **Parity is equality, not containment.** The gate fails both when the repo
+  claims an action the live row does not carry, and when the repo has LOST one
+  the live row still has. The second direction matters because these files are
+  ported by hand: a capability quietly dropped from the repo copy would be
+  quietly dropped from production at the next owner-approved port.
+
+- `calendar-upsert` live v49 verified 2026-09-10 events: approve_caption, approve_graphic, approve_title, approve_video, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+- `sample-review-upsert` live v50 verified 2026-09-10 events: approve_graphic, approve_video, archive, comment_add, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+
+**Why this section exists.** On 2026-09-09 the Kasper urgent ping shipped with an
+`ev("kasper_urgent_ping")` branch in both repo copies, and a test asserting it was
+there. It was never in the deployed functions: the branch was not carried across
+when the marker patch was ported onto the live source. The result was a feature
+whose paper trail existed only in a file that does not run, and nothing noticed,
+because every guard we had pointed at the repo. The first real ping wrote its
+marker and produced no ledger row at all (OPEN_REPAIRS 195).
+
+The ledger for that ping is now written by a database trigger
+(`migrations/2026-09-10-kasper-urgent-ping-ledger.sql`) rather than by the
+writers, so the repo copies no longer carry the branch and the two sides agree
+again. The trigger cannot drift from the live functions, because it is not in
+them.
+
+**Refreshing a row.** Read the deployed source (Supabase → Edge Functions, or
+`get_edge_function`), run it through `evActions()` from `test/helpers/ev-actions.js`
+rather than reading it by eye, and update the row with the new version and
+today's date. Never copy the list out of the repo file — that is the exact
+mistake this section exists to catch.
 
 ---
 

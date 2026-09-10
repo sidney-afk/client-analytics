@@ -1,5 +1,28 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest combined preparation source
+
+The reviewed upstream changes through `fcebb856` are now applied to the
+preparation branch, with both document conflicts reconciled additively. This
+was a source patch, not a PR merge; main and hosted systems were not changed.
+The frozen writer files match upstream exactly: only duplicate urgent ledger
+emission was removed, with authentication unchanged. They remain unsuitable
+for deployment over the frozen tokenless serving contract.
+
+Focused Kasper and serving-divergence checks pass; the repository map passes425
+checks. Combined-source isolated browser negative control completes23 checkpoints
+then retains `PUBLIC_INTAKE_MATERIALIZATION_401` and exit1. Zero external
+forwards were observed and the owned server stopped. The run used working-tree
+source changes over `19dd9593`, not a clean-checkout attestation.
+
+The exact upstream SQL bytes already passed77 composition and31 authenticated
+recovery checks, including restored trigger behavior. Those prior receipts keep
+their recorded source scope; no new full-suite or hosted proof is implied.
+Remaining preparation gates concern complete installation/recovery ordering,
+hosted configuration, real data/Storage custody and notification handover.
+WR-101 remains a separate planned release. Installation HOLD.
+
+
 ## Latest verified recovery with upstream ledger
 
 The supported `recovery-upstream-ledger` lane **PASSES31 checks across52

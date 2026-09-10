@@ -528,15 +528,13 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
     });
   }
 
-  if (has(patch, "kasper_urgent_pinged_at") && sv(inc, "kasper_urgent_pinged_at") && sv(inc, "kasper_urgent_pinged_at") !== sv(existing, "kasper_urgent_pinged_at")) {
-    ev("kasper_urgent_ping", {
-      component: sv(inc, "kasper_urgent_comp") || "video",
-      payload: {
-        by: sv(inc, "kasper_urgent_by") || null,
-        status_at: sv(inc, "kasper_urgent_status_at") || null,
-      },
-    });
-  }
+  /* The Kasper ping's ledger row is written by a DATABASE TRIGGER, not here:
+     migrations/2026-09-10-kasper-urgent-ping-ledger.sql. This branch used to
+     live at this spot and was never in the deployed function, so the feature
+     shipped with a paper trail that existed only in a file which does not run
+     (OPEN_REPAIRS 195). Adding it back would double-write once the trigger is
+     live, and would re-open the same repo-is-not-production illusion. The
+     trigger also covers writes that never pass through here. */
 
   for (const [comp, col] of [["video", "linear_issue_id"], ["graphic", "graphic_linear_issue_id"]]) {
     if (!has(patch, col)) continue;

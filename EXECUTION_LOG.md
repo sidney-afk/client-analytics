@@ -7002,3 +7002,47 @@ no `raw_project_id`.
 Owner-authorized live-source deployment through the Supabase API: calendar-upsert 48 → 49 at 16:34:51 UTC, then sample-review-upsert 49 → 50 at 16:36:53 UTC after Calendar verification. Exact candidate source readback passed; both preserve verify_jwt=false and contain zero authorizeBrowserWrite occurrences. Tokenless name/comment saves and all six supported marker/component combinations persisted on database readback. Test fixtures were removed using last-write guards. Runtime flag kasper_urgent_ping_enabled remains absent.
 
 See [complete receipt, bundle hashes and rollback](docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). This is the deliberately frozen pair, not an F27 Section 4 deployment; repository writer copies were not deployed.
+
+
+## 2026-09-10 — Kasper urgent ping: on for all clients, and its ledger half-installed
+
+Three production mutations today, all through the Supabase API, none of them an
+Edge Function deploy. Recorded here because `ROLLBACK.md` §2 requires the live
+state to move in the same PR as the change, and because the day's own finding
+was a capability that existed only in a file which does not run.
+
+**1. Runtime flag.** `kasper_urgent_ping_enabled` was inserted as
+`{"clients": ["<one test slug>"]}` at roughly 17:10 UTC, exercised by the owner
+on one card, then widened to `{"enabled": true}` at roughly 20:20 UTC on the
+owner's instruction. The affordance now renders for every client, in exactly the
+places the existing tweaks URGENT button already renders and to the same people;
+on Samples the whole sub-status row remains hidden from read-only and client
+links. Kill switch and narrowing procedure are in the new `ROLLBACK.md` row.
+
+**2. Ledger trigger function.** `public.syncview_kasper_urgent_ping_ledger()`
+created. Read back with `pg_get_functiondef` and compared against
+`migrations/2026-09-10-kasper-urgent-ping-ledger.sql` line by line: every
+executable line matched, one comment line differed, and the function was
+re-created with the comment so the two are now identical. **The four triggers
+that call it were NOT attached** — creating triggers on the production tables
+was refused by the session environment, so the owner runs those four statements.
+Until then the function is inert and pings go unrecorded.
+
+**3. Backfill.** One pre-existing calendar ping written into
+`calendar_post_events` with `via: backfill` and its original timestamp rather
+than a live one; the samples backfill matched nothing. The de-dup predicate was
+subsequently corrected to scope by `(client, id)` rather than id alone — both
+tables are keyed that way and 13 card ids are genuinely shared across clients
+today, so the original predicate could have let one client's ping suppress
+another's. The corrected form was re-run and was a no-op, as expected with a
+single ping in the system.
+
+**Not done, deliberately.** The obvious repair for the missing ledger was six
+lines in each live writer. That means redeploying the two functions that have
+broken client approvals twice, which is not a trade worth making for an audit
+row, so the write lives in the database instead. Both repo writer copies had
+their never-deployed `ev("kasper_urgent_ping")` branch removed and now point at
+the trigger, which also restores repo/live parity for those two files.
+
+Ledger OPEN_REPAIRS 195; capability parity gate in
+`docs/ops/LIVE_DIVERGENCE_REGISTER.md` and `test/live-divergence-register.js`.

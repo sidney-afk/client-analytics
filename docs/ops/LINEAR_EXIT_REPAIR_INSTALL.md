@@ -411,11 +411,15 @@ keeps atomic intake indivisible. It validates declared graph edges but explicitl
 does not assert the graph is complete. No target catalog signature is invented,
 no resume is authorized. Both existing rehearsals now verify the same inventory
 before database creation and before PASS, while retaining their independent
-execution orders. Manifest-driven ordered installation remains unproven.
+execution orders. The supported installation-order lane now proves the remaining
+42 entries execute in manifest order on the disclosed scoped baseline. The
+installation-resume lane proves authenticated entry-boundary progress with the
+parent alive, including forged-prefix and catalog-drift refusal. Neither proves
+the full hosted baseline, internal-commit recovery or a production installer.
 Savepoint validation resets state across transactions and models nested release
 and rollback semantics; it does not execute the SQL or prove installed behavior.
 
-### Next accepted-work preservation case
+### Accepted-work preservation case
 
 Use the real root-intake and deliverable writer RPCs immediately after the
 atomic intake entry, before later retention/ordinary/admission owners. The
@@ -430,4 +434,20 @@ and admitted values through each later entry and resume boundary, then replay
 the exact accepted calls without duplicate rows. Schema extensions may add new
 columns: explicitly distinguish those additions from changes to pre-existing
 values, rather than accepting changed old values or weakening failure checks.
-This recipe is source-reviewed but has not yet been executed in the ordered lane.
+The installation-resume lane now executes this case: one synthetic native request
+preserved across 25 later entries, then exact final replay without duplicates.
+Global provider debt remains zero. This is five-table scoped evidence, not full
+data preservation, card materialization or interrupted internal-commit recovery.
+
+### Internal-statement interruption case still required
+
+The inventory identifies 12 remaining owners with autocommit statements. A
+completed-entry checkpoint cannot establish safety inside these owners. A small
+concrete negative case is the three-statement workload native label shape owner:
+its function replacement precedes REVOKE and GRANT. Stop a disposable execution
+after the replacement, reconnect, and require partial-state refusal against the
+previous completed prefix before any further owner executes. Do not wrap the
+file in a new transaction or certify the partial function/ACL state as complete.
+An atomic intake case must separately prove rollback when its transaction is
+interrupted. These are proposed next tests, not executed evidence or permission
+to resume a real installation.

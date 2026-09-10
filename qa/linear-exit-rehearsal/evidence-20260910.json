@@ -512,5 +512,32 @@
       "test/linear-exit-install-resume.js": "be5ed3a96635a60ab2b5a7d518e2de0fc6ac6bb69028aed221d4df2fce55999d",
       "test/helpers/linear-exit-install-step.js": "3c6555bce430a0d540974418945fdd886b5cd8c1811bc7d3aaef224e9e23c786"
     }
+  },
+  "accepted_native_work_resume": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "accepted_business_work_preservation_proven": true,
+    "accepted_work_later_boundaries": 25,
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "classification": "ISOLATED_POSTGRES_ENTRY_RESUME",
+    "scope": "one native parent/child request across five owner tables",
+    "source_base": "43ed2a9fdec925c9219f2a6502bce2f9f5f690de",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-resume-b29671317bbb447bb33d41bcef256b99",
+    "unit_log_sha256": "20469459a9e35368f95a425842dbcbc308975f867c46d46100794f350dc21b9b",
+    "test_sha256": "f8416863c1187ef57cbd22e9ce3d2f49f5643774df53b22a5d7bc5422e86c302",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "server_stopped": true,
+    "global_provider_debt_zero": true,
+    "card_materialization_proven": false,
+    "all_data_preservation_proven": false,
+    "commit_checkpoint_gap_recovery_proven": false
   }
 }

@@ -1,5 +1,25 @@
 # Completed isolated evidence
 
+## Latest accepted native work preservation
+
+The strengthened installation-resume lane passed on disposable PG16: one actual
+native parent/child request was accepted through the root and deliverable RPCs
+after atomic intake, using the current F27 generation and exact manifest dedup.
+Its parent, child, manifest, two skipped native receipts and associated events
+retained every originally admitted field through 25 later installation entries.
+Exact replay under the final schema preserved complete final row images without
+duplicates. Global pending/inflight/failed outbox debt remained zero. All 42
+entries, 44 fresh workers and both checkpoint refusal cases passed; server stopped.
+
+Source: working-tree test changes over `43ed2a9f`; focused independent review
+found no concrete blocker. Newly added schema columns are distinguished from old
+field changes and included in final replay equality. Scope is one synthetic
+request across five owner tables, not all data, card materialization or completion.
+Full hosted baseline, internal-commit interruption, parent-crash/key custody,
+concurrency and commit/checkpoint-gap recovery remain unproven. Next: exercise
+real partial autocommit and atomic rollback interruption cases. Installation HOLD.
+
+
 ## Latest entry-boundary resume evidence
 
 The supported `installation-resume` lane passed 42 ordered entries in 44 fresh

@@ -1,5 +1,30 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest accepted native work preservation
+
+The strengthened installation-resume lane passed on disposable PG16: one actual
+native parent/child request was accepted through the root and deliverable RPCs
+after atomic intake, using the current F27 generation and exact manifest dedup.
+Its parent, child, manifest, two skipped native receipts and associated events
+retained every originally admitted field through 25 later installation entries.
+Exact replay under the final schema preserved complete final row images without
+duplicates. Global pending/inflight/failed outbox debt remained zero. All 42
+entries, 44 fresh workers and both checkpoint refusal cases passed; server stopped.
+
+Source: working-tree test changes over `43ed2a9f`; focused independent review
+found no concrete blocker. Newly added schema columns are distinguished from old
+field changes and included in final replay equality. Scope is one synthetic
+request across five owner tables, not all data, card materialization or completion.
+Full hosted baseline, internal-commit interruption, parent-crash/key custody,
+concurrency and commit/checkpoint-gap recovery remain unproven. Next: exercise
+real partial autocommit and atomic rollback interruption cases. Installation HOLD.
+
+
+Read the newest evidence sections first. Older dated checkpoints below are retained
+as history; their pending publication/integration instructions are superseded by
+the published draft PR #1382 and subsequent evidence. No historical PASS grants
+installation authorization.
+
 ## Latest entry-boundary resume evidence
 
 The supported `installation-resume` lane passed 42 ordered entries in 44 fresh
@@ -315,7 +340,7 @@ repository copies blindly, or elevate the public fixture to staff credentials.
 Deno retained 16 baseline error headers. Synthetic HTTP/SQL adapters do not prove
 hosted JWT/RLS, real Slack delivery, current production schema or full recovery.
 
-## Next steps
+## Original recovery next steps (historical)
 
 1. Recover the exact bundle into an isolated clone with its prerequisite history;
    preserve the existing source snapshot and evidence.

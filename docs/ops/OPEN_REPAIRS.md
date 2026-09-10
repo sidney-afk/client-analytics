@@ -18960,3 +18960,54 @@ abandoned after seven review findings.
 companion problems across all four faults with the control still writing the
 stamp, AND every `request-change` row carries its committed comment into the
 source row.
+
+## 191. [2026-09-10, FIXED in the browser; ships on merge, no deploy] The client's sign-off stamp survives recovery now, and the proof is a negative control rather than a passing test
+
+**Fixes half of item 190.** A client approve that met any write fault recovered
+its component status to `Approved` and never wrote `client_<comp>_approved_at`,
+so the record said the work was approved but not that the CLIENT approved it.
+
+**The patch, twelve visible lines, three hunks.** Two pass `repairEdits`
+carrying ONLY this action's sign-off edit into the status push, so the repair
+journal actually holds the stamp instead of losing it with the rest of the
+source patch. The third applies the existing stale-approval rule when a captured
+stamp meets a newer reviewer state: a receipt can return a status this card has
+since moved past, and a stamp must never be resurrected onto a component that is
+no longer at a client-visible approval status. Neither hunk invents a stamp from
+a status, which the focused test asserts directly.
+
+**Provenance, stated plainly.** The patch and its unit test came from a
+predecessor session's recovery packet (PR #1376, draft), whose own checkout,
+browser harness and raw logs became inaccessible before publication. That
+session's reported results are NOT carried forward as evidence. Everything below
+was re-run here from a clean checkout.
+
+**Proof, negative control first.**
+
+| check | result |
+|---|---|
+| `test/client-review-repair-stamp.js` on UNPATCHED main | **fails**, on `newer status must govern whether a captured stamp is stale` |
+| same test with the patch | passes, 12 status/component combinations |
+| `qa/review-surface-sweep` before | 9 flagged, of which **3 = `client sign-off stamp missing`** |
+| `qa/review-surface-sweep` after | 6 flagged, **0 sign-off**, only the unrelated comment split remains |
+| `node test/run-all.js` | 423 of 425; the two failures (`ef-deploy-provenance`, `truth-sync`) fail identically on `origin/main` |
+| `prod-write-gateway-browser` | passes |
+
+The sweep is still marked instrument-only and its absolute counts are not
+trustworthy, but a BEFORE/AFTER differential on one named signal is exactly what
+it can support, and the signal it clears is the one item 190 corroborated
+against the live production row.
+
+**One honest wrinkle.** The browser gate failed on its first run of this session
+at `prod-write-gateway-browser.js:1646`, a hover-then-tooltip wait in the
+`labels_projection` phase, then passed twice. That code is the Production label
+picker, which this patch does not touch, and the failure mode is timing on a
+hover tooltip. Recorded rather than hidden; if it recurs on an unrelated PR it is
+that gate's flake, not this change.
+
+**What this does NOT fix**, all still open in 190 and 189: the confirmed
+comment/card split (a change request commits on the server and never reaches the
+card, now confirmed from a real tokened client context by the predecessor
+session), the closed-tab case, the server-side reconciler, and repair of rows
+ALREADY carrying an approved status with no stamp. This patch stops new losses;
+it does not go back for the old ones.

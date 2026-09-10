@@ -19011,3 +19011,61 @@ card, now confirmed from a real tokened client context by the predecessor
 session), the closed-tab case, the server-side reconciler, and repair of rows
 ALREADY carrying an approved status with no stamp. This patch stops new losses;
 it does not go back for the old ones.
+
+---
+
+## 192. [2026-09-10] Item 39/89 closed a door that needed one more room: a narrow, named escape hatch for a completed-issue card someone is still actually blocked on
+
+Item 39 measured 17 actionable half-linked cards, 15 of them pointing at Linear
+issues already `completed`, and closed with: *"`isOpenIssue` excludes the
+completed ones, correctly: they are finished work"* and *"the 15 actionable
+slots pointing at completed Linear issues need no status change ever. They are
+recorded, not scheduled."* Item 89 asked for one owner decision on what to tell
+a blocked person, and stayed open.
+
+**"Never" was wrong for at least one of them.** Card `p_lin_vid12672`
+("Video 3") was reported live 2026-09-10 by the owner trying to move it to
+Posted via Set All To Posted, hitting `native_link_required` on the thumbnail
+leg exactly as item 39 describes, on a card whose Linear issue (completed
+months before the graphics flip) item 39 already had on its own sampled list.
+12 other cards on the same client carry the identical shape, confirmed live
+against the `deliverables` table: no row exists for any of them, on either
+team.
+
+Neither sanctioned repair reaches it: `b3-linkage-backfill.js` only stamps a
+card onto a deliverable that already EXISTS, and none does here; B1's
+stray-catcher insert path requires `isOpenIssue`, by design, for exactly the
+reason item 39 gave.
+
+**What shipped:** `B1_ALLOW_CLOSED_IDENTIFIERS`, a manual-only, explicit
+allowlist input on the B1 Linear Incremental Refresh Action. A human names
+specific closed Linear identifiers; only those pass the `isOpenIssue` gate, and
+every other guard (insert-only, the existing-deliverable skip, the card-slot
+conflict withhold) still applies untouched to a named issue exactly as it does
+to any other stray candidate. Empty by default, so item 39's "correctly" still
+describes every standing scheduled or ordinary dispatched run — this is not a
+reversal of that finding, it is the one room the finding didn't anticipate: a
+completed issue that needs a manual, named exception because a person is
+actually blocked on it, not the general case of 900 quietly finished tickets.
+
+**Correction to item 39/89's closing claim.** "Need no status change ever"
+holds for most of the completed-issue bucket, but not provably all of it — this
+is the counterexample. A report of `native_link_required` on a completed-issue
+card is reachable and actionable, not "recorded, not scheduled" by default;
+check whether someone is actually trying to move it before filing a new one
+under the closed bucket.
+
+**Dispatch sequence** (Actions → B1 Linear Incremental Refresh → Run workflow):
+1. `changed_since` — far enough back that the named identifier's `updatedAt`
+   falls inside the window; the issue's own completion date is a safe floor.
+2. `allow_closed_identifiers` — comma-separated Linear identifiers, e.g.
+   `GRA-6384,VID-11945`.
+3. `apply` — on.
+4. Verify: the card's `video_deliverable_id` / `graphic_deliverable_id` is no
+   longer empty, and the write that was refused now succeeds.
+
+**Not done here.** The 12 other same-shape cards found live on 2026-09-10 are
+not yet dispatched — whoever runs the fix should include every identifier
+actually blocking someone in one dispatch rather than one at a time.
+`scripts/calendar-native-link-gap-check.js` still finds the remaining bucket
+across every client.

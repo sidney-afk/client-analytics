@@ -21,6 +21,9 @@ on:
         description: 'SUPERSEDED at F1(video) — stray mode is now the STANDING mode for every run, scheduled or dispatched, and this checkbox is ignored. It remains only so saved dispatch presets keep working. Pre-flip history: stray mode used to be manual-only via this input; the cutover PR made it unconditional per FLIP_RUNBOOK §F1.'
         type: boolean
         default: false
+      allow_closed_identifiers:
+        description: 'Manual-only, narrow escape hatch (native_link_required, OPEN_REPAIRS 39/89): comma-separated Linear identifiers (e.g. "GRA-6384,VID-11945") of ALREADY-CLOSED issues to let through the isOpenIssue gate. Leave empty for a standard run — everything else (INSERT-ONLY, the existing-deliverable skip, the card-slot conflict withhold) still applies to a named issue exactly as it does to any other stray candidate, so naming one that already has a row or that collides with another card is still a no-op. Requires changed_since to reach back far enough that the identifier is actually in the fetched window.'
+        default: ''
   schedule:
     - cron: '*/30 * * * *'
 
@@ -91,6 +94,11 @@ jobs:
           # gates every stray write, and classic mode post-flip gates every
           # classic write — a mismatch imports nothing and pages nothing.
           B1_STRAY_CATCHER: '1'
+          # Manual-only by construction: `inputs` is empty on a schedule-triggered
+          # run, so a cron firing can never carry an allowlist a human typed into
+          # a dispatch. Empty by default even on a manual run — this is the
+          # narrow exception, not a new standing behaviour.
+          B1_ALLOW_CLOSED_IDENTIFIERS: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_closed_identifiers || '' }}
         run: |
           mkdir -p artifacts .codex-tmp
           ARGS=(--page-delay-ms 500 --json-out artifacts/b1-linear-incremental-refresh.json)

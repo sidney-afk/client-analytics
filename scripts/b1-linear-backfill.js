@@ -87,6 +87,35 @@ const PROJECT_FILTER = clean(args.get('--project-id'));
  */
 const STRAY_CATCHER = /^(1|true|yes)$/i.test(clean(process.env.B1_STRAY_CATCHER || ''));
 
+/*
+ * A stray issue that is already CLOSED in Linear never reaches stray mode's
+ * insert path (isOpenIssue below), on purpose -- otherwise every one of the
+ * thousands of ordinary finished tickets would compete for a slot here. That
+ * is correct for the general case and wrong for one narrow one: a legacy
+ * card (born when pasting a Linear URL WAS the whole connection) whose linked
+ * issue finished production months ago and still has no deliverable row at
+ * all, so its card column can never be filled by anything else --
+ * b3-linkage-backfill.js only stamps a card onto a deliverable that already
+ * exists, and this importer's own insert path requires the issue to be open.
+ * Neither sanctioned tool reaches that shape (native_link_required, OPEN_REPAIRS
+ * 39/89).
+ *
+ * This is the explicit, narrow escape hatch: a human-supplied, comma-separated
+ * list of Linear identifiers (e.g. "GRA-6384,VID-11945") that are allowed
+ * through the isOpenIssue gate even though they are closed. It changes NOTHING
+ * else -- INSERT-ONLY, the existing-deliverable skip, and the card-slot
+ * conflict withhold below all still apply untouched, so naming an identifier
+ * that already has a row or that collides with another card's slot is still a
+ * no-op, not a silent overwrite. Empty by default, so every standing run
+ * (scheduled or dispatched without this input) is byte-for-byte unchanged.
+ */
+const ALLOW_CLOSED_IDENTIFIERS = new Set(
+  clean(process.env.B1_ALLOW_CLOSED_IDENTIFIERS || '')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean)
+);
+
 function fail(message) {
   console.error('B1 Linear backfill failed:', message);
   process.exit(1);
@@ -1662,8 +1691,13 @@ async function buildIncrementalPlan() {
   const linksByIdentifier = cardLinkMap(cards);
   const linkedIdentifiers = new Set(Array.from(linksByIdentifier.keys()));
   const existingDeliverableByUuid = new Map(existingDeliverables.map(r => [clean(r.linear_issue_uuid), r]).filter(([k]) => k));
+  const closedAllowedIssues = [];
   const operational = issues.filter(issue => {
-    if (!isTrackIssue(issue) || !isOpenIssue(issue)) return false;
+    if (!isTrackIssue(issue)) return false;
+    if (!isOpenIssue(issue)) {
+      if (!ALLOW_CLOSED_IDENTIFIERS.has(clean(issue.identifier).toUpperCase())) return false;
+      closedAllowedIssues.push(issue);
+    }
     // Stray mode: active ⇒ import. The linked/tracked/cutoff disjunction below
     // is why 655 open video issues had no native row — each was unlinked,
     // untracked, and older than the window. The owner's invariant is the
@@ -1860,6 +1894,10 @@ async function buildIncrementalPlan() {
       warning: authorityState.warning || null,
     },
     stray_catcher: STRAY_CATCHER,
+    // Count only (never identifiers) reaches the public artifact -- see
+    // scripts/public-b1-artifact.js. Zero on every standing run, since the
+    // allowlist behind it is empty unless a human explicitly names identifiers.
+    closed_identifiers_allowed: closedAllowedIssues.length,
     batch_parent_adoptions: batchParentAdoptions,
     batch_parent_adoption_withheld: batchParentWithheld,
     batch_parent_claims_dropped: batchParentClaimsDropped,

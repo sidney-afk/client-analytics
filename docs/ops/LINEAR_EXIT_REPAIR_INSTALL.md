@@ -340,7 +340,7 @@ ledger evidence; this document does not authorize rerunning a live backfill.
 
 ## Shared installation manifest: next implementation contract
 
-Status: specified, not built. Existing schema composition and recovery evidence
+Status: source inventory implemented; full installation/resume manifest not built. Existing schema composition and recovery evidence
 remain valid in their bounded scopes; neither is an executable installation plan.
 
 The shared manifest must be consumed by both installation and recovery
@@ -381,3 +381,34 @@ configuration with SQLSTATE42P01. A future diagnostic-only improvement could
 validate metadata before querying optional configuration tables and guard JSON
 object inspection against scalar input; it must preserve fail-closed behavior.
 No preflight implementation change or hosted migration was made for this finding.
+
+### Receipt-order source finding
+
+Source inspection narrows the apparent ordering discrepancy: repair11 changes
+the ordinary admission foreign key and event helper; repair12 supersedes that
+helper and the comment lifecycle writer. Retirement admission and its recognizer
+own different routines. Keep repair11 before repair12, and admission before
+its recognizer. This does not prove equivalence of intermediate database states
+or safe writes between commits. The shared plan may propose the documented
+order, but its catalog and interruption proof remains required.
+
+Resume signatures must describe each cumulative committed boundary, not merely
+the latest definition created by an individual file: later owners intentionally
+replace earlier routines. A match to an obsolete per-file body cannot establish
+that the current prefix is installed correctly.
+
+### Inventory implementation and reproduction
+
+Run `node scripts/linear-exit-install-manifest.js` to emit the current inventory
+without opening a database connection. Run
+`node test/linear-exit-install-manifest.js` for offline contract validation.
+The dated JSON artifact under docs/independence pins working-tree source bytes;
+checkout line-ending differences require regeneration and review, not ignoring
+a hash mismatch. Its verify() routine refuses source or contract drift.
+
+The output distinguishes baseline-source inventory from candidate owners and
+keeps atomic intake indivisible. It validates declared graph edges but explicitly
+does not assert the graph is complete. No target catalog signature is invented,
+no resume is authorized, and neither existing rehearsal has been rewired yet.
+Savepoint validation resets state across transactions and models nested release
+and rollback semantics; it does not execute the SQL or prove installed behavior.

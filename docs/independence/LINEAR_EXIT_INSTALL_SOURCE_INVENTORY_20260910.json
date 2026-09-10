@@ -1,0 +1,1735 @@
+{
+  "contract": "linear-exit-install-inventory-v1",
+  "classification": "SOURCE_ONLY",
+  "executable": false,
+  "installation_authorized": false,
+  "install_ready": false,
+  "installation_complete": false,
+  "dependency_closure_complete": false,
+  "baseline": "UNRESOLVED_CURRENT_HOSTED_CATALOG; dated capture is not a full baseline",
+  "external_platform": "SYNTHETIC auth/roles/storage scaffold is not platform custody proof",
+  "interruption_rehearsal": "UNPROVEN_PER_COMMIT",
+  "order_review": "DOCUMENT_ORDER_PROPOSED; intermediate-state database equivalence unproven",
+  "resume_signatures": "UNRESOLVED_CUMULATIVE_PREFIX_CATALOG; isolated file hashes cannot describe later owner replacements",
+  "entries": [
+    {
+      "id": "live-schema-baseline-2026-07-03.sql",
+      "path": "migrations/live-schema-baseline-2026-07-03.sql",
+      "sha256": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+      "bytes": 34121,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 269,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-03-a1-calendar-upsert.sql",
+      "path": "migrations/2026-07-03-a1-calendar-upsert.sql",
+      "sha256": "6efb9963411c977fb86568408a5c36da3de0841bd8262704a034ccd52b48860d",
+      "bytes": 3199,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 21,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-05-b0-linear-auth-scaffold.sql",
+      "path": "migrations/2026-07-05-b0-linear-auth-scaffold.sql",
+      "sha256": "dd4098763aa93e0e4603abadace84ccad2df2c7695edbe04f960df30b8dbe14d",
+      "bytes": 7710,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 56,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-06-b1-linear-data-model.sql",
+      "path": "migrations/2026-07-06-b1-linear-data-model.sql",
+      "sha256": "14832fd0286b6a474a35449bcef7e95c2b0c897c28e5f312a1aa8bba4e83a895",
+      "bytes": 25721,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 87,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-11-b4-linear-outbound.sql",
+      "path": "migrations/2026-07-11-b4-linear-outbound.sql",
+      "sha256": "e0f1b0c876dacd37f7c31c2ec06cac9cac0bacf1914ada6afc364e9dfe413287",
+      "bytes": 16303,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 9,
+            "kind": "begin"
+          },
+          {
+            "index": 34,
+            "line": 508,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-12-production-comments.sql",
+      "path": "migrations/2026-07-12-production-comments.sql",
+      "sha256": "1a73504b0c5e47fe93fd77250254b650f42400674928293abbbf001d1dfb83b5",
+      "bytes": 33917,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 9,
+            "kind": "begin"
+          },
+          {
+            "index": 22,
+            "line": 684,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-12-write-ui-outbox-parity.sql",
+      "path": "migrations/2026-07-12-write-ui-outbox-parity.sql",
+      "sha256": "38c4f196260af6a3b757b07ce550bfe40d96dbe662e73dea81e7a97b97d9a0ca",
+      "bytes": 20657,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 9,
+            "kind": "begin"
+          },
+          {
+            "index": 24,
+            "line": 568,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-28-f27-write-authorization-only.sql",
+      "path": "migrations/2026-07-28-f27-write-authorization-only.sql",
+      "sha256": "c1d73bbce2ced5c3459307fcac9114a7a9fe3859acce9bd4ea15940fed78fcea",
+      "bytes": 6878,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 77,
+            "kind": "begin"
+          },
+          {
+            "index": 8,
+            "line": 136,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-19-samples-batch-purpose.sql",
+      "path": "migrations/2026-08-19-samples-batch-purpose.sql",
+      "sha256": "8090f2cded6ec328bf87b9c52e49f21c78ba89b6a148463ace7d9e9ea5e19e4e",
+      "bytes": 3121,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 26,
+            "kind": "begin"
+          },
+          {
+            "index": 7,
+            "line": 69,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-19-samples-batch-write-purpose.sql",
+      "path": "migrations/2026-08-19-samples-batch-write-purpose.sql",
+      "sha256": "fd1a19c571b79e75e4d6dd49ecd03a82d3895c2d08a38fd1f8f82d746f5ea7e7",
+      "bytes": 6066,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 31,
+            "kind": "begin"
+          },
+          {
+            "index": 2,
+            "line": 154,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-24-public-intake-log.sql",
+      "path": "migrations/2026-08-24-public-intake-log.sql",
+      "sha256": "8c20215201a7f26807c71a89be3fa6a8b7bd84d8aa25a64542b3f7a5b2785644",
+      "bytes": 2745,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 7,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-26-production-intake-append-v7.sql",
+      "path": "migrations/2026-08-26-production-intake-append-v7.sql",
+      "sha256": "6ae1201ac86891132093fc2baa8aa2b801ad89c93473d75a62442645101e68cd",
+      "bytes": 22635,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 46,
+            "kind": "begin"
+          },
+          {
+            "index": 6,
+            "line": 520,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-31-production-component-fill.sql",
+      "path": "migrations/2026-08-31-production-component-fill.sql",
+      "sha256": "6c55d6d34024ed99706f732ff5a1afbaec6ac0c482232417d57afa3306e15aab",
+      "bytes": 23153,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 85,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 471,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-23-f201-production-labels.sql",
+      "path": "migrations/2026-07-23-f201-production-labels.sql",
+      "sha256": "2edbe88fbb2d9bed522767466307ca0932f774486e6d00c0de991e4e1c61d59f",
+      "bytes": 3824,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 16,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 138,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-23-f202-production-descriptions.sql",
+      "path": "migrations/2026-07-23-f202-production-descriptions.sql",
+      "sha256": "60c3b8b98d56464ecf7758346e03cdb503a90568a6a454bdbad647c399980d0e",
+      "bytes": 4801,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 24,
+            "kind": "begin"
+          },
+          {
+            "index": 5,
+            "line": 156,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-23-production-comment-thread-lifecycle.sql",
+      "path": "migrations/2026-07-23-production-comment-thread-lifecycle.sql",
+      "sha256": "194b854843e92333386507cb9ab354e25744d7f3fe6a21099a4d5dff7a9ab87a",
+      "bytes": 30839,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 12,
+            "kind": "begin"
+          },
+          {
+            "index": 49,
+            "line": 778,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-23-f34-f53-production-attachments.sql",
+      "path": "migrations/2026-07-23-f34-f53-production-attachments.sql",
+      "sha256": "e9d8610da4f7d375dff02e1cae07969f069a127e448ae8bca7de3cf9e6a21f4f",
+      "bytes": 44481,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 41,
+            "kind": "begin"
+          },
+          {
+            "index": 39,
+            "line": 1118,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-06-artifact-projection-scope-and-revision.sql",
+      "path": "migrations/2026-08-06-artifact-projection-scope-and-revision.sql",
+      "sha256": "d74cea01444ff13ced44d59101daeafdd9e35e62eab8e2453e9ce8b898f9be63",
+      "bytes": 10576,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 39,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 235,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-30-artifact-video-projection.sql",
+      "path": "migrations/2026-08-30-artifact-video-projection.sql",
+      "sha256": "46ce98671f5342152281db6b8f30a451d214bed64401a09efc2647e43ac942a3",
+      "bytes": 16288,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 86,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 331,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-artifact-card-binding-first.sql",
+      "path": "migrations/2026-09-05-artifact-card-binding-first.sql",
+      "sha256": "30490d38c97f39b93babbd2ffb548f4057f19e17b1bbe20589af507bd2195a12",
+      "bytes": 17384,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 74,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 366,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-20-f27-team-rollback.sql",
+      "path": "migrations/2026-07-20-f27-team-rollback.sql",
+      "sha256": "6e403d4400f683dbd21a3cb28b74729912dbac092812e6e3187b8e1c7ab868e6",
+      "bytes": 139518,
+      "scope": "baseline_source_inventory",
+      "dependencies": [
+        "2026-07-28-f27-write-authorization-only.sql",
+        "2026-09-05-artifact-card-binding-first.sql",
+        "2026-07-23-production-comment-thread-lifecycle.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 9,
+            "kind": "begin"
+          },
+          {
+            "index": 50,
+            "line": 3449,
+            "kind": "savepoint"
+          },
+          {
+            "index": 52,
+            "line": 3473,
+            "kind": "rollback_to_savepoint"
+          },
+          {
+            "index": 53,
+            "line": 3474,
+            "kind": "release_savepoint"
+          },
+          {
+            "index": 54,
+            "line": 3476,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-04-a2-writer-edge-functions.sql",
+      "path": "migrations/2026-07-04-a2-writer-edge-functions.sql",
+      "sha256": "4fa7d6157a26e20631fe1b6392f214a9ff3192e1ed2da86e9183489abce9466e",
+      "bytes": 294,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 1,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-04-a4-settings-edge-functions.sql",
+      "path": "migrations/2026-07-04-a4-settings-edge-functions.sql",
+      "sha256": "415a79cf8af8cfa0032e8621df221b01ff2413d95638e269eeb4200aecbd3cdc",
+      "bytes": 2292,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 18,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-13-write-ui-reroute-allowlist.sql",
+      "path": "migrations/2026-07-13-write-ui-reroute-allowlist.sql",
+      "sha256": "4eeba5255a3228719472cbe6e80807cc32f319d2ae14f07b6c6bcf02bfd14c81",
+      "bytes": 483,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 1,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-08-04-client-access-auto-provision.sql",
+      "path": "migrations/2026-08-04-client-access-auto-provision.sql",
+      "sha256": "d8a06fc0170c9226cb5d59ff295db35dbbdc457a49f0cc3827588e239911ed0d",
+      "bytes": 5572,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "mixed_or_multiple_transactions",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 2,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 25,
+            "kind": "begin"
+          },
+          {
+            "index": 11,
+            "line": 109,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "workload-issues-supabase-migration.sql",
+      "path": "migrations/workload-issues-supabase-migration.sql",
+      "sha256": "410c68e48c55a680c7dbc034bacd365034d603568fafcf59a01a1afec237ad2c",
+      "bytes": 3548,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 11,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-19-workload-plan.sql",
+      "path": "migrations/2026-07-19-workload-plan.sql",
+      "sha256": "370f4051a6e01b8b901c081424d235b514f57d2f4c95e50f3d9520efb796c81a",
+      "bytes": 1794,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 13,
+            "kind": "begin"
+          },
+          {
+            "index": 10,
+            "line": 43,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "sample-reviews-migration.sql",
+      "path": "migrations/sample-reviews-migration.sql",
+      "sha256": "02777f1cbd2506ceafe7eb4e7da1981d2067b04f470a27afdc1d5086d4f58095",
+      "bytes": 13952,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 24,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-11-b4-write-attribution.sql",
+      "path": "migrations/2026-07-11-b4-write-attribution.sql",
+      "sha256": "e0602d774d4af0dab8368836ee1f95abf81ddcf23e34ba6174612ea19c51fcff",
+      "bytes": 1036,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 8,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-14-linear-intake-receipts.sql",
+      "path": "migrations/2026-07-14-linear-intake-receipts.sql",
+      "sha256": "a842b93b8e1656ccbc9ea36a7a228ed6acd7b11dbfd2e7e559faae6ffe78a9c1",
+      "bytes": 19552,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 7,
+            "kind": "begin"
+          },
+          {
+            "index": 45,
+            "line": 538,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-15-pto-tracker.sql",
+      "path": "migrations/2026-07-15-pto-tracker.sql",
+      "sha256": "20cad3eca2daeafa8ad804944caaa9d9b3fe00a4769fbbd41c14fc59c52bed95",
+      "bytes": 14163,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 37,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-07-28-linear-project-ids-team-shape.sql",
+      "path": "migrations/2026-07-28-linear-project-ids-team-shape.sql",
+      "sha256": "c2e6efe4a49bba5a863a1aab88a749ac414aa117d136ba16a4a7649bfd4f0d3b",
+      "bytes": 23059,
+      "scope": "baseline_source_inventory",
+      "dependencies": [],
+      "transaction": {
+        "classification": "mixed_or_multiple_transactions",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 5,
+        "boundaries": [
+          {
+            "index": 1,
+            "line": 138,
+            "kind": "begin"
+          },
+          {
+            "index": 10,
+            "line": 270,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-card-change-journal.sql",
+      "path": "migrations/2026-09-05-card-change-journal.sql",
+      "sha256": "1a353835fee61ab8d52ae3f9ed94d83ea1fdb85f6ba9e45eace642409c96ef1e",
+      "bytes": 10433,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 23,
+            "line": 201,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-calendar-feedback-recovery.sql",
+      "path": "migrations/2026-09-05-calendar-feedback-recovery.sql",
+      "sha256": "ee6858accc21b28c03f18579c49d4361dd1287645b785dd20e0136e7ee5851cb",
+      "bytes": 26862,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-card-change-journal.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 52,
+            "kind": "begin"
+          },
+          {
+            "index": 13,
+            "line": 513,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-crosswalk-bind-and-import.sql",
+      "path": "migrations/2026-09-05-crosswalk-bind-and-import.sql",
+      "sha256": "63a65a6c9aae13176abb3dd08c416d9afa69aa13bf77966669c6fc7e2e7725ce",
+      "bytes": 23792,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 6,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-native-intake-root-manifest.sql",
+      "path": "migrations/2026-09-05-native-intake-root-manifest.sql",
+      "sha256": "39ac761471e67b2f9e66d78a9783a374070b924cf6abf6d67aeee79da01cfcf1",
+      "bytes": 7420,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 9,
+            "line": 125,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-native-label-catalog-foundation.sql",
+      "path": "migrations/2026-09-05-native-label-catalog-foundation.sql",
+      "sha256": "ba19247491e2f809aaf211fb517838eeda9d1edb246cb1698943e70a14e1aa1a",
+      "bytes": 15738,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 6,
+            "kind": "begin"
+          },
+          {
+            "index": 17,
+            "line": 260,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-08-native-intake-receipt-retention.sql",
+      "path": "migrations/2026-09-08-native-intake-receipt-retention.sql",
+      "sha256": "bf841a0b0026b82b776d6fe9aa11d2a0a9125aaa23c9faf0f6c0c5fa191b012c",
+      "bytes": 3502,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "atomic-native-intake"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 28,
+            "kind": "begin"
+          },
+          {
+            "index": 7,
+            "line": 58,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-native-intake-reconcile.sql",
+      "path": "migrations/2026-09-05-native-intake-reconcile.sql",
+      "sha256": "e3133d6fd4fbf6fa2e6f5fc5a5bad110d00270ff0134633a80afdcd02b5ac41f",
+      "bytes": 56455,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "atomic-native-intake",
+        "2026-09-08-native-intake-receipt-retention.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 46,
+            "kind": "begin"
+          },
+          {
+            "index": 39,
+            "line": 938,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-06-native-card-materialization-boundary.sql",
+      "path": "migrations/2026-09-06-native-card-materialization-boundary.sql",
+      "sha256": "c0d8257b0d28a7ba4db3bfb50a03e795a82add394d077c9b426b1ad9f12e6a50",
+      "bytes": 21631,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-native-intake-reconcile.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 18,
+            "line": 294,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-07-legacy-intake-native-triage.sql",
+      "path": "migrations/2026-09-07-legacy-intake-native-triage.sql",
+      "sha256": "1faf9a28114124ac5631db4d7561c514e19615ad60806afdd902ba335d484831",
+      "bytes": 19264,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-06-native-card-materialization-boundary.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 18,
+            "line": 276,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-07-native-brief-media.sql",
+      "path": "migrations/2026-09-07-native-brief-media.sql",
+      "sha256": "f21774e72a70658a2f26f65d893ab4b5a4f1d8c89c5f50214be2944d57fe8ddc",
+      "bytes": 3186,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 9,
+            "line": 50,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-06-linear-outbound-cutoff.sql",
+      "path": "migrations/2026-09-06-linear-outbound-cutoff.sql",
+      "sha256": "e78ae3db4da8bee59515d5200c7ab5565fd59ac6e074e471fe7106d4cc2a05e5",
+      "bytes": 18707,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 11,
+            "kind": "begin"
+          },
+          {
+            "index": 31,
+            "line": 350,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-06-native-existing-assignment.sql",
+      "path": "migrations/2026-09-06-native-existing-assignment.sql",
+      "sha256": "ece90c9290d3ab8154692afd7c506e220d3202f0acec441a8fd2dd88c8e1e146",
+      "bytes": 11856,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 15,
+            "line": 187,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-06-native-label-writes.sql",
+      "path": "migrations/2026-09-06-native-label-writes.sql",
+      "sha256": "ceb4161c5e2890804b4d8a1e9f38884c333591e854391fecb611681fdd3b138e",
+      "bytes": 14457,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-native-label-catalog-foundation.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 15,
+            "line": 194,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-07-native-identifier-mint.sql",
+      "path": "migrations/2026-09-07-native-identifier-mint.sql",
+      "sha256": "39edf792af7bd9c33af80bac4e698da2f4a680d926b5c05e4186e5f57879d323",
+      "bytes": 13949,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 39,
+            "kind": "begin"
+          },
+          {
+            "index": 17,
+            "line": 258,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-native-client-provisioning.sql",
+      "path": "migrations/2026-09-09-native-client-provisioning.sql",
+      "sha256": "6a8a3a564ecb25276ae4434b5ff51671079e987c23d42ed8c10b3b59ad6bc5aa",
+      "bytes": 11936,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-08-04-client-access-auto-provision.sql",
+        "atomic-native-intake"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 15,
+            "kind": "begin"
+          },
+          {
+            "index": 19,
+            "line": 284,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-02-workload-native-view.sql",
+      "path": "migrations/2026-09-02-workload-native-view.sql",
+      "sha256": "f777ef057aad113a502b7f2be51d16bef81d0b9a7c09c0294d73f2dbb278427f",
+      "bytes": 22426,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 159,
+            "kind": "begin"
+          },
+          {
+            "index": 7,
+            "line": 376,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-workload-native-membership.sql",
+      "path": "migrations/2026-09-05-workload-native-membership.sql",
+      "sha256": "59b814eea06d53927fc1a6049d125d51716c9bca69fe9cff28081c87f3ca9a4a",
+      "bytes": 11515,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-02-workload-native-view.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 13,
+            "line": 192,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-08-workload-native-label-state-shape.sql",
+      "path": "migrations/2026-09-08-workload-native-label-state-shape.sql",
+      "sha256": "7bdc0dac5793197cc14878f67614eb05cf4408e3d923da53772a5d5f7841faf8",
+      "bytes": 2522,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-workload-native-membership.sql"
+      ],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 3,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-workload-native-roster.sql",
+      "path": "migrations/2026-09-09-workload-native-roster.sql",
+      "sha256": "1a8f87c2e011f2705ef85b129e88000d2204afd3a6218dc40ed0244b4e2bc5ad",
+      "bytes": 5281,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-08-workload-native-label-state-shape.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 2,
+            "line": 91,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-native-attribution-browser-projection.sql",
+      "path": "migrations/2026-09-09-native-attribution-browser-projection.sql",
+      "sha256": "f84d6520e7d6881e0780036b2af0809b531e05659d1ba7281e4727ec99ca88aa",
+      "bytes": 9029,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-native-client-provisioning.sql",
+        "2026-09-09-workload-native-roster.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 13,
+            "kind": "begin"
+          },
+          {
+            "index": 6,
+            "line": 172,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-editors-event-assignee.sql",
+      "path": "migrations/2026-09-09-editors-event-assignee.sql",
+      "sha256": "88984a08aa300270727731b4ca1bf03e38b1589b1346b6e0f40406d163934dff",
+      "bytes": 11406,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 14,
+            "kind": "begin"
+          },
+          {
+            "index": 10,
+            "line": 237,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-native-ordinary-receipts.sql",
+      "path": "migrations/2026-09-09-native-ordinary-receipts.sql",
+      "sha256": "b9cb4a074b2587a4e78ffadc9934dfabd67170a69d323aaf5b1c7090e7dabc43",
+      "bytes": 31000,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 22,
+            "line": 548,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-syncview-retirement-admission.sql",
+      "path": "migrations/2026-09-09-syncview-retirement-admission.sql",
+      "sha256": "8cb7a1f6940e6b4e7742023e66ece40b15c925a01ef1d8117e816fbef0334093",
+      "bytes": 9157,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 12,
+            "kind": "begin"
+          },
+          {
+            "index": 16,
+            "line": 182,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
+      "path": "migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
+      "sha256": "4abb1e4ab5e5398c5995856acfc5d6a44643bb8e3d226766b918e40487658de4",
+      "bytes": 2940,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-syncview-retirement-admission.sql",
+        "2026-09-09-native-ordinary-receipts.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 3,
+            "line": 39,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-11-native-ordinary-receipt-repair.sql",
+      "path": "migrations/2026-09-11-native-ordinary-receipt-repair.sql",
+      "sha256": "1b253d0777df0fb3af0bcd292aa28f7607a51a6ac7abdf43a5715da433a5de79",
+      "bytes": 3723,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-native-ordinary-receipts.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 5,
+            "line": 50,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-12-native-ordinary-envelope-repair.sql",
+      "path": "migrations/2026-09-12-native-ordinary-envelope-repair.sql",
+      "sha256": "121838243805361c891ba5daccf975b991f289183339b07d1a9a219aaa5ffb84",
+      "bytes": 13354,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-11-native-ordinary-receipt-repair.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 2,
+            "kind": "begin"
+          },
+          {
+            "index": 8,
+            "line": 254,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-native-notification-outbox.sql",
+      "path": "migrations/2026-09-09-native-notification-outbox.sql",
+      "sha256": "5b5d16cc2ca3a0b300402560af6d8220962b62dca0954831f9d07c99f2c9fb96",
+      "bytes": 42631,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-editors-event-assignee.sql",
+        "2026-09-12-native-ordinary-envelope-repair.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 9,
+            "kind": "begin"
+          },
+          {
+            "index": 46,
+            "line": 709,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-05-description-images.sql",
+      "path": "migrations/2026-09-05-description-images.sql",
+      "sha256": "064fbcb0419652518e64cef777cb88c02323116460c82690a700b407955a35e0",
+      "bytes": 3838,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 7,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-09-kasper-urgent-pings.sql",
+      "path": "migrations/2026-09-09-kasper-urgent-pings.sql",
+      "sha256": "fdab0481ae24094831540efb294ae80d749c6f2aa0e5c4034c3346a96632b72b",
+      "bytes": 5809,
+      "scope": "candidate_owner",
+      "dependencies": [],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 7,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-10-kasper-urgent-ping-ledger.sql",
+      "path": "migrations/2026-09-10-kasper-urgent-ping-ledger.sql",
+      "sha256": "21c6e1b95b9a5fde8fc3e2d75b91a25d959d422f5eb8578648dc9b87611e45b7",
+      "bytes": 9078,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-kasper-urgent-pings.sql",
+        "sample-reviews-migration.sql"
+      ],
+      "transaction": {
+        "classification": "autocommit_statements",
+        "explicit_commits": 0,
+        "outside_transaction_statements": 11,
+        "boundaries": [],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "atomic-native-intake",
+      "path": null,
+      "sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
+      "bytes": 66665,
+      "scope": "atomic_generated_owner",
+      "dependencies": [
+        "2026-09-05-native-intake-root-manifest.sql",
+        "2026-09-05-native-label-catalog-foundation.sql",
+        "2026-08-26-production-intake-append-v7.sql"
+      ],
+      "inputs": [
+        {
+          "path": "migrations/2026-09-05-native-only-intake.sql",
+          "sha256": "3c0cac06bcae41928f1c99d0359dea6562f1ec2f9b0546123f1548eac48746e4"
+        },
+        {
+          "path": "migrations/2026-09-07-native-intake-named-append.sql",
+          "sha256": "2b26c56fbbefa70e06e16aab4feb652aa2a83f81a4dd4ffade18f23f780e0c52"
+        }
+      ],
+      "composer": {
+        "path": "scripts/native-intake-named-append-compose.js",
+        "sha256": "e66834e79cd7083e74ef69129727b060d1826f3c1d7fad8c2e014a3d0f670060"
+      },
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 1,
+            "line": 4,
+            "kind": "begin"
+          },
+          {
+            "index": 20,
+            "line": 1418,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": [
+          "\\set ON_ERROR_STOP on"
+        ]
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    }
+  ],
+  "dependency_order": [
+    "live-schema-baseline-2026-07-03.sql",
+    "2026-07-03-a1-calendar-upsert.sql",
+    "2026-07-05-b0-linear-auth-scaffold.sql",
+    "2026-07-06-b1-linear-data-model.sql",
+    "2026-07-11-b4-linear-outbound.sql",
+    "2026-07-12-production-comments.sql",
+    "2026-07-12-write-ui-outbox-parity.sql",
+    "2026-07-28-f27-write-authorization-only.sql",
+    "2026-08-19-samples-batch-purpose.sql",
+    "2026-08-19-samples-batch-write-purpose.sql",
+    "2026-08-24-public-intake-log.sql",
+    "2026-08-26-production-intake-append-v7.sql",
+    "2026-08-31-production-component-fill.sql",
+    "2026-07-23-f201-production-labels.sql",
+    "2026-07-23-f202-production-descriptions.sql",
+    "2026-07-23-production-comment-thread-lifecycle.sql",
+    "2026-07-23-f34-f53-production-attachments.sql",
+    "2026-08-06-artifact-projection-scope-and-revision.sql",
+    "2026-08-30-artifact-video-projection.sql",
+    "2026-09-05-artifact-card-binding-first.sql",
+    "2026-07-20-f27-team-rollback.sql",
+    "2026-07-04-a2-writer-edge-functions.sql",
+    "2026-07-04-a4-settings-edge-functions.sql",
+    "2026-07-13-write-ui-reroute-allowlist.sql",
+    "2026-08-04-client-access-auto-provision.sql",
+    "workload-issues-supabase-migration.sql",
+    "2026-07-19-workload-plan.sql",
+    "sample-reviews-migration.sql",
+    "2026-07-11-b4-write-attribution.sql",
+    "2026-07-14-linear-intake-receipts.sql",
+    "2026-07-15-pto-tracker.sql",
+    "2026-07-28-linear-project-ids-team-shape.sql",
+    "2026-09-05-card-change-journal.sql",
+    "2026-09-05-calendar-feedback-recovery.sql",
+    "2026-09-05-crosswalk-bind-and-import.sql",
+    "2026-09-05-native-intake-root-manifest.sql",
+    "2026-09-05-native-label-catalog-foundation.sql",
+    "atomic-native-intake",
+    "2026-09-08-native-intake-receipt-retention.sql",
+    "2026-09-05-native-intake-reconcile.sql",
+    "2026-09-06-native-card-materialization-boundary.sql",
+    "2026-09-07-legacy-intake-native-triage.sql",
+    "2026-09-07-native-brief-media.sql",
+    "2026-09-06-linear-outbound-cutoff.sql",
+    "2026-09-06-native-existing-assignment.sql",
+    "2026-09-06-native-label-writes.sql",
+    "2026-09-07-native-identifier-mint.sql",
+    "2026-09-09-native-client-provisioning.sql",
+    "2026-09-02-workload-native-view.sql",
+    "2026-09-05-workload-native-membership.sql",
+    "2026-09-08-workload-native-label-state-shape.sql",
+    "2026-09-09-workload-native-roster.sql",
+    "2026-09-09-native-attribution-browser-projection.sql",
+    "2026-09-09-editors-event-assignee.sql",
+    "2026-09-09-native-ordinary-receipts.sql",
+    "2026-09-09-syncview-retirement-admission.sql",
+    "2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
+    "2026-09-11-native-ordinary-receipt-repair.sql",
+    "2026-09-12-native-ordinary-envelope-repair.sql",
+    "2026-09-09-native-notification-outbox.sql",
+    "2026-09-05-description-images.sql",
+    "2026-09-09-kasper-urgent-pings.sql",
+    "2026-09-10-kasper-urgent-ping-ledger.sql"
+  ]
+}

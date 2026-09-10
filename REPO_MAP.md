@@ -177,3 +177,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 `docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md` records the live-source Calendar v49 / Samples v50 deployment, tokenless save and marker readbacks, preserved freeze, rollback and held feature flag.
 
 - `test/linear-exit-upstream-ledger.js`: exact upstream Git-object ledger rehearsal wrapper for the portable isolated lane.
+
+- `scripts/linear-exit-install-manifest.js`, `test/linear-exit-install-manifest.js`, `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json`: non-executable source inventory, dependency/transaction validation, and dated generated hashes; installation and cumulative-prefix resume proof remain unresolved.

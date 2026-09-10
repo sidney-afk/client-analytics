@@ -224,5 +224,16 @@
     "absent_relation": "public.production_notification_config",
     "complete_missing_inventory": false,
     "hosted_mutation": false
+  },
+  "installation_inventory": {
+    "classification": "SOURCE_ONLY",
+    "entries": 63,
+    "offline_tests": "PASS",
+    "executable": false,
+    "install_ready": false,
+    "dependency_closure_complete": false,
+    "rehearsal_consumers_wired": false,
+    "artifact": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+    "artifact_sha256": "774d5e3b328898c4aa152fbf9dc5bedb788d5c1090dc8d369242fc7d90e29248"
   }
 }

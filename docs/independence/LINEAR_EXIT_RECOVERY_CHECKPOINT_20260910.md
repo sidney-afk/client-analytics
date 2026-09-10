@@ -1,5 +1,24 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest source-inventory preparation
+
+A non-executable63-entry inventory is now built in
+`scripts/linear-exit-install-manifest.js`, with a dated output at
+`docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json`. It pins
+62 source SQL owners plus the atomic intake artifact, including both input and
+composer hashes. Declared dependencies and top-level transaction/savepoint
+boundaries are validated. Offline hash-drift, graph-refusal and transaction
+tests pass; the repository map passes428 checks. No SQL is executed by this tool.
+
+This is the first manifest component, not the complete installation manifest.
+Dependency closure, current hosted baseline, expected cumulative catalog
+signatures and per-boundary resume proof remain unresolved; installation and
+execution readiness are explicitly false. Neither rehearsal consumes it yet.
+Next: reconcile its dependency/order coverage, then wire one ordered isolated
+installation and cumulative-state/interruption evidence into both rehearsals.
+Installation HOLD.
+
+
 ## Installation-manifest preparation checkpoint
 
 The combined source is published at `d2bb2279`. A current read-only hosted

@@ -19077,3 +19077,44 @@ same test `scripts/linear-sync-reconcile.js` applies.
 - The browser-side write path is untouched. Item 189 records why patching it was
   abandoned after seven review findings, and this is the alternative that item
   named.
+
+### 192a. [2026-09-10] Five review findings on the reconciler, all real, all verified against live rows before being fixed
+
+Codex raised three P1 and two P2 on PR #1380. Every one was checked against the
+database rather than accepted or argued with, and one of them was **narrower
+than proposed** in a way that mattered.
+
+| finding | verdict | evidence |
+|---|---|---|
+| P2 the cap is coerced, not validated | real | `Number('25x')` is `NaN`, every comparison false, mass-repair abort bypassed. Now exits 2 on a non-positive or non-integer cap. |
+| P2 `processed_at` is outbound completion, not the client's write | real | `source_edited_at` precedes it by 2 to 4s typically, more on a retry. The documented contract is the commit time, so the originating clock now wins. |
+| P1 identity misses `native_comment_id` | real | the card stores the native id: **row id matches 4 card entries, native id matches 57**. |
+| P1 body matching swallows a repeated request | real | a client repeating a request in a later round matched the first round's entry. Fixed by CONSUMING each card entry at most once rather than existence-checking. |
+| P1 an approval superseded by a later round can be resurrected | real | the current status alone cannot see approve → reopen → staff re-approve. |
+| P1 no CAS between read and write | real, partially closed | see below. |
+
+**The supersession fix had to be narrower than the finding.** The obvious rule,
+"any later transition supersedes", was measured against the live candidates
+first: **all five would have been discarded.** Their later transitions are
+`posted`, and one is the staff browser at 19:32 projecting the client's own
+decision back, which is item 186's incident, not a supersession. Only a move
+back BELOW `Approved` is a reopen, ranked with the app's own `CAL_PRIORITY`
+after its own native mapper, unmapped counting as a reopen. Under the corrected
+rule all five survive and the finding's scenario is still blocked.
+
+**Round numbers were considered and rejected as the repeat discriminator:** 2 of
+317 live body matches sit on a different round, so a round-equality rule would
+have delivered those as duplicates. Consuming entries one-for-one needs no
+agreement about round numbering between the two systems.
+
+**The CAS finding is honestly half-closed.** Every repair is now revalidated
+against a freshly read row immediately before writing, by re-running the whole
+detection so it cannot drift from the rules. That narrows the window to one
+round-trip; it does not close it. A real fix needs compare-and-set on the write,
+and this lane has none (item 189, finding 2) — Edge Function work, deliberately
+not smuggled into a script PR.
+
+Six new sabotage controls, all confirmed to fail the suite: the reopen gate
+removed, unmapped status treated as safe, the outbound clock preferred, the
+native id dropped, entries no longer consumed one-for-one, the body fallback
+removed. 25 checks.

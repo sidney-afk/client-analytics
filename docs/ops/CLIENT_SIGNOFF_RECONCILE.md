@@ -36,7 +36,10 @@ Two shapes, both driven by something the server already committed:
 
 **Evidence repairs, it never invents.** Every value written comes from the
 server's own record: a stamp is the *commit time of the client's approve*, never
-`now()` and never derived from the status. Deriving a sign-off from a status is
+`now()` and never derived from the status. That time is `source_edited_at`, when
+the client's own write committed, not `processed_at`, which is when
+`linear-outbound` finished carrying the row onward and on a retried delivery is
+much later. Deriving a sign-off from a status is
 precisely the lie OPEN_REPAIRS 190 is about, pointing the other way. A change
 request's body, author, round and clock come from `production_comments`. If the
 server has no record, this job does nothing.
@@ -47,6 +50,15 @@ superseded by later work, and finishing a stale write would undo it.
 - A sign-off is restored only where the app's own `_calClearStaleApprovals`
   would keep it. That function is extracted from `index.html` at runtime, so
   this job and the browser can never disagree about what "stale" means.
+- **And the current status is not enough.** A client approves, the work is
+  reopened (clearing the stamp), staff later advance it back to `Approved`: the
+  card reads `Approved` again, but the client never saw the new revision. So a
+  reopen *after* the approval supersedes it, ranked by the app's own
+  `CAL_PRIORITY` after its own native mapper, with an unmapped status counted as
+  a reopen. Only a move back BELOW `Approved` counts: a later `posted` or
+  `scheduled` is the work progressing, and treating that as supersession would
+  discard every genuine repair (measured on live rows, all of which had exactly
+  such a forward transition).
 - A change request is delivered only while the component is still in the review
   round (`Client Approval` / `Tweaks Needed`). Once it reads `Approved`,
   re-injecting a Tweaks-Needed request would reopen settled work and contradict
@@ -74,7 +86,9 @@ reports and writes nothing.
   same safe endpoint the other reconcilers use, so the overall pill and the
   stale-approval sweep are recomputed by the canonical path.
 - `CAP` (default 25): a run wanting more repairs than the cap aborts without
-  writing. A mass divergence is a bug or an incident, and a human should look
+  writing. The value is validated, not just coerced: a typo like `25x` exits
+  rather than becoming `NaN`, which every comparison would answer false and so
+  bypass the abort entirely. A mass divergence is a bug or an incident, and a human should look
   before hundreds of client-facing rows move.
 
 ## Testing it
@@ -87,6 +101,40 @@ here republishes settled work or duplicates a client's own words back at them.
 The suite is proven by sabotage, not by passing: removing the stale-approval
 gate, the closed-round gate, the body comparison, the commit-time stamp, or the
 stale sweep each makes it fail. Re-run those controls if you change a rule.
+
+## Identity: why matching is a consume, not a search
+
+Two things make "is this request already on the card?" harder than it looks.
+
+- The card usually stores the request under `native_comment_id`, not the
+  `production_comments` row id. Measured live: **the row id matches 4 card
+  entries, the native id matches 57.** Comparing only the row id leaves the body
+  doing all the work.
+- Body alone cannot tell repeats apart. A client asking for the same thing again
+  in a later round would be matched against the first round's entry, and their
+  new request would stay invisible.
+
+So each card entry is **consumed by at most one server request**: ids claim
+their entry first, then bodies claim what is left. Two identical requests on the
+server need two identical entries on the card, or one is missing. Counting
+rather than existence-checking makes repeats work without depending on the two
+systems agreeing about round numbers, which they do not always (2 of 317 live
+body matches sit on a different round).
+
+## The race this does not close
+
+Between the read and the write, a client or a colleague can move the card. Every
+repair is therefore **revalidated against a freshly read row immediately before
+writing**, by re-running the whole detection rather than re-checking a few
+fields by hand, so the revalidation cannot drift from the rules.
+
+That narrows the window to one round-trip. It does not close it. A true fix
+needs a compare-and-set on the write, and the Calendar status lane carries
+none: payloads have neither `expected_status` nor `expected_updated_at`, and
+`production-write` requires them on the `production` surface only
+(OPEN_REPAIRS 189, finding 2). Closing it properly is Edge Function work and is
+deliberately not smuggled in here. Repairs are rare and the job is dispatched,
+so the residual exposure is a few seconds per row.
 
 ## The false positive worth knowing about
 

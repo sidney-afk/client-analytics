@@ -29,8 +29,10 @@ const DEL = (over) => Object.assign({
 }, over || {});
 const APPROVE = (over) => Object.assign({
   entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'written',
-  role: 'client', payload: { status: 'approved' }, processed_at: '2026-09-05T10:00:00.000Z',
-  created_at: '2026-09-05T10:00:00.000Z', test_only: false,
+  role: 'client', payload: { status: 'approved' },
+  source_edited_at: '2026-09-05T10:00:00.000Z',
+  created_at: '2026-09-05T10:00:00.000Z',
+  processed_at: '2026-09-05T10:00:00.000Z', test_only: false,
 }, over || {});
 const TWEAK = (over) => Object.assign({
   id: 'pc_x1', deliverable_id: 'del-1', component: 'video', body: 'Please fix the intro',
@@ -144,10 +146,86 @@ check('a missing sign-off is restored at the time the client actually approved',
 
 check('the latest committed approve is the operative sign-off', () => {
   const { findings } = detect(world({
-    outbox: [APPROVE(), APPROVE({ processed_at: '2026-09-07T09:00:00.000Z' })],
+    outbox: [APPROVE(), APPROVE({ source_edited_at: '2026-09-07T09:00:00.000Z' })],
   }));
   assert.equal(findings.length, 1, 'one component, one stamp');
   assert.equal(patchFor(findings[0]).client_video_approved_at, '2026-09-07T09:00:00.000Z');
+});
+
+/* The stamp is the CLIENT's write time, not the outbound delivery time.
+   processed_at is set when linear-outbound finishes carrying the row onward,
+   which on a retried delivery is much later than the client's action. */
+check('the stamp follows the client\'s own clock, not outbound completion', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE({
+      source_edited_at: '2026-09-05T10:00:00.000Z',
+      processed_at: '2026-09-05T18:30:00.000Z',
+    })],
+  }));
+  assert.equal(patchFor(findings[0]).client_video_approved_at, '2026-09-05T10:00:00.000Z');
+});
+
+/* SUPERSEDED BY A LATER ROUND. Approve, reopen, staff re-approve: the card
+   reads Approved again, but the client never saw the new revision. */
+check('an approval superseded by a later reopen is not restored', () => {
+  for (const reopen of ['tweak', 'in_progress', 'client_approval', 'kasper_approval', 'canceled']) {
+    const { findings, skipped } = detect(world({
+      outbox: [
+        APPROVE(),
+        Object.assign(APPROVE(), {
+          role: 'smm', payload: { status: reopen },
+          source_edited_at: '2026-09-06T10:00:00.000Z',
+        }),
+      ],
+    }));
+    assert.equal(findings.length, 0, reopen + ' after the approval must supersede it');
+    assert.equal(skipped[0].reason, 'superseded_by_later_reopen');
+  }
+});
+
+/* But forward progress is NOT supersession. Every genuine repair measured on
+   live rows had exactly such a later transition; treating it as supersession
+   would discard all of them. */
+check('work advancing past Approved does not cancel the sign-off', () => {
+  for (const forward of ['posted', 'scheduled', 'approved']) {
+    const { findings } = detect(world({
+      outbox: [
+        APPROVE(),
+        Object.assign(APPROVE(), {
+          role: 'smm', payload: { status: forward },
+          source_edited_at: '2026-09-06T10:00:00.000Z',
+        }),
+      ],
+      cards: [CARD({ video_status: 'Posted' })],
+    }));
+    assert.equal(findings.length, 1, forward + ' is progress, not a reopen');
+  }
+});
+
+/* A client repeating the same request in a later round is a NEW request. Body
+   matching alone would match it against the first round's entry and leave the
+   new one invisible, so entries are consumed one-for-one. */
+check('a repeated request is delivered rather than swallowed by the first', () => {
+  const onCard = JSON.stringify([{ id: 'cal-1', body: 'Please fix the intro', is_tweak: true, role: 'client' }]);
+  const { findings } = detect(world({
+    comments: [
+      TWEAK({ id: 'pc_r1', created_at: '2026-09-01T09:00:00.000Z' }),
+      TWEAK({ id: 'pc_r2', round: 3, created_at: '2026-09-06T09:00:00.000Z' }),
+    ],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1, 'one on the card, two on the server, one missing');
+  const list = parseComments(patchFor(findings[0]).video_tweaks);
+  assert.deepEqual(list.map(c => c.id), ['cal-1', 'pc_r2'], 'the LATER request is the missing one');
+});
+
+check('the card entry is recognised by its native comment id', () => {
+  const onCard = JSON.stringify([{ id: 'nat-77', body: 'totally different text', is_tweak: true }]);
+  const { findings } = detect(world({
+    comments: [TWEAK({ native_comment_id: 'nat-77' })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0, 'the card stores the native id, not the row id');
 });
 
 check('a thumbnail deliverable stamps the graphic component', () => {

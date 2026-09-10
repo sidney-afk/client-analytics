@@ -81,8 +81,12 @@ async function run(actor, action, fault) {
   const port = server.address().port;
   const browser = await chromium.launch();
   const page = await browser.newPage();
+  /* Cleanup belongs in finally: when a run threw, the browser and the HTTP
+     server were both left open, which kept node alive forever instead of
+     failing. See the closing try/finally below. */
   const gatewayCommits = [];
-  const upserts = [];
+  const upserts = [];          // what the browser TRIED to write
+  const persistedRow = {};     // what the source row actually holds
   const errors = [];
   let nativeStatus = actor.key === 'smm' ? 'smm_approval' : 'client_approval';
   let nativeStatusAt = new Date(Date.now() - 3600 * 1000).toISOString();
@@ -135,12 +139,21 @@ async function run(actor, action, fault) {
 
   await page.route(/calendar-upsert/, async route => {
     const body = JSON.parse(route.request().postData() || '{}');
+    /* ATTEMPTED IS NOT PERSISTED. The first version recorded the submitted post
+       and then returned the mocked 500, so every source-write-rejected row was
+       scored as though the row held the status it had merely been asked to
+       hold. That turned a real disagreement (gateway committed, source row
+       unchanged) into a clean pass, and the README's whole rejection column was
+       false because of it. Attempts and persisted state are now separate, and
+       only a 2xx moves the persisted one. */
     upserts.push(body.post || {});
     if (fault.upsert === 'fail') return route.fulfill({ status: 500, contentType: 'text/html', body: 'boom' });
+    Object.assign(persistedRow, body.post || {});
     await route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ ok: true, post: Object.assign({ updated_at: new Date().toISOString() }, body.post) }) });
   });
 
+  try {
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window._calReviewApplyApprove === 'function' && typeof calState !== 'undefined', null, { timeout: 25000 });
   await page.evaluate(() => {
@@ -192,8 +205,8 @@ async function run(actor, action, fault) {
     };
   }, { slug: SLUG, card: CARD, vid: VID, view: actor.view, start: actor.start, actionKey: action.key, actorKey: actor.key });
 
-  await browser.close(); server.close();
-  return { actor: actor.key, action: action.key, fault: fault.key, gatewayCommits, upserts, nativeStatus, result, errors };
+  return { actor: actor.key, action: action.key, fault: fault.key, gatewayCommits, upserts, persistedRow, nativeStatus, result, errors };
+  } finally { await browser.close().catch(() => {}); server.close(); }
 }
 
 /* The two questions, answered mechanically.
@@ -208,8 +221,7 @@ const NATIVE_TO_CARD = {
   scheduled: 'Scheduled', posted: 'Posted', in_progress: 'In Progress', todo: 'In Progress', backlog: 'In Progress',
 };
 function score(out) {
-  const lastUpsert = out.upserts.length ? out.upserts[out.upserts.length - 1] : null;
-  const sheetStatus = lastUpsert && lastUpsert.video_status ? String(lastUpsert.video_status) : null;
+  const sheetStatus = out.persistedRow && out.persistedRow.video_status ? String(out.persistedRow.video_status) : null;
   const serverMoved = out.gatewayCommits.some(c => c.operation === 'status');
   const expectedCard = NATIVE_TO_CARD[String(out.nativeStatus)] || String(out.nativeStatus);
 
@@ -234,7 +246,11 @@ function score(out) {
   const backed = serverMoved || out.result.retryArmed || !!out.result.saveError || !gatewayInvolved;
   const truthful = !moved || backed;
 
-  return { agree, truthful, sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved };
+  /* A disagreement with a repair armed heals itself on the next load; one
+     without is stuck until a human notices. Both are wrong, and conflating
+     them would overstate the first and understate the second. */
+  const recoverable = !!out.result.retryArmed;
+  return { agree, truthful, recoverable, sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved };
 }
 
 (async () => {
@@ -243,9 +259,17 @@ function score(out) {
     for (const action of ACTIONS) {
       if (action.smmOnly && actor.key !== 'smm') continue;
       for (const fault of FAULTS) {
+        /* A HARNESS ERROR IS FATAL. It used to become a row that `bad` then
+           excluded, so a sweep where every single run failed to boot could
+           print "35 combinations, flagged: 0" and read as a clean bill of
+           health. Nothing is worse in a test than that. */
         let out;
         try { out = await run(actor, action, fault); }
-        catch (e) { rows.push({ actor: actor.key, action: action.key, fault: fault.key, harnessError: e.message.slice(0, 120) }); continue; }
+        catch (e) {
+          console.error('\nHARNESS ERROR on ' + [actor.key, action.key, fault.key].join(' / ') + ': ' + e.message.slice(0, 300));
+          console.error('The sweep proves nothing when a run cannot execute. Fix the harness and re-run.');
+          process.exit(1);
+        }
         const inert = fault.key === 'none' && !out.gatewayCommits.length && !out.upserts.length && !out.result.touchedAnything;
         if (inert) { rows.push({ actor: actor.key, action: action.key, fault: fault.key, harnessError: 'control run wrote nothing: the action did not execute' }); continue; }
         out.action = action.key; out.actor = actor.key;
@@ -262,8 +286,14 @@ function score(out) {
     if (r.harnessError) { console.log(`${r.actor.padEnd(8)} ${r.action.padEnd(18)} ${r.fault.padEnd(22)} HARNESS ERROR: ${r.harnessError}`); return; }
     console.log(`${r.actor.padEnd(8)} ${r.action.padEnd(18)} ${r.fault.padEnd(22)} ${(r.agree ? 'yes' : 'NO ').padEnd(5)} ${(r.truthful ? 'yes' : 'NO ').padEnd(8)}  ${String(r.serverStatus).padEnd(16)} -> ${String(r.sheetStatus)}   ui=${r.ui} err=${r.saveError} repair=${r.retryArmed}`);
   });
-  const bad = rows.filter(r => !r.harnessError && (!r.agree || !r.truthful));
-  console.log('\ncombinations run: ' + rows.length + ', flagged: ' + bad.length);
-  bad.forEach(r => console.log('  FLAG  ' + [r.actor, r.action, r.fault].join(' / ') + (r.agree ? '' : '  [server and sheet disagree]') + (r.truthful ? '' : '  [screen shows something unbacked]')));
+  const bad = rows.filter(r => !r.agree || !r.truthful);
+  const stuck = bad.filter(r => !r.recoverable);
+  const heals = bad.filter(r => r.recoverable);
+  console.log('\ncombinations run: ' + rows.length + ', flagged: ' + bad.length
+    + '  (' + stuck.length + ' stuck, ' + heals.length + ' self-healing)');
+  console.log('\nSTUCK: server and screen disagree and NO repair is armed, so it stays wrong until a human notices');
+  stuck.forEach(r => console.log('  ' + [r.actor, r.action, r.fault].join(' / ') + (r.truthful ? '' : '  [and the screen shows something unbacked]')));
+  console.log('\nSELF-HEALING: disagreement, but a repair is armed to finish it on the next load');
+  heals.forEach(r => console.log('  ' + [r.actor, r.action, r.fault].join(' / ')));
   fs.writeFileSync(path.join(__dirname, 'last-run.json'), JSON.stringify(rows, null, 1));
 })();

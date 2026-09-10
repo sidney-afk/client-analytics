@@ -24,29 +24,31 @@ Two questions per combination, answered mechanically:
 
 A run can agree and still lie, and can disagree honestly. Both are scored.
 
-## Result, 2026-09-10: 35 combinations, 6 flagged, ONE defect
+## Result, 2026-09-10: 35 combinations, 11 flagged, split by whether they heal
 
-| actor | action | lost answer / 5xx after commit | never sent | source write rejected |
+| actor | action | answer lost / 5xx after commit | never sent | source write rejected |
 |---|---|---|---|---|
-| client | approve | **server and sheet disagree** | honest failure | agrees, error shown, repair armed |
-| smm | approve (to Kasper) | **server and sheet disagree** | honest failure | agrees, error shown, repair armed |
-| smm | approve (to client) | **server and sheet disagree** | honest failure | agrees, error shown, repair armed |
-| both | request a change | agrees | honest failure | agrees, error shown, repair armed |
+| client | approve | **STUCK** | honest failure | disagrees, self-heals |
+| smm | approve (to Kasper) | **STUCK** | honest failure | disagrees, self-heals |
+| smm | approve (to client) | **STUCK** | honest failure | disagrees, self-heals |
+| both | request a change | agrees | honest failure | disagrees, self-heals |
 | both | comment | gateway not involved | gateway not involved | error shown |
 
-**The one defect: an approve whose gateway answer is lost, or answered 5xx after
-the commit, moves the server and leaves the card behind.** All six flags are
-that. It is NOT client-only, which is the finding that matters: the same hole is
-under the SMM's approve and under approve-and-route-to-client. A staff approval
-can be recorded on the server while the calendar keeps showing the card as
-awaiting review.
+**STUCK** means the server and the card disagree and NO repair is armed, so it
+stays wrong until a human notices. **Self-heals** means they disagree but a
+repair is armed to finish the write on the next load. Both are wrong; only one
+of them stays wrong.
 
-**Three things this rules out**, which is as useful as what it found:
+**The six STUCK rows are one defect: an approve whose gateway answer is lost, or
+answered 5xx after the commit.** It is NOT client-only, which is the finding
+that matters: the same hole sits under the SMM's approve and under
+approve-and-route-to-client. A staff approval can be recorded on the server
+while the calendar keeps showing the card as awaiting review.
 
-- *Requesting a change is sound.* The status commits, the sheet follows, and a
-  rejected source write shows an error and arms the repair.
+**Two things this rules out**, which is as useful as what it found:
+
 - *A plain comment never reaches the gateway on this path at all* -- it writes
-  the card's tweaks column only, so the whole dual-write class does not apply.
+  the card's tweaks column only, so the dual-write class does not apply.
 - *A request that never left the browser is honest everywhere.* Nothing moves on
   either side and the failure is visible.
 
@@ -60,7 +62,7 @@ awaiting review.
 - The video component only, and one card at a time. No concurrency between two
   people acting on the same card.
 
-## Two harness bugs found while building it, both recorded
+## Four harness bugs found while building it, all recorded
 
 Both produced FALSE CLEAN results, which is the failure mode that matters in a
 test:
@@ -72,3 +74,14 @@ test:
 2. The scorer compared the gateway's `tweak` against the card's `Tweaks Needed`
    with a naive underscore swap and flagged sound behaviour as a disagreement.
    It now uses the app's own vocabulary mapping.
+3. The upsert mock recorded the SUBMITTED post before returning its mocked 500,
+   so every `source-write-rejected` row scored as though the row held a status
+   it had merely been asked to hold. That turned five real disagreements into
+   clean passes, and the first published version of the table above was wrong
+   because of it. Attempted and persisted state are now separate, and only a
+   2xx moves the persisted one.
+4. A run that threw became a result row that the summary then excluded, so a
+   sweep where every single run failed to boot could print
+   `35 combinations, flagged: 0` and read as a clean bill of health. Harness
+   errors are now fatal, and per-run cleanup moved into `finally` so a thrown
+   run cannot leave the browser and HTTP server open holding node alive.

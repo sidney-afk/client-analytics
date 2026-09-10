@@ -18602,7 +18602,7 @@ carry no `raw_project_id`, so this read path reaches further than the one card.
 
 - Done when: shipped (copy). The verdict question above stays open.
 
-## 188. [2026-09-09, lane LX-URGENT, BUILT and HELD — front-end + EF source shipped; the EF half is NOT deployable from the repo, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+## 188. [2026-09-09, lane LX-URGENT, SUPERSEDED STATUS — the EF half is deployed (see 193) and the front end was corrected (see 194); the repo's writer copies are still NOT deployable, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
 
 The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
 editor in `#video-editing`. The mirror case had no affordance at all. A card parked
@@ -19012,7 +19012,88 @@ session), the closed-tab case, the server-side reconciler, and repair of rows
 ALREADY carrying an approved status with no stamp. This patch stops new losses;
 it does not go back for the old ones.
 
-## 192. [2026-09-10, BUILT — dry-run until dispatched with `dry_run=false`] The closed-tab case closes: a committed client action is now completable server-side, and two of the three "still open" items were badly mis-sized
+---
+
+## 192. [2026-09-10] Item 39/89 closed a door that needed one more room: a narrow, named escape hatch for a completed-issue card someone is still actually blocked on
+
+Item 39 measured 17 actionable half-linked cards, 15 of them pointing at Linear
+issues already `completed`, and closed with: *"`isOpenIssue` excludes the
+completed ones, correctly: they are finished work"* and *"the 15 actionable
+slots pointing at completed Linear issues need no status change ever. They are
+recorded, not scheduled."* Item 89 asked for one owner decision on what to tell
+a blocked person, and stayed open.
+
+**"Never" was wrong for at least one of them.** Card `p_lin_vid12672`
+("Video 3") was reported live 2026-09-10 by the owner trying to move it to
+Posted via Set All To Posted, hitting `native_link_required` on the thumbnail
+leg exactly as item 39 describes, on a card whose Linear issue (completed
+months before the graphics flip) item 39 already had on its own sampled list.
+12 other cards on the same client carry the identical shape, confirmed live
+against the `deliverables` table: no row exists for any of them, on either
+team.
+
+Neither sanctioned repair reaches it: `b3-linkage-backfill.js` only stamps a
+card onto a deliverable that already EXISTS, and none does here; B1's
+stray-catcher insert path requires `isOpenIssue`, by design, for exactly the
+reason item 39 gave.
+
+**What shipped:** `B1_ALLOW_CLOSED_IDENTIFIERS`, a manual-only, explicit
+allowlist input on the B1 Linear Incremental Refresh Action. A human names
+specific closed Linear identifiers; only those pass the `isOpenIssue` gate, and
+every other guard (insert-only, the existing-deliverable skip, the card-slot
+conflict withhold) still applies untouched to a named issue exactly as it does
+to any other stray candidate. Empty by default, so item 39's "correctly" still
+describes every standing scheduled or ordinary dispatched run — this is not a
+reversal of that finding, it is the one room the finding didn't anticipate: a
+completed issue that needs a manual, named exception because a person is
+actually blocked on it, not the general case of 900 quietly finished tickets.
+
+**Correction to item 39/89's closing claim.** "Need no status change ever"
+holds for most of the completed-issue bucket, but not provably all of it — this
+is the counterexample. A report of `native_link_required` on a completed-issue
+card is reachable and actionable, not "recorded, not scheduled" by default;
+check whether someone is actually trying to move it before filing a new one
+under the closed bucket.
+
+**Dispatch sequence** (Actions → B1 Linear Incremental Refresh → Run workflow):
+1. `changed_since` — far enough back that the named identifier's `updatedAt`
+   falls inside the window; the issue's own completion date is a safe floor.
+2. `allow_closed_identifiers` — comma-separated Linear identifiers, e.g.
+   `GRA-6384,VID-11945`.
+3. `apply` — on.
+4. Verify: the card's `video_deliverable_id` / `graphic_deliverable_id` is no
+   longer empty, and the write that was refused now succeeds.
+
+**Not done here.** The 12 other same-shape cards found live on 2026-09-10 are
+not yet dispatched — whoever runs the fix should include every identifier
+actually blocking someone in one dispatch rather than one at a time.
+`scripts/calendar-native-link-gap-check.js` still finds the remaining bucket
+across every client.
+
+
+## 193. [2026-09-10, LIVE; feature flag remains off] Frozen writers persist urgent markers without re-gating client saves
+
+Follow-up to 188. Calendar v48 → v49 and Samples v49 → v50 were deployed from the exact downloaded ungated live sources plus the reviewed additive marker patch. Samples also required MIRROR_COLS additions. Calendar strips caption/title status timestamps from updates. Both retain verify_jwt=false, zero authorizeBrowserWrite occurrences, unchanged CORS and byte-identical shared code. Repository writer copies remain unsuitable for deployment.
+
+Twenty offline cases pass. Real tokenless name/comment saves and all six supported component-marker writes returned HTTP 200/ok:true; separate database reads confirmed persistence and server-derived marker clocks. Dedicated test cards were removed with last-write guards. No notification or interactive-browser behavior is claimed. The feature flag was absent and remains off.
+
+Full versions, bundle hashes, evidence limits, rollback and next action: [deployment receipt](FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). Next: owner decides when to enable and check the visible ping flow; no additional marker deployment is owed. Separate approval-recovery work is unchanged.
+
+## 194. [2026-09-10, FIXED in the browser; ships on merge, no deploy] The two urgent pings stopped being one machine, and the switch could only be thrown for everybody at once
+
+Follow-up to 188 and 193. Two things were wrong with the front end the moment the writers went live, and both were the same mistake: a Kasper-flavoured special case where the whole design was that there is no special case.
+
+**The ordering.** The Kasper ping wrote its marker BEFORE sending the DM; the editor ping has always sent Slack first. That was introduced to stop a failed write producing a DM about an Urgent section that never populates. It bought that by trading the failure for its exact mirror: marker written, DM never sent, and the blank-field guard then refusing the retry — a card that looks pinged, to a reviewer who was never told. Slack and Postgres share no transaction, so SOME window exists whichever way round it goes; ordering only chooses which half can be lost, and the lost DM is the worse half because it is the deliverable. Reverted to Slack-first, so the dispatch path is now one code path with no per-flavour branch. `persistFirst` is gone from the source, and a test fails if the string comes back.
+
+**The switch.** `kasper_urgent_ping_enabled` was read as `{enabled:true}` and nothing else, so the only rollout available was all clients at once. It now takes `{"clients":[…]}` as well — the same roster shape `calendar_upsert_ef_clients` and `write_ui_reroute_clients` already use — and both affordance gates pass their own surface's client (`calState.client`, `sxrState.client`). Every other shape is still OFF, including a roster that does not name the client asking, a slug of `''`, `{"enabled":"true"}`, a malformed value, a failed read and a missing row. The click-time re-read added in 1370 round 3 now carries the slug too, so a client can be dropped from the roster mid-dialog and the ping still refuses.
+
+**Codex found two defects in the roster work itself, both real, both fixed before merge.** They are worth recording because they share a shape: a gate that fails closed is still wrong when it fails closed on the wrong input.
+
+1. *(P1)* The two click handlers still called `_kasperUrgentPingOnLive()` with no argument, so after the re-fetch the roster was asked about the empty client and refused. The affordance gate passed its client, so the button rendered normally and then answered "Urgent pings are off" on every click — a dead button, for every client, whenever the flag used the roster form. The test that was supposed to cover this counted the three call sites without looking at their arguments, so it stayed green while two of them asked about nobody. It now asserts that no call site is bare and that each names its own surface's client.
+2. *(P2)* The comparison only trimmed and lower-cased. `calState.client` and `sxrState.client` hold **display names**; the roster holds **slugs**. Anything with a space, an accent, a leading `Dr.`, or an `and` the slug writes as `&` therefore never matched, and the failure was invisible: no button, no error, just a feature that quietly never appeared for the client it was turned on for. Both sides now go through `calClientSlug` / `_calRuntimeFlagClients`, exactly as `_calUpsertUseEf` and `_writeUiRerouteUseGateway` already do. The test fixtures were themselves complicit — they used the same string for the display name and the slug, which is the one shape that passes without any normalization at all — so they now differ.
+
+Verified: unit suite green including new sandboxes (roster naming this client / roster naming another / no flag at all) and normalization cases for spaces, `and`/`&`, `Dr.`, padding and near-miss names. Both fixes carry a negative control: reverting the P1 fix makes the new guard fail, and the old comparison is shown missing all three display-name shapes. `prod-write-gateway-browser.js` green, `prod-boot-budget.js` green, live-divergence register green, identity-exposure clean. Test fixtures use a synthetic slug, never a live one. Next: the n8n DM copy still asserts "It is in the Urgent section at the top", which Slack-first can send a beat early — that edit is the owner's call and has not been made.
+## 195. [2026-09-10, BUILT — dry-run until dispatched with `dry_run=false`] The closed-tab case closes: a committed client action is now completable server-side, and two of the three "still open" items were badly mis-sized
 
 **Closes the mechanism behind items 189 and 190.** Item 189 named the real one:
 "the completion of a committed write still depends on one particular browser
@@ -19078,7 +19159,7 @@ same test `scripts/linear-sync-reconcile.js` applies.
   abandoned after seven review findings, and this is the alternative that item
   named.
 
-### 192a. [2026-09-10] Five review findings on the reconciler, all real, all verified against live rows before being fixed
+### 195a. [2026-09-10] Five review findings on the reconciler, all real, all verified against live rows before being fixed
 
 Codex raised three P1 and two P2 on PR #1380. Every one was checked against the
 database rather than accepted or argued with, and one of them was **narrower

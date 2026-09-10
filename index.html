@@ -25556,42 +25556,74 @@
        the Urgent section at the top" of a section that cannot populate.
 
        So the affordance is OFF until this flag says otherwise, and it FAILS
-       CLOSED: no flag row, no key, a failed read, a malformed value -> off. With
-       it off the feature is completely inert -- no button, so no click, no write
-       and no DM. Turning it on after the EF port is one row, no deploy:
+       CLOSED: no flag row, no key, a failed read, a malformed value, a client
+       the roster does not name -> off. With it off the feature is completely
+       inert -- no button, so no click, no write and no DM. Turning it on is one
+       row, no deploy. Start with a roster of one, not with everybody:
 
          insert into public.syncview_runtime_flags (key, value)
-         values ('kasper_urgent_ping_enabled', '{"enabled": true}'::jsonb)
+         values ('kasper_urgent_ping_enabled', '{"clients": ["<slug>"]}'::jsonb)
          on conflict (key) do update set value = excluded.value;
+
+       `{"enabled": true}` opens it for every client; keep that for after the
+       roster has proven itself. Off again is the same one row: `{"clients": []}`
+       or `{"enabled": false}`, both instant and both no deploy.
     */
     const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
-    let _kasperUrgentPingEnabled = false;
-    function _kasperUrgentPingOn() { return _kasperUrgentPingEnabled === true; }
+    let _kasperUrgentFlagValue = null;
+    /* Two shapes, so a rollout can start with one client instead of everybody:
+         { "clients": ["slug"] }  -> on for exactly those clients
+         { "enabled": true }      -> on for all
+       Anything else, including a missing row, a failed read, a malformed value
+       or an unknown client, is OFF. Same roster shape the calendar-upsert and
+       reroute flags already use, so there is one idiom to learn, not two.
+
+       And the same NORMALIZER, which is not optional: calState.client and
+       sxrState.client hold a display name, while the roster holds slugs, so a
+       plain lower-case compare silently misses every client whose name is not
+       already its own slug -- anything with a space, an accent, a `Dr.`, or an
+       `and` the slug writes as `&`. That failure is invisible in the worst
+       way: no button, no error, just a feature that quietly never appears for
+       the client it was turned on for. _calRuntimeFlagClients canonicalizes
+       the roster and calClientSlug canonicalizes the request, exactly as
+       _calUpsertUseEf and _writeUiRerouteUseGateway already do. */
+    function _kasperUrgentPingOn(clientOrSlug) {
+        const v = _kasperUrgentFlagValue;
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        if (Array.isArray(v.clients)) {
+            let slug = '';
+            try { slug = calClientSlug(clientOrSlug); }
+            catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+            if (!slug) return false;
+            return _calRuntimeFlagClients(v).indexOf(slug) !== -1;
+        }
+        return v.enabled === true;
+    }
     /* Re-read at CLICK time, not just at boot. A flag cached at boot makes the
        advertised one-step rollback untrue: a tab that saw `enabled: true` keeps
        sending DMs and writing markers after the row is flipped off, which is
        precisely the situation the switch exists for. So the dispatch path asks
        again and fails closed, and a stale-cached render can only ever offer a
        button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
-    async function _kasperUrgentPingOnLive() {
-        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentPingEnabled = false; }
-        return _kasperUrgentPingOn();
+    async function _kasperUrgentPingOnLive(clientOrSlug) {
+        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentFlagValue = null; }
+        return _kasperUrgentPingOn(clientOrSlug);
     }
     async function _calFetchKasperUrgentFlagOnce() {
-        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentPingEnabled = false; return; }
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
             const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const rows = await resp.json();
             const row = Array.isArray(rows) ? rows[0] : null;
-            const was = _kasperUrgentPingEnabled;
-            _kasperUrgentPingEnabled = !!(row && row.value && row.value.enabled === true);
+            const was = JSON.stringify(_kasperUrgentFlagValue);
+            _kasperUrgentFlagValue = (row && row.value && typeof row.value === 'object') ? row.value : null;
             // A render that won the race against this read is buttonless; repaint
             // it rather than making activation require a reload.
-            if (was !== _kasperUrgentPingEnabled) _kasperUrgentRepaintSurfaces();
+            if (was !== JSON.stringify(_kasperUrgentFlagValue)) _kasperUrgentRepaintSurfaces();
         } catch (e) {
-            _kasperUrgentPingEnabled = false;   // fail closed, always
+            _kasperUrgentFlagValue = null;   // fail closed, always
         }
     }
     function _kasperUrgentRepaintSurfaces() {
@@ -33448,8 +33480,7 @@
             sentTitle: 'Kasper pinged',
             sentWhere: 'Sent Kasper a Slack DM',
             alreadySent: 'Kasper was already pinged for this card in this session.',
-            persistFirst: true,
-            failBody: 'The ping to Kasper was not sent. Nothing was saved and no message went out, so it is safe to try again.'
+            failBody: 'The ping to Kasper failed to send. Try again, or message him in Slack manually.'
         }
     };
     function _urgentKind(kind) { return URGENT_PING_KINDS[kind] || URGENT_PING_KINDS.editor; }
@@ -33516,7 +33547,7 @@
        browser already holds, not guessed at, and the correct move for a card
        with no video is to attach the video, not to chase Kasper about it. */
     function _calShowKasperUrgent(p, c) {
-        if (!_kasperUrgentPingOn()) return false;      // kill-switch, fails closed
+        if (!_kasperUrgentPingOn(calState && calState.client)) return false;   // fails closed
         if (!p || !c) return false;
         if (_calNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
         if (c === 'graphic' && !_calCompLinked(p, c)) return false;
@@ -33631,7 +33662,9 @@
     async function _calSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         // Live re-read, not the boot cache: the switch must stop an open tab.
-        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        // Pass the CLIENT -- a bare call asks the roster about nobody, which
+        // fails closed on every click of a button that rendered fine.
+        if (!(await _kasperUrgentPingOnLive(calState && calState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') {
             showNotify('Already sent', _urgentKind('kasper').alreadySent);
@@ -33692,29 +33725,32 @@
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
                     try {
-                        /* ORDER MATTERS, and it differs by flavour.
-                           editor: Slack first. The message IS the deliverable;
-                             its marker only drives a Sent latch, so a failed
-                             write is cosmetic and must not cost the ping.
-                           kasper: MARKER FIRST. The DM says "it is in the Urgent
-                             section at the top", so sending it before the marker
-                             lands can promise a section that never populates. A
-                             failed write now aborts before Slack: no marker, no
-                             DM, nothing to reconcile. (Codex P1 on PR 1370.) */
+                        /* SLACK FIRST, for BOTH flavours, because they are the
+                           same machine and there is now no reason for them to
+                           differ. The message is the deliverable; the marker only
+                           decides where the card sits afterwards, so a failed
+                           write is a cosmetic loss and must not cost the ping.
+
+                           This was briefly marker-first for the Kasper flavour,
+                           to stop a failed write producing a DM about a section
+                           that never populates. That traded one failure for its
+                           exact mirror -- marker written, DM never sent, and the
+                           blank-field guard blocking the retry (Codex, PR 1370
+                           round 3). Slack and Postgres share no transaction, so
+                           SOME window exists either way; ordering only chooses
+                           WHICH half can be lost, and losing the DM is the worse
+                           half. The remaining cosmetic gap -- a DM that names the
+                           Urgent section moments before the marker lands -- is
+                           the n8n copy's to close, not this ordering's. */
                         // The pre-dialog read is not enough: the confirm can sit
                         // open indefinitely while the flag is flipped off. Ask
                         // again HERE, before the first side effect, or the
                         // rollback still cannot stop an open tab. (Codex P1 r3.)
-                        if (spec.persistFirst && typeof _kasperUrgentPingOnLive === 'function'
-                            && !(await _kasperUrgentPingOnLive())) {
+                        if (kind === 'kasper' && typeof _kasperUrgentPingOnLive === 'function'
+                            && !(await _kasperUrgentPingOnLive(client))) {
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             showNotify('Urgent pings are off', 'The Kasper urgent ping was disabled while this dialog was open. Nothing was saved and nothing was sent.');
                             return;
-                        }
-                        let sentAtPre = '';
-                        if (spec.persistFirst && opts && typeof opts.persist === 'function') {
-                            sentAtPre = new Date().toISOString();
-                            await opts.persist({ sentAt: sentAtPre, issue, editor: '' });
                         }
                         const resp = await fetch(spec.url(), {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -33724,8 +33760,8 @@
                         try { j = await resp.json(); } catch {}
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
-                        const sentAt = sentAtPre || new Date().toISOString();
-                        if (!spec.persistFirst && opts && typeof opts.persist === 'function') {
+                        const sentAt = new Date().toISOString();
+                        if (opts && typeof opts.persist === 'function') {
                             try {
                                 await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
                             } catch (persistErr) {
@@ -66958,7 +66994,7 @@
        gates track their own queues; if the samples queue ever starts stranding
        cards, this is the line that has to follow it. */
     function _sxrShowKasperUrgent(p, c) {
-        if (!_kasperUrgentPingOn()) return false;      // same kill-switch as the calendar
+        if (!_kasperUrgentPingOn(sxrState && sxrState.client)) return false;   // same gate as the calendar
         if (!p || !c) return false;
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
         if (c === 'graphic' && !_calCompLinked(p, c)) return false;
@@ -66992,7 +67028,8 @@
     async function _sxrSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         // Live re-read, not the boot cache: the switch must stop an open tab.
-        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        // Same as the calendar: the roster needs to be asked about a client.
+        if (!(await _kasperUrgentPingOnLive(sxrState && sxrState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
         const post = sxrState.posts.find(p => p.id === pid);

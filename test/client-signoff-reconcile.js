@@ -286,6 +286,80 @@ check('delivering a change request clears the sign-off it invalidates', () => {
     'a component asked to change cannot keep the approval from the round it left');
 });
 
+/* CODEX ROUND 2. A row exists in mirror_outbox because the NATIVE write
+   committed; its status describes what the Linear carrier did afterwards. A
+   reopen whose delivery is pending or skipped is still a reopen. */
+check('a reopen the carrier has not delivered still supersedes', () => {
+  for (const carrier of ['pending', 'skipped', 'stale']) {
+    const { findings, skipped } = detect(world({
+      outbox: [
+        APPROVE(),
+        Object.assign(APPROVE(), {
+          role: 'smm', status: carrier, payload: { status: 'tweak' },
+          source_edited_at: '2026-09-06T10:00:00.000Z',
+        }),
+      ],
+    }));
+    assert.equal(findings.length, 0, carrier + ' reopen must not be invisible');
+    assert.equal(skipped[0].reason, 'superseded_by_later_reopen');
+  }
+});
+
+check('but an approval the carrier never wrote is not acted on', () => {
+  const { findings } = detect(world({ outbox: [APPROVE({ status: 'pending' })] }));
+  assert.equal(findings.length, 0, 'broad evidence to leave alone, narrow evidence to repair');
+});
+
+/* Ids are exact, so they claim their entry before ANY body fallback runs.
+   Two requests share a body; the card holds only the LATER one, under its
+   native id. A single pass in date order lets the earlier request consume it
+   by body and then delivers the later one again. */
+check('an exact id claims its entry before any body fallback', () => {
+  const onCard = JSON.stringify([
+    { id: 'nat-late', body: 'Please fix the intro', is_tweak: true, role: 'client' },
+  ]);
+  const { findings } = detect(world({
+    comments: [
+      TWEAK({ id: 'pc_early', created_at: '2026-09-01T09:00:00.000Z' }),
+      TWEAK({ id: 'pc_late', native_comment_id: 'nat-late', created_at: '2026-09-06T09:00:00.000Z' }),
+    ],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1, 'exactly one of the two is missing');
+  assert.equal(findings[0].comment.id, 'pc_early',
+    'the EARLIER request is the missing one; the later one owns the entry by id');
+});
+
+/* A staff note, a reply or a deleted entry carrying the same words is not a
+   delivery of the client's request. */
+check('the body fallback will not consume an entry that is not the client\'s', () => {
+  const cases = [
+    { id: 'x', body: 'Please fix the intro', role: 'smm' },
+    { id: 'x', body: 'Please fix the intro', role: 'kasper' },
+    { id: 'x', body: 'Please fix the intro', role: 'client', parent_id: 'root-1' },
+    { id: 'x', body: 'Please fix the intro', role: 'client', deleted: true },
+  ];
+  for (const entry of cases) {
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 1,
+      `a ${entry.role}${entry.parent_id ? ' reply' : ''}${entry.deleted ? ' deleted' : ''} entry must not count as delivery`);
+  }
+});
+
+check('a client root with is_tweak false still counts as delivered', () => {
+  const onCard = JSON.stringify([
+    { id: 'cal-1', body: 'Please fix the intro', role: 'client', is_tweak: false },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0, '18 of 327 live matches carry is_tweak:false');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

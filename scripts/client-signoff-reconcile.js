@@ -187,9 +187,20 @@ async function loadWorld() {
   }
   const since = new Date(Date.now() - LOOKBACK_DAYS * 864e5).toISOString();
   const [outbox, comments, deliverables] = await Promise.all([
+    /* NOTE THE MISSING STATUS FILTER, AND `source_edited_at`.
+     * A row exists in `mirror_outbox` because the NATIVE write committed; its
+     * `status` describes what the Linear carrier did afterwards (`written`,
+     * `skipped`, `stale`, and `pending` while in flight). Filtering on
+     * `written` therefore equates outbound delivery with source commit, which
+     * hides a reopen whose delivery is pending or was skipped — and an
+     * invisible reopen is exactly what lets a stale approval be restored.
+     * So every row is read, and the two uses are deliberately ASYMMETRIC
+     * below: broad evidence for "leave it alone", narrow evidence for "repair".
+     * `source_edited_at` is the client's own write clock and must be selected
+     * or the code that prefers it silently falls back to `created_at`. */
     restRows('mirror_outbox',
-      'select=entity_id,operation,status,entity,payload,processed_at,created_at,role,test_only'
-      + `&status=eq.written&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`),
+      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,role,test_only'
+      + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`),
     restRows('production_comments',
       'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,created_at,updated_at,deleted_at'
       + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`),
@@ -220,6 +231,18 @@ function stampSurvives(card, comp, stampValue) {
   const edits = { [STAMP_FIELD(comp)]: stampValue };
   _calClearStaleApprovals(clone, edits);
   return edits[STAMP_FIELD(comp)] === stampValue && clone[STAMP_FIELD(comp)] === stampValue;
+}
+
+/* Could this card entry be a client's own change-request root? Staff-authored
+ * entries, replies and deleted entries never represent one. Absent role is
+ * allowed (legacy rows predate the field); an explicit staff role is not. */
+const STAFF_ROLES = new Set(['kasper', 'smm', 'admin', 'editor', 'designer', 'system']);
+function couldBeClientTweak(entry) {
+  if (!entry) return false;
+  if (entry.deleted === true) return false;
+  if (entry.parent_id) return false;
+  const role = String(entry.role || '').trim().toLowerCase();
+  return !STAFF_ROLES.has(role);
 }
 
 function detect(world) {
@@ -259,9 +282,14 @@ function detect(world) {
     });
   }
 
+  /* The REPAIR side stays narrow: only a row the carrier actually wrote is
+   * taken as a client approval to act on. The supersession side above is
+   * deliberately broader. Erring narrow here and broad there both err toward
+   * leaving the card alone. */
   const latestApprove = new Map();
   for (const row of world.outbox) {
     if (row && row.test_only === true) continue;
+    if (String((row && row.status) || '').toLowerCase() !== 'written') continue;
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
     const to = String((row && row.payload && row.payload.status) || '').toLowerCase();
     if (to !== 'approved') continue;
@@ -337,6 +365,10 @@ function detect(world) {
     .filter(pc => pc && !pc.deleted_at)
     .slice()
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+  /* Resolve each request to its card cell ONCE, so the id pass below can run
+   * across every request before any body fallback does. */
+  const resolved = [];
   for (const pc of commentsInOrder) {
     const hit = resolve(pc.deliverable_id);
     if (!hit) continue;
@@ -350,15 +382,38 @@ function detect(world) {
       skipped.push({ kind: 'comment', reason: 'card_cell_unparseable', card: hit.card.id, component: comp });
       continue;
     }
-    const cellKey = hit.card.id + '|' + comp;
-    if (!consumedByCard.has(cellKey)) consumedByCard.set(cellKey, new Set());
+    resolved.push({ pc, hit, comp, body, list, cellKey: hit.card.id + '|' + comp });
+  }
+
+  /* PASS 1 — EXACT IDENTITY FIRST, ACROSS EVERY REQUEST.
+   * Claiming ids globally before any body fallback matters when two requests
+   * share a body and the card holds only the later one under its native id: a
+   * single pass in date order lets the EARLIER request consume that entry by
+   * body, and the later one is then reported missing and delivered again while
+   * the older request's identity and round vanish. Ids are exact, so they get
+   * first refusal everywhere. */
+  const claimOf = new Map();
+  for (const row of resolved) {
+    if (!consumedByCard.has(row.cellKey)) consumedByCard.set(row.cellKey, new Set());
+    const consumed = consumedByCard.get(row.cellKey);
+    const ids = [String(row.pc.id || ''), String(row.pc.native_comment_id || '')].filter(Boolean);
+    const at = row.list.findIndex((c, i) => !consumed.has(i) && ids.includes(String(c.id || '')));
+    if (at >= 0) { consumed.add(at); claimOf.set(row, at); }
+  }
+
+  for (const row of resolved) {
+    if (claimOf.has(row)) continue;
+    const { pc, hit, comp, body, list, cellKey } = row;
     const consumed = consumedByCard.get(cellKey);
-    const ids = [String(pc.id || ''), String(pc.native_comment_id || '')].filter(Boolean);
-    let claimed = list.findIndex((c, i) =>
-      !consumed.has(i) && ids.includes(String(c.id || '')));
-    if (claimed < 0) {
-      claimed = list.findIndex((c, i) => !consumed.has(i) && normText(c.body) === body);
-    }
+    /* PASS 2 — body fallback, but only onto an entry that could actually BE
+     * this client request. An internal staff note, a reply, or a deleted entry
+     * carrying the same words is not a delivery of it, and consuming one would
+     * declare the client's request delivered while it is nowhere on the card.
+     * Measured live: all 327 card entries matching a client request are
+     * client-authored roots, and 18 of them carry is_tweak:false — so authorship
+     * and shape are required, and is_tweak deliberately is not. */
+    const claimed = list.findIndex((c, i) =>
+      !consumed.has(i) && normText(c.body) === body && couldBeClientTweak(c));
     if (claimed >= 0) { consumed.add(claimed); continue; }
     const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
     if (status !== 'Client Approval' && status !== 'Tweaks Needed') {

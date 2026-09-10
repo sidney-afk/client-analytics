@@ -76,7 +76,10 @@ node scripts/client-signoff-reconcile.js --client=<slug>      # one client
 node scripts/client-signoff-reconcile.js --fixtures=f.json --json   # offline
 ```
 
-Or `.github/workflows/client-signoff-reconcile.yml`, dispatch-only.
+Or dispatch it from the Actions UI, which is where the owner runs it:
+
+**https://github.com/sidney-afk/client-analytics/actions/workflows/client-signoff-reconcile.yml**
+
 **It writes only on an explicit `dry_run=false`** — a missing or malformed input
 reports and writes nothing.
 
@@ -94,7 +97,9 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. The cases that must
+construction through fixtures — no credentials, no network. 30 checks, each
+rule backed by a sabotage control that must fail the suite when the rule is
+removed. The cases that must
 NOT repair are asserted first and in the most detail, because a false positive
 here republishes settled work or duplicates a client's own words back at them.
 
@@ -120,6 +125,26 @@ server need two identical entries on the card, or one is missing. Counting
 rather than existence-checking makes repeats work without depending on the two
 systems agreeing about round numbers, which they do not always (2 of 317 live
 body matches sit on a different round).
+
+## Outbound delivery is not source commit
+
+A row exists in `mirror_outbox` because the **native write committed**. Its
+`status` describes what the Linear carrier did *afterwards*: `pending` while in
+flight, then `written`, `skipped` or `stale`.
+
+Filtering the read on `written` therefore equates delivery with commit, and
+hides a reopen whose delivery is pending or was skipped. An invisible reopen is
+precisely what lets a stale approval be restored. So every row is read, and the
+two uses are deliberately **asymmetric**:
+
+- **supersession** (leave the card alone) considers every row, whatever the
+  carrier did;
+- **repair** (touch the card) still requires a `written` client approval.
+
+Both directions err toward leaving the card alone. `source_edited_at` must also
+be named in the projection: without it the code that prefers the client's own
+clock silently falls back to `created_at`, which is the kind of bug that passes
+every fixture test and is wrong in production.
 
 ## The race this does not close
 

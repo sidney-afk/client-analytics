@@ -19199,3 +19199,54 @@ Six new sabotage controls, all confirmed to fail the suite: the reopen gate
 removed, unmapped status treated as safe, the outbound clock preferred, the
 native id dropped, entries no longer consumed one-for-one, the body fallback
 removed. 25 checks.
+
+### 195b. [2026-09-10] A second review round, and the finding that mattered most: a fix that was inert in production
+
+Five more findings on PR #1380, all real. One of them is the most useful thing
+either review round produced.
+
+**THE FIX FROM ROUND 1 NEVER RAN.** Round 1 changed the sign-off stamp to prefer
+`source_edited_at`, the client's own write clock, over `processed_at`. The live
+projection never SELECTED `source_edited_at`, so in production the code fell
+straight through to `created_at` while the fixtures — which set the field —
+proved the new behaviour perfectly. **A green suite and a wrong result, from one
+missing column in a select.** The lesson is not "add the column"; it is that a
+fixture asserting a field the real query never fetches proves nothing about
+production. Fixed, and the doc now says so at the point where the projection is
+built.
+
+**Outbound delivery was being equated with source commit.** The read filtered
+`status=eq.written`, but a row exists in `mirror_outbox` because the NATIVE
+write committed; `status` describes what the Linear carrier did afterwards
+(`pending` in flight, then `written`, `skipped`, `stale`). A reopen whose
+delivery was pending or skipped was therefore invisible to the supersession
+test, which is the one thing that lets a stale approval be restored. Live rows
+show 683 `skipped` and 85 `stale` status rows in the window, and two of the five
+live candidates carry later `skipped:approved` rows that were being dropped.
+
+The two uses are now deliberately **asymmetric**: supersession (leave the card
+alone) reads every row whatever the carrier did; repair (touch the card) still
+requires a `written` client approval. Both directions err toward leaving the
+card alone. All five candidates still repair; zero reopens appear under the
+broader read.
+
+**Identity now claims in two passes.** Ids are exact, so they get first refusal
+across EVERY request before any body fallback runs. Single-pass in date order
+had a real hole: two requests sharing a body where the card holds only the later
+one under its native id let the EARLIER request consume that entry by body, and
+the later one was then delivered again while the older request's identity and
+round vanished.
+
+**The body fallback no longer consumes an entry that cannot be the client's.**
+A staff note, a reply, or a deleted entry carrying the same words is not a
+delivery. Measured before restricting: all 327 live card entries matching a
+client request are client-authored roots, and 18 of them carry `is_tweak:false`
+— so authorship and shape are required and `is_tweak` deliberately is not.
+
+Plus the doc now carries the direct Actions URL rather than a repo path, per
+this repo's own standing rule about handing the owner a link.
+
+30 checks, twelve sabotage controls in total, six added this round: an
+undelivered approval acted on, the fallback consuming a staff note, a reply
+counting as delivery, a deleted entry counting as delivery, staff roles not
+excluded, and the id-claim pass bypassed.

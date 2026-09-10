@@ -377,6 +377,31 @@ function detect(world) {
       detail: `sign-off stamp missing for a committed client approve (${at})` });
   }
 
+  /* B2. PARTIAL REPAIR — the postcondition on this job's own work.
+   * `calendar-upsert` merges comments and updates scalars as two separate
+   * operations, so a failure between them leaves the request on the card with
+   * the status leg never applied. Presence alone would then suppress the
+   * finding forever, and the round would sit at Client Approval with an
+   * unanswered request on it.
+   *
+   * This runs over EVERY claim, id-made or body-made, because the id pass is
+   * exactly the one that recognises this job's own earlier delivery. Scoped to
+   * entries carrying `recovered_by`, so it can only fire on this job's own
+   * unfinished work and never on an ordinary card sitting at Client Approval.
+   * Placed after both claim passes for the same reason. */
+  const partialRepairPass = () => {
+    for (const row of resolved) {
+      if (!claimOf.has(row)) continue;
+      const { pc, hit, comp, list } = row;
+      if (pc.resolved_at) continue;           // no status leg was ever owed
+      const entry = list[claimOf.get(row)];
+      if (!entry || entry.recovered_by !== 'client-signoff-reconcile') continue;
+      if (_calNormStatus(hit.card[STATUS_FIELD(comp)] || '') !== 'Client Approval') continue;
+      findings.push({ kind: 'status_only', card: hit.card, component: comp, comment: pc,
+        detail: `a request this job delivered never got its status leg (${pc.id})` });
+    }
+  };
+
   /* B. A committed client CHANGE REQUEST that never reached the card.
    *
    * IDENTITY, and why it is not a simple `some()`.
@@ -463,7 +488,7 @@ function detect(world) {
      * and shape are required, and is_tweak deliberately is not. */
     const claimed = list.findIndex((c, i) =>
       !consumed.has(i) && normText(c.body) === body && couldBeClientTweak(c));
-    if (claimed >= 0) { consumed.add(claimed); continue; }
+    if (claimed >= 0) { consumed.add(claimed); claimOf.set(row, claimed); continue; }
     const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
     if (status !== 'Client Approval' && status !== 'Tweaks Needed') {
       skipped.push({ kind: 'comment', reason: 'review_round_closed', card: hit.card.id,
@@ -473,6 +498,9 @@ function detect(world) {
     findings.push({ kind: 'comment', card: hit.card, component: comp, comment: pc, existing: list,
       detail: `committed client change request absent from the card (${pc.id})` });
   }
+
+  partialRepairPass();
+
   return { findings, skipped };
 }
 
@@ -489,7 +517,13 @@ function patchFor(finding) {
   const pending = {};
   let movedComponent = false;
 
-  if (finding.kind === 'stamp') {
+  if (finding.kind === 'status_only') {
+    /* Only the status leg is owed; the request is already on the card. */
+    clone[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    patch[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    pending[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    movedComponent = true;
+  } else if (finding.kind === 'stamp') {
     clone[STAMP_FIELD(comp)] = finding.stamp_at;
     patch[STAMP_FIELD(comp)] = finding.stamp_at;
   } else {
@@ -528,7 +562,13 @@ function patchFor(finding) {
     const list = finding.existing.concat([appended]);
     clone[TWEAKS_FIELD(comp)] = stringifyComments(list);
     patch[TWEAKS_FIELD(comp)] = clone[TWEAKS_FIELD(comp)];
-    if (_calNormStatus(card[STATUS_FIELD(comp)] || '') === 'Client Approval') {
+    /* A RESOLVED request carries no status change. Delivering it restores the
+     * record; moving the component to Tweaks Needed would reopen work that is
+     * already finished, and the stale sweep would then strip a sign-off on the
+     * strength of a request nobody is waiting on. Carrying `done` while still
+     * flipping the status would have been the worst of both. */
+    if (!pc.resolved_at
+        && _calNormStatus(card[STATUS_FIELD(comp)] || '') === 'Client Approval') {
       clone[STATUS_FIELD(comp)] = 'Tweaks Needed';
       patch[STATUS_FIELD(comp)] = 'Tweaks Needed';
       pending[STATUS_FIELD(comp)] = 'Tweaks Needed';
@@ -591,7 +631,7 @@ async function revalidate(world, finding) {
     && f.component === finding.component
     && String(f.card.id) === String(finding.card.id)
     && cardKey(f.card.client, f.card.id) === cardKey(finding.card.client, finding.card.id)
-    && (f.kind !== 'comment' || String(f.comment.id) === String(finding.comment.id)));
+    && (!f.comment || String(f.comment.id) === String(finding.comment.id)));
   return match || null;
 }
 
@@ -623,7 +663,8 @@ async function main() {
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
   log(`repairable: ${findings.length}  (stamp ${findings.filter(f => f.kind === 'stamp').length}, `
-    + `change request ${findings.filter(f => f.kind === 'comment').length})`);
+    + `change request ${findings.filter(f => f.kind === 'comment').length}, `
+    + `unfinished status leg ${findings.filter(f => f.kind === 'status_only').length})`);
   log(`left alone: ${skipped.length} (a card that moved on is never overwritten)`);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));

@@ -97,7 +97,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 44 checks, each
+construction through fixtures — no credentials, no network. 49 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must
@@ -179,13 +179,31 @@ its journal, an atomic merge keyed on a different id keeps **both** copies and
 the client sees their own request twice. Detection recognises either id, so
 writing the native one makes server-side and browser recovery converge.
 
-## Resolution travels with the request
+## Resolution travels with the request, and carries no status change
 
 **103 of 345 live client requests carry a resolution.** A request that never
-reached the card but has since been resolved on the server is still missing, and
-still worth delivering — but as resolved, carrying `resolved_at` and the
-resolver into `done` / `done_at` / `done_by`. Hard-coding `done: false` would
-hand the team completed feedback as fresh work.
+reached the card but has since been resolved is still missing, and still worth
+delivering — but **as resolved and with no status move**. It carries
+`resolved_at` and the resolver into `done` / `done_at` / `done_by`, and the
+component status is left exactly where it is.
+
+Carrying `done` while still flipping the component to `Tweaks Needed` would have
+been the worst of both: settled work reopened, and the stale sweep then
+stripping a sign-off on the strength of a request nobody is waiting on.
+
+## A partial repair is detectable, and finished later
+
+`calendar-upsert` merges comments and updates scalars as **two separate
+operations** (`writeCalendarRow`). If the merge commits and the update fails,
+the request is on the card with the status leg never applied — and presence
+alone would suppress the finding forever, leaving the round at `Client Approval`
+with an unanswered request on it.
+
+So every delivered entry carries `recovered_by: 'client-signoff-reconcile'`, and
+a claimed entry bearing that marker, for an unresolved request, on a component
+still reading `Client Approval`, is reported as an **unfinished status leg** and
+repaired with the status alone. The marker scopes it to this job's own
+unfinished work: an ordinary card sitting at `Client Approval` can never match.
 
 ## Paged reads are ordered
 

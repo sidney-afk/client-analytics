@@ -19361,3 +19361,42 @@ environment while a missing key is environmental.
 itself the argument for the dry-run posture: this job writes to client-facing
 records unattended, and the review is still finding a way to get that wrong
 every single round.
+
+### 195f. [2026-09-10] Round 6: the round-5 fix was half a fix, and its test looked at the wrong half
+
+Two findings, and the first is a lesson about the test rather than the code.
+
+**A resolved request still reopened the round.** Round 5 carried the resolution
+into `done`, which was the visible half. The status branch stayed
+unconditional, so a resolved request whose component read `Client Approval`
+still flipped it to `Tweaks Needed`, and the stale sweep then stripped the
+client's sign-off on the strength of a request nobody was waiting on. Carrying
+`done` while still moving the status is the worst of both.
+
+**The round-5 test asserted `done` and never looked at the status**, which is
+why it passed a half-applied fix. The replacement asserts the WHOLE patch:
+status absent, overall pill absent, sign-off untouched, entry present and done.
+That is the fourth check in this thread found to pass for the wrong reason, and
+the pattern is now unmistakable: a test written to confirm the change I just
+made will confirm exactly the part I was thinking about.
+
+**A partial repair could never be finished.** `calendar-upsert` merges comments
+and updates scalars as two separate operations (`writeCalendarRow`). If the
+merge commits and the update fails, the request lands on the card with no status
+change — and on the next run the id pass sees it, calls it delivered, and
+suppresses the finding permanently. The round would sit at `Client Approval`
+with an unanswered client request on it, forever.
+
+Closed with a postcondition rather than an atomic write, which this lane cannot
+offer: every delivered entry already carries `recovered_by`, so a claimed entry
+with that marker, for an unresolved request, on a component still at `Client
+Approval`, is reported as an unfinished status leg and repaired with the status
+alone. The marker scopes it to this job's own work, so an ordinary card at
+`Client Approval` can never match. It runs as its own pass AFTER both claim
+passes, because the id pass is precisely the one that recognises the earlier
+delivery — the first attempt sat behind that pass's `continue` and never ran,
+which the test caught immediately.
+
+49 checks, four more controls, all confirmed to fail the suite.
+
+**Six rounds, nineteen findings, all real.**

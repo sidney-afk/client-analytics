@@ -553,6 +553,75 @@ checkAsync('a paged read refuses to run without a unique order column', async ()
     /unique order column/, 'unordered pagination must be impossible to write by accident');
 });
 
+/* CODEX ROUND 6. Round 5 carried the resolution into `done` but left the status
+   branch unconditional, so a resolved request still flipped the component to
+   Tweaks Needed and the stale sweep then stripped the sign-off. The round-5
+   test checked `done` and never looked at the status — a real gap, and the
+   reason this one asserts the whole patch. */
+check('a resolved request is delivered without reopening the round', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ resolved_at: '2026-09-07T12:00:00.000Z', resolved_by_name: 'A Reviewer' })],
+    cards: [CARD({ video_status: 'Client Approval', client_video_approved_at: '2026-09-06T00:00:00.000Z' })],
+  }));
+  assert.equal(findings.length, 1);
+  const patch = patchFor(findings[0]);
+  assert.equal(patch.video_status, undefined, 'settled work must not be reopened');
+  assert.equal(patch.status, undefined, 'and the overall pill must not move');
+  assert.equal(patch.client_video_approved_at, undefined,
+    'and no sign-off may be stripped on the strength of a resolved request');
+  assert.ok(patch.video_tweaks, 'the request itself is still delivered');
+  assert.equal(parseComments(patch.video_tweaks)[0].done, true);
+});
+
+check('an unresolved request still moves the round, as before', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(patchFor(findings[0]).video_status, 'Tweaks Needed');
+});
+
+/* calendar-upsert merges comments and updates scalars as two operations. If the
+   merge commits and the update fails, the request is on the card with no status
+   change, and presence alone would suppress the finding forever. */
+check('a request this job delivered without its status leg is finished later', () => {
+  const halfRepaired = JSON.stringify([{
+    id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true,
+    recovered_by: 'client-signoff-reconcile',
+  }]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: halfRepaired })],
+  }));
+  assert.equal(findings.length, 1, 'the status leg is still owed');
+  assert.equal(findings[0].kind, 'status_only');
+  const patch = patchFor(findings[0]);
+  assert.equal(patch.video_status, 'Tweaks Needed');
+  assert.equal(patch.video_tweaks, undefined, 'the request is already there; do not append it twice');
+});
+
+check('an ordinary card at Client Approval is not mistaken for a half repair', () => {
+  const byHuman = JSON.stringify([{
+    id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true,
+  }]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: byHuman })],
+  }));
+  assert.equal(findings.length, 0, 'only this job\'s own unfinished work qualifies');
+});
+
+check('a half repair of a RESOLVED request is left alone', () => {
+  const halfRepaired = JSON.stringify([{
+    id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true,
+    recovered_by: 'client-signoff-reconcile',
+  }]);
+  const { findings } = detect(world({
+    comments: [TWEAK({ resolved_at: '2026-09-07T12:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: halfRepaired })],
+  }));
+  assert.equal(findings.length, 0, 'no status leg was ever owed for a resolved request');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

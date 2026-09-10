@@ -847,5 +847,145 @@
     "total_metadata_requests": 2,
     "configuration_readiness_proven": false,
     "complete_hosted_baseline_proven": false
+  },
+  "selected_hosted_definition_comparison": {
+    "classification": "LIVE_READ_SELECTED_DEFINITIONS",
+    "observed_at": "2026-09-10T23:19:15.226Z",
+    "source": "b44b311d64a3e88f03d23b950917ba1c2ca564b1",
+    "private_capture_sha256": "feed33cccfcaf37d03ebc09ffeb40e9330a152e551311fc82fd9df7608e658d8",
+    "objects": [
+      {
+        "object_key": "routine:workload_native_snapshot_v1()",
+        "definition_sha256": "a53c843446a616ab60f9d58a55d71a3bba2d2389b674e82b35437333a62ad264",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_intake_append(text,timestamptz,jsonb,jsonb)",
+        "definition_sha256": "8e721a1c76d16a8ea84b9da3e5739d219ed6ccf68235b2842dc96fa47a94e55d",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_component_fill(text,timestamptz,text,jsonb,jsonb)",
+        "definition_sha256": "49b7344d0ff6a11a7bc69bddeec8f2c29abe7985a4428208c2b10c697ff72f77",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_deliverable_write(jsonb,jsonb)",
+        "definition_sha256": "991cd4955e7c2955fcc66ecdadcd5e67f7ce69bb5f6f0972ae82cf1cec7ceb51",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_comment_write(jsonb,jsonb)",
+        "definition_sha256": "52c6a2935fb8a4cd9ffbc81aefcfa9cbc66242cc38ccdea1d2c50a11528498bc",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)",
+        "definition_sha256": "1d21174d5e21e03e8d6d57eea35111a5384db890685e7c52081e32794de7ae08",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "relation:production_deliverables_browser_v1",
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches": {
+          "view_kind": true,
+          "security_barrier": true,
+          "anon_select": true,
+          "authenticated_select": true,
+          "native_projection_reference": false
+        }
+      }
+    ],
+    "complete_baseline": false,
+    "application_rows_read": false,
+    "hosted_mutation": false,
+    "predecessor_mapping": {
+      "classification": "OFFLINE_CAPTURE_TO_REPOSITORY_BODY_COMPARISON",
+      "objects": [
+        {
+          "object_key": "routine:workload_native_snapshot_v1()",
+          "source_owner": "migrations/2026-09-05-workload-native-membership.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_intake_append(text,timestamptz,jsonb,jsonb)",
+          "source_owner": "migrations/2026-09-07-production-intake-append-v8.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_component_fill(text,timestamptz,text,jsonb,jsonb)",
+          "source_owner": "migrations/2026-08-31-production-component-fill.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_deliverable_write(jsonb,jsonb)",
+          "source_owner": "migrations/2026-07-12-write-ui-outbox-parity.sql",
+          "match": "EXACT_BODY"
+        },
+        {
+          "object_key": "routine:production_comment_write(jsonb,jsonb)",
+          "source_owner": "migrations/2026-07-23-production-comment-thread-lifecycle.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)",
+          "source_owner": "migrations/2026-07-23-production-comment-thread-lifecycle.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        }
+      ],
+      "unmatched": [
+        "relation:production_deliverables_browser_v1"
+      ],
+      "normalization": "CRLF to LF only; no other whitespace or semantic normalization",
+      "full_definition_equivalence_proven": false
+    }
   }
 }

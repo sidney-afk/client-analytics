@@ -486,3 +486,11 @@ review their exact current definitions and custody privately before any future
 upgrade; do not infer a safe replacement from the synthetic baseline. The check
 skipped configuration reads and made no changes. See the recovery checkpoint
 and aggregate evidence for the exact public object keys. Installation HOLD.
+
+The selected hosted-definition capture narrows the seven mismatches: all six
+routines retain the expected checked security mode, search path and execution
+grants; their candidate body hashes differ even after CRLF normalization. The
+view retains checked access settings but lacks the native projection reference.
+This is a selected-object comparison, not full baseline custody or semantic
+equivalence analysis. Raw definitions remain private; aggregate evidence pins
+the capture and definition hashes. No changes were applied.

@@ -1,5 +1,33 @@
 # Completed isolated evidence
 
+## Latest selected hosted-definition capture
+
+Offline independent comparison maps all six captured routine bodies to existing
+predecessor migration owners: workload membership, append-v8, original component
+fill, outbox parity and comment-thread lifecycle. One is byte-exact; five match
+after CRLF-only normalization. The browser view has no exact/CRLF-only repository
+definition match. Exact mapping is in aggregate evidence; body provenance alone
+does not establish complete definition/dependency equivalence.
+
+At 2026-09-10T23:19:15.226Z, one read-only catalog SELECT captured the six
+present-but-incompatible routine definitions and the browser view privately.
+All six routines match the checked security-definer mode, search path and
+service/anonymous/authenticated execution requirements. Their bodies differ
+from the candidate; CRLF-only normalization does not eliminate the differences.
+This identifies body mismatches, not a semantic review of each difference.
+
+The browser view has the required kind, security barrier and checked SELECT
+permissions, but lacks the candidate native_intake_legacy_project reference.
+Definition hashes and comparison booleans are published in aggregate evidence;
+raw definitions and ACLs remain in the private receipt. No configuration or
+application rows were read, and no hosted changes were made.
+
+This seven-object capture is not a complete baseline, restorable backup or
+authorization to replace definitions. It narrows the upgrade comparison needed
+for the existing owners. Full dependencies/custody and the other open gates
+remain unresolved. Installation HOLD.
+
+
 ## Latest hosted metadata observation
 
 At 2026-09-10T23:17:02.658Z, the prepared read-only preflight observed 149 hosted

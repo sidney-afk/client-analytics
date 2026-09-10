@@ -346,7 +346,13 @@ function detect(world) {
      * not ask about. Scoped on the row's own client (or the deliverable's) since
      * the refusals below are precisely the cases where no card is identified. */
     if (ONLY_CLIENT) {
-      const scope = String((del && del.client_slug) || rowClient || '').trim().toLowerCase();
+      /* THE ROW'S OWN CLIENT WINS. After `move-card-client.js` runs, historical
+       * outbox and comment rows still carry the PREVIOUS client while the
+       * deliverable carries the new one — preferring the deliverable would put
+       * A's historical rows in a `--client=B` run and hide them from
+       * `--client=A`, the exact opposite of row-owned scope. The deliverable is
+       * the legacy fallback, for rows whose own client column is empty. */
+      const scope = String(rowClient || (del && del.client_slug) || '').trim().toLowerCase();
       if (scope && scope !== ONLY_CLIENT) return null;
     }
     /* STRUCTURAL FAILURES ARE REPORTABLE; INTENTIONAL SUPPRESSION IS NOT.
@@ -552,9 +558,18 @@ function detect(world) {
     }
     const hit = resolve(row && row.entity_id, row && row.client_slug);
     if (typeof hit === 'string') {
+      /* A COMMITTED CLIENT APPROVAL WHOSE CARD CANNOT BE FOUND IS WORK, not a
+       * card that moved on. Without the deliverable and the client this printed
+       * as `card (unlinked) [] left alone: card_not_found` — indistinguishable
+       * rows an operator cannot act on, which is the whole thing round 20 set
+       * out to surface. It does NOT claim the carrier failed: the carrier
+       * wrote. Only the crosswalk is broken. */
       skipped.push({ kind: 'stamp',
         reason: hit === 'client_mismatch' ? 'approval_belongs_to_another_client' : hit,
-        card: '(unlinked)', component: '' });
+        crosswalk_broken: hit !== 'client_mismatch',
+        deliverable: String((row && row.entity_id) || ''),
+        client: String((row && row.client_slug) || ''),
+        card: '(unidentified)', component: '' });
       continue;
     }
     if (!hit) continue;
@@ -1066,19 +1081,26 @@ function classify({ findings, skipped }) {
    * cannot quietly fall out of this bucket the way this one did. */
   const carrierFailed = skipped.filter(row => row.kind === 'stamp'
     && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write')));
+  /* The carrier WROTE; the crosswalk is broken. Separate from a carrier failure
+   * because the operator looks in a different place, and separate from "left
+   * alone" because there is something to do. */
+  const crosswalkBroken = skipped.filter(row => row.crosswalk_broken && !row.carrier_status);
   const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
+    && !row.crosswalk_broken
     && !(row.kind === 'stamp'
       && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write'))));
   const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
-    `NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length + carrierFailed.length}  `
+    `NEEDS A PERSON (never written): `
+      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length}  `
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
       + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
       + `ambiguous repeat ${ambiguous.length}, `
-      + `client approve that reached neither leg ${carrierFailed.length})`,
+      + `client approve that reached neither leg ${carrierFailed.length}, `
+      + `carried approve whose card is missing ${crosswalkBroken.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
-  return { writable, reportOnly, ambiguous, carrierFailed, leftAlone, lines };
+  return { writable, reportOnly, ambiguous, carrierFailed, crosswalkBroken, leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 
@@ -1091,7 +1113,8 @@ async function main() {
     + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
-  const { writable, ambiguous, carrierFailed, leftAlone, lines } = classify({ findings, skipped });
+  const { writable, ambiguous, carrierFailed, crosswalkBroken, leftAlone, lines } =
+    classify({ findings, skipped });
   for (const line of lines) log(line);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
@@ -1121,12 +1144,22 @@ async function main() {
           + `cannot be identified (${row.refusal}) — whether the card leg landed is UNKNOWN`)
       + ' — REPORT ONLY, a person decides');
   }
+  for (const row of crosswalkBroken) {
+    log(`  » deliverable ${row.deliverable}${row.client ? ` (${row.client})` : ''} `
+      + `carried a client APPROVE, and its card cannot be found (${row.reason}) `
+      + '— the carrier wrote; the crosswalk is broken — REPORT ONLY, a person decides');
+  }
   for (const row of ambiguous) {
     log(`  » card ${row.card} [${row.component}] request ${row.comment} matches only a `
       + 'COMPLETED entry — cannot tell a repeat from a duplicate; a person decides');
   }
   for (const row of leftAlone) {
-    log(`  ~ card ${row.card} [${row.component}] left alone: ${row.reason}`
+    /* Print the deliverable when the card could not be identified, or the line
+     * is `card (unidentified) [] left alone: <reason>` and names nothing the
+     * reader can look up. */
+    log(`  ~ card ${row.card}${row.client ? ` (${row.client})` : ''}`
+      + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+      + ` [${row.component}] left alone: ${row.reason}`
       + `${row.comment ? ` (request ${row.comment})` : ''}`
       + `${row.card_status ? ` (card reads ${row.card_status})` : ''}`);
   }

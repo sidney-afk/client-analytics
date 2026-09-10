@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 97 checks, each
+construction through fixtures — no credentials, no network. 100 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -380,12 +380,22 @@ names itself and is reported on both paths; only the deliberate cases stay
 silent. Live: 2 written approvals name a card that is not there, and they were
 invisible until this.
 
+**A carried approve whose card is missing is its own kind of work.** The carrier
+wrote, so it is not a carrier failure; the card cannot be found, so it is not a
+card that moved on. It counts under NEEDS A PERSON in its own term and prints
+the deliverable and the client, because `card (unidentified) [] left alone:
+card_not_found` names nothing anyone can look up. A cross-client approval is
+deliberately NOT in this bucket: there the card exists and belongs to someone
+else.
+
 **The `--client` scope is applied before any refusal is produced.** A run
 advertised as limited to one client must not report or count another client's
-rows, or the operator is sent to investigate work they did not ask about. Scoped
-on the row's own client, since the refusals are precisely the cases where no card
-is identified, then re-checked against the card's client for the rows that do
-resolve.
+rows, or the operator is sent to investigate work they did not ask about. Scoped on **the row's own client**, with the deliverable only as the legacy
+fallback: after `move-card-client.js` runs, historical outbox and comment rows
+still carry the previous client while the deliverable carries the new one, so
+preferring the deliverable would put the old client's rows in the new client's
+run and hide them from their own. Rows that do resolve are then re-checked
+against the card's client.
 
 **A row whose card cannot be identified does not claim the card leg failed.**
 The four qualifying tests — stamp already present, a later reopen, a later

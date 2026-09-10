@@ -799,6 +799,30 @@ checkAsync('a client-scoped run reports nothing outside that client', async () =
     'a scoped run must not name another client\'s rows: ' + out);
 });
 
+/* ROUND 21, second finding. After `move-card-client.js`, historical outbox rows
+   still carry the PREVIOUS client while the deliverable carries the new one.
+   Scoping on the deliverable put the old client's rows in the NEW client's run
+   and hid them from their own — the opposite of row-owned scope, which is what
+   the comment beside it claimed. */
+checkAsync('a moved row is scoped by its own client, not the deliverable\'s', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  /* The deliverable has moved to newclient; the approval row still carries
+     oldclient, which is whose approval it was. */
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [APPROVE({ client_slug: 'oldclient' })], comments: [],
+    deliverables: [DEL({ client_slug: 'newclient' })],
+    cards: [CARD({ client: 'newclient' })],
+  }));
+  const run = (client) => execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8', env: Object.assign({}, process.env, { ONLY_CLIENT: client }) });
+  assert.match(run('oldclient'), /del-1/, 'the row belongs to the client it names');
+  assert.equal(/del-1/.test(run('newclient')), false,
+    'the new owner did not ask about the previous client\'s historical rows');
+});
+
 checkAsync('a dry run writes nothing, proven through the entry point', async () => {
   const { execFileSync } = require('node:child_process');
   const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
@@ -1268,6 +1292,40 @@ check('an archived card stays out of the report entirely', () => {
     assert.equal(findings.length, 0);
     assert.equal(skipped.length, 0, 'archived is deliberate, not a lost approval');
   }
+});
+
+/* ROUND 21. The structural failures round 20 surfaced landed in `left alone`
+   with no identity, printing as `card (unlinked) [] left alone: card_not_found`
+   — indistinguishable rows an operator cannot act on, which is exactly what
+   round 20 set out to prevent. They are WORK, in their own bucket: the carrier
+   WROTE, so this is not a carrier failure, and the card is missing, so it is
+   not a card that moved on. */
+check('a carried approve whose card is missing is operator work, with identity', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ client_slug: 'testclient' })], cards: [],
+  }));
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].reason, 'card_not_found');
+  assert.equal(skipped[0].deliverable, 'del-1', 'the operator needs something to look up');
+  assert.equal(skipped[0].client, 'testclient');
+  assert.equal(skipped[0].carrier_status, undefined, 'the carrier wrote; do not claim otherwise');
+  const { crosswalkBroken, leftAlone, carrierFailed, lines } = classify({ findings: [], skipped });
+  assert.equal(crosswalkBroken.length, 1);
+  assert.equal(carrierFailed.length, 0, 'a written approve is not a carrier failure');
+  assert.equal(leftAlone.length, 0, 'this is not a card that moved on');
+  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /card is missing 1/);
+});
+
+/* A cross-client row is a different thing: the card exists and belongs to
+   someone else, so it stays out of the actionable bucket. */
+check('a cross-client approval is not counted as a broken crosswalk', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ client_slug: 'previousclient' })], cards: [CARD({ client: 'testclient' })],
+  }));
+  assert.equal(skipped[0].reason, 'approval_belongs_to_another_client');
+  assert.equal(classify({ findings: [], skipped }).crosswalkBroken.length, 0);
 });
 
 check('a properly linked card is still stamped normally', () => {

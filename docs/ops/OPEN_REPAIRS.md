@@ -19937,3 +19937,31 @@ suite, since the scope is read from the environment at module load.
 97 checks, three controls, all confirmed by exit status.
 
 **Twenty rounds, 46 findings.**
+
+### 195v. Round 21: surfaced, then filed where nobody looks
+
+**The structural failures 195u surfaced landed in "left alone".** They carried
+neither the deliverable nor the client, so the run printed
+`card (unlinked) [] left alone: card_not_found` — indistinguishable lines naming
+nothing an operator can look up. Round 20 made these rows visible and round 21
+found they were still unusable, which is the same lesson as 195p: a reason
+nobody is pointed at is barely better than no reason.
+
+They are their own kind of work: the carrier **wrote**, so this is not a carrier
+failure, and the card cannot be found, so it is not a card that moved on. Own
+term in NEEDS A PERSON, own detail loop, deliverable and client printed. A
+cross-client approval is deliberately NOT in this bucket — there the card exists
+and belongs to someone else — and a control covers that over-correction.
+
+**The `--client` scope preferred the deliverable's client over the row's own**,
+while the comment beside it said the opposite. After `move-card-client.js` runs,
+historical rows carry the previous client and the deliverable carries the new
+one, so `--client=B` reported A's historical rows and `--client=A` hid them. The
+row's own client now wins, with the deliverable as the legacy fallback.
+
+Also: the "left alone" lines now print the deliverable when no card was
+identified, for the same reason.
+
+100 checks, three controls, all confirmed by exit status.
+
+**Twenty-one rounds, 48 findings.**

@@ -1,0 +1,97 @@
+name: Workload source freshness
+
+# Pages when the Workload board's source stops advancing.
+#
+# `public.workload_issues` does NOT empty when Linear dies: the n8n reconcile
+# returns [] on a bad read and its own safety gate keeps the old rows, so the
+# board FREEZES with ~2,000 rows still active=true and a synced_at that never
+# moves again. `_wlV2CheckWatermark` (index.html:14485-14505) only reacts when
+# the watermark moves FORWARD, so frozen and healthy are identical client-side.
+# This lane is the only thing that can tell them apart.
+#
+# It holds NO Linear credential on purpose. A watcher that dies with the thing
+# it watches is not a watcher.
+#
+# THE ALARM IS THE EXIT CODE. The script does not page; it exits non-zero and
+# heartbeats below under `if: always()`, and the dead-man's switch does the
+# paging with the latching and dedup already built. The red run is also the only
+# channel that survives an n8n outage — SLACK_ALERT_WEBHOOK points at the n8n
+# relay, so no page in this estate does.
+#
+# NOTE: `schedule` fires only from the default branch, so this lane goes live at
+# merge. Until then, run it by hand (workflow_dispatch).
+
+on:
+  schedule:
+    # Every 30 minutes. The reconcile it watches runs every 10, and the lane's
+    # tolerance is 180 minutes, so this is frequent enough to catch a freeze on
+    # the working day it starts without being chatty.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workload-source-freshness
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+      # AT HANDOVER, RETIRE THIS LANE. DO NOT REPOINT IT.
+      #
+      # An earlier draft said to change WORKLOAD_SOURCE_TABLE to the native
+      # source when lane A repoints the board. That instruction was WRONG and
+      # would have produced a permanent incident: both arms of
+      # `migrations/2026-09-02-workload-native-view.sql` return
+      # `null::timestamptz as synced_at` (`:177`, `:294`), and the migration
+      # says why at `:147` — "`synced_at` IS NULL. Native IS the source; there
+      # is no sync to stamp." Every run would fail `no_timestamp` forever.
+      #
+      # The deeper reason is that FRESHNESS IS THE WRONG QUESTION for a native
+      # source. This lane exists because `workload_issues` is a MIRROR, and a
+      # mirror can silently stop being refreshed while still looking full. A
+      # native table cannot go stale that way — it IS the data. So when the
+      # board no longer reads a mirror, the correct action is to RETIRE the
+      # `workload_source_freshness` lane (set `retired: {at, reason}` in
+      # scripts/monitoring-watchdog.js) and unschedule this workflow IN THE
+      # SAME COMMIT. test/monitoring-watchdog.js enforces that pairing in both
+      # directions, so it cannot be half-done.
+      #
+      # The variables stay configurable only so a DIFFERENT mirror, if one is
+      # ever introduced, can be watched without a code change. Repointing at a
+      # source with no watermark is not a supported use.
+      WORKLOAD_SOURCE_TABLE: ${{ vars.WORKLOAD_SOURCE_TABLE || 'workload_issues' }}
+      WORKLOAD_SOURCE_TIMESTAMP_COLUMN: ${{ vars.WORKLOAD_SOURCE_TIMESTAMP_COLUMN || 'synced_at' }}
+      WORKLOAD_SOURCE_MAX_AGE_MINUTES: ${{ vars.WORKLOAD_SOURCE_MAX_AGE_MINUTES || '180' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require census credentials
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report a green board."
+            exit 1
+          fi
+
+      # A frozen or unreadable source leaves this run red on purpose: GitHub's
+      # failed-run email is the one channel that does not pass through n8n.
+      - name: Check the Workload source is advancing
+        run: node scripts/workload-source-freshness.js
+
+      - name: Record workload source freshness heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=workload_source_freshness --ok=${{ job.status == 'success' }}

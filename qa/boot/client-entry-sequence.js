@@ -4521,7 +4521,11 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error && error.stack || error);
-  process.exitCode = 1;
-});
+module.exports = { startStreamServer, openCase };
+
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error && error.stack || error);
+    process.exitCode = 1;
+  });
+}

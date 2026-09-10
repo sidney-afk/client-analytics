@@ -1,0 +1,70 @@
+name: Mirror outbox debt census
+
+# Pages when undeliverable mirror rows accumulate.
+#
+# Setting `linear_outbound_enabled` to {"mode":"off"} stops the worker READING
+# the queue. Nothing stops anything ENQUEUING into it — production_comment_write
+# durably enqueues comments into this same lane — so from that minute every
+# mirror intent becomes a row that will never be delivered and never fail.
+# The outbound's own failed_write alert fires on rows reaching `failed`; these
+# never do. Nothing else in the estate counts them.
+#
+# It holds NO Linear credential on purpose: the debt it counts only STARTS when
+# Linear is switched off.
+#
+# THE ALARM IS THE EXIT CODE. The script does not page; it exits non-zero and
+# heartbeats below under `if: always()`, and the dead-man's switch pages, latches
+# and dedups. The red run is also the only channel that survives an n8n outage.
+#
+# NOTE: `schedule` fires only from the default branch, so this lane goes live at
+# merge. Until then, run it by hand (workflow_dispatch).
+
+on:
+  schedule:
+    # Every 30 minutes. The drain runs every 10 and the lane's tolerance is 60,
+    # so this cannot mistake mid-flight rows for debt, and it catches real debt
+    # within the hour it forms.
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: outbox-debt-census
+  cancel-in-progress: false
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+      OUTBOX_DEBT_MAX_AGE_MINUTES: ${{ vars.OUTBOX_DEBT_MAX_AGE_MINUTES || '60' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require census credentials
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report an empty queue."
+            exit 1
+          fi
+
+      # Debt, or a census that could not be taken, leaves this run red on
+      # purpose. An unreadable census is never reported as zero debt.
+      - name: Count undeliverable mirror rows
+        run: node scripts/outbox-debt-census.js
+
+      - name: Record outbox debt census heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=outbox_debt_census --ok=${{ job.status == 'success' }}

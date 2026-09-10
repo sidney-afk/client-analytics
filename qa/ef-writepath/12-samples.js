@@ -7,6 +7,13 @@
 // Linear pushes are captured+mocked by default; EFWP_LINEAR_FORWARD=1 forwards Sample 1's
 // own issues to LIVE n8n for the real round-trip (verified/reverted out of band).
 'use strict';
+/* THIS LANE ASSERTS THAT A RETIRED WEBHOOK FIRED (Pipe B), so its subject is the legacy
+   write path. It opts into the explicit legacy roster before the harness loads: before
+   this PR it received `[]`, which meant legacy, and after the item-175 fail-closed repair
+   `[]` routes NATIVE — the opposite. Codex finding on d6e26c3. Migrating this lane to
+   native intents is tracked as owed in test/probes-assert-native-write-lane.js. */
+process.env.EF_WRITEPATH_LEGACY_ROSTER = '1';
+
 const fs = require('fs');
 const L = require('./lib.js');
 const S1 = 'sr_mqvenh27_jp85b';

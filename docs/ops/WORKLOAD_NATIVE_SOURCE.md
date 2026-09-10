@@ -74,8 +74,17 @@ Review on #1208 caught two more Linear reads that never pass through
 `_wlV2MapRow`, so a scope built from that table alone would have been costed
 short. Both are named here rather than discovered during the cutover:
 
-- **Tweak comments.** Opening a Tweak Needed popover calls
-  `wlFetchTweakComments()` (index.html), which POSTs the board's row ids to
+- **Tweak comments.** *(Updated by the Linear exit, lane D.)*
+  `wlFetchTweakComments()` now routes per row: a row lane A marks
+  `workloadSource === 'native'` is read from Supabase
+  (`functions/v1/production-comments`, keyed on `nativeId`, `include_feedback:
+  true`), and every other row falls through to `_wlLegacyFetchTweakComments()`,
+  which is the original body below, unchanged. Until lane A's native snapshot
+  lands, nothing classifies as native and every row takes the legacy lane, so
+  the paragraph below still describes live behaviour today.
+
+  Originally: opening a Tweak Needed popover called `wlFetchTweakComments()`
+  (index.html), which POSTed the board's row ids to
   `LINEAR_TWEAK_COMMENTS_WEBHOOK` — an **n8n** webhook,
   `…/webhook/linear-tweak-comments`. Change the row id to `del_…` and that
   endpoint matches nothing, immediately; remove Linear and the source is gone
@@ -157,7 +166,7 @@ again. Eight, all live — every one is actually fetched today:
 | endpoint | called from | direction |
 |---|---|---|
 | `linear-issues` | `loadLinearIssues` | read — **Workload's fallback source**; v2 falls back here on any Supabase failure so the board can never blank |
-| `linear-tweak-comments` | `wlFetchTweakComments` | read — the Tweak Needed popover |
+| `linear-tweak-comments` | `_wlLegacyFetchTweakComments` | read — the Tweak Needed popover, **non-native rows only** since the lane D exit work; native rows read `production-comments` |
 | `linear-projects` | `fetchLinearProjects` | read |
 | `linear-subissues` | `_calSyncStatusFromLinear` | read |
 | `linear-issue-statuses` | `_calRefreshParentLinkFlags` | read |
@@ -235,6 +244,34 @@ requires the next to have happened.
    worked, which is strictly worse than a row that is not there yet. That
    repair is §6.1's decision plus a key migration, not a flag.
 
+   **CORRECTED 2026-09-07 by the shipped code (lane A of the Linear exit).**
+   The sentence above says the repair needs a KEY MIGRATION. It does not, and
+   nothing was migrated. §3b (line 117) already sanctioned the other branch —
+   "a key migration **(or a compatibility mapping)**" — and the compatibility
+   mapping is what was built:
+
+   - `workload_native_plan_target_v1(text)` resolves EITHER a native `del_…`
+     or a retained Linear uuid to the one owning row, and raises
+     `workload_plan_alias_ambiguous` rather than guessing when both could match.
+   - `workload_native_plan_set_v1(...)` takes both keys under row locks, writes
+     the row that already exists, and returns `plan.issue_id = <native id>`
+     with `storage_issue_id = <whatever key that plan has always been stored
+     under>`. No stored `workload_plan.issue_id` is rewritten, renamed or
+     deleted, so no plan day can be orphaned by the swap.
+   - `requireWritableIssue()` is no longer the validator for a `syncview` team.
+     It survives ONLY as the explicit provider-authority branch, now preceded
+     by a `prod_authority` read that answers 409 `native_issue_unavailable`
+     for a syncview team.
+   - The never-mirrored case this paragraph was written about — a deliverable
+     with no Linear uuid at all — is exactly the case
+     `workload_native_plan_set_v1` handles by keying on the native id, and it
+     is covered by an executed-SQL test rather than an argument
+     (`test/workload-native-postgres.js`).
+
+   So the swap is safe without a key migration, and the plan-day silent-loss
+   risk this paragraph raised is closed. §3b needs no correction and has not
+   been edited.
+
    The report deliberately excludes the fields the two sources are SUPPOSED to
    disagree about (`id`/`parent_id` while §6.1 is open, `url`, `assignee_id`'s
    different namespace, `parent_identifier`) and says so in its own output, so
@@ -262,9 +299,23 @@ before executing step 5**. Do not carry a rollback lever that stops being one.
 
 ## 6. Owner decisions this needs
 
-1. **Row identity** — native `del_…` (fuller exit, more call sites) or
-   `linear_issue_uuid` (smaller change, keeps a Linear column load-bearing)?
-2. **What `url` points at** after Linear.
+1. ~~**Row identity**~~ — **DECIDED by the shipped code: native `del_…`.**
+   `_wlV2MapRow` keys board rows on the native id; the Linear uuid survives
+   only as an alias the plan RPCs resolve (see §5 step 2 above). No stored key
+   moved.
+2. ~~**What `url` points at** after Linear~~ — **DECIDED by the shipped code:
+   nothing.** Native rows are served with `url = ''`, so the Linear ↗ chip
+   disappears from the board, and `?prod=1&d=<del_…>` / `?prod=1&batch=<bat_…>`
+   are the links out. **Still wants an explicit owner confirmation** that
+   removing the chip everywhere is what he wants, because it is not reversible
+   by a flag — it is a source change.
+
+   One consequence worth stating in the same breath: after the outbound flip
+   nothing mints `linear_identifier` (OPEN_REPAIRS 162/163), so a
+   post-cutoff row has no readable `VID-…`/`GRA-…` name. On the Workload
+   board that surfaces as a row whose deep link falls back to the raw id.
+   That is lane B's native naming mint, not lane A's, and it gates the
+   outbound flip.
 3. **Is a one-week exit still the intent** given steps 1–5? Steps 1–3 are the
    bulk of it, and step 3 is measurement rather than construction, so it is not
    obviously impossible — but it is not a switch either.
@@ -275,3 +326,12 @@ before executing step 5**. Do not carry a rollback lever that stops being one.
 - Do not disable the reconcile or the Linear webhook.
 - Do not "fix" item 95 by patching the `workload_issues` path — that work is
   thrown away by step 4.
+
+
+## Authenticated capacity roster (2026-09-09 source change)
+
+`workload_native_snapshot_v1()` returns `roster` from active `team_members` rows with exact creative role/team pairs: video/editor and graphics/designer. It includes members with zero active work. The roster key is `coalesce(linear_user_id, id::text)`, exactly matching `workload_issues_native_v1.assignee_id`; `native_id` is carried separately. This preserves the existing grouping, rollup, capacity, and drag namespace while removing the browser-maintained `WL_VIDEO_EDITORS` seed. Exact-role predicates prevent cross-team and noncreative roster rows from becoming capacity cards.
+
+Fresh native and explicit legacy rows also carry server-derived `native_assignee_eligible`. `WL_ALLOWED_EDITORS` remains only for an older cached row that predates that field, preserving the established bounded cold-start fallback rather than changing rollback semantics during this roster repair.
+
+Install the SQL prerequisite `migrations/2026-09-09-workload-native-roster.sql` from the pinned reviewed candidate before publishing Pages. The existing release publishes Pages on main, then deploys the exact reviewed `workload-plan` closure; do not assume Edge deployment can precede that main publication. The deploy order remains SQL first because the new Edge projection refuses a missing roster. The new browser is mixed-state compatible with the prior roster-less response: normal work remains visible, while the freest/zero-work ranking shows an explicit unavailable state until a complete roster arrives. The prior Edge projection passes through the additive SQL field, so SQL-first also lets the new browser consume the roster before the Edge redeploy.

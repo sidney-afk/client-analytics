@@ -1,0 +1,47 @@
+name: Native notification monitor
+
+# Independent read-only notification health observation. It reports blocked,
+# unknown, retryable and expired sending-lease debt; it makes no provider call.
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-notification-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NOTIFY_URL: ${{ secrets.NATIVE_NOTIFICATION_NOTIFY_URL }}
+      NOTIFY_RUNNER_KEY: ${{ secrets.NATIVE_NOTIFICATION_RUNNER_KEY }}
+      NATIVE_NOTIFICATION_MONITOR_ENABLED: ${{ vars.NATIVE_NOTIFICATION_MONITOR_ENABLED || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read notification delivery debt
+        shell: bash
+        run: |
+          if [ "$NATIVE_NOTIFICATION_MONITOR_ENABLED" != 'true' ]; then
+            echo 'native notification monitor is DORMANT; protected activation has not been enabled.'
+            exit 0
+          fi
+          test -n "$NOTIFY_URL" && test -n "$NOTIFY_RUNNER_KEY"
+          curl --fail-with-body --silent --show-error --max-time 20 \
+            -X POST "$NOTIFY_URL" \
+            -H 'content-type: application/json' \
+            -H "x-notify-runner-key: $NOTIFY_RUNNER_KEY" \
+            --data '{"action":"health"}'
+      - name: Record notification monitor heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=native_notification_monitor --ok=${{ job.status == 'success' }}

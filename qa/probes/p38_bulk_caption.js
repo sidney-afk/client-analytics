@@ -11,7 +11,7 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   const S = Q.makeOk('P38 bulk-caption');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};

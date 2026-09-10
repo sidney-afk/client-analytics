@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const sql=fs.readFileSync(path.join(root,'migrations/2026-09-09-workload-native-roster.sql'),'utf8');
+const edge=fs.readFileSync(path.join(root,'supabase/functions/workload-plan/native-snapshot.mjs'),'utf8');
+let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;};
+ok(!/const WL_VIDEO_EDITORS\s*=/.test(html),'hardcoded video capacity roster is retired');
+ok(/wlState\.editorRoster\.filter\(member => member\.team === 'video'\)/.test(html),'both capacity surfaces seed from the authenticated snapshot roster');
+ok((html.match(/wlState\.editorRoster\.filter\(member => member\.team === 'video'\)/g)||[]).length===2,'overview and freest panels share one roster without duplicate seed paths');
+ok(/tm\.active is true/.test(sql)&&/tm\.team='video' and tm\.role='editor'/.test(sql)&&/tm\.team='graphics' and tm\.role='designer'/.test(sql),'server roster is active and exact-role scoped for both creative teams');
+ok(/coalesce\(tm\.linear_user_id,tm\.id::text\)/.test(sql),"roster uses the view's stable native-or-retained alias key and cannot split free from busy cards");
+ok(/'roster',v_roster/.test(sql)&&/jsonb_array_length\(v_roster\)>1000/.test(sql),'snapshot publishes one bounded roster');
+ok(/!Array\.isArray\(value\.roster\)/.test(edge)&&/rosterIds\.has\(row\.assignee_id\)/.test(edge),'deployed Edge projection fails closed on missing roster or eligible row outside it');
+ok(/editorRosterStatus !== 'ready'/.test(html)&&/Current editor capacity is unavailable/.test(html),'mixed release withholds the incomplete ranking with a visible recovery state');
+ok(/const WL_ALLOWED_EDITORS\s*=/.test(html),'legacy cached-row fallback keeps its prior permission semantics');
+ok(/'native_assignee_eligible',exists/.test(sql)&&/lm\.linear_user_id=w\.assignee_id/.test(sql),'legacy rollback membership is represented server-side with the retained provider alias');
+console.log('PASS '+checks+' workload native roster contract checks');

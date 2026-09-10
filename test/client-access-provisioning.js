@@ -262,7 +262,7 @@ function checkMigrationExecutes() {
     { env, input: sql, encoding: 'utf8', timeout: 60000 });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`psql failed: ${(result.stderr || result.stdout || '').trim()}`);
-    return String(result.stdout || '').trim();
+    return String(result.stdout || '').replace(/\r\n/g, '\n').trim();
   };
 
   psql('postgres', `create database ${database};`);

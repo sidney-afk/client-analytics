@@ -119,6 +119,11 @@ async function txt(page, sel) {
         const ready = !!(root
           && _prodState.loaded
           && !_prodState.loading
+          // The first projection can paint while its terminal tail still
+          // replaces synthesized parents and resolves ancestor project keys.
+          // Take no-mutation snapshots only after those existing reads settle.
+          && !_prodState.refreshing
+          && !_prodState.terminalTailPending
           && _prodState.view === 'list'
           && root.querySelector('.prod-row')
           && root.querySelector('#prodFilterBtn'));
@@ -133,6 +138,8 @@ async function txt(page, sel) {
           currentNav: typeof currentNav === 'string' ? currentNav : '',
           loaded: !!_prodState.loaded,
           loading: !!_prodState.loading,
+          refreshing: !!_prodState.refreshing,
+          terminalTailPending: !!_prodState.terminalTailPending,
           error: !!_prodState.error,
           view: _prodState.view,
           team: _prodState.team,

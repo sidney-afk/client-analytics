@@ -308,7 +308,10 @@ function expect(condition, message) {
     await page.evaluate(id => _prodOpenDeliverable(id), errorId);
     await page.waitForSelector('[data-prod-comments-state="error"]', { timeout: 5000 });
     await page.locator('[data-prod-comments-state="error"] button', { hasText: 'Retry' }).click();
-    await page.waitForSelector('[data-prod-comments-state="empty"]', { timeout: 5000 });
+    // An old response proves canonical recovery, not linked-card completeness.
+    await page.waitForSelector('[data-prod-feedback-state="incomplete"]', { timeout: 5000 });
+    expect(await page.locator('[data-prod-comments-state="empty"]').count() === 0,
+      'old reader response incorrectly certified all feedback as empty');
 
     const clientPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const clientPageErrors = [];

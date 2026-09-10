@@ -1,9 +1,9 @@
 // Supabase Edge Function: workload-plan
 //
 // Staff-readable projection and Admin/SMM-only writer for internal Workload
-// plan days. Client deadlines remain display-only Linear mirror data; this
-// function reads workload_issues only to validate the exact active sub-issue/
-// client scope and writes only the isolated workload_plan sidecar.
+// plan days. The versioned native/explicit-legacy snapshot and alias adapter
+// keep historical storage keys intact. Only the workload_plan sidecar is
+// written; current team authority is read and never changed here.
 
 import {
   createClient,
@@ -20,6 +20,7 @@ import {
   staffAuthFailureStatus,
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
+import { projectNativeSnapshot, legacyPlanAliases } from "./native-snapshot.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,11 @@ const SAFE_ISSUE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LIST_PAGE_SIZE = 1000;
 const MAX_LIST_PAGES = 50;
+// How long `action:'list'` will wait for the enriched snapshot before answering
+// from the bounded read instead. Deliberately well inside the compatibility
+// client's 8s abort (WL_PLAN_READ_TIMEOUT_MS, index.html) so the direct read
+// still has room to finish and reach the browser.
+const LIST_ENRICH_BUDGET_MS = 3000;
 
 type JsonMap = Record<string, unknown>;
 type PlanRow = {
@@ -159,6 +165,24 @@ async function listPlans(db: SupabaseClient): Promise<PlanRow[]> {
   throw new WorkloadPlanError(503, "plan_list_limit");
 }
 
+async function nativeSnapshot(db: SupabaseClient): Promise<JsonMap> {
+  const {data,error}=await db.rpc("workload_native_snapshot_v1");
+  if (error) throw new WorkloadPlanError(503,"workload_snapshot_unavailable");
+  try { return projectNativeSnapshot(data,normalizeBrowserWriteClient); }
+  catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
+}
+
+async function nativePlanTarget(db: SupabaseClient,issueId:string): Promise<JsonMap|null> {
+  const {data,error}=await db.rpc("workload_native_plan_target_v1",{p_issue_id:issueId});
+  if (error) throw new WorkloadPlanError(503,"workload_plan_target_unavailable");
+  if (data===null) return null;
+  if (!data || typeof data!=="object" || Array.isArray(data) || !clean(data.id)
+      || !clean(data.client_slug) || typeof data.active!=="boolean") {
+    throw new WorkloadPlanError(503,"workload_plan_target_incomplete");
+  }
+  return data as JsonMap;
+}
+
 async function requireWritableIssue(
   db: SupabaseClient,
   issueId: string,
@@ -166,12 +190,23 @@ async function requireWritableIssue(
 ): Promise<void> {
   const { data, error } = await db
     .from("workload_issues")
-    .select("id,client_name,is_sub_issue,active")
+    .select("id,client_name,is_sub_issue,active,team_key")
     .eq("id", issueId)
     .maybeSingle();
   if (error) throw new WorkloadPlanError(500, "issue_lookup_failed");
 
   const target = data as JsonMap | null;
+  if (target && ["VID","GRA"].includes(clean(target.team_key))) {
+    const {data: flag,error: flagError}=await db.from("syncview_runtime_flags")
+      .select("value").eq("key","prod_authority").maybeSingle();
+    const team=target.team_key==="VID"?"video":"graphics";
+    const value=flag && flag.value;
+    if (flagError || !value || typeof value!=="object"
+        || !["linear","syncview"].includes(value[team])) {
+      throw new WorkloadPlanError(503,"workload_authority_unavailable");
+    }
+    if (value[team]!=="linear") throw new WorkloadPlanError(409,"native_issue_unavailable");
+  }
   if (
     !target ||
     target.active !== true ||
@@ -228,16 +263,95 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = await requestBody(req);
     const requestedAction = clean(body.action).toLowerCase();
-    if (requestedAction !== "list" && requestedAction !== "set") {
+    if (!["list","set","native_snapshot"].includes(requestedAction)) {
       throw new WorkloadPlanError(400, "invalid_action");
     }
     action = requestedAction;
 
+    if (action === "native_snapshot") {
+      requireListStaff(req);
+      const snapshot = await nativeSnapshot(serviceClient());
+      outcome = "ok";
+      return json(snapshot);
+    }
+
+    /* THE COMPATIBILITY ACTION MUST NOT DEPEND ON SNAPSHOT VALIDATION.
+     *
+     * `list` is what an OLD or still-open browser bundle calls. Routing it
+     * through nativeSnapshot() made an otherwise readable plan list fail 503 on
+     * ANY of the validator's all-or-nothing refusals -- a count mismatch, a
+     * duplicate row, a missing authority, one `linear_id` claimed twice. On a
+     * cold load that browser then paints every pill at its raw deadline with
+     * saved-day editing disabled.
+     *
+     * That is OPEN_REPAIRS 177 exactly, through a different door. Item 177
+     * relaxed the ONE drift check that caused the live outage; it did not make
+     * the other refusals survivable, and `list` runs through all of them.
+     *
+     * So the enriched answer is attempted and the bounded read is the floor.
+     * The healthy path is byte-identical to before -- same aliases, same shape
+     * -- and a validation failure now costs the aliases rather than the board.
+     * `listPlans` is a paged direct read of `workload_plan` with no validator
+     * in it, and it still refuses (503) if IT cannot complete, so a partial
+     * list can never masquerade as a whole one.
+     */
     if (action === "list") {
       requireListStaff(req);
-      const plans = await listPlans(serviceClient());
-      outcome = "ok";
-      return json({ ok: true, plans });
+      const db = serviceClient();
+      /* Both reads start together, and the BOUNDED one is the answer unless the
+       * enriched one arrives in time.
+       *
+       * A try/catch around the snapshot was not enough, and the reason is worth
+       * keeping: the failure that matters is "unavailable", and its commonest
+       * form is SLOW, not thrown. A `workload_native_snapshot_v1()` that hangs
+       * on one of its joined relations never rejects, so a catch never fires --
+       * and the compatibility client aborts at WL_PLAN_READ_TIMEOUT_MS (8s,
+       * index.html), losing every saved day and disabling editing exactly as if
+       * we had refused it. Racing a deadline covers both shapes with one
+       * mechanism.
+       *
+       * The budget leaves the bounded read most of the client's window. Its
+       * rejection is captured rather than left floating: an unawaited rejected
+       * promise takes the isolate down, and the enriched path routinely leaves
+       * one behind. */
+      const bounded = listPlans(db).then(
+        (plans) => ({ plans, error: null as unknown }),
+        (error) => ({ plans: null, error }),
+      );
+      const enriched = nativeSnapshot(db).then(
+        (snapshot) => snapshot,
+        () => null,
+      );
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const budget = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LIST_ENRICH_BUDGET_MS);
+      });
+      let snapshot = await Promise.race([enriched, budget]);
+      if (timer !== undefined) clearTimeout(timer);
+      if (!snapshot) {
+        /* The budget is spent, but that does NOT mean the fallback is the best
+         * answer yet. If enrichment lands at 3.1s while the paged read is still
+         * going at 5s, committing to the fallback here would strip the provider
+         * aliases from a response we were about to be able to enrich -- and an
+         * old bundle cannot match a native-keyed override without them, so real
+         * saved work days would vanish under nothing worse than transient
+         * latency. Race what is left: whichever finishes first is the answer,
+         * and the deadline above still guarantees we never wait past it for
+         * enrichment ALONE. */
+        snapshot = await Promise.race([enriched, bounded.then(() => null)]);
+      }
+      if (snapshot) {
+        outcome = "ok";
+        return json({ok:true,complete:true,plans:legacyPlanAliases(snapshot)});
+      }
+      // Degraded, not refused: every stored work day, keyed as stored. A row
+      // saved under a native id loses its provider alias here, so an old
+      // browser may not find that one -- losing some plans is strictly better
+      // than losing all of them plus the ability to edit any.
+      const settled = await bounded;
+      if (settled.error) throw settled.error;
+      outcome = "ok_unaliased";
+      return json({ok:true,complete:true,plans:settled.plans});
     }
 
     const client = normalizeBrowserWriteClient(body.client);
@@ -265,8 +379,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
       throw new WorkloadPlanError(403, "staff_required");
     }
 
-    await requireWritableIssue(db, issueId, client);
-    const result = await setPlan(db, principal, issueId, client, planDate);
+    const nativeTarget=await nativePlanTarget(db,issueId);
+    let result: {updated:number;plan:PlanRow|null};
+    if (nativeTarget) {
+      if (nativeTarget.active!==true || nativeTarget.is_sub_issue!==true
+          || normalizeBrowserWriteClient(nativeTarget.client_name)!==client
+          || !["linear","syncview"].includes(clean(nativeTarget.authority))
+          || (nativeTarget.authority==="linear"
+            && normalizeBrowserWriteClient(nativeTarget.provider_client_name)!==client)) {
+        throw new WorkloadPlanError(409,"issue_not_writable");
+      }
+      const {data,error}=await db.rpc("workload_native_plan_set_v1",{
+        p_native_id:clean(nativeTarget.id),p_client_slug:clean(nativeTarget.client_slug),
+        p_client:client,p_plan_date:planDate,p_actor:principal.actor,
+        p_provider_client_name:nativeTarget.provider_client_name || null,
+      });
+      if (error) throw new WorkloadPlanError(409,"native_plan_write_refused");
+      if (!data || data.ok!==true || data.updated!==1 || !data.plan
+          || data.plan.issue_id!==nativeTarget.id || data.plan.client!==client
+          || data.plan.plan_date!==planDate) {
+        throw new WorkloadPlanError(409,"short_write");
+      }
+      // An older bundle sent the retained UUID. Echo its requested identity,
+      // while SQL owns the exact canonical target and historical storage key.
+      result={updated:data.updated,plan:{...planRow(data.plan),issue_id:issueId}};
+    } else {
+      // Explicit remaining legacy teams/provider-authority path. Failure to
+      // read native ownership above never reaches this compatibility branch.
+      await requireWritableIssue(db, issueId, client);
+      result=await setPlan(db, principal, issueId, client, planDate);
+    }
     writeCount = result.updated;
     if (result.updated !== 1 || !result.plan) {
       outcome = "short_write";

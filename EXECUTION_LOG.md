@@ -135,6 +135,41 @@ is byte-identical. It goes live with the Pages deploy on merge, and the rollback
 reverting the commit. Verified in the real app under a headless browser (both themes, one
 and three posts, and an append to a batch holding three previewing Video 4/5/6), plus
 415/415 under CI-equivalent conditions.
+## 2026-09-07 — Built (SOURCE ONLY, draft PR): every piece of feedback on a deliverable, in one place, without Linear
+
+Linear exit, lane D. Owner: *"in the planner we also have a new system to view
+comments, so instead of when Kasper or the client asks feedback, it appears as if
+it was commented on the sub-issue, we planned also a new UI experience to view
+the comments."*
+
+Today a client or Kasper tweak note lands on the Calendar/Samples card cell and is
+mirrored into a Linear sub-issue comment. **Linear is the union point** — the only
+surface showing the canonical `production_comments` thread and the card-cell notes
+together. SyncLinear's panel shows only the canonical half; the Workload popover
+reads Linear through the `linear-tweak-comments` n8n webhook. On 2026-09-15 the
+union point disappears and a note that took the legacy write lane becomes visible
+nowhere in the staff view, with no notice that anything is missing.
+
+**What landed in source.** `production-comments` gains `feedback.mjs` (214 lines,
+zero Linear references) and honours `include_feedback: true` for staff principals
+only, after the existing read budget, target-team authorization and durable
+allow-audit, re-checking the five crosswalk fields before responding. It adds no
+SQL. The SyncLinear panel becomes **Feedback & tweaks** and renders a read-only
+"From the original card" section with every action control suppressed. The Workload
+popover reads native rows from `production-comments` and keeps a legacy fall-through
+for everything else.
+
+**One live defect fixed on the way in.** The lifted `feedback.mjs` selected a
+`tweaks` column from `sample_reviews` for every video deliverable. That column
+exists only on `calendar_posts`; on Samples the select errors and the panel words it
+as "could not load" — indistinguishable from a transient failure. Every Samples
+video deliverable would have rendered a permanent fake outage on Kasper's own review
+surface. Recorded as `OPEN_REPAIRS` 172.
+
+**Nothing is deployed.** Draft PR only; `production-comments` still serves its
+existing closure, so the panel receives no `feedback` key until the owner dispatches
+the deploy lane. That dispatch redeploys four functions from one commit — see
+`ROLLBACK.md`.
 
 ## 2026-09-08 — n8n change: tiktok-upload-direct learns photo carousels
 
@@ -6891,6 +6926,43 @@ still holding the value this repair wrote. Not exercised.
 now that the two columns agree, and the owner ruled to leave it that way rather
 than add a `retired_identifier` column, a browser-view migration and an adapter
 read. Recorded in OPEN_REPAIRS 161; that decision is now closed.
+
+
+## 2026-09-09 — Local Linear-exit attribution gap reproduced; installation held
+
+On repair checkpoint `b1c4734ddd90e8945d18b3f412a5ede25bc1ae6f`, an executed
+synthetic `_prodResolveAttributions` fixture with an active client, a resolved
+`direct_project` stamp, and no mirrored project returned
+`needs_attribution/persisted_resolution_is_not_currently_verifiable`.
+`projectForIntake` at Lane A `5bcc03bd7d286f437ad51d4cc86a5ce80b7b63ea`
+returns the existing team-tagged project under the native epoch short-circuit;
+it does not itself create browser project evidence. PR #1372's actual diff was
+read: its syncing copy retains the refusal and requires an empty persisted
+stamp. Its reported live row count was not independently verified.
+
+The local repair adds accepted-epoch legacy-project attribution, its bounded
+browser projection and ownership validation, and P7 create-then-edit/reload
+checks. Preflight v5 rejects the older projection that lacks the new source
+marker. This is source preparation only: no merge, deploy, dispatch, production
+write, or n8n change. Runtime/browser/database proof remains owed; source/VM
+passes do not authorize installation. See `docs/ops/LINEAR_EXIT_REPAIR_INSTALL.md`.
+
+
+## 2026-09-10 — Review returned local verification candidate
+
+Imported and verified the private returned bundle at
+`686add359bcf6c8a98e4d080cec763619013e852` in an isolated local review worktree.
+The source diff confirms sparse-scope preservation and urgent extension lookup
+repairs, stronger notification SQL writer fixtures, retained receipt checks,
+and Windows runner portability fixes. Raw Windows logs and external browser
+harness files were not supplied; the attached report remains attributed
+execution evidence, not independently rerun PostgreSQL/browser proof.
+
+Found and corrected the deploy preflight's stale urgent-routine search paths.
+Preflight v6 now checks the declared `public, extensions, pg_temp`; unit coverage
+compares every expected routine path to its migration header. No application
+SQL was changed by this review. Nothing was merged, published, deployed,
+dispatched, or written to production. Installation remains HOLD.
 
 ## 2026-09-09 — the twelve seconds a native card spends unattributed (browser, copy only)
 

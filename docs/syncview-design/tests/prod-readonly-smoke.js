@@ -86,7 +86,9 @@ async function assertNoWriteRequests(requests) {
     try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
     const keys = Object.keys(body).sort();
-    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    const shape = keys.join(',');
+    if (shape !== 'before,deliverable_id,limit'
+      && !(shape === 'before,deliverable_id,include_feedback,limit' && body.include_feedback === true)) return false;
     return typeof body.deliverable_id === 'string'
       && body.deliverable_id.length > 0
       && body.limit === 50

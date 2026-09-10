@@ -1,9 +1,19 @@
 # Testing — the map
 
+Linear-exit build preparation: see [`qa/linear-exit-rehearsal/README.md`](../../qa/linear-exit-rehearsal/README.md) for the reproducible captured-serving/negative-control browser and disposable-SQL package. It authorizes no live implementation.
+
 One page that ties every test suite, gate, and Claude skill together. If you
 only remember one file about testing, remember this one.
 
 ## The three safety contracts (never confuse them)
+
+Mapped component feedback adds the offline actual-handler suite
+`test/component-feedback-read.js` and the fictional Chromium component suite
+`docs/syncview-design/tests/prod-feedback-browser.js` (fast Production gate).
+Scope, limits and deployment dependencies: `docs/features/COMPONENT_FEEDBACK.md`.
+`test/prod-context-menu-pixel-contract.js` executes the actual pixel comparator;
+its negative controls keep icon and submenu regressions red while respecting the
+existing unsupported Project action.
 
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|

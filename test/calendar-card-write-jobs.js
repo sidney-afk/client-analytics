@@ -25,6 +25,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+const vm = require('node:vm');
+const { extractFunction } = require('./helpers/extract-function');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
 function grabFunc(name) {
@@ -89,11 +91,20 @@ globalThis.fetch = async (url, opts) => {
 
 let linearResponses = []; // queue; each entry: array | 'throw'
 let linearForceLog = [];
-globalThis.loadLinearIssues = async force => {
-  linearForceLog.push(force);
+/* Post-create discovery goes through wlDiscoverProviderIssues, NOT
+   loadLinearIssues. The distinction is the whole point of the separate symbol:
+   loadLinearIssues is native-only, and the native snapshot cannot see an issue
+   n8n created seconds ago. Stubbing it here proves only that the writer asks
+   SOMETHING; the transport itself is proven separately, below, by executing the
+   real function against a recording fetch. */
+globalThis.wlDiscoverProviderIssues = async () => {
+  linearForceLog.push(true);
   const next = linearResponses.length > 1 ? linearResponses.shift() : linearResponses[0];
   if (next === 'throw') throw new Error('HTTP 502');
   return { issues: next };
+};
+globalThis.loadLinearIssues = async () => {
+  throw new Error('post-create discovery must not read the native snapshot');
 };
 
 // Real helpers under test / used by the writer.
@@ -302,6 +313,82 @@ ok(/_resumePendingCalCardJobs\(\);/.test(INDEX), 'init() resumes pending jobs on
 ok(/if \(doneSet\.has\(n\)\) continue;/.test(INDEX), 'writer skips video numbers that already landed');
 ok(INDEX.includes("pollTrace.push({ attempt, error: 'fetch: '"), 'per-attempt poll error isolation is in place');
 ok(INDEX.includes("showNotify('Calendar sync incomplete'"), 'partial writes are surfaced to the user');
+
+console.log('\n============================================================');
+console.log('8) POST-CREATE DISCOVERY READS THE PROVIDER, NOT THE SNAPSHOT');
+console.log('============================================================');
+/* Codex P1 on #1344. The Workload lane replaced loadLinearIssues with a
+   native-snapshot read and dropped `force`, while this writer still called
+   loadLinearIssues(true) to find issues n8n had just created. Those live only in
+   Linear for the ~100s this poll runs; the snapshot's legacy rows arrive with
+   the n8n reconcile, on its own schedule. Every attempt would miss, and the
+   writer mints a random p_ id with empty Linear links and marks the card done --
+   permanently unlinked, and twinned by the next import.
+
+   The old check here asserted `true` was passed to a stub, which is exactly the
+   assertion that cannot see this: it proves the flag, not the transport. So the
+   REAL function is executed against a recording fetch and the URL is read. */
+ok(/\(\{ issues \} = await wlDiscoverProviderIssues\(\)\);/.test(INDEX),
+  'the writer asks the provider-direct reader, not the native snapshot');
+ok(!/loadLinearIssues\(true\)/.test(INDEX),
+  'and no caller anywhere still expects loadLinearIssues to honour force');
+
+{
+  const calls = [];
+  const cacheWrites = [];
+  const ctx = {
+    console, Date, Array, JSON, Error,
+    LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
+    wlReadCache: () => ({ issues: [{ id: 'stale-cached' }], fetchedAt: Date.now() }),
+    // Recorded, not stubbed away: the reader writes every success into the
+    // SHARED board cache that wlLoadSnapshot falls back to on a cold start, so
+    // a discovery poll that seeded it would let a later cold load paint
+    // provider rows -- including a still-SyncView-authoritative team's
+    // discarded state during a partial rollback -- as the board.
+    wlWriteCache: payload => { cacheWrites.push(payload); },
+    wlIsFresh: () => true,
+    _wlV2Ready: () => true,
+    _wlV2FetchIssues: async () => { throw new Error('the mirror must not answer a forced discovery'); },
+    fetch: async (url, init) => {
+      calls.push({ url, cache: init && init.cache });
+      return { ok: true, json: async () => ({ issues: [{ id: 'from-provider' }] }) };
+    },
+  };
+  vm.createContext(ctx);
+  for (const name of ['wlDiscoverProviderIssues', '_wlLegacyLoadLinearIssues']) {
+    const src = extractFunction(INDEX, name);
+    vm.runInContext((INDEX.includes('async function ' + name + '(') ? 'async ' : '') + src, ctx);
+  }
+  const out = await ctx.wlDiscoverProviderIssues();
+  ok(calls.length === 1, 'discovery issues exactly one read (harness is not vacuous)');
+  ok(calls[0].url.startsWith('https://fixture.invalid/webhook/linear-issues?t='),
+    'it reaches the Linear provider endpoint, cache-busted');
+  ok(calls[0].cache === 'no-store',
+    'with no-store, so a previous 304 cannot replay a snapshot taken before the issues existed');
+  ok(out.issues[0].id === 'from-provider' && out.fromCache !== true,
+    'and it returns provider rows rather than the warm cache the poll would outrun');
+  ok(cacheWrites.length === 0,
+    'and it writes NOTHING to the shared board cache -- discovery may not seed the cold-start fallback');
+}
+{
+  // The negative control for the check above: the same reader WITHOUT the
+  // skip flag does write, so the assertion is about the flag and not about a
+  // stub that never calls through.
+  const cacheWrites = [];
+  const ctx = {
+    console, Date, Array, JSON, Error,
+    LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
+    wlReadCache: () => null, wlIsFresh: () => false, _wlV2Ready: () => false,
+    wlWriteCache: payload => { cacheWrites.push(payload); },
+    fetch: async () => ({ ok: true, json: async () => ({ issues: [{ id: 'x' }] }) }),
+  };
+  vm.createContext(ctx);
+  const src = extractFunction(INDEX, '_wlLegacyLoadLinearIssues');
+  vm.runInContext((INDEX.includes('async function _wlLegacyLoadLinearIssues(') ? 'async ' : '') + src, ctx);
+  await ctx._wlLegacyLoadLinearIssues(true);
+  ok(cacheWrites.length === 1,
+    'negative control: the same reader without the skip flag DOES write the board cache');
+}
 
 console.log('\n' + '='.repeat(60));
 console.log(`OVERALL: ${fail ? 'FAIL' : 'PASS'}  (${pass} passed, ${fail} failed)`);

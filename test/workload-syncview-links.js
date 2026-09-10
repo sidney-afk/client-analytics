@@ -82,8 +82,49 @@ ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open Sync
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(openLinearUrl\)\}/.test(pop)
   && /Linear ↗/.test(pop),
 'Linear stays reachable from the header as a secondary link, aimed at whatever the primary button opens');
-ok(/const rowSyncUrl = s\.identifier\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
-  'each sub-issue row links to its own SyncView detail, falling back to Linear only when no identifier exists');
+/*
+ * 2b. THE ROW LINK IS BUILT FROM THE NATIVE ID FIRST. Codex P1 on #1344.
+ *
+ * The pin that used to live here asserted the `s.identifier ? … : (s.url || '')`
+ * expression verbatim, which was true and is now WRONG: a deliverable created
+ * after the outbound flip has neither `linear_identifier` nor
+ * `linear_issue_url`, so that expression renders href="" and clicking the row
+ * reloads the Workload page instead of opening the deliverable. The loose
+ * strips already route by `nativeId`; the popover now does too.
+ *
+ * OPEN_REPAIRS 177 is the reason this is a REPLACEMENT and not an addition: a
+ * lane shipped a test asserting the old behaviour was correct, and a green
+ * suite is exactly how that survives review. Executed, not pattern-matched —
+ * every behavioural check below was seen to go red against the pre-fix source.
+ */
+const rowLinkStmt = pop.slice(pop.indexOf('const rowSyncUrl'),
+  pop.indexOf(';', pop.indexOf('const rowSyncUrl')) + 1);
+ok(/wlSyncLinearUrl/.test(rowLinkStmt), 'the row-link statement extracts (harness is not vacuous)');
+const rowLink = new Function('s', 'wlSyncLinearUrl', 'location',
+  rowLinkStmt + '\nreturn rowSyncUrl;');
+const syncUrl = ident => { const t = String(ident || '').trim();
+  return t ? ('/?prod=1&d=' + encodeURIComponent(t)) : ''; };
+
+/* Synthetic ids. `?prod=1&d=` resolves a native id because _prodIssue() matches
+   on `id` OR `displayId` — the same route the loose strips use. */
+const NATIVE_ROW_ID = 'del_0000000000000000000000000001';
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a post-flip row with no identifier and no Linear url still links to its SyncLinear detail');
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' }) !== '',
+  'it does NOT render an empty href that reopens the Workload page -- the exact reported defect');
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row that still carries an identifier routes by the NATIVE id, matching the loose strips');
+ok(rowLink({ identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=VID-9001',
+  'a legacy row keeps its identifier deep link -- the path in use today is unchanged');
+ok(rowLink({ identifier: '', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === 'https://linear.app/x/issue/VID-9001',
+  'with neither a native id nor an identifier, Linear is still the fallback');
+ok(rowLink({ identifier: '', url: '' }, syncUrl, { pathname: '/' }) === '',
+  'and a row with nothing to point at yields an empty string rather than a bogus route');
+
 ok(/workload-popover-item-main" href="\$\{wlEscape\(rowSyncUrl\)\}/.test(pop),
   'the row MAIN click goes to SyncView');
 ok(!/workload-popover-item-main" href="\$\{wlEscape\(s\.url\)\}/.test(pop),
@@ -160,6 +201,41 @@ ok(one.openLabel === 'Open SyncView →' && one.openIsParent === false,
 ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-9001',
   'the Linear escape hatch follows the primary target instead of pointing elsewhere');
 
+/* A. THE SAME PILL, AFTER THE OUTBOUND FLIP. Codex P1 on #1344, second finding.
+ *
+ * The row link above was fixed to route by `nativeId`; the HEADER resolves
+ * independently and still derived `soleSubIdent` from `soleSub.identifier`
+ * alone. A deliverable created after the outbound flip has no Linear
+ * identifier at all, so the most prominent action on a one-video popover fell
+ * through to `parentIdent` -- the synthetic batch node whose status is
+ * hardcoded `todo`, i.e. guaranteed to contradict the pill just clicked -- or
+ * vanished entirely when no parent identifier resolved either.
+ *
+ * This row cannot exist today, which is exactly why it needs a check: it ships
+ * invisibly green and breaks on cutover day.
+ */
+const NATIVE_CHILD = { nativeId: NATIVE_ROW_ID, identifier: '', url: '',
+                       parentIdentifier: 'VID-9000' };
+const oneNative = resolveLinks(withParent, PARENT_ID, 'A Client', [NATIVE_CHILD], loc);
+ok(oneNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a post-flip single-video pill opens the DELIVERABLE, by native id');
+ok(oneNative.parentSyncUrl !== '/?prod=1&d=VID-9000',
+  'it does NOT fall through to the synthetic batch parent -- the exact reported defect');
+ok(oneNative.openIsParent === false && oneNative.openLabel === 'Open SyncView →',
+  'and the button says what it opens, rather than mislabelling a video as the parent');
+ok(oneNative.openLinearUrl === '',
+  'a post-flip row has no Linear issue, so the escape hatch is omitted rather than aimed at the parent');
+
+const orphanNative = resolveLinks(noParent, PARENT_ID, 'A Client',
+  [{ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }], loc);
+ok(orphanNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'with no parent identifier recoverable either, the button is still aimed at the deliverable instead of disappearing');
+
+const mixedNative = resolveLinks(withParent, PARENT_ID, 'A Client',
+  [{ ...CHILD, nativeId: NATIVE_ROW_ID }], loc);
+ok(mixedNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row that still carries an identifier routes by the NATIVE id, matching the rows below it');
+
 // A. several sub-issues: no single row is "the video", so guessing is refused.
 const many = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
 ok(many.parentSyncUrl === '/?prod=1&d=VID-9000' && many.openIsParent === true,
@@ -187,6 +263,43 @@ ok(orphan.parentIdent === '' && orphan.parentSyncUrl === '',
 // Inversion: the removed first-child fallback must not creep back.
 ok(!/subs\[0\]\?\.identifier/.test(resolveBlock) && !/subs\[0\]\?\.url/.test(resolveBlock),
   'the first-child fallback is gone from the parent resolution, in source');
+
+// ---- 4. the rollup chip's href leads somewhere real -------------------------
+/*
+ * Codex P1 on #1344, round 5, and a correction to my own sweep in round 2.
+ *
+ * A left-click on a rollup chip is intercepted and opens the popover, so
+ * `wlParentUrl` is what a RIGHT-click / middle-click / "open in new tab"
+ * follows. I swept this and left it, reasoning it was a post-flip degradation
+ * of a Linear-only escape hatch. Both halves were wrong: `_wlV2MapRow` clears
+ * `url` on EVERY native row, not only rows created after outbound stops, so
+ * with both teams on syncview authority this is empty across the whole board
+ * TODAY -- and SyncLinear, not Linear, is the correct destination now.
+ */
+const parentUrlSrc = source.slice(source.indexOf('function wlParentUrl(sub)'));
+const parentUrl = new Function('wlState', 'location', 'wlSyncLinearUrl',
+  parentUrlSrc.slice(0, parentUrlSrc.indexOf('\n    }') + 6) + '\nreturn wlParentUrl;')(
+  withParent, loc, syncUrl);
+ok(typeof parentUrl === 'function', 'the rollup href resolver extracts and executes (harness is not vacuous)');
+
+const NATIVE_BATCH_ID = 'bat_0000000000000000000000000001';
+ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' })
+     === '/?prod=1&batch=' + encodeURIComponent(NATIVE_BATCH_ID),
+  'a native row in a batch opens that batch in SyncLinear');
+ok(parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row with no batch parent opens the deliverable itself');
+ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' }) !== ''
+  && parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' }) !== '',
+  'neither renders the empty href that made right-click open nothing -- the reported defect');
+ok(parentUrl({ workloadSource: 'legacy', parentId: PARENT_ID, url: 'https://linear.app/x/issue/VID-9001' })
+     === 'https://linear.app/x/issue/VID-9000',
+  "a legacy row still resolves to its PARENT's Linear url -- the mirror path is unchanged");
+ok(parentUrl({ workloadSource: 'legacy', parentId: 'absent-parent', url: 'https://linear.app/x/issue/VID-9001' })
+     === 'https://linear.app/x/issue/VID-9001',
+  'and falls back to the sub-issue url when the parent is not in this snapshot, exactly as before');
+ok(parentUrl({ workloadSource: 'legacy', parentId: '', url: '' }) === '',
+  'and a legacy row with nothing to point at yields an empty string rather than a bogus route');
 
 // A per-editor total badge spans clients, so it claims no parent and no video.
 const noClient = resolveLinks(withParent, PARENT_ID, '', [CHILD], loc);

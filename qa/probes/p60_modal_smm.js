@@ -3,12 +3,23 @@
 //   • an INTERNAL note (Kasper/team) on caption → client does NOT see it
 //   • a CLIENT-audience note on caption → client SEES it
 //   • a threaded REPLY → inherits the thread's audience (client sees it)
-//   • a VIDEO note → routes to Linear (intercepted; real Linear untouched)
+//   • a VIDEO note → routes to the NATIVE gateway (intercepted; nothing real is written)
 // Verifies role=smm, audience tagging, threading (parent_id), and cross-surface visibility.
+//
+// WHAT CHANGED ON 2026-09-08. The video-note check waited for `linear-add-comment`. Both
+// teams have been SyncView-authoritative since 2026-08-28 and every active client is
+// enrolled, so a real SMM's video note has not taken that webhook for weeks — the probe
+// stayed green only because the harness answered the roster read with `[]`. It now asserts
+// the native gateway intent, and asserts the retired webhooks receive NOTHING. The card gets
+// its native work item from `qa/native_work_item_fixture.js`; read that file first.
 const Q = require('./lib.js');
+const NW = require('../native_work_item_fixture.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_m60_' + TS;
 const INT = 'SMM-INTERNAL-' + TS, CLI = 'SMM-CLIENT-' + TS, REP = 'SMM-REPLY-' + TS, VID = 'SMM-VIDEO-' + TS;
+// The card's native work item — the write target on the lane production takes. Named
+// VIDEO_WORK_ITEM rather than VID, which is already this probe's video-note body marker.
+const VIDEO_WORK_ITEM = NW.nativeDeliverableId(PID, 'video');
 
 const modalPost = (page, pid, o) => page.evaluate((a) => {
   if (_calOpenCommentsPid !== a.pid) openCalComments(a.pid);
@@ -30,17 +41,30 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   const browser = await Q.launch();
   // SMM context with Linear interception
   const sctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(sctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(sctx);  // route the TEST client the way production routes a real one (see lib.js)
   await sctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  const linear = [];
-  for (const wh of ['linear-add-comment', 'linear-set-status']) await sctx.route('**/webhook/' + wh, async (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {} linear.push({ wh, b }); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  // Both contexts are watched, not just the acting one: the client tab below is a separate
+  // context, and a capture installed only on the SMM side would let a client-side push slip
+  // past the zero-assertion AND out to the live TEST backend. Same finding as p47.
+  const retiredCaptures = [];
+  const gateway = [];
+  async function watch(ctx) {
+    retiredCaptures.push(await NW.captureRetiredWebhooks(ctx));
+    await NW.stubNativeGateway(ctx, { onCall: payload => gateway.push(payload) });
+  }
+  await watch(sctx);
+  await NW.stubNativeWorkItems(sctx, [{ id: PID, components: ['video'] }]);
   const smm = await sctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });
   smm.on('pageerror', e => smm._errs.push(String(e && e.message)));
   await smm.goto('http://localhost:8000/index.html?v2debug=1#calendar/sidneylaruel', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await smm.waitForFunction(() => window.calV2Status && window.calV2Status().subscribed, { timeout: 20000 }).catch(() => {});
   await smm.waitForTimeout(2500);
+  // The native lane needs a VERIFIED staff identity; the retired webhooks needed none.
+  const staff = await NW.seedVerifiedProbeStaff(smm);
   const cli = await Q.clientPage(browser);
+  // Watched once it exists; every action under test happens after this point.
+  await watch(cli.context());
   try {
     await Q.up({ id: PID, name: 'M60 ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
       video_status: 'For SMM Approval', graphic_status: 'Approved', caption_status: 'Client Approval', status: 'For SMM Approval',
@@ -71,12 +95,19 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
     const mr = cap.find(c => (c.body || '').includes(REP));
     S.ok(mr && mr.parent_id === clientRootId, 'reply is threaded under the client root (parent_id matches)');
 
-    // 4) video note routes to Linear (intercepted)
+    // 4) video note routes to the NATIVE gateway (intercepted)
+    S.ok(staff === 'ok', 'a verified staff identity is in place, as a signed-in SMM has (' + staff + ')');
     S.ok(await modalPost(smm, PID, { comp: 'video', audience: 'internal', body: VID }) === 'ok', 'SMM video note posted');
     await Q.pollRaw(PID, x => (x.video_tweaks || '').includes(VID), 'video_tweaks', 12000);
     await smm.waitForTimeout(1500);
-    S.ok(linear.some(c => c.wh === 'linear-add-comment' && JSON.stringify(c.b).includes(VID)), 'video note ROUTED to Linear (linear-add-comment)');
-    S.ok(!linear.some(c => JSON.stringify(c.b).includes(INT) || JSON.stringify(c.b).includes(CLI)), 'caption notes did NOT route to Linear (no Linear for caption)');
+    S.ok(NW.commentCalls(gateway, VIDEO_WORK_ITEM)
+      .some(c => String(c.comment && c.comment.body || '').includes(VID)),
+      'video note ROUTED to the NATIVE gateway, against the card\'s own video work item');
+    S.ok(!gateway.some(c => JSON.stringify(c).includes(INT) || JSON.stringify(c).includes(CLI)),
+      'caption notes transported NOTHING (caption owns no work item — OPEN_REPAIRS 127)');
+    S.ok(NW.retiredCallCount(retiredCaptures) === 0,
+      'NOTHING reached the retired Linear webhooks, from EITHER surface ('
+      + NW.retiredCallCount(retiredCaptures) + ' calls)');
 
     // 5) cross-surface: client sees the client note + reply, NOT the internal note
     await Q.waitForPost(cli, PID, "p=>p.id==='" + PID + "'");

@@ -148,6 +148,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   const labelReads = [];
   const createOptionReads = [];
   const assigneeOptionReads = [];
+  const intakeEditorOptionReads = [];
   const createdProductionIssues = [];
   const productionCreateReceipts = new Map();
   const labelCatalog = [
@@ -459,6 +460,24 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
           .map(member => ({ id: member.id, name: member.name })),
       };
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read.response) });
+      return;
+    }
+    if (body.action === 'intake_editor_options') {
+      /* THE EDITOR PICKER'S READ IS A READ, NOT A WRITE. It has to be answered
+         here or it falls through to `writes`, and every later wait loop that
+         breaks on "writes.length moved" then breaks on the picker instead of on
+         the intake it was waiting for.
+
+         It is answered 400 on purpose. This browser ships to Pages the moment
+         the branch merges and the gateway that knows this action ships later,
+         on the F27 Section 4 dispatch, so 400 unsupported_action is literally
+         what the deployed gateway says for the whole window in between. The
+         picker must degrade to the provider loader across that window rather
+         than fail the dialog, and this fixture is where that is proven end to
+         end in a browser. */
+      const read = { body, headers: request.headers(), response: { ok: false, error: 'unsupported_action' } };
+      intakeEditorOptionReads.push(read);
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify(read.response) });
       return;
     }
     const write = { body, headers: request.headers(), response: null };
@@ -1991,6 +2010,20 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'a Create Post select is labelled as a client picker');
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
+    /* The picker asked the gateway, was refused 400, and fell back to the
+       provider loader instead of leaving the dialog editorless. This is the
+       merge-to-deploy window, proven rather than argued. */
+    for (let i = 0; i < 100 && !intakeEditorOptionReads.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    expect(intakeEditorOptionReads.length >= 1
+      && intakeEditorOptionReads[0].body.surface === 'calendar'
+      && intakeEditorOptionReads[0].body.client_slug === 'calendarfixture',
+    'Create Post did not ask the gateway which editor lane it is in');
+    await page.waitForFunction(() => _calNativePostState && _calNativePostState.videoEditorStatus !== 'loading');
+    expect(await page.evaluate(() => _calNativePostState.videoEditorStatus === 'ready'
+      && (_calNativePostState.videoEditors || []).length > 0),
+    'a 400 from the gateway left Create Post without an editor instead of degrading to the provider picker');
     await latestChoice.check();
     /* The half option E actually guarantees: one click on the card is enough,
        because the revealed dropdown already points at the newest batch. */

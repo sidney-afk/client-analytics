@@ -71,8 +71,8 @@ jobs:
       LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
-      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '5'
+      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7126f7eb9cc166be39cab7fe28395e9d0c2521ba16cb2e92495d8110e710711e
+      PRODUCTION_WRITE_FILE_COUNT: '6'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -281,27 +281,28 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      # Re-pinned 2026-09-08: a Submit-tab note written for the video editor
-      # can no longer suppress or stand in for AI thumbnail-title generation.
-      # A caller-supplied note and a generated title (labelled with
-      # THUMBNAIL_TEXT_AI_LABEL) are additive -- joined by a newline -- rather
-      # than one excluding or replacing the other; only a PRIOR ATTEMPT's
-      # brief still wins outright. Amended before merge for a Codex P2: a
-      # generated title containing \r or \n is now rejected too, since only
-      # its first physical line would carry the label. See
-      # test/f27-section4-deploy-lane.js CANDIDATES for the full note. No
-      # migration, no new import, file count unchanged at 5.
-      # Re-pinned 2026-09-09: a client re-sending the status her row already
-      # holds is admitted as the no-op it is, instead of being refused
-      # 403 operation_forbidden and told her account is not permitted to make
-      # the change (clientOperationAllowed). The status branch is not inert on
-      # equality, so the same release suppresses the overdue due-date bump for
-      # a client no-op: the bump is default-on, and `due` is an operation the
-      # handler refuses to a client, so it must not arrive through the back of
-      # an idempotent status write. Staff no-ops keep it. No
-      # migration, no schema, no new import, file count unchanged at 5.
-      # (Previous pin: 27d1a608fd... -- production-write v70, 2026-09-08.)
-      PRODUCTION_WRITE_SOURCE_SHA256: fc721251eeb6bd5c5f75456657ee51e105e452e6234a4121e61b93dd1b59de90
+      # Re-pinned for the native write gateway lift, ON TOP OF #1361. Two
+      # changes are now in this closure and BOTH must be present:
+      #   1. #1361 (main, 2026-09-08): a Submit-tab note written for the video
+      #      editor no longer suppresses or stands in for AI thumbnail-title
+      #      generation; note and generated title are additive, and a title
+      #      containing \r or \n is rejected. Only a PRIOR ATTEMPT's brief wins.
+      #   2. The native write gateway lift: intake, append, component fill,
+      #      assignee change and labels stop routing through Linear, and the
+      #      native urgent handoff lands on top.
+      # Closure grows to SIX files; the new import is
+      # _shared/native-brief-media.mjs. Every native lane is behind a flag that
+      # defaults OFF, so deploying this activates nothing on its own: the SQL
+      # goes in FIRST and the flags are flipped AFTER.
+      # Re-pinned after the final attribution projection repair made intake
+      # persist the already-validated native epoch beside its opaque project
+      # identity. No import entered or left; the six-file closure is unchanged.
+      # (Prior pins: 65647320... first lifted gateway; 27d1a608... files=5,
+      # #1361 2026-09-08; ccbdd136f4...
+      # production-write v69, 2026-09-07.)
+      # Integrated main client status no-op authorization and due-bump guard.
+      # Prepared canonical archive-lifecycle notification repair; not deployed.
+      PRODUCTION_WRITE_SOURCE_SHA256: 807a4fb0a8e7afe401c633842fd9c14e4a7f23b8884430b699e1afedae90ac69
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:
@@ -756,6 +757,44 @@ jobs:
             echo "::error::The candidate proof changed the reviewed function tree"
             exit 1
           fi
+
+      - name: Assert compatible native SQL before the first forward deployment
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          # Forward-only by design. A captured old-source restore must remain
+          # usable when the new schema is absent or after schema trouble.
+          receipt="$(node scripts/linear-exit-deploy-preflight.js)"
+          node -e 'const r=JSON.parse(process.argv[1]);if(r.status!=="PASS"||r.read_only!==true)process.exit(1)' "$receipt"
+          echo "- Linear-exit native SQL preflight before any closure deploy: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require the compatible notification sender before the F27 gateway
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
+        shell: bash
+        working-directory: release
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::The protected production Supabase access token is not configured"
+            exit 1
+          fi
+          export PROJECT_REF="$F27_PROJECT_REF"
+          # F27 owns exactly four functions and cannot install notify. Refuse
+          # its forward gateway release until the onboarding owner has already
+          # installed and attested the exact sender source/JWT posture.
+          receipt="$(node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=notify --format=json)"
+          node -e 'const r=JSON.parse(process.argv[1]);const x=r.results&&r.results[0];if(r.pinned_sha!==process.env.DEPLOY_COMMIT||r.results.length!==1||x.slug!=="notify"||x.result!=="PASS"||x.verify_jwt!==false)process.exit(1)' "$receipt"
+          echo "- Compatible live notify source/JWT prerequisite: PASS" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy and verify 1 of 4 - linear-outbound
         if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'

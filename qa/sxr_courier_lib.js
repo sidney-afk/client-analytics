@@ -1,3 +1,4 @@
+const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
 // ============================================================================
 // sxr_courier_lib.js — REAL-browser test harness for the Samples (Review) tab.
 //
@@ -73,10 +74,157 @@ try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 // {ok:true} — independently of the courier (which still tunnels the sample-
 // review-* webhooks to the LIVE backend on the same host). linear-subissues
 // (point-adoption) returns a probe-configurable parent status.
-const LINEAR_HOOK = /\/webhook\/(linear-set-status|linear-add-comment|linear-subissues|linear-issue-statuses)\b/;
+/*
+ * WIDENED 2026-09-08 for the Linear-dead rehearsal (OPEN_REPAIRS 174).
+ *
+ * This used to name four webhooks by hand: linear-set-status, linear-add-comment,
+ * linear-subissues, linear-issue-statuses. The browser actually calls SEVEN --
+ * those four plus linear-issues, linear-projects and linear-tweak-comments -- so
+ * three of them were reaching the courier and, in an open-egress environment,
+ * live n8n. A prefix match covers every `/webhook/linear-*` the app has or will
+ * have, which is the only version of this that cannot rot: a new Linear webhook
+ * is intercepted the day it is added rather than the day someone remembers.
+ *
+ * `log-linear-submission` deliberately does NOT match. Despite the name it is
+ * not a Linear endpoint -- it appends to a Google Sheet and touches no Linear
+ * API -- and deleting or blocking it re-opens the 2026-08-26 incident where the
+ * only copy of a videographer's submitted work lived in his own browser. The
+ * pattern requires `/webhook/linear-` at the start of the path segment, so
+ * `log-linear-submission` cannot match it.
+ *
+ * (For the record, because two documents get this wrong: the tree contains
+ * EIGHT distinct `/webhook/linear-*` names, not ten. The eighth,
+ * `linear-status-sync`, is an INBOUND receiver Linear posts to -- the browser
+ * never calls it, and MONITORING.md records its workflow as inactive.)
+ */
+const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
+
+/* LINEAR-BACKED webhooks that do NOT carry the `linear-` prefix.
+ *
+ * Found by lane LX-N8N (OPEN_REPAIRS 181). Three browser webhooks in the final
+ * webhooks the browser calls reach Linear through their n8n workflow rather
+ * than through a `linear-*` name, so the prefix match above cannot see them.
+ *
+ *   send-urgent-slack  shaped like a Slack write, but resolves the issue's
+ *                      current Linear assignee to pick who to mention
+ *   video-form         creates a Linear issue
+ *   graphic-form       creates a Linear issue
+ *
+ * `editors-week` used to be the fourth entry. The final native Editors reader
+ * removed that browser endpoint, so retaining its dead pattern would make this
+ * harness claim coverage for a route the product can no longer take.
+ *
+ * WHY THIS MATTERS FOR THE REHEARSAL, and only for the rehearsal. A dead-Linear
+ * run that leaves these three live sends them to real n8n, whose Linear nodes are
+ * (today) talking to a HEALTHY Linear -- so the rehearsal would report that three
+ * Linear-dependent flows survive Linear being dead on the strength of them
+ * having quietly used a live one. That is the same polarity error this whole
+ * mode exists to correct, one layer further out.
+ *
+ * INTERCEPTED IN DEAD MODE ONLY. In normal mode these fall through exactly as
+ * before -- this file has never mocked them, one probe
+ * (`ot4_t1_submit_intake_guards.js`) mocks video-form/graphic-form itself, and
+ * changing healthy-mode behaviour would silently alter every existing probe.
+ * The fix here is scoped to the question the rehearsal asks.
+ *
+ * THE FAULT SHAPES ARE THE RIGHT ONES BY ACCIDENT OF ARCHITECTURE. The browser
+ * cannot tell a dead Linear from a dead n8n; it sees whatever n8n returns when
+ * its Linear node errors, and `ok_lie` -- a 200 that reports success having done
+ * nothing -- is precisely the n8n-mediated shape OPEN_REPAIRS 78 recorded twenty
+ * times over.
+ *
+ * NEITHER `log-linear-submission` NOR `kasper-queue` IS LISTED, deliberately.
+ * Despite its name the first appends a Google Sheet and the second reads Sheets;
+ * both survive Linear untouched, and blocking the first re-opens the 2026-08-26
+ * incident in which a videographer's only submitted copy lived in his browser.
+ */
+const LINEAR_BACKED_HOOK =
+  /\/webhook\/(send-urgent-slack|video-form|graphic-form)(?:[/?]|$)/;
 const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
+
+/* ---- LINEAR IS DEAD mode (F11) --------------------------------------------
+ *
+ * THE CORRECTION THIS EXISTS FOR. The mock above simulates Linear WORKING: it
+ * always fulfils 200 with `{ok:true}`. Every "Linear-mocked overnight testing"
+ * result in this repository was therefore evidence that the app survives Linear
+ * being HEALTHY AND UNREACHABLE-BUT-ANSWERING -- which is not the question. The
+ * question on 2026-09-15 is whether the app survives Linear being DEAD, and
+ * running the harness unchanged answers it with a confident yes that means
+ * nothing.
+ *
+ * SYNCVIEW_QA_LINEAR_DEAD=1 inverts the polarity. Every `/webhook/linear-*`
+ * call is answered as a dead upstream instead of a healthy one.
+ *
+ * THE FAULTS ARE MIXED, NOT UNIFORM, AND THAT IS THE POINT.
+ * A single failure shape proves the app handles that shape. Real death is
+ * ragged, and two of these shapes are already documented as things that
+ * actually happen here:
+ *
+ *   refused   connection refused (route.abort). The n8n host itself gone.
+ *   gateway   502 with an HTML error body. A proxy answering for a dead
+ *             upstream -- NOT JSON, so any caller that assumes a JSON body
+ *             breaks differently from one that checks status.
+ *   timeout   504 with an HTML error body. The upstream accepted and never
+ *             answered.
+ *   ok_lie    200 with `{"ok":true}` and NOTHING ELSE -- no data, no meta.
+ *             This is the nastiest and it is not invented: OPEN_REPAIRS 78
+ *             records twenty legacy webhook calls that were silent 409s which
+ *             n8n logged as `success`. A dead lane that still answers 200 is an
+ *             observed shape in this estate, and it is the one shape that
+ *             cannot be caught by checking `resp.ok`.
+ *
+ * DETERMINISTIC, NOT RANDOM. The fault rotates by call index so a probe failure
+ * reproduces exactly. SYNCVIEW_QA_LINEAR_DEAD may also name ONE shape
+ * (`refused`, `gateway`, `timeout`, `ok_lie`) to pin every call to it while
+ * isolating a single defect.
+ *
+ * EVERY INJECTED FAULT IS RECORDED alongside the request in linear_calls.jsonl,
+ * so an assertion can state which shape the app was given rather than guessing.
+ */
+const LINEAR_DEAD_SHAPES = Object.freeze(['refused', 'gateway', 'timeout', 'ok_lie']);
+const LINEAR_DEAD_RAW = String(process.env.SYNCVIEW_QA_LINEAR_DEAD || '').trim().toLowerCase();
+const LINEAR_DEAD = LINEAR_DEAD_RAW !== '' && LINEAR_DEAD_RAW !== '0' && LINEAR_DEAD_RAW !== 'false';
+const LINEAR_DEAD_PINNED = LINEAR_DEAD_SHAPES.includes(LINEAR_DEAD_RAW) ? LINEAR_DEAD_RAW : '';
+let _linearDeadCallIndex = 0;
+
+function resetLinearDeadRotation() { _linearDeadCallIndex = 0; }
+
+/** Which fault the Nth dead-Linear call gets. Pure, so the rotation is testable. */
+function linearDeadShapeFor(index, pinned = LINEAR_DEAD_PINNED) {
+  if (pinned) return pinned;
+  return LINEAR_DEAD_SHAPES[Math.abs(Number(index) || 0) % LINEAR_DEAD_SHAPES.length];
+}
+
+/*
+ * The response for one dead-Linear call. `null` means abort the request
+ * (connection refused) rather than fulfil it.
+ *
+ * The HTML bodies are deliberately HTML: a caller that does `await resp.json()`
+ * on a 502 gets a parse error, not a tidy `{error}` object, and that difference
+ * is exactly what a rehearsal needs to surface before the date rather than after.
+ */
+function linearDeadResponseFor(shape) {
+  if (shape === 'refused') return null;
+  if (shape === 'gateway') {
+    return { status: 502, contentType: 'text/html', body: '<html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>' };
+  }
+  if (shape === 'timeout') {
+    return { status: 504, contentType: 'text/html', body: '<html><head><title>504 Gateway Time-out</title></head><body><h1>504 Gateway Time-out</h1></body></html>' };
+  }
+  // ok_lie — the 200 that carries nothing. See OPEN_REPAIRS 78.
+  return { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) };
+}
+
+/*
+ * api.linear.app is aborted at page level in EVERY mode, dead or healthy.
+ * Nothing the browser does should ever reach Linear's own API directly, and a
+ * probe that silently did would be mutating a real editor's issue. This is a
+ * belt on top of the webhook interception, not a substitute for it.
+ */
+const LINEAR_API_HOST = /^https?:\/\/(api|uploads)\.linear\.app\b/i;
+
 const SUBISSUES_RESP_FILE = `${TMP}/linear_subissues_resp.json`;
 let _courierCommitThenFailEvents = [];
 function resetLinearCalls() { try { fs.unlinkSync(LINEAR_CALLS_FILE); } catch {} }
@@ -379,9 +527,11 @@ function appErrs(page) {
 }
 
 async function _ctx(browser, opts) {
-  // opts.writeUiRerouteLive: p95's guard probe opts back into the LIVE
-  // write_ui_reroute_clients flag; every other probe gets it stubbed dark
-  // (see the route case below).
+  // opts.writeUiRerouteLive: p95's guard probe opts into the genuinely LIVE
+  // write_ui_reroute_clients flag, to pin what the roster actually holds;
+  // every other probe gets the pinned production roster (see the route case
+  // below), which enrolls the TEST client the way production enrolls a real
+  // one.
   //
   // opts.courierCommitThenFail: one-shot lost-ack injection. For the first
   // matching POST whose forwarded JSON response confirms a 2xx commit, record
@@ -389,7 +539,7 @@ async function _ctx(browser, opts) {
   // Strip the harness-only keys before newContext. clientEntryCtx marks a
   // client-share context (openClient): its review token is its credential, so
   // the staff-key injection below must never touch it.
-  const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
+  const { writeUiRerouteLive, writeUiRerouteLegacy, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
@@ -408,17 +558,28 @@ async function _ctx(browser, opts) {
   await ctx.route('**/*', async (route) => {
     const req = route.request();
     const url = req.url();
-    // 0) write_ui_reroute_clients flag → DARK for the harness. The TEST
-    //    client is the sole live allowlist member; with the flag loaded the
-    //    page takes the #850 gateway lane, which fails Linear-linkless
-    //    harness cards closed (kind='test' → native_link_required) before
-    //    the source save the probes assert on. Real clients run legacy —
-    //    keep the stand-in faithful. Only this flag is stubbed; p95 opts
-    //    back in via writeUiRerouteLive to cover the guard itself.
-    if (!writeUiRerouteLive && url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
-      const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+    // 0) write_ui_reroute_clients flag → the PRODUCTION roster, with the TEST
+    //    client enrolled exactly as all 43 active clients are (measured
+    //    2026-09-07, OPEN_REPAIRS 175). This served `[]` and called that
+    //    faithful because "real clients run legacy" — a claim that was false
+    //    when written, and that after the fail-closed repair no longer even
+    //    produces a legacy lane, since a successful read with no usable
+    //    roster now routes a live write NATIVE. Full reasoning and the
+    //    fixture half still owed: qa/write_ui_reroute_fixture.js. Only this
+    //    flag is pinned; p95 opts into the genuinely live one via
+    //    writeUiRerouteLive to pin the roster's real contents.
+    //    opts.writeUiRerouteLegacy: a lane whose SUBJECT is the legacy write path
+    //    (the outbox drain and its quarantine, the ef-writepath Pipe B push) asks
+    //    for an explicit, usable roster that simply does not enrol this client.
+    //    Not `[]` — after the fail-closed repair that routes NATIVE, which is the
+    //    opposite of what it used to mean. Codex finding on d6e26c3.
+    if (!writeUiRerouteLive && REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
+      const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+      const body = writeUiRerouteLegacy
+        ? REROUTE_FIXTURE.legacyRosterBody()
+        : REROUTE_FIXTURE.productionRosterBody();
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Fully intercepted share-link tests can supply one fictional strict
     // verifier contract. Live TEST lanes never set this option and therefore
@@ -448,6 +609,13 @@ async function _ctx(browser, opts) {
         } : { ok: false, valid: false, reason: 'invalid_link' }),
       });
     }
+    // 0b) api.linear.app / uploads.linear.app → ALWAYS refused, in every mode.
+    //     A real-browser probe must never reach Linear's own API: that would
+    //     mutate a real editor's issue. Belt on top of the webhook interception.
+    if (LINEAR_API_HOST.test(url)) {
+      try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: 'api.linear.app', dead: 'refused', at: Date.now() }) + '\n'); } catch {}
+      return route.abort('connectionrefused');
+    }
     // 1) Linear webhooks → MOCK + capture (never reach real Linear).
     const lh = url.match(LINEAR_HOOK);
     if (lh) {
@@ -463,10 +631,45 @@ async function _ctx(browser, opts) {
       // An empty meta object is a safe, honest stand-in: the consumer's loop
       // finds no per-id entries and no-ops, same as a real backend reporting
       // nothing yet -- it just no longer looks like an unsupported backend.
+      if (LINEAR_DEAD) {
+        // LINEAR IS DEAD. Answer as a dead upstream, record which shape the app
+        // was handed, and let the page cope or fail visibly. See LINEAR_DEAD_SHAPES.
+        const shape = linearDeadShapeFor(_linearDeadCallIndex++);
+        try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: lh[1], dead: shape, at: Date.now() }) + '\n'); } catch {}
+        const response = linearDeadResponseFor(shape);
+        if (!response) return route.abort('connectionrefused');
+        return route.fulfill({
+          status: response.status,
+          contentType: response.contentType,
+          headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+          body: response.body,
+        });
+      }
       const body = (lh[1] === 'linear-subissues') ? _subissuesResp()
         : (lh[1] === 'linear-issue-statuses') ? { ok: true, meta: {} }
         : { ok: true };
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(body) });
+    }
+    // 1b) LINEAR-BACKED webhooks without the `linear-` prefix, IN DEAD MODE ONLY.
+    //     See LINEAR_BACKED_HOOK. These reach Linear through n8n, so a dead-Linear
+    //     rehearsal that let them through would be exercising a live, healthy
+    //     Linear for four of the flows it claims to have proven. Normal mode is
+    //     untouched on purpose: this file has never mocked them.
+    if (LINEAR_DEAD) {
+      const bh = url.match(LINEAR_BACKED_HOOK);
+      if (bh) {
+        let payload = null; try { payload = JSON.parse(req.postData() || 'null'); } catch {}
+        const shape = linearDeadShapeFor(_linearDeadCallIndex++);
+        try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: bh[1], payload, dead: shape, backed: true, at: Date.now() }) + '\n'); } catch {}
+        const response = linearDeadResponseFor(shape);
+        if (!response) return route.abort('connectionrefused');
+        return route.fulfill({
+          status: response.status,
+          contentType: response.contentType,
+          headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+          body: response.body,
+        });
+      }
     }
     // 2) Filming Plan Tabs -> stub by default. QA cold boots do not exercise
     // the Google Docs tab parser; let the app
@@ -674,6 +877,10 @@ module.exports = {
   poll, appErrs, ORIGIN, SUPA, KEY, COURIER, filelessHttpRequest: _curlRequestSync,
   linearCalls, resetLinearCalls,
   courierCommitThenFailEvents, resetCourierCommitThenFailEvents, setSubissuesResp,
+  // Linear-dead rehearsal (F11). Exported so the offline suite can exercise the
+  // fault rotation and the interception surface with no browser and no network.
+  LINEAR_API_HOST, LINEAR_BACKED_HOOK, LINEAR_DEAD, LINEAR_DEAD_SHAPES, LINEAR_HOOK,
+  linearDeadResponseFor, linearDeadShapeFor, resetLinearDeadRotation,
   __test: Object.freeze({
     courierFetch: _courierFetch,
     courierFetchAsync: _courierFetchAsync,

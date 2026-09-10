@@ -214,6 +214,59 @@ const LANES = Object.freeze([
    */
   { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160,
     hosts: ['assurance-ledger-freshness.yml'], retired: null },
+  /*
+   * Added 2026-09-08 for the Linear exit (OPEN_REPAIRS 174). Both lanes are
+   * deliberately Linear-free: they exist to report what breaks BECAUSE Linear
+   * is gone, so a Linear credential in either would be the watcher dying with
+   * the thing it watches.
+   *
+   * Neither script pages. Each exits non-zero on a finding — and on a census it
+   * could not take — and beats under `if: always()`; this switch does the
+   * paging, with the latching, the (kind,lane) separation and the dedup already
+   * built and proven. Every watcher in this repository that grew its own alarm
+   * grew the same defect: both nightlies sat red for WEEKS because their only
+   * alarm was a Slack webhook step that degrades to a log warning when its
+   * secret is unset.
+   *
+   * The exit code is also the only channel that survives an n8n outage.
+   * `SLACK_ALERT_WEBHOOK` points at the n8n relay `Tfhc3vebZyG6obOg`
+   * (monitoring-alert-relay.js:53), so no PAGE in this estate survives n8n being
+   * down — but a red run still emails the owner through GitHub, which touches
+   * no n8n. That is why `--ok=` is bound to `job.status` and why the scripts
+   * throw rather than warn.
+   *
+   * 90 minutes for two ~30-minute lanes: three missed runs, the same
+   * cadence-plus-drift shape as the other sub-hourly lanes here.
+   */
+  { key: 'workload_source_freshness', label: 'workload source freshness', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['workload-source-freshness.yml'], retired: null },
+  { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['outbox-debt-census.yml'], retired: null },
+  // Prepared native intake repair is dormant until the protected repository
+  // variable enables it. Both scheduled hosts still heartbeat while dormant.
+  // The 360-minute provisional tolerance matches the measured 274-minute
+  // GitHub schedule gaps; it is not a recovery SLO or a prompt-page promise.
+  { key: 'native_intake_completion', label: 'native intake safe completion', cadence: 'schedule 15m (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-intake-completion.yml'], retired: null },
+  { key: 'native_intake_completion_monitor', label: 'native intake completion monitor', cadence: 'schedule 15m offset (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-intake-completion-monitor.yml'], retired: null },
+  // Notification dispatch stays dormant until its SQL, worker secret, and
+  // scoped receipt drill are accepted. The sender and read-only health check
+  // heartbeat while dormant. Their 360-minute tolerance has the same measured
+  // GitHub-cron limit and is explicitly not a delivery SLO.
+  { key: 'native_notification_sender', label: 'native notification sender', cadence: 'schedule 5m (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-notification-sender.yml'], retired: null },
+  { key: 'native_notification_monitor', label: 'native notification monitor', cadence: 'schedule 5m offset (best effort; no SLO)', max_age_minutes: 360,
+    hosts: ['native-notification-monitor.yml'], retired: null },
+  /*
+   * The admission gate is dormant until its explicit SQL activation RPC runs.
+   * This lane starts before that activation and reports DORMANT as healthy;
+   * after activation it proves the recorded high-water has no ordinary rows
+   * above it. It is intentionally Linear-free and does not retire with a main
+   * schedule: it is the evidence that the already-retired boundary still holds.
+   */
+  { key: 'syncview_retirement_census', label: 'SyncView retirement admission census', cadence: 'schedule 30m', max_age_minutes: 90,
+    hosts: ['syncview-retirement-census.yml'], retired: null },
 ]);
 
 function clean(value) {

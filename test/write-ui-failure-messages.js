@@ -159,12 +159,92 @@ console.log('  ok  deterministic refusals say so instead of "try again"');
 const unknown = resolve('comment', 'a_code_invented_in_2027', 409);
 assert(/does not recognise/.test(unknown.text), 'unknown code is not reported as unknown');
 assert(/send this code to the owner/i.test(unknown.text), 'unknown code has no reporting advice');
-const unknownTransient = resolve('comment', 'a_code_invented_in_2027', 503);
-assert(/Try once more/.test(unknownTransient.text),
-  'an unknown 5xx should still be worth one retry');
 assert(!source.includes('could not be committed. Try the action again.'),
   'the generic swallow-everything message is back');
 console.log('  ok  an unmapped code reaches the user by name');
+
+// -- 5b. An unrecognised code NEVER promises that nothing was committed ------
+/*
+ * OPEN_REPAIRS 180. The fallback used to end ", and nothing was committed. Try
+ * once more" for everything that was not a 4xx. Two reachable shapes land
+ * there, and the sentence is false in both:
+ *
+ *   - a 5xx, where the write service received the request and failed part-way
+ *     THROUGH handling it, so a row may well exist;
+ *   - a transport failure (status absent), where the browser never learned
+ *     whether the request arrived at all -- `_writeUiReportFailure` reaches
+ *     here with `error.message` standing in for a code precisely because there
+ *     was no HTTP answer to read a status from.
+ *
+ * "Try once more" on a write that DID land is how a duplicate gets made, which
+ * is the 2026-08-26 shape where "safe to retry" cost a videographer eleven
+ * identical submissions. A classified code may still promise nothing was
+ * committed -- that promise is the gateway's, about a refusal it raised before
+ * committing -- but an UNRECOGNISED code has no gateway word to pass on.
+ */
+for (const [label, status] of [['a 5xx', 503], ['a 500', 500],
+  ['a transport failure', 0], ['no status at all', undefined]]) {
+  const entry = resolve('comment', 'a_code_invented_in_2027', status);
+  assert(!/nothing was committed/i.test(entry.text),
+    label + ' must not promise nothing was committed: ' + entry.text);
+  assert(!/try once more|try (the action )?again/i.test(entry.text),
+    label + ' must not invite a blind retry of a write that may have landed: ' + entry.text);
+  assert(/not known/i.test(entry.text),
+    label + ' must say the outcome is unknown: ' + entry.text);
+  assert(/reload and check/i.test(entry.text),
+    label + ' must send the reader to look before repeating: ' + entry.text);
+  assert(/second copy|duplicate/i.test(entry.text),
+    label + ' must name the cost of repeating it, which is the whole incident: ' + entry.text);
+  assert(/may not be saved/i.test(entry.title),
+    label + ' must not title itself as a settled failure: ' + entry.title);
+  /* THE RELOAD ADVICE MUST NOT EAT THE DRAFT (Codex P1 on this PR). Every
+     other reload-advising entry in these tables names the note box FIRST --
+     the `reload` class, the `repair` class, both `comment_parent_*` codes --
+     because an EDIT draft lives only in memory: a root note and a reply each
+     mirror to sessionStorage (`sv_noteDraft_<pid>`, `sv_replyDrafts_<pid>`),
+     an edit has no such key. A fallback that says "reload" without that
+     warning makes its own advice destroy the text the failed write was
+     carrying, which is OPEN_REPAIRS 13 arriving through the fix for 180. */
+  assert(/copy anything still in the note box/i.test(entry.text),
+    label + ' advises a reload without telling the reader to copy the draft first: ' + entry.text);
+  assert(entry.text.toLowerCase().indexOf('note box') < entry.text.toLowerCase().indexOf('reload'),
+    label + ' names the note box AFTER the reload, which is too late to save the draft: ' + entry.text);
+  assert(/only in this tab/i.test(entry.text),
+    label + ' must say why copying first matters, or it reads as boilerplate: ' + entry.text);
+}
+/* Not vacuous: the 4xx branch advises no reload at all, so it needs no such
+   warning and must not grow a spurious one. */
+assert(!/reload/i.test(resolve('comment', 'a_code_invented_in_2027', 409).text),
+  'the 4xx fallback advises no reload, so it should not be talking about the note box either');
+/* Not vacuous in either direction: a 4xx with an unknown code IS a decision the
+   service made rather than a write it half-did, so it keeps saying so, and a
+   MAPPED transient still carries the gateway's own promise. */
+const unknown4xx = resolve('comment', 'a_code_invented_in_2027', 409);
+assert(/Retrying is unlikely to help/.test(unknown4xx.text), unknown4xx.text);
+assert(!/not known/i.test(unknown4xx.text), unknown4xx.text);
+assert(/nothing was committed/i.test(resolve('comment', 'service_unavailable', 503).text),
+  'a classified transient still passes on the gateway promise it is entitled to make');
+console.log('  ok  an unrecognised refusal never says "safe to retry" about a write it cannot see');
+
+// -- 5c. A code that names an Object.prototype member is not an entry --------
+/*
+ * Both text tables are object literals. `WRITE_UI_FAILURE_CODE_TEXT.constructor`
+ * is a truthy function, so a bare lookup returned it as though it were an
+ * entry and the notification painted "undefined (code: constructor)". The code
+ * is free text on the transport path, so the set is reachable, and every member
+ * of it is exactly the shape the fallback exists to catch.
+ */
+for (const key of ['constructor', 'toString', 'valueOf', 'hasOwnProperty',
+  '__proto__', 'isPrototypeOf', 'propertyIsEnumerable']) {
+  const entry = resolve('comment', key, 0);
+  assert(entry && typeof entry.title === 'string' && typeof entry.text === 'string',
+    key + ' resolved to something that is not a message at all');
+  assert(!/undefined/.test(entry.title + ' ' + entry.text),
+    key + ' painted "undefined" at the reader: ' + entry.text);
+  assert(/not known/i.test(entry.text),
+    key + ' must reach the honest unknown-outcome fallback: ' + entry.text);
+}
+console.log('  ok  a prototype-named code falls through to the fallback instead of past it');
 
 // ── 6. The reporter always prints the code, and always records it ───────────
 const reporter = extract('_writeUiReportFailure');

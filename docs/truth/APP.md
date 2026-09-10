@@ -1,5 +1,11 @@
 # App logic (`index.html`) — current truth
 
+Source-only draft addition (2026-09-05): SyncLinear's **Feedback & tweaks** view
+keeps all canonical comments and adds staff-only read-only notes from the exact
+mapped Calendar/Samples component. Missing or partial source coverage is explicit;
+client permissions, writers and lifecycle ownership remain unchanged. Contract,
+mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
 > + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
 > policy introduced in `production-write` v26 and now served by F27 closure v27; F95
@@ -238,9 +244,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
   identity (F91). Team authority constrains direction only; it is not authentication.
 - Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first") — **legacy-lane
-  invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients (TEST-only
-  today) route status/comments/Create Post through the authenticated `production-write` gateway,
-  which accepts native deliverable IDs without Linear URLs.
+  invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients route
+  status/comments/Create Post through the authenticated `production-write` gateway, which accepts
+  native deliverable IDs without Linear URLs. **"TEST-only today" was stale and is corrected here
+  2026-09-08**: enrollment has been the FULL active roster since wave 3 on 2026-08-14 (the measured
+  1:1 count lives in `docs/truth/LINEAR.md`, which owns it), so the legacy-lane invariant now
+  describes almost nobody. Since 2026-09-07 an unreadable or unusable roster read also routes
+  NATIVE rather than legacy — see OPEN_REPAIRS 175.
 - `?v2=0` is **not writable rollback** (F125): it selects Sheet reads while full-roster
   upsert/reorder routing still targets Supabase-only Edge Functions. Normal Supabase-read failure
   automatically selects the same Sheet fallback. Either state must remain read-only until one

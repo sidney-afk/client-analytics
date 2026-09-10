@@ -94,6 +94,12 @@ ok(!/owner_team/.test(ruleSrc),
 
 // ---- what must STILL be refused -------------------------------------------
 const oneParent = { team: 'video', linear_parent_ids: { video: { uuid: 'vid-1' } } };
+ok(compatible({ linear_parent_ids: {}, _nativeAppendTeams: ['video', 'graphics'] }, 'both') === true,
+  'a freshly confirmed native batch can be offered without provider parents');
+ok(compatible({ linear_parent_ids: {}, _nativeAppendTeams: ['video'] }, 'both') === false,
+  'a partial native capability cannot offer both teams');
+ok(compatible({ linear_parent_ids: {} }, 'both') === false,
+  'missing native capability does not turn an old orphan into a verified option');
 ok(compatible(oneParent, 'both') === false,
   'a batch with only one team\'s parent is still hidden — 127 live rows, and the gateway would refuse them');
 ok(compatible(oneParent, 'thumbnail') === false, 'and cannot take a thumbnail-only post either');

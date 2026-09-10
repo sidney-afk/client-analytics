@@ -508,7 +508,9 @@ n8n in the metric read path.*
   auto-assignment, native-id responses, and an allowlisted targeted parity create lane while a
   team remains Linear-authoritative. PR #850 / `9968bd9` merged the SPA cohort routing that
   superseded #813; pinned run `29601466479` deployed the provider/gateway from `main@9d76df6`.
-  The lane remains dark outside its allowlist (last verified TEST-only), and real enrollment is
+  The lane remains dark outside its allowlist (enrollment is the FULL active roster since wave 3
+  on 2026-08-14; `docs/truth/LINEAR.md` owns the measured count. "Last verified TEST-only" was
+  stale and is corrected here 2026-09-08), and real enrollment is
   owner-gated. **Merged-caller defects (F133/F134):** that cohort path
   commits generic deliverable titles and later edits only the card, while committed card-materialization
   recovery is actor-bound localStorage with no server job/admin reassignment. Both are pre-enrollment gates.
@@ -520,8 +522,13 @@ n8n in the metric read path.*
   Calendar. Calendar keeps client scope implicit, defaults to that client's latest active batch,
   and offers an explicit new-batch path; the client-link Suggest-a-post flow remains Calendar-only.
 - **Cohort boundary.** `write_ui_reroute_clients` selects the native status/comment/intake lane and
-  is seeded for TEST only. Unlisted clients keep the exact legacy request/card-job path; a missing,
-  malformed, or unreadable cohort flag fails dark to legacy rather than partially rerouting.
+  carries the FULL active roster since wave 3 on 2026-08-14 (`docs/truth/LINEAR.md` owns the
+  measured count; "seeded for TEST only" was stale and is corrected here 2026-09-08). Unlisted
+  clients keep the exact legacy request/card-job path. A missing, malformed, or unreadable cohort
+  flag no longer fails dark to legacy: since 2026-09-07 (OPEN_REPAIRS 175) it routes ROUTING
+  NATIVE, because after 2026-09-15 legacy is a dead URL that drops writes silently while the
+  gateway refuses out loud. It still never partially reroutes, and the allowlist still answers
+  factually for the outbox drain.
 - **Client-comment front door (2026-08-14).** `client_comment_gateway_enabled` gates the SECOND
   routing condition for CLIENT-principal comments specifically: since the 2026-08-13
   `comment_forbidden` incident (PR #1064) a client link's comments go legacy regardless of
@@ -845,7 +852,8 @@ n8n in the metric read path.*
   Performance.
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
-  Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
+  Cross-client `sample_reviews` REST (samples subtab). `deliverable_events` REST (editors — the
+  n8n `editors-week` webhook was retired 2026-09-07, LX-C / OPEN_REPAIRS 171). Staff-gated
   `filming-plans` EF + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
   shared/legacy-key-gated; active-admin binding and read audit are missing under F85). `client-
   credentials` EF (list/history). `pto` EF overview (pending queue plus protected team balances;
@@ -936,9 +944,10 @@ n8n in the metric read path.*
   60-second newest-`synced_at` poll triggers the existing skeleton refresh only when the mirror
   watermark advances. This removes the browser's extra cache delay but does not accelerate the
   upstream scheduled mirror reconcile, so a newly created issue can still wait for that producer. n8n
-  `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
-  fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
-  metrics are computed client-side. The editable path additionally reads internal plan dates
+  `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). The `editors-week` webhook (**one** browser
+  fetch site, but a publicly callable arbitrary-range endpoint) returned issue histories; it was
+  RETIRED 2026-09-07 and the panel now reads `deliverable_events` directly. All report
+  metrics are still computed client-side by the unchanged `_ked*` functions. The editable path additionally reads internal plan dates
   through staff-authenticated EF `workload-plan`; candidate source allows Admin/SMM/Creative to list
   the same global projection and never reads the sidecar through PostgREST.
   Candidate metadata source first reads exact per-team `prod_authority`. Bounded active issue-ID
@@ -1000,12 +1009,25 @@ n8n in the metric read path.*
   receipt. A pre-commit failure, including a stale-route `409`, reverts and notifies; a native CAS
   conflict adopts the current authoritative row and cursor. After a confirmed Linear commit, a missed mirror update returns
   `mirror_pending`, keeps the new date, and warns instead of fabricating a rollback.
-  `editors-week` fail → error card, older week cache still usable. **F48:** the endpoint is
-  unauthenticated and exposes confidential people/client/work metadata. Its issue connection pages
-  50 at a time but silently stops after 30 pages / 1,500 issues; each issue history is unpaged at
-  `first:250`. The measured week hit neither cap, but completeness is not guaranteed, and past
-  transitions are attributed to the current assignee. Authenticate/scope it immediately; B5 also
-  requires complete native load/finish/open/timeline/event-time parity.
+  Editors fail → error card, older week cache still usable. **F48 REMAINS OPEN. The browser no
+  longer calls `editors-week`, but the exposure F48 tracks is the DEPLOYED WEBHOOK, and it is still
+  deployed** (corrected 2026-09-08, LX-C / OPEN_REPAIRS 171; an earlier revision of this line said
+  "CLOSED by retirement … and it is gone", which was false). Removing the constant and the browser
+  caller retires SyncView's *use* of the endpoint; it does not deactivate the n8n workflow behind
+  it. `webhook/editors-week` is unauthenticated, accepts an arbitrary historical range, and returns
+  confidential people/client/work metadata to anyone who calls it — exactly as it did before this
+  lane, and it will keep doing so after 2026-09-15, when it stops being *our* dependency but does
+  not stop answering. Closing F48 needs an evidenced deactivation of that workflow (owner
+  authorisation in-request, workflow JSON exported to the private Drive backup first, and a
+  public-safe status stub committed to `n8n-backups/`), not a merged diff. `B4_READINESS.md` and
+  `GO_LIVE_CHECKLIST.md` both still carry it as open and are correct.
+  On COMPLETENESS, which is the other half of F48 and is genuinely improved here: its issue
+  connection paged 50 at a time but silently
+  stopped after 30 pages / 1,500 issues, with each issue history unpaged at `first:250`; the native
+  replacement pages every read to exhaustion, so it is strictly MORE complete. Attribution of past
+  transitions to the CURRENT assignee is unchanged — the retired endpoint did the same, so the
+  native rebuild carries that caveat forward rather than introducing it. The one genuine
+  discontinuity is that pre-cutover Linear-only issues were never written to `deliverable_events`.
 - **Notable / corrections.** v1's "3 call sites" for `editors-week` is wrong — one fetch site (the
   others are the constant + comments). The realtime channel is dormant. The former `content-ready`
   browser caller has been removed. `loadLinearIssues` is also the Calendar bulk-create link poll's
@@ -1537,13 +1559,13 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (57):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
+- **n8n webhooks (56):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` / `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (29):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
 - **Not counted above:** 25 of the 29 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run.
 - **Supabase REST tables, literal (10):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`. Workload's `?wlnative=1` diagnostic reads `'/rest/v1/' + WL_NATIVE_VIEW` where `WL_NATIVE_VIEW` = `workload_issues_native_v1` — the native replacement source built in `migrations/2026-09-02-workload-native-view.sql` (step 1 of `docs/ops/WORKLOAD_NATIVE_SOURCE.md`). It is a DIAGNOSTIC, not a source: the board's own read (`_wlV2FetchIssues`) still goes to `workload_issues`, and this one only runs behind the non-sticky `?wlnative=1` flag, to print the difference between the two sources. Until the migration is applied it answers 404 and says so.
-- **Runtime kill-switch flags (8):** `calendar_upsert_ef_clients` · `client_comment_gateway_enabled` · `kasper_urgent_ping_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
-- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. `client_comment_gateway_enabled` is the client-comment front-door rollout switch (2026-08-14): only the exact value `{"enabled": true}` routes a client link's comments to the authenticated gateway (and only when the tab can also build a verified gateway context); missing/malformed/unreadable is OFF and client comments stay on the legacy n8n lane, so the flag is a safe one-step rollback. Other plan-side flags remain backend-only.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). The editors-week panel pages through `'/rest/v1/' + path` (variable `path` in `_kedRestPage`, called from `_kedRestIn` and `_kedFetchNativeWeek`) for `deliverable_events` (last week's `status_change` rows), `deliverables`, `team_members` and `clients` — the native replacement for the retired `editors-week` webhook. SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`. Workload's `?wlnative=1` diagnostic reads `'/rest/v1/' + WL_NATIVE_VIEW` where `WL_NATIVE_VIEW` = `workload_issues_native_v1` — the native replacement source built in `migrations/2026-09-02-workload-native-view.sql` (step 1 of `docs/ops/WORKLOAD_NATIVE_SOURCE.md`). It is a DIAGNOSTIC, not a source: the board's own read (`_wlV2FetchIssues`) still goes to `workload_issues`, and this one only runs behind the non-sticky `?wlnative=1` flag, to print the difference between the two sources. Until the migration is applied it answers 404 and says so.
+- **Runtime kill-switch flags (8):** `kasper_urgent_ping_enabled` / `calendar_upsert_ef_clients` · `client_comment_gateway_enabled` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it carries the full active roster since wave 3 on 2026-08-14 (`docs/truth/LINEAR.md` owns the measured count), and since 2026-09-07 (OPEN_REPAIRS 175) missing/malformed/read-failed state selects the NATIVE lane for routing, not the legacy one — the reverse of what this line said until 2026-09-08, and unlike the `*_ef_clients` flags above it is therefore fail-CLOSED for routing while still answering factually for the outbox drain. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. `client_comment_gateway_enabled` is the client-comment front-door rollout switch (2026-08-14): only the exact value `{"enabled": true}` routes a client link's comments to the authenticated gateway (and only when the tab can also build a verified gateway context); missing/malformed/unreadable is OFF and client comments stay on the legacy n8n lane, so the flag is a safe one-step rollback. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

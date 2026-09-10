@@ -447,15 +447,23 @@ const CANDIDATES = new Map([
     // the existing length/grounding rejections. Comment-only elsewhere; no
     // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
-    // Re-pinned 2026-09-09: a client re-sending the status her row already
-    // holds is admitted as the no-op it is, rather than refused
-    // 403 operation_forbidden with a message accusing her account of lacking
-    // permission. Only policy.mjs moved (clientOperationAllowed) -- no
-    // migration, no schema, no new import, file count unchanged at 5, and the
-    // entrypoint hash is unchanged because it hashes the PATH.
-    source: 'fc721251eeb6bd5c5f75456657ee51e105e452e6234a4121e61b93dd1b59de90',
-    entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 5,
+    //
+    // Re-pinned AGAIN, same day, ON TOP of the above: the native write gateway
+    // lift. Intake, append, component fill, assignee change and labels stop
+    // routing through Linear, and the native urgent handoff lands with them.
+    // BOTH changes are in this closure -- the thumbnail-title fix above and
+    // the native lift -- and a pin that carries only one of them is wrong.
+    // File count moves 5 -> SIX; _shared/native-brief-media.mjs is the new
+    // import. Every native lane is behind a flag defaulting OFF, so the deploy
+    // activates nothing: SQL first, dispatch second, flags last.
+    // Re-pinned once more when the final attribution projection made intake
+    // persist the validated native epoch; closure membership remains six.
+    // Regenerated with scripts/ef-fingerprint.js, never by hand.
+    // Integrated main client status no-op authorization and due-bump guard.
+    // Prepared canonical archive-lifecycle notification repair.
+    source: '807a4fb0a8e7afe401c633842fd9c14e4a7f23b8884430b699e1afedae90ac69',
+    entrypoint: '7126f7eb9cc166be39cab7fe28395e9d0c2521ba16cb2e92495d8110e710711e',
+    files: 6,
   }],
 ]);
 
@@ -532,13 +540,31 @@ ok(workflow.includes('F27_PROJECT_REF=$project_ref')
   && rollbackLibrary.includes('provider.supabase_cli_version !== expectedCliVersion'),
 'the sealed undo is privately bound to the masked reviewed project, exact CLI, and both approved adapters before either operation mutates');
 
+const sqlPreflightAt = workflow.indexOf('- name: Assert compatible native SQL before the first forward deployment');
+const sqlPreflightEnd = workflow.indexOf('\n      - name:', sqlPreflightAt + 1);
+const sqlPreflightBlock = workflow.slice(sqlPreflightAt, sqlPreflightEnd);
+const notifyPreflightAt = workflow.indexOf('- name: Require the compatible notification sender before the F27 gateway');
+const notifyPreflightEnd = workflow.indexOf('\n      - name:', notifyPreflightAt + 1);
+const notifyPreflightBlock = workflow.slice(notifyPreflightAt, notifyPreflightEnd);
 ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
   && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 6
-  && validationAt < firstSecretAt,
-'production credentials are protected-Environment, step-scoped, and unavailable before trusted validation');
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 8
+  && validationAt < firstSecretAt
+  && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
+  && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
+  && occurrences(sqlPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|restore-captured-prior-four/.test(sqlPreflightBlock),
+'production credentials are protected-Environment and step-scoped, with separate forward-only SQL and notify proof boundaries');
+
+ok(notifyPreflightAt > sqlPreflightAt && notifyPreflightAt < firstDeployAt
+  && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(notifyPreflightBlock)
+  && occurrences(notifyPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
+  && /--slugs=notify --format=json/.test(notifyPreflightBlock)
+  && /x\.slug!=="notify"\|\|x\.result!=="PASS"\|\|x\.verify_jwt!==false/.test(notifyPreflightBlock)
+  && !/restore-captured-prior-four/.test(notifyPreflightBlock),
+'F27 forward deployment requires exact live notify source/JWT proof, while prior-four restore remains independent');
 
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(workflow)
   && workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')

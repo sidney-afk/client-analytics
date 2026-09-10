@@ -54,7 +54,7 @@ ok(/\.in\("status", INTAKE_LOAD_LIVE_STATUSES/.test(gateway),
 // ---- 2: an override is accepted, validated, and video-only ------------------
 ok(/normalizeTeam\(item\.team\) !== "video"/.test(gateway),
   'a graphics override is still refused — that team has one default designer, so there is nothing to choose');
-ok(/await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team\)/.test(gateway),
+ok(/await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team, nativeEpochByTeam\[team\]\)/.test(gateway),
   'a chosen editor goes through the same eligibility check as every other assignee write');
 ok(/intake_assignee_override_conflict/.test(gateway),
   'two items naming different editors is refused before anything is written, not resolved by item order');

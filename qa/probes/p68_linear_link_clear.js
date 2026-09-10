@@ -4,18 +4,23 @@
 //   • setting a link persists it
 //   • clearing it leaves the DB link EMPTY (not the old URL, not the literal sentinel string)
 const Q = require('./lib.js');
+const NW = require('../native_work_item_fixture.js');
 const PID = 'p_lc_' + Math.floor(Date.now() / 1000);
 const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
 
 (async () => {
   const S = Q.makeOk('P68 linear link clear sentinel');
   const browser = await Q.launch();
-  // intercept Linear webhooks defensively (link writes shouldn't push, but be safe)
+  // intercept BOTH write lanes defensively (link writes shouldn't push, but be safe)
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  const linear = [];
-  for (const wh of ['linear-set-status', 'linear-add-comment']) await ctx.route('**/webhook/' + wh, async (r) => { linear.push(wh); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  // Through the shared helper rather than a hand-rolled route: one place owns the retired
+  // webhook URLs, and it only supports COUNTING them (test/probes-assert-native-write-lane.js).
+  const retired = await NW.captureRetiredWebhooks(ctx);
+  // A pure link edit must not transport on the NATIVE lane either, which is the lane this
+  // client actually takes — the Linear-only check was blind to the write that matters now.
+  const gateway = await NW.stubNativeGateway(ctx);
   const smm = await ctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });
   smm.on('pageerror', e => smm._errs.push(String(e && e.message)));
@@ -42,7 +47,9 @@ const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
     S.ok(String(r.linear_issue_id || '').trim() === '', 'clearing the link leaves DB EMPTY (not the old URL)');
     S.ok(!String(r.linear_issue_id || '').includes('__CLEAR_LINK__'), 'the literal sentinel was NOT stored in the DB (backend processed it)');
 
-    S.ok(linear.length === 0, 'no Linear push from a pure link edit (got ' + JSON.stringify(linear) + ')');
+    S.ok(NW.retiredCallCount(retired) === 0 && gateway.length === 0,
+      'no push from a pure link edit on EITHER lane (retired='
+      + NW.retiredCallCount(retired) + ', gateway=' + gateway.length + ')');
     S.ok(smm._errs.length === 0, 'no JS errors (' + JSON.stringify(smm._errs.slice(0, 3)) + ')');
   } finally { try { await Q.archive(PID); } catch (e) {} await browser.close(); }
   process.exit(S.done());

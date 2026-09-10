@@ -241,29 +241,51 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // WORKFLOW_PATH itself, which moves the workflow blob and drifts this pin a
   // second time. Both re-pins are this lane's, not a surprise. (Previous pin:
   // 5df8340c...)
-  // Re-pinned 2026-09-08: the `monitoring_watchdog` lane's own
-  // `max_age_minutes` moved 180 -> 360, plus the comment explaining why. The
-  // 15- and 20-minute crons its two hosts declare are not delivered by GitHub
-  // (measured: the combined heartbeat arrives every 46-274 minutes), so at 180
-  // the switch paged about ITSELF on five of its last eight runs, every one
-  // false. Closure membership is UNCHANGED: no file entered or left, no new
-  // dependency, no new entrypoint. The blob change is one integer, one cadence
-  // string and comment text — no filesystem, process, child-process or network
-  // path is added, and this lane's `--heartbeat=reconciler_pager` and
-  // `--check` steps are untouched.
   //
-  // Reviewed effect on THIS lane, stating the THRESHOLD and the DETECTION TIME
-  // separately because conflating them is the error this change had to correct
-  // twice: the staleness threshold for `monitoring_watchdog` moves from 180 to
-  // 360 minutes. Detection time is a different number — freshness is only
-  // evaluated when a host runs, so detection is the threshold PLUS the
-  // observation interval, near 634 minutes here against roughly 454 before —
-  // an estimate from the worst observed host gap, not a bound, since
-  // best-effort scheduling can drop firings for longer than anything measured.
-  // No other lane's threshold changes, and no lane's detection path does.
-  // (Previous pins: c1573201... this branch, cc2b4324... before it.)
+  // Re-pinned 2026-09-08 for BOTH changes, because two lanes moved this file and
+  // neither side's pin describes the merged content.
+  //
+  // 1. THIS branch REGISTERED two lanes — `workload_source_freshness` and
+  //    `outbox_debt_census` — both Linear-free, both hosted by new scheduled
+  //    workflows that exit non-zero and beat under `if: always()`.
+  // 2. `main` (PR #1363) moved the `monitoring_watchdog` lane's own
+  //    `max_age_minutes` 180 -> 360, because the 15- and 20-minute crons its two
+  //    hosts declare are not delivered by GitHub (measured: the combined
+  //    heartbeat arrives every 46-274 minutes), so at 180 the switch paged about
+  //    ITSELF on five of its last eight runs, every one false.
+  //
+  // Reviewed effect on THIS lane: none, from either change. Registration adds
+  // two entries to the LANES array, read by `--check` exactly as the existing
+  // eight are; the threshold change is one integer and one cadence string. The
+  // reconciler's own `--heartbeat=reconciler_pager` and `--check` steps are
+  // untouched by both. Closure membership UNCHANGED: no file entered or left,
+  // no new dependency, no new entrypoint, and no filesystem, process,
+  // child-process or network path is added.
+  //
+  // Stating the THRESHOLD and the DETECTION TIME separately, keeping main's
+  // distinction because conflating them is the error that change had to correct
+  // twice: the staleness threshold for `monitoring_watchdog` moves 180 -> 360.
+  // Detection time is a different number — freshness is evaluated only when a
+  // host runs, so detection is the threshold PLUS the observation interval, near
+  // 634 minutes against roughly 454 before — an estimate from the worst observed
+  // host gap, not a bound, since best-effort scheduling can drop firings for
+  // longer than anything measured. No other lane's threshold changes, and no
+  // lane's detection path does.
+  //
+  // Re-pinned 2026-09-09 after the reviewed retirement repair registered one
+  // additional dormant-safe census lane. That entry only extends the LANES
+  // data consumed by the existing watchdog check; it adds no import, command,
+  // network adapter or reconciler entrypoint. Closure membership remains the
+  // same eleven files. This pin records those source bytes and does not approve
+  // retirement activation, which remains a separate held operation.
+  // (Previous pins: c2cc93ab... after the two changes above, 4a884593... this
+  // branch, c1a773a3... main, cc2b4324... before both.)
+  // Re-reviewed 2026-09-09: add the intake worker/checker and notification
+  // worker/checker lane declarations. All four use the existing heartbeat
+  // reader/relay, with provisional 360-minute freshness; no new dependency,
+  // network adapter, or reconciler mutation path enters this closure.
   'scripts/monitoring-watchdog.js':
-    'c1a773a3c062fd850040a0dfb4f0e261ff1c466a831c15f871e7ce6468506348',
+    'b193214e7db5b8ee12a1633670f4b292aadcaf01421963c1c6b71b9067639bb4',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

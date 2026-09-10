@@ -2,6 +2,16 @@
 
 **Written 2026-09-08. This is the only document that spans every lane.**
 
+**Build-preparation update, 2026-09-10:** draft PR #1382 now contains the
+recovered candidate integrated with newer main. Read
+[`LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md`](LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md)
+for current build, publication and isolated-test status; the historical status
+and estimates below are not a fresh installation assessment. Reproducible
+tooling is in `qa/linear-exit-rehearsal/README.md` and
+`scripts/linear-exit-composition/README.md`. This phase permits preparation,
+isolated testing and branch/draft-PR publication only. No PR merge, deployment,
+workflow dispatch, production data change or n8n execution is authorized.
+
 Each lane has its own runbook and each is good. What none of them carries is the
 order across all of them: which merge must precede which migration, which deploy
 must precede which flag, and which of those the owner performs personally. That
@@ -707,6 +717,31 @@ complete, and still fail check 5 — leaving Phase 3 blocked after an F27 deploy
 already been spent. #1326's scope may or may not cover this; **that is a question
 for the review, not an assumption to carry.**
 
+**Fourth repair: browser attribution after native intake.** Verified against the
+local repair checkpoint `b1c4734ddd90e8945d18b3f412a5ede25bc1ae6f`, not an
+installed release. `projectForIntake` returns an existing per-team Linear project
+ID under the native epoch short-circuit. `intakeAttribution` then stamps
+`resolved/direct_project`, but `_prodResolveAttributions` cannot verify that
+stamp without mirrored project evidence; an executed synthetic browser fixture
+returned `needs_attribution/persisted_resolution_is_not_currently_verifiable`.
+The existing `native_intake_project` browser path covers native project mappings,
+not this existing-client route. The repair must carry bounded server-stamped
+native epoch/project ownership through the browser projection and resolver for
+both routes. Do not infer permission from a bare active `client_slug`, or discard
+contradictory project/family evidence. Provider-era unresolved rows still need
+separate attribution repair; the new stamp does not retroactively fix them.
+
+PR #1372 (merged at `ad2a15a4655729d3bb4852565c6ddb518a851e07`) changes the
+wording for an empty persisted stamp; its diff leaves the write gate closed.
+It is not this repair. The quoted 139-row live count has not been independently
+verified in this audit and is not an affected-card count.
+
+For every creation check below, open the **newly created card**, confirm its
+client grouping, edit it through the normal browser, reload, and verify the edit
+persisted with provider transport denied. Run both teams with existing project
+mappings and newly provisioned native mappings. A successful create response or
+editing an older already-mirrored card does not satisfy this gate.
+
 ### ORDER. Two hazards sit on opposite sides of the dispatch.
 
 **This section has now been wrong in both directions, and the correction is
@@ -837,7 +872,7 @@ that must succeed:
 | 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
 | 2 | The naming mint's **four** steps are done, flag flip included, `video` proved before `graphics` is enabled (P1) | migration applied |
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
-| 4 | With Linear dead, on the TEST client, **all eight** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee, (8) **a client-link submission** | any subset of them, or any of them refusing cleanly |
+| 4 | With Linear dead, on the TEST client, **all eight** P7 checks succeed and each newly created card is **editable after reload**: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee, (8) **a client-link submission** | any subset of them, or any of them refusing cleanly |
 
 ### Row 4 is WRITE paths only. The degradation table names four more surfaces.
 

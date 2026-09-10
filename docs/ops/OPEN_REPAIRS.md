@@ -18796,3 +18796,101 @@ of each of `calendar-upsert` and `sample-review-upsert`:
 Steps 5 and 6 are lifted verbatim from this branch. Steps 1-4 are list additions.
 Nothing in the delta touches authorization, CORS, or any existing guard — which
 is what makes it portable onto a source this branch does not contain.
+
+## 189. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+
+Item 186 closed the client-visible refusal and said plainly that it did not
+explain why the `calendar_posts` leg never followed its own committed gateway
+write. This is that explanation, established by replication rather than by
+reading, in `qa/client-approve-half-commit/probe.js`.
+
+**Method.** The harness serves the repo, boots the real `index.html`, seeds one
+card at `Client Approval` and drives the REAL client approve path. The client
+branch needs no client token: `_calReviewMode()` returns `client` for any view
+that is not `smmreview`, so `_calReviewApplyApprove` takes the same branch,
+stamps the same `client_<comp>_approved_at` and routes the same gateway write.
+Leg 1 (gateway) and leg 2 (`calendar_posts`) are recorded separately and each
+fault is scored against the fingerprint measured on the live card: committed AND
+stale AND unstamped AND still reading `Client Approval` to the client.
+
+| Fault injected | Leg 1 | Leg 2 | Verdict |
+|---|---|---|---|
+| none (control) | commits | writes | correct |
+| **gateway response lost** | **commits** | **never** | **reproduces** |
+| storage refuses the checkpoint | commits | never | no: card stays Approved, storage error shown |
+| source write rejected (500) | commits | attempted | no: card stays Approved, retry armed |
+
+**Only a lost response reproduces it**, and the other two are ruled out on the
+record rather than by argument. A browser cannot distinguish "the server never
+received it" from "the server committed it and the reply was lost". The catch in
+`_calFlushCardSave` assumed the first, rolled the card back through
+`_CAL_ROLLBACK_FIELDS`, and abandoned leg 2. **The rollback is the whole
+mechanism**: it is what put the card back to `Awaiting your approval` with the
+Approve button live, which is what produced the repeat clicks that met 186's
+refusal.
+
+**The finding that decides the fix.** The durable repair journal ALREADY
+completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
+restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
+lands with the right status and the right sign-off stamp. Nothing is missing.
+
+**THE BROWSER FIX WAS ATTEMPTED AND WITHDRAWN. Four review rounds, seven
+findings, every one a real defect in the FIX rather than in the original code.**
+Recorded in full, because the next person to open this will otherwise make the
+same attempt:
+
+1. *Absence had no route home.* A request that died before reaching the server
+   threw `status_reapply_required`, and `_calRetrySave` refuses to checkpoint
+   without a committed repair ref, so the write was lost while the journal went
+   on insisting it was owed.
+2. *No CAS on this lane.* Reissuing on proven absence can overwrite another
+   actor's status: Calendar/SXR status payloads carry neither `expected_status`
+   nor `expected_updated_at`, and `production-write` requires them on the
+   `production` surface only. The comment claiming server CAS settled that race
+   was false.
+3. *Legacy fallback.* A missing or rolled-back reroute flag sends the reissue to
+   `_calLegacyPushStatusToLinear`, which fires unawaited and returns `skipped`.
+4. *A 5xx is not proof of non-commit,* so treating it as definitive rolls the
+   card back and re-arms the control: the original incident through another door.
+5. *But a blanket `status >= 500` is wrong too.* `authority_unavailable` throws
+   503 BEFORE `beforeAttempt` reserves the journal record, while
+   `gatewayAttempted` is already true, so a never-sent request would arm a
+   checkpoint with no repair refs and strand the card as "Source repair receipt
+   missing".
+6. *The optimistic approval was invisible as unconfirmed.* `_calReviewPanelHtml`
+   returns the "Approved / Locked in" collapse before any error is read, and
+   both queue predicates plus `_calReviewCardBody` filter on
+   `_calReviewComponentActive`, which an optimistically-Approved component
+   fails. The not-confirmed copy therefore never reaches a real client link in
+   the single-component case: exactly the case the change targeted.
+7. *The harness kept not proving what it claimed.* It recorded a commit before
+   every simulated abort (masking the pre-server path), scored only against the
+   fingerprint (so a broken recovery passed for the wrong reason), and DEFINED
+   an `error-after-commit` fault it never ran.
+
+**Why withdrawn rather than iterated.** The server half of 186 is deployed
+(`production-write` v70), so a client no longer meets the refusal loop and this
+is defence in depth, not an emergency. The area couples optimistic card state, a
+two-leg write, a repair journal, authority preflight and two queue predicates,
+and each patch surfaced another interaction. A correct fix needs CAS on the
+calendar status lane and one coherent unconfirmed-state contract across the
+review surfaces: edge-function work that overlaps almost entirely with the
+server-side reconciler. Half of it, shipped to a client-facing surface, is how
+the original incident happened.
+
+**What ships instead: the replication, with the defect pinned.** Harness case
+`A` asserts the CURRENT behaviour by name (a committed-but-lost response rolls
+the card back and drops the sign-off stamp), so this cannot be quietly "fixed"
+or regress further without someone deliberately rewriting a contract.
+
+**What is still open, and it is the real one.** That repair runs only in that
+client's browser, only if she comes back. She met an error, reported it, and
+closed the tab, so a write the server had already committed was left unfinished
+with nothing server-side able to complete it; her card stayed stale until an
+unrelated staff browser projected the canonical status back at 19:32. **The
+completion of a committed write still depends on one particular browser session
+surviving.** Closing that needs a server-side reconciler (a deliverable whose
+status disagrees with its card row is a repairable fact, visible without any
+browser), which is an owner decision about who owns the card row and is
+deliberately NOT taken here. The planned review-surface fault sweep across
+Client / SMM / Kasper should shape it before it is built.

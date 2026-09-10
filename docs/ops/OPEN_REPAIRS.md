@@ -20105,3 +20105,34 @@ passed, which would have shipped a control that proves nothing, the same failure
 this PR has now found six times.
 
 **Twenty-six rounds, 58 findings.**
+
+### 195ab. Round 27: one deliverable is several reviews
+
+**The supersession clock was keyed by deliverable.** One deliverable carries the
+video work *and* the caption and title reviews, so a caption request suppressed a
+video sign-off it had nothing to do with — and after 195aa, a request the same
+run refuses as unplaceable suppressed a repair while being reported as unusable.
+Keyed by **(deliverable, component)** now: a request supersedes the review it
+belongs to, and no other.
+
+**The 195aa contradiction refusal was filed under "left alone".** The card has
+not moved on; the report simply cannot say which review the client meant, which
+is a person's decision. It is operator work now. That is the fourth reason in
+three rounds to land in the wrong bucket on first writing, which is what the
+`skip()` contract addresses for identity but not for classification.
+
+**`changed_under_us` printed a bare card id.** It is logged directly on an apply
+run, after the summary and detail loops, so it never passed through the line
+that gained the client. The fifth "this line has no client" in four rounds, and
+the one place the contract could not catch, since it is not a detect-time row.
+
+**A rule was added and then removed in the same round.** Excluding contradicting
+requests from the supersession clock has no case once the clock is keyed by
+component: the deliverable resolves to the other component, so such a request
+already lands on a key no approval from it can occupy. Its control would not
+fire. This PR treats a control that does not fire as a broken test rather than a
+redundant one, so the rule came back out rather than shipping as decoration.
+
+117 checks, three controls, all confirmed by exit status.
+
+**Twenty-seven rounds, 61 findings.**

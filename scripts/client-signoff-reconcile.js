@@ -496,20 +496,46 @@ function detect(world) {
    * Live: none of the four repair candidates has a later client request, so
    * this changes no repair today. It is the falsest positive this job could
    * produce, which is why it is checked anyway. */
+  /* KEYED BY COMPONENT, not by deliverable. One deliverable carries the video
+   * work AND the caption and title reviews, so a caption request would
+   * otherwise supersede a video sign-off that has nothing to do with it — and
+   * after round 26, a request whose named component CONTRADICTS the validated
+   * link would suppress a stamp while being refused as unusable in the same
+   * run. A request supersedes the review it belongs to, and no other. */
+  const requestComponent = (pc) => {
+    const named = String((pc && pc.component) || '').trim().toLowerCase();
+    const del = delById.get(String((pc && pc.deliverable_id) || ''));
+    const linked = COMPONENT_FOR_TEAM[String((del && del.team) || '').trim().toLowerCase()];
+    /* NOTE ON A RULE DELIBERATELY NOT ADDED HERE. A request whose named
+     * component contradicts the validated link (round 26) needs no exclusion:
+     * keying by component already puts it on a key no approval from this
+     * deliverable can occupy, since the deliverable resolves to the OTHER
+     * component. Adding the exclusion anyway produced a control that would not
+     * fire, which this PR treats as a broken test rather than a redundant one —
+     * so the rule came back out. */
+    if (named && COMPONENT_FOR_KIND[named]) return COMPONENT_FOR_KIND[named];
+    return linked || '';
+  };
   const latestClientRequest = new Map();
   for (const pc of world.comments) {
     if (!pc || pc.deleted_at) continue;
     const id = String(pc.deliverable_id || '');
-    if (!id) continue;
+    const comp = requestComponent(pc);
+    if (!id || !comp) continue;
     const at = String(pc.created_at || '');
-    const prev = latestClientRequest.get(id);
-    if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(id, at);
+    const key = id + '|' + comp;
+    const prev = latestClientRequest.get(key);
+    if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(key, at);
   }
-  const supersededByRequest = (deliverableId, approvedAt) => {
-    const req = latestClientRequest.get(String(deliverableId));
+  /* A plain function, not an arrow: `arguments` in an arrow belongs to the
+   * enclosing scope, so the guard would read detect()'s own arguments and fire
+   * on every call. Same trap `resolve()` documents. */
+  function supersededByRequest(deliverableId, component, approvedAt) {
+    if (arguments.length < 3) throw new Error('supersededByRequest needs a component');
+    const req = latestClientRequest.get(String(deliverableId) + '|' + String(component || ''));
     const reqMs = Date.parse(req || ''), apprMs = Date.parse(approvedAt || '');
     return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
-  };
+  }
 
   /* The REPAIR side stays narrow: only a row the carrier actually wrote is
    * taken as a client approval to act on. The supersession side above is
@@ -674,7 +700,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
-    if (supersededByRequest(deliverableId, entry.at)) {
+    if (supersededByRequest(deliverableId, comp, entry.at)) {
       skip({ kind: 'stamp', reason: 'superseded_by_later_client_request',
         card: card.id, client: card.client, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
@@ -716,7 +742,7 @@ function detect(world) {
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
     });
     if (reopened || !stampSurvives(card, comp, at)) continue;
-    if (supersededByRequest(deliverableId, at)) continue;
+    if (supersededByRequest(deliverableId, comp, at)) continue;
     skip({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
       card: card.id, client: card.client, component: comp,
       card_status: card[STATUS_FIELD(comp)] || '' });
@@ -819,8 +845,12 @@ function detect(world) {
      * rather than resolved by picking one. */
     if (comp && hit.component && comp !== hit.component
       && REVERSE_LINK_FIELD[comp] && REVERSE_LINK_FIELD[hit.component]) {
+      /* The card has NOT moved on: the report cannot say which review the
+       * client meant, which is a person's decision, not an intentional skip. */
       skip({ kind: 'comment', reason: 'named_component_contradicts_link',
+        crosswalk_broken: true,
         card: hit.card.id, client: hit.card.client, component: comp,
+        deliverable: String(pc.deliverable_id || ''),
         linked_component: hit.component, comment: pc.id });
       continue;
     }
@@ -1286,7 +1316,8 @@ async function main() {
         if (!current) {
           skipped.push({ kind: finding.kind, reason: 'changed_under_us',
             card: finding.card.id, client: finding.card.client, component: finding.component });
-          log(`  ~ card ${finding.card.id} [${finding.component}] left alone: `
+          log(`  ~ card ${finding.card.id} (${finding.card.client}) `
+            + `[${finding.component}] left alone: `
             + 'the card changed between the read and the write');
           continue;
         }

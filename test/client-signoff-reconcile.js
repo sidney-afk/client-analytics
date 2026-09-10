@@ -1555,6 +1555,61 @@ check('every skip row that names a card names its client', () => {
   assert.ok(seen >= 4, `the fixtures must actually produce card-bearing skips (saw ${seen})`);
 });
 
+/* ROUND 27. The supersession clock was keyed by DELIVERABLE, but one deliverable
+   carries the video work and the caption and title reviews, so an unrelated
+   request suppressed a sign-off it had nothing to do with — including, after
+   round 26, a request the same run refuses as unusable. A request supersedes the
+   review it belongs to, and no other. */
+check('a caption request does not supersede the video sign-off', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ component: 'caption', created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp' && f.writable).length, 1,
+    'one deliverable carries several reviews; a caption request is not a video reopen');
+});
+
+check('a request refused as contradicting the link supersedes nothing', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE({ entity_id: 'del-1' })],
+    comments: [TWEAK({ component: 'video', created_at: '2026-09-06T10:00:00.000Z' })],
+    deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+      graphic_status: 'Approved', video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 1,
+    'a request the run cannot place must not silently block a repair');
+  assert.equal(findings[0].component, 'graphic');
+  assert.equal(skipped.some(x => x.reason === 'named_component_contradicts_link'), true);
+});
+
+/* And that refusal is a person's decision, not an intentional skip: the card has
+   not moved on, the report simply cannot say which review the client meant. */
+check('a contradicting component is counted as needing a person', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    comments: [TWEAK({ component: 'video' })],
+    deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+      graphic_status: 'Client Approval', video_status: 'Client Approval' })],
+  }));
+  const { crosswalkBroken, leftAlone } = classify({ findings: [], skipped });
+  assert.equal(crosswalkBroken.length, 1, 'the card has not moved on');
+  assert.equal(leftAlone.length, 0);
+});
+
+/* A component request still supersedes its OWN review, or round 17's fix would
+   have been undone by round 27's narrowing. */
+check('a video request still supersedes the video sign-off', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ component: 'video', created_at: '2026-09-06T10:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Approved' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 0);
+  assert.equal(skipped.some(x => x.reason === 'superseded_by_later_client_request'), true);
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

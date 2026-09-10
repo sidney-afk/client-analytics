@@ -90,9 +90,18 @@ function Invoke-PostgresLane {
   $password = [Guid]::NewGuid().ToString('N')
 
   try {
-    $containerId = (& $Docker run --detach --name $containerName --label $ownerLabel `
-      --publish '127.0.0.1::5432' --env "POSTGRES_PASSWORD=$password" "postgres:$Major")
-    if ($LASTEXITCODE -ne 0 -or -not $containerId) { throw "Could not start the disposable PostgreSQL $Major container." }
+    # Windows PowerShell treats native stderr (including a normal image pull)
+    # as an error when callers redirect streams. Judge Docker by its exit code.
+    $dockerPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $containerId = (& $Docker run --detach --name $containerName --label $ownerLabel `
+        --publish '127.0.0.1::5432' --env "POSTGRES_PASSWORD=$password" "postgres:$Major")
+      $dockerExit = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $dockerPreference
+    }
+    if ($dockerExit -ne 0 -or -not $containerId) { throw "Could not start the disposable PostgreSQL $Major container." }
     $containerId = $containerId.Trim()
     if ($containerId -notmatch '^[0-9a-f]{12,64}$') { throw 'Docker returned an invalid container identifier.' }
 
@@ -154,8 +163,17 @@ function Invoke-PostgresLane {
       Remove-Item "Env:$name" -ErrorAction SilentlyContinue
     }
     if ($containerId) {
-      $actualLabel = (& $Docker inspect --format '{{ index .Config.Labels "syncview.private-pg-proof" }}' $containerId 2>$null)
-      if ($LASTEXITCODE -eq 0 -and $actualLabel -eq "$RunId-$suffix") {
+      # Avoid embedded quotes stripped by Windows PowerShell's native argument
+      # marshalling. Read only labels, never the container credential environment.
+      $labelJson = (& $Docker inspect --format '{{json .Config.Labels}}' $containerId 2>$null)
+      $inspectExit = $LASTEXITCODE
+      $actualLabel = $null
+      if ($inspectExit -eq 0 -and $labelJson) {
+        $labels = $labelJson | ConvertFrom-Json
+        $ownerProperty = $labels.PSObject.Properties['syncview.private-pg-proof']
+        if ($ownerProperty) { $actualLabel = $ownerProperty.Value }
+      }
+      if ($inspectExit -eq 0 -and $actualLabel -eq "$RunId-$suffix") {
         & $Docker rm --force $containerId *> $null
         if ($LASTEXITCODE -ne 0) { Write-Warning "Cleanup failed for disposable container $containerName ($containerId)." }
       } else {
@@ -180,7 +198,18 @@ $runId = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') + '-' +
 $resultRoot = Join-Path ([IO.Path]::GetTempPath()) "syncview-private-pg-proof\$runId"
 New-Item -ItemType Directory -Path $resultRoot | Out-Null
 
+$originalPath = $env:PATH
 try {
+  # Git Bash runs the local shell-only fixtures. Windows' bash.exe may instead
+  # target Docker's WSL distribution, which has no /bin/bash.
+  $git = Get-Command git -ErrorAction SilentlyContinue
+  if ($git) {
+    $gitRoot = Split-Path (Split-Path $git.Source -Parent) -Parent
+    $gitBashDirectory = Join-Path $gitRoot 'bin'
+    if (Test-Path -LiteralPath (Join-Path $gitBashDirectory 'bash.exe')) {
+      $env:PATH = $gitBashDirectory + ';' + $env:PATH
+    }
+  }
   if ($Lane -in @('All', 'Unit')) {
     Invoke-PostgresLane -Major 16 -Kind Unit -Docker $docker -Node $node -Psql $psql -RunId $runId `
       -LogPath (Join-Path $resultRoot 'postgres16-unit.log')
@@ -197,4 +226,6 @@ try {
     -Value "FAIL lane=$Lane completed_utc=$((Get-Date).ToUniversalTime().ToString('o'))"
   Write-Error "Private PostgreSQL proof failed. Results: $resultRoot`n$($_.Exception.Message)"
   exit 1
+} finally {
+  $env:PATH = $originalPath
 }

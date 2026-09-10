@@ -216,8 +216,19 @@ explicit. Ordinary-receipt tests include the current event-assignee owner;
 their separately disclosed F27/native-owner prerequisite triggers remain
 no-ops, so this still does not prove the full owner composition.
 
-The native Windows fallback is separate from the supplied Docker runner, which
-still needs WSL and a running Docker engine. Chromium tests with synthetic HTTP
+The native Windows fallback is separate from the supplied Docker runner.
+After the owner enabled firmware virtualization and restarted, WSL2 and Docker
+became available. The first Docker run exposed Windows PowerShell treating
+normal image-pull stderr as a terminating error; container cleanup also lost
+embedded quotes in its label lookup. The local runner now checks Docker's exit
+code and reads labels as JSON while retaining the exact ownership check. The
+PG17 F27 Docker proof passed, including owned-container cleanup. The PG16 Docker
+run had 482/485 passing suite exits: one test assumed `/tmp`, and two selected
+the WSL Bash launcher instead of installed Git Bash. All three affected checks
+passed after using the system temporary directory and Git Bash; the runner now
+prefers Git Bash for this process and restores PATH afterward. The original
+failed run is retained; no subsequent full 485/485 pass is claimed. Three
+optional SQL rehearsals still skipped. Chromium tests with synthetic HTTP
 responses do not establish an end-to-end browser/HTTP/SQL journey. Local provider
 receipt simulations do not establish Slack delivery. No local result authorizes
 installation, publication, activation, production data changes, or n8n execution.

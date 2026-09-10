@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -105,7 +105,7 @@ try {
  if ($Lane -eq 'upstream-ledger') { $entry=Join-Path $repoRoot 'test\linear-exit-upstream-ledger.js' }
  if ($Lane -eq 'notifications') { $entry=Join-Path $repoRoot 'test\native-notifications-postgres.js' }
  if ($Lane -eq 'deferred-defaults') { $entry=Join-Path $repoRoot 'test\track-b-recovery-deferred-defaults-postgres.js' }
- if ($Lane -eq 'recovery') {
+ if ($Lane -in @('recovery','recovery-upstream-ledger')) {
   $dumpBinary=Join-Path $pgPath 'pg_dump.exe'
   if (!(Test-Path -LiteralPath $dumpBinary -PathType Leaf)) { throw 'Recovery lane requires the supplied PostgreSQL pg_dump binary.' }
   $entry=Join-Path $repoRoot 'scripts\track-b-recovery-rehearsal.js'
@@ -116,15 +116,17 @@ try {
    TRACK_B_RECOVERY_TEST_PSQL=(Join-Path $pgPath 'psql.exe');TRACK_B_RECOVERY_TEST_PG_DUMP=$dumpBinary;
    TRACK_B_RECOVERY_TEST_OUTPUT=(Join-Path $runRoot 'recovery')
   }
+  if ($Lane -eq 'recovery-upstream-ledger') { $recoverySettings['TRACK_B_RECOVERY_TEST_UPSTREAM_LEDGER']='1' }
   foreach ($key in $recoverySettings.Keys) { Set-ProofEnvironment $key $recoverySettings[$key] }
  }
  $arguments=@($entry)
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
- if ($result -eq 0 -and $Lane -eq 'recovery') {
+ if ($result -eq 0 -and $Lane -in @('recovery','recovery-upstream-ledger')) {
   $recoveryDirectories=@(Get-ChildItem -LiteralPath (Join-Path $runRoot 'recovery') -Directory -Filter 'schema-history-v11-*')
   if ($recoveryDirectories.Count -ne 1) { throw 'Expected exactly one owned versioned recovery run.' }
   $recoveryReport=Get-Content -LiteralPath (Join-Path $recoveryDirectories[0].FullName 'REPORT.private.json') -Raw | ConvertFrom-Json
+  if ($Lane -eq 'recovery-upstream-ledger' -and $recoveryReport.upstream_ledger_verified -ne $true) { throw 'Required restored upstream ledger proof missing.' }
   if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
  }
  if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger')) {

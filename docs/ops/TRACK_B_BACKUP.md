@@ -1,5 +1,27 @@
 # Track-B private backup and restore rehearsal
 
+## Latest verified recovery with upstream ledger
+
+The supported `recovery-upstream-ledger` lane **PASSES31 checks across52
+tables**, preserving all25 baseline recovery checks plus six checks for exact
+ledger history and restored insert/update triggers on Calendar and Samples.
+Ordinary saves and same-marker retries create no duplicate ping events. Both
+upstream SQL owners are hash-pinned to `fcebb856` and included before capture.
+The local server stopped. This closes the isolated reconstructed-trigger gap;
+full upstream source integration and hosted recovery remain unproven.
+
+Execution used working-tree rehearsal changes over `d5d1aa54`. An earlier
+run failed because fixture snapshots preceded the new marker columns; schema
+setup now precedes snapshots, and all original assertions remain. The failed
+receipt is retained. This is synthetic schema/data proof, not real Storage
+custody, hosted installation, or deployment authorization. Installation HOLD.
+
+A non-mutating patch check found upstream source applies except two document
+conflicts: `REPO_MAP.md` and `docs/truth/SUPABASE.md`. No upstream patch has
+been applied. Reconcile those documents while preserving the prepared additions
+when preparing combined source; keep frozen writer authentication unchanged.
+
+
 ## Latest verified local recovery
 
 The full isolated history-v11 rehearsal now **PASSES all 25 checks for 52

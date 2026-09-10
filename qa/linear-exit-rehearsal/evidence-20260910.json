@@ -181,5 +181,22 @@
     "private_log_sha256": "232a7dbb6093629f54786961c5df2cba67c48e5df5557e07acbd210ec5528575",
     "full_upstream_integration_proven": false,
     "restored_trigger_behavior": "UNPROVEN"
+  },
+  "upstream_ledger_recovery": {
+    "status": "PASS",
+    "classification": "ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY",
+    "checks": 31,
+    "baseline_checks": 25,
+    "upstream_checks": 6,
+    "table_count": 52,
+    "upstream_ledger_verified": true,
+    "execution_base": "d5d1aa5476ddb6b6944ccc9843387bea80e855b4",
+    "working_tree_tests": true,
+    "server_stopped": true,
+    "private_log_sha256": "03f4d461a8416ba630ad593a1fb95e83223b93d74966bf99ff227e16b3e6fb3a",
+    "private_report_sha256": "d773601b2f025f6b7e07375bdca43ca8ec08e2e88e2e5bf140c89a24730204d9",
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "hosted_recovery_proven": false,
+    "full_upstream_integration_proven": false
   }
 }

@@ -18,6 +18,49 @@ const ROOT = path.resolve(__dirname, '..');
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
 if (!['history-v7','history-v8','history-v9','history-v10','history-v11'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const CORPUS_VERSION = backup.resolveCorpus(CORPUS).version;
+const UPSTREAM_LEDGER = process.env.TRACK_B_RECOVERY_TEST_UPSTREAM_LEDGER === '1';
+if (process.env.TRACK_B_RECOVERY_TEST_UPSTREAM_LEDGER && !UPSTREAM_LEDGER) throw new Error('invalid_upstream_ledger_opt_in');
+if (UPSTREAM_LEDGER && CORPUS !== 'history-v11') throw new Error('upstream_ledger_requires_history_v11');
+const UPSTREAM_LEDGER_COMMIT = 'fcebb856d3f5ea607cf5665ac391c258ad173abb';
+const UPSTREAM_LEDGER_OWNERS = [
+  ['2026-09-09-kasper-urgent-pings.sql','fdab0481ae24094831540efb294ae80d749c6f2aa0e5c4034c3346a96632b72b'],
+  ['2026-09-10-kasper-urgent-ping-ledger.sql','21c6e1b95b9a5fde8fc3e2d75b91a25d959d422f5eb8578648dc9b87611e45b7'],
+];
+const LEDGER_SURFACES = [['calendar_posts','calendar_post_events','post_id'],['sample_reviews','sample_review_events','sample_id']];
+function seedUpstreamLedger(source) {
+  // Exact reviewed upstream bytes are executed only in this disposable source.
+  const owners=UPSTREAM_LEDGER_OWNERS.map(([name,expected])=>{
+    const bytes=cp.execFileSync('git',['show',`${UPSTREAM_LEDGER_COMMIT}:migrations/${name}`],{cwd:ROOT,maxBuffer:1024*1024,windowsHide:true});
+    assert.equal(sha(bytes),expected,'upstream ledger source hash mismatch');return bytes.toString('utf8');
+  });
+  source.query(owners[0]);
+  for(const [table,events,key]of LEDGER_SURFACES)source.query(`
+    insert into public.${table}(client,id,name,status,kasper_urgent_pinged_at,kasper_urgent_status_at,kasper_urgent_comp,kasper_urgent_by)
+    values ('fixture-client','recovery-upstream-ledger','Synthetic recovery ledger','In Progress','2030-01-02Z','2030-01-01Z','video','Synthetic staff');
+    insert into public.${events}(client,${key},ts,action,source,payload)
+    values ('fixture-client','recovery-upstream-ledger','2030-01-01Z','kasper_urgent_ping','db',jsonb_build_object('pinged_at',to_jsonb('2030-01-01Z'::timestamptz)));`);
+  source.query(owners[1]);
+  for(const [,events,key]of LEDGER_SURFACES)assert.equal(source.query(`select count(*) from public.${events} where ${key}='recovery-upstream-ledger' and action='kasper_urgent_ping'`),'2');
+}
+function verifyRestoredLedger(source,target,check) {
+  for(const [table,events,key]of LEDGER_SURFACES){
+    const scope=`${key}='recovery-upstream-ledger' and action='kasper_urgent_ping'`;
+    check(`${table} authenticated ledger history restored exactly`,()=>assert.deepEqual(target.rows(`select * from public.${events} where ${scope} order by id`),source.rows(`select * from public.${events} where ${scope} order by id`)));
+    check(`${table} restored update trigger and duplicate suppression`,()=>{
+      assert.equal(target.query(`select count(*) from public.${events} where ${scope}`),'2');
+      target.query(`update public.${table} set name='Ordinary restored save',kasper_urgent_pinged_at='2030-01-02Z' where client='fixture-client' and id='recovery-upstream-ledger'`);
+      assert.equal(target.query(`select count(*) from public.${events} where ${scope}`),'2');
+      target.query(`update public.${table} set kasper_urgent_pinged_at='2030-01-03Z' where client='fixture-client' and id='recovery-upstream-ledger'`);
+      assert.equal(target.query(`select count(*)=3 and count(*) filter(where payload->>'via'='trigger' and source='db' and actor='Synthetic staff')=1 from public.${events} where ${scope}`),'t');
+      target.query(`update public.${table} set kasper_urgent_pinged_at='2030-01-03Z' where client='fixture-client' and id='recovery-upstream-ledger'`);
+      assert.equal(target.query(`select count(*) from public.${events} where ${scope}`),'3');
+    });
+    check(`${table} restored insert trigger records exactly one event`,()=>{
+      target.query(`insert into public.${table}(client,id,status,kasper_urgent_pinged_at,kasper_urgent_comp,kasper_urgent_by) values ('fixture-client','recovery-upstream-insert','In Progress','2030-01-04Z','video','Synthetic staff')`);
+      assert.equal(target.query(`select count(*) from public.${events} where ${key}='recovery-upstream-insert' and action='kasper_urgent_ping' and payload->>'via'='trigger' and source='db' and actor='Synthetic staff'`),'1');
+    });
+  }
+}
 // Named v10 recovery inventory. These are the durable owners that the native
 // repair adds or whose existing state is required to replay the v10 receipt;
 // this is intentionally an inventory, not a claim that a fixed table count
@@ -193,6 +236,7 @@ async function run() {
         source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
       source.query("insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);");
     }
+    if (UPSTREAM_LEDGER) seedUpstreamLedger(source);
     const seeded = phase(cfg, source, 'seed', '', 'source');
     const continuity = CORPUS_VERSION>=9 ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
@@ -467,7 +511,8 @@ async function run() {
         assert.notEqual(refused.status,0);assert.match(refused.stderr,/omits native continuity/);
       });
     }
-    const report = { status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
+    if (UPSTREAM_LEDGER) verifyRestoredLedger(source,target,check);
+    const report = { upstream_ledger_verified: UPSTREAM_LEDGER, ...(UPSTREAM_LEDGER ? {upstream_ledger_commit:UPSTREAM_LEDGER_COMMIT,upstream_ledger_owners:UPSTREAM_LEDGER_OWNERS} : {}), status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
       corpus: CORPUS, table_count: backup.resolveCorpus(CORPUS).tables.length, package_sha256: sha(bytes), source_sha256: pins,
       data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
       limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',

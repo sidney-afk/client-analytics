@@ -114,3 +114,10 @@ system. The existing marker migration supplies its real column prerequisites.
 This tests the new ledger together with the prepared composition. It does not
 prove full upstream integration or trigger behavior after authenticated recovery;
 those remain separate gates. Raw temporary source and receipts stay private.
+
+Use `-Lane recovery-upstream-ledger` to extend the full authenticated history-v11
+recovery rehearsal with those same pinned owners. The runner requires both
+the standard52-table PASS report and an explicit
+`upstream_ledger_verified: true` result; a plain recovery PASS cannot satisfy
+this lane. The source remains synthetic, and hosted recovery/Storage custody
+remain outside its scope.

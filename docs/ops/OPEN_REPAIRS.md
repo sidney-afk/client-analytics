@@ -18894,3 +18894,69 @@ status disagrees with its card row is a repairable fact, visible without any
 browser), which is an owner decision about who owns the card row and is
 deliberately NOT taken here. The planned review-surface fault sweep across
 Client / SMM / Kasper should shape it before it is built.
+
+## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Two silent losses on the review surfaces: the client's sign-off stamp, and a change request that never reaches the card
+
+**Found by the review-surface sweep (`qa/review-surface-sweep`), and it explains
+an anomaly item 186 recorded as unexplained.**
+
+A client approve that meets ANY of the three write faults recovers its component
+status to `Approved` and never writes `client_<comp>_approved_at`. The no-fault
+control writes it correctly, so this is the recovery path dropping it rather
+than the action failing to produce it.
+
+| client / approve | source row after recovery | sign-off stamp |
+|---|---|---|
+| no fault (control) | `Approved` | **present** |
+| gateway answer lost | `Approved` | **missing** |
+| 5xx after commit | `Approved` | **missing** |
+| source write rejected | `Approved` | **missing** |
+
+**The live row agrees.** Item 186's production card ended at
+`video_status = Approved` with `client_video_approved_at = null`, and that was
+noted at the time as unexplained. It now has a mechanism and a reproduction.
+
+**Why this one matters more than its size suggests.** Every other symptom in
+this family is a temporary disagreement that heals. This one is a PERMANENT loss
+of the only record that the client personally signed off. The status says the
+work was approved; nothing says who approved it. On a product whose entire
+service is client approval, that row IS the evidence, and after any network
+hiccup it is blank. Nobody notices, because the card looks correct.
+
+**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE, AND IT IS UNCONFIRMED: a change
+request may commit on the server and never reach the card.** Read the caveat
+under it before acting: the eighth review round showed at least one of its six
+rows is a harness artifact, so this is a lead, not an established defect.** Client and SMM alike, under a lost gateway
+answer, a 5xx after commit, or a never-sent request that later resumes: the
+gateway records the comment, `calendar_posts` gets nothing, and the resume does
+not close the gap. The editor opens the card and sees no change request while
+the server holds one. This one is worse in a specific way: with the approve at
+least the STATUS eventually agrees, whereas here the card shows no sign that
+anything was ever asked for.
+
+It was missed twice, and the reason is worth recording: the sweep's scorer
+skipped its thread check whenever no source write landed, which is precisely the
+case where the split happens, so two published versions of the sweep concluded
+"requesting a change is sound on both surfaces". A committed comment is a fact
+about the SERVER and has to be compared whether or not any source patch landed.
+
+**THE SWEEP'S COUNTS ARE NOT TRUSTWORTHY, and finding 1 does not depend on
+them.** After eight review rounds the probe was shown to be wrong in both
+directions at once: it over-reports (a staff boot creates a repair journal a
+real client link would not, since client comments get `repair = null`) and
+under-reports (its pre-resume window compares only component status, missing the
+comment splits). Finding 1 stands anyway because the LIVE production row
+corroborates it independently. Finding 2 does not, and is held as a lead until
+someone reruns it from a real tokened client context. `qa/review-surface-sweep`
+is marked instrument-only for the same reason.
+
+**Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
+belongs with the server-side reconciler rather than as another browser patch:
+the recovery path that restores the status is the same one that would carry the
+stamp, and OPEN_REPAIRS 189 records why patching that path in the browser was
+abandoned after seven review findings.
+
+**What would prove a fix:** the sweep's `client / approve` rows flag zero
+companion problems across all four faults with the control still writing the
+stamp, AND every `request-change` row carries its committed comment into the
+source row.

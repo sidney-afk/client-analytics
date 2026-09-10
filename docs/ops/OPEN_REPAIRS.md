@@ -19993,3 +19993,27 @@ reporting a refusal instead of skipping.
 defect in the code's behaviour toward client data, but a **wrong measurement
 published as a finding**. The fix for that is not more rules — it is checking
 which surface a row belongs to before calling it lost.
+
+### 195x. Round 23: the identity and the headline, for rows four rounds spent making actionable
+
+Two consistency failures, both in rows that 195o–195w had been steadily
+promoting into operator work.
+
+**The unresolved row discarded the event's client.** The renderer already
+printed `row.client`; the constructor never set it. After `move-card-client.js`
+runs, the deliverable's client and the approval's differ — so the line named a
+deliverable and an unidentified card and never said **whose approval failed**,
+which is the one thing an operator needs to act. The event's client is retained
+now, not the deliverable's.
+
+**The headline asserted a card leg the detail line calls unknown.** 195t
+narrowed the per-row claim to what is known; the summary still counted every
+carrier failure under "reached neither leg". Split: a resolved carrier failure
+was qualified against four tests and keeps that wording; a crosswalk refusal is
+counted as "client approve not carried, card leg unknown". A summary that
+contradicts its own detail is 195t's defect one level up, and it went unnoticed
+because 195t only looked at the line it was fixing.
+
+103 checks, two controls, both confirmed by exit status.
+
+**Twenty-three rounds, 51 findings.**

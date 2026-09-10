@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 101 checks, each
+construction through fixtures — no credentials, no network. 103 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -415,6 +415,12 @@ Considered and rejected: following the half-link anyway to read the stamp. That
 is the exact trust the crosswalk gate exists to refuse, and using it to
 *suppress* a report would let a mis-linked card hide a real loss. Resolvable
 rows are unchanged and still get all four tests.
+
+The summary distinguishes the two carrier failures, because only one of them
+knows what happened to the card leg: a **resolved** one was qualified against
+four tests, so "reached neither leg" is established; a **crosswalk refusal**
+establishes only that the carrier did not write. A headline that asserts what
+the detail line explicitly calls unknown is the same defect one level up.
 
 The summary's own counts are a rule, not decoration: the workflow tells the
 operator to read them, so `summaryLines()` is a pure exported function and the

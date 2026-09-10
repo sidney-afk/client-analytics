@@ -545,6 +545,11 @@ function detect(world) {
         skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
           refusal: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
           carrier_status: carrier || '(none)', card: '(unidentified)',
+          /* The EVENT's client, not the deliverable's. After a card move the
+           * two differ, and the row belongs to whoever approved — without it
+           * the line names a deliverable and an unidentified card and never
+           * says whose approval failed. */
+          client: String((row && row.client_slug) || ''),
           deliverable: String((row && row.entity_id) || ''), component: '' });
         continue;
       }
@@ -1090,6 +1095,13 @@ function classify({ findings, skipped }) {
    * because the operator looks in a different place, and separate from "left
    * alone" because there is something to do. */
   const crosswalkBroken = skipped.filter(row => row.crosswalk_broken && !row.carrier_status);
+  /* SPLIT, because only one of these two knows what happened to the card leg.
+   * A resolved carrier failure was qualified against four tests, so "reached
+   * neither leg" is established. A crosswalk refusal establishes only that the
+   * carrier did not write; the headline must not assert the leg the detail line
+   * explicitly calls UNKNOWN. */
+  const carrierFailedKnown = carrierFailed.filter(row => row.reason === 'carrier_did_not_write');
+  const carrierFailedUnknownCard = carrierFailed.filter(row => row.reason !== 'carrier_did_not_write');
   const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
     && !row.crosswalk_broken
     && !(row.kind === 'stamp'
@@ -1101,11 +1113,13 @@ function classify({ findings, skipped }) {
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
       + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
       + `ambiguous repeat ${ambiguous.length}, `
-      + `client approve that reached neither leg ${carrierFailed.length}, `
+      + `client approve that reached neither leg ${carrierFailedKnown.length}, `
+      + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
       + `carried approve whose card is missing ${crosswalkBroken.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
-  return { writable, reportOnly, ambiguous, carrierFailed, crosswalkBroken, leftAlone, lines };
+  return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
+    carrierFailedUnknownCard, crosswalkBroken, leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 

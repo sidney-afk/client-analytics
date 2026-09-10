@@ -1238,7 +1238,11 @@ check('a lost approval that could not resolve a card counts as needing a person'
   ] });
   assert.equal(carrierFailed.length, 1, 'a refusal on the unwritten path is carrier-failure work');
   assert.equal(leftAlone.length, 1);
-  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /reached neither leg 1/);
+  /* Counted under the UNKNOWN term, not "reached neither leg": only the carrier
+     failure is established here, and the headline must not assert the leg the
+     detail line explicitly calls unknown. */
+  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /card leg unknown 1/);
+  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /reached neither leg 0/);
 });
 
 /* ROUND 19. The refusal row claimed the approval "reached neither leg" — but the
@@ -1340,6 +1344,44 @@ check('a cross-client approval is not counted as a broken crosswalk', () => {
   }));
   assert.equal(skipped[0].reason, 'approval_belongs_to_another_client');
   assert.equal(classify({ findings: [], skipped }).crosswalkBroken.length, 0);
+});
+
+/* ROUND 23. Two consistency failures in rows the last four rounds made
+   actionable: the identity and the headline. */
+
+/* The unwritten refusal discarded the EVENT's client while the renderer already
+   printed one. After a card move the deliverable's client and the approval's
+   differ, so the line named a deliverable and an unidentified card and never
+   said whose approval failed. */
+check('an unresolved lost approval names the client whose approval it was', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ status: 'pending', client_slug: 'oldclient' })],
+    deliverables: [DEL({ client_slug: 'testclient' })],
+    cards: [CARD({ video_deliverable_id: 'other' })],
+  }));
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].client, 'oldclient',
+    "the row belongs to whoever approved, not to the deliverable's current owner");
+  assert.equal(skipped[0].deliverable, 'del-1');
+});
+
+/* The headline counted both shapes as "reached neither leg" while the detail
+   line for one of them said the card leg is UNKNOWN. A summary that asserts
+   what the detail explicitly disclaims is the round-19 defect one level up. */
+check('the headline does not assert a card leg the detail calls unknown', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { lines, carrierFailedKnown, carrierFailedUnknownCard } = classify({ findings: [], skipped: [
+    { kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: 'stale',
+      card: 'card-1', client: 'testclient', component: 'video' },
+    { kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown', refusal: 'unknown_team',
+      carrier_status: 'pending', card: '(unidentified)', deliverable: 'del-9', component: '' },
+  ] });
+  assert.equal(carrierFailedKnown.length, 1);
+  assert.equal(carrierFailedUnknownCard.length, 1);
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /reached neither leg 1/, needs);
+  assert.match(needs, /card leg unknown 1/, needs);
+  assert.match(needs, /NEEDS A PERSON \(never written\): 2\b/, needs);
 });
 
 check('a properly linked card is still stamped normally', () => {

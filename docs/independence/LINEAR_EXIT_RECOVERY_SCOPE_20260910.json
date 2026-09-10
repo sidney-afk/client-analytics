@@ -32,7 +32,13 @@
       "safe_to_exclude": false,
       "priority": "PRIORITY_PRESERVATION_DECISION",
       "reason": "No targeted repository owner found; preserve pending provenance and custody review.",
-      "review_references": []
+      "review_references": [],
+      "observed_metadata": {
+        "column_count": 3,
+        "primary_keys": [],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "caption_prompts",
@@ -120,7 +126,18 @@
       "review_references": [
         "migrations/live-schema-baseline-2026-07-03.sql",
         "migrations/samples-supabase-migration.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 17,
+        "primary_keys": [
+          [
+            "client",
+            "id"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "filming_plans",
@@ -133,7 +150,17 @@
       "reason": "Adjacent content/workflow data is not a justified exclusion.",
       "review_references": [
         "migrations/2026-07-09-filming-plans-source.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 9,
+        "primary_keys": [
+          [
+            "client_slug"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "hiring_application_events",
@@ -263,7 +290,17 @@
       "reason": "Protected rescue configuration needs separate secure recovery; do not place values in public artifacts.",
       "review_references": [
         "docs/ops/F34_LINEAR_ASSET_RESCUE.md"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 7,
+        "primary_keys": [
+          [
+            "config_key"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "onboarding_fallback",
@@ -291,7 +328,17 @@
       "reason": "Preserve unresolved comment import identity and coverage evidence.",
       "review_references": [
         "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 9,
+        "primary_keys": [
+          [
+            "id"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "production_comment_read_audit",
@@ -304,7 +351,17 @@
       "reason": "Durable read-access history needs an explicit retention and restore contract.",
       "review_references": [
         "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 7,
+        "primary_keys": [
+          [
+            "id"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "production_comment_read_budget",
@@ -317,7 +374,18 @@
       "reason": "Rate-window state requires a justified reset/restore policy distinct from audit history.",
       "review_references": [
         "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 3,
+        "primary_keys": [
+          [
+            "actor_key",
+            "window_start"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "quiz_intake_log",
@@ -410,7 +478,17 @@
       "reason": "Retained thumbnail baseline/latest evidence and private Storage references need data plus object custody.",
       "review_references": [
         "migrations/2026-07-14-thumbnail-revision-v2.sql"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 31,
+        "primary_keys": [
+          [
+            "id"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     },
     {
       "table": "tiktok_accounts",
@@ -469,10 +547,26 @@
       "reason": "Provider-derived projection has documented consumers; rebuildability after exit is not established.",
       "review_references": [
         "docs/ops/WORKLOAD_NATIVE_SOURCE.md"
-      ]
+      ],
+      "observed_metadata": {
+        "column_count": 20,
+        "primary_keys": [
+          [
+            "id"
+          ]
+        ],
+        "declared_foreign_key_count": 0,
+        "semantic_dependency_closure": false
+      }
     }
   ],
   "review_limits": "Table-name/source mapping only; no row-content inspection, no data-loss finding, no authorized exclusions.",
   "priority_tables": 9,
-  "other_application_tables": 25
+  "other_application_tables": 25,
+  "priority_restore_contract": "docs/ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md",
+  "priority_metadata": {
+    "observed_at": "2026-09-10T23:36:36.482Z",
+    "private_receipt_sha256": "16608f16f644a4cd93a1c094442d870cf73589b5db6a268e20ca7a50529e4e7d",
+    "application_rows_read": false
+  }
 }

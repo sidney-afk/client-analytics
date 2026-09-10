@@ -195,3 +195,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-view-provenance.js` ? local PostgreSQL reconstruction against a pinned hosted-view definition hash.
 
 - `docs/independence/LINEAR_EXIT_RECOVERY_SCOPE_20260910.json` ? observed tables outside history-v11 and provisional source-backed custody decisions.
+
+- `docs/ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md` ? proposed nine-table preservation and acceptance contract, including duplicate-sensitive backup custody.

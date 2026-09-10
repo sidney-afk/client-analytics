@@ -525,3 +525,9 @@ Thumbnail Storage bytes and rescue configuration require separate private
 custody. The parent-claim backup remains untraced. Review the register before
 proposing a successor corpus; this source review authorizes no live backup or
 retention change.
+
+The nine priority owners now have a proposed restore contract in
+`LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md`, backed by a selected hosted key
+metadata observation. The parent-claim backup has no primary key and needs
+duplicate-sensitive preservation. No successor corpus is implemented and no
+retention or backup job was changed.

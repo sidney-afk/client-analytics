@@ -1,5 +1,23 @@
 # Completed isolated evidence
 
+## Latest priority restore contract
+
+The nine priority tables now have a proposed preservation/acceptance contract
+at docs/ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md. One metadata-only hosted
+read confirms eight declared primary keys and no primary key on the parent-claim
+backup. That backup requires duplicate-sensitive multiset preservation; inventing
+a key or silently deduplicating would not satisfy the contract. No declared FKs
+were observed for these nine, but semantic dependencies remain open.
+
+The contract preserves history, audit/import evidence and rate-window state;
+separates private rescue configuration and thumbnail/document object custody;
+and requires isolated exact-row, duplicate-loss, missing-object and permission
+checks. No successor package or retention reset is implemented or authorized.
+History-v11 and scheduled v3 meanings remain unchanged. Metadata receipt hashes
+and observed keys are added to the scope register; no application rows or private
+configuration values were read. Installation HOLD.
+
+
 ## Latest outside-corpus preservation review
 
 A source-backed scope register now enumerates all 34 observed public tables

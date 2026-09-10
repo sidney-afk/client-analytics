@@ -235,5 +235,25 @@
     "rehearsal_consumers_wired": false,
     "artifact": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
     "artifact_sha256": "774d5e3b328898c4aa152fbf9dc5bedb788d5c1090dc8d369242fc7d90e29248"
+  },
+  "shared_inventory_binding": {
+    "execution_base": "303350e08f06fd8815de4c3e51a759e0b403bcd1",
+    "working_tree_changes": true,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source_binding": "VERIFIED_PRE_AND_POST",
+    "shared_ordered_execution": false,
+    "composition": {
+      "status": "PASS",
+      "assertions": 65,
+      "server_stopped": true,
+      "private_log_sha256": "2931b811c8a99bc9977f7f1fb6bc67ffa8189983d99f7749d295f7b536e4c0ec"
+    },
+    "recovery": {
+      "status": "PASS",
+      "checks": 31,
+      "table_count": 52,
+      "server_stopped": true,
+      "private_log_sha256": "7fd43d5163826b9d32ef8127eec9a7802541116ede312a9282207eb6bc0d7dba"
+    }
   }
 }

@@ -15,6 +15,17 @@ const dataRestore = require('./track-b-restore-rehearsal');
 const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
+const installInventory = require('./linear-exit-install-manifest');
+const INSTALL_INVENTORY_PATH = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json';
+function inventorySnapshot() {
+  const bytes=fs.readFileSync(path.join(ROOT,INSTALL_INVENTORY_PATH));
+  const manifest=JSON.parse(bytes.toString('utf8'));installInventory.verify(manifest);
+  return {bytes,manifest,binding:{identity:INSTALL_INVENTORY_PATH,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),classification:'SOURCE_ONLY',execution_order:'INDEPENDENT_REHEARSAL_ORDER; shared ordered execution unproven'}};
+}
+function reverifyInventory(snapshot) {
+  assert.deepEqual(fs.readFileSync(path.join(ROOT,INSTALL_INVENTORY_PATH)),snapshot.bytes,'install source inventory changed during rehearsal');
+  installInventory.verify(snapshot.manifest);
+}
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
 if (!['history-v7','history-v8','history-v9','history-v10','history-v11'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const CORPUS_VERSION = backup.resolveCorpus(CORPUS).version;
@@ -189,6 +200,7 @@ function postCommitRefusal() {
   return { reconstruct: instance.exports.reconstruct, counts };
 }
 async function run() {
+  const inventory=inventorySnapshot(); // Refuse stale inputs before any database creation.
   const cfg = config(); fs.mkdirSync(cfg.output, { recursive: true });
   const output = fs.realpathSync.native(cfg.output); if (sameOrInside(output, fs.realpathSync.native(ROOT))) throw new Error('repository_output_forbidden');
   cfg.output = path.join(output, 'schema-'+CORPUS+'-' + new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(4).toString('hex'));
@@ -512,7 +524,8 @@ async function run() {
       });
     }
     if (UPSTREAM_LEDGER) verifyRestoredLedger(source,target,check);
-    const report = { upstream_ledger_verified: UPSTREAM_LEDGER, ...(UPSTREAM_LEDGER ? {upstream_ledger_commit:UPSTREAM_LEDGER_COMMIT,upstream_ledger_owners:UPSTREAM_LEDGER_OWNERS} : {}), status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
+    reverifyInventory(inventory);
+    const report = { install_source_inventory:inventory.binding, upstream_ledger_verified: UPSTREAM_LEDGER, ...(UPSTREAM_LEDGER ? {upstream_ledger_commit:UPSTREAM_LEDGER_COMMIT,upstream_ledger_owners:UPSTREAM_LEDGER_OWNERS} : {}), status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
       corpus: CORPUS, table_count: backup.resolveCorpus(CORPUS).tables.length, package_sha256: sha(bytes), source_sha256: pins,
       data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
       limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',
@@ -520,7 +533,7 @@ async function run() {
         'Callable lexical source is independently reviewed; execution coverage is limited to this fixture',
         'No serving adapter, provider, workflow, alert or live action', 'Media object bytes, storage bucket configuration and private owner receipt bytes are separate custody; ledger restoration does not recover these'] };
     fs.writeFileSync(path.join(cfg.output, 'REPORT.private.json'), JSON.stringify(report, null, 2)); complete = true;
-    console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: backup.resolveCorpus(CORPUS).tables.length }));
+    console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: backup.resolveCorpus(CORPUS).tables.length, install_source_inventory:inventory.binding }));
   } catch (error) {
     fs.writeFileSync(path.join(cfg.output, 'FAILURE.private.log'), String(error.stack || error) + '\n' + String(error.detail || ''));
     console.log(JSON.stringify({ status: 'FAIL', code: 'LOCAL_SCHEMA_REHEARSAL_FAILED', completed_checks: checks.length })); process.exitCode = 1;

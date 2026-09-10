@@ -30,4 +30,19 @@ assert.ok(order.indexOf('2026-09-05-artifact-card-binding-first.sql')<order.inde
 assert.ok(order.indexOf('2026-09-09-workload-native-roster.sql')<order.indexOf('2026-09-09-native-attribution-browser-projection.sql'));
 assert.ok(order.indexOf('2026-09-11-native-ordinary-receipt-repair.sql')<order.indexOf('2026-09-12-native-ordinary-envelope-repair.sql'));
 assert.ok(order.indexOf('2026-09-09-syncview-retirement-admission.sql')<order.indexOf('2026-09-10-syncview-retirement-native-ordinary-recognizer.sql'));
+
+
+// Reversing inventory order ensures these are graph constraints, not array luck.
+const reversed=m.validate([...manifest.entries].reverse());
+for(const [before,after] of [
+ ['2026-07-20-f27-team-rollback.sql','atomic-native-intake'],
+ ['2026-07-20-f27-team-rollback.sql','2026-09-06-native-existing-assignment.sql'],
+ ['2026-07-20-f27-team-rollback.sql','2026-09-06-native-label-writes.sql'],
+ ['2026-09-08-native-intake-receipt-retention.sql','2026-09-09-syncview-retirement-admission.sql'],
+ ['2026-09-06-native-existing-assignment.sql','2026-09-09-syncview-retirement-admission.sql'],
+ ['2026-09-06-native-label-writes.sql','2026-09-09-syncview-retirement-admission.sql'],
+ ['2026-07-12-production-comments.sql','2026-09-09-native-notification-outbox.sql'],
+ ['2026-07-03-a1-calendar-upsert.sql','2026-09-10-kasper-urgent-ping-ledger.sql'],
+])assert.ok(reversed.indexOf(before)<reversed.indexOf(after),before+' must precede '+after);
+
 console.log('PASS source installation inventory: hash drift, atomicity, graph refusal and explicit incomplete gates');

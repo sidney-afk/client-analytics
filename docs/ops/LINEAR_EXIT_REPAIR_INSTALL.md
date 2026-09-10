@@ -409,6 +409,8 @@ a hash mismatch. Its verify() routine refuses source or contract drift.
 The output distinguishes baseline-source inventory from candidate owners and
 keeps atomic intake indivisible. It validates declared graph edges but explicitly
 does not assert the graph is complete. No target catalog signature is invented,
-no resume is authorized, and neither existing rehearsal has been rewired yet.
+no resume is authorized. Both existing rehearsals now verify the same inventory
+before database creation and before PASS, while retaining their independent
+execution orders. Manifest-driven ordered installation remains unproven.
 Savepoint validation resets state across transactions and models nested release
 and rollback semantics; it does not execute the SQL or prove installed behavior.

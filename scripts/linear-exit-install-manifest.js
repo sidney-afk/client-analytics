@@ -40,12 +40,15 @@ const ATOMIC='atomic-native-intake';
 // closure is deliberately marked incomplete until target baseline review.
 const DEPENDENCIES={
  '2026-07-20-f27-team-rollback.sql':['2026-07-28-f27-write-authorization-only.sql','2026-09-05-artifact-card-binding-first.sql','2026-07-23-production-comment-thread-lifecycle.sql'],
- [ATOMIC]:['2026-09-05-native-intake-root-manifest.sql','2026-09-05-native-label-catalog-foundation.sql','2026-08-26-production-intake-append-v7.sql'],
+ [ATOMIC]:['2026-07-20-f27-team-rollback.sql','2026-09-05-native-intake-root-manifest.sql','2026-09-05-native-label-catalog-foundation.sql','2026-08-26-production-intake-append-v7.sql'],
  '2026-09-08-native-intake-receipt-retention.sql':[ATOMIC],
  '2026-09-05-native-intake-reconcile.sql':[ATOMIC,'2026-09-08-native-intake-receipt-retention.sql'],
  '2026-09-06-native-card-materialization-boundary.sql':['2026-09-05-native-intake-reconcile.sql'],
  '2026-09-07-legacy-intake-native-triage.sql':['2026-09-06-native-card-materialization-boundary.sql'],
- '2026-09-06-native-label-writes.sql':['2026-09-05-native-label-catalog-foundation.sql'],
+ '2026-09-06-native-existing-assignment.sql':['2026-07-20-f27-team-rollback.sql'],
+ '2026-09-06-native-label-writes.sql':['2026-07-20-f27-team-rollback.sql','2026-09-05-native-label-catalog-foundation.sql'],
+ '2026-09-09-native-ordinary-receipts.sql':['2026-07-20-f27-team-rollback.sql','2026-07-23-production-comment-thread-lifecycle.sql'],
+ '2026-09-09-syncview-retirement-admission.sql':['2026-07-20-f27-team-rollback.sql','2026-09-08-native-intake-receipt-retention.sql','2026-09-06-native-existing-assignment.sql','2026-09-06-native-label-writes.sql'],
  '2026-09-09-native-client-provisioning.sql':['2026-08-04-client-access-auto-provision.sql',ATOMIC],
  '2026-09-05-workload-native-membership.sql':['2026-09-02-workload-native-view.sql'],
  '2026-09-08-workload-native-label-state-shape.sql':['2026-09-05-workload-native-membership.sql'],
@@ -54,9 +57,9 @@ const DEPENDENCIES={
  '2026-09-10-syncview-retirement-native-ordinary-recognizer.sql':['2026-09-09-syncview-retirement-admission.sql','2026-09-09-native-ordinary-receipts.sql'],
  '2026-09-11-native-ordinary-receipt-repair.sql':['2026-09-09-native-ordinary-receipts.sql'],
  '2026-09-12-native-ordinary-envelope-repair.sql':['2026-09-11-native-ordinary-receipt-repair.sql'],
- '2026-09-09-native-notification-outbox.sql':['2026-09-09-editors-event-assignee.sql','2026-09-12-native-ordinary-envelope-repair.sql'],
+ '2026-09-09-native-notification-outbox.sql':['2026-07-05-b0-linear-auth-scaffold.sql','2026-07-06-b1-linear-data-model.sql','2026-07-12-production-comments.sql','2026-09-09-editors-event-assignee.sql','2026-09-12-native-ordinary-envelope-repair.sql'],
  '2026-09-05-calendar-feedback-recovery.sql':['2026-09-05-card-change-journal.sql'],
- '2026-09-10-kasper-urgent-ping-ledger.sql':['2026-09-09-kasper-urgent-pings.sql','sample-reviews-migration.sql'],
+ '2026-09-10-kasper-urgent-ping-ledger.sql':['2026-07-03-a1-calendar-upsert.sql','2026-09-09-kasper-urgent-pings.sql','sample-reviews-migration.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

@@ -1109,7 +1109,9 @@
       "sha256": "ece90c9290d3ab8154692afd7c506e220d3202f0acec441a8fd2dd88c8e1e146",
       "bytes": 11856,
       "scope": "candidate_owner",
-      "dependencies": [],
+      "dependencies": [
+        "2026-07-20-f27-team-rollback.sql"
+      ],
       "transaction": {
         "classification": "single_explicit_transaction",
         "explicit_commits": 1,
@@ -1138,6 +1140,7 @@
       "bytes": 14457,
       "scope": "candidate_owner",
       "dependencies": [
+        "2026-07-20-f27-team-rollback.sql",
         "2026-09-05-native-label-catalog-foundation.sql"
       ],
       "transaction": {
@@ -1392,7 +1395,10 @@
       "sha256": "b9cb4a074b2587a4e78ffadc9934dfabd67170a69d323aaf5b1c7090e7dabc43",
       "bytes": 31000,
       "scope": "candidate_owner",
-      "dependencies": [],
+      "dependencies": [
+        "2026-07-20-f27-team-rollback.sql",
+        "2026-07-23-production-comment-thread-lifecycle.sql"
+      ],
       "transaction": {
         "classification": "single_explicit_transaction",
         "explicit_commits": 1,
@@ -1420,7 +1426,12 @@
       "sha256": "8cb7a1f6940e6b4e7742023e66ece40b15c925a01ef1d8117e816fbef0334093",
       "bytes": 9157,
       "scope": "candidate_owner",
-      "dependencies": [],
+      "dependencies": [
+        "2026-07-20-f27-team-rollback.sql",
+        "2026-09-08-native-intake-receipt-retention.sql",
+        "2026-09-06-native-existing-assignment.sql",
+        "2026-09-06-native-label-writes.sql"
+      ],
       "transaction": {
         "classification": "single_explicit_transaction",
         "explicit_commits": 1,
@@ -1540,6 +1551,9 @@
       "bytes": 42631,
       "scope": "candidate_owner",
       "dependencies": [
+        "2026-07-05-b0-linear-auth-scaffold.sql",
+        "2026-07-06-b1-linear-data-model.sql",
+        "2026-07-12-production-comments.sql",
         "2026-09-09-editors-event-assignee.sql",
         "2026-09-12-native-ordinary-envelope-repair.sql"
       ],
@@ -1605,6 +1619,7 @@
       "bytes": 9078,
       "scope": "candidate_owner",
       "dependencies": [
+        "2026-07-03-a1-calendar-upsert.sql",
         "2026-09-09-kasper-urgent-pings.sql",
         "sample-reviews-migration.sql"
       ],
@@ -1625,6 +1640,7 @@
       "bytes": 66665,
       "scope": "atomic_generated_owner",
       "dependencies": [
+        "2026-07-20-f27-team-rollback.sql",
         "2026-09-05-native-intake-root-manifest.sql",
         "2026-09-05-native-label-catalog-foundation.sql",
         "2026-08-26-production-intake-append-v7.sql"

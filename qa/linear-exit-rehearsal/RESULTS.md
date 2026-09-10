@@ -1,5 +1,25 @@
 # Completed isolated evidence
 
+## Latest shared source binding
+
+Composition and full upstream-ledger recovery now verify the same63-entry
+inventory before database creation and again before PASS. The refreshed runs
+pass65 composition assertions and31 recovery checks across52 tables; both
+owned servers stopped. They bind the exact same inventory bytes and reject
+artifact/source drift. Execution used working-tree changes over `303350e0`.
+
+Known graph edges now explicitly require F27 before atomic intake/assignment/
+labels, typed guards before retirement admission, and foundational comment/event
+owners before their consumers. Tests reverse the entry list to prove these are
+dependency constraints, not incidental list order. Full dependency closure
+remains unproven.
+
+This is shared source verification, not shared ordered execution. Both rehearsals
+still use their established independent order; cumulative catalog signatures
+and interruption/resumption at every committed boundary remain the next work.
+Installation HOLD.
+
+
 ## Latest combined preparation source
 
 The reviewed upstream changes through `fcebb856` are now applied to the

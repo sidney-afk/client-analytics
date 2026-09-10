@@ -3,6 +3,10 @@
 /* Actual PostgreSQL 16 proof. All identities are synthetic and the database is disposable. */
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs'), crypto = require('node:crypto');
+const installInventory = require('../scripts/linear-exit-install-manifest');
+const inventoryIdentity = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json';
+const inventoryPath = path.resolve(__dirname,'..',inventoryIdentity);
 const {
   bootCluster, connectionEnv, psqlAsync, MIGRATIONS, count, jsonRows, scalar,
 } = require('../scripts/linear-exit-composition/harness');
@@ -125,6 +129,9 @@ function lifecycle(action, dedup, prior, fields = {}, eventOverrides = {}) {
 }
 
 async function main() {
+  const inventoryBytes=fs.readFileSync(inventoryPath),inventory=JSON.parse(inventoryBytes.toString('utf8'));
+  installInventory.verify(inventory); // Stale source refuses before bootCluster.
+  const inventoryBinding={identity:inventoryIdentity,sha256:crypto.createHash('sha256').update(inventoryBytes).digest('hex'),classification:'SOURCE_ONLY',execution_order:'INDEPENDENT_REHEARSAL_ORDER; shared ordered execution unproven'};
   try {
     cluster = bootCluster();
     // Real production owners only. Fail at the first unfulfilled prerequisite.
@@ -749,6 +756,9 @@ async function main() {
     const corpus=require('../scripts/track-b-backup').resolveCorpus('history-v11');
     const missing=corpus.tables.filter(table=>scalar(cluster,`select to_regclass(${literal('public.'+table.name)}) is null`)==='t').map(table=>table.name);
     console.log(JSON.stringify({classification:missing.length?'RECOVERY_COVERAGE_INCOMPLETE':'RECOVERY_TABLE_PRESENCE_ONLY',corpus:'history-v11',expected_tables:corpus.tables.length,missing_tables:missing,full_restore_proven:false}));
+    assert.deepEqual(fs.readFileSync(inventoryPath),inventoryBytes,'install source inventory changed during composition');
+    installInventory.verify(inventory);
+    console.log(JSON.stringify({install_source_inventory:inventoryBinding}));
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_OK ${passed} assertions`);
   } finally {
     try {

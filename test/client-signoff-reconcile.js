@@ -920,14 +920,30 @@ check('a card with no deliverable link at all is never stamped', () => {
 /* The Samples surface writes its own deliverables with origin='samples'. If one
    ever carries a card_id that names a real same-client calendar card, following
    the pointer would stamp a calendar card from an sxr approval. */
-check('a deliverable from another surface never resolves to a calendar card', () => {
+/* ROUND 22 changed this from a reported refusal to a SILENT skip, and moved it
+   ahead of the card lookup. A Samples deliverable's card is not missing — it
+   lives on the Samples surface, which this job does not read — so escalating it
+   as a lost Calendar approval is a false alert, and false alerts bury the real
+   ones. Live: 2 of the 227 committed client approvals are Samples, and both were
+   being reported as lost. */
+check('a deliverable from another surface is out of scope, silently', () => {
   for (const origin of ['samples', 'manual', '', undefined]) {
     const { findings, skipped } = detect(world({
       outbox: [APPROVE()], deliverables: [DEL({ origin })],
     }));
     assert.equal(findings.length, 0, `origin=${origin} must not stamp a calendar card`);
-    assert.equal(skipped[0].reason, 'not_a_calendar_deliverable');
+    assert.equal(skipped.length, 0, `origin=${origin} is another surface, not a broken crosswalk`);
   }
+});
+
+/* The ORDER is the fix: with no calendar card present at all, a Samples
+   deliverable must still be silent rather than reported as card_not_found. */
+check('another surface is decided before the calendar card is looked up', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()], deliverables: [DEL({ origin: 'samples' })], cards: [],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0, 'its card is on another surface, not missing');
 });
 
 /* The gate covers the report half too: a cross-linked REPAIR INSTRUCTION is a
@@ -1021,7 +1037,6 @@ check('an approval on a kind with no component mapping stamps through its team',
    must put a line in `skipped`, or a person reading the run learns nothing. */
 check('every refused approval is reported, never silently dropped', () => {
   const cases = [
-    ['not_a_calendar_deliverable', { deliverables: [DEL({ origin: 'samples' })] }],
     ['kind_and_team_disagree', { deliverables: [DEL({ kind: 'video', team: 'graphics' })] }],
     ['unknown_team', { deliverables: [DEL({ team: '' })] }],
     ['card_does_not_link_back', { cards: [CARD({ video_deliverable_id: 'other' })] }],
@@ -1164,7 +1179,6 @@ check('a superseded lost approval is not reported as needing a person', () => {
    the approval either. The written path reported these all along. */
 check('a lost approval that cannot resolve a card is still reported', () => {
   for (const [over, reason] of [
-    [{ deliverables: [DEL({ origin: 'samples' })] }, 'not_a_calendar_deliverable'],
     [{ cards: [CARD({ video_deliverable_id: 'other' })] }, 'card_does_not_link_back'],
     [{ deliverables: [DEL({ team: '' })] }, 'unknown_team'],
   ]) {

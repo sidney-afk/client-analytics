@@ -19965,3 +19965,31 @@ identified, for the same reason.
 100 checks, three controls, all confirmed by exit status.
 
 **Twenty-one rounds, 48 findings.**
+
+### 195w. Round 22: the two "lost approvals" were Samples rows, and the ledger said otherwise
+
+`resolve()` looked up the Calendar card **before** testing the deliverable's
+surface, so a Samples deliverable found no `calendar_posts` row and 195u's new
+`card_not_found` escalated it to NEEDS A PERSON as a carried approval whose card
+is missing. Its card is not missing. It lives on the Samples surface, which this
+job does not read.
+
+**This corrects 195u.** That entry reported "2 written approvals name a card that
+is not there, and they were invisible until now" as a real find. Measured
+properly, of the 227 committed client approvals in the window, **225 are
+calendar-origin and 0 of those have a missing card**; the 2 are Samples. So the
+number was real and the conclusion was wrong — they are not lost, and they are
+not this job's surface. The claim reached the owner before the correction did.
+
+The surface test now runs before the card lookup and is a **silent** skip rather
+than a refusal, matching 195u's own rule that `null` means deliberately out of
+scope. False alerts bury real ones, which is the whole argument for keeping this
+report short.
+
+101 checks, two controls: the gate moved back after the lookup, and the gate
+reporting a refusal instead of skipping.
+
+**Twenty-two rounds, 49 findings.** Worth noting what this round was: not a
+defect in the code's behaviour toward client data, but a **wrong measurement
+published as a finding**. The fix for that is not more rules — it is checking
+which surface a row belongs to before calling it lost.

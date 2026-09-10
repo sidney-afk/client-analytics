@@ -364,6 +364,14 @@ function detect(world) {
      * ONLY "deliberately out of scope" — archived, or another client on a
      * scoped run — and everything else names itself. */
     if (!del) return 'deliverable_unknown';
+    /* ANOTHER SURFACE IS OUT OF SCOPE, NOT A BROKEN CROSSWALK — and this test
+     * has to come BEFORE the card lookup, or a Samples deliverable fails to
+     * find a `calendar_posts` row and is escalated as a lost Calendar approval.
+     * Its card is not missing; it lives on the Samples surface, which this job
+     * does not read. Live: 2 of the 227 committed client approvals are Samples,
+     * and both would have been reported as lost. False alerts bury the real
+     * ones, which is the entire argument for the report being short. */
+    if (SURFACE_ORIGIN_FOR_CARDS !== String(del.origin || '').trim().toLowerCase()) return null;
     if (!String(del.card_id || '').trim()) return 'deliverable_names_no_card';
     /* No client on the deliverable means the card cannot be identified, and
      * guessing is what this whole guard exists to prevent. */
@@ -402,9 +410,6 @@ function detect(world) {
      * Samples-origin card_id resolves to no same-client calendar card at all.
      * Zero rows are affected today. One re-link or one id collision creates
      * one silently, and it would be a write. */
-    if (SURFACE_ORIGIN_FOR_CARDS !== String(del.origin || '').trim().toLowerCase()) {
-      return 'not_a_calendar_deliverable';
-    }
     /* TEAM IS ITS OWN FIELD IN THE CANONICAL PREDICATE, and `kind` and `team`
      * are independently constrained columns, so the reverse-link slot — which
      * is derived from one of them — cannot stand in for the other. A row

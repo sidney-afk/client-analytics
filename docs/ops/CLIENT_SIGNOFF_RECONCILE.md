@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 100 checks, each
+construction through fixtures — no credentials, no network. 101 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -331,7 +331,9 @@ a card's real comment history.
 So `resolve()` requires the link to close both ways:
 
 - the deliverable must carry `origin='calendar'`; Samples belongs to sxr and
-  `manual` to neither surface;
+  `manual` to neither surface. This is decided **before the card lookup** and is
+  a silent skip, not a refusal: another surface's card is not missing, and
+  reporting it as a lost Calendar approval is a false alert;
 - the deliverable's `team` decides which slot must name it back
   (`video_deliverable_id` for `video`, `graphic_deliverable_id` for `graphics`),
   using the app's own component→team map inverted;
@@ -380,7 +382,10 @@ names itself and is reported on both paths; only the deliberate cases stay
 silent. Live: 2 written approvals name a card that is not there, and they were
 invisible until this.
 
-**A carried approve whose card is missing is its own kind of work.** The carrier
+**A carried approve whose card is missing is its own kind of work** — once
+another surface has been excluded. Live: all the approvals whose Calendar card
+could not be found were Samples rows whose cards live on sxr; among
+calendar-origin approvals the count is **zero**. The carrier
 wrote, so it is not a carrier failure; the card cannot be found, so it is not a
 card that moved on. It counts under NEEDS A PERSON in its own term and prints
 the deliverable and the client, because `card (unidentified) [] left alone:

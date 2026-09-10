@@ -183,8 +183,20 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   | `calendar_post_events` | **39,506** | 32,173 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 1 |
   | `sample_review_events` | **62,173** | 62,026 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** |
 
-  So `reconcile` does NOT bypass the ledger and never has: it has written 2,159
-  calendar and 68 sample events, continuously from 2026-07-07 to today. A `linear`
+  So `reconcile` does NOT bypass the ledger: it has written 2,159 calendar and 68
+  sample events, continuously from 2026-07-07 to today. **The mechanism is worth
+  knowing, because it is not what the old wording assumed.** The reconciler
+  writes no events itself; `scripts/linear-sync-reconcile.js` sets the header
+  `X-Syncview-Source: reconcile` and POSTs through the ordinary writer, and the
+  WRITER logs the change under whatever source the caller declared. Ledger
+  coverage is therefore a property of the ROUTE, not of the caller.
+
+  That also explains the 2026-07-07 start: `upsertUrlForClient` sends each client
+  to the edge function or to the legacy n8n lane depending on the
+  `calendar_upsert_ef_clients` roster, so reconciler writes only became visible
+  as clients were enrolled onto the EF. Before that they really were invisible,
+  which is presumably when "reconcile bypasses the ledger" was written and true.
+  It went stale silently as the roster filled, and nothing re-checked it. A `linear`
   source wrote 230 calendar rows between 2026-07-06 and 2026-07-11 and has been
   silent since. Do not reason from "the ledger is UI-only" — a session did, and the
   conclusion it drew about `deliverable_events` (Track B) inheriting a bypass rested

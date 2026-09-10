@@ -6974,3 +6974,46 @@ the trigger, which also restores repo/live parity for those two files.
 
 Ledger OPEN_REPAIRS 195; capability parity gate in
 `docs/ops/LIVE_DIVERGENCE_REGISTER.md` and `test/live-divergence-register.js`.
+
+
+## 2026-09-10 — Kasper ping ledger triggers attached, verified end to end; DM copy corrected
+
+**Ledger triggers, owner-applied.** The four triggers from
+`migrations/2026-09-10-kasper-urgent-ping-ledger.sql` were run by the owner and
+read back as attached and enabled on both tables, each calling
+`public.syncview_kasper_urgent_ping_ledger()`.
+
+**Verified through the real writer, not the database.** A marker write was POSTed
+to the live `calendar-upsert` for one TEST-client card, which is the exact call
+the browser makes after Slack succeeds; the Slack step was deliberately skipped
+so no DM was sent. The writer returned `ok:true` and the trigger wrote the ledger
+row unaided: `action=kasper_urgent_ping`, `component=video`, `source=db`,
+`payload.via=trigger`, carrying both the ping and round timestamps. The test
+marker was then cleared under a last-write guard, and clearing produced NO second
+event, which is correct — the triggers fire only when a ping appears. One
+synthetic audit row remains, labelled `LedgerVerification`, deliberately not
+deleted.
+
+**n8n DM copy, owner-authorized in the same request.** Workflow
+`1WjZZjfQjDlg1Crf`, node `Parse & Validate`, one string. It closed with "It is in
+the Urgent section at the top", which the browser cannot guarantee: the DM is
+sent BEFORE the marker is written, so the card can still sit under "Waiting for
+your review" when Kasper reads it, and stays there if that write fails. Now
+"Urgent cards sit at the top of your review tab", which is true regardless of
+ordering. Version `f442f701` → `fddb0d5a`, **published** (the edit lands as a
+draft otherwise, and the live webhook keeps running the old version — checked
+rather than assumed). A version diff confirms one node, one parameter: no node,
+connection, credential, recipient or validation change. Rollback is restoring and
+publishing `f442f701`.
+
+**Reconciler, investigated per owner request.** The corrected ledger entry raised
+why `docs/truth/SUPABASE.md` believed reconcile bypassed the ledger. It does not
+write events itself: it sets `X-Syncview-Source: reconcile` and posts through the
+ordinary writer, which logs the change under the declared source. Ledger coverage
+is a property of the ROUTE, not the caller — and `upsertUrlForClient` picks the EF
+or the legacy n8n lane per the `calendar_upsert_ef_clients` roster, so reconciler
+writes only became visible as clients were enrolled. The claim was almost
+certainly true when written and went stale silently as the roster filled. Nothing
+is broken; the ledger is MORE complete than the doc claimed. Mechanism recorded
+in the truth doc so the next reader does not re-derive it.
+

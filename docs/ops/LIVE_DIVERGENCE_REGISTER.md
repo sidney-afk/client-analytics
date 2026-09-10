@@ -25,7 +25,7 @@ divergence cannot be discovered afterwards.
 
 | | |
 |---|---|
-| **Live** | `calendar-upsert` v43 / `sample-review-upsert` v44 — the pre-#836 **un-gated, tokenless** source |
+| **Live** | `calendar-upsert` v49 / `sample-review-upsert` v50 (2026-09-10) — still the **un-gated, tokenless** lineage, with the additive Kasper marker patch applied to it |
 | **Repo** | still calls `authorizeBrowserWrite` (the F35 gate) |
 | **Since** | 2026-07-15 |
 | **Why** | Re-gating `401`s every client approval and comment on a link issued before the gate. It broke clients **twice** in one day. |
@@ -33,6 +33,43 @@ divergence cannot be discovered afterwards.
 | **To ship a change** | Capture the exact live source, apply the delta to *that*, deploy it, with the owner's explicit approval. Never a bare `supabase functions deploy`. |
 | **To close the divergence** | Re-issue every active client link, then re-gate. Owner has declined this for now, so the divergence is permanent until they say otherwise. |
 | **Sources** | `AGENTS.md` freeze banner · F35 row of `ROLLBACK.md` · `EXECUTION_LOG.md` 2026-07-15 |
+
+---
+
+## Verified live capability
+
+The repo copy is not deployable, so **nothing in it is evidence of what
+production does**. These rows record what the DEPLOYED function was observed to
+contain, read straight off the deployed source on the date given. They exist so
+that a capability the repo copy claims can be checked against one production
+actually has.
+
+This section is machine-read by `test/live-divergence-register.js`. The `events:`
+list is every literal `ev("…")` action the live function can emit. A repo copy
+that gains an action missing from its live row fails the gate, which forces the
+divergence to be either deployed or declared instead of quietly believed.
+
+- `calendar-upsert` live v49 verified 2026-09-10 events: approve_, archive, comment_add, comment_delete, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+- `sample-review-upsert` live v50 verified 2026-09-10 events: approve_graphic, approve_video, archive, comment_add, create, kasper_approve, kasper_close, kasper_finish, link_clear, link_set, status_change, urgent_ping
+
+**Why this section exists.** On 2026-09-09 the Kasper urgent ping shipped with an
+`ev("kasper_urgent_ping")` branch in both repo copies, and a test asserting it was
+there. It was never in the deployed functions: the branch was not carried across
+when the marker patch was ported onto the live source. The result was a feature
+whose paper trail existed only in a file that does not run, and nothing noticed,
+because every guard we had pointed at the repo. The first real ping wrote its
+marker and produced no ledger row at all (OPEN_REPAIRS 195).
+
+The ledger for that ping is now written by a database trigger
+(`migrations/2026-09-10-kasper-urgent-ping-ledger.sql`) rather than by the
+writers, so the repo copies no longer carry the branch and the two sides agree
+again. The trigger cannot drift from the live functions, because it is not in
+them.
+
+**Refreshing a row.** Read the deployed source (Supabase → Edge Functions, or
+`get_edge_function`), list its `ev("…")` actions, and update the row with the new
+version and today's date. Never copy the list out of the repo file — that is the
+exact mistake this section exists to catch.
 
 ---
 

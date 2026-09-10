@@ -435,8 +435,37 @@ setTimeout(() => {
       ef.includes('const statusAtCol = comp + "_status_at";'));
     check(slug + ' knows its ' + comps + ' components',
       (ef.match(/const KASPER_URGENT_COMPONENTS = \[([^\]]*)\]/) || [, ''])[1].split(',').length === comps);
-    check(slug + ' writes a ledger row for the ping', ef.includes('ev("kasper_urgent_ping"'));
+    /* The ledger row is NOT written here. This assertion is inverted on
+       purpose: the branch used to live in these files, was never in the
+       deployed functions, and so produced a paper trail only a non-running
+       file could see (OPEN_REPAIRS 195). A database trigger owns it now, and
+       putting it back would double-write. */
+    check(slug + ' does NOT claim to write the ping ledger row itself',
+      !ef.includes('ev("kasper_urgent_ping"')
+      && ef.includes('written by a DATABASE TRIGGER'));
   }
+
+  /* The trigger that actually records the ping. It runs on two of the hottest
+     tables in the system, so what is checked here is mostly that it CANNOT
+     hurt them: it does not execute unless a ping marker appeared, and its body
+     can never propagate an error into the write it is observing. */
+  const led = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-10-kasper-urgent-ping-ledger.sql'), 'utf8');
+  check('the ledger trigger writes both event tables',
+    led.includes('insert into public.calendar_post_events')
+    && led.includes('insert into public.sample_review_events'));
+  check('it can never fail the client write it observes',
+    /exception when others then\s*(--[^\n]*\n\s*)*null;/.test(led));
+  check('it does not run at all unless a ping marker actually appeared',
+    (led.match(/when \(new\.kasper_urgent_pinged_at is not null/g) || []).length === 4
+    && (led.match(/is distinct from old\.kasper_urgent_pinged_at/g) || []).length === 2);
+  check('it covers INSERT as well as UPDATE, on both tables',
+    (led.match(/after insert on public\.(calendar_posts|sample_reviews)/g) || []).length === 2
+    && (led.match(/after update on public\.(calendar_posts|sample_reviews)/g) || []).length === 2);
+  check('it takes no privileges it does not need',
+    !/security definer/i.test(led));
+  check('the backfill is idempotent and marks itself as backfilled',
+    (led.match(/and not exists \(select 1 from public\./g) || []).length === 2
+    && led.includes("'via',       'backfill'"));
 
   const mig = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8');
   check('migration adds the marker columns to both tables',

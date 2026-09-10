@@ -24,39 +24,49 @@ Two questions per combination, answered mechanically:
 
 A run can agree and still lie, and can disagree honestly. Both are scored.
 
-## Result, 2026-09-10: 35 combinations, 0 permanently broken, 1 real defect
+## Result, 2026-09-10: 35 combinations, 3 flagged, and a new finding
 
-**Every combination recovers**, once that browser comes back with connectivity
-and `_writeUiResumeSourceRepairs` runs. The browser's repair machinery is sound
-across every actor, action and fault tested here. An earlier version of this
-file claimed six STUCK rows; that was wrong, and the mistake is recorded below.
+### The new finding: recovery restores the status and LOSES the client's sign-off
 
-What IS real, and measured:
+A client approve that hits any of the three faults recovers its status to
+`Approved` and never writes `client_video_approved_at`. The control run with no
+fault writes it correctly, so this is the recovery path dropping it, not the
+action failing to produce it.
 
-| | measured |
-|---|---|
-| Does the card disagree with the server at the moment of the fault? | **Yes**, for an approve whose gateway answer is lost or answered 5xx after committing (`settledDisagreed`) |
-| Does it recover on a later load in the same browser? | **Yes**, every time |
-| Does it recover if that browser never comes back? | **No. Nothing else finishes it.** |
+| client / approve | source row after recovery | sign-off stamp |
+|---|---|---|
+| no fault (control) | `Approved` | **present** |
+| gateway answer lost | `Approved` | **missing** |
+| 5xx after commit | `Approved` | **missing** |
+| source write rejected | `Approved` | **missing** |
 
-**So the defect is not that the repair is broken. It is that the repair lives in
-the wrong place.** It runs only in the browser that made the write, only if that
-browser returns online. Someone who meets an error and closes the tab (which is
-what people do) leaves a card that disagrees with the server, and the calendar
-row is what *everyone else* reads in the meantime. That is exactly what happened
-in OPEN_REPAIRS 186: the client's card stayed stale until an unrelated staff
-browser happened to project the canonical status back, fourteen minutes later.
+**This corroborates the live incident independently.** The production row in
+OPEN_REPAIRS 186 ended at `video_status = Approved` with
+`client_video_approved_at = null`, which was noted at the time as unexplained.
+It now has a mechanism and a reproduction. The consequence is worth stating in
+business terms: the record ends up saying the work was approved, but not that
+the CLIENT approved it. For an agency whose product is client sign-off, that is
+the record that matters.
 
-This is a stronger argument for the server-side reconciler than the earlier
-wrong reading was, not a weaker one: the logic does not need inventing, it needs
-relocating somewhere that does not depend on one person's tab.
+### The window, and what it is honest to conclude from it
 
-**Two things it rules out**, which is as useful as what it found:
+Six combinations disagree at the moment of the fault, before any recovery runs:
+an approve whose gateway answer is lost or answered 5xx after committing, on the
+client's approve and BOTH SMM routes. During that window the server says one
+thing and the `calendar_posts` row everyone else reads says another.
 
-- *A plain comment never reaches the gateway on this path at all* -- it writes
-  the card's tweaks column only, so the dual-write class does not apply.
-- *A request that never left the browser is honest everywhere.* Nothing moves on
-  either side and the failure is visible.
+**What this harness does NOT establish:** that nothing would have finished the
+row. It runs ONE browser and always restores connectivity before resuming. That
+no other browser or background projector would have completed it is an inference
+from there being no server-side projector, NOT a measurement here. The README
+previously stated it as measured; that was an overstatement.
+
+### Two things it rules out
+
+- A plain comment never reaches the gateway on this path at all: it writes the
+  card's tweaks column only, so the dual-write class does not apply.
+- A request that never left the browser is honest everywhere: nothing moves on
+  either side, and the failure is visible.
 
 ## What it does not cover, stated so nobody reads more into it
 
@@ -68,7 +78,12 @@ relocating somewhere that does not depend on one person's tab.
 - The video component only, and one card at a time. No concurrency between two
   people acting on the same card.
 
-## Five harness bugs found while building it, all recorded
+## Ten harness bugs found while building it, all recorded
+
+**Every published result from this probe was wrong until this one**, across six
+review rounds: 6 flagged, then 11, then 0, then 11 again, now 3. Most of the
+bugs produced FALSE CLEANS. That history is kept here deliberately, because a
+number from this file is only worth what the scorer behind it is worth.
 
 Both produced FALSE CLEAN results, which is the failure mode that matters in a
 test:
@@ -100,3 +115,25 @@ test:
    therefore labelled every journal-backed case STUCK when none of them are.
    The probe now ends the outage, runs the real resume, and classifies on what
    actually lands.
+
+6. **Receipts always answered `absent`**, including for faults where the mock
+   had already recorded the commit. The real gateway answers `committed_exact`
+   when the durable outbox receipt exists, and the browser takes a materially
+   different recovery branch for each. Every ambiguous committed write was
+   therefore recovering down the wrong path, and the 35/35 that produced was
+   measuring something other than what it claimed. Receipts are now keyed by
+   request id.
+7. **A handler that threw, or an async page error, did not fail the run.** Only
+   outer harness exceptions were fatal, so product-code crashes could still
+   print a clean sweep. Both signals are now failure criteria.
+8. **The scorer read only `video_status`**, so a recovery that saved the status
+   and dropped the overall status or the sign-off stamp scored as full
+   agreement. It now scores the whole projection the action carries. THIS IS
+   THE BUG THAT WAS HIDING THE ONE REAL FINDING ABOVE.
+9. **Then it over-flagged in the other direction**: companion fields were
+   demanded even where nothing was expected to persist, turning honest failures
+   into flags. Companion checks now apply only where the write was expected to
+   land.
+10. **The summary filtered on a field the scorer no longer emitted**, so once
+    anything WAS flagged it would have printed every failure as permanently
+    stuck regardless of the measured recovery.

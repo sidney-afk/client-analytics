@@ -88,6 +88,8 @@ async function run(actor, action, fault) {
   const upserts = [];          // what the browser TRIED to write
   const persistedRow = {};     // what the source row actually holds
   let healed = false;          // flipped when the outage ends, before the resume
+  const committedByRequest = new Map();   // request id -> what the server durably holds
+  const reconcileReads = [];              // what each receipt read was told
   const errors = [];
   let nativeStatus = actor.key === 'smm' ? 'smm_approval' : 'client_approval';
   let nativeStatusAt = new Date(Date.now() - 3600 * 1000).toISOString();
@@ -123,13 +125,31 @@ async function run(actor, action, fault) {
     const body = JSON.parse(route.request().postData() || '{}');
     if (fault.gateway === 'pre-server' && !healed) return route.abort('connectionfailed');
     if (body.reconcile_only === true) {
+      /* RECEIPTS MUST TELL THE TRUTH. This answered `absent` unconditionally,
+         including for faults where the mock had ALREADY recorded the commit.
+         The real gateway answers `committed_exact` when that request's durable
+         outbox receipt exists, and the browser takes a materially different
+         recovery branch for an exact receipt than for absence (it adopts the
+         canonical row instead of reissuing). So every ambiguous committed write
+         was recovering down the wrong path, and the 35/35 it produced was
+         measuring something other than what it claimed. Keyed by request id,
+         which is what makes the two cases distinguishable at all. */
+      const receipt = committedByRequest.get(String(body.request_id || ''));
+      reconcileReads.push({ request_id: String(body.request_id || ''), outcome: receipt ? 'committed_exact' : 'absent' });
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        ok: true, outcome: 'absent',
-        row: { id: VID, card_id: CARD, client_slug: SLUG, team: 'video', status: nativeStatus, updated_at: new Date().toISOString() } }) });
+        ok: true, outcome: receipt ? 'committed_exact' : 'absent',
+        row: Object.assign({ id: VID, card_id: CARD, client_slug: SLUG, team: 'video',
+          status: nativeStatus, updated_at: new Date().toISOString() }, receipt ? receipt.row : {}),
+        ...(receipt && receipt.comment ? { comment: receipt.comment } : {}) }) });
     }
     // The server COMMITS here. Anything after this point is the answer failing
     // to arrive, never the write failing to happen.
     gatewayCommits.push({ operation: body.operation, status: body.status || null });
+    committedByRequest.set(String(body.request_id || ''), {
+      row: { id: VID, status: body.operation === 'status' && body.status ? String(body.status) : nativeStatus,
+        updated_at: new Date().toISOString(), client_slug: SLUG, team: 'video', card_id: CARD },
+      comment: body.comment || null,
+    });
     if (body.operation === 'status' && body.status) { nativeStatus = String(body.status); nativeStatusAt = new Date().toISOString(); }
     if (fault.gateway === 'drop' && !healed) return route.abort('connectionfailed');
     if (fault.gateway === '5xx' && !healed) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'entity_lookup_unavailable' }) });
@@ -224,7 +244,7 @@ async function run(actor, action, fault) {
     };
   }, { slug: SLUG, card: CARD, vid: VID, view: actor.view, start: actor.start, actionKey: action.key, actorKey: actor.key });
 
-  return { actor: actor.key, action: action.key, fault: fault.key, gatewayCommits, upserts, persistedRow, nativeStatus, result, errors };
+  return { actor: actor.key, action: action.key, fault: fault.key, gatewayCommits, upserts, persistedRow, reconcileReads, nativeStatus, result, errors };
   } finally { await browser.close().catch(() => {}); server.close(); }
 }
 
@@ -240,7 +260,26 @@ const NATIVE_TO_CARD = {
   scheduled: 'Scheduled', posted: 'Posted', in_progress: 'In Progress', todo: 'In Progress', backlog: 'In Progress',
 };
 function score(out) {
-  const sheetStatus = out.persistedRow && out.persistedRow.video_status ? String(out.persistedRow.video_status) : null;
+  const row = out.persistedRow || {};
+  const sheetStatus = row.video_status ? String(row.video_status) : null;
+  /* A review write carries more than the component status: an approval also
+     recomputes the overall `status` and (for a client) stamps
+     client_<comp>_approved_at, and a change request carries the serialized
+     thread. Scoring only the component status would call a recovery that
+     dropped a sign-off stamp a full agreement. */
+  /* Companion checks only apply where the write was expected to land. A run
+     where nothing persisted at all is an honest failure, and demanding its
+     companion fields would flag correct behaviour -- the over-flagging
+     direction of the same mistake as scoring too narrowly. */
+  const persistedSomething = Object.keys(row).length > 0;
+  const companions = [];
+  if ((out.action === 'approve' || out.action === 'approve-to-client') && persistedSomething) {
+    if (sheetStatus && row.status && String(row.status) !== sheetStatus) companions.push('overall status ' + row.status + ' != component ' + sheetStatus);
+    if (out.actor === 'client' && sheetStatus === 'Approved' && !row.client_video_approved_at) companions.push('client sign-off stamp missing');
+  }
+  if ((out.action === 'request-change' || out.action === 'comment') && persistedSomething) {
+    if (!String(row.video_tweaks || '').replace(/\s/g, '').match(/\[.+\]/)) companions.push('thread not carried into the source row');
+  }
   const serverMoved = out.gatewayCommits.some(c => c.operation === 'status');
   const expectedCard = NATIVE_TO_CARD[String(out.nativeStatus)] || String(out.nativeStatus);
 
@@ -270,7 +309,8 @@ function score(out) {
      stuck in the sense that matters: no amount of that browser coming back
      will fix it. */
   const recovered = agree;
-  return { agree, truthful, recovered, sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved,
+  return { agree: agree && !companions.length, statusAgree: agree, companions, truthful, recovered: agree && !companions.length,
+    sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved,
     settledDisagreed: out.result.settledStatus !== undefined && String(out.result.settledStatus || '') !== String(NATIVE_TO_CARD[String(out.nativeStatus)] || '') };
 }
 
@@ -314,12 +354,21 @@ function score(out) {
     if (r.harnessError) { console.log(`${r.actor.padEnd(8)} ${r.action.padEnd(18)} ${r.fault.padEnd(22)} HARNESS ERROR: ${r.harnessError}`); return; }
     console.log(`${r.actor.padEnd(8)} ${r.action.padEnd(18)} ${r.fault.padEnd(22)} ${(r.agree ? 'yes' : 'NO ').padEnd(5)} ${(r.truthful ? 'yes' : 'NO ').padEnd(8)}  ${String(r.serverStatus).padEnd(16)} -> ${String(r.sheetStatus)}   ui=${r.ui} err=${r.saveError} repair=${r.retryArmed}`);
   });
-  const bad = rows.filter(r => !r.agree || !r.truthful);
-  const stuck = bad.filter(r => !r.recoverable);
-  const heals = bad.filter(r => r.recoverable);
+  /* A handler that throws after a partial write, or an async page error that
+     breaks the UI while the mocked status still happens to line up, must not
+     read as a pass. Only outer harness exceptions were fatal before. */
+  const bad = rows.filter(r => !r.agree || !r.truthful || r.threw || r.pageErrors > 0);
+  const stuck = bad.filter(r => !r.recovered);
+  const heals = bad.filter(r => r.recovered);
   console.log('\ncombinations run: ' + rows.length + ', flagged: ' + bad.length
     + '  (' + stuck.length + ' stuck, ' + heals.length + ' self-healing)');
-  console.log('\nSTUCK: server and screen disagree and NO repair is armed, so it stays wrong until a human notices');
+  const windowRows = rows.filter(r => r.settledDisagreed);
+  console.log('\nDISAGREED AT THE MOMENT OF THE FAULT (before any resume): ' + windowRows.length);
+  windowRows.forEach(r => console.log('  ' + [r.actor, r.action, r.fault].join(' / ')));
+  console.log('  This is the only no-return evidence this harness produces. It runs ONE browser and');
+  console.log('  always restores connectivity before resuming, so "nothing else would have finished it"');
+  console.log('  is an inference from there being no server-side projector, NOT a measurement here.');
+  console.log('\nSTUCK: still disagreeing after connectivity returned and the repair resumed');
   stuck.forEach(r => console.log('  ' + [r.actor, r.action, r.fault].join(' / ') + (r.truthful ? '' : '  [and the screen shows something unbacked]')));
   console.log('\nSELF-HEALING: disagreement, but a repair is armed to finish it on the next load');
   heals.forEach(r => console.log('  ' + [r.actor, r.action, r.fault].join(' / ')));

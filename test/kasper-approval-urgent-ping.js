@@ -28,7 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
-const { evActions } = require('./lib/ev-actions.js');
+const { evActions } = require('./helpers/ev-actions.js');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 function grabFunc(name) {

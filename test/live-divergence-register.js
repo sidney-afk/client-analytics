@@ -31,7 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { evActions, coveredBy } = require('./lib/ev-actions.js');
+const { evActions, coveredBy } = require('./helpers/ev-actions.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const REGISTER = 'docs/ops/LIVE_DIVERGENCE_REGISTER.md';
@@ -102,6 +102,17 @@ for (const rel of registered) {
   check(slug + ' claims no event the deployed v' + cap.version + ' was not verified to emit'
     + (unproven.length ? ' — UNPROVEN: ' + unproven.join(', ') : ''),
     unproven.length === 0);
+  /* And the reciprocal, because parity is equality, not containment. If a
+     future edit deletes or renames ev("urgent_ping") in the repo copy, the
+     check above only sees the set shrink and stays green — while the deployed
+     function still emits it. The next owner-approved port of this frozen
+     source would then silently drop a live capability, which is the same class
+     of loss this PR exists to close, pointing the other way.
+     (Codex P2 on PR 1383.) */
+  const dropped = cap.events.filter(a => !coveredBy(a, repoActions));
+  check(slug + ' still carries every event the deployed v' + cap.version + ' emits'
+    + (dropped.length ? ' — MISSING FROM REPO: ' + dropped.join(', ') : ''),
+    dropped.length === 0);
 }
 
 console.log('\n-- a change touching a registered path must touch the register --');

@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTRACT = 'linear-exit-production-write-sql-v5';
+const CONTRACT = 'linear-exit-production-write-sql-v6';
 const TRANSIENT = new Set([429, 502, 503, 504]);
 
 const ROUTINES = Object.freeze([
@@ -57,9 +57,9 @@ const ROUTINES = Object.freeze([
   ['production_notification_comment_intent_after()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_comment_intent_after', 'public, pg_temp'],
   ['production_notification_client_comment_event_after()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_client_comment_event_after', 'public, pg_temp'],
   ['production_notification_health_summary()', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_health_summary', 'public, pg_temp'],
-  ['production_notification_urgent_status(text,text,timestamp with time zone)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_urgent_status', 'public, pg_temp'],
+  ['production_notification_urgent_status(text,text,timestamp with time zone)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_urgent_status', 'public, extensions, pg_temp'],
   ['production_notification_reconcile(uuid,text,text,text)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_reconcile', 'public, pg_temp'],
-  ['production_notification_enqueue_urgent(uuid,text,text,text,text,timestamp with time zone,uuid,uuid)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_enqueue_urgent', 'public, pg_temp'],
+  ['production_notification_enqueue_urgent(uuid,text,text,text,text,timestamp with time zone,uuid,uuid)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_enqueue_urgent', 'public, extensions, pg_temp'],
   ['production_notification_claim(integer)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_claim', 'public, pg_temp'],
   ['production_notification_record_delivery(uuid,integer,text,text,text)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_record_delivery', 'public, pg_temp'],
 ]);

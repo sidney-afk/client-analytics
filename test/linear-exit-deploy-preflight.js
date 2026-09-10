@@ -28,6 +28,26 @@ async function rejectsCode(run, code) {
 }
 
 (async () => {
+
+  // Compare two independent contracts: the declared deploy expectations and
+  // actual migration headers. Compatible=true fixture rows alone cannot catch
+  // a corrected SQL migration whose deployment declaration was left behind.
+  const declaredSource = fs.readFileSync(path.join(ROOT, 'scripts/linear-exit-deploy-preflight.js'), 'utf8');
+  const declarations = [...declaredSource.matchAll(/\['([^']+)', '(migrations\/[^']+)', '([^']+)', '([^']+)'/g)];
+  assert.equal(declarations.length, expectedObjects().routines.length, 'every routine declaration is covered');
+  for (const [, signature, file, name] of declarations) {
+    const migration = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const start = migration.search(new RegExp('create\\s+(?:or\\s+replace\\s+)?function\\s+public\\.' + name + '\\s*\\(', 'i'));
+    assert.ok(start >= 0, 'migration definition exists: ' + name);
+    const header = migration.slice(start).split(/\bas\s+\$[A-Za-z0-9_]*\$/i)[0];
+    const pathMatch = header.match(/set\s+search_path\s*=\s*([^\r\n]+)/i);
+    assert.ok(pathMatch, 'migration declares search_path: ' + name);
+    const actualPath = pathMatch[1].trim().replace(/\s*,\s*/g, ', ');
+    const expected = expectedObjects().routines.find(row => row.signature === 'public.' + signature);
+    assert.equal(expected.searchPath, actualPath, 'deployment search_path matches migration: ' + name);
+  }
+  ok('all routine search paths agree with their actual migration declarations', true);
+
   const query = contractQuery();
   ok('the contract is a single read-only catalog statement',
     /^with expected_routine/.test(query) && !query.includes(';')

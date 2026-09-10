@@ -6946,3 +6946,20 @@ checks. Preflight v5 rejects the older projection that lacks the new source
 marker. This is source preparation only: no merge, deploy, dispatch, production
 write, or n8n change. Runtime/browser/database proof remains owed; source/VM
 passes do not authorize installation. See `docs/ops/LINEAR_EXIT_REPAIR_INSTALL.md`.
+
+
+## 2026-09-10 — Review returned local verification candidate
+
+Imported and verified the private returned bundle at
+`686add359bcf6c8a98e4d080cec763619013e852` in an isolated local review worktree.
+The source diff confirms sparse-scope preservation and urgent extension lookup
+repairs, stronger notification SQL writer fixtures, retained receipt checks,
+and Windows runner portability fixes. Raw Windows logs and external browser
+harness files were not supplied; the attached report remains attributed
+execution evidence, not independently rerun PostgreSQL/browser proof.
+
+Found and corrected the deploy preflight's stale urgent-routine search paths.
+Preflight v6 now checks the declared `public, extensions, pg_temp`; unit coverage
+compares every expected routine path to its migration header. No application
+SQL was changed by this review. Nothing was merged, published, deployed,
+dispatched, or written to production. Installation remains HOLD.

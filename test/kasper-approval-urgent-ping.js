@@ -76,6 +76,9 @@ const PRED = [
   grabFunc('_calCompLinked'),
   grabFunc('_calShowUrgent'),
   grabFunc('_kasperCompReviewable'),
+  grabFunc('wlNormalizeClient'),
+  grabFunc('calClientSlug'),
+  grabFunc('_calRuntimeFlagClients'),
   grabFunc('_kasperUrgentPingOn'),
   grabFunc('_calShowKasperUrgent'),
   grabFunc('_calKasperUrgentComp'),
@@ -93,19 +96,19 @@ const P = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgen
        + ' _calKasperUrgentPingComp, _calUrgentSentForCurrentRound, _calUrgentButtonHtml,'
        + ' _calBuildKasperUrgentPatch, _calKasperReviewUrl, URGENT_PING_KINDS };'
 )('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
-  { clients: ['testclient'] }, { client: 'testclient' }, { client: 'testclient' });
+  { clients: ['testclient'] }, { client: 'Test Client' }, { client: 'Test Client' });
 
 // The same predicates with the kill-switch OFF, which is the shipped default.
 const OFF = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentFlagValue', 'calState', 'sxrState',
   PRED + ';return { _calShowKasperUrgent };'
 )('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
-  null, { client: 'testclient' }, { client: 'testclient' });
+  null, { client: 'Test Client' }, { client: 'Test Client' });
 
 // A roster that does NOT name this client is just as closed as no roster at all.
 const OTHER = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL', '_calUrgentActorName', '_kasperUrgentFlagValue', 'calState', 'sxrState',
   PRED + ';return { _calShowKasperUrgent };'
 )('http://x/send-urgent-slack', 'http://x/send-urgent-kasper-slack', () => 'SyncView',
-  { clients: ['someoneelse'] }, { client: 'testclient' }, { client: 'testclient' });
+  { clients: ['someoneelse'] }, { client: 'Test Client' }, { client: 'Test Client' });
 
 const R1 = '2026-09-09T12:00:00.000Z';
 const R2 = '2026-09-09T13:00:00.000Z';
@@ -167,8 +170,10 @@ check('the marker itself stays keyed to status, not to content',
 check('the kill-switch OFF hides the affordance entirely',
   OFF._calShowKasperUrgent(card(), 'video') === false);
 // The roster is what lets a rollout start with one client instead of everybody.
-const gate = (v, slug) => new Function('_kasperUrgentFlagValue',
-  grabFunc('_kasperUrgentPingOn') + ';return _kasperUrgentPingOn(' + JSON.stringify(slug) + ');')(v);
+const GATE_PRED = [grabFunc('wlNormalizeClient'), grabFunc('calClientSlug'),
+  grabFunc('_calRuntimeFlagClients'), grabFunc('_kasperUrgentPingOn')].join('\n\n');
+const gate = (v, who) => new Function('_kasperUrgentFlagValue',
+  GATE_PRED + ';return _kasperUrgentPingOn(' + JSON.stringify(who) + ');')(v);
 check('a roster naming this client opens it', gate({ clients: ['testclient'] }, 'testclient') === true);
 check('a roster NOT naming it keeps it shut',
   OTHER._calShowKasperUrgent(card(), 'video') === false
@@ -179,7 +184,27 @@ check('and it fails CLOSED on every other shape',
   && gate(undefined, 'testclient') === false
   && gate('yes', 'testclient') === false
   && gate({ enabled: 'true' }, 'testclient') === false
-  && gate({ clients: ['testclient'] }, '') === false);
+  && gate([{ clients: ['testclient'] }], 'testclient') === false
+  && gate({ clients: ['testclient'] }, '') === false
+  && gate({ clients: ['testclient'] }, null) === false);
+
+/* calState.client / sxrState.client are DISPLAY NAMES; the roster is slugs. A
+   trim-and-lowercase compare matches only the clients whose name happens to be
+   its own slug already, and silently hides the feature from the rest -- no
+   button, no error, nothing to notice. Both sides go through the same
+   normalizer the calendar-upsert and reroute rosters already use. (Codex P2.) */
+check('a display name matches its slug in the roster, and so does the reverse',
+  gate({ clients: ['testclient'] }, 'Test Client') === true
+  && gate({ clients: ['Test Client'] }, 'testclient') === true
+  && P._calShowKasperUrgent(card(), 'video') === true);
+check('the normalizer handles the shapes a plain lowercase compare loses',
+  gate({ clients: ['test&client'] }, 'Test and Client') === true
+  && gate({ clients: ['test&client'] }, 'Test & Client') === true
+  && gate({ clients: ['testclient'] }, 'Dr. Test Client') === true
+  && gate({ clients: ['testclient'] }, '  Test  Client  ') === true);
+check('normalizing widens nothing: a different client still fails closed',
+  gate({ clients: ['testclient'] }, 'Test Clients') === false
+  && gate({ clients: ['testclient'] }, 'Best Client') === false);
 
 console.log('\n-- the round: a ping outlives neither his decision nor the round --');
 const pinged = card({ kasper_urgent_pinged_at: R1, kasper_urgent_status_at: R1, kasper_urgent_comp: 'video' });
@@ -352,8 +377,16 @@ setTimeout(() => {
   check('the switch is re-read again INSIDE the confirm, before any side effect',
     /confirm can sit[\s\S]{0,400}await _kasperUrgentPingOnLive\(client\)/.test(INDEX));
   check('the switch is re-read at CLICK time, not just cached at boot',
-    INDEX.includes('async function _kasperUrgentPingOnLive(slug)')
+    INDEX.includes('async function _kasperUrgentPingOnLive(clientOrSlug)')
     && (INDEX.match(/await _kasperUrgentPingOnLive\(/g) || []).length === 3);   // 2 handlers + inside the confirm
+  /* Counting the call sites was not enough: all three were present and two of
+     them passed nothing, so the roster was asked about the empty client and
+     refused every click on a button that had rendered fine. (Codex P1.) */
+  check('and every one of those re-reads names a client',
+    (INDEX.match(/await _kasperUrgentPingOnLive\(\s*\)/g) || []).length === 0
+    && INDEX.includes('await _kasperUrgentPingOnLive(calState && calState.client)')
+    && INDEX.includes('await _kasperUrgentPingOnLive(sxrState && sxrState.client)')
+    && INDEX.includes('await _kasperUrgentPingOnLive(client)'));
   check('activation repaints, so it does not need a reload',
     INDEX.includes('_kasperUrgentRepaintSurfaces()'));
   // The whole point of the feature: ONE machine, not two that merely resemble

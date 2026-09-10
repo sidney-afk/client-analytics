@@ -25576,14 +25576,26 @@
          { "enabled": true }      -> on for all
        Anything else, including a missing row, a failed read, a malformed value
        or an unknown client, is OFF. Same roster shape the calendar-upsert and
-       reroute flags already use, so there is one idiom to learn, not two. */
-    function _kasperUrgentPingOn(slug) {
+       reroute flags already use, so there is one idiom to learn, not two.
+
+       And the same NORMALIZER, which is not optional: calState.client and
+       sxrState.client hold a display name, while the roster holds slugs, so a
+       plain lower-case compare silently misses every client whose name is not
+       already its own slug -- anything with a space, an accent, a `Dr.`, or an
+       `and` the slug writes as `&`. That failure is invisible in the worst
+       way: no button, no error, just a feature that quietly never appears for
+       the client it was turned on for. _calRuntimeFlagClients canonicalizes
+       the roster and calClientSlug canonicalizes the request, exactly as
+       _calUpsertUseEf and _writeUiRerouteUseGateway already do. */
+    function _kasperUrgentPingOn(clientOrSlug) {
         const v = _kasperUrgentFlagValue;
-        if (!v || typeof v !== 'object') return false;
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
         if (Array.isArray(v.clients)) {
-            const want = String(slug || '').trim().toLowerCase();
-            if (!want) return false;
-            return v.clients.some(c => String(c || '').trim().toLowerCase() === want);
+            let slug = '';
+            try { slug = calClientSlug(clientOrSlug); }
+            catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+            if (!slug) return false;
+            return _calRuntimeFlagClients(v).indexOf(slug) !== -1;
         }
         return v.enabled === true;
     }
@@ -25593,9 +25605,9 @@
        precisely the situation the switch exists for. So the dispatch path asks
        again and fails closed, and a stale-cached render can only ever offer a
        button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
-    async function _kasperUrgentPingOnLive(slug) {
+    async function _kasperUrgentPingOnLive(clientOrSlug) {
         try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentFlagValue = null; }
-        return _kasperUrgentPingOn(slug);
+        return _kasperUrgentPingOn(clientOrSlug);
     }
     async function _calFetchKasperUrgentFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
@@ -33650,7 +33662,9 @@
     async function _calSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         // Live re-read, not the boot cache: the switch must stop an open tab.
-        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        // Pass the CLIENT -- a bare call asks the roster about nobody, which
+        // fails closed on every click of a button that rendered fine.
+        if (!(await _kasperUrgentPingOnLive(calState && calState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') {
             showNotify('Already sent', _urgentKind('kasper').alreadySent);
@@ -67014,7 +67028,8 @@
     async function _sxrSendKasperUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         // Live re-read, not the boot cache: the switch must stop an open tab.
-        if (!(await _kasperUrgentPingOnLive())) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        // Same as the calendar: the roster needs to be asked about a client.
+        if (!(await _kasperUrgentPingOnLive(sxrState && sxrState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
         const post = sxrState.posts.find(p => p.id === pid);

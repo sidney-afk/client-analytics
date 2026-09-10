@@ -547,7 +547,14 @@ function detect(world) {
    * only one worth a line. A row failing either is a stamp that is absent by
    * design, and reporting it would send someone after nothing. */
   for (const [key, cand] of unwrittenApprove) {
-    if (latestApprove.has(key)) continue;   // a written approve for the same review wins
+    /* A WRITTEN APPROVE ONLY SUPERSEDES A LATER ONE IF IT IS ITSELF LATER. The
+     * key names a (card, component), not a review: an older written approve,
+     * then a reopen, then a NEWER client approve whose carrier failed, would
+     * otherwise suppress the new lost approval — while the old written one is
+     * separately rejected by the reopen test, leaving the current loss reported
+     * nowhere. Compare the clocks, not the presence of a key. */
+    const written = latestApprove.get(key);
+    if (written && Date.parse(written.at) >= Date.parse(cand.at)) continue;
     const { at, card, comp, deliverableId, carrier } = cand;
     if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
     const approvedMs = Date.parse(at);
@@ -945,13 +952,18 @@ async function writePatch(card, patch, kind) {
  * approval that reached neither leg. Both land in `skipped` only because nothing
  * here can be written for them. */
 const NEEDS_A_PERSON = new Set(['ambiguous_repeat_of_completed_request', 'carrier_did_not_write']);
-function summaryLines({ findings, skipped }) {
+/* Returns the BUCKETS as well as the lines. Returning only the lines is what
+ * left `main()` referencing bucket names that no longer existed there — the
+ * whole run died with a ReferenceError before any write, and 83 offline checks
+ * did not notice because none of them ran the entry point. Every consumer of
+ * these groupings now gets them from one place. */
+function classify({ findings, skipped }) {
   const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
   const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
   const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
   const carrierFailed = skipped.filter(row => row.reason === 'carrier_did_not_write');
   const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason));
-  return [
+  const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
     `NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length + carrierFailed.length}  `
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
@@ -960,7 +972,9 @@ function summaryLines({ findings, skipped }) {
       + `client approve that reached neither leg ${carrierFailed.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
+  return { writable, reportOnly, ambiguous, carrierFailed, leftAlone, lines };
 }
+const summaryLines = (input) => classify(input).lines;
 
 /* ── run ────────────────────────────────────────────────────────────────── */
 async function main() {
@@ -971,9 +985,8 @@ async function main() {
     + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
-  const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
-  const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
-  for (const line of summaryLines({ findings, skipped })) log(line);
+  const { writable, ambiguous, carrierFailed, leftAlone, lines } = classify({ findings, skipped });
+  for (const line of lines) log(line);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
@@ -985,6 +998,14 @@ async function main() {
     log(`      ${WRITABLE_KINDS.has(finding.kind) ? '→ writes' : '  would need'} `
       + `${Object.keys(patch).filter(k => k !== 'id').map(k =>
         `${k}=${k.endsWith('_tweaks') ? '(+1 request)' : JSON.stringify(patch[k])}`).join(' ')}`);
+  }
+  /* A count with no rows tells the operator that ONE approval needs attention
+   * and nothing about which one. The dispatched workflow passes no --json, so
+   * this loop is the only human-readable output these rows ever get. */
+  for (const row of carrierFailed) {
+    log(`  » card ${row.card} [${row.component}] a client APPROVE reached neither leg `
+      + `(carrier ${row.carrier_status}, card reads ${row.card_status || 'unknown'}) `
+      + '— REPORT ONLY, a person decides');
   }
   for (const row of ambiguous) {
     log(`  » card ${row.card} [${row.component}] request ${row.comment} matches only a `
@@ -1051,4 +1072,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, summaryLines, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };
+module.exports = { detect, summaryLines, classify, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

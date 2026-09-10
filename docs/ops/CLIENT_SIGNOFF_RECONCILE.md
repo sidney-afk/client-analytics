@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 83 checks, each
+construction through fixtures — no credentials, no network. 86 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -350,6 +350,15 @@ is the same class of harm as a false repair.
 Of the five such rows live, four are already stamped and would be noise, and one
 is a lost client approval this job named nowhere before. A report nobody can act
 on is worse than a shorter one.
+
+**The suite runs the entry point.** It did not, and that cost the worst defect
+in this PR: extracting the summary left `main()` naming buckets that no longer
+existed in its scope, so every run — dry-run and apply alike — died with
+`ReferenceError` before writing anything, while 83 offline checks passed and CI
+stayed green. A suite that never executes the program cannot tell you the
+program runs. Two checks now drive the real CLI in a real process over fixtures,
+and `classify()` returns the buckets rather than only the lines, so no caller
+can name a grouping that is not there.
 
 The summary's own counts are a rule, not decoration: the workflow tells the
 operator to read them, so `summaryLines()` is a pure exported function and the

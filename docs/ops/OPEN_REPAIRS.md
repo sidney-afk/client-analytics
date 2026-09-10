@@ -19785,3 +19785,38 @@ it would stop and escalate, on the argument that it completed 195n's contract
 rather than starting something new — and it promptly produced two more findings.
 That argument was wrong, and this entry is the evidence. The structural question
 in 195o stands and is the owner's to answer.
+
+### 195q. Round 16: eighty-three green checks over a program that would not start
+
+Three findings, and the first is the worst defect in this PR.
+
+**The job crashed on every run.** Extracting `summaryLines()` in 195p left
+`main()` referring to `ambiguous` and `leftAlone`, which now existed only inside
+that function. Every invocation — dry-run and apply alike — died with
+`ReferenceError: ambiguous is not defined` after printing the summary and before
+the write loop. **All 83 offline checks passed and all three CI jobs were green**,
+because not one check ran the entry point. A suite that never executes the
+program cannot tell you the program runs.
+
+The suite now drives the real CLI in a real process over fixtures, twice: once
+asserting the run reports what it found, once asserting a dry run reaches no
+write. `classify()` returns the buckets as well as the lines, so no caller can
+name a grouping that is not there.
+
+**The suppression compared presence, not time.** The key names a
+(card, component), not a review. An older written approve, then a reopen, then a
+newer client approve whose carrier failed: the old one is rejected by the reopen
+test and its mere presence suppressed the new one, so the current loss was
+reported nowhere. It now compares the clocks.
+
+**The count had no rows.** `carrier_did_not_write` was excluded from the
+`leftAlone` detail loop and had none of its own, so the operator learned that one
+approval needed attention and nothing about which card, component or carrier
+status. The dispatched workflow passes no `--json`, so that loop is the only
+human-readable output these rows ever get.
+
+86 checks, three controls, all confirmed by exit status.
+
+**Sixteen rounds, 38 findings.** The lesson worth keeping is not any of the three
+fixes: it is that a green suite and green CI were both satisfied by a program
+that could not start. Coverage of rules is not coverage of the run.

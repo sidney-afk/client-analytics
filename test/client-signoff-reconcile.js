@@ -732,6 +732,50 @@ check('every delivery finding is marked report-only at the point it is made', ()
   assert.equal(stamps[0].writable, true);
 });
 
+/* ROUND 16, AND THE REASON IT IS THE MOST IMPORTANT CHECK IN THIS FILE.
+   Extracting the summary left `main()` referring to bucket names that no longer
+   existed in its scope, so EVERY run — dry-run and apply alike — died with
+   `ReferenceError: ambiguous is not defined` before writing anything. All 83
+   offline checks passed and CI was green, because not one of them ran the entry
+   point. A suite that never executes the program cannot tell you the program
+   runs. This drives the real CLI, in a real process, over fixtures. */
+checkAsync('the entry point actually runs, end to end, and reports what it found', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [APPROVE(), APPROVE({ entity_id: 'del-2', status: 'stale' })],
+    comments: [],
+    deliverables: [DEL(), DEL({ id: 'del-2', card_id: 'card-2' })],
+    cards: [CARD(), CARD({ id: 'card-2', video_deliverable_id: 'del-2' })],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8' });
+  assert.match(out, /REPAIRS \(written on --apply\): 1 sign-off stamp\(s\)/, out);
+  assert.match(out, /NEEDS A PERSON \(never written\): 1\b/, out);
+  /* The per-row line, not just the count: a count with no rows tells the
+     operator that one approval needs attention and nothing about which one. */
+  assert.match(out, /card card-2 \[video\] a client APPROVE reached neither leg/, out);
+  assert.match(out, /carrier stale/, out);
+});
+
+/* A dry run must never reach the write path, and the entry point is where that
+   is actually decided. Asserted through the CLI for the same reason as above. */
+checkAsync('a dry run writes nothing, proven through the entry point', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [APPROVE()], comments: [], deliverables: [DEL()], cards: [CARD()],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8' });
+  assert.match(out, /DRY-RUN/, out);
+  assert.equal(/→ wrote|applied 1/.test(out), false, 'a dry run must not report a write');
+});
+
 checkAsync('the write itself refuses anything that is not a stamp', async () => {
   for (const kind of ['comment', 'status_only', '', undefined]) {
     await assert.rejects(() => writePatch({ id: 'card-1', client: 'testclient' }, { id: 'card-1' }, kind),
@@ -991,6 +1035,28 @@ check('a written approve for the same review supersedes the unwritten report', (
   }));
   assert.equal(findings.length, 1, 'the written approve is still repaired');
   assert.equal(skipped.filter(x => x.reason === 'carrier_did_not_write').length, 0);
+});
+
+/* ROUND 16. The suppression key names a (card, component), not a review. An
+   older WRITTEN approve, then a reopen, then a NEWER client approve whose
+   carrier failed: the old written one is rejected by the reopen test, and its
+   mere presence in the key suppressed the new one — so the current loss was
+   reported nowhere. Compare the clocks, not the presence of a key. */
+check('an older written approve does not suppress a newer lost one', () => {
+  const reopen = { entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'written',
+    role: 'designer', payload: { status: 'tweak' }, source_edited_at: '2026-09-06T00:00:00.000Z',
+    created_at: '2026-09-06T00:00:00.000Z', test_only: false };
+  const { findings, skipped } = detect(world({
+    outbox: [
+      APPROVE({ source_edited_at: '2026-09-05T00:00:00.000Z', created_at: '2026-09-05T00:00:00.000Z' }),
+      reopen,
+      APPROVE({ status: 'stale', source_edited_at: '2026-09-07T00:00:00.000Z',
+        created_at: '2026-09-07T00:00:00.000Z' }),
+    ],
+  }));
+  assert.equal(findings.length, 0, 'the old written approve is superseded by the reopen');
+  assert.equal(skipped.filter(x => x.reason === 'carrier_did_not_write').length, 1,
+    'the newer lost approval must still be reported');
 });
 
 check('a properly linked card is still stamped normally', () => {

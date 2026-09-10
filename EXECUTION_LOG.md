@@ -6963,3 +6963,42 @@ Preflight v6 now checks the declared `public, extensions, pg_temp`; unit coverag
 compares every expected routine path to its migration header. No application
 SQL was changed by this review. Nothing was merged, published, deployed,
 dispatched, or written to production. Installation remains HOLD.
+
+## 2026-09-09 — the twelve seconds a native card spends unattributed (browser, copy only)
+
+An SMM reported a thumbnail he had just filed from the content calendar refusing
+every edit under "Client attribution needs repair", naming a client whose roster
+row and project mapping were both healthy.
+
+**Measured, live, read-only.** `deliverable_events` has the row created from the
+calendar at **19:28:29.255Z** (`action: create`, `source: ui`, `surface:
+calendar`) and the mirror stamping it `resolved` / `direct_project` at
+**19:28:41.440Z**: twelve seconds, with the right `client_slug` on the row the
+whole time. The browser projection reads the row resolved today;
+`scripts/attribution-stuck-check.js` puts it in no stuck bucket, and that client
+has zero live rows with a missing project or an unresolved stamp. Both ends were
+confirmed by running the shipped `_prodResolveAttributions` out of `index.html`
+against the live row: `resolved` / `direct_project` as it stands, and
+`needs_attribution` / `no_mapped_project_or_explicit_classification` with its
+mirrored fields stripped.
+
+**Cause.** Native creation writes the deliverable row first and mirrors it into
+Linear after, and the resolver reads only the mirrored fields, never the
+`client_slug` column SyncView itself wrote. The gate was right for those
+seconds; its wording was not.
+
+**Shipped: copy only.** The syncing shape now reads "Syncing to Linear" in the
+neutral muted key. No verdict, gate, read, or authority path moves; the write is
+still refused. Ledger OPEN_REPAIRS 187, parity WIRED-PARITY 2026-09-09.
+
+**Left open, owner call.** Attribution still ignores the row's own
+`client_slug`, so a mirror that fails outright rather than lagging leaves a card
+read-only until somebody notices. Measured the same day: **139 live rows** carry
+no `raw_project_id`.
+
+
+## 2026-09-10 — Frozen client writers: urgent markers live, feature still off
+
+Owner-authorized live-source deployment through the Supabase API: calendar-upsert 48 → 49 at 16:34:51 UTC, then sample-review-upsert 49 → 50 at 16:36:53 UTC after Calendar verification. Exact candidate source readback passed; both preserve verify_jwt=false and contain zero authorizeBrowserWrite occurrences. Tokenless name/comment saves and all six supported marker/component combinations persisted on database readback. Test fixtures were removed using last-write guards. Runtime flag kasper_urgent_ping_enabled remains absent.
+
+See [complete receipt, bundle hashes and rollback](docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). This is the deliberately frozen pair, not an F27 Section 4 deployment; repository writer copies were not deployed.

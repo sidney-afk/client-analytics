@@ -252,6 +252,48 @@ function behavWiredFailedChecks(text) {
     ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
 }
 
+/* The pixel lane's equivalent of BEHAV_WIRED_CHECKS.
+ *
+ * Harvested from pixel-wired.js's own source in this public repository: the
+ * `state:` object literals, the label argument of the three comparison
+ * helpers, and the one interpolated label built from that suite's closed
+ * theme list. An emitted label is published only if it appears here, so the
+ * summary can carry no fragment of the suite's live-derived output. */
+const PIXEL_WIRED_STATES = (() => {
+  try {
+    const src = require('fs').readFileSync(
+      path.join(root, 'docs', 'syncview-design', 'tests', 'pixel-wired.js'), 'utf8');
+    const names = new Set();
+    const patterns = [
+      /\bstate:\s*'([^']+)'/g,
+      /\bcompare(?:Styles|PaletteCommandRows|MenuInventory)\(\s*gaps\s*,\s*'([^']+)'/g,
+    ];
+    for (const re of patterns) {
+      let match;
+      while ((match = re.exec(src))) names.add(match[1]);
+    }
+    for (const theme of ['light', 'dark']) names.add(theme + ' palette');
+    return names;
+  } catch (_) { return new Set(); }
+})();
+
+/* Same cap and same reasoning as BEHAV_WIRED_NAME_CAP: a readability limit,
+ * set above the size of a realistic partial breakage so it cannot become the
+ * blackout it exists to prevent. */
+const PIXEL_WIRED_NAME_CAP = 24;
+
+function pixelWiredFailedStates(text) {
+  const line = (String(text || '').match(/PIXEL_WIRED_FAILED_STATES([^\n]*)/) || [])[1];
+  if (!line) return '';
+  const named = line.trim().split('|')
+    .map(name => name.trim())
+    .filter(name => PIXEL_WIRED_STATES.has(name));
+  if (!named.length) return '';
+  const shown = named.slice(0, PIXEL_WIRED_NAME_CAP).join('+');
+  return 'pixel_wired:' + shown + (named.length > PIXEL_WIRED_NAME_CAP
+    ? '+' + (named.length - PIXEL_WIRED_NAME_CAP) + 'more' : '');
+}
+
 /* Classify WITHOUT quoting. Returns one code from the list above or
  * 'unclassified' — never a fragment of the suite's own output, so a live
  * client name, row body, or URL in that output cannot reach the summary.
@@ -323,6 +365,8 @@ function smokeFailedStage(text) {
 function failureReason(text) {
   const named = behavWiredFailedChecks(text);
   if (named) return named;
+  const pixel = pixelWiredFailedStates(text);
+  if (pixel) return pixel;
   const code = classifyFailure(text);
   const where = smokeFailedStage(text);
   return where ? code + '@' + where : code;

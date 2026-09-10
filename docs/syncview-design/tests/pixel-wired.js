@@ -854,6 +854,27 @@ async function runTheme(port, browser, theme) {
     if (gaps.length) {
       console.error('pixel-wired gaps:');
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
+      /* NAME WHAT FAILED, WITHOUT SAYING WHAT IT SAID.
+
+         The lines above carry live-derived values -- computed CSS, element
+         counts, console text -- so they stay on the ephemeral runner by
+         design, and the gate's public summary only ever reported
+         `error_generic`. That is how this lane stayed red from 2026-08-30
+         without anyone being able to name a single failing check
+         (OPEN_REPAIRS 125 records the same blackout for the behaviour lane,
+         which fixed it exactly this way).
+
+         A `state` is not live content. Every one is a string literal at its
+         call site in THIS file, which lives in a public repository, plus the
+         two interpolated `<theme> palette` labels from the closed theme list
+         below. So the labels can be published while the messages cannot.
+         Separated by `|` because several labels contain spaces. The gate
+         re-checks each one against an allowlist harvested from this file, so
+         a label that is not a literal here can never reach the summary. */
+      const failedStates = [...new Set(gaps.map(g => String(g.state || '')))]
+        .filter(Boolean)
+        .sort();
+      console.error('PIXEL_WIRED_FAILED_STATES ' + failedStates.join('|'));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
     console.log(`pixel-wired (${theme}): list, icon paths, palette, selection/actionbar, signed-out status/context/due guards, bulk menu anchor, filter pill, filtered empty state, board drag/scroll, detail, browser history, no-write, and console checks passed`);

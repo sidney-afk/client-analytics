@@ -5,11 +5,12 @@ const names=['_calUrgentSlackDispatch','_calCheckQueuedUrgent','_calSendUrgentSl
 const gatewayDeclaration=html.match(/^\s*const WRITE_UI_PRODUCTION_WRITE_URL = [^;]+;/m);
 assert.ok(gatewayDeclaration, 'actual shared gateway URL declaration exists');
 const failureTables=html.slice(html.indexOf('const WRITE_UI_FAILURE_CLASS_TEXT'),html.indexOf('function _writeUiReportFailure('));
-const source=gatewayDeclaration[0]+'\n'+failureTables+'\n'+names.map(n=>(n==='_calCheckQueuedUrgent'?'async ':'')+extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
+const urgentKinds=html.slice(html.indexOf('    const URGENT_PING_KINDS ='),html.indexOf('    function _urgentKind'));
+const source=urgentKinds+'\n'+extractFunction(html,'_urgentKind')+'\n'+gatewayDeclaration[0]+'\n'+failureTables+'\n'+names.map(n=>(n==='_calCheckQueuedUrgent'?'async ':'')+extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
 function world(surface='calendar',store=new Map()){
  const post={id:'card-1',video_deliverable_id:'native-video-1',video_status:'Tweaks Needed',video_status_at:round,name:'Synthetic card'},sent=[],persisted=[],notices=[],confirms=[];
  const button=()=>({disabled:false,textContent:'URGENT',dataset:{},classList:{add(){}}});
- const item={post,slug:'fixture',client:'Fixture'},ctx={console:{warn(){}},JSON,String,Date,Map,AbortSignal,crypto:require('node:crypto').webcrypto,CAL_SUPABASE_URL:'https://project.invalid',CAL_SUPABASE_ANON_KEY:'synthetic-public',URGENT_SLACK_URL:'https://n8n.invalid/urgent',_isClientLink:false,
+ const item={post,slug:'fixture',client:'Fixture'},ctx={console:{warn(){}},JSON,String,Date,Map,AbortSignal,crypto:require('node:crypto').webcrypto,CAL_SUPABASE_URL:'https://project.invalid',CAL_SUPABASE_ANON_KEY:'synthetic-public',URGENT_SLACK_URL:'https://n8n.invalid/urgent',URGENT_KASPER_SLACK_URL:'https://n8n.invalid/kasper',_isClientLink:false,
  _syncviewStaffIdentityForHeaders:()=>({key:'synthetic-staff',member:{name:'Synthetic Staff'},role:'smm'}),
  _calNormStatus:x=>x,_sxrNormStatus:x=>x,calClientSlug:()=>ctx.scope,sxrClientSlug:()=>ctx.scope,scope:'fixture',wlCanonicalClient:()=> 'Fixture',
  calState:{client:'Fixture',posts:[post]},sxrState:{client:'Fixture',posts:[post]},_kasperState:{items:[item],replies:[]},_sxrKasperFindItem:()=>item,
@@ -87,6 +88,16 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
   w.ctx.status=400;w.ctx.reply={ok:false,error:'invalid_urgent_request'};
   await w.confirm();
   assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(b.textContent,'Check delivery');
+ });
+ await check('Kasper kind cannot enter native editor delivery and preserves extra payload',async()=>{
+  const w=world(),b=w.button();w.ctx._kasperUrgentPingOnLive=async()=>true;
+  w.ctx._calUrgentSlackDispatch(b,'issue','fixture','Synthetic card',{kind:'kasper',native:{video_status_at:round},payload:{component:'graphic'},persist:async p=>w.persisted.push(p)});
+  await w.confirm();assert.equal(w.sent.length,1);assert.equal(w.sent[0].url,'https://n8n.invalid/kasper');assert.equal(w.sent[0].body.component,'graphic');assert.equal(w.sent[0].body.action,undefined);assert.equal(w.store.size,0);assert.equal(w.persisted.length,1);assert.equal(b.textContent,'Sent');
+ });
+ await check('Kasper kill switch rechecks after confirmation before any transport or marker',async()=>{
+  const w=world(),b=w.button();w.ctx._kasperUrgentPingOnLive=async()=>false;
+  w.ctx._calUrgentSlackDispatch(b,'issue','fixture','Synthetic card',{kind:'kasper',persist:async p=>w.persisted.push(p)});
+  await w.confirm();assert.equal(w.sent.length,0);assert.equal(w.persisted.length,0);assert.equal(b.disabled,false);
  });
  await check('client link cannot dispatch native urgent',async()=>{const w=world();w.ctx._isClientLink=true;w.click();assert.equal(w.confirms.length,0);assert.equal(w.sent.length,0);});
  await check('native video visibility preserves component and tweak status gates',async()=>{const w=world();for(const n of ['_calShowUrgent','_sxrShowUrgent']){assert.equal(w.ctx[n](w.post,'video'),true);assert.equal(w.ctx[n](w.post,'graphic'),false);assert.equal(w.ctx[n]({...w.post,video_status:'Approved'},'video'),false);assert.equal(w.ctx[n]({...w.post,video_deliverable_id:''},'video'),false);}});

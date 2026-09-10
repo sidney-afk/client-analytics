@@ -101,6 +101,7 @@ Templates:
 Other:
 - `webhook/kasper-queue` — Kasper review queue
 - `webhook/send-urgent-slack` — urgent pings to Slack
+- `webhook/send-urgent-kasper-slack` — urgent ping DMing Kasper about a card parked at Kasper Approval, with a link to his review tab
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post
 - `webhook/filming-plan-tabs` — filming-plans tab data
 - `webhook/add-hook-to-library` — hook library capture

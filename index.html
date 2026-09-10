@@ -3293,6 +3293,10 @@
         .prod-attribution-chip.is-provisional { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
         .prod-attribution-chip.is-needs { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
         .prod-attribution-chip.is-conflict { color: var(--prod-overdue, #eb5757); border-color: rgba(235, 87, 87, .35); background: rgba(235, 87, 87, .10); }
+        /* A card SyncView created seconds ago, still waiting for Linear, is not
+           a repair: it reads in the neutral muted key, not the amber one every
+           other unresolved state uses. */
+        .prod-attribution-chip.is-syncing { color: var(--prod-muted); border-color: var(--prod-border); background: var(--prod-hover); }
         .prod-attribution-notice { margin: -4px 0 14px; border-radius: 8px; padding: 9px 11px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
         .prod-attribution-notice b { color: var(--prod-strong); }
         .prod-attribution-notice.is-conflict { color: var(--prod-overdue, #eb5757); }
@@ -5770,6 +5774,23 @@
            (green) and disabled (grey) all inherit from .cal-urgent-btn. */
         .kcard-urgent-btn { padding: 9px 13px; border-radius: 10px; font-size: 0.72rem; letter-spacing: 0.04em; }
         .kcard-urgent-btn svg { width: 13px; height: 13px; }
+        /* The Kasper flavour of the same button (a card parked at Kasper
+           Approval, pinging HIM rather than the editor) deliberately has NO
+           rules of its own. It is the same escalation aimed at a different
+           person, so it inherits every state — base, hover, disabled grey,
+           is-sent green — from .cal-urgent-btn above.
+
+           It briefly carried two `.cal-urgent-btn.is-kasper` rules that merely
+           repeated the base background and hover. They changed nothing on a
+           fresh button and broke the finished ones: equal specificity but LATER
+           in the sheet, so they beat `:disabled` and `.is-sent` and repainted a
+           sent ping orange. A redundant override is not free — it silently
+           outranks the states declared above it. (Codex P2 on PR 1370.)
+
+           The title-row variant only re-rounds its corners: it docks beside the
+           title square rather than on the end of a segmented pill, so it has no
+           flat edge to meet. */
+        .cal-title-urgent-btn { flex: 0 0 auto; border-radius: 7px; }
         /* Second Linear slot (graphics) in the title row — purple ONLY when
            linked, so an unlinked graphic slot falls back to the neutral
            gray (default) or warn-orange (cal-linear-btn-warn) the same way
@@ -6857,6 +6878,16 @@
         .kasper-history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; cursor: pointer; user-select: none; }
         .kasper-history-title { font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .kasper-history-count { font-size: 0.68rem; font-weight: 700; background: var(--border-light); color: var(--text-secondary); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        /* A focusable head needs a visible focus ring, or keyboard users can
+           tab to it and have no idea where they are. Scoped to the Urgent
+           heads because they are the only ones carrying tabindex today. */
+        .kasper-urgent-wrap .kasper-history-head:focus-visible {
+            outline: 2px solid var(--cal-urgent-bg); outline-offset: 3px; border-radius: 4px; }
+        /* "Urgent" section head. Same section as its three siblings — only the
+           title and count carry the urgent colour, so the group reads as more
+           pressing without becoming a different kind of object on the page. */
+        .kasper-urgent-wrap .kasper-history-title { color: var(--cal-urgent-bg); }
+        .kasper-urgent-wrap .kasper-history-count { background: var(--cal-urgent-bg); color: var(--cal-urgent-fg); }
         .kasper-history-chev { color: var(--text-muted); transition: transform 0.2s; margin-left: auto; }
         .kasper-history-wrap.collapsed .kasper-history-chev { transform: rotate(-90deg); }
         .kasper-history-wrap.collapsed .kasper-history-body { display: none; }
@@ -7395,7 +7426,7 @@
         }
 
         .kad-wrap { display: grid; gap: 16px; }
-        .kad-toolbar { display: flex; justify-content: flex-end; }
+        .kad-toolbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
         .kad-range-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
         .kad-range-btn { min-height: 32px; padding: 6px 12px; border: none; border-right: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .kad-range-btn:last-child { border-right: none; }
@@ -16238,12 +16269,14 @@
         'nahuelespindola',
         'santigimelli',
         'gimellisanti',
+        'davidstrutt',
+        'struttdavid',
     ]);
     const WL_ALLOWED_GRAPHICS = new Set([
         'rocioperez',
         'perezrocio',
     ]);
-        function wlNormalizeEditor(s) {
+    function wlNormalizeEditor(s) {
         if (!s) return '';
         const lower = String(s).trim().toLowerCase()
             .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
@@ -23425,6 +23458,14 @@
        user via the Video Editors sheet tab, and posts to #video-editing as the
        SyncView Bot. The editor/mention is never trusted from the client. */
     const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* "URGENT — WAITING ON YOU" ping for a card parked at Kasper Approval. The
+       twin of the one above, aimed the other way: the SMM fires it when a card
+       has been sitting in Kasper's queue too long, and the send-urgent-kasper-slack
+       workflow DMs Kasper as the SyncView Bot with a link straight to his review
+       tab. As with the editor ping the front-end sends only card context — the
+       recipient is resolved inside the workflow and is never trusted from the
+       browser. */
+    const URGENT_KASPER_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-kasper-slack';
     /* ============================================================
        CALENDAR v2 (Supabase realtime) — Phase 2 config
        See docs/archive/CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
@@ -26565,6 +26606,95 @@
         }
         return Promise.resolve();
     }
+    /* KILL-SWITCH for the Kasper-approval URGENT ping, and it is the reason this
+       feature can merge before its Edge Function half exists.
+
+       The marker columns live behind the ⛔ FROZEN writers (see the banner in
+       supabase/functions/calendar-upsert/index.ts). Until their live un-gated
+       source carries the four kasper_urgent_* fields, a ping would post a patch
+       whose fields the allow-list drops -- leaving an UPDATE that writes nothing
+       but `updated_at`. That is not harmless: dedupeByLinearIssue in
+       scripts/linear-sync-reconcile.js picks the canonical row by most-recent
+       `updated_at`, so on a card sharing a Linear link with another, a no-op
+       ping can flip which row the calendar shows. And the DM would say "it is in
+       the Urgent section at the top" of a section that cannot populate.
+
+       So the affordance is OFF until this flag says otherwise, and it FAILS
+       CLOSED: no flag row, no key, a failed read, a malformed value, a client
+       the roster does not name -> off. With it off the feature is completely
+       inert -- no button, so no click, no write and no DM. Turning it on is one
+       row, no deploy. Start with a roster of one, not with everybody:
+
+         insert into public.syncview_runtime_flags (key, value)
+         values ('kasper_urgent_ping_enabled', '{"clients": ["<slug>"]}'::jsonb)
+         on conflict (key) do update set value = excluded.value;
+
+       `{"enabled": true}` opens it for every client; keep that for after the
+       roster has proven itself. Off again is the same one row: `{"clients": []}`
+       or `{"enabled": false}`, both instant and both no deploy.
+    */
+    const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
+    let _kasperUrgentFlagValue = null;
+    /* Two shapes, so a rollout can start with one client instead of everybody:
+         { "clients": ["slug"] }  -> on for exactly those clients
+         { "enabled": true }      -> on for all
+       Anything else, including a missing row, a failed read, a malformed value
+       or an unknown client, is OFF. Same roster shape the calendar-upsert and
+       reroute flags already use, so there is one idiom to learn, not two.
+
+       And the same NORMALIZER, which is not optional: calState.client and
+       sxrState.client hold a display name, while the roster holds slugs, so a
+       plain lower-case compare silently misses every client whose name is not
+       already its own slug -- anything with a space, an accent, a `Dr.`, or an
+       `and` the slug writes as `&`. That failure is invisible in the worst
+       way: no button, no error, just a feature that quietly never appears for
+       the client it was turned on for. _calRuntimeFlagClients canonicalizes
+       the roster and calClientSlug canonicalizes the request, exactly as
+       _calUpsertUseEf and _writeUiRerouteUseGateway already do. */
+    function _kasperUrgentPingOn(clientOrSlug) {
+        const v = _kasperUrgentFlagValue;
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        if (Array.isArray(v.clients)) {
+            let slug = '';
+            try { slug = calClientSlug(clientOrSlug); }
+            catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+            if (!slug) return false;
+            return _calRuntimeFlagClients(v).indexOf(slug) !== -1;
+        }
+        return v.enabled === true;
+    }
+    /* Re-read at CLICK time, not just at boot. A flag cached at boot makes the
+       advertised one-step rollback untrue: a tab that saw `enabled: true` keeps
+       sending DMs and writing markers after the row is flipped off, which is
+       precisely the situation the switch exists for. So the dispatch path asks
+       again and fails closed, and a stale-cached render can only ever offer a
+       button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
+    async function _kasperUrgentPingOnLive(clientOrSlug) {
+        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentFlagValue = null; }
+        return _kasperUrgentPingOn(clientOrSlug);
+    }
+    async function _calFetchKasperUrgentFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const was = JSON.stringify(_kasperUrgentFlagValue);
+            _kasperUrgentFlagValue = (row && row.value && typeof row.value === 'object') ? row.value : null;
+            // A render that won the race against this read is buttonless; repaint
+            // it rather than making activation require a reload.
+            if (was !== JSON.stringify(_kasperUrgentFlagValue)) _kasperUrgentRepaintSurfaces();
+        } catch (e) {
+            _kasperUrgentFlagValue = null;   // fail closed, always
+        }
+    }
+    function _kasperUrgentRepaintSurfaces() {
+        try { if (typeof renderCalendarView === 'function' && calState && Array.isArray(calState.posts) && calState.posts.length) renderCalendarView(); } catch (e) {}
+        try { if (typeof _kasperPaintReview === 'function') _kasperPaintReview(); } catch (e) {}
+        try { if (typeof _sxrKasperRenderQueue === 'function') _sxrKasperRenderQueue(); } catch (e) {}
+    }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
         try {
@@ -26765,7 +26895,7 @@
     }
     function _calPrimeUpsertRoutingFlag() {
         if (!_calUpsertFlagPromise) {
-            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _writeUiPrimeRerouteFlag()])
+            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
                 .then(() => _calSubscribeUpsertFlag()).catch(() => null);
         }
         return _calUpsertFlagPromise;
@@ -34659,6 +34789,43 @@
        resolves the editor and posts to #video-editing as the SyncView Bot. A
        disclaimer gates the send, and the button latches to "Sent" for the rest
        of the session so a card can't be spam-pinged on re-render. */
+    /* The URGENT ping has TWO flavours, and they are deliberately ONE machine:
+       same button, same confirm -> POST -> latch dispatch, same four-column
+       marker shape, same "the marker dies with its round" rule. Only the
+       destination, the copy and which columns hold the marker differ, and all
+       of that lives in this table so every call site downstream stays flavour-
+       blind. Adding a third would be a row here and nothing else.
+
+         editor - a VIDEO at Tweaks Needed         -> #video-editing, tags the editor
+         kasper - ANY component at Kasper Approval -> DMs Kasper, links his review tab
+
+       `kind` defaults to 'editor' EVERYWHERE, so every pre-existing call site
+       keeps its exact old behaviour without being touched. */
+    const URGENT_PING_KINDS = {
+        editor: {
+            url: () => URGENT_SLACK_URL,
+            btnTitle: 'Ping the editor in #video-editing that this needs urgent tweaks',
+            confirmTitle: 'Send urgent tweak ping?',
+            confirmBody: 'This posts an \u201cURGENT TWEAKS NEEDED\u201d message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            confirmCta: 'Send urgent ping',
+            sentTitle: 'Urgent ping sent',
+            sentWhere: 'Posted to #video-editing',
+            alreadySent: 'An urgent ping for this video was already sent in this session.',
+            failBody: 'The urgent ping failed to send. Try again, or post in #video-editing manually.'
+        },
+        kasper: {
+            url: () => URGENT_KASPER_SLACK_URL,
+            btnTitle: 'Ping Kasper in Slack that this card is waiting on his review',
+            confirmTitle: 'Ping Kasper for this review?',
+            confirmBody: 'This sends Kasper a direct Slack message from the SyncView Bot with a link to his review tab, and moves the card into the Urgent section at the top of it. Only use it when the card genuinely cannot wait for his next pass.',
+            confirmCta: 'Ping Kasper',
+            sentTitle: 'Kasper pinged',
+            sentWhere: 'Sent Kasper a Slack DM',
+            alreadySent: 'Kasper was already pinged for this card in this session.',
+            failBody: 'The ping to Kasper failed to send. Try again, or message him in Slack manually.'
+        }
+    };
+    function _urgentKind(kind) { return URGENT_PING_KINDS[kind] || URGENT_PING_KINDS.editor; }
     function _calUrgentSameRound(a, b) {
         const as = String(a || '').trim(), bs = String(b || '').trim();
         if (!as || !bs) return false;
@@ -34666,24 +34833,82 @@
         const at = Date.parse(as), bt = Date.parse(bs);
         return Number.isFinite(at) && Number.isFinite(bt) && Math.abs(at - bt) < 1000;
     }
-    function _calUrgentSentForCurrentRound(p) {
+    function _calUrgentSentForCurrentRound(p, kind) {
+        if (kind === 'kasper') return _calKasperUrgentActive(p);
         if (!_calShowUrgent(p, 'video')) return false;
         if (!String((p && p.video_urgent_pinged_at) || '').trim()) return false;
         return _calUrgentSameRound(p && p.video_urgent_status_at, p && p.video_status_at);
     }
-    function _calApplyUrgentButtonState(btn, p) {
+    /* Which pill the Kasper ping was fired from. Stored rather than assumed
+       because the ping is card-level but its ROUND is a single component's:
+       reading the wrong component's status would keep a spent marker alive. */
+    function _calKasperUrgentComp(p) {
+        const raw = String((p && p.kasper_urgent_comp) || '').trim();
+        return CAL_REVIEW_COMPONENTS.indexOf(raw) >= 0 ? raw : 'video';
+    }
+    /* Is this card's Kasper ping still live? Live means: it was sent, the
+       component it was sent for is STILL at Kasper Approval, and that component
+       has not left and re-entered since (the round key). This one predicate is
+       the whole feature's source of truth -- it drives the button's Sent latch
+       AND membership of the Urgent section in Kasper's review tab, so the two
+       can never disagree.
+
+       The unstamped case is deliberately generous: rows that predate the
+       caption/title change-stamps carry no *_status_at at all, and treating
+       that as "wrong round" would silently drop cards OUT of the Urgent
+       section, which is the one failure mode that matters here. With neither
+       side stamped the component still sitting at Kasper Approval is proof
+       enough. */
+    function _calKasperUrgentActive(p) {
+        if (!p) return false;
+        if (!String(p.kasper_urgent_pinged_at || '').trim()) return false;
+        const comp = _calKasperUrgentComp(p);
+        if (_calNormStatus(p[comp + '_status'] || '') !== 'Kasper Approval') return false;
+        const sentFor = String(p.kasper_urgent_status_at || '').trim();
+        const now = String(p[comp + '_status_at'] || '').trim();
+        if (!sentFor && !now) return true;
+        return _calUrgentSameRound(sentFor, now);
+    }
+    /* Affordance gate for the Kasper ping, the sibling of _calShowUrgent: a
+       component actually sitting at Kasper Approval that he can actually act on.
+
+       BOTH exclusions exist because his QUEUE applies them, and a ping the queue
+       will not honour is worse than no ping at all -- the DM says "it is in the
+       Urgent section at the top" and it is not there:
+         · an unlinked thumbnail is not reviewable (_calCompKasperVisible drops it);
+         · a component whose CONTENT never arrived -- a video with no file, an
+           empty caption, an untitled title -- is dropped by the queue's own
+           `anyReviewable` gate into the "waiting on content, not on you" notice,
+           which is a different message and a different bucket.
+       So this asks _kasperCompReviewable, the very predicate that gate uses,
+       rather than a second opinion that could drift from it. (Codex P1 on
+       PR 1370: the ping persisted a marker for a card Kasper could never see.)
+
+       This is NOT the over-strict client AGENTS.md warns against. It hides
+       nothing that would have worked: reviewability is read off columns the
+       browser already holds, not guessed at, and the correct move for a card
+       with no video is to attach the video, not to chase Kasper about it. */
+    function _calShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn(calState && calState.client)) return false;   // fails closed
+        if (!p || !c) return false;
+        if (_calNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
+        if (c === 'graphic' && !_calCompLinked(p, c)) return false;
+        return _kasperCompReviewable(p, c);
+    }
+    function _calApplyUrgentButtonState(btn, p, kind) {
         if (!btn) return;
-        const sent = _calUrgentSentForCurrentRound(p);
+        const sent = _calUrgentSentForCurrentRound(p, kind || btn.dataset.urgentKind);
         btn.disabled = sent;
         btn.textContent = sent ? 'Sent' : 'URGENT';
         btn.dataset.urgentSent = sent ? '1' : '0';
         btn.classList.toggle('is-sent', sent);
     }
-    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation) {
-        const sent = _calUrgentSentForCurrentRound(post);
+    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation, kind) {
+        const k = kind === 'kasper' ? 'kasper' : 'editor';
+        const sent = _calUrgentSentForCurrentRound(post, k);
         const cls = 'cal-urgent-btn' + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
         const preClick = stopPropagation ? 'event.stopPropagation();' : '';
-        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
+        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-kind="${k}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="${_calEscAttr(_urgentKind(k).btnTitle)}"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
     }
     function _calBuildUrgentPatch(post, ping) {
         const issue = String((ping && ping.issue) || (post && post.linear_issue_id) || '').trim();
@@ -34712,6 +34937,100 @@
             post.video_status_at = post.video_urgent_status_at;
         }
         return echo;
+    }
+    /* ── The Kasper half of the ping ──────────────────────────────────────
+       Same four-column marker shape as the video ping, one card-level marker
+       instead of a per-component one, because the ping means "this CARD is
+       waiting on you" and Kasper's review card covers every component at once.
+       `kasper_urgent_comp` records which pill fired it purely so the round key
+       has a component to belong to (see _calKasperUrgentActive). */
+    function _calBuildKasperUrgentPatch(post, comp, ping) {
+        return {
+            id: post.id,
+            kasper_urgent_pinged_at: String((ping && ping.sentAt) || new Date().toISOString()),
+            kasper_urgent_status_at: String((post && post[comp + '_status_at']) || ''),
+            kasper_urgent_comp: comp,
+            kasper_urgent_by: String((ping && ping.by) || _calUrgentActorName())
+        };
+    }
+    function _calUrgentActorName() {
+        try {
+            if (_isClientLink) return 'Client';
+            if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') return 'Kasper';
+        } catch (e) {}
+        return 'SyncView';
+    }
+    /* Kasper works in his own tab, on a different device, from the SMM who
+       fired the ping — so the marker has to be on the ROW, not in this session.
+       Without the write the DM would arrive and his Urgent section would still
+       be empty, which is the exact failure the editor ping's marker was added
+       for on 2026-07-10. */
+    async function _calPersistKasperUrgentForPost(clientOrSlug, post, comp, ping) {
+        if (!post || !post.id) return null;
+        const slug = calClientSlug(clientOrSlug);
+        const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
+        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
+        Object.assign(post, patch, echo);
+        // Mirror of the video ping's back-fill: on a row whose component has no
+        // change-stamp yet, adopt the one the server settled on so the local
+        // copy agrees with what the round key will compare against next paint.
+        if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
+            post[comp + '_status_at'] = post.kasper_urgent_status_at;
+        }
+        // A card with two components at Kasper Approval renders TWO buttons, and
+        // the dispatcher only disables the one that was clicked. Without this the
+        // sibling stays live and can fire a duplicate DM before the next render.
+        // (Codex P2 on PR 1370 — the samples path already did this.)
+        try { _calUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    /* Where the DM points. Kasper's review tab is one hash away on the live
+       app, and the two surfaces have different subtabs — a sample must land on
+       Samples, not on the calendar queue where it is nowhere to be found. */
+    function _calKasperReviewUrl(surface) {
+        const base = 'https://syncview.synchrosocial.com/';
+        return base + '#kasper' + (surface === 'samples' ? '/samples' : '');
+    }
+    /* Ping Kasper about a card parked at Kasper Approval. Reuses the SAME
+       confirm → POST → latch dispatch as the editor ping; only the flavour
+       differs. */
+    async function _calSendKasperUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        // Pass the CLIENT -- a bare call asks the roster about nobody, which
+        // fails closed on every click of a button that rendered fine.
+        if (!(await _kasperUrgentPingOnLive(calState && calState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') {
+            showNotify('Already sent', _urgentKind('kasper').alreadySent);
+            return;
+        }
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _calKasperUrgentPingComp(post);
+        if (!comp) {
+            showNotify('Not waiting on Kasper', 'Nothing on this card is at Kasper Approval right now, so there is nothing to ping him about.');
+            return;
+        }
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(calState.client || '').trim(), post.name, {
+            kind: 'kasper',
+            payload: { url: _calKasperReviewUrl('calendar'), surface: 'calendar', component: comp },
+            persist: (ping) => _calPersistKasperUrgentForPost(calState.client, post, comp, ping)
+        });
+    }
+    /* Which component the ping is recorded against. The button can be clicked
+       on any pill at Kasper Approval, but a card with several of them still
+       gets ONE marker — first in component order wins, so two SMMs clicking
+       different pills on the same card cannot produce two different rounds. */
+    function _calKasperUrgentPingComp(post) {
+        return CAL_REVIEW_COMPONENTS.find(c => _calShowKasperUrgent(post, c)) || '';
     }
     function _calSendUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
@@ -34774,7 +35093,9 @@
     }
 
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
-        const native = opts && opts.native;
+        const kind = (opts && opts.kind === 'kasper') ? 'kasper' : 'editor';
+        const spec = _urgentKind(kind);
+        const native = kind === 'editor' && opts && opts.native;
         const roundTime = native ? Date.parse(native.video_status_at) : NaN;
         const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
             { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
@@ -34803,10 +35124,10 @@
             showUnknown(); return;
         }
         showConfirm(
-            'Send urgent tweak ping?',
+            spec.confirmTitle,
             native
-                ? 'This posts an “URGENT TWEAKS NEEDED” message in #video-editing and tags the currently assigned editor. Only use it for tweaks that need attention today.'
-                : 'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+                ? 'This posts an urgent tweak message in #video-editing and tags the currently assigned editor. Only use it for tweaks that need attention today.'
+                : spec.confirmBody,
             () => {
                 if (retainedAttempt()) { showUnknown(); return; }
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
@@ -34818,6 +35139,19 @@
                         } catch (ignore) {}
                     };
                     try {
+                        // SLACK FIRST, for BOTH flavours: persist the display marker only
+                        // after delivery succeeds. Native editor delivery additionally
+                        // requires a receipt and retains queued or uncertain attempts.
+                        // The pre-dialog read is not enough: the confirm can sit
+                        // open indefinitely while the flag is flipped off. Ask
+                        // again HERE, before the first side effect, or the
+                        // rollback still cannot stop an open tab. (Codex P1 r3.)
+                        if (kind === 'kasper' && typeof _kasperUrgentPingOnLive === 'function'
+                            && !(await _kasperUrgentPingOnLive(client))) {
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Urgent pings are off', 'The Kasper urgent ping was disabled while this dialog was open. Nothing was saved and nothing was sent.');
+                            return;
+                        }
                         let resp;
                         if (nativeLane) {
                             // Retain before transport. This is a local recovery hold,
@@ -34830,9 +35164,9 @@
                             const request = { method: 'POST', headers, body: JSON.stringify(native), signal: AbortSignal.timeout(30000) };
                             attempted = true;
                             resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, request);
-                        } else resp = await fetch(URGENT_SLACK_URL, {
+                        } else resp = await fetch(spec.url(), {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ issue, client, name: String(name || '') })
+                            body: JSON.stringify(Object.assign({ issue, client, name: String(name || '') }, (opts && opts.payload) || {}))
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
@@ -34911,7 +35245,7 @@
                         }
                         if (btn) { btn.disabled = true; btn.textContent = 'Sent'; btn.dataset.urgentSent = '1'; btn.classList.add('is-sent'); }
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
-                        showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
+                        showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
@@ -34928,11 +35262,11 @@
                             return;
                         }
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
-                        showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
+                        showNotify('Could not send', spec.failBody);
                     }
                 })();
             },
-            'Send urgent ping'
+            spec.confirmCta
         );
     }
     /* ── Parent-link detection ───────────────────────────────────────────
@@ -40322,6 +40656,17 @@
             const ts = _calNormStatus(p.title_status || 'In Progress');
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+            // The title is the one review component with no pill in the
+            // sub-status row -- that row maps CAL_COMPONENTS, which deliberately
+            // excludes it (see CAL_REVIEW_COMPONENTS). Without this the URGENT
+            // ping was unreachable for a card whose TITLE alone was waiting on
+            // Kasper, while the marker schema and the server guard both accepted
+            // 'title' perfectly happily. (Codex P1 on PR 1370.) The button docks
+            // beside the square in the same flex row; the name input shrinks,
+            // exactly as it does for the save indicator.
+            if (_calShowKasperUrgent(p, 'title')) {
+                titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
+            }
         }
         return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
@@ -40683,14 +41028,18 @@
                    Approved rather than disappearing behind N/A. */
             const shownStatus = _calPillDisplayStatus(p, c, cs);
             const slug = _calStatusSlug(shownStatus);
-            // URGENT ping — Video only, and only once it's actually in Tweaks
-            // Needed with a Linear sub-issue we can resolve the editor from.
-            // (Shared predicate so the in-place updater stays in lockstep.)
+            // URGENT ping. Two flavours, never both at once because their
+            // statuses are mutually exclusive: Video at Tweaks Needed pings the
+            // editor; ANY component at Kasper Approval pings Kasper. Shared
+            // predicates so the in-place updater stays in lockstep.
             const showUrgent = _calShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(p, c);
             const urgentBtn = showUrgent
                 ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
-                : '';
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
@@ -41707,6 +42056,8 @@
                     const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
                         post, component: 'video', sourceEditedAt,
+                        // Preserve only this action's sign-off edit, never invent one from a status.
+                        repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
                         repairRecord: companion && companion.record,
                         deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
@@ -41719,6 +42070,18 @@
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
                     const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.video_status = current;
+                    /* Adopting a replay status IS a sub-status change, so the
+                       stale-stamp rule owes this path too. Without it a client
+                       approval whose source upsert failed, retried after the
+                       native row moved on, writes the newer status while
+                       KEEPING edits.client_video_approved_at -- a card reading
+                       Tweaks Needed with a client sign-off on it. The journal
+                       replay has its own guard; the click-Retry path
+                       (_calRetrySave -> _calFlushCardSave) never reaches it.
+                       Reusing _calClearStaleApprovals rather than restating the
+                       status list keeps one definition of "below client
+                       approval" in the file. */
+                    _calClearStaleApprovals(post, edits);
                 }
                 checkpointCommittedSource();
             }
@@ -41731,6 +42094,8 @@
                     const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
                         post, component: 'graphic', sourceEditedAt,
+                        // Preserve only this action's sign-off edit, never invent one from a status.
+                        repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
                         repairRecord: companion && companion.record,
                         deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
@@ -41743,6 +42108,8 @@
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
                     const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.graphic_status = current;
+                    // Same rule, same reason as the video branch above.
+                    _calClearStaleApprovals(post, edits);
                 }
                 checkpointCommittedSource();
             }
@@ -48656,24 +49023,47 @@
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
                 if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, shown);
             }
-            // Reconcile the URGENT badge in place, same predicate as the full
+            // Reconcile the URGENT badge in place, same predicates as the full
             // render — otherwise it lingered next to "For Client Approval" after
-            // a tweak was resolved and the component left Tweaks Needed.
+            // a tweak was resolved and the component left Tweaks Needed. Both
+            // flavours are reconciled here, and a pill that changes flavour
+            // (Tweaks Needed → Kasper Approval) has its button REPLACED rather
+            // than restyled: the two carry different handlers, and leaving the
+            // old one in place is how a pill ends up pinging the wrong person.
             const showUrgent = _calShowUrgent(post, c);
-            subWrap.classList.toggle('has-urgent', showUrgent);
-            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
-            if (showUrgent && !urgentEl) {
-                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
-            } else if (showUrgent && urgentEl) {
-                _calApplyUrgentButtonState(urgentEl, post);
-            } else if (!showUrgent && urgentEl) {
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
                 urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
             }
         }
         // Title status square (lives in the title row, not the sub-status row) —
         // keep its colour in lockstep with title_status on in-place / realtime
         // updates too, not just full re-renders.
         const titleSq = document.querySelector(`.cal-title-status-sq[data-substatus-pid="${sel}"][data-substatus-comp="title"]`);
+        // The title's URGENT ping lives beside that square rather than on a
+        // sub-status pill, so the pill loop above never sees it. Reconcile it
+        // here with the same predicate and the same remove-and-rebuild rule.
+        if (titleSq && titleSq.parentNode) {
+            const wantTitleUrgent = _calShowKasperUrgent(post, 'title');
+            let titleUrgentEl = titleSq.parentNode.querySelector(':scope > .cal-title-urgent-btn');
+            if (titleUrgentEl && !wantTitleUrgent) { titleUrgentEl.remove(); titleUrgentEl = null; }
+            if (wantTitleUrgent && !titleUrgentEl) {
+                titleSq.insertAdjacentHTML('afterend', _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, 'cal-title-urgent-btn', true, 'kasper'));
+            } else if (wantTitleUrgent && titleUrgentEl) {
+                _calApplyUrgentButtonState(titleUrgentEl, post, 'kasper');
+            }
+        }
         if (titleSq) {
             const tcs = _calNormStatus(post.title_status || 'In Progress');
             titleSq.setAttribute('data-val', tcs);
@@ -51028,6 +51418,10 @@
                tail that actually lands. */
             terminalTailFailed: false,
             terminalTailLoadedAt: 0,
+            /* When the tail was last read IN FULL, as opposed to incrementally.
+               A full read is what converges a hard delete; the watermark read
+               below cannot see a row that no longer exists. */
+            terminalTailFullAt: 0,
             writes: new Map(),
             commentDrafts: new Map(),
             briefsLoaded: false,
@@ -54393,9 +54787,49 @@
         function _prodAttributionResolved(issue) {
             return !!(issue && issue.attribution && issue.attribution.state === 'resolved');
         }
+        /* A CARD THIS APP CREATED SECONDS AGO IS NOT A BROKEN CLIENT MAPPING.
+         *
+         * Native creation writes the deliverable row first and mirrors it into
+         * Linear after; the attribution resolver reads only the mirrored fields
+         * (own project, then ancestors, then the persisted stamp), so for the
+         * few seconds before Linear answers a brand new card resolves to
+         * `needs_attribution` and every write control on it is gated shut.
+         *
+         * Measured on the live row that produced the 2026-09-09 report
+         * (GRA-7437, created from the calendar at 19:28:29Z): the mirror stamped
+         * `resolved` / `direct_project` at 19:28:41Z, twelve seconds later, and
+         * the row was correct on both sides of that gap. The gate was right for
+         * those twelve seconds -- nothing had confirmed who owns the row -- but
+         * it announced itself as "Client attribution needs repair", so an SMM
+         * reasonably read a transient sync as a broken client and reported it as
+         * one.
+         *
+         * THIS IS COPY ONLY. The gate still refuses the write, the row still
+         * groups under the needs-attribution sentinel, and no verdict moves.
+         * The state is narrowed hard so nothing else can borrow the softer
+         * wording: no stamp has ever been persisted on the row, no project is
+         * known from any source, the mirror has not yet returned a Linear issue,
+         * and the slug SyncView itself stored is a currently ACTIVE roster
+         * client. A row Linear actively invalidated carries a persisted stamp
+         * and keeps the repair banner it has always had.
+         */
+        function _prodAttributionSyncPending(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution || attribution.state !== 'needs_attribution') return false;
+            if (attribution.persistedState) return false;
+            if (attribution.directProjectId || attribution.mappedProjectId) return false;
+            const raw = issue.raw || {};
+            if (String(raw.linear_issue_uuid || '').trim()) return false;
+            const slug = String(issue.storedClientSlug || '').trim();
+            return !!(slug && _prodClient(slug));
+        }
+        function _prodAttributionSyncClientLabel(issue) {
+            return _prodDisplayClient(String(issue && issue.storedClientSlug || ''));
+        }
         function _prodAttributionGateText(issue) {
             const attribution = issue && issue.attribution;
             if (!attribution || attribution.state === 'resolved') return '';
+            if (_prodAttributionSyncPending(issue)) return 'This card is still syncing to Linear. It becomes editable a few seconds after Linear answers.';
             if (attribution.state === 'conflict') return 'Client attribution conflicts across this issue family. Repair it before writing.';
             if (attribution.state === 'provisional_child_family') return 'Client attribution is provisional from child issues. Repair it before writing.';
             return 'Client attribution needs repair before writing.';
@@ -59089,6 +59523,20 @@
                 : null;
             const visible = (_prodState.view === 'batch' && String(_prodState.openBatchId || '') === batchId)
                 || !!(openIssue && openIssue.syntheticBatchParent === true && String(openIssue.batchId || '') === batchId);
+            /* NOT `_prodRenderWhenIdle`, and the browser gate is what says so.
+
+               This repaint is the COMPLETION of a read this very panel asked
+               for, not an unsolicited background tick. Routing it through the
+               idle guard deferred it whenever a contenteditable was focused --
+               which, for the description panel, is the ordinary state rather
+               than the exception -- so the description never arrived and focus
+               was never restored. `inplace_link` timed out twice here and
+               passes on 43b1455; neutering the guard alone made it pass again,
+               which is how this was narrowed to this one line.
+
+               The rule the guard encodes is about UNSOLICITED repaints landing
+               on a reader who is mid-interaction. A panel painting the answer
+               it is waiting for is the interaction. */
             if (visible && document.getElementById('prodRoot')) _prodRender();
             })();
             _prodState.batchDescriptionInFlight.set(batchId, run);
@@ -62740,7 +63188,7 @@
            and is about to discard itself for exactly that reason -- so without
            this, the generation that asked never gets a tail at all. */
         let _prodTerminalTailRerun = false;
-        async function _prodLoadTerminalTail() {
+        async function _prodLoadTerminalTail(opts) {
             if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
             _prodTerminalTailRunning = true;
             _prodTerminalTailRerun = false;
@@ -62754,17 +63202,48 @@
                longer running. Raised on PR 1236 as two findings; both are the
                same missing step seen from two exits. */
             let settled = false;
+            /* A full pass is the FIRST tail of a projection, anything the reader
+               asked for by hand (boot and the Refresh button both arrive here
+               non-silently), and one pass an hour so a hard delete converges.
+               Everything else -- the ten-minute background reconcile -- reads
+               only what moved. `terminalTailLoadedAt` gates on having a tail at
+               all: without one there is nothing for a watermark to be relative
+               to, and an incremental read would leave the archive empty. */
+            const fullPass = !!(opts && opts.full);
+            /* An empty watermark still falls back to the full read. That is the
+               belt to the caller's braces: without a stamp there is nothing for
+               an incremental read to be relative to, and reading incrementally
+               anyway would leave the archive empty rather than merely stale. */
+            const watermark = fullPass ? '' : _prodTerminalWatermark();
+            const filter = watermark
+                ? PROD_TERMINAL_FILTER + '&updated_at=gte.' + encodeURIComponent(watermark)
+                : PROD_TERMINAL_FILTER;
             try {
-                const tail = await _prodLoadDeliverableProjection(PROD_TERMINAL_FILTER);
+                const tail = await _prodLoadDeliverableProjection(filter);
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(tail)) return false;
-                // De-duplicate by id rather than concatenating blind: a status
-                // edited between the two reads can legitimately appear in both
-                // halves, and the live half is the fresher of the two.
-                const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
-                const merged = (_prodState.deliverables || []).concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
                 const scopeBefore = _prodScopeSignatures(_prodState.adapter);
-                _prodState.deliverables = merged;
+                if (watermark) {
+                    /* UPDATE in place, do not append blind. The full pass below
+                       may append only what it has never seen, because the live
+                       half it is joining is the fresher of the two. This read is
+                       the opposite: every row it returns moved AFTER the copy
+                       held here, so a row already present is exactly the one
+                       that must be replaced. `_prodMergeDeliverableRows` is the
+                       merge the 30-second delta already uses, and it assigns
+                       `_prodState.deliverables` itself. */
+                    _prodMergeDeliverableRows(
+                        _prodDropSupersededRows(tail, _prodState.deliverables));
+                } else {
+                    // De-duplicate by id rather than concatenating blind: a status
+                    // edited between the two reads can legitimately appear in both
+                    // halves, and the live half is the fresher of the two.
+                    const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                    _prodState.deliverables = (_prodState.deliverables || [])
+                        .concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                    _prodState.terminalTailFullAt = Date.now();
+                }
+                const merged = _prodState.deliverables;
                 _prodState.adapter = _prodAdapter({
                     clients: _prodState.clients,
                     members: _prodState.members,
@@ -62867,7 +63346,11 @@
                    itself on failure would spin against a backend that is down. */
                 if (_prodTerminalTailRerun && generation !== _prodState.projectionGeneration) {
                     _prodTerminalTailRerun = false;
-                    _prodLoadTerminalTail();
+                    /* A new projection generation has no tail of its own yet, so
+                       this rerun is a first tail whatever the displaced call
+                       was: ask for the full pass rather than a watermark
+                       relative to a row set that belongs to the old scope. */
+                    _prodLoadTerminalTail({ full: true });
                 } else if (!settled) {
                     /* STOP CLAIMING TO LOAD, WITHOUT STARTING TO ACCUSE.
                        The previous version called `_prodApplyDeepLinkFallback(true)`
@@ -62987,7 +63470,13 @@
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodCarryBatchDescriptions(batches, _prodState.batches);
-                const mergedDeliverables = _prodCarryDeepLinkRows(deliverables);
+                /* Decided BEFORE the projection is replaced, and the carry
+                   below depends on it. `_prodState.deliverables` still holds
+                   the previous set at this point, archive included. */
+                const tailFull = _prodTerminalTailFullDue(silent);
+                const mergedDeliverables = tailFull
+                    ? _prodCarryDeepLinkRows(deliverables)
+                    : _prodCarryTerminalRows(_prodCarryDeepLinkRows(deliverables), _prodState.deliverables);
                 _prodState.projectionGeneration++;
                 _prodInvalidateScopedReads();
                 _prodState.clients = mergedClients;
@@ -63065,7 +63554,13 @@
                 // resolve, and only now conclude that a target does not exist.
                 _prodApplyDeepLinkFallback(true);
                 _prodRender();
-                _prodLoadTerminalTail();
+                /* `silent` is the honest signal for "nobody asked for this".
+                   Boot and the Refresh button both reach here non-silently and
+                   get the full archive; only the ten-minute background
+                   reconcile is silent, and that is precisely the caller that
+                   was re-downloading 4,098 finished rows nobody had asked to
+                   see. */
+                _prodLoadTerminalTail({ full: tailFull });
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
                 return true;
             } catch (e) {
@@ -63644,6 +64139,23 @@
         // write is in flight, or while a foreground load is already running.
         const PROD_DELTA_REFRESH_MS = 30000;
         const PROD_FULL_RECONCILE_MS = 600000;
+        /* How often the FINISHED half is re-read in full.
+
+           It used to be re-read on every full reconcile, so an open tab
+           downloaded all of it six times an hour. Measured live 2026-09-09:
+           4,098 terminal rows, 182 KB compressed per page of 1,000, five
+           strictly sequential pages -- about 0.9 MB and several seconds, for
+           work that is done and by definition not moving. Over an eight-hour
+           day that is ~43 MB of re-downloading the archive.
+
+           It does not need the reconcile's cadence. The 30-second delta reads
+           `updated_at >= watermark` with NO status filter, so a row that
+           CHANGES -- including one that just became approved or posted --
+           already arrives on the next tick. The only thing a full re-read adds
+           is convergence for a hard DELETE, which no watermark read can see.
+           So the full pass survives at its own, much slower cadence, and the
+           reconcile takes a watermarked read instead. */
+        const PROD_TERMINAL_FULL_MS = 3600000;
         const PROD_REFRESH_MAX_BACKOFF_MS = 300000;
         const PROD_STALE_AFTER_MS = 120000;
         function _prodRowUpdatedMs(row) {
@@ -63662,6 +64174,75 @@
                 }
             });
             return best;
+        }
+        /* The newest stamp among the FINISHED rows this tab holds.
+
+           Deliberately not `_prodDeliverableWatermark(_prodState.deliverables)`:
+           the live half moves every few minutes and the finished half does not,
+           so the whole-projection stamp is almost always newer than every
+           terminal row. Reading from it would skip the rows this is for. */
+        /* Drop a tail row that is OLDER than the copy already held.
+
+           `_prodMergeDeliverableRows` replaces on any timestamp DIFFERENCE, not
+           only on a newer one. That is safe for the 30-second delta, whose
+           watermark is the max over the whole projection, so no response it
+           returns can predate a row already held. It is NOT safe here: this
+           read's watermark is the ARCHIVE's, which is routinely older than a
+           live row, and the read itself spans several seconds.
+
+           The case that bites is a row LEAVING the archive. The tail selects it
+           while it is still `approved`; a delta or a user write moves it to
+           `in_progress` while the read is in flight; the late response then
+           reverts the row's status in the open tab until a later refresh, and
+           someone can act on that stale state. Raised by Codex on #1366.
+
+           A row with no parseable stamp on either side is kept: absence of
+           proof that it is stale is not proof that it is. */
+        function _prodDropSupersededRows(rows, previous) {
+            const incoming = Array.isArray(rows) ? rows : [];
+            if (!incoming.length) return incoming;
+            const held = new Map((Array.isArray(previous) ? previous : [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            return incoming.filter(row => {
+                const current = held.get(String(row && row.id || ''));
+                if (!current) return true;
+                return _prodRowUpdatedMs(row) >= _prodRowUpdatedMs(current);
+            });
+        }
+        function _prodTerminalWatermark() {
+            return _prodDeliverableWatermark(
+                (_prodState.deliverables || []).filter(_prodCacheIsTerminal));
+        }
+        /* Is the NEXT tail a full pass? Decided here rather than inside the
+           tail, because `_prodLoadData` has to know the answer BEFORE it
+           replaces the projection: a full pass re-reads the archive and must
+           not carry a stale copy of it, an incremental pass carries the copy
+           and reads only what moved. Two callers, one rule. */
+        function _prodTerminalTailFullDue(silent) {
+            return !silent
+                || !Number(_prodState.terminalTailLoadedAt || 0)
+                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+        }
+        /* Carry the finished rows across phase one.
+
+           Phase one reads the LIVE half only and replaces the projection with
+           it, which drops every terminal row; phase two then re-read all 4,098
+           of them, which is exactly what made that re-read look necessary.
+           An incremental phase two cannot rebuild the archive from a
+           watermarked read, so the archive has to survive phase one instead.
+
+           The live half WINS on a collision: a row that has just left a
+           terminal status appears in `live` with its new value, and the copy
+           held here is by definition the older one. (Raised by Codex on #1366,
+           which caught that computing the watermark after the replacement
+           always yielded '' and silently fell back to the full read.) */
+        function _prodCarryTerminalRows(live, previous) {
+            const rows = Array.isArray(live) ? live : [];
+            const held = (Array.isArray(previous) ? previous : []).filter(_prodCacheIsTerminal);
+            if (!held.length) return rows;
+            const liveIds = new Set(rows.map(row => String(row && row.id || '')));
+            return rows.concat(held.filter(row => row && !liveIds.has(String(row.id || ''))));
         }
         function _prodInvalidateScopedReadsFor(ids) {
             const targets = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
@@ -63768,7 +64349,36 @@
         function _prodRefreshBusy() {
             if (_prodState.writes && _prodState.writes.size) return true;
             const layer = document.getElementById('prodLayer');
-            return !!(layer && layer.childElementCount);
+            if (layer && layer.childElementCount) return true;
+            /* AND TYPING COUNTS, which is the case this guard was missing.
+
+               An open menu and an in-flight write already deferred the tick;
+               someone with a caret in a field did not. `_prodRender()` rebuilds
+               `#prodRoot` wholesale, so a tick landing mid-keystroke replaces
+               the node being typed into: the caret and the selection go with
+               it, and the board's own filter and search inputs have nothing
+               protecting them at all. Workload has guarded its search box this
+               way since it shipped (`document.activeElement !== searchInput`)
+               and Calendar defers on the same condition (`_calIsCalBusy`);
+               Production is the last of the three to get it.
+
+               This is deliberately the SAME answer a menu gets -- skip this
+               tick, try the next one -- rather than a second mechanism that
+               reads the data and defers the paint. Nothing is lost by waiting:
+               the next tick is 30 seconds away, the freshness age keeps
+               counting so the delay is visible, and an explicit Retry or the
+               Refresh button passes `force` straight past this check.
+
+               Scoped to the board. A field focused somewhere else on the page
+               is not this surface's business and must not freeze it. */
+            const el = document.activeElement;
+            if (!el) return false;
+            const typing = el.tagName === 'INPUT'
+                || el.tagName === 'TEXTAREA'
+                || el.isContentEditable === true;
+            if (!typing) return false;
+            const root = document.getElementById('prodRoot');
+            return !!(root && root.contains(el));
         }
         function _prodSyncFreshnessControl() {
             const button = document.querySelector('[data-prod-refresh="1"]');
@@ -64485,6 +65095,9 @@
         function _prodAttributionChipOnlyHTML(issue) {
             const attribution = issue && issue.attribution;
             if (!attribution) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers.">Syncing to Linear</span>';
+            }
             if (attribution.state === 'resolved' && attribution.repairRequired) {
                 return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
             }
@@ -64503,6 +65116,12 @@
             const attribution = issue && issue.attribution;
             const project = issue && issue.project || '';
             const label = _prodDisplayClient(project);
+            if (_prodAttributionSyncPending(issue)) {
+                /* Name the client SyncView stored, so the card the SMM just
+                   filed still reads as that client's while Linear catches up. */
+                const syncLabel = _prodAttributionSyncClientLabel(issue);
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers."><span class="prod-client-dot">' + _prodProjectGlyph(String(issue.storedClientSlug || '')) + '</span><span>' + _calEsc(syncLabel) + ' · syncing</span></span>';
+            }
             if (!attribution || attribution.state === 'resolved') {
                 return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project) + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>'
                     + _prodAttributionChipOnlyHTML(issue);
@@ -64521,6 +65140,9 @@
             }
             const attribution = issue && issue.attribution;
             if (!attribution || (attribution.state === 'resolved' && !attribution.repairRequired)) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="syncing"><b>Syncing to Linear.</b> This card was created in SyncView and is waiting for Linear to answer, which normally takes a few seconds. It becomes editable as soon as it does; reload the tab if it stays this way.</div>';
+            }
             const reason = String(attribution.reason || '').replace(/_/g, ' ');
             if (attribution.state === 'provisional_child_family') {
                 return '<div class="prod-attribution-notice" data-prod-attribution-notice="provisional"><b>Provisional client attribution.</b> The active-roster client shown here is inferred from one unanimous child family. This issue is read-only until the mapping is repaired.</div>';
@@ -64546,7 +65168,10 @@
                    has always used. */
                 return '<span class="prod-prop-btn" data-prod-prop="project" aria-disabled="true" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
             }
-            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
+            const syncing = _prodAttributionSyncPending(issue);
+            const shownSlug = syncing ? String(issue.storedClientSlug || '') : project;
+            const shownLabel = syncing ? _prodAttributionSyncClientLabel(issue) : _prodDisplayClient(project);
+            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(syncing ? 'syncing' : attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(shownSlug) + '</span><span>' + _calEsc(shownLabel) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }
         function _prodAddSubIssueButtonHTML(compact) {
             const parent = _prodIssue(_prodState.openId);
@@ -66830,18 +67455,26 @@
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
                 if (labelEl) labelEl.textContent = _sxrStatusLabel(shown);
             }
-            // Reconcile the URGENT badge in place, same predicate as the full
-            // render, so it can't linger after the component leaves Tweaks Needed.
+            // Reconcile the URGENT badge in place, same predicates as the full
+            // render, so it can't linger after the component leaves the status
+            // that earned it — and so a pill changing flavour swaps its button
+            // rather than keeping the handler for the wrong recipient.
             const showUrgent = _sxrShowUrgent(post, c);
-            subWrap.classList.toggle('has-urgent', showUrgent);
-            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
-            if (showUrgent && !urgentEl) {
-                const escPid = _sxrEscAttr(pid);
-                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
-            } else if (showUrgent && urgentEl) {
-                _calApplyUrgentButtonState(urgentEl, post);
-            } else if (!showUrgent && urgentEl) {
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
                 urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                const escPid = _sxrEscAttr(pid);
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(escPid, '_sxrSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
             }
         }
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
@@ -68250,6 +68883,66 @@
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
         return !!(String(p.linear_issue_id || '').trim() || String(p.video_deliverable_id || '').trim());
     }
+    /* Kasper-ping gate for samples. Same rule as the calendar's
+       _calShowKasperUrgent over the two components samples carries, MINUS the
+       content check -- and that asymmetry is deliberate, not an oversight.
+       The calendar queue drops a content-less card into its stranded notice, so
+       a ping there would point at a card Kasper cannot see; the samples queue
+       keeps it (membership is _sxrPostKasperVisible, which asks about status and
+       the graphic link only), so the ping lands on a card that really is in his
+       list. Copying the calendar's gate here would hide a working affordance,
+       which is the failure AGENTS.md's permissive directive is about. The two
+       gates track their own queues; if the samples queue ever starts stranding
+       cards, this is the line that has to follow it. */
+    function _sxrShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn(sxrState && sxrState.client)) return false;   // same gate as the calendar
+        if (!p || !c) return false;
+        if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
+        if (c === 'graphic' && !_calCompLinked(p, c)) return false;
+        return true;
+    }
+    function _sxrKasperUrgentPingComp(post) {
+        return SXR_REVIEW_COMPONENTS.find(c => _sxrShowKasperUrgent(post, c)) || '';
+    }
+    async function _sxrPersistKasperUrgentForPost(clientOrSlug, post, comp, ping) {
+        if (!post || !post.id) return null;
+        const slug = sxrClientSlug(clientOrSlug);
+        const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
+        const resp = await fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
+            post[comp + '_status_at'] = post.kasper_urgent_status_at;
+        }
+        try { _sxrUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    /* Ping Kasper about a SAMPLE waiting on him. Same dispatch, same marker;
+       the DM link points at his Samples subtab rather than the calendar queue,
+       because that is the only place this card is visible to him. */
+    async function _sxrSendKasperUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        // Same as the calendar: the roster needs to be asked about a client.
+        if (!(await _kasperUrgentPingOnLive(sxrState && sxrState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _sxrKasperUrgentPingComp(post);
+        if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
+            kind: 'kasper',
+            payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping)
+        });
+    }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
@@ -68308,10 +69001,13 @@
             // URGENT ping — Video only, once it's at Tweaks Needed with a Linear
             // sub-issue we can tag the editor from.
             const showUrgent = _sxrShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(p, c);
             const urgentBtn = showUrgent
                 ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
-                : '';
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_sxrSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
@@ -71580,6 +72276,14 @@
                 applied[key] = _calStringifyComments(merged);
             }
         }
+        // A receipt can return a newer reviewer state. Keep the existing stale-
+        // approval rule when applying a captured stamp to that current state.
+        for (const component of ['video', 'graphic']) {
+            const key = 'client_' + component + '_approved_at';
+            if (applied[key] && !['Client Approval', 'Approved', 'Scheduled', 'Posted'].includes(String(post[component + '_status'] || ''))) {
+                post[key] = applied[key] = '';
+            }
+        }
         return applied;
     }
     function _writeUiRepairGroups(principal) {
@@ -72460,7 +73164,7 @@
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), urgentCollapsed: false, waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -72527,9 +73231,16 @@
     }
     // Waiting = he still has a call to make; Tweaks pending = finished + handed off.
     function _sxrKasperPartitionItems(items) {
-        const waiting = [], tweaks = [];
-        for (const it of items) { if (_sxrKasperIsFinished(it.post)) tweaks.push(it); else waiting.push(it); }
-        return { waiting, tweaks };
+        // Urgent is a split of waiting, exactly as on the calendar queue, and
+        // over the SAME predicate — a sample and a post read as urgent for the
+        // same reason, so the two queues can never disagree about a ping.
+        const urgent = [], waiting = [], tweaks = [];
+        for (const it of items) {
+            if (_sxrKasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
+            else waiting.push(it);
+        }
+        return { urgent, waiting, tweaks };
     }
     // Approved-history (in-session — a "recently approved" list; clears on reload).
     function _sxrKasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -72603,7 +73314,7 @@
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
         if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
         if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
-        const { waiting, tweaks } = _sxrKasperPartitionItems(st.items);
+        const { urgent, waiting, tweaks } = _sxrKasperPartitionItems(st.items);
         // Waiting bucket (collapsible head matches Tweaks-pending / history so the
         // three feel like siblings). Defaults open — it's where Kasper works.
         const waitingBody = waiting.length
@@ -72622,8 +73333,21 @@
         // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
         // swap, gated to #kasperContent so we never steal focus from elsewhere.
         _svPreserveFocus(() => {
-            host.innerHTML = head + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
+            host.innerHTML = head + _sxrKasperRenderUrgentSection(urgent) + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
         }, host);
+    }
+    /* Samples twin of _kasperRenderUrgentSection — above "Waiting for your
+       review", hidden when empty, same cards and same chrome. */
+    function _sxrKasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${urgent.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
+        </div>`;
     }
     function _sxrKasperRenderTweaksSection(tweaks) {
         if (!tweaks.length) return '';
@@ -72654,6 +73378,14 @@
             </div>
             <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
         </div>`;
+    }
+    function _sxrKasperToggleUrgent() {
+        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
+        const w = document.getElementById('sxrKasperUrgentWrap');
+        if (!w) return;
+        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
+        const head = w.querySelector('.kasper-history-head');
+        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
     }
     function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
     function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
@@ -76685,6 +77417,7 @@
         // that shouldn't visually compete with the live review queue.
         historyCollapsed: true,
         tweaksCollapsed: true,
+        urgentCollapsed: false,
         waitingCollapsed: false,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
@@ -77397,12 +78130,19 @@
     function _kadCampaignToggleHtml() {
         // One campaign is the normal case for most of this account's life - a
         // selector with a single option is noise, so it only renders once there
-        // is genuinely something to choose between.
+        // is genuinely something to choose between. A dropdown rather than a
+        // button row: once the account passed a handful of campaigns the tab
+        // row overflowed the toolbar and got visually clipped (owner report,
+        // 2026-09-09). Uses the shared sv-select primitive rather than a native
+        // <select> - UI_DESIGN_STANDARDS.md requires it on branded surfaces
+        // (native popups can't carry SyncView's keyboard/theme/tooltip/mobile
+        // states); _svSelectPick dispatches a real change event on the hidden
+        // input, so the same this.value onchange contract applies.
         if (_kadState.campaigns.length < 2) return '';
-        const opts = [{ campaign_id: 'all', campaign_name: 'All campaigns' }].concat(_kadState.campaigns);
-        return '<div class="kad-range-toggle" role="group" aria-label="Campaign">' + opts.map(c =>
-            '<button type="button" class="kad-range-btn' + (c.campaign_id === _kadState.campaign ? ' active' : '') + '" onclick="_kadSetCampaign(\'' + _calEscAttr(c.campaign_id) + '\')">' + _calEsc(c.campaign_name) + '</button>'
-        ).join('') + '</div>';
+        const items = [{ value: 'all', label: 'All campaigns' }].concat(
+            _kadState.campaigns.map(c => ({ value: c.campaign_id, label: c.campaign_name }))
+        );
+        return _svSelectHtml('kadCampaignSelect', items, _kadState.campaign, 'Choose campaign', { onchange: '_kadSetCampaign(this.value)' });
     }
 
     function _kadSummarizeRows(rows) {
@@ -77508,10 +78248,26 @@
     }
 
     function _kadUnfinishedLeadFollowUpHtml(lead) {
-        if (lead.email_sent_at) return '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10));
-        if (lead.sms_sent_at) return '<span class="kad-lead-status kad-lead-won">SMS sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10));
-        if (lead.follow_up_due_at) return '<span class="kad-lead-status kad-lead-open">Not yet</span> — due ' + _kadFmtDate(lead.follow_up_due_at.slice(0, 10));
-        return '<span class="kad-lead-cancelled">—</span>';
+        // Every non-finisher now gets BOTH channels when we hold an email and
+        // a phone (owner decision, 2026-09-04) - email_sent_at and
+        // sms_sent_at can both be set on the same lead. The old chain
+        // returned on the first truthy channel, so a lead who got an email
+        // AND a text only ever showed "Email sent", silently hiding the text
+        // (owner report, 2026-09-09). Report each channel that applies to
+        // this lead independently instead of first-match-wins.
+        const dueDate = lead.follow_up_due_at ? _kadFmtDate(lead.follow_up_due_at.slice(0, 10)) : null;
+        const parts = [];
+        if (lead.email) {
+            parts.push(lead.email_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Email due</span> ' + dueDate : '<span class="kad-lead-cancelled">Email pending</span>'));
+        }
+        if (lead.phone) {
+            parts.push(lead.sms_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Text sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Text due</span> ' + dueDate : '<span class="kad-lead-cancelled">Text pending</span>'));
+        }
+        return parts.length ? parts.join('<br>') : '<span class="kad-lead-cancelled">—</span>';
     }
 
     function _kadUnfinishedLeadsListHtml() {
@@ -77555,7 +78311,7 @@
             + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
             + (campaignNote ? '<div class="kad-section-sub" style="margin:-4px 0 12px">' + campaignNote + '</div>' : '')
             + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched. Never filtered by the campaign selector.</div>' + _kadLeadsListHtml() + '</div>'
-            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email has gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
+            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email and text have gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
         _kadRenderChart(rangeRows);
     }
 
@@ -79145,7 +79901,11 @@
         // also restored from cache on entry, so a returning Kasper sees a real
         // number before the network round-trip even finishes.
         if (Array.isArray(_kasperState.items) && _kasperState.lastLoaded) {
-            _kasperSetTabCount('review', _kasperPartitionItems(_kasperState.items).waiting.length);
+            // Urgent is carved OUT of waiting, so the tab pill has to add it
+            // back -- otherwise pinging a card silently decrements the count of
+            // work he still owes.
+            const _parts = _kasperPartitionItems(_kasperState.items);
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
         }
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
@@ -79154,7 +79914,10 @@
         // Count only the WAITING partition — finished/"Tweaks pending" cards are
         // not awaiting Kasper, same rule as the review count above.
         if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
-            _kasperSetTabCount('samples', _sxrKasperPartitionItems(_sxrKasperState.items || []).waiting.length);
+            // urgent + waiting, for the same reason as the review pill: a ping
+            // relocates a card inside his queue, it does not clear it.
+            const _sxrParts = _sxrKasperPartitionItems(_sxrKasperState.items || []);
+            _kasperSetTabCount('samples', _sxrParts.urgent.length + _sxrParts.waiting.length);
         }
         // filming = clients not yet covered (a plan is needed now or soon).
         const fd = _kasperState.filmingData;
@@ -80021,12 +80784,19 @@
         // Needed, but the card must STAY in "Waiting" so he can keep layering
         // decisions; it moves to "Tweaks pending" only when he explicitly
         // finishes, and returns to "Waiting" on a fresh ask (see _kasperIsFinished).
-        const waiting = [], tweaks = [];
+        // The Urgent bucket is a SPLIT OF WAITING, not a fourth kind of card:
+        // an urgent card is a waiting card someone has pinged him about, and it
+        // behaves like every other waiting card in every other respect (same
+        // render, same actions, same finish path). Splitting here rather than
+        // anywhere downstream is what keeps that true -- nothing else in the
+        // review tab has to learn the word "urgent".
+        const urgent = [], waiting = [], tweaks = [];
         for (const it of items) {
             if (_kasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
             else waiting.push(it);
         }
-        return { waiting, tweaks };
+        return { urgent, waiting, tweaks };
     }
 
     let _kasperPaintRetry = null;
@@ -80053,10 +80823,13 @@
             return;
         }
         if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
-        const { waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
-        if (count) count.textContent = String(waiting.length);
+        const { urgent, waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
+        // Both counters cover urgent + waiting: the ping changes where a card
+        // SITS, never whether it is still his to do.
+        const openCount = urgent.length + waiting.length;
+        if (count) count.textContent = String(openCount);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
-        if (tabCount) tabCount.textContent = String(waiting.length);
+        if (tabCount) tabCount.textContent = String(openCount);
         // Waiting section uses the same collapsible-style head as Tweaks
         // pending and Approved history so the three buckets feel like
         // siblings rather than "the main queue plus two add-ons". Waiting
@@ -80078,7 +80851,7 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
-        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 
@@ -80122,6 +80895,65 @@
             <ul class="kasper-stranded-list">${rows}${more}</ul>
         </div>`;
     }
+
+    /* Cards somebody has explicitly pinged Kasper about — the ones that could
+       not wait for his next pass. Sits ABOVE "Waiting for your review" because
+       that is the entire point of it, and is otherwise the same section as its
+       three siblings: same collapsible chrome, same _kasperRenderCard, same
+       actions. A card leaves on its own the moment the ping stops being live
+       (he decides the component, or it leaves Kasper Approval) — see
+       _calKasperUrgentActive — so nothing has to be cleared by hand.
+
+       Hidden entirely when empty, like Tweaks pending: a permanent empty
+       "Urgent" header would train him to ignore the one thing it exists to
+       make unignorable. */
+    /* Keyboard + AT semantics for a collapsible section head. The heads are
+       styled `div`s, so without this they are mouse-only: not focusable, not
+       announced as controls, and with no way to report collapsed state. New
+       visible UI has to carry keyboard, focus and ARIA as part of the feature
+       (AGENTS.md; docs/features/UI_DESIGN_STANDARDS.md), so the Urgent heads
+       below take these attributes and _svSectionHeadKey handles Enter/Space.
+
+       Emitted as attributes rather than by swapping the element for a <button>
+       on purpose: the three sibling heads (Waiting / Tweaks pending / Approved
+       history) share `.kasper-history-head`'s styling, and a <button> there
+       would need its own reset to keep the four identical. Those three still
+       lack this and are unchanged here -- widening an urgent-ping PR into them
+       is a separate change. (Codex P2 on PR 1370.) */
+    function _svSectionHeadA11y(expanded) {
+        return ` role="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" onkeydown="_svSectionHeadKey(event)"`;
+    }
+    function _svSectionHeadKey(ev) {
+        if (!ev || (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar')) return;
+        ev.preventDefault();                       // Space must not scroll the queue
+        if (ev.currentTarget && ev.currentTarget.click) ev.currentTarget.click();
+    }
+    window._svSectionHeadKey = _svSectionHeadKey;
+    function _kasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        const collapsedCls = _kasperState.urgentCollapsed ? ' collapsed' : '';
+        const cards = urgent.map(_kasperRenderCard).join('');
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${collapsedCls}" id="kasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleUrgent()"${_svSectionHeadA11y(!_kasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${cards}</div></div>
+        </div>`;
+    }
+    function _kasperToggleUrgent() {
+        _kasperState.urgentCollapsed = !_kasperState.urgentCollapsed;
+        const wrap = document.getElementById('kasperUrgentWrap');
+        if (wrap) {
+            wrap.classList.toggle('collapsed', _kasperState.urgentCollapsed);
+            // A stale aria-expanded is worse than none: it tells a screen reader
+            // the section is open while it is collapsed.
+            const head = wrap.querySelector('.kasper-history-head');
+            if (head) head.setAttribute('aria-expanded', _kasperState.urgentCollapsed ? 'false' : 'true');
+        }
+    }
+    window._kasperToggleUrgent = _kasperToggleUrgent;
 
     /* Cards Kasper has already tweaked but hasn't hit Done reviewing on
        yet. Shares the same collapsible chrome as the Approved history

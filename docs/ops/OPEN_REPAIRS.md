@@ -22541,3 +22541,782 @@ truth, and a stale contract at the top of a gate is worse than none — someone
 debugging a future failure would have read it and set about restoring the
 mechanism this PR deliberately removed. It now states the ten-minute batch
 staleness as the ACCEPTED behaviour rather than a gap to close.
+
+## 184. [2026-09-09] The archive was re-downloaded six times an hour, and a background tick could land mid-keystroke
+
+Owner-approved follow-up to item 182, from the same report ("as fast and as
+smooth as it can be"). Two independent changes, both browser-only.
+
+**The archive.** `_prodLoadTerminalTail` read every terminal row on every full
+reconcile. Measured live 2026-09-09 against the deployed backend: **4,098
+terminal rows**, 182 KB compressed per page of 1,000, **five strictly
+sequential pages**, so ~0.9 MB and several seconds. `PROD_FULL_RECONCILE_MS` is
+ten minutes, so an open tab re-downloaded the finished work **six times an
+hour** — roughly 43 MB across an eight-hour day, for rows that by definition
+are not moving.
+
+It never needed that cadence. The 30-second delta reads `updated_at >=
+watermark` with **no status filter**, so a row that CHANGES — including one that
+has just become approved or posted — already arrives on the next tick. The only
+thing a full re-read adds is convergence for a hard DELETE, which no watermark
+read can see. So the full pass survives at `PROD_TERMINAL_FULL_MS` (one hour),
+on the first tail of a projection, and on anything the reader asked for (boot
+and Refresh both reach `_prodLoadData` non-silently); the ten-minute reconcile
+takes a watermarked read instead.
+
+Two details that are easy to get wrong and are pinned in
+`test/prod-terminal-tail-and-busy-guard.js`:
+
+- The watermark is over the **terminal rows only** (`_prodTerminalWatermark`).
+  The whole-projection watermark is almost always newer, because the live half
+  moves constantly, and using it would skip the very rows this is for.
+- The incremental read **updates in place** (`_prodMergeDeliverableRows`). The
+  full read may append only ids it has never seen, because the live half it
+  joins is the fresher of the two; this read is the opposite — every row it
+  returns moved *after* the copy held here.
+
+**The tick, while someone is typing.** `_prodRefreshBusy` already deferred a
+background tick for an open menu layer and for an in-flight write. It did not
+defer for a caret in a field. `_prodRender()` rebuilds `#prodRoot` wholesale, so
+a tick landing mid-keystroke replaces the node being typed into and takes the
+caret and selection with it; the board's own filter and search inputs had
+nothing protecting them at all. Workload has guarded its search input this way
+since it shipped and Calendar defers on the same condition. Scoped to the board,
+so a field focused on another surface cannot freeze this one.
+
+### 184a. The correction that cost two browser-gate runs
+
+The first draft added a SEPARATE mechanism: a `_prodIsBusy` / `_prodRenderWhenIdle`
+pair that did the read and deferred the *paint*, and it routed the
+batch-description arrival through it. That starved the arrival: the description
+panel's editor is focused as a matter of course, so the repaint that panel was
+waiting for never landed. `inplace_link` in the mocked browser gate timed out
+twice, passed on `43b1455`, and passed again the moment the guard alone was
+neutered — which is how it was narrowed to that one line.
+
+Two rules came out of it, both now pinned:
+
+1. **A repaint that IS the answer to a read the visible panel asked for must
+   never be deferred.** Deferral is for UNSOLICITED repaints landing on a reader
+   who is mid-interaction.
+2. **Extend the guard that exists rather than adding a second one.** The draft
+   duplicated the menu-layer check that `_prodRefreshBusy` already performed,
+   which is how the two mechanisms could disagree about what "busy" meant.
+
+Also recorded because it was stated wrongly to the owner first: Production was
+**not** unguarded. Menus and in-flight writes were already covered, and
+`_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
+was the one real gap.
+
+### 184b. The incremental read was a no-op, and the test could not see it
+
+Codex on #1366, P2, and it was right about both halves.
+
+`_prodLoadData` replaces `_prodState.deliverables` with the **live-only**
+`PROD_LIVE_FILTER` result and only afterwards calls `_prodLoadTerminalTail`. So
+by the time the tail computed `_prodTerminalWatermark()` there were no terminal
+rows left to compute it from: the watermark was always `''`, the filter fell
+back to the unwatermarked `PROD_TERMINAL_FILTER`, and the browser downloaded
+all 4,098 rows on every reconcile exactly as before. **The change did nothing,
+and every test passed.**
+
+It could not be fixed by moving the watermark alone. An incremental read cannot
+rebuild the archive, so if phase one drops the finished rows there is nothing
+for phase two to add to. The archive has to survive phase one instead:
+
+- `_prodTerminalTailFullDue(silent)` decides the mode **before** the projection
+  is replaced, and the same value is handed to the tail rather than re-derived
+  there. One rule, one place.
+- `_prodCarryTerminalRows(live, previous)` carries the finished rows across the
+  replacement when the next tail is incremental, with the **live half winning
+  every collision** — a row that just left a terminal status appears in `live`
+  with its new value, and the held copy is by definition older.
+- On a full pass nothing is carried, so the full read's fresh rows are not
+  shadowed by held copies. Boot and Refresh are always full passes, so the
+  two-phase boot is byte-for-byte what it was.
+- The in-memory carry cannot grow the cache: `_prodCacheProject` already drops
+  terminal rows before writing.
+
+**The test lesson is the sharper one.** `test/prod-terminal-tail-and-busy-guard.js`
+seeded terminal rows straight into its sandbox and called the tail, so it
+exercised the reader in a state the real caller never produces. It asserted the
+mechanism worked while the mechanism was disconnected. A unit test that
+constructs its own preconditions proves the function, not the feature; where a
+caller establishes the precondition, the test has to establish it the same way.
+The suite now runs the phase-one replacement first and asserts the watermark
+survives it, and pins that the decision and the carry both precede the
+replacement.
+
+### 184c. A late incremental tail could revert a row that had moved on
+
+Codex on #1366, second round, P2, and also right.
+
+`_prodMergeDeliverableRows` replaces a held row whenever the incoming
+`updated_at` *differs* — it never checks that the incoming one is NEWER. That is
+safe for the 30-second delta, whose watermark is the maximum over the whole
+projection, so no response it returns can predate a row already held. It is not
+safe for the incremental tail, whose watermark is the **archive's** (routinely
+older than any live row) and whose read spans several seconds across pages.
+
+The case that bites is a row **leaving** the archive. The tail selects it while
+it is still `approved`; a delta tick or a user write moves it to `in_progress`
+while the read is in flight; the late response reverts the row's status in the
+open tab until a later refresh — and someone can then act against that stale
+state, which is the same shape as the reverts item 101 exists for.
+
+`_prodDropSupersededRows(rows, previous)` filters the tail response against the
+copies currently held before the merge sees it. An identical stamp is kept (a
+same-second echo is not stale), and a row with no parseable stamp on either
+side is kept, because absence of proof that it is stale is not proof. The full
+pass needs none of this: it appends only ids it has never seen, so it cannot
+overwrite anything.
+
+Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
+merge refuse older rows would be a no-op for the delta by the argument above,
+so it would buy nothing there while quietly changing the contract of the path
+that every write already depends on.
+
+## 185. [2026-09-09] The pixel lane has been red for ten days without naming a single failing check
+
+`production-polish-heavy` has failed on `main` on every run since 2026-08-30,
+and every one of those runs reported the same public line:
+
+```
+Production heavy gate failed at: Production pixel parity [error_generic]
+```
+
+Nobody has looked at it, which is the correct response to a message that says
+nothing. **The block was never the divergence; it was that the divergence could
+not be seen.**
+
+`pixel-wired.js` throws `${gaps.length} pixel parity gap(s) found` and prints
+each gap to stderr. A gap's `message` is live-derived — computed CSS values,
+element counts, console text — so it stays on the ephemeral runner by design in
+a public repository, and nothing in the thrown message matched a classifier
+signature, so `classifyFailure` fell through to the error-type fallback.
+
+A gap's `state` is a different kind of thing: every one is a **string literal at
+its call site in that same public file** (plus the two `<theme> palette` labels
+built from its own closed theme list). So the labels can be published while the
+messages cannot. `pixel-wired.js` now emits them on a `PIXEL_WIRED_FAILED_STATES`
+marker line, and the gate matches each against `PIXEL_WIRED_STATES`, harvested
+from pixel-wired.js's own source, before emitting `pixel_wired:topbar+icons`.
+
+This is the mechanism the behaviour lane already uses (`BEHAV_WIRED_CHECKS`,
+item 125, which records the identical blackout and the identical fix), reused
+rather than reinvented, including the 24-name cap so a wide breakage summarises
+instead of dumping.
+
+Two properties are pinned in `test/pixel-parity-failure-is-nameable.js`, and the
+second matters more than the first:
+
+1. A known label is published.
+2. **A label that is not a literal in pixel-wired.js is dropped entirely** —
+   tested by feeding the matcher a fabricated client name and asserting it
+   produces nothing, and by asserting a known label beside an unknown one
+   publishes only the known one. The marker is also built from `state` only,
+   never `message`, and that is asserted against the source.
+
+**This makes the failure diagnosable. It does not fix it.** Whatever `main` is
+actually diverging on is still diverging; the next run will simply say which
+part. That is the prerequisite for anyone doing something about it.
+
+## 186. [2026-09-09, FIXED in `production-write`; NEEDS A SECTION 4 DEPLOY] A client whose approve had already landed was told, permanently, that her account was not permitted to approve
+
+**Reported by the owner from a client's screenshot**: the dialog said *"Your
+account is not permitted to make this change on this item. Retrying will not
+change that — ask an SMM or the owner to make it, quoting this code"* with
+`operation_forbidden`, on a card she was trying to approve. It was not a
+permission problem, no SMM could have helped, and the retry advice was correct
+only by accident: the row was already sitting on the exact status she was
+asking for.
+
+**MEASURED, one active client slug, card `p_mrb65aeu_cjq0m`, 2026-09-09.**
+
+| Where | What it says |
+|---|---|
+| `deliverable_events` 19:18:09 | `status_change`, role `client`, `client_approval → approved`, source `ui` |
+| `deliverables` (video) | `approved`, `status_at` 19:18:12 |
+| `calendar_posts` | `video_status` = **`Client Approval`**, `client_video_approved_at` = **null** |
+
+Her approve **committed server-side**. The source row never followed. The
+client Review tab reads the sheet, not the canonical row, so the card kept
+showing "Awaiting your approval" with a live Approve button — and every click
+after 19:18 asked `approved → approved`.
+
+**The refusal.** `clientOperationAllowed` (`policy.mjs`) admitted a client
+status write only when the CURRENT status was one a client may act from
+(`client_approval` or `tweak`). A no-op — the row already on the value asked
+for — fell through to the same `403 operation_forbidden` as a client trying to
+jump a row out of `kasper_approval`, and `WRITE_UI_FAILURE_CODE_CLASS` maps
+that code to the `access` class, whose text is the accusation above. So a
+half-committed write presented itself to a paying client as a permission
+problem, permanently, with no path out that did not involve staff.
+
+**The fix (this PR).** The no-op is admitted. A client can still only ever name
+`approved` or `tweak` — `CLIENT_STATUSES` is checked first and unchanged — and
+the new arm fires only when the row already holds the value requested, so
+nothing previously unreachable becomes reachable; the write is idempotent by
+construction. What it buys is **self-healing**: the retry now succeeds, the
+source-row upsert behind it runs, and the sheet catches up on the client's own
+next click. `tweak → tweak` was already admitted by the transition arm; only
+the `approved` case was stranded.
+
+**What this does NOT fix, and it is the deeper item.** *Why* the
+`calendar_posts` write did not follow its own committed gateway write at
+19:18 is not established here. The gateway leg is acknowledged and the source
+leg is not, which is precisely the shape `_writeUiRetrySourceAt` /
+`checkpointCommittedSource` exist to hold — so either the checkpoint did not
+take or the rollback in `_calReviewApplyApprove` ran anyway. Worth noting that
+per item 101 a refused write leaves no server-side trace, so the browser-side
+half of this is only recoverable from the client's own `localStorage` ring, in
+her browser, which we do not have. **The client-visible symptom is closed; the
+half-commit is not.**
+
+**Live blast radius at the time of writing**: one card on one slug (one
+component, video). Any client on any slug whose approve half-commits lands
+in the same trap until this deploys.
+
+---
+---
+
+## 187. [2026-09-09, FIXED — copy only] A card SyncView had just created said "Client attribution needs repair" for the twelve seconds before Linear answered
+
+An SMM reported that a thumbnail he had just filed from the content calendar
+refused every edit and accused the client of a broken mapping. The client was
+fine. The report was a race with our own mirror, dressed as a data defect.
+
+**Measured on the live row.** `GRA-7437` / `del_56236b60…`, graphics, an active
+roster client. `deliverable_events` has it created from the calendar at
+**19:28:29.255Z** (`action: create`, `source: ui`, `surface: calendar`) and the
+mirror stamping it at **19:28:41.440Z**: twelve seconds. The stored row carried
+the right `client_slug` throughout, and the browser view read
+`raw_attribution_state: resolved` / `direct_project` on the far side of the gap.
+`attribution-stuck-check.js` reports the row in no stuck bucket, and the client
+has zero live rows with a missing project or an unresolved stamp.
+
+**Mechanism.** Native creation writes the deliverable row first and mirrors it
+into Linear after. `_prodResolveAttributions` derives the client from the
+MIRRORED fields only — the row's own Linear project, then its ancestors, then
+the persisted stamp — and never from the `client_slug` column SyncView itself
+wrote at creation. So before the mirror answers there is no evidence at all and
+the row resolves `needs_attribution` / `repair_required`. Run against the live
+row with its mirrored fields stripped, the shipped resolver returns exactly
+that; run against the row as it stands, it returns `resolved` / `direct_project`.
+
+The gate was RIGHT for those twelve seconds — nothing had confirmed who owned
+the row — but it announced itself as a repair, so a transient sync read as a
+broken client and cost a round trip. **The fix is copy, not verdict.** A row in
+the narrow syncing shape (no persisted stamp, no project from any source, no
+Linear issue yet, and a stored slug that is a currently ACTIVE roster client)
+now reads "Syncing to Linear" in its chip, its notice, its side-card project row
+and its gate text, in the neutral muted key rather than the amber repair one.
+The write is still refused, the row still groups under the needs-attribution
+sentinel, and every other unresolved state — a stamp Linear invalidated, an
+unmapped project, a conflict, a slug that is not on the active roster — keeps
+the repair banner it has always had.
+
+`test/prod-attribution-sync-pending-copy.js` executes the real functions out of
+the shipped file and pins both halves: the softer wording for the syncing shape,
+and each of the six ways out of it keeping its own banner.
+
+**What this does NOT fix,** and is the owner's call: attribution still ignores
+the row's own `client_slug`, so if the mirror ever fails outright rather than
+lagging, the card stays read-only until somebody notices. Resolving a native,
+pre-mirror row from its stored active-roster slug would close that, and is a
+verdict change rather than a copy change. Measured today: **139 live rows**
+carry no `raw_project_id`, so this read path reaches further than the one card.
+
+- Done when: shipped (copy). The verdict question above stays open.
+
+## 188. [2026-09-09, lane LX-URGENT, SUPERSEDED STATUS — the EF half is deployed (see 193) and the front end was corrected (see 194); the repo's writer copies are still NOT deployable, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+
+The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
+editor in `#video-editing`. The mirror case had no affordance at all. A card parked
+at **Kasper Approval** could sit there indefinitely, and the only escalation was the
+SMM chasing Kasper by hand — which leaves no trace on the row, so nothing on Kasper's
+own screen said which of the cards in his queue could not wait.
+
+**Shape.** The second flavour is deliberately ONE machine with the first, not a
+parallel one: same button, same `_calUrgentSlackDispatch` confirm → POST → latch,
+same four-column marker, same "the marker dies with its round" rule.
+`URGENT_PING_KINDS` holds the only two things that actually differ (destination and
+copy) and `kind` defaults to `'editor'` at every call site, so **no pre-existing call
+path changed behaviour**. A third flavour would be a row in that table.
+
+**The one predicate.** `_calKasperUrgentActive(post)` decides BOTH the button's Sent
+latch and membership of the new Urgent section. That is the point: the section is not
+a second opinion about what is urgent, it is the same fact rendered twice, so the two
+cannot drift. Urgent is a **split of waiting**, not a fourth bucket — an urgent card
+is a waiting card with a ping on it, and it renders, acts and finishes identically.
+Both queue-count pills had to add the split back (`urgent + waiting`), or pinging a
+card would silently shrink the count of work Kasper still owes.
+
+**Two things this ran into that the video ping never had to.**
+
+**1. Only video and graphic carried a change-stamp.** `video_status_at` /
+`graphic_status_at` exist because the Linear reconciler needed them (2026-06-19,
+GRA-6339); caption and title never did. The round key needs one for whichever
+component the ping was fired from, so the migration extends the existing
+`calendar_posts_stamp_status_at` trigger to all four. Rows that predate it carry
+null, and the predicate treats **unstamped-and-still-at-Kasper-Approval as live**
+rather than as a failed round — the generous direction on purpose, because the
+failure that matters here is a pinged card silently *missing* from the Urgent
+section, not one lingering a round too long.
+
+**2. A pill can change flavour in place.** `_calUpdateCardStatusDisplay` used to
+toggle the URGENT button's *state*; a component moving Tweaks Needed → Kasper
+Approval now has to swap the **button**, because the two carry different handlers.
+Restyling it in place would have left a pill that looks right and pings the wrong
+person — a bug with no visible symptom until someone in `#video-editing` is asked
+about a card they have nothing to do with. Both in-place updaters (calendar and
+samples) now remove-and-rebuild on a `data-urgent-kind` mismatch.
+
+**Recipient is never in the payload.** The browser sends card context only, exactly
+as the editor ping does; `send-urgent-kasper-slack` resolves Kasper itself and
+rebuilds the review-tab link, accepting a URL from the request only when it is on
+the SyncView origin. Same reason the editor ping never trusted a mention: a webhook
+that takes its recipient from an open page is a spam relay with extra steps.
+
+**The deploy instruction this item first carried was the 2026-07-15 landmine,
+verbatim.** It read: run the migration, then deploy `calendar-upsert` and
+`sample-review-upsert` by hand because both are `NO CI DEPLOY PATH`. That is
+true of the manifest and catastrophic in practice. Those two writers are the
+⛔ FROZEN pair: live is `calendar-upsert` v43 / `sample-review-upsert` v44,
+**owner-un-gated**, reverted to the pre-#836 tokenless source so clients' existing
+review links keep saving. The repo source still calls `authorizeBrowserWrite`.
+A plain `supabase functions deploy` of the repo source therefore RE-GATES them and
+`401`s every client approval and comment on a pre-existing link — the outage that
+happened **twice on 2026-07-15**, and `--no-verify-jwt` does not help because the
+refusal is application-level, not JWT-level.
+
+The generalisation, and the reason this keeps recurring: **`NO CI DEPLOY PATH`
+reads like "deploy it by hand" and for these two it means "there is a live
+divergence CI is deliberately not allowed to overwrite".** The manifest states
+deploy ownership; it does not state whether the repo source is what is live. For
+every other function those are the same sentence. For these two they are opposite
+ones, and nothing in the manifest says so. PR #813's readiness pass already had to
+replace these two functions' stale "deploy after merge" notes with freeze markers
+once (`EXECUTION_LOG.md`, 2026-07-16). This is the third time the instruction has
+been re-derived from the manifest and been wrong.
+
+**So the marker columns are NOT deployable from this branch, and this item does
+not claim otherwise.** The source change here is correct as *source* — it is what
+the reviewed tree should say — but shipping it to the live writers means porting
+the allow-list delta onto the exact live un-gated sources and deploying those,
+which is an owner-approved operation under the freeze, not a step in a PR
+description. Until that happens the allow-list drops the four marker fields: the
+DM still sends and the Urgent section stays empty. **That failure mode is quiet**,
+and it is now the expected state rather than a symptom of something broken.
+
+**Owner step that IS safe and self-contained:** the migration
+(`migrations/2026-09-09-kasper-urgent-pings.sql`). It only adds columns and widens
+an existing trigger — it touches no Edge Function and cannot re-gate anything.
+
+**THE SAME ASSUMPTION IS IN THE MIGRATION, ONE LAYER DOWN.** Its
+`create or replace function public.calendar_posts_stamp_status_at()` was written
+by copying the body out of `migrations/calendar-status-at-migration.sql` and
+adding two branches. That copy assumes **the repo's migration file matches the
+live function** — the identical assumption that made the deploy instruction
+above dangerous, applied to Postgres instead of to an Edge Function. If the live
+trigger has drifted from that file, `create or replace` silently overwrites the
+drift. Nothing in the repo can tell you whether it has. Read the live definition
+FIRST and compare its video/graphic branches:
+
+```sql
+select pg_get_functiondef('public.calendar_posts_stamp_status_at'::regproc);
+```
+
+The generalisation, which is the actual lesson of this item and is bigger than
+either instance: **this repository is not the state of the system.** For most
+files it is, which is exactly why the exceptions are dangerous — they read
+identically. Two are now known (the frozen writers; possibly this trigger), both
+found only because something checked rather than assumed. Before any change is
+applied to a live artifact, read the live artifact.
+
+**Owner decisions, 2026-09-09 (second round).** The owner asked for the feature
+to be made safe to merge rather than held indefinitely, and chose the register +
+review gates below but NOT the re-issue-every-link path that would close the
+divergence for good. So:
+
+3. **A kill-switch, defaulting OFF, now gates the whole affordance**
+   (`kasper_urgent_ping_enabled` in `syncview_runtime_flags`; the browser fails
+   closed on a missing row, missing key, failed read or malformed value). With it
+   off the feature is INERT — no button, so no click, no write, no DM. This is
+   what makes merging safe before the EF half exists, and it is one row to turn
+   on afterwards with no deploy.
+
+   It exists because "the front-end just adds a button" was wrong. Without the
+   EF, a ping still POSTs a patch whose four marker fields the allow-list drops,
+   leaving an UPDATE that writes only `updated_at` — and `dedupeByLinearIssue`
+   (`scripts/linear-sync-reconcile.js:285`) picks the canonical row by most-recent
+   `updated_at`, so on a card sharing a Linear link with another, a no-op ping can
+   flip which row the calendar shows. Its own comment names that hazard. Status
+   direction is unaffected (it keys on `*_status_at`, the GRA-6339 fix).
+4. **`docs/ops/LIVE_DIVERGENCE_REGISTER.md` + `test/live-divergence-register.js`.**
+   A change touching a registered path must touch the register in the same diff;
+   a registered file must carry its own inline ⛔ warning and no copy-pasteable
+   deploy command. The register is parsed for its own path list, so adding an
+   entry arms the gate with no second place to edit. The owner declined the
+   re-issue path, so this divergence is permanent — which is precisely why it
+   needed a machine, not a memory.
+
+**Owner decisions, 2026-09-09 (first round).**
+1. **The PR was HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
+   owner's standard is that a client's approvals must never break, and half of
+   this feature cannot be proven until the Edge Function half is real. It merges
+   when the marker fields are live in the un-gated writers, not before.
+2. **The `send-urgent-kasper-slack` webhook stays unauthenticated**, at parity
+   with `send-urgent-slack` and every other browser-called SyncView webhook.
+   Codex's P1 is accurate and is accepted, not refuted: an unauthenticated caller
+   can cause repeated bot DMs to one person. It reads nothing, writes nothing,
+   cannot inject a mention or an off-origin link past the sanitiser, and the
+   recipient can mute it. Authentication is deferred to the n8n replacement
+   (`docs/independence/N8N_REPLACEMENT_PLAN.md`) so the whole surface moves
+   together rather than one endpoint being hardened while its twin stays open.
+
+**TWO DEFECTS THAT MUST BE FIXED *IN* THE PORT, NOT BEFORE IT.** Codex's third
+round found both. Neither is fixable in this branch in any way that could ship,
+because both live in the artifact that has not been written yet — the live
+un-gated writer source — and both are unreachable while the kill-switch is off
+(no button, so no click path at all). Recording them here rather than patching
+the un-shippable copy:
+
+1. **The marker needs a delivered state, not just a sent-at.** Round 2 moved the
+   Kasper ping to persist-before-Slack so a failed write could not produce a DM
+   about a section that never populates. That traded one failure for its mirror:
+   the marker now lands, the card repaints as Urgent, and if the webhook then
+   fails, Kasper never got the DM — while the blank-field guard stops the empty
+   marker from clearing it, so reloads keep suppressing the retry. Slack and
+   Postgres have no shared transaction, so *some* window exists whichever order
+   you pick; the fix is to stop pretending otherwise. Add
+   `kasper_urgent_delivered_at` and require it in `_calKasperUrgentActive`, so a
+   marker with no delivery is pending, invisible in the Urgent section, and
+   retryable. That is a schema + writer change, i.e. the port.
+2. **The marker guard reads a stale snapshot.** `applyKasperUrgentMarkerGuards`
+   approves against `readExisting`, and the `.update()` that follows carries no
+   status predicate — so a component moved out of Kasper Approval by another
+   reviewer inside that window still gets a marker written, and the DM points at
+   a section the live row already excludes it from. The fix is a conditional
+   update (`.eq(comp + "_status", "Kasper Approval")` plus the round key) in both
+   writers. Also the port.
+
+Both are listed in the register entry's "to ship a change" path. A port that
+lands the allow-list delta without them ships two known P1s.
+
+**The exact delta to port when the writers are done.** Recorded here so the
+person doing it is not re-deriving it from a diff. Onto the LIVE un-gated source
+of each of `calendar-upsert` and `sample-review-upsert`:
+
+```
+1. ALLOWED             += kasper_urgent_pinged_at, kasper_urgent_status_at,
+                          kasper_urgent_comp, kasper_urgent_by
+2. SCALAR_FIELDS       += the same four
+3. + KASPER_URGENT_MARKER_FIELDS  (the same four, as a roster const)
+4. + KASPER_URGENT_COMPONENTS     (calendar: video/graphic/caption/title;
+                                   samples: video/graphic)
+5. + kasperUrgentComp() and applyKasperUrgentMarkerGuards(), called from
+     applyGuards() right after applyUrgentMarkerGuards()
+6. + the kasper_urgent_ping row in buildEvents()
+```
+
+Steps 5 and 6 are lifted verbatim from this branch. Steps 1-4 are list additions.
+Nothing in the delta touches authorization, CORS, or any existing guard — which
+is what makes it portable onto a source this branch does not contain.
+
+## 189. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+
+Item 186 closed the client-visible refusal and said plainly that it did not
+explain why the `calendar_posts` leg never followed its own committed gateway
+write. This is that explanation, established by replication rather than by
+reading, in `qa/client-approve-half-commit/probe.js`.
+
+**Method.** The harness serves the repo, boots the real `index.html`, seeds one
+card at `Client Approval` and drives the REAL client approve path. The client
+branch needs no client token: `_calReviewMode()` returns `client` for any view
+that is not `smmreview`, so `_calReviewApplyApprove` takes the same branch,
+stamps the same `client_<comp>_approved_at` and routes the same gateway write.
+Leg 1 (gateway) and leg 2 (`calendar_posts`) are recorded separately and each
+fault is scored against the fingerprint measured on the live card: committed AND
+stale AND unstamped AND still reading `Client Approval` to the client.
+
+| Fault injected | Leg 1 | Leg 2 | Verdict |
+|---|---|---|---|
+| none (control) | commits | writes | correct |
+| **gateway response lost** | **commits** | **never** | **reproduces** |
+| storage refuses the checkpoint | commits | never | no: card stays Approved, storage error shown |
+| source write rejected (500) | commits | attempted | no: card stays Approved, retry armed |
+
+**Only a lost response reproduces it**, and the other two are ruled out on the
+record rather than by argument. A browser cannot distinguish "the server never
+received it" from "the server committed it and the reply was lost". The catch in
+`_calFlushCardSave` assumed the first, rolled the card back through
+`_CAL_ROLLBACK_FIELDS`, and abandoned leg 2. **The rollback is the whole
+mechanism**: it is what put the card back to `Awaiting your approval` with the
+Approve button live, which is what produced the repeat clicks that met 186's
+refusal.
+
+**The finding that decides the fix.** The durable repair journal ALREADY
+completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
+restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
+lands with the right status and the right sign-off stamp. Nothing is missing.
+
+**THE BROWSER FIX WAS ATTEMPTED AND WITHDRAWN. Four review rounds, seven
+findings, every one a real defect in the FIX rather than in the original code.**
+Recorded in full, because the next person to open this will otherwise make the
+same attempt:
+
+1. *Absence had no route home.* A request that died before reaching the server
+   threw `status_reapply_required`, and `_calRetrySave` refuses to checkpoint
+   without a committed repair ref, so the write was lost while the journal went
+   on insisting it was owed.
+2. *No CAS on this lane.* Reissuing on proven absence can overwrite another
+   actor's status: Calendar/SXR status payloads carry neither `expected_status`
+   nor `expected_updated_at`, and `production-write` requires them on the
+   `production` surface only. The comment claiming server CAS settled that race
+   was false.
+3. *Legacy fallback.* A missing or rolled-back reroute flag sends the reissue to
+   `_calLegacyPushStatusToLinear`, which fires unawaited and returns `skipped`.
+4. *A 5xx is not proof of non-commit,* so treating it as definitive rolls the
+   card back and re-arms the control: the original incident through another door.
+5. *But a blanket `status >= 500` is wrong too.* `authority_unavailable` throws
+   503 BEFORE `beforeAttempt` reserves the journal record, while
+   `gatewayAttempted` is already true, so a never-sent request would arm a
+   checkpoint with no repair refs and strand the card as "Source repair receipt
+   missing".
+6. *The optimistic approval was invisible as unconfirmed.* `_calReviewPanelHtml`
+   returns the "Approved / Locked in" collapse before any error is read, and
+   both queue predicates plus `_calReviewCardBody` filter on
+   `_calReviewComponentActive`, which an optimistically-Approved component
+   fails. The not-confirmed copy therefore never reaches a real client link in
+   the single-component case: exactly the case the change targeted.
+7. *The harness kept not proving what it claimed.* It recorded a commit before
+   every simulated abort (masking the pre-server path), scored only against the
+   fingerprint (so a broken recovery passed for the wrong reason), and DEFINED
+   an `error-after-commit` fault it never ran.
+
+**Why withdrawn rather than iterated.** The server half of 186 is deployed
+(`production-write` v70), so a client no longer meets the refusal loop and this
+is defence in depth, not an emergency. The area couples optimistic card state, a
+two-leg write, a repair journal, authority preflight and two queue predicates,
+and each patch surfaced another interaction. A correct fix needs CAS on the
+calendar status lane and one coherent unconfirmed-state contract across the
+review surfaces: edge-function work that overlaps almost entirely with the
+server-side reconciler. Half of it, shipped to a client-facing surface, is how
+the original incident happened.
+
+**What ships instead: the replication, with the defect pinned.** Harness case
+`A` asserts the CURRENT behaviour by name (a committed-but-lost response rolls
+the card back and drops the sign-off stamp), so this cannot be quietly "fixed"
+or regress further without someone deliberately rewriting a contract.
+
+**What is still open, and it is the real one.** That repair runs only in that
+client's browser, only if she comes back. She met an error, reported it, and
+closed the tab, so a write the server had already committed was left unfinished
+with nothing server-side able to complete it; her card stayed stale until an
+unrelated staff browser projected the canonical status back at 19:32. **The
+completion of a committed write still depends on one particular browser session
+surviving.** Closing that needs a server-side reconciler (a deliverable whose
+status disagrees with its card row is a repairable fact, visible without any
+browser), which is an owner decision about who owns the card row and is
+deliberately NOT taken here. The planned review-surface fault sweep across
+Client / SMM / Kasper should shape it before it is built.
+
+## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Two silent losses on the review surfaces: the client's sign-off stamp, and a change request that never reaches the card
+
+**Found by the review-surface sweep (`qa/review-surface-sweep`), and it explains
+an anomaly item 186 recorded as unexplained.**
+
+A client approve that meets ANY of the three write faults recovers its component
+status to `Approved` and never writes `client_<comp>_approved_at`. The no-fault
+control writes it correctly, so this is the recovery path dropping it rather
+than the action failing to produce it.
+
+| client / approve | source row after recovery | sign-off stamp |
+|---|---|---|
+| no fault (control) | `Approved` | **present** |
+| gateway answer lost | `Approved` | **missing** |
+| 5xx after commit | `Approved` | **missing** |
+| source write rejected | `Approved` | **missing** |
+
+**The live row agrees.** Item 186's production card ended at
+`video_status = Approved` with `client_video_approved_at = null`, and that was
+noted at the time as unexplained. It now has a mechanism and a reproduction.
+
+**Why this one matters more than its size suggests.** Every other symptom in
+this family is a temporary disagreement that heals. This one is a PERMANENT loss
+of the only record that the client personally signed off. The status says the
+work was approved; nothing says who approved it. On a product whose entire
+service is client approval, that row IS the evidence, and after any network
+hiccup it is blank. Nobody notices, because the card looks correct.
+
+**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE, AND IT IS UNCONFIRMED: a change
+request may commit on the server and never reach the card.** Read the caveat
+under it before acting: the eighth review round showed at least one of its six
+rows is a harness artifact, so this is a lead, not an established defect.** Client and SMM alike, under a lost gateway
+answer, a 5xx after commit, or a never-sent request that later resumes: the
+gateway records the comment, `calendar_posts` gets nothing, and the resume does
+not close the gap. The editor opens the card and sees no change request while
+the server holds one. This one is worse in a specific way: with the approve at
+least the STATUS eventually agrees, whereas here the card shows no sign that
+anything was ever asked for.
+
+It was missed twice, and the reason is worth recording: the sweep's scorer
+skipped its thread check whenever no source write landed, which is precisely the
+case where the split happens, so two published versions of the sweep concluded
+"requesting a change is sound on both surfaces". A committed comment is a fact
+about the SERVER and has to be compared whether or not any source patch landed.
+
+**THE SWEEP'S COUNTS ARE NOT TRUSTWORTHY, and finding 1 does not depend on
+them.** After eight review rounds the probe was shown to be wrong in both
+directions at once: it over-reports (a staff boot creates a repair journal a
+real client link would not, since client comments get `repair = null`) and
+under-reports (its pre-resume window compares only component status, missing the
+comment splits). Finding 1 stands anyway because the LIVE production row
+corroborates it independently. Finding 2 does not, and is held as a lead until
+someone reruns it from a real tokened client context. `qa/review-surface-sweep`
+is marked instrument-only for the same reason.
+
+**Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
+belongs with the server-side reconciler rather than as another browser patch:
+the recovery path that restores the status is the same one that would carry the
+stamp, and OPEN_REPAIRS 189 records why patching that path in the browser was
+abandoned after seven review findings.
+
+**What would prove a fix:** the sweep's `client / approve` rows flag zero
+companion problems across all four faults with the control still writing the
+stamp, AND every `request-change` row carries its committed comment into the
+source row.
+
+## 191. [2026-09-10, FIXED in the browser; ships on merge, no deploy] The client's sign-off stamp survives recovery now, and the proof is a negative control rather than a passing test
+
+**Fixes half of item 190.** A client approve that met any write fault recovered
+its component status to `Approved` and never wrote `client_<comp>_approved_at`,
+so the record said the work was approved but not that the CLIENT approved it.
+
+**The patch, twelve visible lines, three hunks.** Two pass `repairEdits`
+carrying ONLY this action's sign-off edit into the status push, so the repair
+journal actually holds the stamp instead of losing it with the rest of the
+source patch. The third applies the existing stale-approval rule when a captured
+stamp meets a newer reviewer state: a receipt can return a status this card has
+since moved past, and a stamp must never be resurrected onto a component that is
+no longer at a client-visible approval status. Neither hunk invents a stamp from
+a status, which the focused test asserts directly.
+
+**Provenance, stated plainly.** The patch and its unit test came from a
+predecessor session's recovery packet (PR #1376, draft), whose own checkout,
+browser harness and raw logs became inaccessible before publication. That
+session's reported results are NOT carried forward as evidence. Everything below
+was re-run here from a clean checkout.
+
+**Proof, negative control first.**
+
+| check | result |
+|---|---|
+| `test/client-review-repair-stamp.js` on UNPATCHED main | **fails**, on `newer status must govern whether a captured stamp is stale` |
+| same test with the patch | passes, 12 status/component combinations |
+| `qa/review-surface-sweep` before | 9 flagged, of which **3 = `client sign-off stamp missing`** |
+| `qa/review-surface-sweep` after | 6 flagged, **0 sign-off**, only the unrelated comment split remains |
+| `node test/run-all.js` | 423 of 425; the two failures (`ef-deploy-provenance`, `truth-sync`) fail identically on `origin/main` |
+| `prod-write-gateway-browser` | passes |
+
+The sweep is still marked instrument-only and its absolute counts are not
+trustworthy, but a BEFORE/AFTER differential on one named signal is exactly what
+it can support, and the signal it clears is the one item 190 corroborated
+against the live production row.
+
+**One honest wrinkle.** The browser gate failed on its first run of this session
+at `prod-write-gateway-browser.js:1646`, a hover-then-tooltip wait in the
+`labels_projection` phase, then passed twice. That code is the Production label
+picker, which this patch does not touch, and the failure mode is timing on a
+hover tooltip. Recorded rather than hidden; if it recurs on an unrelated PR it is
+that gate's flake, not this change.
+
+**What this does NOT fix**, all still open in 190 and 189: the confirmed
+comment/card split (a change request commits on the server and never reaches the
+card, now confirmed from a real tokened client context by the predecessor
+session), the closed-tab case, the server-side reconciler, and repair of rows
+ALREADY carrying an approved status with no stamp. This patch stops new losses;
+it does not go back for the old ones.
+
+---
+
+## 192. [2026-09-10] Item 39/89 closed a door that needed one more room: a narrow, named escape hatch for a completed-issue card someone is still actually blocked on
+
+Item 39 measured 17 actionable half-linked cards, 15 of them pointing at Linear
+issues already `completed`, and closed with: *"`isOpenIssue` excludes the
+completed ones, correctly: they are finished work"* and *"the 15 actionable
+slots pointing at completed Linear issues need no status change ever. They are
+recorded, not scheduled."* Item 89 asked for one owner decision on what to tell
+a blocked person, and stayed open.
+
+**"Never" was wrong for at least one of them.** Card `p_lin_vid12672`
+("Video 3") was reported live 2026-09-10 by the owner trying to move it to
+Posted via Set All To Posted, hitting `native_link_required` on the thumbnail
+leg exactly as item 39 describes, on a card whose Linear issue (completed
+months before the graphics flip) item 39 already had on its own sampled list.
+12 other cards on the same client carry the identical shape, confirmed live
+against the `deliverables` table: no row exists for any of them, on either
+team.
+
+Neither sanctioned repair reaches it: `b3-linkage-backfill.js` only stamps a
+card onto a deliverable that already EXISTS, and none does here; B1's
+stray-catcher insert path requires `isOpenIssue`, by design, for exactly the
+reason item 39 gave.
+
+**What shipped:** `B1_ALLOW_CLOSED_IDENTIFIERS`, a manual-only, explicit
+allowlist input on the B1 Linear Incremental Refresh Action. A human names
+specific closed Linear identifiers; only those pass the `isOpenIssue` gate, and
+every other guard (insert-only, the existing-deliverable skip, the card-slot
+conflict withhold) still applies untouched to a named issue exactly as it does
+to any other stray candidate. Empty by default, so item 39's "correctly" still
+describes every standing scheduled or ordinary dispatched run — this is not a
+reversal of that finding, it is the one room the finding didn't anticipate: a
+completed issue that needs a manual, named exception because a person is
+actually blocked on it, not the general case of 900 quietly finished tickets.
+
+**Correction to item 39/89's closing claim.** "Need no status change ever"
+holds for most of the completed-issue bucket, but not provably all of it — this
+is the counterexample. A report of `native_link_required` on a completed-issue
+card is reachable and actionable, not "recorded, not scheduled" by default;
+check whether someone is actually trying to move it before filing a new one
+under the closed bucket.
+
+**Dispatch sequence** (Actions → B1 Linear Incremental Refresh → Run workflow):
+1. `changed_since` — far enough back that the named identifier's `updatedAt`
+   falls inside the window; the issue's own completion date is a safe floor.
+2. `allow_closed_identifiers` — comma-separated Linear identifiers, e.g.
+   `GRA-6384,VID-11945`.
+3. `apply` — on.
+4. Verify: the card's `video_deliverable_id` / `graphic_deliverable_id` is no
+   longer empty, and the write that was refused now succeeds.
+
+**Not done here.** The 12 other same-shape cards found live on 2026-09-10 are
+not yet dispatched — whoever runs the fix should include every identifier
+actually blocking someone in one dispatch rather than one at a time.
+`scripts/calendar-native-link-gap-check.js` still finds the remaining bucket
+across every client.
+
+
+## 193. [2026-09-10, LIVE; feature flag remains off] Frozen writers persist urgent markers without re-gating client saves
+
+Follow-up to 188. Calendar v48 → v49 and Samples v49 → v50 were deployed from the exact downloaded ungated live sources plus the reviewed additive marker patch. Samples also required MIRROR_COLS additions. Calendar strips caption/title status timestamps from updates. Both retain verify_jwt=false, zero authorizeBrowserWrite occurrences, unchanged CORS and byte-identical shared code. Repository writer copies remain unsuitable for deployment.
+
+Twenty offline cases pass. Real tokenless name/comment saves and all six supported component-marker writes returned HTTP 200/ok:true; separate database reads confirmed persistence and server-derived marker clocks. Dedicated test cards were removed with last-write guards. No notification or interactive-browser behavior is claimed. The feature flag was absent and remains off.
+
+Full versions, bundle hashes, evidence limits, rollback and next action: [deployment receipt](FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). Next: owner decides when to enable and check the visible ping flow; no additional marker deployment is owed. Separate approval-recovery work is unchanged.
+
+## 194. [2026-09-10, FIXED in the browser; ships on merge, no deploy] The two urgent pings stopped being one machine, and the switch could only be thrown for everybody at once
+
+Follow-up to 188 and 193. Two things were wrong with the front end the moment the writers went live, and both were the same mistake: a Kasper-flavoured special case where the whole design was that there is no special case.
+
+**The ordering.** The Kasper ping wrote its marker BEFORE sending the DM; the editor ping has always sent Slack first. That was introduced to stop a failed write producing a DM about an Urgent section that never populates. It bought that by trading the failure for its exact mirror: marker written, DM never sent, and the blank-field guard then refusing the retry — a card that looks pinged, to a reviewer who was never told. Slack and Postgres share no transaction, so SOME window exists whichever way round it goes; ordering only chooses which half can be lost, and the lost DM is the worse half because it is the deliverable. Reverted to Slack-first, so the dispatch path is now one code path with no per-flavour branch. `persistFirst` is gone from the source, and a test fails if the string comes back.
+
+**The switch.** `kasper_urgent_ping_enabled` was read as `{enabled:true}` and nothing else, so the only rollout available was all clients at once. It now takes `{"clients":[…]}` as well — the same roster shape `calendar_upsert_ef_clients` and `write_ui_reroute_clients` already use — and both affordance gates pass their own surface's client (`calState.client`, `sxrState.client`). Every other shape is still OFF, including a roster that does not name the client asking, a slug of `''`, `{"enabled":"true"}`, a malformed value, a failed read and a missing row. The click-time re-read added in 1370 round 3 now carries the slug too, so a client can be dropped from the roster mid-dialog and the ping still refuses.
+
+**Codex found two defects in the roster work itself, both real, both fixed before merge.** They are worth recording because they share a shape: a gate that fails closed is still wrong when it fails closed on the wrong input.
+
+1. *(P1)* The two click handlers still called `_kasperUrgentPingOnLive()` with no argument, so after the re-fetch the roster was asked about the empty client and refused. The affordance gate passed its client, so the button rendered normally and then answered "Urgent pings are off" on every click — a dead button, for every client, whenever the flag used the roster form. The test that was supposed to cover this counted the three call sites without looking at their arguments, so it stayed green while two of them asked about nobody. It now asserts that no call site is bare and that each names its own surface's client.
+2. *(P2)* The comparison only trimmed and lower-cased. `calState.client` and `sxrState.client` hold **display names**; the roster holds **slugs**. Anything with a space, an accent, a leading `Dr.`, or an `and` the slug writes as `&` therefore never matched, and the failure was invisible: no button, no error, just a feature that quietly never appeared for the client it was turned on for. Both sides now go through `calClientSlug` / `_calRuntimeFlagClients`, exactly as `_calUpsertUseEf` and `_writeUiRerouteUseGateway` already do. The test fixtures were themselves complicit — they used the same string for the display name and the slug, which is the one shape that passes without any normalization at all — so they now differ.
+
+Verified: unit suite green including new sandboxes (roster naming this client / roster naming another / no flag at all) and normalization cases for spaces, `and`/`&`, `Dr.`, padding and near-miss names. Both fixes carry a negative control: reverting the P1 fix makes the new guard fail, and the old comparison is shown missing all three display-name shapes. `prod-write-gateway-browser.js` green, `prod-boot-budget.js` green, live-divergence register green, identity-exposure clean. Test fixtures use a synthetic slug, never a live one. Next: the n8n DM copy still asserts "It is in the Urgent section at the top", which Slack-first can send a beat early — that edit is the owner's call and has not been made.

@@ -1103,3 +1103,37 @@ stamps do not gain a stored-slug fallback. P7 now requires editing the newly
 created card and reloading with Linear unavailable, on both teams and both
 mapping routes. Actual browser and database journeys remain owed; see the
 repair installation contract. No visible control layout changes are intended.
+
+## A native card waiting on the Linear mirror says so (2026-09-09)
+
+An SMM filed a thumbnail from the content calendar, and the card refused every
+edit under **"Client attribution needs repair."** The client was fine.
+OPEN_REPAIRS 187.
+
+-   **Candidate behaviour.** Native creation writes the deliverable row first
+    and mirrors it into Linear after. `_prodResolveAttributions` derives the
+    client from the MIRRORED fields only — the row's own Linear project, then
+    its ancestors, then the persisted stamp — and never from the `client_slug`
+    column SyncView itself wrote at creation. So between the insert and the
+    mirror's answer a brand new card has no evidence at all, resolves
+    `needs_attribution` / `repair_required: true`, and every write control on it
+    is gated shut behind repair wording. Measured on the row that produced the
+    report: created from the calendar at 19:28:29.255Z, stamped `resolved` /
+    `direct_project` at 19:28:41.440Z. Twelve seconds, correct on both sides of
+    the gap, and the reader was told their client was broken.
+-   **Wired behaviour.** A row in the syncing shape — no persisted stamp, no
+    project from any source, no Linear issue yet, and a stored slug that is a
+    currently ACTIVE roster client (`_prodAttributionSyncPending`) — reads
+    **"Syncing to Linear"** in its chip, its notice, its side-card project row
+    and its gate text, in the neutral muted key rather than the amber repair
+    one, and the side card names the client SyncView stored rather than
+    "Needs attribution".
+-   **What does NOT move.** The verdict. The attribution state is still
+    `needs_attribution`, `_prodAttributionGateText` still returns a non-empty
+    refusal so the write is still refused, the row still groups under the
+    `__needs_attribution__` sentinel, and no node is added or removed. Every
+    other unresolved state — a stamp Linear invalidated, an unmapped project, a
+    conflict, a slug that is not on the active roster — keeps the repair banner
+    it has always had. Pinned by
+    `test/prod-attribution-sync-pending-copy.js`, which executes the shipped
+    functions and asserts each of the six ways out of the syncing shape.

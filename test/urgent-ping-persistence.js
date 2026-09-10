@@ -36,16 +36,39 @@ function grabConst(name) {
   return m[0];
 }
 
+function grabBlockConst(name) {
+  const at = INDEX.indexOf('const ' + name + ' = {');
+  if (at < 0) throw new Error('const not found: ' + name);
+  let depth = 0;
+  for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
+    const c = INDEX[j];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1) + ';'; }
+  }
+  throw new Error('unbalanced braces: ' + name);
+}
+
 const REAL = [
   grabConst('CAL_STATUSES'),
+  grabConst('CAL_REVIEW_COMPONENTS'),
+  grabBlockConst('URGENT_PING_KINDS'),
+  grabFunc('_urgentKind'),
   grabFunc('_calNormStatus'),
+  grabFunc('_calEsc'),
+  grabFunc('_calEscAttr'),
+  grabFunc('_calCompLinked'),
   grabFunc('_calShowUrgent'),
+  grabFunc('_calShowKasperUrgent'),
+  grabFunc('_calKasperUrgentComp'),
+  grabFunc('_calKasperUrgentActive'),
   grabFunc('_calUrgentSameRound'),
   grabFunc('_calUrgentSentForCurrentRound'),
   grabFunc('_calUrgentButtonHtml'),
 ].join('\n\n');
 
-const mod = new Function(REAL + ';return { _calShowUrgent, _calUrgentSentForCurrentRound, _calUrgentButtonHtml };')();
+const mod = new Function('URGENT_SLACK_URL', 'URGENT_KASPER_SLACK_URL',
+  REAL + ';return { _calShowUrgent, _calShowKasperUrgent, _calKasperUrgentActive, _calUrgentSentForCurrentRound, _calUrgentButtonHtml };'
+)('http://x/webhook/send-urgent-slack', 'http://x/webhook/send-urgent-kasper-slack');
 const VID = 'https://linear.app/synchro-social/issue/VID-123/video';
 const ROUND1 = '2026-07-10T12:00:00.000Z';
 const ROUND2 = '2026-07-10T13:00:00.000Z';

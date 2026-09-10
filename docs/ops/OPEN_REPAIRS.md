@@ -18894,3 +18894,41 @@ status disagrees with its card row is a repairable fact, visible without any
 browser), which is an owner decision about who owns the card row and is
 deliberately NOT taken here. The planned review-surface fault sweep across
 Client / SMM / Kasper should shape it before it is built.
+
+## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Recovery restores the status and silently loses the client's sign-off, so the record says the work was approved but not that the CLIENT approved it
+
+**Found by the review-surface sweep (`qa/review-surface-sweep`), and it explains
+an anomaly item 186 recorded as unexplained.**
+
+A client approve that meets ANY of the three write faults recovers its component
+status to `Approved` and never writes `client_<comp>_approved_at`. The no-fault
+control writes it correctly, so this is the recovery path dropping it rather
+than the action failing to produce it.
+
+| client / approve | source row after recovery | sign-off stamp |
+|---|---|---|
+| no fault (control) | `Approved` | **present** |
+| gateway answer lost | `Approved` | **missing** |
+| 5xx after commit | `Approved` | **missing** |
+| source write rejected | `Approved` | **missing** |
+
+**The live row agrees.** Item 186's production card ended at
+`video_status = Approved` with `client_video_approved_at = null`, and that was
+noted at the time as unexplained. It now has a mechanism and a reproduction.
+
+**Why this one matters more than its size suggests.** Every other symptom in
+this family is a temporary disagreement that heals. This one is a PERMANENT loss
+of the only record that the client personally signed off. The status says the
+work was approved; nothing says who approved it. On a product whose entire
+service is client approval, that row IS the evidence, and after any network
+hiccup it is blank. Nobody notices, because the card looks correct.
+
+**Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
+belongs with the server-side reconciler rather than as another browser patch:
+the recovery path that restores the status is the same one that would carry the
+stamp, and OPEN_REPAIRS 189 records why patching that path in the browser was
+abandoned after seven review findings.
+
+**What would prove a fix:** the sweep's `client / approve` rows flag zero
+companion problems across all four faults, and the control still writes the
+stamp.

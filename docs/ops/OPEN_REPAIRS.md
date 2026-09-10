@@ -18602,7 +18602,202 @@ carry no `raw_project_id`, so this read path reaches further than the one card.
 
 - Done when: shipped (copy). The verdict question above stays open.
 
-## 188. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+## 188. [2026-09-09, lane LX-URGENT, BUILT and HELD — front-end + EF source shipped; the EF half is NOT deployable from the repo, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+
+The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
+editor in `#video-editing`. The mirror case had no affordance at all. A card parked
+at **Kasper Approval** could sit there indefinitely, and the only escalation was the
+SMM chasing Kasper by hand — which leaves no trace on the row, so nothing on Kasper's
+own screen said which of the cards in his queue could not wait.
+
+**Shape.** The second flavour is deliberately ONE machine with the first, not a
+parallel one: same button, same `_calUrgentSlackDispatch` confirm → POST → latch,
+same four-column marker, same "the marker dies with its round" rule.
+`URGENT_PING_KINDS` holds the only two things that actually differ (destination and
+copy) and `kind` defaults to `'editor'` at every call site, so **no pre-existing call
+path changed behaviour**. A third flavour would be a row in that table.
+
+**The one predicate.** `_calKasperUrgentActive(post)` decides BOTH the button's Sent
+latch and membership of the new Urgent section. That is the point: the section is not
+a second opinion about what is urgent, it is the same fact rendered twice, so the two
+cannot drift. Urgent is a **split of waiting**, not a fourth bucket — an urgent card
+is a waiting card with a ping on it, and it renders, acts and finishes identically.
+Both queue-count pills had to add the split back (`urgent + waiting`), or pinging a
+card would silently shrink the count of work Kasper still owes.
+
+**Two things this ran into that the video ping never had to.**
+
+**1. Only video and graphic carried a change-stamp.** `video_status_at` /
+`graphic_status_at` exist because the Linear reconciler needed them (2026-06-19,
+GRA-6339); caption and title never did. The round key needs one for whichever
+component the ping was fired from, so the migration extends the existing
+`calendar_posts_stamp_status_at` trigger to all four. Rows that predate it carry
+null, and the predicate treats **unstamped-and-still-at-Kasper-Approval as live**
+rather than as a failed round — the generous direction on purpose, because the
+failure that matters here is a pinged card silently *missing* from the Urgent
+section, not one lingering a round too long.
+
+**2. A pill can change flavour in place.** `_calUpdateCardStatusDisplay` used to
+toggle the URGENT button's *state*; a component moving Tweaks Needed → Kasper
+Approval now has to swap the **button**, because the two carry different handlers.
+Restyling it in place would have left a pill that looks right and pings the wrong
+person — a bug with no visible symptom until someone in `#video-editing` is asked
+about a card they have nothing to do with. Both in-place updaters (calendar and
+samples) now remove-and-rebuild on a `data-urgent-kind` mismatch.
+
+**Recipient is never in the payload.** The browser sends card context only, exactly
+as the editor ping does; `send-urgent-kasper-slack` resolves Kasper itself and
+rebuilds the review-tab link, accepting a URL from the request only when it is on
+the SyncView origin. Same reason the editor ping never trusted a mention: a webhook
+that takes its recipient from an open page is a spam relay with extra steps.
+
+**The deploy instruction this item first carried was the 2026-07-15 landmine,
+verbatim.** It read: run the migration, then deploy `calendar-upsert` and
+`sample-review-upsert` by hand because both are `NO CI DEPLOY PATH`. That is
+true of the manifest and catastrophic in practice. Those two writers are the
+⛔ FROZEN pair: live is `calendar-upsert` v43 / `sample-review-upsert` v44,
+**owner-un-gated**, reverted to the pre-#836 tokenless source so clients' existing
+review links keep saving. The repo source still calls `authorizeBrowserWrite`.
+A plain `supabase functions deploy` of the repo source therefore RE-GATES them and
+`401`s every client approval and comment on a pre-existing link — the outage that
+happened **twice on 2026-07-15**, and `--no-verify-jwt` does not help because the
+refusal is application-level, not JWT-level.
+
+The generalisation, and the reason this keeps recurring: **`NO CI DEPLOY PATH`
+reads like "deploy it by hand" and for these two it means "there is a live
+divergence CI is deliberately not allowed to overwrite".** The manifest states
+deploy ownership; it does not state whether the repo source is what is live. For
+every other function those are the same sentence. For these two they are opposite
+ones, and nothing in the manifest says so. PR #813's readiness pass already had to
+replace these two functions' stale "deploy after merge" notes with freeze markers
+once (`EXECUTION_LOG.md`, 2026-07-16). This is the third time the instruction has
+been re-derived from the manifest and been wrong.
+
+**So the marker columns are NOT deployable from this branch, and this item does
+not claim otherwise.** The source change here is correct as *source* — it is what
+the reviewed tree should say — but shipping it to the live writers means porting
+the allow-list delta onto the exact live un-gated sources and deploying those,
+which is an owner-approved operation under the freeze, not a step in a PR
+description. Until that happens the allow-list drops the four marker fields: the
+DM still sends and the Urgent section stays empty. **That failure mode is quiet**,
+and it is now the expected state rather than a symptom of something broken.
+
+**Owner step that IS safe and self-contained:** the migration
+(`migrations/2026-09-09-kasper-urgent-pings.sql`). It only adds columns and widens
+an existing trigger — it touches no Edge Function and cannot re-gate anything.
+
+**THE SAME ASSUMPTION IS IN THE MIGRATION, ONE LAYER DOWN.** Its
+`create or replace function public.calendar_posts_stamp_status_at()` was written
+by copying the body out of `migrations/calendar-status-at-migration.sql` and
+adding two branches. That copy assumes **the repo's migration file matches the
+live function** — the identical assumption that made the deploy instruction
+above dangerous, applied to Postgres instead of to an Edge Function. If the live
+trigger has drifted from that file, `create or replace` silently overwrites the
+drift. Nothing in the repo can tell you whether it has. Read the live definition
+FIRST and compare its video/graphic branches:
+
+```sql
+select pg_get_functiondef('public.calendar_posts_stamp_status_at'::regproc);
+```
+
+The generalisation, which is the actual lesson of this item and is bigger than
+either instance: **this repository is not the state of the system.** For most
+files it is, which is exactly why the exceptions are dangerous — they read
+identically. Two are now known (the frozen writers; possibly this trigger), both
+found only because something checked rather than assumed. Before any change is
+applied to a live artifact, read the live artifact.
+
+**Owner decisions, 2026-09-09 (second round).** The owner asked for the feature
+to be made safe to merge rather than held indefinitely, and chose the register +
+review gates below but NOT the re-issue-every-link path that would close the
+divergence for good. So:
+
+3. **A kill-switch, defaulting OFF, now gates the whole affordance**
+   (`kasper_urgent_ping_enabled` in `syncview_runtime_flags`; the browser fails
+   closed on a missing row, missing key, failed read or malformed value). With it
+   off the feature is INERT — no button, so no click, no write, no DM. This is
+   what makes merging safe before the EF half exists, and it is one row to turn
+   on afterwards with no deploy.
+
+   It exists because "the front-end just adds a button" was wrong. Without the
+   EF, a ping still POSTs a patch whose four marker fields the allow-list drops,
+   leaving an UPDATE that writes only `updated_at` — and `dedupeByLinearIssue`
+   (`scripts/linear-sync-reconcile.js:285`) picks the canonical row by most-recent
+   `updated_at`, so on a card sharing a Linear link with another, a no-op ping can
+   flip which row the calendar shows. Its own comment names that hazard. Status
+   direction is unaffected (it keys on `*_status_at`, the GRA-6339 fix).
+4. **`docs/ops/LIVE_DIVERGENCE_REGISTER.md` + `test/live-divergence-register.js`.**
+   A change touching a registered path must touch the register in the same diff;
+   a registered file must carry its own inline ⛔ warning and no copy-pasteable
+   deploy command. The register is parsed for its own path list, so adding an
+   entry arms the gate with no second place to edit. The owner declined the
+   re-issue path, so this divergence is permanent — which is precisely why it
+   needed a machine, not a memory.
+
+**Owner decisions, 2026-09-09 (first round).**
+1. **The PR was HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
+   owner's standard is that a client's approvals must never break, and half of
+   this feature cannot be proven until the Edge Function half is real. It merges
+   when the marker fields are live in the un-gated writers, not before.
+2. **The `send-urgent-kasper-slack` webhook stays unauthenticated**, at parity
+   with `send-urgent-slack` and every other browser-called SyncView webhook.
+   Codex's P1 is accurate and is accepted, not refuted: an unauthenticated caller
+   can cause repeated bot DMs to one person. It reads nothing, writes nothing,
+   cannot inject a mention or an off-origin link past the sanitiser, and the
+   recipient can mute it. Authentication is deferred to the n8n replacement
+   (`docs/independence/N8N_REPLACEMENT_PLAN.md`) so the whole surface moves
+   together rather than one endpoint being hardened while its twin stays open.
+
+**TWO DEFECTS THAT MUST BE FIXED *IN* THE PORT, NOT BEFORE IT.** Codex's third
+round found both. Neither is fixable in this branch in any way that could ship,
+because both live in the artifact that has not been written yet — the live
+un-gated writer source — and both are unreachable while the kill-switch is off
+(no button, so no click path at all). Recording them here rather than patching
+the un-shippable copy:
+
+1. **The marker needs a delivered state, not just a sent-at.** Round 2 moved the
+   Kasper ping to persist-before-Slack so a failed write could not produce a DM
+   about a section that never populates. That traded one failure for its mirror:
+   the marker now lands, the card repaints as Urgent, and if the webhook then
+   fails, Kasper never got the DM — while the blank-field guard stops the empty
+   marker from clearing it, so reloads keep suppressing the retry. Slack and
+   Postgres have no shared transaction, so *some* window exists whichever order
+   you pick; the fix is to stop pretending otherwise. Add
+   `kasper_urgent_delivered_at` and require it in `_calKasperUrgentActive`, so a
+   marker with no delivery is pending, invisible in the Urgent section, and
+   retryable. That is a schema + writer change, i.e. the port.
+2. **The marker guard reads a stale snapshot.** `applyKasperUrgentMarkerGuards`
+   approves against `readExisting`, and the `.update()` that follows carries no
+   status predicate — so a component moved out of Kasper Approval by another
+   reviewer inside that window still gets a marker written, and the DM points at
+   a section the live row already excludes it from. The fix is a conditional
+   update (`.eq(comp + "_status", "Kasper Approval")` plus the round key) in both
+   writers. Also the port.
+
+Both are listed in the register entry's "to ship a change" path. A port that
+lands the allow-list delta without them ships two known P1s.
+
+**The exact delta to port when the writers are done.** Recorded here so the
+person doing it is not re-deriving it from a diff. Onto the LIVE un-gated source
+of each of `calendar-upsert` and `sample-review-upsert`:
+
+```
+1. ALLOWED             += kasper_urgent_pinged_at, kasper_urgent_status_at,
+                          kasper_urgent_comp, kasper_urgent_by
+2. SCALAR_FIELDS       += the same four
+3. + KASPER_URGENT_MARKER_FIELDS  (the same four, as a roster const)
+4. + KASPER_URGENT_COMPONENTS     (calendar: video/graphic/caption/title;
+                                   samples: video/graphic)
+5. + kasperUrgentComp() and applyKasperUrgentMarkerGuards(), called from
+     applyGuards() right after applyUrgentMarkerGuards()
+6. + the kasper_urgent_ping row in buildEvents()
+```
+
+Steps 5 and 6 are lifted verbatim from this branch. Steps 1-4 are list additions.
+Nothing in the delta touches authorization, CORS, or any existing guard — which
+is what makes it portable onto a source this branch does not contain.
+
+## 189. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
 
 Item 186 closed the client-visible refusal and said plainly that it did not
 explain why the `calendar_posts` leg never followed its own committed gateway

@@ -5,6 +5,23 @@
 // comments_base_at scalar conflict guard, link clear/carry-forward guards,
 // sample_review_merge_comments RPC, and best-effort sample_review_events ledger.
 //
+// ⛔ FROZEN — DO NOT DEPLOY THIS FILE AS-IS. Live is the OWNER-UN-GATED source
+//    (sample-review-upsert v44), reverted to the pre-#836 tokenless build on
+//    2026-07-15 so clients' existing review links keep saving. THIS SOURCE STILL CALLS
+//    `authorizeBrowserWrite`, so deploying it re-applies the F35 gate and 401s
+//    every client approval and comment on a pre-existing link — the outage that
+//    happened TWICE on 2026-07-15. `--no-verify-jwt` does NOT help: the refusal
+//    is application-level, not JWT-level.
+//
+//    `docs/ops/EF_DEPLOY_MANIFEST.md` marks this slug `NO CI DEPLOY PATH`. For
+//    every other function that means "deploy it by hand". For this one it means
+//    "there is a live divergence CI is deliberately not allowed to overwrite",
+//    and reading it the first way is how a bare `supabase functions deploy`
+//    keeps being handed to the owner (most recently PR 1370). To ship a change
+//    from here: port the delta onto the exact live un-gated source and deploy
+//    THAT, with the owner's explicit approval. See the freeze banner in
+//    AGENTS.md, the F35 row of ROLLBACK.md, and EXECUTION_LOG.md 2026-07-15.
+//
 // Required env:
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
@@ -37,6 +54,7 @@ const ALLOWED = [
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
   "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev", "created_at",
   "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
+  "kasper_urgent_pinged_at", "kasper_urgent_status_at", "kasper_urgent_comp", "kasper_urgent_by",
 ] as const;
 
 const CONTENT_FIELDS = ["name", "asset_url", "thumbnail_url", "creative_direction", "video_tweaks", "graphic_tweaks"];
@@ -44,6 +62,7 @@ const SCALAR_FIELDS = [
   "name", "asset_url", "thumbnail_url", "status", "video_status", "graphic_status", "creative_direction",
   "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id", "kasper_approved_at",
   "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
+  "kasper_urgent_pinged_at", "kasper_urgent_status_at", "kasper_urgent_comp", "kasper_urgent_by",
 ];
 const MIRROR_COLS = [
   "id", "order_index", "name", "asset_url", "thumbnail_url", "status", "creative_direction", "hide_creative_direction",
@@ -52,6 +71,7 @@ const MIRROR_COLS = [
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
   "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev",
   "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
+  "kasper_urgent_pinged_at", "kasper_urgent_status_at", "kasper_urgent_comp", "kasper_urgent_by",
   "created_at", "updated_at",
 ];
 
@@ -62,6 +82,7 @@ const LINK_COLUMNS = ["graphic_linear_issue_id", "linear_issue_id", "video_deliv
 const DUPLICATE_LINK_COLUMNS = ["linear_issue_id", "graphic_linear_issue_id"] as const;
 const NULLABLE_LINK_COLUMNS = new Set<string>(["video_deliverable_id", "graphic_deliverable_id"]);
 const URGENT_MARKER_FIELDS = ["video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor"] as const;
+const KASPER_URGENT_MARKER_FIELDS = ["kasper_urgent_pinged_at", "kasper_urgent_status_at", "kasper_urgent_comp", "kasper_urgent_by"] as const;
 
 type JsonMap = Record<string, unknown>;
 type Row = Record<string, string | null>;
@@ -243,6 +264,54 @@ function applyUrgentMarkerGuards(row: JsonMap, incoming: JsonMap, existing: Exis
   }
 }
 
+/* URGENT ping for a card waiting on KASPER — same guard shape as the video ping
+   above, one card-level marker instead of a per-component one. The browser is
+   never trusted for it: the marker only survives while the component it was
+   fired from is genuinely at Kasper Approval, and its round key is re-derived
+   server-side from that component's own change-stamp. A stale or forged marker
+   therefore cannot make a card sit in Kasper's Urgent section. */
+// Samples carry two components only, so the roster is video + graphic.
+const KASPER_URGENT_COMPONENTS = ["video", "graphic"] as const;
+
+function kasperUrgentComp(incoming: JsonMap, existing: ExistingRow): string {
+  const raw = clean(has(incoming, "kasper_urgent_comp") ? incoming.kasper_urgent_comp : existing.kasper_urgent_comp);
+  return (KASPER_URGENT_COMPONENTS as readonly string[]).includes(raw) ? raw : "video";
+}
+
+function applyKasperUrgentMarkerGuards(row: JsonMap, incoming: JsonMap, existing: ExistingRow): void {
+  const touched = KASPER_URGENT_MARKER_FIELDS.some(k => has(incoming, k));
+  if (!touched) return;
+
+  // A blank in the patch never erases a marker that is already stored — the
+  // browser sends the whole four-field group, and a partial send must not wipe
+  // the rest of it (identical rule to the video ping).
+  for (const field of KASPER_URGENT_MARKER_FIELDS) {
+    if (has(incoming, field) && clean(incoming[field]) === "" && clean(existing[field]) !== "") {
+      row[field] = String(existing[field] == null ? "" : existing[field]);
+    }
+  }
+
+  if (!has(incoming, "kasper_urgent_pinged_at") || clean(incoming.kasper_urgent_pinged_at) === "") return;
+
+  const comp = kasperUrgentComp(incoming, existing);
+  const statusCol = comp + "_status";
+  const status = clean(has(row, statusCol) ? row[statusCol] : existing[statusCol]);
+  if (status !== "Kasper Approval") {
+    for (const field of KASPER_URGENT_MARKER_FIELDS) {
+      row[field] = String(existing[field] == null ? "" : existing[field]);
+    }
+    return;
+  }
+
+  row.kasper_urgent_comp = comp;
+  const statusAtCol = comp + "_status_at";
+  const statusAt = clean(existing[statusAtCol]) || clean(row[statusAtCol]) || clean(incoming.kasper_urgent_status_at);
+  if (statusAt) {
+    row.kasper_urgent_status_at = statusAt;
+    row[statusAtCol] = statusAt;
+  }
+}
+
 function applyGuards(incoming: JsonMap, existing: ExistingRow, twins: ExistingRow[], readFailed: boolean, nowMs: number): JsonMap {
   if (readFailed) {
     return { _conflict: true, ok: false, id: incoming.id, error: READ_FAILURE_MESSAGE };
@@ -294,6 +363,7 @@ function applyGuards(incoming: JsonMap, existing: ExistingRow, twins: ExistingRo
   }
 
   applyUrgentMarkerGuards(row, incoming, existing);
+  applyKasperUrgentMarkerGuards(row, incoming, existing);
 
   if (existsAlready && baseAt) {
     const storedAt = clean(existing.updated_at);
@@ -454,6 +524,16 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
         issue: sv(inc, "video_urgent_issue") || sv(inc, "linear_issue_id"),
         editor: sv(inc, "video_urgent_editor") || null,
         status_at: sv(inc, "video_urgent_status_at") || null,
+      },
+    });
+  }
+
+  if (has(patch, "kasper_urgent_pinged_at") && sv(inc, "kasper_urgent_pinged_at") && sv(inc, "kasper_urgent_pinged_at") !== sv(existing, "kasper_urgent_pinged_at")) {
+    ev("kasper_urgent_ping", {
+      component: sv(inc, "kasper_urgent_comp") || "video",
+      payload: {
+        by: sv(inc, "kasper_urgent_by") || null,
+        status_at: sv(inc, "kasper_urgent_status_at") || null,
       },
     });
   }

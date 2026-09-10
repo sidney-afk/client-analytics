@@ -130,6 +130,30 @@ function reopensBelowApproved(nativeStatus) {
 
 /* A deliverable's `kind` and the card's component vocabulary are not the same
  * word for the graphic lane; everything downstream speaks the card's. */
+/* WHAT THIS JOB IS ALLOWED TO WRITE.
+ *
+ * Stamp repair only. Change-request DELIVERY is detected and reported, never
+ * written — an owner decision taken after eight review rounds and 23 findings,
+ * of which nearly every one since round 2 landed on delivery rather than on
+ * stamps, and the last three rounds were each a defect created by the previous
+ * round's fix. OPEN_REPAIRS 189 records the same pattern on the browser-side
+ * attempt at this problem, abandoned for the same reason.
+ *
+ * The asymmetry is in the problems themselves, not in the effort spent:
+ *   · a STAMP repair reads a committed approve, checks for a later reopen and
+ *     writes one dated field. Nothing to match, nothing to merge.
+ *   · a DELIVERY must decide identity across two systems with no shared ids,
+ *     reconcile two lifecycle clocks, merge into a cell whose format predates
+ *     ids, and survive a non-atomic two-step write. Round 8 ended at 8 live
+ *     rows where the data cannot say whether delivering is a repair or a
+ *     duplicate.
+ *
+ * Detection stays fully wired, because the report is the deliverable for that
+ * half: it tells a person exactly which requests never reached a card. The
+ * guard lives at the WRITE, so no future edit to detection can make delivery
+ * writable by accident. */
+const WRITABLE_KINDS = new Set(['stamp']);
+
 const COMPONENT_FOR_KIND = {
   video: 'video', thumbnail: 'graphic', graphic: 'graphic', caption: 'caption', title: 'title',
 };
@@ -373,7 +397,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
-    findings.push({ kind: 'stamp', card, component: comp, stamp_at: at,
+    findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
       detail: `sign-off stamp missing for a committed client approve (${at})` });
   }
 
@@ -404,7 +428,8 @@ function detect(world) {
        * so where the two disagree the card wins. */
       if (entry.done === true || entry.deleted === true) continue;
       if (_calNormStatus(hit.card[STATUS_FIELD(comp)] || '') !== 'Client Approval') continue;
-      findings.push({ kind: 'status_only', card: hit.card, component: comp, comment: pc,
+      findings.push({ kind: 'status_only', writable: false, card: hit.card, component: comp,
+        comment: pc,
         detail: `a request this job delivered never got its status leg (${pc.id})` });
     }
   };
@@ -534,7 +559,8 @@ function detect(world) {
       });
       continue;
     }
-    findings.push({ kind: 'comment', card: hit.card, component: comp, comment: pc, existing: list,
+    findings.push({ kind: 'comment', writable: false, card: hit.card, component: comp,
+      comment: pc, existing: list,
       detail: `committed client change request absent from the card (${pc.id})` });
   }
 
@@ -691,7 +717,12 @@ async function revalidate(world, finding) {
   return match || null;
 }
 
-async function writePatch(card, patch) {
+async function writePatch(card, patch, kind) {
+  /* THE GUARD. Placed at the write rather than at detection, so no future edit
+   * to the detection path can make a delivery writable by accident. */
+  if (!WRITABLE_KINDS.has(String(kind || ''))) {
+    throw new Error(`refusing to write a ${kind} repair: this job writes stamps only`);
+  }
   if (!SYNCVIEW_STAFF_KEY) throw new Error('SYNCVIEW_STAFF_KEY is required for calendar-upsert writes');
   const res = await fetch(UPSERT_EF_URL, {
     method: 'POST',
@@ -718,16 +749,24 @@ async function main() {
     + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
-  log(`repairable: ${findings.length}  (stamp ${findings.filter(f => f.kind === 'stamp').length}, `
-    + `change request ${findings.filter(f => f.kind === 'comment').length}, `
-    + `unfinished status leg ${findings.filter(f => f.kind === 'status_only').length})`);
+  const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
+  const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
+  log(`REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`);
+  log(`REPORT ONLY (never written): ${reportOnly.length}  `
+    + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
+    + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length})`);
   log(`left alone: ${skipped.length} (a card that moved on is never overwritten)`);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
-    log(`  · card ${finding.card.id} [${finding.component}] ${finding.detail}`);
-    log(`      → ${Object.keys(patch).filter(k => k !== 'id').map(k =>
-      `${k}=${k.endsWith('_tweaks') ? '(+1 request)' : JSON.stringify(patch[k])}`).join(' ')}`);
+    log(`  ${WRITABLE_KINDS.has(finding.kind) ? '·' : '»'} card ${finding.card.id} `
+      + `[${finding.component}] ${finding.detail}`
+      + `${WRITABLE_KINDS.has(finding.kind) ? '' : '  — REPORT ONLY, a person decides'}`);
+    /* The arrow means "this is written"; a report-only row shows what a person
+     * WOULD have to do, and must not read as a pending write. */
+    log(`      ${WRITABLE_KINDS.has(finding.kind) ? '→ writes' : '  would need'} `
+      + `${Object.keys(patch).filter(k => k !== 'id').map(k =>
+        `${k}=${k.endsWith('_tweaks') ? '(+1 request)' : JSON.stringify(patch[k])}`).join(' ')}`);
   }
   for (const s of skipped) {
     log(`  ~ card ${s.card} [${s.component}] left alone: ${s.reason}`
@@ -736,14 +775,15 @@ async function main() {
 
   let applied = 0;
   const failures = [];
-  if (APPLY && plan.length > CAP) {
-    log(`ABORT: ${plan.length} repairs exceeds cap ${CAP}. Nothing written.`);
-    if (JSON_OUT) console.log(JSON.stringify({ ok: false, aborted: 'cap', findings: plan.length, cap: CAP }));
+  const writablePlan = plan.filter(row => WRITABLE_KINDS.has(row.finding.kind));
+  if (APPLY && writablePlan.length > CAP) {
+    log(`ABORT: ${writablePlan.length} repairs exceeds cap ${CAP}. Nothing written.`);
+    if (JSON_OUT) console.log(JSON.stringify({ ok: false, aborted: 'cap', findings: writablePlan.length, cap: CAP }));
     process.exitCode = 2;
     return;
   }
   if (APPLY && !FIXTURES) {
-    for (const { finding } of plan) {
+    for (const { finding } of plan.filter(row => WRITABLE_KINDS.has(row.finding.kind))) {
       try {
         const current = await revalidate(world, finding);
         if (!current) {
@@ -753,7 +793,7 @@ async function main() {
             + 'the card changed between the read and the write');
           continue;
         }
-        await writePatch(current.card, patchFor(current));
+        await writePatch(current.card, patchFor(current), current.kind);
         applied++;
       } catch (e) {
         failures.push({ card: finding.card.id, error: e.message });
@@ -771,7 +811,9 @@ async function main() {
       mode: APPLY ? 'apply' : 'dry-run',
       scanned: { outbox: world.outbox.length, comments: world.comments.length, cards: world.cards.length },
       findings: plan.map(({ finding, patch }) => ({
-        kind: finding.kind, card: finding.card.id, component: finding.component, patch,
+        kind: finding.kind,
+        writable: WRITABLE_KINDS.has(finding.kind),
+        card: finding.card.id, component: finding.component, patch,
       })),
       skipped, applied, failures,
     }, null, 2));
@@ -786,4 +828,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, patchFor, parseComments, normText, stampSurvives, restRows, COMPONENT_FOR_KIND };
+module.exports = { detect, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

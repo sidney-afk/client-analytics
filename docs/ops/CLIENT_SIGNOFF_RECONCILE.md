@@ -19,18 +19,38 @@ until an unrelated staff browser happened to project the canonical status back.
 
 Events are the fast path; this job is the guarantee.
 
-## What it repairs
+## What it repairs, and what it only reports
 
-Two shapes, both driven by something the server already committed:
+**It writes exactly one thing: a missing sign-off stamp.**
 
-1. **A missing sign-off stamp.** `mirror_outbox` holds a committed client
-   approve, and the card carries no `client_<component>_approved_at`. The record
-   says the work was approved but not that the CLIENT approved it, on a product
-   whose service is client sign-off.
-2. **A change request that never reached the card.** `production_comments` holds
-   a committed client change request whose text is absent from the card's
-   `<component>_tweaks`. The client asked for a change, the server has it, and
-   nobody on the team can see it.
+`mirror_outbox` holds a committed client approve and the card carries no
+`client_<component>_approved_at`. The record says the work was approved but not
+that the CLIENT approved it, on a product whose service is client sign-off.
+
+**Change requests that never reached a card are DETECTED and REPORTED, never
+written.** `production_comments` holds a committed client change request whose
+text is absent from the card's `<component>_tweaks`; the job names the card, the
+component and the request, and a person decides.
+
+That split is an owner decision taken after **eight review rounds and 23
+findings**, of which nearly every one since round 2 landed on delivery rather
+than on stamps, and the last three rounds were each a defect created by the
+previous round's fix. OPEN_REPAIRS 189 records the same pattern on the
+browser-side attempt at this problem.
+
+The asymmetry is in the problems, not the effort:
+
+- a **stamp** repair reads a committed approve, checks for a later reopen, and
+  writes one dated field. Nothing to match, nothing to merge.
+- a **delivery** must decide identity across two systems with no shared ids,
+  reconcile two lifecycle clocks, merge into a cell whose format predates ids,
+  and survive a non-atomic two-step write. Round 8 ended at 8 live rows where
+  the data cannot say whether delivering is a repair or a duplicate.
+
+Detection stays fully wired, because the report is the deliverable for that
+half. **The guard lives at the WRITE** (`WRITABLE_KINDS`, checked inside
+`writePatch`), so no future edit to detection can make delivery writable by
+accident — asserted directly, and negative-controlled both ways.
 
 ## The two rules that keep it safe
 
@@ -97,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 52 checks, each
+construction through fixtures — no credentials, no network. 58 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must

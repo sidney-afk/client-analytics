@@ -19504,3 +19504,37 @@ change-request delivery to detection-only.** It fixes 4 of the 6 live rows,
 retires the surface that produced the defects, and turns the remaining 2 into a
 report a person acts on. Not taken unilaterally: it narrows work the owner
 asked for.
+
+### 195i. [2026-09-10, OWNER DECISION] Narrowed to stamp repair; change-request delivery is detection-only
+
+The owner chose to narrow after round 8, on the recommendation in 195h and the
+trend table there. **This job now writes exactly one thing: a missing client
+sign-off stamp.** Change requests that never reached a card are still fully
+detected and reported by card, component and request id, and a person decides.
+
+**Why the split falls where it does.** Nearly every finding since round 2 landed
+on delivery, and the last three rounds were each a defect created by the
+previous round's fix. The two halves are not comparably hard:
+
+- **stamp**: read a committed approve, check for a later reopen, write one dated
+  field. No matching, no merging, no second lifecycle.
+- **delivery**: decide identity across two systems with no shared ids (the row
+  id matches 4 card entries, the native id 57), reconcile two lifecycle clocks,
+  merge into a cell whose format predates ids, and survive a non-atomic two-step
+  write. Round 8 ended at 8 live rows where the data cannot say whether
+  delivering is a repair or a duplicate.
+
+**The guard is at the WRITE, not at detection.** `writePatch` refuses any kind
+outside `WRITABLE_KINDS`, and the apply loop and the safety cap both count only
+writable rows. Detection is left fully wired on purpose: the report is the
+deliverable for the delivery half, and placing the guard at the write means a
+future edit to detection cannot make delivery writable by accident. Asserted
+three ways and controlled both directions (guard removed, and delivery added
+back to the writable set).
+
+**Live effect:** 4 stamp repairs written on an apply run; 1 change request and
+the ambiguous rows reported for a person. The dry run labels them distinctly —
+`→ writes` versus `would need … REPORT ONLY, a person decides` — so nobody reads
+a report line as a pending write.
+
+58 checks, thirty-three controls.

@@ -14,6 +14,7 @@
 const assert = require('node:assert/strict');
 const {
   detect, patchFor, parseComments, normText, stampSurvives, restRows,
+  writePatch, WRITABLE_KINDS,
 } = require('../scripts/client-signoff-reconcile.js');
 
 const CARD = (over) => Object.assign({
@@ -701,6 +702,34 @@ check('an unresolved request still matches an OPEN entry normally', () => {
   }));
   assert.equal(findings.length, 0);
   assert.equal(skipped.length, 0);
+});
+
+/* THE SCOPE DECISION, ENFORCED RATHER THAN DOCUMENTED.
+   After eight review rounds the owner narrowed this job to stamp repair;
+   change-request delivery is detected and reported but never written. The guard
+   sits at the write, so no future edit to detection can make delivery writable
+   by accident. */
+check('only a stamp repair is writable', () => {
+  assert.deepEqual([...WRITABLE_KINDS], ['stamp']);
+});
+
+check('every delivery finding is marked report-only at the point it is made', () => {
+  const { findings: deliveries } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].kind, 'comment');
+  assert.equal(deliveries[0].writable, false, 'detected, reported, never written');
+
+  const { findings: stamps } = detect(world({ outbox: [APPROVE()] }));
+  assert.equal(stamps[0].writable, true);
+});
+
+checkAsync('the write itself refuses anything that is not a stamp', async () => {
+  for (const kind of ['comment', 'status_only', '', undefined]) {
+    await assert.rejects(() => writePatch({ id: 'card-1', client: 'testclient' }, { id: 'card-1' }, kind),
+      /writes stamps only/, `a ${kind} repair must be refused at the write`);
+  }
 });
 
 /* ── the shared rule ──────────────────────────────────────────────────── */

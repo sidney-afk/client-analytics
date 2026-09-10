@@ -1489,6 +1489,72 @@ check('a cross-client request is still not counted as a broken crosswalk', () =>
   assert.equal(classify({ findings: [], skipped }).crosswalkBroken.length, 0);
 });
 
+/* ROUND 26. Three more of the same shape, and the third is answered
+   structurally rather than per row. */
+
+/* An archived card is DELIBERATELY out of scope, so a stale reverse link on one
+   must not be escalated as a broken crosswalk. Same ordering lesson as round 22:
+   decide "is this in scope at all" before producing a refusal about it. */
+check('an archived card with a broken link is still silent', () => {
+  for (const over of [
+    { cards: [CARD({ status: 'Archived', video_deliverable_id: 'other' })] },
+    { cards: [CARD({ status: 'Archived' })], deliverables: [DEL({ team: '' })] },
+  ]) {
+    const { findings, skipped } = detect(world(Object.assign({ outbox: [APPROVE()] }, over)));
+    assert.equal(findings.length, 0);
+    assert.equal(skipped.length, 0, 'the report promises to suppress archived cards');
+  }
+});
+
+/* `production_comments.component` has no constraint tying it to the
+   deliverable's team, so a malformed row can name `video` on work whose
+   validated binding is graphic. Trusting the label reports the request absent
+   from the WRONG review. */
+check('a named component that contradicts the validated link is refused', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ component: 'video' })],
+    deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+      graphic_status: 'Client Approval', video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 0, 'the request could never have been delivered to video');
+  assert.equal(skipped[0].reason, 'named_component_contradicts_link');
+  assert.equal(skipped[0].linked_component, 'graphic');
+});
+
+check('a named component that agrees with the link is still honoured', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ component: 'caption' })],
+    cards: [CARD({ caption_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 1, 'caption has no reverse link and must still work');
+  assert.equal(findings[0].component, 'caption');
+});
+
+/* THE STRUCTURAL ONE. Three rounds running have found a skip row printing a
+   card id with no client, each fixed at the push site I was looking at. The
+   contract is enforced now: a row that names a card without naming a client
+   throws, so a future push site cannot omit it quietly. */
+check('every skip row that names a card names its client', () => {
+  const worlds = [
+    { outbox: [APPROVE()], cards: [CARD({ video_status: 'Tweaks Needed' })] },
+    { outbox: [APPROVE()], comments: [TWEAK({ created_at: '2026-09-09T00:00:00.000Z' })],
+      cards: [CARD({ video_status: 'Approved' })] },
+    { comments: [TWEAK()], cards: [CARD({ video_status: 'Approved' })] },
+    { comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval', video_tweaks: '{' })] },
+    { comments: [TWEAK({ component: 'nonsense' })], cards: [CARD({ video_status: 'Client Approval' })] },
+  ];
+  let seen = 0;
+  for (const w of worlds) {
+    for (const row of detect(world(w)).skipped) {
+      if (!row.card || row.card === '(unidentified)') continue;
+      seen++;
+      assert.ok(row.client, `${row.reason} names a card and no client`);
+    }
+  }
+  assert.ok(seen >= 4, `the fixtures must actually produce card-bearing skips (saw ${seen})`);
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

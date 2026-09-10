@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 109 checks, each
+construction through fixtures — no credentials, no network. 113 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -390,7 +390,21 @@ leg it could not look at.
 
 **Every detail line names its client**, not just its card id: `calendar_posts` is
 keyed by `(client, id)` and 13 live ids are shared across clients, so a bare id
-does not say whose card to open.
+does not say whose card to open. This is **enforced, not remembered**: a skip row
+that names a card without naming a client throws. Three consecutive rounds found
+one more row missing it, each fixed where the reviewer pointed; the contract ends
+that.
+
+**Deliberate exclusions are decided before any refusal is produced.** Archived
+first, then the surface, then the crosswalk — because a stale reverse link on an
+archived card is not a broken crosswalk, it is a card the report promises to
+suppress. Round 22 learned this for the surface and round 26 for archived.
+
+**A named component that contradicts the validated link is refused, not
+resolved.** `production_comments.component` has no constraint tying it to the
+deliverable's team, so a malformed or imported row can name `video` on work whose
+validated binding is graphic. Trusting the label reports the request as absent
+from the wrong review.
 
 **A carried approve whose card is missing is its own kind of work** — once
 another surface has been excluded. Live: all the approvals whose Calendar card

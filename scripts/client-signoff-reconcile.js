@@ -316,10 +316,24 @@ function couldBeClientTweak(entry) {
 const cardKey = (client, id) => String(client || '').trim().toLowerCase() + '|' + String(id || '');
 
 function detect(world) {
+  /* EVERY SKIP ROW CARRIES ITS CLIENT. `calendar_posts` is keyed by
+   * (client, id) and 13 live ids are shared across clients, so a bare card id
+   * does not say whose card to open — and the dispatch workflow passes no
+   * `--json`, so these lines are all an operator gets. Adding the field at each
+   * push site is what produced three rounds of "this row still has no client";
+   * a row that names a card without naming a client now throws in tests rather
+   * than shipping. */
+  const skipped = [];
+  const skip = (row) => {
+    if (row && row.card && row.card !== '(unidentified)' && !row.client) {
+      throw new Error(`skip row for card ${row.card} names no client`);
+    }
+    skipped.push(row);
+    return row;
+  };
   const cardById = new Map(world.cards.map(c => [cardKey(c.client, c.id), c]));
   const delById = new Map(world.deliverables.map(d => [String(d.id), d]));
   const findings = [];
-  const skipped = [];
 
   /* EVERY ROW THAT TAKES PART IN A REPAIR MUST AGREE ABOUT THE CLIENT, and the
    * check belongs in ONE place rather than being rediscovered per table.
@@ -378,6 +392,14 @@ function detect(world) {
     if (!String(del.client_slug || '').trim()) return 'deliverable_names_no_client';
     const card = cardById.get(cardKey(del.client_slug, del.card_id));
     if (!card) return 'card_not_found';
+    /* ARCHIVED IS DECIDED BEFORE ANY REFUSAL, for the same reason the surface
+     * test moved ahead of the card lookup in round 22: an archived card is
+     * DELIBERATELY out of scope, so a stale reverse link on one must not be
+     * escalated as a broken crosswalk. The report promises to suppress archived
+     * cards; producing a refusal for one breaks that promise from behind.
+     * Archived is the card's OVERALL status, not a column — same test
+     * scripts/linear-sync-reconcile.js applies. */
+    if (String(card.status || '').toLowerCase() === 'archived') return null;
     const owner = String(rowClient || '').trim().toLowerCase();
     if (owner && owner !== String(card.client || '').trim().toLowerCase()) return 'client_mismatch';
     /* CARRYING A CARD ID IS NOT THE SAME AS BEING LINKED TO THAT CARD.
@@ -431,9 +453,6 @@ function detect(world) {
     if (!id || String(card[REVERSE_LINK_FIELD[teamComp]] || '').trim() !== id) {
       return 'card_does_not_link_back';
     }
-    /* Archived is the card's OVERALL status, not a column — same test
-     * scripts/linear-sync-reconcile.js applies. */
-    if (String(card.status || '').toLowerCase() === 'archived') return null;
     /* Re-checked against the CARD's own client: the early scope test used the
      * deliverable's, and a card mid-move can disagree with it. */
     if (ONLY_CLIENT && String(card.client || '').toLowerCase() !== ONLY_CLIENT) return null;
@@ -543,7 +562,7 @@ function detect(world) {
          * a mis-linked card. So the row is kept and its claim is narrowed to
          * what is actually known: the carrier did not write, and the card
          * cannot be identified. */
-        skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
           refusal: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
           carrier_status: carrier || '(none)', card: '(unidentified)',
           /* The EVENT's client, not the deliverable's. After a card move the
@@ -575,7 +594,7 @@ function detect(world) {
        * rows an operator cannot act on, which is the whole thing round 20 set
        * out to surface. It does NOT claim the carrier failed: the carrier
        * wrote. Only the crosswalk is broken. */
-      skipped.push({ kind: 'stamp',
+      skip({ kind: 'stamp',
         reason: hit === 'client_mismatch' ? 'approval_belongs_to_another_client' : hit,
         crosswalk_broken: hit !== 'client_mismatch',
         deliverable: String((row && row.entity_id) || ''),
@@ -590,8 +609,8 @@ function detect(world) {
      * client approval disappearing without a line in the report is the one
      * outcome this job must never have. */
     if (!comp) {
-      skipped.push({ kind: 'stamp', reason: 'no_component_for_deliverable',
-        card: hit.card.id, component: '' });
+      skip({ kind: 'stamp', reason: 'no_component_for_deliverable',
+        card: hit.card.id, client: hit.card.client, component: '' });
       continue;
     }
     /* `source_edited_at` is when the CLIENT's write committed; `processed_at`
@@ -650,17 +669,19 @@ function detect(world) {
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
     });
     if (reopened) {
-      skipped.push({ kind: 'stamp', reason: 'superseded_by_later_reopen', card: card.id, component: comp,
+      skip({ kind: 'stamp', reason: 'superseded_by_later_reopen',
+        card: card.id, client: card.client, component: comp,
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
     if (supersededByRequest(deliverableId, entry.at)) {
-      skipped.push({ kind: 'stamp', reason: 'superseded_by_later_client_request',
-        card: card.id, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
+      skip({ kind: 'stamp', reason: 'superseded_by_later_client_request',
+        card: card.id, client: card.client, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
     if (!stampSurvives(card, comp, at)) {
-      skipped.push({ kind: 'stamp', reason: 'superseded_status', card: card.id, component: comp,
+      skip({ kind: 'stamp', reason: 'superseded_status',
+        card: card.id, client: card.client, component: comp,
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
@@ -696,7 +717,7 @@ function detect(world) {
     });
     if (reopened || !stampSurvives(card, comp, at)) continue;
     if (supersededByRequest(deliverableId, at)) continue;
-    skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
+    skip({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
       card: card.id, client: card.client, component: comp,
       card_status: card[STATUS_FIELD(comp)] || '' });
   }
@@ -770,7 +791,7 @@ function detect(world) {
        * that moved on" buries the one thing an operator can act on. It carries
        * its own identity for the same reason, and claims nothing about a card
        * leg it could not look at. */
-      skipped.push({ kind: 'comment',
+      skip({ kind: 'comment',
         reason: hit === 'client_mismatch' ? 'request_belongs_to_another_client' : hit,
         crosswalk_broken: hit !== 'client_mismatch',
         deliverable: String(pc.deliverable_id || ''),
@@ -789,9 +810,24 @@ function detect(world) {
     const comp = named
       ? COMPONENT_FOR_KIND[named]
       : hit.component;
+    /* `production_comments.component` has no constraint tying it to the
+     * deliverable's team, so a malformed or imported row can name `video` on
+     * work whose validated card binding is graphic. Trusting the name there
+     * reports the request as absent from the WRONG review and sends the
+     * operator to a component the request could never have been delivered to.
+     * The validated link wins over the label, and the disagreement is reported
+     * rather than resolved by picking one. */
+    if (comp && hit.component && comp !== hit.component
+      && REVERSE_LINK_FIELD[comp] && REVERSE_LINK_FIELD[hit.component]) {
+      skip({ kind: 'comment', reason: 'named_component_contradicts_link',
+        card: hit.card.id, client: hit.card.client, component: comp,
+        linked_component: hit.component, comment: pc.id });
+      continue;
+    }
     if (!comp) {
       if (named) {
-        skipped.push({ kind: 'comment', reason: 'unmapped_component', card: hit.card.id,
+        skip({ kind: 'comment', reason: 'unmapped_component',
+          card: hit.card.id, client: hit.card.client,
           component: named, comment: pc.id });
       }
       continue;
@@ -800,7 +836,8 @@ function detect(world) {
     if (!body) continue;
     const list = parseComments(hit.card[TWEAKS_FIELD(comp)]);
     if (list === null) {
-      skipped.push({ kind: 'comment', reason: 'card_cell_unparseable', card: hit.card.id, component: comp });
+      skip({ kind: 'comment', reason: 'card_cell_unparseable',
+        card: hit.card.id, client: hit.card.client, component: comp });
       continue;
     }
     resolved.push({ pc, hit, comp, body, list, cellKey: cardKey(hit.card.client, hit.card.id) + '|' + comp });
@@ -858,7 +895,7 @@ function detect(world) {
     const doneTwin = list.some((c, i) =>
       !consumed.has(i) && normText(c.body) === body && c.done === true && couldBeClientTweak(c));
     if (doneTwin && !pc.resolved_at) {
-      skipped.push({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
+      skip({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
         card: hit.card.id, client: hit.card.client, component: comp, comment: pc.id });
       continue;
     }
@@ -873,10 +910,11 @@ function detect(world) {
        * bias is to leave a card alone. Reported, so an operator can see it and
        * the row is never silently forgotten; the gate is one line to relax if
        * that count ever stops being zero. */
-      skipped.push({
+      skip({
         kind: 'comment',
         reason: pc.resolved_at ? 'review_round_closed_resolved' : 'review_round_closed',
-        card: hit.card.id, component: comp, card_status: status, comment: pc.id,
+        card: hit.card.id, client: hit.card.client, component: comp,
+        card_status: status, comment: pc.id,
       });
       continue;
     }
@@ -1247,7 +1285,7 @@ async function main() {
         const current = await revalidate(world, finding);
         if (!current) {
           skipped.push({ kind: finding.kind, reason: 'changed_under_us',
-            card: finding.card.id, component: finding.component });
+            card: finding.card.id, client: finding.card.client, component: finding.component });
           log(`  ~ card ${finding.card.id} [${finding.component}] left alone: `
             + 'the card changed between the read and the write');
           continue;

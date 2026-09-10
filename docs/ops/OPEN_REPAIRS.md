@@ -20073,3 +20073,35 @@ the over-correction of counting a cross-client request as a broken crosswalk.
 and 23 fixed these on the stamp path and I did not look one function down. That
 is the same failure as 195j–195n — a rule applied where I was looking — and it
 is now the most durable pattern in this PR.
+
+### 195aa. Round 26: the identity contract stops being remembered and starts being enforced
+
+Three findings, and the third is answered structurally because it had already
+been answered twice.
+
+**An archived card with a stale reverse link was escalated as a broken
+crosswalk.** Archived is deliberately out of scope and the report promises to
+suppress it, but the refusal was produced before the archived test ran. Same
+ordering lesson as 195w's surface fix: decide whether a row is in scope **at
+all** before producing a refusal about it. Order is now archived, then surface,
+then crosswalk.
+
+**A named component that contradicts the validated link was trusted.**
+`production_comments.component` has no constraint tying it to the deliverable's
+team, so a malformed or imported row naming `video` on graphic work was reported
+as absent from `video_tweaks` — the wrong review, and one the request could never
+have been delivered to. Refused and reported as
+`named_component_contradicts_link` rather than resolved by picking a side.
+
+**A third round of "this skip row prints a card id with no client".** 195v fixed
+it on the left-alone lines, 195z on the finding lines, and this round found the
+supersession rows. Fixing the row in front of me is what produced all three. It
+is a contract now: `skip()` **throws** when a row names a card and no client, so
+a future push site cannot omit it quietly.
+
+113 checks, three controls, all confirmed by exit status. The archived control
+had to be rebuilt — the first version moved the check somewhere that still
+passed, which would have shipped a control that proves nothing, the same failure
+this PR has now found six times.
+
+**Twenty-six rounds, 58 findings.**

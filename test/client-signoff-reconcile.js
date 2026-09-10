@@ -2294,6 +2294,60 @@ checkAsync('the run prints the rows behind every count it reports', async () => 
   assert.match(out, /left alone: 0\b/, out);
 });
 
+/* ROUND 40. The supersession clock was keyed by deliverable and component
+   only, so a newer request belonging to ANOTHER client suppressed this client's
+   missing stamp — while the request path, in the same run, refused that same
+   row as belonging to another client. One row, two answers. */
+check('another client\'s later request cannot suppress this client\'s stamp', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ id: 'pc_other', client_slug: 'someone-else',
+      created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(skipped.filter(r => r.reason === 'superseded_by_later_client_request').length, 0,
+    'the request belongs to another client, so it supersedes nothing here');
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 1, 'the repair survives');
+});
+
+check('this client\'s own later request still supersedes', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ id: 'pc_same', created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(skipped.filter(r => r.reason === 'superseded_by_later_client_request').length, 1);
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 0, 'the stamp must not be written');
+});
+
+/* SUPERSESSION IS THE BROAD SIDE ON PURPOSE: refusing to write leaves the card
+   alone, while narrowing it risks stamping an approval the client had already
+   superseded. So a request naming NO client still supersedes; only a client
+   that is known AND different is excluded. */
+check('a request naming no client still supersedes', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ id: 'pc_anon', client_slug: '', created_at: '2026-09-06T10:00:00.000Z' })],
+  }));
+  assert.equal(skipped.filter(r => r.reason === 'superseded_by_later_client_request').length, 1,
+    'erring broad here leaves the card alone, which is the safe direction');
+});
+
+/* The client is a REQUIRED argument, enforced by arity like resolve()'s: a
+   default would silently answer on every client's requests at once, which is
+   the defect the argument exists to close. */
+check('the supersession clock refuses to answer without a client', () => {
+  const { detect: d } = require('../scripts/client-signoff-reconcile.js');
+  const src = require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8');
+  /* Matched without the apostrophe: the source escapes it, so a pattern
+     containing a bare ' does not match the file even though the string is
+     there. The first draft of this check failed for exactly that reason. */
+  assert.match(src, /supersededByRequest needs the row/,
+    'the arity guard must exist');
+  const calls = (stripComments(src).match(/supersededByRequest\(/g) || []).length;
+  assert.equal(calls, 3, 'one definition and two call sites, all passing the client');
+  assert.ok(typeof d === 'function');
+});
+
 check('body comparison ignores only whitespace shape', () => {
   assert.equal(normText('  a   b \n c '), 'a b c');
   assert.notEqual(normText('fix the intro'), normText('fix the outro'));

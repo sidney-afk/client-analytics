@@ -20568,3 +20568,41 @@ the bucket under test. Same instrument error as rounds 26 and 31.
 refusals rendered as missing cards, the overlapping bucket key, and the folded
 term. Full runner before pushing: 2 of 427, both failing identically on
 `origin/main`.
+
+### 196ap. Round 40: the supersession clock answered for every client at once, and a measurement in this PR was wrong
+
+The clock that decides whether a later client CHANGE REQUEST supersedes an
+approval was keyed by `(deliverable, component)` with no client in it. A
+deliverable and its card can move between clients, and historical
+`production_comments` keep the `client_slug` they were written with — so a newer
+request belonging to ANOTHER client could suppress this client's missing stamp,
+while the request path refused that same row as another client's **in the same
+run**. One row, two answers, which is the shape this PR has hit most often.
+
+This one matters more than the last three rounds: it suppresses a REPAIR rather
+than mis-labelling a report.
+
+**The fix keeps the deliberate asymmetry.** Supersession is the broad side on
+purpose — refusing to write leaves the card alone, while narrowing it risks
+stamping an approval the client had already superseded. So a request naming NO
+client still supersedes; only a client that is **known and different** is
+excluded, which is exactly the set the request path refuses. Both directions are
+controlled.
+
+**And a measurement in this PR was wrong.** An earlier note recorded "0
+mismatched" cross-client rows. Measured again here: of **349** committed client
+requests, **one** carries a client that differs from its deliverable's, and none
+carries no client at all. That row names a deliverable with **no card and no
+client approval**, so it can suppress nothing today and no repair moves — but it
+is one, not zero, and it is the whole reason this key needs the client in it.
+Recorded as a correction rather than quietly restated: this is the second
+measurement in this PR to be published before it was checked (196 round 22 was
+the first, retracted two rounds later).
+
+156 checks. Two controls by exit status: dropping the client from the key, and
+narrowing the anonymous case. A third check pins the arity guard and asserts one
+definition with two call sites, both passing the client. Its first draft failed
+because the pattern contained a bare apostrophe the source escapes — an
+instrument error caught by the check failing, not by the code being wrong.
+
+Full runner before pushing: 2 of 427, both failing identically on `origin/main`.

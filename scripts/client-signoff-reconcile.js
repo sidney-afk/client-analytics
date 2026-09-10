@@ -646,25 +646,60 @@ function detect(world) {
     }
     return linked || '';
   };
+  /* KEYED BY CLIENT TOO, for the reason every identity rule in this job exists:
+   * a deliverable and its card can MOVE between clients, and historical
+   * `production_comments` keep the `client_slug` they were written with. Keyed
+   * only by deliverable and component, a newer request belonging to ANOTHER
+   * client suppressed this client's missing stamp — while the request path,
+   * in the same run, refused that same row as belonging to another client.
+   * One row, two answers, which is the shape this PR has hit most often.
+   *
+   * A request naming NO client still supersedes, deliberately. Supersession is
+   * the broad side: refusing to write leaves the card alone, while narrowing it
+   * risks stamping an approval the client had already superseded. So only a
+   * request whose client is KNOWN AND DIFFERENT is excluded — exactly the rows
+   * the request path refuses.
+   *
+   * Live, measured rather than assumed: of 349 committed client requests, ONE
+   * carries a client that differs from its deliverable's, and none carries no
+   * client at all. That one names a deliverable with no card and no client
+   * approval, so it can suppress nothing today and no repair moves. Recorded
+   * as one rather than zero on purpose: an earlier note in this PR said zero
+   * cross-client rows, and the row that exists is the whole reason this key
+   * needs the client in it. */
   const latestClientRequest = new Map();
+  const requestKey = (id, comp, client) => id + '|' + comp + '|' + String(client || '').trim().toLowerCase();
   for (const pc of world.comments) {
     if (!pc || pc.deleted_at) continue;
     const id = String(pc.deliverable_id || '');
     const comp = requestComponent(pc);
     if (!id || !comp) continue;
     const at = String(pc.created_at || '');
-    const key = id + '|' + comp;
+    const key = requestKey(id, comp, pc.client_slug);
     const prev = latestClientRequest.get(key);
     if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(key, at);
   }
   /* A plain function, not an arrow: `arguments` in an arrow belongs to the
    * enclosing scope, so the guard would read detect()'s own arguments and fire
    * on every call. Same trap `resolve()` documents. */
-  function supersededByRequest(deliverableId, component, approvedAt) {
+  function supersededByRequest(deliverableId, component, approvedAt, rowClient) {
     if (arguments.length < 3) throw new Error('supersededByRequest needs a component');
-    const req = latestClientRequest.get(String(deliverableId) + '|' + String(component || ''));
-    const reqMs = Date.parse(req || ''), apprMs = Date.parse(approvedAt || '');
-    return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
+    /* THE CLIENT IS REQUIRED, enforced by arity for the same reason `resolve()`
+     * enforces its own: a default would silently accept `undefined` and answer
+     * on every client's requests at once, which is the bug this argument
+     * exists to close. */
+    if (arguments.length < 4) throw new Error('supersededByRequest needs the row\'s client');
+    const id = String(deliverableId), comp = String(component || '');
+    /* This client's own requests, plus those that name no client at all. */
+    const candidates = [
+      latestClientRequest.get(requestKey(id, comp, rowClient)),
+      latestClientRequest.get(requestKey(id, comp, '')),
+    ];
+    const apprMs = Date.parse(approvedAt || '');
+    return candidates.some(req => {
+      const reqMs = Date.parse(req || '');
+      return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
+    });
   }
 
   /* The REPAIR side stays narrow: only a row the carrier actually wrote is
@@ -848,7 +883,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
-    if (supersededByRequest(deliverableId, comp, entry.at)) {
+    if (supersededByRequest(deliverableId, comp, entry.at, card.client)) {
       skip({ kind: 'stamp', reason: 'superseded_by_later_client_request',
         card: card.id, client: card.client, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
@@ -890,7 +925,7 @@ function detect(world) {
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
     });
     if (reopened || !stampSurvives(card, comp, at)) continue;
-    if (supersededByRequest(deliverableId, comp, at)) continue;
+    if (supersededByRequest(deliverableId, comp, at, card.client)) continue;
     skip({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
       card: card.id, client: card.client, component: comp,
       card_status: card[STATUS_FIELD(comp)] || '' });

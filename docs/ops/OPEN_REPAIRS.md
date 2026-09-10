@@ -20136,3 +20136,32 @@ redundant one, so the rule came back out rather than shipping as decoration.
 117 checks, three controls, all confirmed by exit status.
 
 **Twenty-seven rounds, 61 findings.**
+
+### 195ac. Round 28: a rule expressed in the wrong vocabulary
+
+**The 195aa contradiction rule fired only when both components had a reverse
+link**, so a `caption` or `title` request on graphics-linked work slipped
+through — and it never could have caught them, because caption and title have no
+reverse link at all. The rule was written in the vocabulary of the crosswalk
+(`REVERSE_LINK_FIELD`) when the fact it needed belongs to the importer:
+`scripts/f42-card-comment-import.js` states "graphic -> Graphics; every
+video/caption/title thread shares the Video deliverable". Now expressed as that
+contract, so caption/title on VIDEO work stays normal (74 of 347 live tweaks)
+and on graphics work is refused. Live malformed rows: **0** — all 347 conform.
+
+**The contradiction row was rendered as a missing card.** It knows its card,
+client and both components; the shared renderer said "its card cannot be found",
+sending an operator after a broken crosswalk instead of the real question, which
+of two known reviews the client meant. Rendered on its own terms now.
+
+**The failed-write record and line omitted the client.** 195ab added it to
+`changed_under_us` and not to the row beside it. That line runs only on an APPLY
+run against a live backend, so nothing offline reached it — it is now a pure
+`failureLine()` the suite asserts, because the alternative was a rule with no
+control, which this PR treats as a broken test. Its control did not fire until
+that extraction, which is exactly the point.
+
+122 checks, four controls, all confirmed by exit status, including one against
+the over-correction of barring caption and title from video-linked work.
+
+**Twenty-eight rounds, 64 findings.**

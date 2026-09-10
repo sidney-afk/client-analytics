@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 117 checks, each
+construction through fixtures — no credentials, no network. 122 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -399,6 +399,14 @@ that.
 first, then the surface, then the crosswalk — because a stale reverse link on an
 archived card is not a broken crosswalk, it is a card the report promises to
 suppress. Round 22 learned this for the surface and round 26 for archived.
+
+**Which reviews a linked deliverable can carry** is the importer's contract, not
+the reverse-link fields: `scripts/f42-card-comment-import.js` says "graphic ->
+Graphics; every video/caption/title thread shares the Video deliverable". So
+caption and title on video-linked work are normal (74 of 347 live client tweaks)
+and caption or title on graphics-linked work is malformed. Expressing this
+through `REVERSE_LINK_FIELD` alone could never have worked, since caption and
+title have no reverse link of their own.
 
 **A named component that contradicts the validated link is refused, not
 resolved.** `production_comments.component` has no constraint tying it to the

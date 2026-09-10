@@ -165,6 +165,18 @@ const REVERSE_LINK_FIELD = { video: 'video_deliverable_id', graphic: 'graphic_de
  * Note `graphics` (the team) against `graphic` (the component): the card's
  * vocabulary and the deliverable's are not the same word here either. */
 const COMPONENT_FOR_TEAM = { video: 'video', graphics: 'graphic' };
+/* WHICH REVIEWS A LINKED DELIVERABLE CAN CARRY. `scripts/f42-card-comment-import.js`
+ * states the canonical contract in as many words: "graphic -> Graphics; every
+ * video/caption/title thread shares the Video deliverable." So a caption or
+ * title request on graphics-linked work is malformed — it names a review that
+ * deliverable never carries — and `REVERSE_LINK_FIELD` cannot express that,
+ * because caption and title have no reverse link of their own. */
+const COMPONENTS_FOR_LINK = { video: ['video', 'caption', 'title'], graphic: ['graphic'] };
+const componentFitsLink = (comp, linked) => {
+  if (!comp || !linked) return true;              // nothing to contradict
+  const allowed = COMPONENTS_FOR_LINK[linked];
+  return !allowed || allowed.includes(comp);
+};
 /* Cards live on the calendar surface; `samples` deliverables belong to sxr and
  * `manual` ones to neither (PROD_CROSSWALK_SURFACE_ORIGIN, index.html). */
 const SURFACE_ORIGIN_FOR_CARDS = 'calendar';
@@ -513,7 +525,13 @@ function detect(world) {
      * component. Adding the exclusion anyway produced a control that would not
      * fire, which this PR treats as a broken test rather than a redundant one —
      * so the rule came back out. */
-    if (named && COMPONENT_FOR_KIND[named]) return COMPONENT_FOR_KIND[named];
+    if (named && COMPONENT_FOR_KIND[named]) {
+      const comp = COMPONENT_FOR_KIND[named];
+      /* A request that names a review its deliverable cannot carry supersedes
+       * nothing: the run refuses it as unplaceable in the same pass, and a
+       * caption label on graphics work must not stop the graphic sign-off. */
+      return componentFitsLink(comp, linked) ? comp : '';
+    }
     return linked || '';
   };
   const latestClientRequest = new Map();
@@ -843,8 +861,7 @@ function detect(world) {
      * operator to a component the request could never have been delivered to.
      * The validated link wins over the label, and the disagreement is reported
      * rather than resolved by picking one. */
-    if (comp && hit.component && comp !== hit.component
-      && REVERSE_LINK_FIELD[comp] && REVERSE_LINK_FIELD[hit.component]) {
+    if (!componentFitsLink(comp, hit.component)) {
       /* The card has NOT moved on: the report cannot say which review the
        * client meant, which is a person's decision, not an intentional skip. */
       skip({ kind: 'comment', reason: 'named_component_contradicts_link',
@@ -1177,6 +1194,16 @@ async function writePatch(card, patch, kind) {
   return body;
 }
 
+/* The failure line, as a pure function, for the same reason the summary is one:
+ * it is written on an APPLY run against a live backend, so nothing offline
+ * reaches it. Extracted so the suite can assert what it says instead of trusting
+ * it — the alternative was a rule with no control, which this PR treats as a
+ * broken test. */
+function failureLine(finding, message) {
+  return `  ! card ${finding.card.id} (${finding.card.client}) `
+    + `[${finding.component}]: ${message}`;
+}
+
 /* The run summary, as a pure function, because the COUNTS are a rule too: the
  * workflow tells the operator to read these lines, so a row that needs a person
  * being filed under "left alone" is a defect, not a cosmetic one. Extracted so
@@ -1278,6 +1305,16 @@ async function main() {
       + ' — REPORT ONLY, a person decides');
   }
   for (const row of crosswalkBroken) {
+    /* This row knows its card. Saying "its card cannot be found" would send the
+     * operator after a broken crosswalk when the actual question is which of
+     * two known reviews the client meant. */
+    if (row.reason === 'named_component_contradicts_link') {
+      log(`  » card ${row.card} (${row.client}) request ${row.comment} names `
+        + `[${row.component}], but its deliverable is linked as [${row.linked_component}] `
+        + '— which review the client meant cannot be decided here '
+        + '— REPORT ONLY, a person decides');
+      continue;
+    }
     log(`  » deliverable ${row.deliverable}${row.client ? ` (${row.client})` : ''} `
       + `carried a client ${row.kind === 'comment' ? 'CHANGE REQUEST' : 'APPROVE'}`
       + `${row.comment ? ` (request ${row.comment})` : ''}`
@@ -1324,8 +1361,11 @@ async function main() {
         await writePatch(current.card, patchFor(current), current.kind);
         applied++;
       } catch (e) {
-        failures.push({ card: finding.card.id, error: e.message });
-        log(`  ! card ${finding.card.id}: ${e.message}`);
+        /* The client belongs in both: card ids are shared across clients, and
+         * this is the record of a repair that was attempted and failed. */
+        failures.push({ card: finding.card.id, client: finding.card.client,
+          component: finding.component, error: e.message });
+        log(failureLine(finding, e.message));
       }
     }
     log(`applied: ${applied}, failed: ${failures.length}`);
@@ -1356,4 +1396,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, summaryLines, classify, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };
+module.exports = { detect, summaryLines, classify, failureLine, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

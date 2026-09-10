@@ -826,6 +826,28 @@ checkAsync('a moved row is scoped by its own client, not the deliverable\'s', as
     'the new owner did not ask about the previous client\'s historical rows');
 });
 
+/* ROUND 28. The contradiction row knows its card, so the shared renderer saying
+   "its card cannot be found" sent the operator after a broken crosswalk instead
+   of the actual question: which of two known reviews the client meant. */
+checkAsync('a component contradiction is described as an ambiguity, not a missing card', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [], comments: [TWEAK({ component: 'video' })],
+    deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+      graphic_status: 'Client Approval', video_status: 'Client Approval' })],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8' });
+  assert.match(out, /card card-1 \(testclient\) request pc_x1 names \[video\]/, out);
+  assert.match(out, /linked as \[graphic\]/, out);
+  assert.equal(/cannot be found/.test(out), false, 'the card is known: ' + out);
+  assert.match(out, /NEEDS A PERSON \(never written\): 1\b/, out);
+});
+
 checkAsync('a dry run writes nothing, proven through the entry point', async () => {
   const { execFileSync } = require('node:child_process');
   const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
@@ -1608,6 +1630,60 @@ check('a video request still supersedes the video sign-off', () => {
   }));
   assert.equal(findings.filter(f => f.kind === 'stamp').length, 0);
   assert.equal(skipped.some(x => x.reason === 'superseded_by_later_client_request'), true);
+});
+
+/* ROUND 28. The round-26 contradiction rule fired only when BOTH components had
+   a reverse link, so a caption or title request on graphics-linked work slipped
+   through — and caption and title have no reverse link, so the rule could never
+   have caught them. `scripts/f42-card-comment-import.js` states the canonical
+   contract: "graphic -> Graphics; every video/caption/title thread shares the
+   Video deliverable." Live, all 347 client tweaks conform to it exactly, so this
+   refuses nothing today. */
+check('a caption request on graphics-linked work is refused', () => {
+  for (const named of ['caption', 'title']) {
+    const { findings, skipped } = detect(world({
+      comments: [TWEAK({ component: named })],
+      deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+      cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+        graphic_status: 'Client Approval', caption_status: 'Client Approval' })],
+    }));
+    assert.equal(findings.length, 0, `${named} is not a review graphics work carries`);
+    assert.equal(skipped[0].reason, 'named_component_contradicts_link');
+  }
+});
+
+/* THE RELATIONSHIP THAT MUST SURVIVE: caption and title legitimately share the
+   VIDEO deliverable, which is the normal live shape (74 of 347 client tweaks). */
+check('caption and title on video-linked work are still honoured', () => {
+  for (const named of ['caption', 'video']) {
+    const { findings } = detect(world({
+      comments: [TWEAK({ component: named })],
+      cards: [CARD({ video_status: 'Client Approval', caption_status: 'Client Approval' })],
+    }));
+    assert.equal(findings.length, 1, `${named} shares the video deliverable by design`);
+  }
+});
+
+check('a caption request on graphics work supersedes no sign-off', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    comments: [TWEAK({ component: 'caption', created_at: '2026-09-06T10:00:00.000Z' })],
+    deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1',
+      graphic_status: 'Approved' })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp' && f.writable).length, 1,
+    'a request the run refuses as unplaceable must not block a repair');
+});
+
+/* The write-failure line runs only on an APPLY run against a live backend, so
+   nothing offline reaches it. Extracted as a pure function so it can be
+   asserted rather than trusted: a repair that was attempted and FAILED is the
+   one record an operator has, and a bare card id does not say whose. */
+check('a failed write names the client and component', () => {
+  const { failureLine } = require('../scripts/client-signoff-reconcile.js');
+  const line = failureLine({ card: CARD(), component: 'video' }, 'HTTP 500');
+  assert.match(line, /card card-1 \(testclient\) \[video\]: HTTP 500/, line);
 });
 
 check('a properly linked card is still stamped normally', () => {

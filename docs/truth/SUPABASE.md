@@ -178,14 +178,14 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   ledger". All three parts were wrong**, and the counts by roughly 80x. Re-measured
   2026-09-10 by grouping each table on `source`:
 
-  Snapshot at **2026-09-10 ~23:15Z** — these are live counts and the `ui` column
+  Snapshot at **2026-09-10 ~23:22Z** — these are live counts and the `ui` column
   moves continuously, so treat the shape as the finding and re-derive the numbers
   rather than quoting these:
 
   | | rows | `ui` | other sources |
   |---|---|---|---|
   | `calendar_post_events` | **39,550** | 32,216 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 2 |
-  | `sample_review_events` | **62,185** | 62,038 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** |
+  | `sample_review_events` | **62,186** | 62,038 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** · `db` 1 |
 
   So `reconcile` does NOT bypass the ledger: it has written 2,159 calendar and 68
   sample events, continuously from 2026-07-07 to today. **The mechanism is worth
@@ -217,9 +217,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   on a premise that was never true. Track B still must not be bypassable, but that is
   a requirement, not an inherited property.
 
-  `db` is the Kasper urgent ping's source; both rows above are it (one backfill of
-  the ping that predated the triggers, one from the end-to-end verification, which
-  is deliberately retained and labelled `LedgerVerification`).
+  `db` is the Kasper urgent ping's source; all three rows above are it — one
+  backfill of the ping that predated the triggers, and one end-to-end verification
+  on EACH surface, both deliberately retained and labelled `LedgerVerification`.
+  Both surfaces were proved the same way and separately: a real marker write to
+  the live `calendar-upsert` and to the live `sample-review-upsert`, each followed
+  by reading the row the trigger wrote. Samples is a distinct code path into a
+  distinct table, so a Calendar-only drill would have proved nothing about it.
 
   **The ledger write is BEST EFFORT, by design, and marker count is NOT a
   guaranteed match for ledger count.** The trigger body swallows every exception

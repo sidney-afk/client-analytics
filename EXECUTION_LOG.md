@@ -6983,16 +6983,21 @@ Ledger OPEN_REPAIRS 195; capability parity gate in
 read back as attached and enabled on both tables, each calling
 `public.syncview_kasper_urgent_ping_ledger()`.
 
-**Verified through the real writer, not the database.** A marker write was POSTed
-to the live `calendar-upsert` for one TEST-client card, which is the exact call
+**Verified through the real writers, not the database — BOTH surfaces.** A marker
+write was POSTed to the live `calendar-upsert` for one TEST-client card, and a
+second to the live `sample-review-upsert` for one TEST-client sample, which is the exact call
 the browser makes after Slack succeeds; the Slack step was deliberately skipped
 so no DM was sent. The writer returned `ok:true` and the trigger wrote the ledger
 row unaided: `action=kasper_urgent_ping`, `component=video`, `source=db`,
 `payload.via=trigger`, carrying both the ping and round timestamps. The test
 marker was then cleared under a last-write guard, and clearing produced NO second
-event, which is correct — the triggers fire only when a ping appears. One
-synthetic audit row remains, labelled `LedgerVerification`, deliberately not
-deleted.
+event, which is correct — the triggers fire only when a ping appears. The Samples
+probe was run after review pointed out that the first drill covered Calendar
+only: Samples is a distinct code path writing a distinct table, and because the
+trigger swallows every exception a Samples-specific failure would have been
+silent while approvals kept working. It returned `ok:true` and the trigger wrote
+`sample_review_events` unaided. Two synthetic audit rows remain, one per surface,
+both labelled `LedgerVerification` and deliberately not deleted.
 
 **n8n DM copy, owner-authorized in the same request.** Workflow
 `1WjZZjfQjDlg1Crf`, node `Parse & Validate`, one string. It closed with "It is in

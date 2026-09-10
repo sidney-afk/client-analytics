@@ -153,6 +153,12 @@ must install the real B0 owner before B1/intake rather than adding a placeholder
 table or suppressing F27's gate. Subsequent exact ACL/authority gates remain
 unproven. This is a test-baseline gap, not a demonstrated production defect.
 
+A second isolated bootstrap attempt applies real B0 before the intake chain.
+It stops because B0's runtime-flag trigger requires `syncview_runtime_flags`,
+whose real owner is `2026-07-03-a1-calendar-upsert.sql`. The source-owned baseline
+must therefore include A1 before B0, after checking A1's prerequisites. Both
+failed attempts and shutdown receipts are retained; no placeholder was added.
+
 ### Verified continuation results
 
 Application/SQL source tested: `6276251fe2a961820dcc4de33c71a61bcb56db2b`.
@@ -171,10 +177,33 @@ Application/SQL source tested: `6276251fe2a961820dcc4de33c71a61bcb56db2b`.
   batch-description CAS checks: PASS.
 - Focused urgent, approval recovery, editor/Workload, archive-refresh,
   attribution, release-fingerprint and documentation checks: PASS.
-- Full integrated PostgreSQL 16 suite: running when this checkpoint was written;
-  do not substitute the older 485-suite result for its outcome.
+- Full integrated PostgreSQL 16 suite: PASS, all 492 suites, exit 0. The owned
+  local database stopped cleanly. This supersedes the prior pending status
+  and does not substitute the older 485-suite result.
 
 These are isolated Windows PostgreSQL/browser proofs. They do not establish
 hosted JWT/RLS/PostgREST, real Slack delivery, complete production upgrade or
 database/data/Storage recovery. No merge, deployment, workflow dispatch,
 production data write or n8n execution was performed by this continuation.
+
+### Published candidate and current-schema compatibility gate
+
+The complete candidate is now published in draft PR #1382. Initial published
+head `97d644854c4a3ead0dacbb122eabb352db61ec57` and tree
+`a488b7e1bf39d73d6286f0cb5a45e1ff9bd809ca` matched GitHub readback.
+The application/SQL bytes remain those tested at `6276251f`; later changes in
+this checkpoint are documentation only.
+
+PR Production-polish CI is red: structure, boot/read-only smoke, comment
+selection, accessibility and layout checks failed. Those checks combine the
+candidate HTML with hosted reads, unlike the disposable-schema journey.
+A read-only `information_schema.columns` query confirmed that hosted
+`public.clients.native_project_ids` is absent. The candidate's mandatory
+Production clients select requests that field, introduced by
+`2026-09-09-native-client-provisioning.sql`; main does not request it.
+This confirms an unfulfilled compatibility prerequisite that can prevent
+candidate boot. It does not attribute every individual CI failure without
+its private trace and does not imply the currently served main page is broken.
+Do not merge the candidate into the current schema, suppress the failures or
+apply SQL merely to turn CI green. The reviewed installation order and full
+schema/recovery proof must be completed first.

@@ -1146,5 +1146,18 @@
     "runner_explicit_major_opt_in": true,
     "server_stopped": true,
     "hosted_recovery_proven": false
+  },
+  "priority_companion_offline": {
+    "classification": "OFFLINE_TEST",
+    "checks_passed": 17,
+    "tables": 9,
+    "columns": 106,
+    "row_schema_sha256": "40c039d6a12ffb2c43cc6d178bd8dd278f2e44d4d5ba12e22521f57a364dc310",
+    "command": "node test/linear-exit-priority-companion.js",
+    "postgres_capture_restore_proven": false,
+    "parent_package_validation_proven": false,
+    "complete_schema_proven": false,
+    "object_custody_proven": false,
+    "installation_ready": false
   }
 }

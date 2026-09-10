@@ -516,3 +516,22 @@ Thumbnail dependency SHA256:
 Installation is HOLD. Hosted schema lacks `clients.native_project_ids` on the
 2026-09-10 read-only catalog check, while candidate boot selects it. The PR
 Production-polish gate remains red. No production schema was changed to pass it.
+
+## Priority companion offline component
+
+The explicit `priority-nine-companion-v1` encoder/validator is implemented in
+`scripts/linear-exit-priority-companion.js`. Its pinned row schema covers nine
+tables and 106 columns. `node test/linear-exit-priority-companion.js` passes 17
+OFFLINE_TEST checks, including tamper, parent/schema mismatch, table/column/key
+shape, sparse-cell refusal, nullability and duplicate preservation checks.
+Authentication precedes inner JSON parsing. The envelope binds the supplied
+parent package SHA256 and catalog MD5; callers must separately validate that
+parent package. Text/null cells preserve representation, but PostgreSQL type
+validity and actual capture/restore remain unproven. Authentication is not
+encryption: private custody remains necessary.
+
+Next: implement and rehearse isolated PostgreSQL capture/restore against this
+contract, including exact rows and duplicate multiplicities. Full schema,
+sequence consistency, semantic dependencies, object/document custody and the
+remaining 25 tables still require evidence. Existing v11 and scheduled v3 are
+unchanged. Installation remains HOLD. No merge, deployment or production writes.

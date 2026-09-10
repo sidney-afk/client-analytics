@@ -197,3 +197,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `docs/independence/LINEAR_EXIT_RECOVERY_SCOPE_20260910.json` ? observed tables outside history-v11 and provisional source-backed custody decisions.
 
 - `docs/ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md` ? proposed nine-table preservation and acceptance contract, including duplicate-sensitive backup custody.
+
+- `docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json` ? pinned nine-table observed row shape; not a complete schema or restore package.
+
+- scripts/linear-exit-priority-companion.js: offline authenticated nine-table row envelope.
+- test/linear-exit-priority-companion.js: synthetic offline companion contract checks.

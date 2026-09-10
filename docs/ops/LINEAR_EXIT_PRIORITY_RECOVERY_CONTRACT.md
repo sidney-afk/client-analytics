@@ -61,3 +61,22 @@ The rescue configuration needs a private recovery and activation boundary.
 The predecessor backup's origin remains untraced. No row population or loss is
 inferred from table existence. Installation remains HOLD; no merge, deployment,
 retention change, production write or n8n execution is authorized.
+
+## Priority companion offline component
+
+The explicit `priority-nine-companion-v1` encoder/validator is implemented in
+`scripts/linear-exit-priority-companion.js`. Its pinned row schema covers nine
+tables and 106 columns. `node test/linear-exit-priority-companion.js` passes 17
+OFFLINE_TEST checks, including tamper, parent/schema mismatch, table/column/key
+shape, sparse-cell refusal, nullability and duplicate preservation checks.
+Authentication precedes inner JSON parsing. The envelope binds the supplied
+parent package SHA256 and catalog MD5; callers must separately validate that
+parent package. Text/null cells preserve representation, but PostgreSQL type
+validity and actual capture/restore remain unproven. Authentication is not
+encryption: private custody remains necessary.
+
+Next: implement and rehearse isolated PostgreSQL capture/restore against this
+contract, including exact rows and duplicate multiplicities. Full schema,
+sequence consistency, semantic dependencies, object/document custody and the
+remaining 25 tables still require evidence. Existing v11 and scheduled v3 are
+unchanged. Installation remains HOLD. No merge, deployment or production writes.

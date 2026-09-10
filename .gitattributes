@@ -15,3 +15,6 @@ index.html text eol=lf
 # PR #992 review on 2026-07-29 and cost a round trip to attribute.
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# This authenticated row contract is hashed as exact bytes across checkouts.
+docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json text eol=lf

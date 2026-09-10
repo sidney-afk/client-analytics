@@ -1,0 +1,833 @@
+{
+  "contract": "linear-exit-priority-row-schema-v1",
+  "classification": "LIVE_READ_ROW_METADATA_ONLY",
+  "observed_at": "2026-09-10T23:36:36.482Z",
+  "private_metadata_sha256": "16608f16f644a4cd93a1c094442d870cf73589b5db6a268e20ca7a50529e4e7d",
+  "schema_definition_complete": false,
+  "defaults_constraints_acl_triggers_included": false,
+  "tables": [
+    {
+      "name": "batches_parent_claim_backup_20260824",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "linear_parent_ids",
+          "type": "jsonb",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "backed_up_at",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [],
+      "duplicate_rows_preserved": true
+    },
+    {
+      "name": "content_samples",
+      "columns": [
+        {
+          "name": "client",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "order_index",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "label",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "media_url",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creative_direction",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "hide_creative_direction",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "comments",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "approval",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "kasper_approved_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "kasper_approved_by",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "client_approved_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "client_approved_by",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "client",
+        "id"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "filming_plans",
+      "columns": [
+        {
+          "name": "client_slug",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "doc_url",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "doc_id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "plan_months",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_by",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "client_slug"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "linear_archive_asset_rescue_config",
+      "columns": [
+        {
+          "name": "config_key",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "destination_provider",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "approved_folder_id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "rescue_capability_sha256",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "config_key"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "production_comment_import_conflicts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "not_null": true,
+          "identity": "d",
+          "generated": ""
+        },
+        {
+          "name": "import_run_id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "source_surface",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "card_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "component",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "native_comment_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "classification",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "detail",
+          "type": "jsonb",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "production_comment_read_audit",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "not_null": true,
+          "identity": "d",
+          "generated": ""
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_key",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "auth_kind",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "deliverable_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "decision",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "production_comment_read_budget",
+      "columns": [
+        {
+          "name": "actor_key",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "requests",
+          "type": "integer",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "actor_key",
+        "window_start"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "thumbnail_media_revisions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "surface",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "client",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "source_id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "component",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "thumbnail_url",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "drive_file_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "drive_file_name",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "drive_mime_type",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "baseline_revision_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "baseline_md5",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "baseline_modified_time",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "baseline_storage_path",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "baseline_bytes",
+          "type": "integer",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "latest_revision_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "latest_md5",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "latest_modified_time",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "latest_storage_path",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "latest_bytes",
+          "type": "integer",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "requested_by",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "request_role",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "detected_at",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "skip_reason",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "error",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "duplicate_rows_preserved": false
+    },
+    {
+      "name": "workload_issues",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "identifier",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "is_sub_issue",
+          "type": "boolean",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "parent_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "parent_identifier",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "due_date",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "linear_created_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "linear_updated_at",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "status_type",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "team_key",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "team_name",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "assignee_id",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "assignee_name",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "assignee_email",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "not_null": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "not_null": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "duplicate_rows_preserved": false
+    }
+  ]
+}

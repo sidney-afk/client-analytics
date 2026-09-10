@@ -183,3 +183,9 @@ local baseline and execute the actual release metadata query. The test validates
 the exact expected key set before emitting only object keys and booleans, then
 requires every metadata object to be present and compatible. Configuration and
 current hosted readiness are not covered; failed objects remain failures.
+
+Use `-Lane view-provenance` to reconstruct repository-owned predecessor views
+and compare PostgreSQL's pretty view definition with the pinned hosted SHA256
+observation. This test needs no private captured source and executes no hosted
+SQL. A match identifies the selected definition at the recorded observation;
+it does not prove grants, dependencies, complete baseline or upgrade safety.

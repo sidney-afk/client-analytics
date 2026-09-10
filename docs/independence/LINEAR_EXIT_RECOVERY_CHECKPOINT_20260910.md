@@ -1,5 +1,23 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest hosted-view provenance resolution
+
+The local view-provenance lane reproduces the captured hosted view definition
+exactly from migrations/2026-08-23-attribution-slug-guard-widening.sql. PostgreSQL
+16 computes SHA256 over the exact UTF8 pg_get_viewdef(...,true) bytes, matching
+the published observation. Neither whitespace normalization nor execution of
+private captured SQL is used. The other two predecessor stages and final
+candidate definition differ. The earlier raw-SQL no-match is therefore resolved
+by reconstruction, not by relaxing comparison.
+
+All seven selected differing hosted objects now have repository predecessor
+definition/body provenance. This does not establish complete definitions/ACLs,
+dependencies, data custody or safe upgrade behavior on the full hosted baseline.
+The run used working-tree tests over `ff49f33e`, exited 0 and stopped its server.
+Focused source review found no blocker; repository-map validation passes. No
+hosted refresh, mutation, merge or deployment. Installation HOLD.
+
+
 ## Latest selected hosted-definition capture
 
 Offline independent comparison maps all six captured routine bodies to existing

@@ -987,5 +987,87 @@
       "normalization": "CRLF to LF only; no other whitespace or semantic normalization",
       "full_definition_equivalence_proven": false
     }
+  },
+  "hosted_view_provenance": {
+    "marker": "LINEAR_EXIT_VIEW_PROVENANCE_OK",
+    "observed_definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+    "matches": [
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches_observation": true
+      }
+    ],
+    "proof": "EXACT_OBSERVED_VIEW_DEFINITION_ONLY",
+    "hosted_refresh": false,
+    "acl_options_equivalence_proven": false,
+    "complete_baseline_proven": false,
+    "classification": "ISOLATED_POSTGRES_COMPARE_PRIOR_LIVE_READ_HASH",
+    "receipt": "linear-exit-view-provenance-6e42fac1a0004d939b525583a4476270",
+    "unit_log_sha256": "773f11a8f38b5c21cf8fa1b3baf805e9d1e4d9f8cb0f0f5c92e14e0c81bb3769",
+    "source_base": "ff49f33e037a2bdf7276dbd82485c61d8b4623ca",
+    "working_tree_changes": true,
+    "test_sha256": "c9bf737d7dfa862a61459948575462b1960d759e3f75f21db99f0057058760d1",
+    "server_stopped": true,
+    "rendered_comparisons": [
+      {
+        "path": "migrations/2026-07-23-f34-f53-production-attachments.sql",
+        "source_sha256": "e9d8610da4f7d375dff02e1cae07969f069a127e448ae8bca7de3cf9e6a21f4f",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "74b4a50f6b349a8a3c285de83879563b8bd4da41b478b7b94deee013027b476c",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-23-f34-f53-production-attachments.sql",
+        "source_sha256": "e9d8610da4f7d375dff02e1cae07969f069a127e448ae8bca7de3cf9e6a21f4f",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "f3ba70c5034c86ee4dd2f54f78fc99adc3dfac67d3d082ce5fcd41bbfceb13f2",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-25-slice5-production-read-path.sql",
+        "source_sha256": "8ffa5cfa9eb62f67f6e56bc808d3112f3450f0c330468c07ca3010146d4812b0",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "31e82eaaaceb35b31fe08feccc9bd08d343528ce9ccaf5cd57f4d0fdddf9a0d4",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-25-slice5-production-read-path.sql",
+        "source_sha256": "8ffa5cfa9eb62f67f6e56bc808d3112f3450f0c330468c07ca3010146d4812b0",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "73125f80e85655d4193cfd254e65013c0e1c43426cb578092ad15d0c81d0173a",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "697d3905e98b6913a5b151ca129c7cd4285969b2741042fa3dd9348a71611f71",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches_observation": true
+      },
+      {
+        "path": "migrations/2026-09-09-native-attribution-browser-projection.sql",
+        "source_sha256": "f84d6520e7d6881e0780036b2af0809b531e05659d1ba7281e4727ec99ca88aa",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "c0bb8a36e44307833c17dcafcc813853e9013743325232a9a9c45ae23f8e3f34",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-09-09-native-attribution-browser-projection.sql",
+        "source_sha256": "f84d6520e7d6881e0780036b2af0809b531e05659d1ba7281e4727ec99ca88aa",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "aec42039a421b63d50518756617fba780df741aed2e12ddaf1d5fdbf6a60e210",
+        "matches_observation": false
+      }
+    ]
   }
 }

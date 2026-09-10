@@ -494,3 +494,9 @@ view retains checked access settings but lacks the native projection reference.
 This is a selected-object comparison, not full baseline custody or semantic
 equivalence analysis. Raw definitions remain private; aggregate evidence pins
 the capture and definition hashes. No changes were applied.
+
+The previously unmatched browser-view definition is now reproduced exactly by
+PostgreSQL from the August 23 attribution-slug-guard-widening owner. The focused
+view-provenance lane matches the pinned hosted hash with no normalization or
+private SQL execution. All seven selected predecessor bodies/definitions are
+identified; complete baseline, dependency and upgrade safety remain open.

@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -101,6 +101,7 @@ try {
  $entry=Join-Path $repoRoot 'test\run-all.js'
  if ($Lane -eq 'journey') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'bootstrap.cjs' }
  if ($Lane -eq 'optional') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'optional.cjs' }
+ if ($Lane -eq 'view-provenance') { $entry=Join-Path $repoRoot 'test\linear-exit-view-provenance.js' }
  if ($Lane -eq 'preflight-installed') { $entry=Join-Path $repoRoot 'test\linear-exit-deploy-preflight-ordered.js' }
  if ($Lane -eq 'preflight') { $entry=Join-Path $repoRoot 'test\linear-exit-deploy-preflight-postgres.js' }
  if ($Lane -eq 'installation-interruption') { $entry=Join-Path $repoRoot 'test\linear-exit-install-interruption.js' }
@@ -134,8 +135,8 @@ try {
   if ($Lane -eq 'recovery-upstream-ledger' -and $recoveryReport.upstream_ledger_verified -ne $true) { throw 'Required restored upstream ledger proof missing.' }
   if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
  }
- if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed')) {
-  $marker=if ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
+ if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance')) {
+  $marker=if ($Lane -eq 'view-provenance') { 'LINEAR_EXIT_VIEW_PROVENANCE_OK' } elseif ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
  }
  if ($result -eq 0 -and $Lane -eq 'deferred-defaults') {

@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
+const root=process.env.PROOF_REPO_ROOT;
+if(!root||!path.isAbsolute(root)||process.env.F63_REQUIRE_POSTGRES!=='1'||process.env.PGHOST!=='127.0.0.1')throw Error('explicit disposable runner required');
+const test=path.join(root,'test/native-intake-completion.js');
+const requireRepo=createRequire(test);
+let source=fs.readFileSync(test,'utf8');
+const seam="  const r = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve(__dirname, '../scripts/native-intake-completion/lane.mjs')], {";
+if(source.split(seam).length!==2)throw Error('bootstrap seam drift');
+source=source.replace(seam,`  require(${JSON.stringify(path.join(__dirname,'schema.cjs'))})(cluster, ${JSON.stringify(root)});
+  const r = spawnSync(process.execPath, ['--experimental-strip-types', ${JSON.stringify(path.join(__dirname,'journeys.mjs'))}], {`);
+source=source.replace('timeout: 300000','timeout: 1200000').replace('maxBuffer: 4 * 1024 * 1024','maxBuffer: 16 * 1024 * 1024');
+new Function('require','__dirname','process',source)(requireRepo,path.join(root,'test'),process);

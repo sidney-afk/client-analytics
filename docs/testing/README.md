@@ -1,5 +1,7 @@
 # Testing — the map
 
+Linear-exit build preparation: see [`qa/linear-exit-rehearsal/README.md`](../../qa/linear-exit-rehearsal/README.md) for the reproducible captured-serving/negative-control browser and disposable-SQL package. It authorizes no live implementation.
+
 One page that ties every test suite, gate, and Claude skill together. If you
 only remember one file about testing, remember this one.
 

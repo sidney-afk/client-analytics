@@ -2,6 +2,16 @@
 
 **Written 2026-09-08. This is the only document that spans every lane.**
 
+**Build-preparation update, 2026-09-10:** draft PR #1382 now contains the
+recovered candidate integrated with newer main. Read
+[`LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md`](LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md)
+for current build, publication and isolated-test status; the historical status
+and estimates below are not a fresh installation assessment. Reproducible
+tooling is in `qa/linear-exit-rehearsal/README.md` and
+`scripts/linear-exit-composition/README.md`. This phase permits preparation,
+isolated testing and branch/draft-PR publication only. No PR merge, deployment,
+workflow dispatch, production data change or n8n execution is authorized.
+
 Each lane has its own runbook and each is good. What none of them carries is the
 order across all of them: which merge must precede which migration, which deploy
 must precede which flag, and which of those the owner performs personally. That

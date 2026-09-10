@@ -1,0 +1,42 @@
+{
+  "classification": "ISOLATED_WINDOWS_POSTGRES_CHROMIUM_HANDLER",
+  "installation": "HOLD",
+  "application_changes_since_6276251f": false,
+  "results": [
+    {
+      "mode": "captured-positive",
+      "result": "PASS",
+      "checkpoints": 24,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "external_forwards": 0,
+      "blocked_attempts": 1,
+      "checked_after_teardown": true,
+      "finished_at": "2026-09-10T20:53:55.900Z",
+      "private_receipt_sha256": "26be32873e194b7c4cabfa6d888cd6d3153a1637a1eb9df7444206a16a06888d"
+    },
+    {
+      "mode": "repository-negative",
+      "result": "FAIL",
+      "checkpoints": 23,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "external_forwards": 0,
+      "blocked_attempts": 0,
+      "checked_after_teardown": true,
+      "finished_at": "2026-09-10T20:53:53.193Z",
+      "private_receipt_sha256": "962a55510703c9489df02db16cbf6e0ee9af602ffed19dbea2abbe1b34c9b62e"
+    },
+    {
+      "mode": "real-owner-composition",
+      "result": "PASS",
+      "assertions": 41,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "private_log_sha256": "0f98eee5490afd2989aab606dc4bdc776adfc1d53f25ae4129142571c8152057"
+    }
+  ],
+  "limitations": [
+    "Synthetic SDK adapter and provider; no hosted JWT/RLS/PostgREST or real Slack",
+    "Composition covers selected real owners, not full schema or crash/Storage recovery",
+    "Negative application failure retained; exit 1 is intentional",
+    "Raw records, paths, databases, screenshots and request traces excluded"
+  ]
+}

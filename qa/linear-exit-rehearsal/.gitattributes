@@ -1,0 +1,2 @@
+harness/*.cjs text eol=lf
+run-portable.ps1 text eol=lf

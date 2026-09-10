@@ -207,3 +207,35 @@ its private trace and does not imply the currently served main page is broken.
 Do not merge the candidate into the current schema, suppress the failures or
 apply SQL merely to turn CI green. The reviewed installation order and full
 schema/recovery proof must be completed first.
+
+### Reproducible preparation package — 2026-09-10
+
+Owner reaffirmed: preparation of build and strategy only. No PR merges or live
+implementation. The reusable harness, portable PostgreSQL runner, reviewed
+hash-pinned Calendar source/dependency and public aggregate receipts now live
+under `qa/linear-exit-rehearsal/`; no external attachment is needed to repeat
+the selected journeys from a full checkout. Raw private evidence remains
+excluded. The fixtures are never deployment entrypoints.
+
+Package commit `02964b12723284cefc395feaa93f221cd22fc095` reproduced 24 positive
+checkpoints and the preserved 23-checkpoint/401 negative. Both final receipts
+report zero external forwarding after teardown. The new composition lane
+also passes 41 assertions with actual A1/B0, full F27 and selected native
+owners, including stale-generation rollback and receipt preservation across
+an interrupted/resumed admission-installation step. All owned databases stopped.
+Application files, production migrations and deployment workflows are unchanged
+by this package.
+
+The earlier missing-baseline errors are superseded for this bounded lane by
+real A1-before-B0 ownership. Legacy artifact migrations must precede F27;
+running their old enqueue replacements afterward loses F27's wrapper. The
+new lane installs the four actual prerequisite guards instead of no-op test
+triggers. See `scripts/linear-exit-composition/README.md` for the exact scope.
+
+Next preparation work is the complete installation manifest: add the remaining
+Workload, provisioning, notifications, media and recovery owners to a source-owned
+baseline; exercise actual intake/assignment/label operations and every separately
+committed interruption boundary; then prove database/data/Storage restore and
+old/new browser/gateway combinations. The 41 checks do not close those gates.
+Hosted configuration and notification handover still require their separately
+authorized future implementation windows. Installation remains HOLD.

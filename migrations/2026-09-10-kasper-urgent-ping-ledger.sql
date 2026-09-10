@@ -111,10 +111,23 @@ create trigger trg_sample_reviews_kasper_urgent_ping_ledger_upd
 -- ============================================================
 -- Backfill the pings that happened before the trigger existed, so the ledger
 -- starts complete rather than starting now. Idempotent: re-running adds
--- nothing. The de-dup is scoped by CLIENT as well as id, because both tables
--- are keyed `(client, id)` and card ids genuinely repeat across clients -- 13
--- of them do today. Matching on id alone would let one client's ping silently
--- suppress another client's backfill (Codex P2 on PR 1383). `ts` is the recorded marker rather than now(), and the payload says
+-- nothing. The de-dup key is (client, id, action, PINGED-AT), and each of those
+-- four parts earns its place:
+--
+--   * CLIENT, because both tables are keyed `(client, id)` and card ids
+--     genuinely repeat across clients -- 13 of them do today -- so matching on
+--     id alone lets one client's ping suppress another client's backfill.
+--   * PINGED-AT, because a card can be pinged MORE THAN ONCE. A marker expires
+--     when its component's round changes (_calKasperUrgentActive), which is
+--     exactly what lets the card be pinged again in a later review round; the
+--     marker columns then hold the NEW ping while an event for the OLD one is
+--     already on file. Keyed per card, the backfill would find that older event
+--     and skip the newer round entirely -- silently, and permanently, since the
+--     card only ever carries its latest ping. That matters most right now,
+--     while the triggers are unattached and the backfill is the ONLY path by
+--     which an accumulated ping can be recovered.
+--
+-- Both from Codex on PR 1383. `ts` is the recorded marker rather than now(), and the payload says
 -- so, because a backfilled row must not pretend to be a live observation.
 -- ============================================================
 insert into public.calendar_post_events
@@ -131,7 +144,11 @@ where p.kasper_urgent_pinged_at is not null
   and not exists (select 1 from public.calendar_post_events e
                    where e.client = p.client        -- (client, id) is the key, and
                      and e.post_id = p.id              -- ids DO repeat across clients
-                     and e.action = 'kasper_urgent_ping');
+                     and e.action = 'kasper_urgent_ping'
+                     -- ...and per ROUND, not per card. Compared as jsonb rather
+                     -- than cast, so there is no format drift and no cast that
+                     -- could raise on a malformed value.
+                     and e.payload->'pinged_at' = to_jsonb(p.kasper_urgent_pinged_at));
 
 insert into public.sample_review_events
   (client, sample_id, ts, actor, role, action, component, source, payload)
@@ -147,4 +164,8 @@ where s.kasper_urgent_pinged_at is not null
   and not exists (select 1 from public.sample_review_events e
                    where e.client = s.client        -- (client, id) is the key, and
                      and e.sample_id = s.id              -- ids DO repeat across clients
-                     and e.action = 'kasper_urgent_ping');
+                     and e.action = 'kasper_urgent_ping'
+                     -- ...and per ROUND, not per card. Compared as jsonb rather
+                     -- than cast, so there is no format drift and no cast that
+                     -- could raise on a malformed value.
+                     and e.payload->'pinged_at' = to_jsonb(s.kasper_urgent_pinged_at));

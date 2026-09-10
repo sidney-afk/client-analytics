@@ -743,6 +743,9 @@ async function main() {
     ok('source media owner refuses verification without custody evidence',rejection(`insert into public.native_brief_media_occurrences(id,deliverable_id,source_kind,source_entity_id,client_slug,team,source_updated_at,source_sha256,source_offset,source_length,original_url_sha256,audience,state,source_receipt_sha256) values ('88888888-8888-4888-8888-888888888888','composition-minted','native_brief','composition-minted','compositionclient','video',now(),repeat('a',64),0,1,repeat('b',64),'staff','verified',repeat('c',64))`,/check constraint/));
     ok('media history forbids service-role update and delete',scalar(cluster,"select not has_table_privilege('service_role','public.native_brief_media_occurrences','UPDATE') and not has_table_privilege('service_role','public.native_brief_media_occurrences','DELETE')")==='t');
     ok('description image audit is inaccessible to browser roles',rejection('set role anon; select * from public.description_images',/permission denied/) && rejection('set role authenticated; select * from public.description_images',/permission denied/));
+    if (process.env.LINEAR_EXIT_UPSTREAM_LEDGER_DIRECTORY) {
+      require('./linear-exit-upstream-ledger').runPhase(cluster,ok,scalar,process.env.LINEAR_EXIT_UPSTREAM_LEDGER_DIRECTORY);
+    }
     const corpus=require('../scripts/track-b-backup').resolveCorpus('history-v11');
     const missing=corpus.tables.filter(table=>scalar(cluster,`select to_regclass(${literal('public.'+table.name)}) is null`)==='t').map(table=>table.name);
     console.log(JSON.stringify({classification:missing.length?'RECOVERY_COVERAGE_INCOMPLETE':'RECOVERY_TABLE_PRESENCE_ONLY',corpus:'history-v11',expected_tables:corpus.tables.length,missing_tables:missing,full_restore_proven:false}));

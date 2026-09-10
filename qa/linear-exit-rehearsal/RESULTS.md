@@ -1,5 +1,22 @@
 # Completed isolated evidence
 
+## Latest upstream compatibility rehearsal
+
+The separate `upstream-ledger` lane passes **77 checks**: the existing65
+composition checks plus12 ledger cases on Calendar and Samples. It verifies
+tenant/round-separated backfill, repeat migration execution, ordinary saves,
+new-marker writes, same-marker retries and inserted markers. Both actual SQL
+owners are read from pinned Git commit `fcebb856` and hash-verified before
+execution. The owned local server stopped and temporary SQL files were removed.
+
+This is isolated SQL compatibility evidence, executed with working-tree test
+changes over `c67bdbc8`. Full upstream integration and ledger-trigger behavior
+after authenticated reconstruction remain UNPROVEN. No frozen writer or main
+branch changed. The earlier25-check recovery PASS retains its original scope.
+Next preparation step: combine the reviewed upstream source with the candidate
+in isolation and extend recovery to the new trigger owner. Installation HOLD.
+
+
 ## Latest verified local recovery
 
 The full isolated history-v11 rehearsal now **PASSES all 25 checks for 52

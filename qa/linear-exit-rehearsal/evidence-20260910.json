@@ -167,5 +167,19 @@
     "hosted_recovery_proven": false,
     "storage_custody_proven": false,
     "upstream_integration_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
+  },
+  "upstream_ledger_compatibility": {
+    "status": "PASS",
+    "classification": "ISOLATED_POSTGRES",
+    "assertions": 77,
+    "baseline_assertions": 65,
+    "upstream_assertions": 12,
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "execution_base": "c67bdbc8f1eb77f744ac37bbafd1a5de52614432",
+    "working_tree_tests": true,
+    "server_stopped": true,
+    "private_log_sha256": "232a7dbb6093629f54786961c5df2cba67c48e5df5557e07acbd210ec5528575",
+    "full_upstream_integration_proven": false,
+    "restored_trigger_behavior": "UNPROVEN"
   }
 }

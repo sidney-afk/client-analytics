@@ -100,3 +100,17 @@ Keep generated databases, raw logs, screenshots and request traces out of Git.
 The runner defaults to temporary output outside the checkout. Publish only
 reviewed aggregate results and hashes. `RESULTS.md` records the completed run
 and its exact source; the recovery checkpoint records current program status.
+
+## Pinned upstream ledger rehearsal
+
+Use the portable runner with `-Lane upstream-ledger` and the same local PG16
+binary path as composition. This separate lane requires Git object
+`fcebb856d3f5ea607cf5665ac391c258ad173abb` to exist locally; it must fail if
+the exact upstream migration cannot be retrieved. A shallow checkout may need
+to fetch that commit first. The migration is exercised only in a disposable
+database and is not installed into the candidate source tree or any hosted
+system. The existing marker migration supplies its real column prerequisites.
+
+This tests the new ledger together with the prepared composition. It does not
+prove full upstream integration or trigger behavior after authenticated recovery;
+those remain separate gates. Raw temporary source and receipts stay private.

@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [string]$OutputRoot
 )
@@ -102,6 +102,7 @@ try {
  if ($Lane -eq 'journey') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'bootstrap.cjs' }
  if ($Lane -eq 'optional') { $entry=Join-Path $env:PROOF_HARNESS_ROOT 'optional.cjs' }
  if ($Lane -eq 'composition') { $entry=Join-Path $repoRoot 'test\linear-exit-owner-composition.js' }
+ if ($Lane -eq 'upstream-ledger') { $entry=Join-Path $repoRoot 'test\linear-exit-upstream-ledger.js' }
  if ($Lane -eq 'notifications') { $entry=Join-Path $repoRoot 'test\native-notifications-postgres.js' }
  if ($Lane -eq 'deferred-defaults') { $entry=Join-Path $repoRoot 'test\track-b-recovery-deferred-defaults-postgres.js' }
  if ($Lane -eq 'recovery') {
@@ -126,8 +127,8 @@ try {
   $recoveryReport=Get-Content -LiteralPath (Join-Path $recoveryDirectories[0].FullName 'REPORT.private.json') -Raw | ConvertFrom-Json
   if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
  }
- if ($result -eq 0 -and $Lane -in @('composition','f27','notifications')) {
-  $marker=if ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
+ if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger')) {
+  $marker=if ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
  }
  if ($result -eq 0 -and $Lane -eq 'deferred-defaults') {

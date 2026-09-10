@@ -174,3 +174,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 ### Frozen writer urgent-marker deployment
 
 `docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md` records the live-source Calendar v49 / Samples v50 deployment, tokenless save and marker readbacks, preserved freeze, rollback and held feature flag.
+
+- `test/linear-exit-upstream-ledger.js`: exact upstream Git-object ledger rehearsal wrapper for the portable isolated lane.

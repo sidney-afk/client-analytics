@@ -20520,3 +20520,51 @@ has read yet, which is the cheapest time to fix them.
 `unknown_team` bare again, and team refusals counted as missing cards. Full
 runner before pushing this time (196am): 2 of 427, both failing identically on
 `origin/main`.
+
+### 196ao. Round 39: four findings, all of them mine from one round
+
+Every finding in this round was created by 196an's fix, one round earlier. That
+is worth recording plainly rather than as four line items.
+
+**1. The new bucket was counted and never printed.** `classify()` moved
+`unmapped_component` and `card_cell_unparseable` out of `leftAlone` and into the
+headline; `main()` neither destructured `undecidable` nor rendered it. The
+dispatch workflow runs the CLI **without `--json`**, so the log said work exists
+and named no card, client, component or request to look at. This is the third
+time in this PR a fix reached the row and the count but not the line — and this
+time on a bucket added specifically to fix that class of defect.
+
+**2. The rendering half of 196an's own fix was missed too.** `unknown_team` and
+`kind_and_team_disagree` were taught to carry their card, and the count was
+taught to respect it, but the LINE still fell through to the generic branch and
+said "its card cannot be found". The exact sentence 196an existed to delete,
+surviving one surface over.
+
+**3. The buckets overlapped.** `teamUnusable` was keyed off `CARD_KNOWN_REFUSALS`,
+which also contains `card_does_not_link_back` — so every stale-link row was
+counted twice and a one-row run printed `NEEDS A PERSON: 1` above a breakdown
+claiming one stale link AND one team problem. Keyed off a team-only set now, and
+a new check asserts **the breakdown sums to the headline**, which is the general
+form of the bug rather than this instance of it.
+
+**4. The term was inaccurate.** For `kind_and_team_disagree` the team DOES name
+a valid review (`graphics` maps to `graphic`); the independently stored `kind`
+names a different one. Counting it under "team names no review" misstates the
+actionable problem. Split into its own term.
+
+**The pattern, stated once.** Every one of these is the same shape: a rule
+changed in one place and left unchanged in the two places that display it. Four
+rounds in this PR (25, 31, 38, 39) have now been that shape. The check added
+here for #3 is the first that tests the INVARIANT (the parts sum to the whole)
+rather than a particular row, and that is the kind that would have caught #1 and
+#2 as well.
+
+Fixture note: the first draft of the new CLI check used `component: 'thumbnail'`
+as an unmapped component. It is mapped — to `graphic` — so the check exercised
+the contradiction path instead and would have passed while proving nothing about
+the bucket under test. Same instrument error as rounds 26 and 31.
+
+152 checks, four controls by exit status: undecidable rows unprinted, team
+refusals rendered as missing cards, the overlapping bucket key, and the folded
+term. Full runner before pushing: 2 of 427, both failing identically on
+`origin/main`.

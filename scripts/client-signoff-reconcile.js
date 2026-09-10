@@ -1357,6 +1357,12 @@ const NEEDS_A_PERSON = new Set(['ambiguous_repeat_of_completed_request', 'carrie
 /* Refusals raised AFTER resolve() located the card. Each carries the card it
  * found, so none of them may be counted or printed as a card that is missing. */
 const CARD_KNOWN_REFUSALS = new Set(['card_does_not_link_back', 'unknown_team', 'kind_and_team_disagree']);
+/* THE TEAM-MAPPING REASONS ALONE. `CARD_KNOWN_REFUSALS` answers "was the card
+ * found", which `card_does_not_link_back` also answers yes to — so counting the
+ * team bucket off that set double-counted every stale-link row as a team
+ * problem too, and a one-row run printed both terms as 1. The buckets in the
+ * headline must partition the rows, not overlap. */
+const TEAM_MAPPING_REFUSALS = new Set(['unknown_team', 'kind_and_team_disagree']);
 /* Reasons that mean "this job could not tell", on a card that is still live.
  * Neither is a card that moved on, so neither belongs in `left alone`. */
 const UNDECIDABLE = new Set(['unmapped_component', 'card_cell_unparseable']);
@@ -1394,10 +1400,16 @@ function classify({ findings, skipped }) {
    * or whose kind and team name different ones, is a mapping problem on a card
    * that was found. Counting either as "missing" is the same false headline
    * over the same correct detail line. */
-  const teamUnusable = crosswalkBroken.filter(row => CARD_KNOWN_REFUSALS.has(row.reason));
+  const teamUnknown = crosswalkBroken.filter(row => row.reason === 'unknown_team');
+  /* SPLIT FROM `unknown_team`, because the two name different work. For a
+   * kind/team disagreement the team DOES name a valid review (graphics maps to
+   * graphic); it is the independently stored `kind` that names a different one.
+   * "Team names no review" is false of that row, and the headline is what the
+   * operator reads first. */
+  const kindTeamDisagree = crosswalkBroken.filter(row => row.reason === 'kind_and_team_disagree');
   const cardMissing = crosswalkBroken.filter(row =>
     row.reason !== 'named_component_contradicts_link' && row.reason !== 'card_does_not_link_back'
-    && !CARD_KNOWN_REFUSALS.has(row.reason));
+    && !TEAM_MAPPING_REFUSALS.has(row.reason));
   /* SPLIT, because only one of these two knows what happened to the card leg.
    * A resolved carrier failure was qualified against four tests, so "reached
    * neither leg" is established. A crosswalk refusal establishes only that the
@@ -1431,13 +1443,14 @@ function classify({ findings, skipped }) {
       + `carried client action whose card is missing ${cardMissing.length}, `
       + `card found but its link back is stale ${linkStale.length}, `
       + `request naming a review its deliverable cannot carry ${componentAmbiguous.length}, `
-      + `card found but its deliverable's team names no review ${teamUnusable.length}, `
+      + `card found but its deliverable's team names no review ${teamUnknown.length}, `
+      + `card found but its deliverable's kind and team name different reviews ${kindTeamDisagree.length}, `
       + `undecidable on a live card ${undecidable.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
   return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
     carrierFailedUnknownCard, crosswalkBroken, cardMissing, linkStale, componentAmbiguous,
-    teamUnusable, undecidable, leftAlone, lines };
+    teamUnknown, kindTeamDisagree, undecidable, leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 
@@ -1450,7 +1463,7 @@ async function main() {
     + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
-  const { writable, ambiguous, carrierFailed, crosswalkBroken, leftAlone, lines } =
+  const { writable, ambiguous, carrierFailed, crosswalkBroken, undecidable, leftAlone, lines } =
     classify({ findings, skipped });
   for (const line of lines) log(line);
 
@@ -1502,6 +1515,23 @@ async function main() {
         + '— REPORT ONLY, a person decides');
       continue;
     }
+    /* THE CARD IS KNOWN FOR THESE TOO, and round 38 made them carry it — but
+     * only the COUNT was taught that. The line still fell through to the
+     * generic branch below and said the card cannot be found, which is the
+     * whole defect round 38 set out to fix, surviving one surface over. A row,
+     * its count and its line are three surfaces. */
+    if (TEAM_MAPPING_REFUSALS.has(row.reason)) {
+      log(`  » card ${row.card} (${row.client})`
+        + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+        + `${row.comment ? ` request ${row.comment}` : ''} `
+        + 'was found, but '
+        + (row.reason === 'unknown_team'
+          ? "that deliverable's team names no review this job can carry"
+          : "that deliverable's kind and team name different reviews")
+        + ' — the mapping is what is broken, not the card '
+        + '— REPORT ONLY, a person decides');
+      continue;
+    }
     log(`  » deliverable ${row.deliverable}${row.client ? ` (${row.client})` : ''} `
       + `carried a client ${row.kind === 'comment' ? 'CHANGE REQUEST' : 'APPROVE'}`
       + `${row.comment ? ` (request ${row.comment})` : ''}`
@@ -1512,6 +1542,20 @@ async function main() {
     log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} `
       + `[${row.component}] request ${row.comment} matches only a `
       + 'COMPLETED entry — cannot tell a repeat from a duplicate; a person decides');
+  }
+  /* COUNTED IS NOT REPORTED. Round 38 moved these rows out of `left alone` and
+   * into the headline, and stopped there: the workflow dispatches without
+   * `--json`, so the log said work exists and named nothing to look at. The
+   * same half-fix as round 25 and round 31, on a bucket added to fix that
+   * exact class of defect. */
+  for (const row of undecidable) {
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} `
+      + `[${row.component || '?'}]`
+      + `${row.comment ? ` request ${row.comment}` : ''} `
+      + (row.reason === 'card_cell_unparseable'
+        ? 'has a comment cell this job cannot parse, so whether the request was delivered cannot be determined'
+        : 'names a review this job has no mapping for, so where the request belongs cannot be determined')
+      + ' — the card is live — REPORT ONLY, a person decides');
   }
   for (const row of leftAlone) {
     /* Print the deliverable when the card could not be identified, or the line

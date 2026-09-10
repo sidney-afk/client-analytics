@@ -2198,17 +2198,100 @@ check('a team-mapping refusal names the card it found', () => {
 
 check('a team-mapping refusal is not counted as a missing card', () => {
   const { classify } = require('../scripts/client-signoff-reconcile.js');
-  const { cardMissing, teamUnusable, lines } = classify({ findings: [], skipped: [
-    { kind: 'comment', reason: 'unknown_team', crosswalk_broken: true,
-      card: 'card-1', client: 'testclient', component: '', comment: 'pc_1' },
-    { kind: 'comment', reason: 'card_not_found', crosswalk_broken: true,
-      card: '(unidentified)', client: 'testclient', component: '', comment: 'pc_2' },
-  ] });
-  assert.equal(teamUnusable.length, 1);
+  const { cardMissing, teamUnknown, kindTeamDisagree, linkStale, lines } =
+    classify({ findings: [], skipped: [
+      { kind: 'comment', reason: 'unknown_team', crosswalk_broken: true,
+        card: 'card-1', client: 'testclient', component: '', comment: 'pc_1' },
+      { kind: 'comment', reason: 'kind_and_team_disagree', crosswalk_broken: true,
+        card: 'card-2', client: 'testclient', component: '', comment: 'pc_2' },
+      { kind: 'comment', reason: 'card_does_not_link_back', crosswalk_broken: true,
+        card: 'card-3', client: 'testclient', component: '', comment: 'pc_3' },
+      { kind: 'comment', reason: 'card_not_found', crosswalk_broken: true,
+        card: '(unidentified)', client: 'testclient', component: '', comment: 'pc_4' },
+    ] });
+  assert.equal(teamUnknown.length, 1);
+  /* ROUND 39. The kind/team row is NOT a "team names no review" row: graphics
+     maps to graphic, and it is the kind that disagrees. Separate term. */
+  assert.equal(kindTeamDisagree.length, 1);
+  /* ROUND 39. A stale reverse link also has a known card, so keying the team
+     bucket off "card known" counted it twice and the breakdown claimed both. */
+  assert.equal(linkStale.length, 1);
   assert.equal(cardMissing.length, 1, 'only the row whose card really is missing');
   const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /NEEDS A PERSON \(never written\): 4\b/, needs);
   assert.match(needs, /whose card is missing 1/, needs);
   assert.match(needs, /team names no review 1/, needs);
+  assert.match(needs, /kind and team name different reviews 1/, needs);
+  assert.match(needs, /link back is stale 1/, needs);
+});
+
+/* ROUND 39. The buckets in the headline must PARTITION the rows: with the team
+   bucket keyed off "was the card known", a single stale-link row was counted
+   in two terms at once and a one-row run printed both as 1. */
+check('the breakdown terms do not overlap', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { lines } = classify({ findings: [], skipped: [
+    { kind: 'comment', reason: 'card_does_not_link_back', crosswalk_broken: true,
+      card: 'card-1', client: 'testclient', component: '', comment: 'pc_1' },
+  ] });
+  const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /NEEDS A PERSON \(never written\): 1\b/, needs);
+  assert.match(needs, /link back is stale 1/, needs);
+  assert.match(needs, /team names no review 0/, needs);
+  assert.match(needs, /kind and team name different reviews 0/, needs);
+  const terms = (needs.match(/ (\d+)[,)]/g) || []).map(t => Number(t.replace(/\D/g, '')));
+  assert.equal(terms.reduce((a, b) => a + b, 0), 1,
+    'the breakdown must sum to the headline: ' + needs);
+});
+
+/* ROUND 39, and the reason it is a CLI check rather than a bucket check: round
+   38 taught the COUNT about these rows and left the log silent, so the run
+   reported that work exists and named nothing to look at. The workflow
+   dispatches without `--json`, so this log is all an operator gets. A row, its
+   count and its line are three surfaces — this is the third time in this PR a
+   fix reached fewer than all three. */
+checkAsync('the run prints the rows behind every count it reports', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [],
+    comments: [
+      /* A component name the map does not carry. `thumbnail` looks unmapped and
+         is not — it maps to graphic — which is why this fixture names something
+         the map genuinely has no entry for. */
+      TWEAK({ id: 'pc_u1', component: 'storyboard' }),
+      TWEAK({ id: 'pc_u2', deliverable_id: 'del-2' }),
+      TWEAK({ id: 'pc_t1', deliverable_id: 'del-3' }),
+      TWEAK({ id: 'pc_t2', deliverable_id: 'del-4' }),
+    ],
+    deliverables: [
+      DEL(),
+      DEL({ id: 'del-2', card_id: 'card-2' }),
+      DEL({ id: 'del-3', card_id: 'card-3', team: '' }),
+      DEL({ id: 'del-4', card_id: 'card-4', team: 'graphics', kind: 'video' }),
+    ],
+    cards: [
+      CARD(),
+      CARD({ id: 'card-2', video_deliverable_id: 'del-2', video_tweaks: '{not json' }),
+      CARD({ id: 'card-3', video_deliverable_id: 'del-3' }),
+      CARD({ id: 'card-4', graphic_deliverable_id: 'del-4' }),
+    ],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8' });
+  /* Undecidable: counted AND printed, each naming its card and client. */
+  assert.match(out, /undecidable on a live card 2/, out);
+  assert.match(out, /card card-1 \(testclient\)[\s\S]*no mapping for/, out);
+  assert.match(out, /card card-2 \(testclient\)[\s\S]*cannot parse/, out);
+  /* Team-mapping refusals: the card was FOUND, so no line may say otherwise. */
+  assert.match(out, /card card-3 \(testclient\)[\s\S]*team names no review this job can carry/, out);
+  assert.match(out, /card card-4 \(testclient\)[\s\S]*kind and team name different reviews/, out);
+  assert.doesNotMatch(out, /card-3[^\n]*cannot be found/, out);
+  assert.doesNotMatch(out, /card-4[^\n]*cannot be found/, out);
+  /* And none of the four is filed as an intentional skip. */
+  assert.match(out, /left alone: 0\b/, out);
 });
 
 check('body comparison ignores only whitespace shape', () => {

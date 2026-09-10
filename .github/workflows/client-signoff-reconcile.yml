@@ -7,7 +7,7 @@ name: Client review ⇄ card reconcile
 #
 # IT WRITES EXACTLY ONE THING: a missing client sign-off stamp. Change requests
 # that never reached a card are DETECTED AND REPORTED, never written (owner
-# decision, OPEN_REPAIRS 196i) — read them out of the run log; they need a
+# decision, OPEN_REPAIRS 197i) — read them out of the run log; they need a
 # person.
 #
 # See scripts/client-signoff-reconcile.js and

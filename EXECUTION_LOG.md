@@ -6974,3 +6974,55 @@ the trigger, which also restores repo/live parity for those two files.
 
 Ledger OPEN_REPAIRS 195; capability parity gate in
 `docs/ops/LIVE_DIVERGENCE_REGISTER.md` and `test/live-divergence-register.js`.
+
+
+## 2026-09-10 — Kasper ping ledger triggers attached, verified end to end; DM copy corrected
+
+**Ledger triggers, owner-applied — the feature is now fully installed.** The four triggers from
+`migrations/2026-09-10-kasper-urgent-ping-ledger.sql` were run by the owner and
+read back as attached and enabled on both tables, each calling
+`public.syncview_kasper_urgent_ping_ledger()`.
+
+**Verified through the real writers, not the database — BOTH surfaces.** A marker
+write was POSTed to the live `calendar-upsert` for one TEST-client card, and a
+second to the live `sample-review-upsert` for one TEST-client sample, which is the exact call
+the browser makes after Slack succeeds; the Slack step was deliberately skipped
+so no DM was sent. The writer returned `ok:true` and the trigger wrote the ledger
+row unaided: `action=kasper_urgent_ping`, `component=video`, `source=db`,
+`payload.via=trigger`, carrying both the ping and round timestamps. The test
+marker was then cleared under a last-write guard, and clearing produced NO second
+event, which is correct — the triggers fire only when a ping appears. The Samples
+probe was run after review pointed out that the first drill covered Calendar
+only: Samples is a distinct code path writing a distinct table, and because the
+trigger swallows every exception a Samples-specific failure would have been
+silent while approvals kept working. It returned `ok:true` and the trigger wrote
+`sample_review_events` unaided. Two synthetic audit rows remain, one per surface,
+both labelled `LedgerVerification` and deliberately not deleted.
+
+**n8n DM copy, owner-authorized in the same request.** Workflow
+`1WjZZjfQjDlg1Crf`, node `Parse & Validate`, one string. It closed with "It is in
+the Urgent section at the top", which the browser cannot guarantee: the DM is
+sent BEFORE the marker is written, so the card can still sit under "Waiting for
+your review" when Kasper reads it, and stays there if that write fails. Now
+"Urgent cards sit at the top of your review tab", which is true regardless of
+ordering. Version `f442f701` → `fddb0d5a`, **published** (the edit lands as a
+draft otherwise, and the live webhook keeps running the old version — checked
+rather than assumed). A version diff confirms one node, one parameter: no node,
+connection, credential, recipient or validation change. Rollback is restoring and
+publishing `f442f701`.
+
+**Reconciler, investigated per owner request.** The corrected ledger entry raised
+why `docs/truth/SUPABASE.md` believed reconcile bypassed the ledger. It does not
+write events itself: it sets `X-Syncview-Source: reconcile` and posts through the
+ordinary writer, which logs the change under the declared source. Ledger coverage
+is a property of the ROUTE, not the caller — `upsertUrlForClient` picks the EF or
+the legacy n8n lane per `calendar_upsert_ef_clients` (calendar) and
+`sample_review_ef_clients` (Samples). A first draft of this entry said
+pre-enrollment reconciler writes were invisible; review caught that as too
+strong. The retained legacy writer appends `sample_review_events` as well, with
+`source: 'ui'` hard-coded, so a reconcile through that lane was recorded and
+MIS-LABELLED rather than lost. 2026-07-07 marks when source attribution became
+truthful, not when coverage began; whether the original claim was ever true is
+open. Nothing is broken and the ledger is MORE complete than the doc claimed.
+Mechanism and caveat both recorded in the truth doc.
+

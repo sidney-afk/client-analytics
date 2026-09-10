@@ -1262,7 +1262,7 @@ function patchFor(finding) {
        * component to BE above (`stampSurvives`), so the sweep cannot clear it on
        * one. The guard's second half is therefore unreachable, and a sabotage
        * that removed it could not be made to fail. This PR takes an unfireable
-       * control as evidence of decoration rather than of safety (196u), so the
+       * control as evidence of decoration rather than of safety (197u), so the
        * guard is not written; the reachability argument is the rule. */
       patch[key] = pending[key];
       continue;
@@ -1279,7 +1279,7 @@ function patchFor(finding) {
      * Written as one condition rather than a `movedComponents` set: a set would
      * read as if some repair could move a different component, and its extra
      * branch could not be made to fail under sabotage — a rule with no effect,
-     * which this PR removed once already in 196u and will not reintroduce. */
+     * which this PR removed once already in 197u and will not reintroduce. */
     if (key !== STAMP_FIELD(comp)) continue;
     patch[key] = pending[key];
   }

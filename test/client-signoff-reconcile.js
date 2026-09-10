@@ -1,6 +1,6 @@
 'use strict';
 /* The server-side completion of a committed client review action
- * (scripts/client-signoff-reconcile.js, OPEN_REPAIRS 196).
+ * (scripts/client-signoff-reconcile.js, OPEN_REPAIRS 197).
  *
  * Every case below is driven through the real module — the same detection and
  * patch construction the job runs in production — with the world supplied as
@@ -339,7 +339,7 @@ check('the kasper sign-off follows a move, and only a move', () => {
      this field only when NO component is above — so the sweep can never clear
      it on a stamp repair. A first draft guarded the branch on `movedComponent`
      anyway; the sabotage removing that guard could not be made to fail, which
-     this PR reads as decoration rather than safety (196u). Asserted as
+     this PR reads as decoration rather than safety (197u). Asserted as
      reachability instead of as a vacuous "does not write it". */
   const still = detect(world({
     outbox: [APPROVE()],

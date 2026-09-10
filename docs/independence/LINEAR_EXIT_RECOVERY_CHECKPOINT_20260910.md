@@ -78,3 +78,25 @@ bounded deploy scope and rollback. It is not implemented by this plan and must
 not be bundled with the current migration. No new n8n executions. Close it only
 after actual gateway/SQL/browser refusal, draft preservation, redaction,
 telemetry-failure and operator-lookup checks.
+
+
+## Serving-source follow-up — 2026-09-10
+
+Read-only Supabase source retrieval found active calendar-upsert version 49
+with verify_jwt=false and no authorizeBrowserWrite call. Its POST handler
+parses the body and proceeds to card guards/storage without that auth gate
+(saved readback lines 525-570). The candidate repository writer invokes
+authorizeBrowserWrite at line 501.
+
+A bounded Node VM execution of the retrieved handler accepted an unauthenticated
+synthetic card request: HTTP 200, ok=true, one mocked calendar_posts insert.
+Network calls were prohibited. Database SDK operations and auxiliary thumbnail
+work were mocked. This is source/handler evidence, not a hosted save or a
+complete browser/SQL journey. The saved readback fixture SHA256 is
+5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada.
+
+Reclassify the earlier 401 as a repository-versus-serving test-source mismatch,
+not a confirmed production intake defect. The outstanding gate is now a full
+public intake/materialize/readback/recovery rehearsal using the captured,
+hash-pinned tokenless serving body and its dependency closure. Keep the old
+repository 401 as a negative control. Do not modify either frozen writer.

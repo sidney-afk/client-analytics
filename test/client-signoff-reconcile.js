@@ -661,6 +661,48 @@ check('an unresolved request on a closed round keeps the plain reason', () => {
   assert.equal(skipped[0].reason, 'review_round_closed');
 });
 
+/* CODEX ROUND 8. An unresolved request whose only body match is a DONE entry is
+   genuinely ambiguous: the done entry may be an older request with the same
+   words (so the live one is missing), or it may BE this request resolved on the
+   card while the source row lagged (so delivering duplicates it). Body text
+   cannot tell them apart and 8 live rows sit in this state, so the job reports
+   instead of guessing. */
+check('an unresolved request matching only a completed entry is reported, not guessed', () => {
+  const onCard = JSON.stringify([{
+    id: 'cal-old', body: 'Please fix the intro', role: 'client', is_tweak: true, done: true,
+  }]);
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ resolved_at: null })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0, 'a duplicate must not be written on a guess');
+  assert.equal(skipped[0].reason, 'ambiguous_repeat_of_completed_request',
+    'and it must not be silently treated as delivered either');
+});
+
+check('a RESOLVED request still matches a completed entry normally', () => {
+  const onCard = JSON.stringify([{
+    id: 'cal-old', body: 'Please fix the intro', role: 'client', is_tweak: true, done: true,
+  }]);
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ resolved_at: '2026-09-07T12:00:00.000Z' })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0, 'lifecycles agree, so this is an ordinary delivery match');
+});
+
+check('an unresolved request still matches an OPEN entry normally', () => {
+  const onCard = JSON.stringify([{
+    id: 'cal-open', body: 'Please fix the intro', role: 'client', is_tweak: true, done: false,
+  }]);
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0);
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

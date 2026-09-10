@@ -494,8 +494,28 @@ function detect(world) {
      * client-authored roots, and 18 of them carry is_tweak:false — so authorship
      * and shape are required, and is_tweak deliberately is not. */
     const claimed = list.findIndex((c, i) =>
-      !consumed.has(i) && normText(c.body) === body && couldBeClientTweak(c));
+      !consumed.has(i) && normText(c.body) === body && couldBeClientTweak(c)
+      && !(pc.resolved_at == null && c.done === true));
     if (claimed >= 0) { consumed.add(claimed); claimOf.set(row, claimed); continue; }
+
+    /* AN UNRESOLVED REQUEST WHOSE ONLY BODY MATCH IS A **DONE** ENTRY IS
+     * AMBIGUOUS, AND NEITHER ANSWER IS SAFE.
+     *   · Treat it as delivered, and if the done entry is an OLDER request with
+     *     the same words, this client's live feedback stays invisible.
+     *   · Deliver it, and if the done entry IS this request (resolved on the
+     *     card while the source row lagged), the client sees their own words
+     *     twice.
+     * Body text cannot tell those apart, and 8 live rows sit in exactly this
+     * state. So the job does neither: it reports, which is the one honest
+     * option, and a person decides. This is also the clearest evidence that
+     * request DELIVERY is a guessing game in a way stamp repair is not. */
+    const doneTwin = list.some((c, i) =>
+      !consumed.has(i) && normText(c.body) === body && c.done === true);
+    if (doneTwin && !pc.resolved_at) {
+      skipped.push({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
+        card: hit.card.id, component: comp, comment: pc.id });
+      continue;
+    }
     const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
     if (status !== 'Client Approval' && status !== 'Tweaks Needed') {
       /* A RESOLVED request on a closed round is reported under its own reason
@@ -633,6 +653,23 @@ function patchFor(finding) {
  * is Edge Function work, deliberately not smuggled in here. Repairs are rare
  * and this job is dispatched, so the residual risk is a few seconds per row. */
 async function revalidate(world, finding) {
+  /* The card is re-read, and so is the SOURCE row. A request can be resolved or
+   * deleted between `loadWorld` and the write — which is precisely the two-leg
+   * window this job exists for — and reusing the original snapshot would append
+   * it as open, or finish a status leg no longer owed, and strip a sign-off on
+   * the strength of stale lifecycle state. Round 7 answered the half of this
+   * that the CARD can see; this is the half only the source knows. */
+  let comments = world.comments;
+  if (finding.comment) {
+    const row = await restRows('production_comments',
+      'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,'
+      + 'created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&id=eq.${encodeURIComponent(finding.comment.id)}`, 'id');
+    /* Gone entirely means gone: drop it rather than fall back to the snapshot. */
+    comments = world.comments
+      .filter(c => String(c.id) !== String(finding.comment.id))
+      .concat(row);
+  }
   const fresh = await restRows('calendar_posts',
     'select=id,client,name,status,video_status,graphic_status,caption_status,'
     + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
@@ -642,7 +679,7 @@ async function revalidate(world, finding) {
     + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
   if (!fresh.length) return null;
   const again = detect({
-    outbox: world.outbox, comments: world.comments,
+    outbox: world.outbox, comments,
     deliverables: world.deliverables, cards: fresh,
   });
   const match = again.findings.find(f =>

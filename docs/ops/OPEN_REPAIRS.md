@@ -19442,3 +19442,65 @@ to relax, and the doc says so.
 
 **Seven rounds, twenty-one findings, twenty implemented, one declined on
 measured evidence.**
+
+### 195h. [2026-09-10] Round 8: both findings are holes in earlier fixes, which is now three rounds running
+
+**Both real, both fixed, and the pattern is the finding.**
+
+**1. The body fallback could be satisfied by a COMPLETED entry.** An unresolved
+request whose only body match is a `done` card entry was treated as delivered,
+leaving live client feedback invisible.
+
+The proposed fix — require unresolved requests to match only unresolved entries
+— was measured before being taken, and **it is not safe either**. Of 261 live
+body matches, **108 land on a `done` entry, and 8 of those pair an UNRESOLVED
+source request with a DONE card entry.** Under the proposed rule all 8 become
+findings and get written, appending a duplicate of words already on the card.
+
+Neither answer is right, because body text cannot distinguish:
+
+- the done entry is an OLDER request with the same words, so the live one is
+  genuinely missing (deliver is correct); from
+- the done entry IS this request, resolved on the card while the source row
+  lagged (deliver duplicates the client's own words back at them).
+
+So the job does neither. It **reports** the 8 as
+`ambiguous_repeat_of_completed_request` and a person decides. That is the honest
+option, and it is the clearest evidence yet that request DELIVERY is a guessing
+game in a way stamp repair is not.
+
+**2. Revalidation refreshed the card but not the source row.** Round 7 answered
+the half of this the CARD can see; this is the half only the source knows. A
+request resolved or deleted between `loadWorld` and the write — precisely the
+two-leg window this job exists for — would have been appended as open, or had a
+status leg finished that was no longer owed. Revalidation now re-reads the exact
+`production_comments` row, and a row that has vanished is dropped rather than
+falling back to the snapshot.
+
+55 checks, two more controls.
+
+### THE TREND IS NOW THE MOST IMPORTANT FINDING
+
+| round | findings | origin |
+|---|---|---|
+| 1 to 5 | 17 | defects in the original design |
+| 6 | 2 | a defect in a round-5 fix |
+| 7 | 2 | a defect in a round-6 fix |
+| 8 | 2 | defects in round-5 and round-7 fixes |
+
+Three consecutive rounds where the patch created the next round's bug. **Item
+189 records this exact pattern once already**, on the browser-side attempt at
+the same problem, abandoned after seven findings with the conclusion that each
+patch surfaced another interaction.
+
+Almost every finding since round 2 has landed on **change-request delivery**,
+not on stamp repair. Delivery has to decide identity across two systems that do
+not share ids, reconcile two lifecycle clocks, merge into a cell whose format
+predates ids, and survive a non-atomic two-step write. Stamp repair reads a
+committed approve, checks for a later reopen, and writes one dated field.
+
+**Recommendation to the owner, put on the PR: ship the stamp repair, and demote
+change-request delivery to detection-only.** It fixes 4 of the 6 live rows,
+retires the surface that produced the defects, and turns the remaining 2 into a
+report a person acts on. Not taken unilaterally: it narrows work the owner
+asked for.

@@ -323,10 +323,14 @@ const STAFF_ROLES = new Set(['kasper', 'smm', 'admin', 'editor', 'designer', 'sy
  * component over something they took back — that is the round-6 rule, and a
  * first draft of this fix broke it. Hidden is different: the client never took
  * anything back, they simply cannot see it. */
-const isVisibleOnCard = (entry) => !!entry && entry.hidden !== true;
+/* TRUTHY, like the renderer. `_calCommentsForView` filters on `!c.hidden`, and
+ * these cells hold schema-less JSON — a legacy or imported entry carrying
+ * `hidden: 1` or `hidden: "true"` is invisible in the app, so testing `=== true`
+ * would let exactly the entry this rule exists to refuse claim a request. */
+const isVisibleOnCard = (entry) => !!entry && !entry.hidden;
 function couldBeClientTweak(entry) {
   if (!entry) return false;
-  if (entry.hidden === true) return false;
+  if (entry.hidden) return false;
   if (entry.deleted === true) return false;
   if (entry.parent_id) return false;
   const role = String(entry.role || '').trim().toLowerCase();
@@ -1288,8 +1292,13 @@ function classify({ findings, skipped }) {
    * component is an ambiguity between two KNOWN reviews on a card that is
    * right there. Counting the second as "whose card is missing" is a false
    * headline over a correct detail line. */
-  const cardMissing = crosswalkBroken.filter(row => row.reason !== 'named_component_contradicts_link');
   const componentAmbiguous = crosswalkBroken.filter(row => row.reason === 'named_component_contradicts_link');
+  /* A STALE REVERSE LINK IS NOT A MISSING CARD. The card was located; only the
+   * link back failed, and the row now carries it. Counting and printing it as
+   * "cannot be found" sends an operator after a card that is sitting there. */
+  const linkStale = crosswalkBroken.filter(row => row.reason === 'card_does_not_link_back');
+  const cardMissing = crosswalkBroken.filter(row =>
+    row.reason !== 'named_component_contradicts_link' && row.reason !== 'card_does_not_link_back');
   /* SPLIT, because only one of these two knows what happened to the card leg.
    * A resolved carrier failure was qualified against four tests, so "reached
    * neither leg" is established. A crosswalk refusal establishes only that the
@@ -1311,11 +1320,12 @@ function classify({ findings, skipped }) {
       + `client approve that reached neither leg ${carrierFailedKnown.length}, `
       + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
       + `carried client action whose card is missing ${cardMissing.length}, `
+      + `card found but its link back is stale ${linkStale.length}, `
       + `request naming a review its deliverable cannot carry ${componentAmbiguous.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
   return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
-    carrierFailedUnknownCard, crosswalkBroken, cardMissing, componentAmbiguous,
+    carrierFailedUnknownCard, crosswalkBroken, cardMissing, linkStale, componentAmbiguous,
     leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
@@ -1366,6 +1376,14 @@ async function main() {
     /* This row knows its card. Saying "its card cannot be found" would send the
      * operator after a broken crosswalk when the actual question is which of
      * two known reviews the client meant. */
+    if (row.reason === 'card_does_not_link_back') {
+      log(`  » card ${row.card} (${row.client})`
+        + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+        + `${row.comment ? ` request ${row.comment}` : ''} `
+        + 'was found, but the card does not name that deliverable back '
+        + '— the link is stale, not the card — REPORT ONLY, a person decides');
+      continue;
+    }
     if (row.reason === 'named_component_contradicts_link') {
       log(`  » card ${row.card} (${row.client}) request ${row.comment} names `
         + `[${row.component}], but its deliverable is linked as [${row.linked_component}] `

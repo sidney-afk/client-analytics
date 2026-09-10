@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 130 checks, each
+construction through fixtures — no credentials, no network. 133 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -138,7 +138,9 @@ out for **every** audience, and `index.html` names the case it exists for:
 hidden twin claiming a client's request would declare it delivered while the
 client cannot see it — and would do so most readily on exactly the cross-client
 mess the flag was created to bury. Refused on both claim passes; live, 4 cells
-carry one.
+carry one. Tested for **truth**, not for `=== true`: the renderer filters on
+`!c.hidden` and these cells hold schema-less JSON, so `hidden: 1` or
+`hidden: "true"` is invisible in the app and must be refused here too.
 
 A **deleted** entry claimed by id is deliberately still a claim: the client
 withdrew their own request, and re-delivering it would reopen a component over
@@ -428,6 +430,11 @@ resolved.** `production_comments.component` has no constraint tying it to the
 deliverable's team, so a malformed or imported row can name `video` on work whose
 validated binding is graphic. Trusting the label reports the request as absent
 from the wrong review.
+
+**A stale reverse link is not a missing card.** `resolve()` located the exact
+row and only the link back failed, so the refusal carries that card and the
+report says so — counting or printing it as "cannot be found" sends an operator
+after a card that is sitting right there.
 
 **A carried approve whose card is missing is its own kind of work** — once
 another surface has been excluded. Live: all the approvals whose Calendar card

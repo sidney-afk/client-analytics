@@ -770,6 +770,9 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
   /* And the unresolvable one names what it could not resolve, or the operator
      has nothing to look up. */
   assert.match(out, /deliverable del-3 a client APPROVE was not carried/, out);
+  /* A stale link prints as a stale link. The fixture's del-3 card names someone
+     else, so the card IS found and only the link back failed. */
+  assert.equal(/card-3.*cannot be found/.test(out), false, out);
   assert.match(out, /whether the card leg landed is UNKNOWN/, out);
   assert.match(out, /card_does_not_link_back/, out);
 });
@@ -1811,6 +1814,55 @@ check('a deleted entry claimed by id is still a claim', () => {
     cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
   }));
   assert.equal(findings.length, 0, 'withdrawn is not the same as unseen');
+});
+
+/* ROUND 31. `hidden` is tested for TRUTH, not for `=== true`, because
+   `_calCommentsForView` filters on `!c.hidden` and these cells hold schema-less
+   JSON. A legacy or imported entry carrying `hidden: 1` or `hidden: "true"` is
+   invisible in the app, so the strict test would have let exactly the entry
+   round 30 refused claim a request. */
+check('any truthy hidden value refuses the claim, as the app does', () => {
+  for (const hidden of [true, 1, 'true', 'yes', {}]) {
+    const onCard = JSON.stringify([
+      { id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true, hidden },
+    ]);
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 1, `hidden: ${JSON.stringify(hidden)} is invisible in the app`);
+  }
+});
+
+check('a falsy hidden value is not hidden', () => {
+  for (const hidden of [false, 0, '', null, undefined]) {
+    /* A DIFFERENT body, so only the ID pass can claim it — otherwise the body
+       fallback answers and this proves nothing about the id pass, which is
+       where the truthiness test lives. A first version of this check passed
+       while sabotaged for exactly that reason. */
+    const onCard = JSON.stringify([
+      { id: 'pc_x1', body: 'totally different text', role: 'client', is_tweak: true, hidden },
+    ]);
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 0, `hidden: ${JSON.stringify(hidden)} renders normally`);
+  }
+});
+
+/* A STALE LINK IS NOT A MISSING CARD. Round 30 put the located card on the row
+   and left it counted and printed as "cannot be found" — the fix applied where
+   I was looking, one more time. */
+check('a stale reverse link is counted as a stale link, not a missing card', () => {
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const { skipped } = detect(world({
+    outbox: [APPROVE()], cards: [CARD({ video_deliverable_id: 'other' })],
+  }));
+  const { cardMissing, linkStale, lines } = classify({ findings: [], skipped });
+  assert.equal(cardMissing.length, 0, 'the card was found');
+  assert.equal(linkStale.length, 1);
+  assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /link back is stale 1/);
 });
 
 check('a properly linked card is still stamped normally', () => {

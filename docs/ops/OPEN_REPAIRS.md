@@ -20238,3 +20238,33 @@ does not exist. The refusal now carries the card it found, on both paths.
 130 checks, four controls, all confirmed by exit status.
 
 **Thirty rounds, 69 findings.**
+
+### 196af. Round 31: both halves of the previous round, finished
+
+**`hidden` was tested for `=== true` while the app tests for truth.**
+`_calCommentsForView` filters on `!c.hidden`, and these cells hold schema-less
+JSON, so a legacy or imported entry carrying `hidden: 1` or `hidden: "true"` is
+invisible in the app and would still have claimed a request — recreating exactly
+the false "delivered" result 196ae was written to prevent. Matched to the
+renderer's rule, with a control against the over-correction of treating a falsy
+`hidden` key as hidden.
+
+**A stale reverse link was still counted and printed as a missing card.** 196ae
+put the located card on the row and stopped there: `classify()` still filed it
+under `cardMissing` and the renderer still said "its card cannot be found". Own
+term and own line now — "card found but its link back is stale".
+
+That is the same failure as 196z and 196aa: the fix applied to the row in front
+of me, not to the two places downstream that read it. The row, the count and the
+line are three surfaces, and this PR has now needed a separate round for the
+second and third of them **twice**.
+
+**A control passed while sabotaged, and the check was rebuilt.** The falsy-hidden
+case matched by BODY as well as by id, so the body fallback answered it and the
+id pass — where the truthiness test actually lives — was never exercised. Given a
+different body, the control fails as it should. Seventh instance in this PR of a
+check that proved nothing until it was aimed properly.
+
+133 checks, three controls, all confirmed by exit status.
+
+**Thirty-one rounds, 71 findings.**

@@ -360,6 +360,41 @@ check('a client root with is_tweak false still counts as delivered', () => {
   assert.equal(findings.length, 0, '18 of 327 live matches carry is_tweak:false');
 });
 
+/* CODEX ROUND 3. A request NAMES its component. Guessing from the deliverable
+   kind when that name is unrecognised puts title feedback in video_tweaks and
+   drags video_status to Tweaks Needed: the wrong review, mutated on a guess. */
+check('a title request lands on the title component, not the video one', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ component: 'title' })],
+    cards: [CARD({ title_status: 'Client Approval', video_status: 'Approved' })],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].component, 'title');
+  const patch = patchFor(findings[0]);
+  assert.ok(patch.title_tweaks, 'the request goes to title_tweaks');
+  assert.equal(patch.video_tweaks, undefined, 'and never to the video review');
+  assert.equal(patch.video_status, undefined, 'the video component is not moved');
+  assert.equal(patch.title_status, 'Tweaks Needed');
+});
+
+check('a named component that cannot be mapped is reported, never guessed', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ component: 'sizzle-reel' })],
+    cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 0, 'the deliverable kind must not stand in for it');
+  assert.equal(skipped[0].reason, 'unmapped_component');
+});
+
+check('a request naming nothing still falls back to the deliverable kind', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ component: '' })],
+    cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].component, 'video');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

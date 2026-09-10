@@ -130,7 +130,9 @@ function reopensBelowApproved(nativeStatus) {
 
 /* A deliverable's `kind` and the card's component vocabulary are not the same
  * word for the graphic lane; everything downstream speaks the card's. */
-const COMPONENT_FOR_KIND = { video: 'video', thumbnail: 'graphic', graphic: 'graphic', caption: 'caption' };
+const COMPONENT_FOR_KIND = {
+  video: 'video', thumbnail: 'graphic', graphic: 'graphic', caption: 'caption', title: 'title',
+};
 const STAMP_FIELD = (comp) => 'client_' + comp + '_approved_at';
 const TWEAKS_FIELD = (comp) => comp + '_tweaks';
 const STATUS_FIELD = (comp) => comp + '_status';
@@ -213,8 +215,9 @@ async function loadWorld() {
     const chunk = ids.slice(i, i + 200).map(encodeURIComponent).join(',');
     cards.push(...await restRows('calendar_posts',
       'select=id,client,name,status,video_status,graphic_status,caption_status,'
-      + 'video_tweaks,graphic_tweaks,caption_tweaks,updated_at,'
-      + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,kasper_approved_at'
+      + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
+      + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
+      + 'client_title_approved_at,kasper_approved_at'
       + `&id=in.(${chunk})`));
   }
   return { outbox, comments, deliverables, cards };
@@ -372,9 +375,23 @@ function detect(world) {
   for (const pc of commentsInOrder) {
     const hit = resolve(pc.deliverable_id);
     if (!hit) continue;
-    const comp = COMPONENT_FOR_KIND[String(pc.component || '').toLowerCase()]
-      || COMPONENT_FOR_KIND[String(hit.del.kind || '').toLowerCase()];
-    if (!comp) continue;
+    /* A request NAMES its component. Falling back to the deliverable's kind
+     * when that name is unrecognised is how title feedback lands in
+     * `video_tweaks` and drags `video_status` to Tweaks Needed: the wrong
+     * review, mutated on the strength of a guess. The kind is a fallback only
+     * when the request names nothing at all; a named-but-unmappable component
+     * is reported and left alone. */
+    const named = String(pc.component || '').trim().toLowerCase();
+    const comp = named
+      ? COMPONENT_FOR_KIND[named]
+      : COMPONENT_FOR_KIND[String(hit.del.kind || '').toLowerCase()];
+    if (!comp) {
+      if (named) {
+        skipped.push({ kind: 'comment', reason: 'unmapped_component', card: hit.card.id,
+          component: named, comment: pc.id });
+      }
+      continue;
+    }
     const body = normText(pc.body);
     if (!body) continue;
     const list = parseComments(hit.card[TWEAKS_FIELD(comp)]);
@@ -515,8 +532,9 @@ function patchFor(finding) {
 async function revalidate(world, finding) {
   const fresh = await restRows('calendar_posts',
     'select=id,client,name,status,video_status,graphic_status,caption_status,'
-    + 'video_tweaks,graphic_tweaks,caption_tweaks,updated_at,'
-    + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,kasper_approved_at'
+    + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
+    + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
+    + 'client_title_approved_at,kasper_approved_at'
     + `&id=eq.${encodeURIComponent(finding.card.id)}`);
   if (!fresh.length) return null;
   const again = detect({

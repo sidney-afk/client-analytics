@@ -19250,3 +19250,31 @@ this repo's own standing rule about handing the owner a link.
 undelivered approval acted on, the fallback consuming a staff note, a reply
 counting as delivery, a deleted entry counting as delivery, staff roles not
 excluded, and the id-claim pass bypassed.
+
+### 195c. [2026-09-10] Round 3: a request names its component, and guessing when the name is unknown is how the wrong review gets mutated
+
+One finding, real and latent rather than live. `production_comments` carries a
+`title` component (YouTube title review), and the component map did not. The
+code then fell back to the DELIVERABLE KIND, normally `video`, so a client's
+title feedback would have been appended to `video_tweaks` and dragged
+`video_status` to Tweaks Needed while `title_tweaks` stayed empty: the wrong
+review, mutated on the strength of a guess, and the right one still missing.
+
+**Latent, not live.** Client tweaks in the last 180 days are video (165),
+graphic (106) and caption (74). **Zero title.** So nothing has been corrupted
+and nothing needed repairing; the hole was waiting for the first YouTube title
+request.
+
+**The fix is the fallback, not the mapping.** Adding `title` closes today's
+case; removing the silent fallback closes the class. A request that NAMES a
+component the job cannot map is now reported (`unmapped_component`) and left
+alone. The deliverable kind stands in only when the request names nothing at
+all. The card read and the pre-write re-read both carry the title fields now.
+
+The overall pill is unaffected either way: `computeOverallStatus` derives from
+`CAL_COMPONENTS`, which is video/graphic/caption; title lives in
+`CAL_REVIEW_COMPONENTS` only. So a title repair moves the title lane and
+nothing else.
+
+33 checks; two more controls (silent fallback restored, title dropped from the
+map) both confirmed to fail the suite.

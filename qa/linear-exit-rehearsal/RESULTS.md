@@ -1,5 +1,22 @@
 # Completed isolated evidence
 
+## Latest installed-candidate metadata preflight
+
+The preflight-installed lane now proves all 149 release metadata objects match
+on the same inventory-ordered disposable PG16 candidate. The initial run found
+one real contract defect: the gate expected production_component_fill with three
+JSON arguments, but both migration owners define five arguments (text, timestamptz,
+text, jsonb, jsonb). The gate now uses that exact identity; body hashes, security,
+search path and permission requirements are unchanged. Independent declaration
+checks cover both owners; all 28 offline checks pass. Focused review found no blocker.
+
+The successful run used working-tree changes over `149e9c9c`; exit 0 and server
+stopped. The earlier 148-compatible/one-absent failure remains recorded. No line
+ending normalization or source migration change was required. This validates
+metadata on the disclosed local baseline only. Configuration values, current
+hosted readiness and installation authorization remain unproven. Installation HOLD.
+
+
 ## Latest read-only readiness diagnostic preparation
 
 The deploy preflight now validates catalog metadata before reading configuration.

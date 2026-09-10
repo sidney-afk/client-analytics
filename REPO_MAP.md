@@ -189,3 +189,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `scripts/linear-exit-composition/recovery-ordered.js` ? shared inventory-ordered source setup for the upstream-ledger recovery lane.
 
 - `test/linear-exit-deploy-preflight-postgres.js` ? disposable PostgreSQL missing-prerequisite and JSON-shape diagnostics.
+
+- `test/linear-exit-deploy-preflight-ordered.js` ? actual release metadata validation against the inventory-ordered disposable candidate.

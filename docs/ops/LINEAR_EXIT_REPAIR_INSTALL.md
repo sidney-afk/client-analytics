@@ -466,3 +466,11 @@ published inventory in dependency order on the same scoped bootstrap. Its
 behavior. The ledger backfill fixture is seeded before its owner and asserted
 afterward, without reapplication. Older recovery corpus lanes retain their
 original setup. This does not close full baseline/coverage or hosted custody.
+
+### Installed-candidate release metadata
+
+The preflight-installed lane passes all 149 metadata expectations against the
+shared ordered local candidate. A detected component-fill signature error was
+corrected to the five arguments in both SQL owners, retaining exact body and
+permission checks. This metadata proof does not validate operational configuration
+or a hosted installation. The earlier one-object absence remains in the evidence.

@@ -177,3 +177,9 @@ test: actual missing-relation refusal before configuration reads and seven JSON
 shape cases. The latter use exact SQL predicates with a synthetic row source.
 Run `node test/linear-exit-deploy-preflight.js` for the offline transport/contract
 cases. Neither command invokes the hosted Management API or authorizes release.
+
+Use `-Lane preflight-installed` to install the pinned inventory on the disclosed
+local baseline and execute the actual release metadata query. The test validates
+the exact expected key set before emitting only object keys and booleans, then
+requires every metadata object to be present and compatible. Configuration and
+current hosted readiness are not covered; failed objects remain failures.

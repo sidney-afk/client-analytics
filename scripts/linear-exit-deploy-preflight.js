@@ -22,7 +22,7 @@ const ROUTINES = Object.freeze([
   ['production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_epoch_read', 'public'],
   ['production_intake_root_begin(jsonb,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_intake_root_begin', 'public'],
   ['production_intake_append(text,timestamptz,jsonb,jsonb)', 'migrations/2026-09-07-native-intake-named-append.sql', 'production_intake_append', 'public'],
-  ['production_component_fill(jsonb,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_component_fill', 'public'],
+  ['production_component_fill(text,timestamptz,text,jsonb,jsonb)', 'migrations/2026-09-05-native-only-intake.sql', 'production_component_fill', 'public'],
   ['production_native_intake_receipt_guard()', 'migrations/2026-09-05-native-only-intake.sql', 'production_native_intake_receipt_guard', 'public'],
   ['production_native_intake_delete_guard()', 'migrations/2026-09-08-native-intake-receipt-retention.sql', 'production_native_intake_delete_guard', 'public'],
   ['production_native_intake_truncate_guard()', 'migrations/2026-09-08-native-intake-receipt-retention.sql', 'production_native_intake_truncate_guard', 'public'],

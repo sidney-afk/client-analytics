@@ -18,6 +18,17 @@ function ok(label, value) {
 function rows() {
   return expectedObjects().keys.map(object_key => ({ object_key, present: true, compatible: true }));
 }
+// Derive identity argument types from the actual declaration independently of
+// the hand-maintained preflight tuple; body matching alone missed this drift.
+for(const owner of ['2026-08-31-production-component-fill.sql','2026-09-05-native-only-intake.sql']){
+  const source=fs.readFileSync(path.join(ROOT,'migrations',owner),'utf8');
+  const declarations=[...source.matchAll(/create or replace function public\.production_component_fill\s*\(([^)]*)\)/gi)];
+  assert.equal(declarations.length,1,'component fill declaration must be unique');
+  const types=declarations[0][1].split(',').map(arg=>arg.trim().replace(/^\w+\s+/,''));
+  const actual='public.production_component_fill('+types.join(',')+')';
+  ok('component-fill identity types match actual declaration in '+owner,
+    expectedObjects().routines.some(r=>r.signature===actual));
+}
 function response(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }

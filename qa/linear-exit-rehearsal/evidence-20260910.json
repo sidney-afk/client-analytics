@@ -653,5 +653,32 @@
     "server_stopped": true,
     "hosted_verified": false,
     "atomic_snapshot": false
+  },
+  "installed_candidate_metadata": {
+    "marker": "LINEAR_EXIT_PREFLIGHT_ORDERED_OK",
+    "checked_objects": 149,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "configuration_readiness_proven": false,
+    "hosted_readiness_proven": false,
+    "classification": "ISOLATED_POSTGRES_METADATA",
+    "status": "PASS",
+    "offline_checks": 28,
+    "receipt": "linear-exit-preflight-installed-381350c0af2c4dfc9120f788b8025c72",
+    "unit_log_sha256": "2033d5b7b0f8f9046596cabdbdd35615b38b874226359d27260081dcddc9b5f7",
+    "source_base": "149e9c9c8660c08319900a04e3f6d11accc42ba1",
+    "working_tree_changes": true,
+    "server_stopped": true,
+    "source_hashes": {
+      "scripts/linear-exit-deploy-preflight.js": "decbf5418381fe44bacfd27dd88caff8def3b596598c8664f6367e3ab234fe22",
+      "test/linear-exit-deploy-preflight.js": "ade566cebdee24d7ecd310d0b80bf534a7f17df56f245e806b7d3654fb636eb2",
+      "test/linear-exit-deploy-preflight-ordered.js": "aa6759e822481b1d4c4d677b337a2ce5d4819dbf46694d5494f513cf0a7ecd1c"
+    },
+    "prior_failed_receipt": "linear-exit-preflight-installed-818ee3feb0674e3184a8fdbdb3bcd2e1",
+    "prior_failure": {
+      "compatible": 148,
+      "absent": 1,
+      "key": "routine:production_component_fill(jsonb,jsonb,jsonb)",
+      "code": "CONTRACT_ABSENT"
+    }
   }
 }

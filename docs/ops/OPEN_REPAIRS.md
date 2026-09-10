@@ -20405,3 +20405,44 @@ the last one is the useful part: by the fifth round the finding is no longer a
 bug anyone would hit, only a place where the copy and the original could still
 part company. That is the point at which mirroring should have been structural
 instead — the question 196o records and this PR still does not answer.
+
+### 196al. Round 37: the sixth round on one predicate, and the end of mirroring it
+
+`couldBeClientTweak` normalized the role (`String(role).trim().toLowerCase()`)
+while `_calCommentsForView` compares `c.role === 'kasper'` exactly — and so does
+`_calMsgAudience`. A `role: "Kasper"` entry with no explicit audience is
+therefore **client-visible in the app** and was being refused here, which would
+report a delivered request as absent and send an operator to duplicate a request
+the client can already read. The copy had become STRICTER than the original,
+the opposite direction from 196ak one round earlier.
+
+The telling part is not the finding, it is that this file's two claim passes
+disagreed with **each other**: the id pass compared the role exactly, the body
+pass normalized it. Six rounds (196ah to here) were each one rule of one
+renderer restated in one more place.
+
+Measured live first, as always: all 8,902 card comment entries carry an exact
+lowercase role (`client` 3,456, `smm` 3,149, `kasper` 2,285, `designer` 9,
+`admin` 1, absent 2). **Zero variants, so no live row moves** — the second
+consecutive finding with no live victim, which is itself the signal.
+
+So this round does not mirror anything. The renderer's rules are written **once**
+in this file, as `rendererDrops` plus `clientCanSee`, and both passes call them:
+
+- `isVisibleOnCard` is now `clientCanSee` outright, keeping the deliberate
+  round-6 exception (a **deleted** entry claimed by id is still a claim, because
+  withdrawn is not unseen) by simply not applying the tombstone rule to the
+  claimed entry — the rule still governs the root map, as the renderer applies it.
+- `couldBeClientTweak` is `rendererDrops` + no reply + `clientCanSee`.
+
+147 checks. Two controls confirmed by exit status: re-normalizing the role, and
+giving the body pass its own copy of the rules again. Plus a **structural**
+check that neither the Kasper exclusion nor the audience rule appears more than
+once in the file's code — the first check here that would fail on a future
+session recreating the copy rather than on a wrong answer.
+
+**Thirty-seven rounds, 78 findings.** The remaining scope of 196o is unchanged
+and now better evidenced: within this file the rules are written once, but
+`index.html`, `scripts/f42-card-comment-import.js` and this job still hold three
+separate understandings of the same crosswalk. Six rounds is what one such
+duplication cost, measured.

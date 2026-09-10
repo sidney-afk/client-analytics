@@ -388,6 +388,54 @@ check('a canonical entry survives its tombstone, as the renderer lets it', () =>
     'the renderer shows a canonical entry despite deleted, so it can be the delivery');
 });
 
+/* ROUND 37. `_calCommentsForView` compares `c.role === 'kasper'` exactly, and
+   `_calMsgAudience` compares the role exactly too, so a `role: "Kasper"` entry
+   with no explicit audience IS shown to the client. Normalizing the role here
+   refused an entry the client can read, which would report a delivered request
+   as absent and send an operator to duplicate it. Live every role is an exact
+   lowercase string, so no current row moves. */
+check('a role variant the renderer still shows counts as delivered', () => {
+  for (const role of ['Kasper', ' kasper ', 'KASPER']) {
+    const entry = { id: 'x', body: 'Please fix the intro', role };
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 0,
+      `role ${JSON.stringify(role)} is client-visible in the app, so it can be the delivery`);
+  }
+});
+
+check('the exact renderer role still hides, on both claim passes', () => {
+  const byBody = { id: 'x', body: 'Please fix the intro', role: 'kasper', audience: 'client' };
+  const byId = { id: 'pc_x1', body: 'Please fix the intro', role: 'kasper', audience: 'client' };
+  for (const entry of [byBody, byId]) {
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 1,
+      'an exact kasper role is hard-excluded by the renderer even with audience client');
+  }
+});
+
+/* THE STRUCTURAL CHECK, and the actual lesson of rounds 32 to 37: the two claim
+   passes must not each carry their own copy of the renderer's rules. Six rounds
+   were spent on copies drifting from the original and from each other. */
+check('both claim passes share one visibility definition', () => {
+  const src = require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8');
+  /* Strip comments first: this file explains the rule in prose right above it,
+     and a prose mention is not a second implementation. */
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const roleTests = code.match(/role[^\n]*===\s*'kasper'/g) || [];
+  assert.equal(roleTests.length, 1,
+    'the Kasper exclusion must be written once, not once per pass: ' + JSON.stringify(roleTests));
+  const audience = code.match(/_calMsgAudience\((?:root|entry|c)\)\s*===\s*'client'/g) || [];
+  assert.equal(audience.length, 1,
+    'the audience rule must be written once, not once per pass: ' + JSON.stringify(audience));
+});
+
 check('a client root with is_tweak false still counts as delivered', () => {
   const onCard = JSON.stringify([
     { id: 'cal-1', body: 'Please fix the intro', role: 'client', is_tweak: false },

@@ -349,44 +349,67 @@ function stampSurvives(card, comp, stampValue) {
  * `list` is the whole cell, so a reply's root can be resolved the way the
  * renderer resolves it. Without it a reply carrying a matching id would be
  * judged on its own audience while the app judges it on its root's. */
-const isVisibleOnCard = (entry, list) => {
+/* ONE DEFINITION, CALLED TWICE. Rounds 32 to 37 were all the same failure:
+ * two predicates in this file each restating `_calCommentsForView`, drifting
+ * from it and from each other a rule at a time. By round 37 the two disagreed
+ * about their own Kasper check — one exact like the renderer, one normalized —
+ * and the finding had no live victim at all. A sixth mirror would have bought
+ * another round of the same. So the renderer's rules live here once, and both
+ * callers call them.
+ *
+ * `_calCommentsForView` is, in order: drop tombstoned (`deleted` unless
+ * `canonical`) and `hidden`; then, for a client link, drop every `role:
+ * 'kasper'` message outright ("never expose Kasper authorship" — a hard
+ * exclusion that overrides an explicit `audience: 'client'`); then keep only
+ * threads whose ROOT is client-addressed, replies inheriting their root.
+ *
+ * COMPARISONS MATCH THE RENDERER EXACTLY, including where that is stricter
+ * than it looks: `c.role === 'kasper'` is an exact compare, and `_calMsgAudience`
+ * compares the stored role exactly too, so a `role: "Kasper"` entry IS client-
+ * visible in the app. Normalizing here refused an entry the client can read and
+ * would have reported a delivered request as absent. Live today all 8,902 card
+ * entries carry an exact lowercase role, so nothing moves either way — the
+ * point is that a copy cannot be stricter than the original by accident.
+ *
+ * `deleted` and `hidden` are read for TRUTH, not for `=== true`, because that
+ * is how the renderer reads them and these cells hold schema-less JSON. */
+const rendererDrops = (c) => !c || (c.deleted && !c.canonical) || !!c.hidden;
+
+/* THE ROOT MAP IS BUILT FROM THE FILTERED LIST, as the renderer builds it.
+ * `_calCommentsForView` drops tombstoned and hidden entries FIRST and only then
+ * indexes by id — so a hidden root is absent from the map and its surviving
+ * reply falls back to being judged by its own audience. Indexing the raw list
+ * instead resurrects that root: a hidden client-addressed root with an internal
+ * reply would have been called visible, and the reply claimed. */
+const clientCanSee = (entry, list) => {
   if (!entry || entry.hidden) return false;
   if (entry.role === 'kasper') return false;
-  /* THE ROOT MAP IS BUILT FROM THE FILTERED LIST, as the renderer builds it.
-   * `_calCommentsForView` drops tombstoned and hidden entries FIRST and only
-   * then indexes by id — so a hidden root is absent from the map and its
-   * surviving reply falls back to being judged by its own audience. Indexing the
-   * raw list instead resurrects that root: a hidden client-addressed root with
-   * an internal reply would have been called visible, and the reply claimed. */
-  const rows = (Array.isArray(list) ? list : [])
-    .filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
   const byId = new Map();
-  for (const c of rows) if (c && c.id) byId.set(c.id, c);
+  for (const c of (Array.isArray(list) ? list : [])) {
+    if (!rendererDrops(c) && c.id) byId.set(c.id, c);
+  }
   const root = (entry.parent_id && byId.has(entry.parent_id)) ? byId.get(entry.parent_id) : entry;
   return _calMsgAudience(root) === 'client';
 };
+
+/* THE ID PASS. Deliberately does NOT apply `rendererDrops` to the entry itself:
+ * a DELETED entry claimed by id is still a claim, because the client withdrew
+ * their own request and re-delivering it would reopen a component over
+ * something they took back (the round-6 rule, which a first draft of the hidden
+ * fix broke). Hidden is different and IS refused: the client never took
+ * anything back, they simply cannot see it. The tombstone rule still governs
+ * the ROOT MAP, exactly as the renderer applies it. */
+const isVisibleOnCard = (entry, list) => clientCanSee(entry, list);
+
+/* THE BODY PASS. Text is not identity, so this one requires the entry to be
+ * something that could BE the client's request root: not tombstoned away, not a
+ * reply, and visible to the client. `[entry]` is its own list because a root
+ * resolves to itself. */
 function couldBeClientTweak(entry) {
   if (!entry) return false;
-  if (entry.hidden) return false;
-  /* The renderer's hard exclusion, which overrides an explicit client audience:
-   * a Kasper-authored message is never shown to a client at all. */
-  if (String(entry.role || '').trim().toLowerCase() === 'kasper') return false;
-  /* THE RENDERER'S TOMBSTONE SEMANTICS, NOT A NARROWER LOOKALIKE. The filter is
-   * `(!c.deleted || c.canonical)`: any TRUTHY `deleted` hides the entry, and a
-   * `canonical` entry survives being tombstoned. Testing `=== true` refused less
-   * than the app hides (`deleted: 1`, `deleted: "true"` from an older import
-   * would have been consumed as a delivery) and more than it hides (a canonical
-   * entry the client can still read would have been refused). Live today every
-   * tombstone is boolean and no `canonical` entry is deleted, so this changes
-   * nothing on current rows — it stops the predicate from drifting from the one
-   * it mirrors, which is the whole lesson of rounds 32 to 35.
-   *
-   * The deliberate exception stays where it was: an entry claimed by its ID is
-   * still a claim even when deleted, because withdrawn is not unseen. That pass
-   * does not call this function. */
-  if (entry.deleted && !entry.canonical) return false;
+  if (rendererDrops(entry)) return false;
   if (entry.parent_id) return false;
-  return _calMsgAudience(entry) === 'client';
+  return clientCanSee(entry, [entry]);
 }
 
 /* calendar_posts is keyed by (client, id), NOT by id alone: 13 live card ids are

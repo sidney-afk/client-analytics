@@ -477,18 +477,31 @@ setTimeout(() => {
      (ids repeat across clients); without pinged-at, a card pinged again in a
      LATER round is skipped forever, because its columns only ever hold the
      latest ping. Both were real defects here. (Codex P2 on PR 1383, twice.) */
-  for (const [part, re] of [
-    ['the client',     /where e\.client = [ps]\.client/g],
-    ['the card id',    /and e\.(?:post_id = p|sample_id = s)\.id/g],
-    ['the action',     /and e\.action = 'kasper_urgent_ping'/g],
-    ['the ping round', /and e\.payload->'pinged_at' = to_jsonb\([ps]\.kasper_urgent_pinged_at\)/g],
+  /* Per STATEMENT, not per file. Counting matches across the whole migration
+     and asserting "=== 2" reads as "on both tables" and is not: two in the
+     Calendar backfill and none in the Samples one still totals two, so a
+     Samples ping could again be suppressed by that sample's older event with
+     the suite green. This is the third time a check here described more than
+     it enforced, so the slices also pin the ALIAS and the id COLUMN, which
+     differ between the two. (Codex P2 on PR 1383, rounds 9, 10 and 11.) */
+  const stmts = led.split(/\binsert into public\./).slice(1);
+  const backfill = (evTable, srcTable, alias) =>
+    stmts.find(x => x.startsWith(evTable)
+      && new RegExp('from public\\.' + srcTable + ' ' + alias + '\\b').test(x));
+  for (const [label, slice, alias, idCol] of [
+    ['the Calendar backfill', backfill('calendar_post_events', 'calendar_posts', 'p'), 'p', 'post_id'],
+    ['the Samples backfill',  backfill('sample_review_events', 'sample_reviews', 's'), 's', 'sample_id'],
   ]) {
-    /* One check per DIMENSION, on both tables. The previous version of this
-       claimed to pin all four and asserted two, which is the same shape of
-       hole it was written to close: a test that describes more than it
-       checks. Each of these is verified to fail on its own. */
-    check('the backfill de-dup key pins ' + part + ', on both tables',
-      (led.match(re) || []).length === 2);
+    check(label + ' is present as its own statement', !!slice);
+    if (!slice) continue;
+    for (const [part, re] of [
+      ['the client',     new RegExp('where e\\.client = ' + alias + '\\.client', 'g')],
+      ['the card id',    new RegExp('and e\\.' + idCol + ' = ' + alias + '\\.id', 'g')],
+      ['the action',     /and e\.action = 'kasper_urgent_ping'/g],
+      ['the ping round', new RegExp("and e\\.payload->'pinged_at' = to_jsonb\\(" + alias + "\\.kasper_urgent_pinged_at\\)", 'g')],
+    ]) {
+      check(label + ' de-dups on ' + part, (slice.match(re) || []).length === 1);
+    }
   }
 
   const mig = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8');

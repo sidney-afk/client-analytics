@@ -20373,3 +20373,35 @@ a role blacklist, then the wrong surface's function, then the right function
 without its caller's other rules, and now those rules in the wrong order. The
 progression is worth keeping: each step was closer and each was still not the
 thing itself.
+
+### 196ak. Round 36: the fifth round on the same predicate, and the first with no live victim
+
+`couldBeClientTweak` refused `entry.deleted === true`. `_calCommentsForView`
+filters on `(!c.deleted || c.canonical)`, which is two differences, not one: any
+TRUTHY tombstone hides an entry (`deleted: 1`, `deleted: "true"` from an older
+import), and a `canonical` entry survives being tombstoned. So the predicate
+refused less than the app hides in one direction and more in the other, and in
+the first direction a hidden entry sharing the wording could be consumed as a
+delivery, suppressing the missing-request report.
+
+Measured live before fixing, as every round here has been: across 8,902 card
+comment entries, **every** `deleted` value is boolean (5,370 true, 3,511 absent)
+and `canonical: true` appears only alongside `deleted: false` (15 entries). **No
+live row moves either way.** This is the first finding in this PR with no live
+victim at all, and it was still worth taking: the value of mirroring is that the
+predicate cannot drift from the one it mirrors, and four consecutive rounds
+(196ah to 196aj) were paid for exactly that drift.
+
+The deliberate exception is unchanged and still deliberate: an entry claimed by
+its **id** is still a claim when deleted, because withdrawn is not unseen. That
+pass does not call this function.
+
+144 checks, two controls confirmed by exit status: one restoring `=== true`
+(the truthy tombstone is consumed again), one dropping the canonical exemption
+(a visible entry stops counting as delivery).
+
+**Thirty-six rounds, 77 findings.** Five rounds on one predicate. The shape of
+the last one is the useful part: by the fifth round the finding is no longer a
+bug anyone would hit, only a place where the copy and the original could still
+part company. That is the point at which mirroring should have been structural
+instead — the question 196o records and this PR still does not answer.

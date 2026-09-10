@@ -360,6 +360,34 @@ check('the body fallback will not consume an entry that is not the client\'s', (
   }
 });
 
+/* ROUND 36. The renderer hides on TRUTHY `deleted` and exempts `canonical`;
+   this predicate tested `deleted === true`, which refuses less than the app
+   hides and more. Live every tombstone is boolean and no canonical entry is
+   deleted, so no current row moves — the point is that the predicate stops
+   drifting from the one it mirrors. */
+check('a truthy non-boolean tombstone cannot be a delivery', () => {
+  for (const tomb of [1, 'true', 'yes']) {
+    const entry = { id: 'x', body: 'Please fix the intro', role: 'client', deleted: tomb };
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 1,
+      `deleted: ${JSON.stringify(tomb)} is hidden by the renderer and must not count as delivery`);
+  }
+});
+
+check('a canonical entry survives its tombstone, as the renderer lets it', () => {
+  const entry = { id: 'x', body: 'Please fix the intro', role: 'client',
+    deleted: true, canonical: true };
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 0,
+    'the renderer shows a canonical entry despite deleted, so it can be the delivery');
+});
+
 check('a client root with is_tweak false still counts as delivered', () => {
   const onCard = JSON.stringify([
     { id: 'cal-1', body: 'Please fix the intro', role: 'client', is_tweak: false },

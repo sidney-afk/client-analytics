@@ -371,7 +371,20 @@ function couldBeClientTweak(entry) {
   /* The renderer's hard exclusion, which overrides an explicit client audience:
    * a Kasper-authored message is never shown to a client at all. */
   if (String(entry.role || '').trim().toLowerCase() === 'kasper') return false;
-  if (entry.deleted === true) return false;
+  /* THE RENDERER'S TOMBSTONE SEMANTICS, NOT A NARROWER LOOKALIKE. The filter is
+   * `(!c.deleted || c.canonical)`: any TRUTHY `deleted` hides the entry, and a
+   * `canonical` entry survives being tombstoned. Testing `=== true` refused less
+   * than the app hides (`deleted: 1`, `deleted: "true"` from an older import
+   * would have been consumed as a delivery) and more than it hides (a canonical
+   * entry the client can still read would have been refused). Live today every
+   * tombstone is boolean and no `canonical` entry is deleted, so this changes
+   * nothing on current rows — it stops the predicate from drifting from the one
+   * it mirrors, which is the whole lesson of rounds 32 to 35.
+   *
+   * The deliberate exception stays where it was: an entry claimed by its ID is
+   * still a claim even when deleted, because withdrawn is not unseen. That pass
+   * does not call this function. */
+  if (entry.deleted && !entry.canonical) return false;
   if (entry.parent_id) return false;
   return _calMsgAudience(entry) === 'client';
 }

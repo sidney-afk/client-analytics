@@ -633,5 +633,25 @@
     ],
     "full_baseline_proven": false,
     "filming_plans_covered": false
+  },
+  "preflight_metadata_diagnostics": {
+    "classification": "OFFLINE_TEST_AND_ISOLATED_POSTGRES",
+    "status": "PASS",
+    "offline_checks": 26,
+    "actual_absent_relation_refused": true,
+    "configuration_requests_after_absence": 0,
+    "json_shape_cases": 7,
+    "receipt": "linear-exit-preflight-c7727a2e0b414f45b18013d319a22cdd",
+    "unit_log_sha256": "11c860d96109dce02989a734813974c84ece9ebfbf5d9332f0e742d2ed0835fa",
+    "source_base": "c5219b25c25abe2e1d94f93c18aeb551e63cbfb8",
+    "working_tree_changes": true,
+    "source_hashes": {
+      "scripts/linear-exit-deploy-preflight.js": "dbf6ab5b4ce4ae9e33050000c2b048183bbae9aecd7ceeba84f740f49f7b53f3",
+      "test/linear-exit-deploy-preflight.js": "74ff38f8b3447c119f498492257a0d4b71817e68ac9f1f617cf0e0c9416ec6b3",
+      "test/linear-exit-deploy-preflight-postgres.js": "c473379fc80f3e546122ef940719c4bc94a2f77bb768e96af248f9ea2914669d"
+    },
+    "server_stopped": true,
+    "hosted_verified": false,
+    "atomic_snapshot": false
   }
 }

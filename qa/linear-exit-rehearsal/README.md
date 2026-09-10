@@ -171,3 +171,9 @@ The recovery-upstream-ledger lane now uses the same published inventory order
 and scoped bootstrap as installation-order. It retains 31 recovery assertions
 across 52 history-v11 tables. Older recovery lanes retain their original setup.
 See RESULTS.md for revision-specific evidence and retained failed attempts.
+
+Use `-Lane preflight` for the focused disposable PostgreSQL readiness diagnostic
+test: actual missing-relation refusal before configuration reads and seven JSON
+shape cases. The latter use exact SQL predicates with a synthetic row source.
+Run `node test/linear-exit-deploy-preflight.js` for the offline transport/contract
+cases. Neither command invokes the hosted Management API or authorizes release.

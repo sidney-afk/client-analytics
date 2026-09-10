@@ -98,7 +98,7 @@ async function rejectsCode(run, code) {
       && query.includes('production_notification_reconciliations.provider_message_id')
       && query.includes('sequence:production_notification_reconciliations_id_seq')
       && query.includes('config:urgent_video_destination')
-      && query.includes("jsonb_object_keys(c.value)")
+      && query.includes("jsonb_object_keys(case when jsonb_typeof(c.value)='object' then c.value else '{}'::jsonb end)")
       && query.includes("'^[CG][A-Z0-9]{8,}$'"));
   ok('routine compatibility binds each final owner body and its actual security mode',
     query.includes('security_definer,service_execute')
@@ -117,16 +117,31 @@ async function rejectsCode(run, code) {
   const calls = [];
   const token = 'private-fixture-token';
   const success = await readContract({ token, projectRef: 'a'.repeat(20), fetchImpl: async (url, init) => {
-    calls.push({ url, init }); return response(200, rows());
+    calls.push({ url, init }); return response(200, rows().filter(row=>row.object_key.startsWith('config:')===(calls.length===2)));
   } });
   ok('a complete compatible read returns the bounded public-safe receipt',
     success.status === 'PASS' && success.contract === CONTRACT && success.read_only === true
       && success.checked_objects === rows().length
       && !JSON.stringify(success).includes(token));
-  ok('live mode uses one redirect-refusing Management API catalog request',
-    calls.length === 1 && calls[0].init.method === 'POST' && calls[0].init.redirect === 'error'
+  ok('live mode validates metadata before a separate redirect-refusing configuration read',
+    calls.length === 2 && calls.every(call=>call.init.method === 'POST' && call.init.redirect === 'error')
       && calls[0].url.endsWith('/database/query')
-      && JSON.parse(calls[0].init.body).query === query);
+      && JSON.parse(calls[0].init.body).query === contractQuery('metadata')
+      && JSON.parse(calls[1].init.body).query === contractQuery('configuration'));
+  ok('metadata does not reference either application relation as a SQL data source',
+    !/\b(?:join|from) public\.(?:syncview_runtime_flags|production_notification_config)\b/i.test(contractQuery('metadata')));
+  for(const missing of ['relation:production_notification_config','column:production_notification_config.value','column:syncview_runtime_flags.key','column:syncview_runtime_flags.value']){
+    let attempts=0;
+    const refused=await rejectsCode(()=>readContract({token,projectRef:'a'.repeat(20),fetchImpl:async()=>{
+      attempts++;return response(200,rows().filter(row=>!row.object_key.startsWith('config:')).map(row=>row.object_key===missing?{...row,present:false,compatible:false}:row));
+    }}),'CONTRACT_ABSENT');
+    ok('missing '+missing+' refuses before config SQL',refused&&attempts===1);
+  }
+  let malformedCalls=0;
+  ok('wrong config column type refuses before configuration read',await rejectsCode(()=>readContract({token,projectRef:'a'.repeat(20),fetchImpl:async()=>{
+    malformedCalls++;return response(200,rows().filter(row=>!row.object_key.startsWith('config:')).map(row=>row.object_key==='column:production_notification_config.value'?{...row,compatible:false}:row));
+  }}),'CONTRACT_MISMATCH')&&malformedCalls===1);
+  ok('scalar destination config is guarded before jsonb_object_keys',contractQuery('configuration').includes("jsonb_object_keys(case when jsonb_typeof(c.value)='object' then c.value else '{}'::jsonb end)"));
 
   ok('a management authorization failure is reported without retrying or exposing its body',
     await rejectsCode(() => readContract({ token, projectRef: 'a'.repeat(20),

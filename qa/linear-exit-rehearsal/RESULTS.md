@@ -1,5 +1,23 @@
 # Completed isolated evidence
 
+## Latest read-only readiness diagnostic preparation
+
+The deploy preflight now validates catalog metadata before reading configuration.
+Missing notification configuration reports CONTRACT_ABSENT with fixed public
+object keys, instead of failing while parsing a reference to an absent table.
+Runtime flag key/value columns are also validated before configuration reads.
+Scalar destination JSON is guarded before object-key enumeration. Metadata alone
+cannot produce PASS: both exact response sets and the combined contract must pass.
+
+Validation: 26 offline checks pass; disposable PG16 proves an actually absent
+notification table stops after the metadata request, plus seven JSON-shape cases
+using the exact configuration predicates and a synthetic row source. The server
+stopped, exit 0. Source base `c5219b25` plus working-tree changes. Focused review
+found no blocker. These are two separate read-only SELECTs, not an atomic snapshot.
+No hosted preflight rerun or readiness claim was made. The earlier hosted absence
+remains historical evidence. Installation HOLD; no merge or deployment.
+
+
 ## Latest recovery under the shared installation order
 
 The recovery-upstream-ledger lane now builds its source using the same published

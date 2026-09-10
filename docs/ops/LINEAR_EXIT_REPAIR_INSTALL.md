@@ -15,8 +15,10 @@ deployment:
 - [manual onboarding lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml): all 13 functions are one manual release scope. The check runs before the eight staff functions, not merely before the pinned provider/notification/gateway group. That group deploys `linear-outbound`, then `notify`, then `production-write`, then the two readers; the gateway cannot precede the sender it may wake.
 - [F27 Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml): the SQL check runs before `linear-outbound`, the first of four functions. Because this lane does not own `notify`, a second read-only gate requires the exact candidate `notify` closure and `verify_jwt=false` to be live before its first deploy.
 
-The check issues one catalog-only `SELECT` through the Supabase Management API
-using the workflows' existing protected access token. It compares exact
+The check first inspects prerequisite relation/column metadata through a read-only
+`SELECT`, using the workflows' existing protected access token. Only compatible
+prerequisites allow the second read-only configuration `SELECT` through
+the Supabase Management API. It compares exact
 repository-derived function-body hashes, search paths, service/public grants,
 enabled receipt triggers, required columns and configuration shapes. Its output
 is only a PASS aggregate or a fixed failure code plus repository-public object
@@ -377,10 +379,10 @@ supported resume boundary, and retain every failed receipt.
 
 A fresh hosted schema capture and all live installation/cutover actions remain
 separate gates. The current read-only preflight stops on absent notification
-configuration with SQLSTATE42P01. A future diagnostic-only improvement could
-validate metadata before querying optional configuration tables and guard JSON
-object inspection against scalar input; it must preserve fail-closed behavior.
-No preflight implementation change or hosted migration was made for this finding.
+configuration with SQLSTATE42P01. The prepared diagnostic improvement now validates prerequisite metadata before
+reading configuration relations and guards JSON object inspection against scalar
+input. It remains fail closed; local tests do not establish current hosted
+configuration. No hosted migration is authorized or implied.
 
 ### Receipt-order source finding
 

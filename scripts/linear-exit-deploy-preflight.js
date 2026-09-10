@@ -3,8 +3,9 @@
 /*
  * Read-only database contract gate for the Linear-exit production-write
  * release. The Management API endpoint is POST because it accepts SQL, but
- * QUERY is one catalog SELECT: it cannot change schema, flags or application
- * data. Output is an aggregate public-safe receipt; database rows and function
+ * two SELECTs validate catalog metadata before reading configuration. These
+ * are separate reads, not an atomic snapshot; neither changes schema, flags
+ * or application data. Output is an aggregate public-safe receipt; database rows and function
  * source never leave the process.
  */
 const crypto = require('node:crypto');
@@ -110,6 +111,8 @@ const TRIGGERS = Object.freeze([
 ]);
 
 const COLUMNS = Object.freeze([
+  ['syncview_runtime_flags.key','syncview_runtime_flags','key','text',true],
+  ['syncview_runtime_flags.value','syncview_runtime_flags','value','jsonb',true],
   ['production_intake_manifests.native_epochs', 'production_intake_manifests', 'native_epochs', 'jsonb', true],
   ['production_label_catalog_versions.operator_attestation', 'production_label_catalog_versions', 'operator_attestation', 'jsonb', false],
   ['production_native_identifier_mint.next_ordinal', 'production_native_identifier_mint', 'next_ordinal', 'bigint', true],
@@ -236,7 +239,8 @@ function expectedObjects() {
   };
 }
 
-function contractQuery() {
+function contractQuery(mode = 'all') {
+  if(!['all','metadata','configuration'].includes(mode))throw new Error('invalid_query_mode');
   const expected = expectedObjects();
   const routines = expected.routines.map(row =>
     `(${sqlString(row.key)},${sqlString(row.signature)},${sqlString(row.bodyMd5)},${sqlString(row.searchPath)},${row.securityDefiner},${row.serviceExecute})`).join(',\n');
@@ -244,7 +248,7 @@ function contractQuery() {
     `(${sqlString(`trigger:${key}`)},${sqlString(table)},${sqlString(trigger)},${sqlString(fn)},${tgtype})`).join(',\n');
   const columns = COLUMNS.map(([key, table, column, type, notNull]) =>
     `(${sqlString(`column:${key}`)},${sqlString(table)},${sqlString(column)},${sqlString(type)},${notNull})`).join(',\n');
-  return `with expected_routine(object_key,signature,body_md5,search_path,security_definer,service_execute) as (values\n${routines}\n),
+  const query = `with expected_routine(object_key,signature,body_md5,search_path,security_definer,service_execute) as (values\n${routines}\n),
 routine_rows as (
   select e.object_key,(p.oid is not null) as present,
     coalesce(md5(p.prosrc)=e.body_md5
@@ -279,7 +283,7 @@ ${columns}
       and pg_get_constraintdef(x.oid) like '%^svproj_video_[0-9a-f]{32}$%'
       and pg_get_constraintdef(x.oid) like '%^svproj_graphics_[0-9a-f]{32}$%',false) compatible
     from (values(true)) seed(v) left join pg_constraint x
-      on x.conrelid='public.clients'::regclass and x.conname='clients_native_project_ids_object'
+      on x.conrelid=to_regclass('public.clients') and x.conname='clients_native_project_ids_object'
   union all
   select 'index:clients.clients_native_project_ids_video_unique',(i.indexrelid is not null),
     coalesce(i.indisunique and i.indisvalid and i.indisready
@@ -319,7 +323,7 @@ ${columns}
   union all
   select 'constraint:production_native_ordinary_receipt_admissions.receipt_id_fkey',(x.oid is not null),
     coalesce(x.contype='f' and x.convalidated and x.condeferrable and x.condeferred
-      and x.confrelid='public.mirror_outbox'::regclass
+      and x.confrelid=to_regclass('public.mirror_outbox')
       and pg_get_constraintdef(x.oid) like 'FOREIGN KEY (receipt_id) REFERENCES mirror_outbox(id) DEFERRABLE INITIALLY DEFERRED%',false)
     from (values(true)) seed(v) left join pg_constraint x
       on x.conrelid=to_regclass('public.production_native_ordinary_receipt_admissions')
@@ -429,7 +433,7 @@ ${columns}
     from (values('production_native_ordinary_receipts')) e(key) left join public.syncview_runtime_flags f using(key)
   union all
   select 'config:urgent_video_destination',(c.key is not null),coalesce(jsonb_typeof(c.value)='object'
-    and (select count(*)=1 from jsonb_object_keys(c.value))
+    and (select count(*)=1 from jsonb_object_keys(case when jsonb_typeof(c.value)='object' then c.value else '{}'::jsonb end))
     and coalesce(c.value->>'channel_id','')~'^[CG][A-Z0-9]{8,}$',false)
     from (values('urgent_video_destination')) e(key) left join public.production_notification_config c using(key)
 )
@@ -439,15 +443,21 @@ union all select object_key,present,compatible from column_rows
 union all select object_key,present,compatible from schema_rows
 union all select object_key,present,compatible from config_rows
 order by object_key`;
+  if(mode==='all')return query;
+  const boundary='), config_rows as (';
+  const at=query.indexOf(boundary);
+  if(at<0)throw new Error('query_partition_missing');
+  if(mode==='metadata')return query.slice(0,at)+')\nselect object_key,present,compatible from routine_rows\nunion all select object_key,present,compatible from trigger_rows\nunion all select object_key,present,compatible from column_rows\nunion all select object_key,present,compatible from schema_rows\norder by object_key';
+  return 'with config_rows as ('+query.slice(at+boundary.length,query.indexOf('\nselect object_key,present,compatible from routine_rows'))+'\nselect object_key,present,compatible from config_rows order by object_key';
 }
 
 class PreflightError extends Error {
   constructor(code, objectKeys = []) { super(code); this.code = code; this.objectKeys = objectKeys; }
 }
 
-function validateRows(rows) {
+function validateRows(rows, keys = expectedObjects().keys) {
   if (!Array.isArray(rows)) throw new PreflightError('READ_RESPONSE_INVALID');
-  const expected = expectedObjects().keys.slice().sort();
+  const expected = keys.slice().sort();
   const actual = rows.map(row => String(row && row.object_key || '')).sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw new PreflightError('READ_RESPONSE_INVALID');
@@ -462,13 +472,14 @@ function validateRows(rows) {
 async function readContract({ token, projectRef, fetchImpl = globalThis.fetch }) {
   if (!token || !/^[a-z0-9]{20}$/.test(projectRef || '')) throw new PreflightError('CONFIG_MISSING');
   const url = `https://api.supabase.com/v1/projects/${projectRef}/database/query`;
+  async function read(query) {
   let response;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       response = await fetchImpl(url, {
         method: 'POST', redirect: 'error',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: contractQuery() }),
+        body: JSON.stringify({ query }),
       });
     } catch (_) {
       if (attempt === 3) throw new PreflightError('READ_FAILED');
@@ -479,7 +490,14 @@ async function readContract({ token, projectRef, fetchImpl = globalThis.fetch })
   }
   let rows;
   try { rows = await response.json(); } catch (_) { throw new PreflightError('READ_RESPONSE_INVALID'); }
-  return validateRows(rows);
+  return rows;
+  }
+  const keys=expectedObjects().keys;
+  const metadata=await read(contractQuery('metadata'));
+  validateRows(metadata,keys.filter(key=>!key.startsWith('config:')));
+  const configuration=await read(contractQuery('configuration'));
+  validateRows(configuration,keys.filter(key=>key.startsWith('config:')));
+  return validateRows([...metadata,...configuration]);
 }
 
 async function main() {

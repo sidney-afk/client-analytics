@@ -930,6 +930,35 @@ check('every refused approval is reported, never silently dropped', () => {
   }
 });
 
+/* ROUND 14. Round 13's contract — every refused approval appears in the report —
+   did not reach the narrow write filter, which exited before any reporting.
+   A client approval whose carrier never wrote is exactly what an operator is
+   hunting when BOTH legs failed, and silence there reads as "nothing to
+   investigate". The write policy is unchanged; only the report grew.
+   Live: 5 such rows, 4 already stamped (noise), 1 a genuinely lost approval
+   this job named nowhere. */
+check('an approval whose carrier never wrote is reported, never written', () => {
+  for (const carrier of ['pending', 'skipped', 'stale', 'failed', '']) {
+    const { findings, skipped } = detect(world({ outbox: [APPROVE({ status: carrier })] }));
+    assert.equal(findings.length, 0, `carrier=${carrier} must never produce a write`);
+    assert.equal(skipped.length, 1, `carrier=${carrier} must produce a report line`);
+    assert.equal(skipped[0].reason, 'carrier_did_not_write');
+    assert.equal(skipped[0].component, 'video');
+  }
+});
+
+/* The four-of-five case: an approval the carrier never wrote, on a card that
+   already carries the stamp, is not a lead — it is noise in a report a person
+   has to read. */
+check('an unwritten approval on an already-stamped card is not reported', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE({ status: 'stale' })],
+    cards: [CARD({ client_video_approved_at: '2026-09-04T00:00:00.000Z' })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped.length, 0, 'a report nobody can act on is worse than a shorter report');
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

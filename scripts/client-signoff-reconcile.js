@@ -440,10 +440,32 @@ function detect(world) {
   const latestApprove = new Map();
   for (const row of world.outbox) {
     if (row && row.test_only === true) continue;
-    if (String((row && row.status) || '').toLowerCase() !== 'written') continue;
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
     const to = String((row && row.payload && row.payload.status) || '').toLowerCase();
     if (to !== 'approved') continue;
+    /* THE NARROW WRITE POLICY IS NOT A LICENCE TO SAY NOTHING. Only a row the
+     * carrier actually wrote is acted on, but a client approval whose carrier
+     * status is `pending`, `skipped`, `stale` or a failure is the very case an
+     * operator is looking for when both legs went wrong: the outbound never
+     * landed AND the browser never wrote the card. Exiting here silently
+     * produced neither a stamp nor a line, which reads as "nothing to
+     * investigate".
+     *
+     * Reported ONLY when the stamp is actually absent. Live: of the 5 such rows
+     * in the window, 4 are already stamped and would be noise; 1 is a genuinely
+     * lost client approval that this job named nowhere before now. */
+    const carrier = String((row && row.status) || '').toLowerCase();
+    if (carrier !== 'written') {
+      const unwritten = resolve(row && row.entity_id, row && row.client_slug);
+      if (unwritten && typeof unwritten !== 'string'
+          && unwritten.component
+          && !String(unwritten.card[STAMP_FIELD(unwritten.component)] || '').trim()) {
+        skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write',
+          carrier_status: carrier || '(none)',
+          card: unwritten.card.id, component: unwritten.component });
+      }
+      continue;
+    }
     const hit = resolve(row && row.entity_id, row && row.client_slug);
     if (typeof hit === 'string') {
       skipped.push({ kind: 'stamp',

@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 77 checks, each
+construction through fixtures — no credentials, no network. 79 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -336,6 +336,15 @@ link check accepted it through the graphic slot and the caller then produced
 neither a repair nor a report line. Every refusal now writes a line into
 `skipped`; a committed client approval disappearing silently is the one outcome
 this job must not have, because the report is what a person acts on.
+
+That contract reaches the **narrow write filter** too. Only a row the carrier
+actually wrote is ever acted on, but an approval whose carrier status is
+`pending`, `skipped`, `stale` or a failure is precisely what an operator is
+hunting when BOTH legs went wrong — the outbound never landed and the browser
+never wrote the card. It is reported as `carrier_did_not_write`, and only when
+the stamp is genuinely absent: of the five such rows live, four are already
+stamped and would be noise, and one is a lost client approval this job named
+nowhere before. A report nobody can act on is worse than a shorter one.
 
 This lives in `resolve()` next to the client rule, for the reason round 10
 established: identity questions answered per call site get answered

@@ -19723,3 +19723,36 @@ suite's exit status, not a pattern chosen in advance.
 
 **Thirteen rounds, 32 findings.** Round 13 was a defect in 12's fix, which was a
 defect in 11's fix.
+
+### 195o. Round 14: the report contract did not reach the write filter
+
+195n established that every refused approval appears in the report. It did not
+reach the narrow write filter, which exits before any reporting: a committed
+client approval whose carrier status is `pending`, `skipped`, `stale` or a
+failure produced neither a stamp nor a line. That is the exact case an operator
+is hunting when BOTH legs failed — the outbound never landed and the browser
+never wrote the card — and silence there reads as "nothing to investigate".
+
+The write policy is unchanged; only the report grew. Reported as
+`carrier_did_not_write`, and only when the stamp is genuinely absent: of the
+**5** such rows in the window, **4 are already stamped** and would be noise, and
+**1 is a lost client approval this job named nowhere**. A report nobody can act
+on is worse than a shorter one.
+
+79 checks, two controls, both confirmed by the suite's **exit status** rather
+than by grepping its output — the correction from 195n.
+
+**Fourteen rounds, 33 findings.** Rounds 11, 12, 13 and 14 were each a defect or
+an incompleteness in the previous round's fix, all on the stamp path that the
+round-8 narrowing called settled.
+
+**A note for whoever picks this up.** Every one of those fixes is small,
+measured and zero- or one-row in live exposure, and none of them is wrong. But
+the shape is no longer "review finds bugs" — it is a patch sequence generating
+its own next finding, which is what item 189 records about the browser-side
+attempt before it was abandoned. The structural question, which is bigger than
+this PR and is the owner's to decide: should this job reconstruct card identity
+out of `deliverables`, `calendar_posts` and `mirror_outbox` at all, or should
+the crosswalk live behind ONE shared helper that `index.html`,
+`scripts/f42-card-comment-import.js` and this job all call? Four consecutive
+rounds have been that question arriving in pieces.

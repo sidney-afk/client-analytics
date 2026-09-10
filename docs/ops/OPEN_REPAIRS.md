@@ -18895,7 +18895,7 @@ browser), which is an owner decision about who owns the card row and is
 deliberately NOT taken here. The planned review-surface fault sweep across
 Client / SMM / Kasper should shape it before it is built.
 
-## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Recovery restores the status and silently loses the client's sign-off, so the record says the work was approved but not that the CLIENT approved it
+## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Two silent losses on the review surfaces: the client's sign-off stamp, and a change request that never reaches the card
 
 **Found by the review-surface sweep (`qa/review-surface-sweep`), and it explains
 an anomaly item 186 recorded as unexplained.**
@@ -18923,6 +18923,21 @@ work was approved; nothing says who approved it. On a product whose entire
 service is client approval, that row IS the evidence, and after any network
 hiccup it is blank. Nobody notices, because the card looks correct.
 
+**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE: a change request commits on the
+server and never reaches the card.** Client and SMM alike, under a lost gateway
+answer, a 5xx after commit, or a never-sent request that later resumes: the
+gateway records the comment, `calendar_posts` gets nothing, and the resume does
+not close the gap. The editor opens the card and sees no change request while
+the server holds one. This one is worse in a specific way: with the approve at
+least the STATUS eventually agrees, whereas here the card shows no sign that
+anything was ever asked for.
+
+It was missed twice, and the reason is worth recording: the sweep's scorer
+skipped its thread check whenever no source write landed, which is precisely the
+case where the split happens, so two published versions of the sweep concluded
+"requesting a change is sound on both surfaces". A committed comment is a fact
+about the SERVER and has to be compared whether or not any source patch landed.
+
 **Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
 belongs with the server-side reconciler rather than as another browser patch:
 the recovery path that restores the status is the same one that would carry the
@@ -18930,5 +18945,6 @@ stamp, and OPEN_REPAIRS 189 records why patching that path in the browser was
 abandoned after seven review findings.
 
 **What would prove a fix:** the sweep's `client / approve` rows flag zero
-companion problems across all four faults, and the control still writes the
-stamp.
+companion problems across all four faults with the control still writing the
+stamp, AND every `request-change` row carries its committed comment into the
+source row.

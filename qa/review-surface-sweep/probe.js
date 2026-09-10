@@ -272,13 +272,25 @@ function score(out) {
      companion fields would flag correct behaviour -- the over-flagging
      direction of the same mistake as scoring too narrowly. */
   const persistedSomething = Object.keys(row).length > 0;
+  const commentCommitted = out.gatewayCommits.some(c => c.operation === 'comment');
   const companions = [];
   if ((out.action === 'approve' || out.action === 'approve-to-client') && persistedSomething) {
     if (sheetStatus && row.status && String(row.status) !== sheetStatus) companions.push('overall status ' + row.status + ' != component ' + sheetStatus);
     if (out.actor === 'client' && sheetStatus === 'Approved' && !row.client_video_approved_at) companions.push('client sign-off stamp missing');
   }
-  if ((out.action === 'request-change' || out.action === 'comment') && persistedSomething) {
-    if (!String(row.video_tweaks || '').replace(/\s/g, '').match(/\[.+\]/)) companions.push('thread not carried into the source row');
+  /* A COMMITTED COMMENT IS A FACT ABOUT THE SERVER, NOT ABOUT THE SOURCE ROW,
+     so it must be compared whether or not any source patch landed. Gating this
+     on `persistedSomething` hid six real disagreements: a change request whose
+     gateway answer was lost commits the comment server-side and writes nothing
+     to the card, which is precisely the dual-write split this sweep exists to
+     find, and it was scoring as agreement. The gate is right for the approve
+     companions below (they describe a status write that never happened) and
+     wrong here. */
+  const threadInRow = !!String(row.video_tweaks || '').replace(/\s/g, '').match(/\[.+\]/);
+  if (commentCommitted && !threadInRow) {
+    companions.push('comment committed on the server but never carried into the source row');
+  } else if ((out.action === 'request-change' || out.action === 'comment') && persistedSomething && !threadInRow) {
+    companions.push('thread not carried into the source row');
   }
   const serverMoved = out.gatewayCommits.some(c => c.operation === 'status');
   const expectedCard = NATIVE_TO_CARD[String(out.nativeStatus)] || String(out.nativeStatus);

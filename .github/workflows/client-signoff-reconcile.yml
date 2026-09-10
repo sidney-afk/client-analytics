@@ -2,8 +2,15 @@ name: Client review ⇄ card reconcile
 
 # Completes a client review action the server already committed but whose card
 # never received it, because the browser that owed the second leg went away
-# (OPEN_REPAIRS 189/190/192). Detect-and-repair only; it never originates a
-# decision. See scripts/client-signoff-reconcile.js and
+# (OPEN_REPAIRS 189/190/195). Detect-and-repair only; it never originates a
+# decision.
+#
+# IT WRITES EXACTLY ONE THING: a missing client sign-off stamp. Change requests
+# that never reached a card are DETECTED AND REPORTED, never written (owner
+# decision, OPEN_REPAIRS 195i) — read them out of the run log; they need a
+# person.
+#
+# See scripts/client-signoff-reconcile.js and
 # docs/ops/CLIENT_SIGNOFF_RECONCILE.md.
 #
 # Dispatch-only, like the other reconcilers, so GitHub cron cannot duplicate a
@@ -13,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Preview only — report repairs without writing'
+        description: 'Preview only. Even on a write run, sign-off stamps are the only thing written'
         type: boolean
         default: true
       cap:

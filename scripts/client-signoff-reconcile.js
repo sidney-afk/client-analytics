@@ -145,12 +145,23 @@ const STATUS_FIELD = (comp) => comp + '_status';
 function parseComments(cell) {
   const raw = String(cell || '').trim();
   if (!raw) return [];
+  let list;
   try {
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list.filter(c => c && typeof c === 'object') : [];
+    list = JSON.parse(raw);
   } catch (_) {
-    return null;   // unparseable: caller must treat the card as unreadable, not empty
+    return null;   // unreadable: the caller must skip, never treat it as empty
   }
+  /* Valid JSON that is not an array, or an array holding entries WITHOUT ids,
+   * is an INCOMPLETE read, not an empty one — the same judgement the browser's
+   * `_calLoadCommentsField` makes. Treating either as empty is how a repair
+   * erases legacy feedback: `stringifyComments` and the merge RPC drop id-less
+   * entries, so writing a rebuilt array over a cell holding them destroys real
+   * client words that simply predate the id field. Refuse instead. */
+  if (!Array.isArray(list)) return null;
+  const objects = list.filter(c => c && typeof c === 'object');
+  if (objects.length !== list.length) return null;
+  if (objects.some(c => !c.id)) return null;
+  return objects;
 }
 function stringifyComments(list) {
   const keep = Array.isArray(list) ? list.filter(c => c && c.id) : [];
@@ -159,13 +170,22 @@ function stringifyComments(list) {
 const normText = (s) => String(s == null ? '' : s).normalize('NFC').replace(/\s+/g, ' ').trim();
 
 /* ── reads ──────────────────────────────────────────────────────────────── */
-async function restRows(table, query) {
+/* Offset pagination without a total order is not stable: each page is a separate
+ * query and the database may order them differently, so a row can be skipped or
+ * repeated between pages. The outbox read alone exceeds one page. A SKIPPED row
+ * is the dangerous direction here — if it is a later reopen, the supersession
+ * test never sees it and a stale approval gets restored. Every paged read is
+ * therefore ordered by a unique column. */
+async function restRows(table, query, orderBy) {
+  /* The order column is checked FIRST: a missing one is a defect in this file,
+   * true in every environment, while a missing credential is environmental. */
+  if (!orderBy) throw new Error(`restRows(${table}) needs a unique order column`);
   if (!SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required (or use --fixtures)');
   const out = [];
   let offset = 0;
   const page = 1000;
   for (;;) {
-    const url = `${REST}/${table}?${query}&limit=${page}&offset=${offset}`;
+    const url = `${REST}/${table}?${query}&order=${orderBy}.asc&limit=${page}&offset=${offset}`;
     const res = await fetch(url, {
       headers: { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, Accept: 'application/json' },
     });
@@ -202,11 +222,12 @@ async function loadWorld() {
      * or the code that prefers it silently falls back to `created_at`. */
     restRows('mirror_outbox',
       'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,role,test_only'
-      + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`),
+      + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`, 'id'),
     restRows('production_comments',
-      'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,created_at,updated_at,deleted_at'
-      + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`),
-    restRows('deliverables', 'select=id,card_id,kind,client_slug,status,status_at'),
+      'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,'
+      + 'created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`, 'id'),
+    restRows('deliverables', 'select=id,card_id,kind,client_slug,status,status_at', 'id'),
   ]);
   const cardIds = new Set(deliverables.map(d => d && d.card_id).filter(Boolean));
   const cards = [];
@@ -218,7 +239,7 @@ async function loadWorld() {
       + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
       + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
       + 'client_title_approved_at,kasper_approved_at'
-      + `&id=in.(${chunk})`));
+      + `&id=in.(${chunk})`, 'id'));
   }
   return { outbox, comments, deliverables, cards };
 }
@@ -476,8 +497,14 @@ function patchFor(finding) {
     /* Rebuilt from the server's own record. `id` is the production comment id,
      * so a later run recognises this request as delivered and a second copy can
      * never be appended. */
+    /* The browser's canonical projector and its source-repair journal store
+     * `native_comment_id`. If this job completes a closed browser's failed leg
+     * and that browser later resumes its journal, an atomic merge keyed on a
+     * different id keeps BOTH copies and the client sees their own request
+     * twice. Detection already recognises either id, so writing the native one
+     * makes server-side and browser recovery converge. */
     const appended = {
-      id: String(pc.id),
+      id: String(pc.native_comment_id || pc.id),
       parent_id: null,
       author: String(pc.author_name || 'Client'),
       role: 'client',
@@ -487,7 +514,13 @@ function patchFor(finding) {
       body: String(pc.body || ''),
       created_at: String(pc.created_at || ''),
       updated_at: String(pc.updated_at || pc.created_at || ''),
-      done: false, done_at: '', done_by: '',
+      /* A request already resolved on the server must not be republished as
+       * live work. 103 of 345 live client requests carry a resolution, so
+       * hard-coding `done: false` would hand the team completed feedback as an
+       * open task. The resolution travels with the request. */
+      done: !!pc.resolved_at,
+      done_at: String(pc.resolved_at || ''),
+      done_by: String(pc.resolved_at ? (pc.resolved_by_name || 'Resolved') : ''),
       /* Provenance: this row was completed server-side from a committed write,
        * not typed into this card by a person. */
       recovered_by: 'client-signoff-reconcile',
@@ -547,7 +580,7 @@ async function revalidate(world, finding) {
     + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
     + 'client_title_approved_at,kasper_approved_at'
     + `&id=eq.${encodeURIComponent(finding.card.id)}`
-    + `&client=eq.${encodeURIComponent(finding.card.client)}`);
+    + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
   if (!fresh.length) return null;
   const again = detect({
     outbox: world.outbox, comments: world.comments,
@@ -656,4 +689,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, patchFor, parseComments, normText, stampSurvives, COMPONENT_FOR_KIND };
+module.exports = { detect, patchFor, parseComments, normText, stampSurvives, restRows, COMPONENT_FOR_KIND };

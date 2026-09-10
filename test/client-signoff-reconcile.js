@@ -13,7 +13,7 @@
  * something, so the negative cases are asserted first and in the most detail. */
 const assert = require('node:assert/strict');
 const {
-  detect, patchFor, parseComments, normText, stampSurvives,
+  detect, patchFor, parseComments, normText, stampSurvives, restRows,
 } = require('../scripts/client-signoff-reconcile.js');
 
 const CARD = (over) => Object.assign({
@@ -43,6 +43,9 @@ const world = (o) => ({ outbox: o.outbox || [], comments: o.comments || [], deli
 
 let checks = 0;
 const check = (label, fn) => { fn(); checks++; console.log('  ok — ' + label); };
+/* Async checks run at the end so the synchronous ordering above is untouched. */
+const asyncChecks = [];
+const checkAsync = (label, fn) => asyncChecks.push([label, fn]);
 
 /* ── it must not repair ───────────────────────────────────────────────── */
 
@@ -473,6 +476,83 @@ check('two clients sharing an id each keep their own consumption tally', () => {
     'each client already holds its own copy; a shared tally would duplicate one');
 });
 
+/* CODEX ROUND 5. An INCOMPLETE cell is not an empty one. stringifyComments and
+   the merge RPC drop entries without ids, so rebuilding an array over a cell
+   that holds them destroys real client words that simply predate the id field.
+   The browser's own _calLoadCommentsField makes the same judgement. */
+check('a cell that is valid JSON but not an array is refused, not emptied', () => {
+  for (const cell of ['{"a":1}', '"a string"', '42', 'null']) {
+    const { findings, skipped } = detect(world({
+      comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval', video_tweaks: cell })],
+    }));
+    assert.equal(findings.length, 0, cell + ' must not be treated as no comments');
+    assert.equal(skipped[0].reason, 'card_cell_unparseable');
+  }
+});
+
+check('an array holding an id-less entry is refused, never rewritten', () => {
+  const cell = JSON.stringify([
+    { id: 'has-id', body: 'kept', role: 'client' },
+    { body: 'legacy feedback with no id', role: 'client' },
+  ]);
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval', video_tweaks: cell })],
+  }));
+  assert.equal(findings.length, 0, 'a repair here would erase the id-less entry');
+  assert.equal(skipped[0].reason, 'card_cell_unparseable');
+  assert.equal(parseComments(cell), null);
+});
+
+/* 103 of 345 live client requests carry a resolution. Republishing one as open
+   work hands the team completed feedback as a fresh task. */
+check('a request already resolved travels with its resolution, not as new work', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ resolved_at: '2026-09-07T12:00:00.000Z', resolved_by_name: 'A Reviewer' })],
+    cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(findings.length, 1, 'it still never reached the card, so it is still missing');
+  const entry = parseComments(patchFor(findings[0]).video_tweaks)[0];
+  assert.equal(entry.done, true, 'delivered as resolved, not as an open request');
+  assert.equal(entry.done_at, '2026-09-07T12:00:00.000Z');
+  assert.equal(entry.done_by, 'A Reviewer');
+});
+
+check('an unresolved request is still delivered as open', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  const entry = parseComments(patchFor(findings[0]).video_tweaks)[0];
+  assert.equal(entry.done, false);
+  assert.equal(entry.done_at, '');
+});
+
+/* The browser's projector and its repair journal both key on
+   native_comment_id. Writing the row id instead means a resuming browser
+   merges two ids and the client sees their own request twice. */
+check('the delivered entry carries the native id the browser will merge on', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ id: 'pc_row', native_comment_id: 'nat-77' })],
+    cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  const entry = parseComments(patchFor(findings[0]).video_tweaks)[0];
+  assert.equal(entry.id, 'nat-77', 'server and browser recovery must converge on one identity');
+});
+
+check('and falls back to the row id when there is no native one', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK({ id: 'pc_row', native_comment_id: null })],
+    cards: [CARD({ video_status: 'Client Approval' })],
+  }));
+  assert.equal(parseComments(patchFor(findings[0]).video_tweaks)[0].id, 'pc_row');
+});
+
+/* Offset pagination without a total order can skip a row between pages, and a
+   skipped reopen means a stale approval gets restored. */
+checkAsync('a paged read refuses to run without a unique order column', async () => {
+  await assert.rejects(() => restRows('mirror_outbox', 'select=id'),
+    /unique order column/, 'unordered pagination must be impossible to write by accident');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {
@@ -489,4 +569,7 @@ check('body comparison ignores only whitespace shape', () => {
   assert.notEqual(normText('fix the intro'), normText('fix the outro'));
 });
 
+(async () => {
+  for (const [label, fn] of asyncChecks) { await fn(); checks++; console.log('  ok — ' + label); }
 console.log(`PASS: ${checks} checks — committed client actions are completed from server evidence, and a card that moved on is never overwritten`);
+})();

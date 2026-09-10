@@ -19319,3 +19319,45 @@ discipline is the only reason it did not.
 
 Also this round: the runbook still published 30 checks after Round 3 raised it
 to 33. Corrected, now 37, with a note to keep it current.
+
+### 195e. [2026-09-10] Round 5: four more, and two of them were ways this job could DESTROY client content rather than merely miss it
+
+Every earlier round found ways to write the wrong thing. Two of these are worse:
+ways to lose what is already there.
+
+**An incomplete comment cell was being read as an empty one.** The parser
+accepted valid JSON that is not an array (returning empty), and accepted arrays
+holding entries with no id. `stringifyComments` and the merge RPC DROP id-less
+entries, so a repair that rebuilt the array over such a cell would have **erased
+real client feedback that simply predates the id field**. The browser's own
+`_calLoadCommentsField` already treats both shapes as an incomplete read and
+says so in its comment; this job did not. Both are now refused as unreadable.
+Refusing costs a missed repair; treating them as empty costs the content.
+
+**A resolved request would have been republished as open work.** `103 of 345`
+live client requests carry a resolution. The writer hard-coded `done: false`, so
+any resolved request that never reached the card would have landed on it as a
+fresh task for the team. The resolution now travels with the request.
+
+**The write side used the wrong identity.** The delivered entry stored
+`production_comments.id`, while the browser's canonical projector and its
+source-repair journal both key on `native_comment_id` (89 of the live rows have
+a native id that differs). If this job completed a closed browser's failed leg
+and that browser later resumed its journal, the atomic merge would have kept
+BOTH copies and the client would see their own request twice. Detection already
+recognised either id; the writer now emits the native one so the two recoveries
+converge.
+
+**Paged reads had no stable order.** PostgREST offset pagination without an
+order is not stable across pages, and the outbox read exceeds one page. A
+skipped row is the dangerous direction: a skipped reopen means the supersession
+test never sees it. `restRows` now refuses to run without a unique order column,
+checked BEFORE the credential because a missing order is a defect in every
+environment while a missing key is environmental.
+
+44 checks, five more controls, all confirmed to fail the suite.
+
+**Five rounds, seventeen findings, all real.** The rate is not falling, which is
+itself the argument for the dry-run posture: this job writes to client-facing
+records unattended, and the review is still finding a way to get that wrong
+every single round.

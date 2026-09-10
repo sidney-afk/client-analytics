@@ -97,7 +97,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 37 checks, each
+construction through fixtures — no credentials, no network. 44 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must
@@ -160,6 +160,41 @@ stand in for another's, and on an apply run that writes a client's approval, or
 their own words, onto a different client's card. `deliverables.client_slug` and
 `calendar_posts.client` both hold the slug, so they compare directly here (this
 is not true of `calState.client` in the browser, which holds a display name).
+
+## An incomplete cell is not an empty one
+
+`stringifyComments` and the merge RPC drop entries without ids. So rebuilding an
+array over a cell that holds them **destroys real client words** that simply
+predate the id field. Valid JSON that is not an array, and any array holding an
+id-less or non-object entry, are therefore refused as unreadable rather than
+treated as empty — the same judgement the browser's `_calLoadCommentsField`
+makes. Refusing costs a missed repair; treating it as empty costs the content.
+
+## Identity on the WRITE side, not just the read
+
+The delivered entry carries `native_comment_id || id`, because the browser's
+canonical projector and its source-repair journal both key on the native id. If
+this job completes a closed browser's failed leg and that browser later resumes
+its journal, an atomic merge keyed on a different id keeps **both** copies and
+the client sees their own request twice. Detection recognises either id, so
+writing the native one makes server-side and browser recovery converge.
+
+## Resolution travels with the request
+
+**103 of 345 live client requests carry a resolution.** A request that never
+reached the card but has since been resolved on the server is still missing, and
+still worth delivering — but as resolved, carrying `resolved_at` and the
+resolver into `done` / `done_at` / `done_by`. Hard-coding `done: false` would
+hand the team completed feedback as fresh work.
+
+## Paged reads are ordered
+
+Offset pagination without a total order is not stable: each page is a separate
+query, and a row can be skipped or repeated between pages. The outbox read alone
+exceeds one page. A **skipped** row is the dangerous direction: if it is a later
+reopen, the supersession test never sees it and a stale approval is restored. So
+`restRows` refuses to run without a unique order column, checked before the
+credential because a missing order is a defect in every environment.
 
 ## The race this does not close
 

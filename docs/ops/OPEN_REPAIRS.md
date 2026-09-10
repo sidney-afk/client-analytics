@@ -17752,3 +17752,1211 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+## 182. [2026-09-08, FIXED in the browser; nothing to deploy] SyncLinear felt "sometimes really slow" while the backend answered in half a second: the tab was downloading every batch description on every open and every return
+
+**Owner report.** "Sometimes SyncLinear is pretty slow today. It was really fast a
+couple of days ago." Calendar and Workload "feel slow" too, on and off.
+
+**What was measured (sandbox, 2026-09-08 22:00 UTC, twelve samples over two
+minutes).** Every read the Production tab makes at boot answered in 0.3 to 0.6
+seconds; one deliverables page in twelve took 1.8 seconds. The GitHub Pages fetch
+of the app took under half a second. Supabase's status page showed "partially
+degraded" for an unrelated 401 incident. So the server was not the slowness. The
+weight was in what the tab pulled, and how often:
+
+| Read at boot | Compressed | Note |
+|---|---|---|
+| `index.html` | 1.3 MB | cached 10 minutes by Pages |
+| `batches`, 2 sequential pages | 1.1 MB | **1.0 MB of it is the `description` column**: 2.3 million characters across 1,688 rows, median 743, evenly spread, not one bad row |
+| live deliverables, 3 sequential pages | 0.75 MB | 2,316 rows |
+| terminal tail, ~5 pages | ~1 MB | 4,098 rows, deferred |
+
+And `_prodAutoRefreshOnReturn` re-ran the FULL load (batches and live projection
+again, about 2 MB) on every return to the tab after 30 seconds away. On a link
+whose throughput moves around, that is exactly "fast one day, slow the next,
+slow within the same day". The description column was consumed in one place: the
+detail panel of the parent that is open. Deliverable descriptions (`brief`) had
+already been taken off the boot read for the same reason; batches had not.
+
+**What changed (`index.html` only, so it ships with the merge; no function deploy,
+no migration).**
+
+1. `PROD_BATCH_SELECT` no longer carries `description`. A batch parent's panel
+   reads its ONE row on open through the synthetic branch of
+   `_prodEnsureDescription`, over the same browser grant, with the same three
+   late-answer guards as the deliverable path (request token, projection
+   generation, row scope). The old branch declared the description "ready"
+   without reading anything, which was only true because boot had read it.
+   `_prodCarryBatchDescriptions` keeps a held description across a full reload
+   only while the row's `updated_at` is unchanged: the description write is a
+   compare-and-swap on that stamp (item 2026-09-01), so a moved stamp means
+   read it again.
+2. A tab return calls `_prodRefresh({ silent: true, incremental: true })`, which
+   routes to the existing `_prodDeltaRefresh` (rows stamped since the watermark,
+   full reconcile every ten minutes as before) instead of the full load. Authority
+   is still re-read on return. The delta now also walks `batches` on their own
+   watermark (`_prodMergeBatchRows`), so a filming day planned since the last
+   read appears on the next tick rather than at the reconcile; a batch whose
+   stamp moved marks its open panel stale (`_prodMarkBatchDescriptionsStale`) so
+   the text is re-read rather than shown as current.
+
+Not done, by the owner's choice: trimming the 20+ `raw_*` attribution columns from
+the deliverable select (the third proposal).
+
+**Effect.** Boot drops from about 3.2 MB to about 2.2 MB compressed and loses the
+slowest single query (the description-only read alone took 1.9 s). A tab return
+drops from about 2 MB to a few kilobytes unless rows changed. The manual Refresh
+button keeps the full path.
+
+**Proof.** `test/prod-boot-payload-diet.js` (new) pins both rules against the
+shipped source and executes the two merges and the return listener.
+`test/prod-deep-link-fast-paint.js` and `test/production-preview-source.js` were
+updated for the renamed batch merge. The mocked browser gate
+(`docs/syncview-design/tests/prod-write-gateway-browser.js`) and the boot budget
+were run before push.
+
+### 182a. Two defects the first draft shipped, both caught by Codex review on #1364
+
+Recorded because the wiring tests passed while both were live, which is the
+transferable lesson: an assertion that the call EXISTS is not an assertion that
+it WORKS.
+
+**P1 — the one-row read could not terminate.** The first draft called
+`_prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.<id>', 1, 1)`.
+That helper only returns when a page comes back SHORTER than the page size, so
+an exact one-row match filled the only page, fell out of the loop, and threw
+`batches read exceeded pagination cap`. **Every batch-parent description would
+have rendered "Description could not load."** The page size is now 1000 (an
+`id=eq.<uuid>` returns at most one row, and 1000 matches the sibling id-list
+read rather than inventing a second convention). `test/prod-boot-payload-diet.js`
+now EXECUTES the real pager with both argument sets: it asserts the old ones
+throw — so the test can fail for the reason it names — and the shipped ones
+return.
+
+**P2 — the direct batch view was never served.** `?batch=<id>` is view `batch`
+with `openBatchId`, and `_prodBatchDetail` renders `batch.description` straight
+off the row. The on-demand loader was reached only from view `detail` with an
+`openId`, so that view sat on its loading skeleton forever once the column left
+the boot read. The read now lives in one shared function
+(`_prodReadBatchDescriptionRow`) with a second entry point
+(`_prodEnsureBatchDescription`) called from the render pass for the batch view,
+terminating the same way `_prodEnsureLabels` does: a row that already has the
+column returns before the read, and a failed read is remembered, so
+render → ensure → render cannot spin. A failed read now says
+**Description could not load.** rather than holding the skeleton, and both the
+manual refresh and a delta that moves the batch's stamp clear the remembered
+failure so it is not permanent for the session.
+
+### 182b. A third defect, also from Codex review on #1364: the superseded direct-batch read
+
+`_prodEnsureBatchDescription` guarded its answer on `_prodState.projectionGeneration`
+alone. That counter only advances in `_prodLoadData` — **the operational delta
+never touches it** — so a delta that moved a batch's stamp mid-read left the
+generation equal and the older answer comparing as current:
+
+1. Read A goes out for batch `b1`.
+2. The 30s delta sees a newer `updated_at`, `_prodMergeBatchRows` replaces the
+   row without its description, and the stale-mark drops the read state.
+3. The next render starts read B, which lands with the fresh text.
+4. Read A lands afterwards, passes the generation check, and overwrites the
+   fresh text with **stale text and an older `updated_at`**.
+5. The row now carries the column, so it looks loaded and is never re-read.
+   The stale stamp also lowers `_prodDeliverableWatermark(_prodState.batches)`,
+   so the delta re-fetches ground it has already covered.
+
+Fixed with a per-batch request token (`batchDescriptionTokens`), the same shape
+`descriptionRequestTokens` already gives the deliverable path. Both the manual
+refresh and a delta that moves a batch's stamp now retire the reads in flight
+for those rows rather than only dropping their state.
+
+**A wedge in the first draft of that fix, found by writing the test.** Making a
+superseded read touch nothing at all is correct when a NEWER READ owns the state
+entry, and wrong when only the GENERATION moved: nothing then releases the
+`loading` marker, and the guard that refuses to start a read while one is in
+flight would lock that batch out of ever loading again. A superseded read now
+releases the entry only when its token says it still owns it. Today the full
+load that moves the generation always runs `_prodMarkDescriptionsStale` first,
+which clears the entry anyway — the repair is so this stops depending on that
+ordering holding forever.
+
+The regression test drives the real race, with both reads resolved in the
+damaging order, and asserts the newer text survives, the older stamp is not
+written back, and the newer read keeps ownership of the state.
+
+### 182c. Two more from Codex round three: a second token domain, and a cursor made of local writes
+
+**The two readers of a batch row did not retire each other.** A batch row's
+description has two readers, keyed differently — the synthetic parent panel by
+ISSUE id (`descriptionRequestTokens`) and the direct `?batch=` view by BATCH id
+(`batchDescriptionTokens`). The token added in 182b protected only the second.
+So leaving a `?batch=` view with a read in flight and then opening or editing the
+synthetic parent let the older read land on top of the newer answer. Through the
+save path it is worse than stale text: all four writers of a batch description
+(the optimistic pre-save value, the committed save, and both conflict restores)
+funnel through `_prodSyncBatchDescriptionRow`, so a read that started before a
+save landed after it and **silently reverted text the user had just committed**.
+
+Both readers now take the same shared per-batch token, and every write through
+that funnel retires it. The rule is now one sentence: whichever read STARTED
+LAST is the only one whose answer can land, and any completed write retires
+every read older than it.
+
+**The batch delta cursor was derived from rows that local writes mutate.** It
+was `_prodDeliverableWatermark(_prodState.batches)` — the newest stamp among
+local rows — but a point read and every description save write a fresh
+`updated_at` onto ONE row. Open one batch whose row is newer than the rest and
+the cursor jumps to it, so `updated_at >= cursor` excludes every batch changed
+between the last real read and that stamp; those stay invisible until the
+ten-minute reconcile. There is now a real `batchDeltaCursor` advanced ONLY from
+server answers (seeded on a full load from the raw rows, before the merge lets a
+local value near them), compared as parsed instants rather than strings, and it
+never moves backwards.
+
+**A pre-existing twin, NOT fixed here, deliberately.** `_prodSyncDescriptionRow`
+does the same thing to `deliverables.updated_at`, and the DELIVERABLE delta
+watermark is still `_prodDeliverableWatermark(_prodState.deliverables)`. That is
+the identical defect on the older path and it predates this change; it is left
+alone rather than widening a PR already three review rounds deep. Worth its own
+repair — the fix is the same shape as the one above.
+
+### 182d. Codex round four: two defects the round-three fix created
+
+Both are consequences of the shared per-batch token added in 182c, which is
+worth stating plainly: each repair in this sequence exposed the next layer.
+
+**A displaced reader never released what it owned.** The shared token means one
+read can supersede another. The superseded synthetic read returned bare, leaving
+its panel's `state.refreshing` set — and the guard at the top of
+`_prodEnsureDescription` refuses to start a read while that is set, so the panel
+short-circuited on every later open and **never loaded again**. Reachable by
+switching between the two synthetic parents of a split-team batch, which share a
+`batchId` and therefore share the token. Separately, when a synthetic read
+superseded an in-flight direct read and then FAILED, the direct read's
+`batchDescriptionReads` entry stayed on `loading`, stranding the `?batch=` view
+on its skeleton until an unrelated refresh.
+
+Now: a displaced read releases its OWN per-issue panel state (and only while its
+own issue token still says it owns it), and whichever read holds the shared token
+owns the shared entry on both exits — `loading` on start, `ready` on success,
+`error` on failure. One reader, one truth.
+
+**Stamp equality masked real remote changes.** A description-only read or save
+writes a fresh `updated_at` over otherwise old fields. When a batch's metadata
+changed remotely and a description read landed before the next delta, the delta
+then received the complete row carrying that same stamp, `_prodMergeBatchRows`
+read the equality as "unchanged", and the adapter was never rebuilt — so the
+batch **name, status or `linear_parent_ids` stayed stale** until the ten-minute
+reconcile. Rows advanced by a partial write are now tracked in
+`batchPartialRows`; the merge refuses stamp equality for them, clears the mark
+once a complete row replaces it, and a full load clears the set entirely because
+every row in it came from a complete read.
+
+The regression test executes the second one on the exact shape of the bug: a
+complete row arriving at the SAME stamp as a partially advanced local row still
+counts as changed, its fresh fields land, and the mark is not sticky afterwards.
+
+### 182e. Codex round five: the Refresh button could not clear a failed batch read
+
+`_prodMarkDescriptionsStale` clears the remembered batch-description read states,
+and it is reached from `_prodRefresh`. **The visible topbar Refresh button does
+not go that way.** It runs `_prodManualRefresh` →
+`_prodDeltaRefresh({ full: true })` → `_prodLoadData`, none of which touches
+`_prodMarkDescriptionsStale`. So an `error` left by a failed one-row read
+survived the very control offered to clear it: the full load replaced the batch
+row (still without `description`), `_prodEnsureBatchDescription` returned early
+on the retained `error`, and the batch view kept saying **Description could not
+load.** until a page reload or an unrelated change to that batch.
+
+Fixed by retiring every remembered read inside `_prodLoadData` itself, beside
+where it already clears `batchPartialRows` — the shared
+`_prodInvalidateBatchDescriptionReads(null)` rather than a bare clear, so a read
+still in the air is retired rather than left able to land on the new projection.
+
+The regression test walks the whole button path instead of assuming it: that
+`_prodManualRefresh` goes through `_prodDeltaRefresh({full:true})`, that the full
+branch reaches `_prodLoadData`, and that **neither calls
+`_prodMarkDescriptionsStale`** — the last one being the fact that made the
+original placement wrong, so the test fails for the reason it names.
+
+**Running count on #1364: eight findings across five rounds.** The original
+change (drop a column from a boot read, route tab returns through the existing
+delta) has held up; every finding after the first two came from the machinery
+added to fix the ones before. The cost is concentrated in one place — putting a
+new on-demand read into a surface that already had two readers and two
+invalidation schemes. If a future session touches batch descriptions again, the
+cheaper design is ONE owner for the read with ONE state machine that both
+surfaces render from, not two readers cooperating through a shared token.
+
+### 182f. Round six stopped the patching: the two-reader arrangement was the defect
+
+Codex's sixth round found two more, both inside the machinery added to fix
+rounds three through five, which is the condition #1364 had already committed to
+stopping on.
+
+**Both verified before acting.** A synthetic parent replaced mid-read by a real
+one (hierarchy rebuild) failed the panel's currency check while the shared batch
+token had not moved, so the panel released only its own state and left
+`batchDescriptionReads[batchId]` on `loading` — after which every later direct
+`?batch=` read refused to start. And `batchPartialRows` was marked
+unconditionally, so a read returning the SAME stamp still marked the row partial;
+since the batch delta filter is `updated_at >= cursor` and therefore inclusive,
+the boundary row returned on every tick, the merge called it changed, the
+description was dropped and re-read, and the row was marked partial again. A
+30-second loop costing an extra request and a skeleton flash — undoing the
+saving this change exists for.
+
+**The repair was not a seventh patch.** Four of the ten findings on #1364
+existed only because TWO functions read and wrote one batch row, cooperating
+through a shared token across two state maps: an older answer landing on a newer
+one, a save reverted by a read that started before it, a displaced reader
+stranding its own panel, and a displaced reader stranding the other reader's
+entry. The arrangement was the defect; each fix created the conditions for the
+next.
+
+`_prodEnsureBatchDescription` is now the sole owner, keyed by batch id. The
+synthetic parent panel waits for it and reflects the row instead of running its
+own read. That deletes the shared token, the second writer of the shared read
+state, and the whole "which reader owns this entry" question rather than
+answering it a fifth time. What stays per-panel is what genuinely is per-panel:
+a split-team batch has two synthetic parents sharing one `batchId`, each with
+its own editor state, caret and scope, so each keeps its own token and its own
+release.
+
+Partial marking is now one comparison in one place, against the stamp captured
+before the write.
+
+**The general lesson, for whoever adds the next on-demand read here.** A test
+that asserts a call EXISTS is not a test that it WORKS: the wiring assertions on
+this PR passed while a read that could never terminate and a view that never
+loaded were both live. And when a second reader of the same row starts needing a
+token to coordinate with the first, the reader is the thing to remove, not the
+token to refine.
+
+### 182g. The redesign's own regression: a background read destroyed an open editor
+
+The single-owner collapse in 182f shipped with a defect the unit suite could not
+see, and it is the most user-visible thing found on #1364.
+
+`_prodEnsureBatchDescription` repainted on EVERY completed read, for any batch,
+open or not. `_prodRender` rebuilds the surface, and the description editor is a
+`contenteditable` — so a background read for an unrelated batch tore out an
+in-progress edit on the row the user actually had open, along with the caret and
+focus. Anyone typing a description while a batch read landed would have lost it.
+
+**How it was caught, which is the transferable part.** The mocked browser gate
+failed at `inplace_link` — hover a link in a deliverable's editor, apply an edit,
+expect focus back. That same step had genuinely flaked earlier in the session, so
+the tempting read was "known flake, re-run". It failed twice. The decisive test
+was not another re-run: it was checking out the PREVIOUS commit into a worktree
+and running the gate there in the same sandbox, where it passed. Previous commit
+green + this commit red twice = regression, not flake. A third re-run would have
+been a coin toss dressed up as evidence.
+
+The repaint is now gated on the batch being what the reader is looking at: the
+direct `?batch=` view of that batch, or a synthetic parent of it. The panel that
+delegates does its own repaint afterwards, and a batch nobody has open needs
+none — the state is written either way and the next natural render picks it up.
+
+**Two assertions in `prod-boot-payload-diet` had to be repaired with it**, and
+that is worth recording rather than quietly fixing: they asserted "repaints
+exactly once" while driving a batch that was NOT on screen, so under the correct
+behaviour they were measuring zero repaints and passing for the wrong reason.
+They now put the view on the batch under test. The regression itself is pinned in
+both directions — a read for an unopened batch writes state and does not repaint;
+a read for the batch whose synthetic parent is open still does.
+
+**The standing lesson for this surface:** a description read is a background
+operation, and a background operation must never repaint a surface that owns an
+editor unless its own result is on screen.
+
+### 182h. Concurrent waiters, the first finding the redesign made ordinary
+
+Codex round seven, on the single-owner code. Worth recording because of what KIND
+of finding it is: not another negotiation between two readers of one row, but a
+plain single-flight question — the class the redesign was meant to reduce this
+surface to.
+
+`_prodEnsureBatchDescription` skipped a read already in flight instead of joining
+it. A second caller's `await` therefore resumed BEFORE the column existed, and
+the delegating panel treated an absent column as a completed failure and set
+`error` — which its own guard then used to refuse every later non-forced attempt.
+"Description could not load." until a manual refresh. Reachable with the two
+synthetic parents of a split-team batch (they share a `batchId`), or by moving
+from `?batch=` to that batch's parent mid-read.
+
+Two independent repairs, either of which prevents the wedge:
+
+1. **Join, don't skip.** `batchDescriptionInFlight` maps a batch id to the
+   promise in the air; a caller arriving mid-read awaits that promise. Two panels
+   now issue ONE network read and both resume with the answer.
+2. **Only a recorded failure is a failure.** The panel calls an absent column an
+   error only when the owner actually wrote `error`; otherwise it lands on `idle`,
+   which the guard does not block, so the next render can ask again. A retired
+   read is not a failed one.
+
+**A third gap surfaced while writing the test, and nobody reported it.**
+`_prodInvalidateBatchDescriptionReads` retired a read's token and read state but
+left its in-flight promise, so the next caller would JOIN a read whose answer the
+token check was already guaranteed to discard — resuming with nothing. It now
+drops the in-flight entry too, so the next caller starts fresh; the retired
+promise settles harmlessly against its stale token. Single flight joins live
+reads, not dead ones.
+
+### 182i. The single-flight cleanup evicted the wrong read
+
+Codex round eight, on the round-seven fix. The textbook single-flight bug, and it
+reads as tidying up rather than logic:
+
+```js
+finally { _prodState.batchDescriptionInFlight.delete(batchId); }
+```
+
+Read A is invalidated, read B starts and stores its own promise, then A settles
+and its `finally` evicts **B's** entry. The next render sees nothing in flight,
+starts read C, advances the token, and guarantees B's perfectly good answer is
+discarded. Longer loading and redundant requests, from a line whose only apparent
+job is housekeeping.
+
+The entry is now removed only when the map still holds THIS invocation's promise.
+The regression test drives that exact ordering — A retired, B started, A settling
+late — and asserts B's entry survives and B's answer is the one that lands.
+
+**Why this one is filed as ordinary.** Rounds three through six were each a
+consequence of the previous fix inside the two-reader arrangement, which is why
+#1364 stopped and replaced it. Rounds seven and eight are instead standard
+single-flight questions with standard answers: join a live read, and clean up
+only what you own. That is the shape this surface was meant to have after the
+redesign, and it is the signal that the redesign did what it was for.
+
+## 183. [2026-09-09, OPEN — owner decision, measured] Command-palette description search: what item 182 narrowed, and what it was already
+
+Codex round nine on #1364 raised this, and it is the first finding on that PR that
+is a FEATURE question rather than a defect. Verified before writing it down.
+
+**What the palette actually matched, before and after.** `_prodPaletteItems`
+ranks `i.desc`. For a deliverable that is empty and always has been: `brief` is
+not in `PROD_DELIVERABLE_SELECT`, so a deliverable's description never reaches the
+browser at boot. For a synthetic batch parent it came from
+`node.batch.description`, which the boot read carried until item 182 stopped it.
+
+| Row kind | Description searchable BEFORE 182 | After |
+|---|---|---|
+| Deliverable (6,325 rows) | **No** — `brief` was never in the select | No |
+| Synthetic batch parent (1,540 of 1,688 batches carry one) | Yes | **No** |
+
+So the parity claim at `WIRED-PARITY.md` was already only partly true, and 182
+took the remaining part. `WIRED-PARITY.md` now states this accurately instead of
+claiming search the app does not do.
+
+**Why this is not being patched inside #1364.** The two cheap repairs are both
+wrong. Reinstating `description` in the boot read restores 1 MB on every open,
+which is the entire defect 182 exists to fix. Lazy-loading every batch
+description when the palette opens moves the same megabyte to a keystroke and
+makes the palette feel worse than the boot did.
+
+**The right repair is a different feature: ask the server.** When the palette has
+a query of a few characters, issue a `description=ilike.*<query>*` read against
+`batches` (and, if briefs are ever wanted, the deliverable projection), merge
+those ids into the ranked list, and debounce it. That is a new read path with its
+own ranking and cancellation semantics — a feature, not a bug fix, and not
+something to bolt onto a PR that has already absorbed nine review rounds.
+
+**Owner decision, one line:** is palette search over post/batch description text
+worth building as server-side search, or is title and identifier matching enough?
+Nobody has reported missing it; it is recorded here so the answer is a choice
+rather than an accident.
+
+### 182j. The retraction: no description-only write advances a row's stamp
+
+Codex round eleven found a THIRD defect in the same mechanism, which is the
+signal that the mechanism was the defect.
+
+**The finding.** A batch delta answering from a snapshot taken before a local
+point read could return that batch at an older stamp. Because the row was marked
+partial, the merge bypassed its equality branch, cleared the marker, and replaced
+the newer local row with the older response — discarding a just-loaded or
+just-saved description and regressing the batch's other displayed fields until a
+later delta repaired them.
+
+**The root cause was one decision, not three bugs.** A description-only read or
+save wrote its `updated_at` onto the local row. That makes an otherwise-stale row
+LOOK freshly read, and every consequence needed its own guard:
+
+| Round | Consequence | Guard added |
+|---|---|---|
+| 182f | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| six | marking unconditionally built a 30-second refetch loop | mark only when the stamp advances |
+| eleven | an older snapshot could overwrite the newer local row | *(would have been a third guard)* |
+
+**The repair is removal.** No description-only write advances a row's stamp any
+more — not the one-row read, not the save funnel. `batchPartialRows` is gone from
+the code entirely. The merge can trust stamp equality again, because every stamp
+it sees came from a complete read.
+
+Nothing is lost. A batch nothing changed sits below the delta cursor and never
+comes back. A batch that genuinely moved comes back with a different stamp,
+counts as changed, and its description is re-read. The description's own stamp
+lives in the panel state (`state.sourceUpdatedAt`), which is what the
+compare-and-swap actually reads — the row's copy was never load-bearing for it.
+
+**Codex proposed exactly this in round four** ("avoid copying the row-level stamp
+from that partial read") and I took the marker instead. That was the wrong call,
+it cost three review rounds, and this is the retraction. Two tests that asserted
+the stamp write now assert its absence.
+
+**The rule worth keeping:** a third finding in one mechanism is not a third bug.
+It is the mechanism asking to be deleted.
+
+### 182k. I asserted the CAS read one thing and it read another
+
+Codex round twelve, and the most instructive finding on #1364 because it was an
+error of ASSERTION, not of code.
+
+Justifying the 182j retraction I wrote, in a code comment and again on the PR:
+*"the description's own stamp lives in the panel state (`state.sourceUpdatedAt`),
+which is what the compare-and-swap actually reads — the row's copy was never
+load-bearing for it."*
+
+**That was false.** `_prodGatewayWrite` builds `expected_updated_at` from
+`_prodBatch(payload.id).updated_at` — the ROW's copy — with attachment evidence
+as the only preferred source. I never checked before writing it down twice.
+
+**What it would have cost.** Saving a synthetic-parent description twice before
+the next complete refresh: the first save succeeds and its committed clock is
+discarded, the second sends the pre-save clock and takes a 409, and the conflict
+restore routes through the same helper so the retry conflicts again — until a
+delta or full reconcile happens to replace the row.
+
+**The fix is a split, not a revert.** Those were one field doing two jobs, which
+is the same conflation that generated 182f, round six and 182j:
+
+| Value | Means | Read by |
+|---|---|---|
+| `batches.updated_at` (the row) | freshness of the last COMPLETE read | the delta merge's equality test |
+| `batchDescriptionClocks[batchId]` | the CAS clock for the description column | `_prodGatewayWrite`, for `batch_description` only |
+
+Every description write advances the clock; the one-row read seeds it; a complete
+row retires it, because that row's own stamp is authoritative again.
+
+**And the fix shipped its own defect, caught locally.** The clock was first
+consulted for EVERY batch write, so a `batch_asset` write would have taken a
+clock belonging to a column it does not touch. `test/batch-asset-write.js` caught
+it by pinning that fallback. It is now scoped to `batch_description`, and both
+suites pin the scoping from opposite sides.
+
+**The rule worth keeping:** "X is what actually reads this" is a claim about
+code, and it takes one grep. Writing it from memory into a comment makes it
+durable, and into a PR comment makes it persuasive. Neither makes it true.
+
+### 182l. The batch delta is removed, and five findings go with it
+
+Codex round thirteen raised TWO more findings on the CAS clock added one round
+earlier — a failed save's rollback restoring a stale clock, and a full load
+clearing a clock newer than its own in-flight response. That was the fourth round
+on the same small area, so the mechanism went instead of gaining a fourth guard.
+
+**What was actually at fault, traced back.** #1364 added a 30-second batch delta
+so a filming day planned elsewhere appeared sooner. Nothing else needed it. But a
+delta needs `batches.updated_at` to mean *freshness of the last complete read*,
+and `_prodGatewayWrite` has always needed the same column to mean *the clock to
+send on the next description save*. One field, two meanings, and the fight
+produced every finding after the first two:
+
+| # | Finding | Guard I added |
+|---|---|---|
+| 1 | a complete row at the same stamp looked unchanged | `batchPartialRows` marker |
+| 2 | marking unconditionally built a 30-second refetch loop | mark only on a stamp advance |
+| 3 | an older delta snapshot overwrote a newer local row | *(removal of the marker)* |
+| 4 | the CAS then sent pre-save clocks — a second save 409s | a separate clock map |
+| 5 | that clock map had its own lifecycle holes | *(would have been more guards)* |
+
+**The removal.** Gone: the batch delta read, `batchDeltaCursor`,
+`_prodAdvanceBatchDeltaCursor`, `_prodMergeBatchRows`, `batchPartialRows`,
+`batchDescriptionClocks`, `_prodMarkBatchDescriptionsStale`. 162 deletions
+against 34 insertions. `batches.updated_at` means exactly what the gateway always
+took it to mean, and the description CAS is the two-term expression that shipped
+before this PR.
+
+**The cost, stated rather than buried.** A batch created elsewhere can be up to
+ten minutes stale in an open tab — the full reconcile, the manual Refresh, or any
+full load will bring it in. That is what it was before #1364, so nothing
+regresses against today's behaviour; only the extra freshness this PR briefly
+added is withdrawn. Worth building again one day as its own change, with the
+column conflict designed for rather than discovered.
+
+**Unharmed, and the entire point of #1364:** batch descriptions are still off the
+boot read (~1 MB an open) and a tab return is still incremental (~2 MB a return).
+
+**The rule, now twice-proven:** when one small area produces a third finding, the
+area is the bug. And when the mechanism came in as a nice-to-have rather than the
+goal, removing it costs almost nothing and settles the whole class.
+
+### 182m. A recovery on one split-team parent never reached its sibling
+
+Codex round fourteen. Small, real, and the last behavioural finding on #1364.
+
+A batch that spans video and graphics has TWO synthetic parents sharing ONE row,
+each with its own panel state. When the shared description read failed both
+remembered `error`. Retrying from one populated the row — but the sibling's own
+`error` made the guard at the top of `_prodEnsureDescription` return before it
+ever looked at the row, so it kept saying **Description could not load.** until
+it was retried separately or a full refresh cleared it.
+
+The panel now reconciles from the loaded row BEFORE honouring a remembered
+failure. Scoped to a panel showing nothing (an `error`, or no value yet) so a
+loaded panel is not re-adopted on every render, and idempotent because adopting
+sets `ready` and `hasValue`.
+
+**Also corrected: the test file's own header contract**, which still promised
+that batches ride along in the delta. After 182l that is the opposite of the
+truth, and a stale contract at the top of a gate is worse than none — someone
+debugging a future failure would have read it and set about restoring the
+mechanism this PR deliberately removed. It now states the ten-minute batch
+staleness as the ACCEPTED behaviour rather than a gap to close.
+
+## 184. [2026-09-09] The archive was re-downloaded six times an hour, and a background tick could land mid-keystroke
+
+Owner-approved follow-up to item 182, from the same report ("as fast and as
+smooth as it can be"). Two independent changes, both browser-only.
+
+**The archive.** `_prodLoadTerminalTail` read every terminal row on every full
+reconcile. Measured live 2026-09-09 against the deployed backend: **4,098
+terminal rows**, 182 KB compressed per page of 1,000, **five strictly
+sequential pages**, so ~0.9 MB and several seconds. `PROD_FULL_RECONCILE_MS` is
+ten minutes, so an open tab re-downloaded the finished work **six times an
+hour** — roughly 43 MB across an eight-hour day, for rows that by definition
+are not moving.
+
+It never needed that cadence. The 30-second delta reads `updated_at >=
+watermark` with **no status filter**, so a row that CHANGES — including one that
+has just become approved or posted — already arrives on the next tick. The only
+thing a full re-read adds is convergence for a hard DELETE, which no watermark
+read can see. So the full pass survives at `PROD_TERMINAL_FULL_MS` (one hour),
+on the first tail of a projection, and on anything the reader asked for (boot
+and Refresh both reach `_prodLoadData` non-silently); the ten-minute reconcile
+takes a watermarked read instead.
+
+Two details that are easy to get wrong and are pinned in
+`test/prod-terminal-tail-and-busy-guard.js`:
+
+- The watermark is over the **terminal rows only** (`_prodTerminalWatermark`).
+  The whole-projection watermark is almost always newer, because the live half
+  moves constantly, and using it would skip the very rows this is for.
+- The incremental read **updates in place** (`_prodMergeDeliverableRows`). The
+  full read may append only ids it has never seen, because the live half it
+  joins is the fresher of the two; this read is the opposite — every row it
+  returns moved *after* the copy held here.
+
+**The tick, while someone is typing.** `_prodRefreshBusy` already deferred a
+background tick for an open menu layer and for an in-flight write. It did not
+defer for a caret in a field. `_prodRender()` rebuilds `#prodRoot` wholesale, so
+a tick landing mid-keystroke replaces the node being typed into and takes the
+caret and selection with it; the board's own filter and search inputs had
+nothing protecting them at all. Workload has guarded its search input this way
+since it shipped and Calendar defers on the same condition. Scoped to the board,
+so a field focused on another surface cannot freeze this one.
+
+### 184a. The correction that cost two browser-gate runs
+
+The first draft added a SEPARATE mechanism: a `_prodIsBusy` / `_prodRenderWhenIdle`
+pair that did the read and deferred the *paint*, and it routed the
+batch-description arrival through it. That starved the arrival: the description
+panel's editor is focused as a matter of course, so the repaint that panel was
+waiting for never landed. `inplace_link` in the mocked browser gate timed out
+twice, passed on `43b1455`, and passed again the moment the guard alone was
+neutered — which is how it was narrowed to that one line.
+
+Two rules came out of it, both now pinned:
+
+1. **A repaint that IS the answer to a read the visible panel asked for must
+   never be deferred.** Deferral is for UNSOLICITED repaints landing on a reader
+   who is mid-interaction.
+2. **Extend the guard that exists rather than adding a second one.** The draft
+   duplicated the menu-layer check that `_prodRefreshBusy` already performed,
+   which is how the two mechanisms could disagree about what "busy" meant.
+
+Also recorded because it was stated wrongly to the owner first: Production was
+**not** unguarded. Menus and in-flight writes were already covered, and
+`_prodInvalidateScopedReadsFor` already preserves an open editor's draft. Typing
+was the one real gap.
+
+### 184b. The incremental read was a no-op, and the test could not see it
+
+Codex on #1366, P2, and it was right about both halves.
+
+`_prodLoadData` replaces `_prodState.deliverables` with the **live-only**
+`PROD_LIVE_FILTER` result and only afterwards calls `_prodLoadTerminalTail`. So
+by the time the tail computed `_prodTerminalWatermark()` there were no terminal
+rows left to compute it from: the watermark was always `''`, the filter fell
+back to the unwatermarked `PROD_TERMINAL_FILTER`, and the browser downloaded
+all 4,098 rows on every reconcile exactly as before. **The change did nothing,
+and every test passed.**
+
+It could not be fixed by moving the watermark alone. An incremental read cannot
+rebuild the archive, so if phase one drops the finished rows there is nothing
+for phase two to add to. The archive has to survive phase one instead:
+
+- `_prodTerminalTailFullDue(silent)` decides the mode **before** the projection
+  is replaced, and the same value is handed to the tail rather than re-derived
+  there. One rule, one place.
+- `_prodCarryTerminalRows(live, previous)` carries the finished rows across the
+  replacement when the next tail is incremental, with the **live half winning
+  every collision** — a row that just left a terminal status appears in `live`
+  with its new value, and the held copy is by definition older.
+- On a full pass nothing is carried, so the full read's fresh rows are not
+  shadowed by held copies. Boot and Refresh are always full passes, so the
+  two-phase boot is byte-for-byte what it was.
+- The in-memory carry cannot grow the cache: `_prodCacheProject` already drops
+  terminal rows before writing.
+
+**The test lesson is the sharper one.** `test/prod-terminal-tail-and-busy-guard.js`
+seeded terminal rows straight into its sandbox and called the tail, so it
+exercised the reader in a state the real caller never produces. It asserted the
+mechanism worked while the mechanism was disconnected. A unit test that
+constructs its own preconditions proves the function, not the feature; where a
+caller establishes the precondition, the test has to establish it the same way.
+The suite now runs the phase-one replacement first and asserts the watermark
+survives it, and pins that the decision and the carry both precede the
+replacement.
+
+### 184c. A late incremental tail could revert a row that had moved on
+
+Codex on #1366, second round, P2, and also right.
+
+`_prodMergeDeliverableRows` replaces a held row whenever the incoming
+`updated_at` *differs* — it never checks that the incoming one is NEWER. That is
+safe for the 30-second delta, whose watermark is the maximum over the whole
+projection, so no response it returns can predate a row already held. It is not
+safe for the incremental tail, whose watermark is the **archive's** (routinely
+older than any live row) and whose read spans several seconds across pages.
+
+The case that bites is a row **leaving** the archive. The tail selects it while
+it is still `approved`; a delta tick or a user write moves it to `in_progress`
+while the read is in flight; the late response reverts the row's status in the
+open tab until a later refresh — and someone can then act against that stale
+state, which is the same shape as the reverts item 101 exists for.
+
+`_prodDropSupersededRows(rows, previous)` filters the tail response against the
+copies currently held before the merge sees it. An identical stamp is kept (a
+same-second echo is not stale), and a row with no parseable stamp on either
+side is kept, because absence of proof that it is stale is not proof. The full
+pass needs none of this: it appends only ids it has never seen, so it cannot
+overwrite anything.
+
+Deliberately NOT fixed inside `_prodMergeDeliverableRows`. Making the shared
+merge refuse older rows would be a no-op for the delta by the argument above,
+so it would buy nothing there while quietly changing the contract of the path
+that every write already depends on.
+
+## 185. [2026-09-09] The pixel lane has been red for ten days without naming a single failing check
+
+`production-polish-heavy` has failed on `main` on every run since 2026-08-30,
+and every one of those runs reported the same public line:
+
+```
+Production heavy gate failed at: Production pixel parity [error_generic]
+```
+
+Nobody has looked at it, which is the correct response to a message that says
+nothing. **The block was never the divergence; it was that the divergence could
+not be seen.**
+
+`pixel-wired.js` throws `${gaps.length} pixel parity gap(s) found` and prints
+each gap to stderr. A gap's `message` is live-derived — computed CSS values,
+element counts, console text — so it stays on the ephemeral runner by design in
+a public repository, and nothing in the thrown message matched a classifier
+signature, so `classifyFailure` fell through to the error-type fallback.
+
+A gap's `state` is a different kind of thing: every one is a **string literal at
+its call site in that same public file** (plus the two `<theme> palette` labels
+built from its own closed theme list). So the labels can be published while the
+messages cannot. `pixel-wired.js` now emits them on a `PIXEL_WIRED_FAILED_STATES`
+marker line, and the gate matches each against `PIXEL_WIRED_STATES`, harvested
+from pixel-wired.js's own source, before emitting `pixel_wired:topbar+icons`.
+
+This is the mechanism the behaviour lane already uses (`BEHAV_WIRED_CHECKS`,
+item 125, which records the identical blackout and the identical fix), reused
+rather than reinvented, including the 24-name cap so a wide breakage summarises
+instead of dumping.
+
+Two properties are pinned in `test/pixel-parity-failure-is-nameable.js`, and the
+second matters more than the first:
+
+1. A known label is published.
+2. **A label that is not a literal in pixel-wired.js is dropped entirely** —
+   tested by feeding the matcher a fabricated client name and asserting it
+   produces nothing, and by asserting a known label beside an unknown one
+   publishes only the known one. The marker is also built from `state` only,
+   never `message`, and that is asserted against the source.
+
+**This makes the failure diagnosable. It does not fix it.** Whatever `main` is
+actually diverging on is still diverging; the next run will simply say which
+part. That is the prerequisite for anyone doing something about it.
+
+## 186. [2026-09-09, FIXED in `production-write`; NEEDS A SECTION 4 DEPLOY] A client whose approve had already landed was told, permanently, that her account was not permitted to approve
+
+**Reported by the owner from a client's screenshot**: the dialog said *"Your
+account is not permitted to make this change on this item. Retrying will not
+change that — ask an SMM or the owner to make it, quoting this code"* with
+`operation_forbidden`, on a card she was trying to approve. It was not a
+permission problem, no SMM could have helped, and the retry advice was correct
+only by accident: the row was already sitting on the exact status she was
+asking for.
+
+**MEASURED, one active client slug, card `p_mrb65aeu_cjq0m`, 2026-09-09.**
+
+| Where | What it says |
+|---|---|
+| `deliverable_events` 19:18:09 | `status_change`, role `client`, `client_approval → approved`, source `ui` |
+| `deliverables` (video) | `approved`, `status_at` 19:18:12 |
+| `calendar_posts` | `video_status` = **`Client Approval`**, `client_video_approved_at` = **null** |
+
+Her approve **committed server-side**. The source row never followed. The
+client Review tab reads the sheet, not the canonical row, so the card kept
+showing "Awaiting your approval" with a live Approve button — and every click
+after 19:18 asked `approved → approved`.
+
+**The refusal.** `clientOperationAllowed` (`policy.mjs`) admitted a client
+status write only when the CURRENT status was one a client may act from
+(`client_approval` or `tweak`). A no-op — the row already on the value asked
+for — fell through to the same `403 operation_forbidden` as a client trying to
+jump a row out of `kasper_approval`, and `WRITE_UI_FAILURE_CODE_CLASS` maps
+that code to the `access` class, whose text is the accusation above. So a
+half-committed write presented itself to a paying client as a permission
+problem, permanently, with no path out that did not involve staff.
+
+**The fix (this PR).** The no-op is admitted. A client can still only ever name
+`approved` or `tweak` — `CLIENT_STATUSES` is checked first and unchanged — and
+the new arm fires only when the row already holds the value requested, so
+nothing previously unreachable becomes reachable; the write is idempotent by
+construction. What it buys is **self-healing**: the retry now succeeds, the
+source-row upsert behind it runs, and the sheet catches up on the client's own
+next click. `tweak → tweak` was already admitted by the transition arm; only
+the `approved` case was stranded.
+
+**What this does NOT fix, and it is the deeper item.** *Why* the
+`calendar_posts` write did not follow its own committed gateway write at
+19:18 is not established here. The gateway leg is acknowledged and the source
+leg is not, which is precisely the shape `_writeUiRetrySourceAt` /
+`checkpointCommittedSource` exist to hold — so either the checkpoint did not
+take or the rollback in `_calReviewApplyApprove` ran anyway. Worth noting that
+per item 101 a refused write leaves no server-side trace, so the browser-side
+half of this is only recoverable from the client's own `localStorage` ring, in
+her browser, which we do not have. **The client-visible symptom is closed; the
+half-commit is not.**
+
+**Live blast radius at the time of writing**: one card on one slug (one
+component, video). Any client on any slug whose approve half-commits lands
+in the same trap until this deploys.
+
+---
+---
+
+## 187. [2026-09-09, FIXED — copy only] A card SyncView had just created said "Client attribution needs repair" for the twelve seconds before Linear answered
+
+An SMM reported that a thumbnail he had just filed from the content calendar
+refused every edit and accused the client of a broken mapping. The client was
+fine. The report was a race with our own mirror, dressed as a data defect.
+
+**Measured on the live row.** `GRA-7437` / `del_56236b60…`, graphics, an active
+roster client. `deliverable_events` has it created from the calendar at
+**19:28:29.255Z** (`action: create`, `source: ui`, `surface: calendar`) and the
+mirror stamping it at **19:28:41.440Z**: twelve seconds. The stored row carried
+the right `client_slug` throughout, and the browser view read
+`raw_attribution_state: resolved` / `direct_project` on the far side of the gap.
+`attribution-stuck-check.js` reports the row in no stuck bucket, and the client
+has zero live rows with a missing project or an unresolved stamp.
+
+**Mechanism.** Native creation writes the deliverable row first and mirrors it
+into Linear after. `_prodResolveAttributions` derives the client from the
+MIRRORED fields only — the row's own Linear project, then its ancestors, then
+the persisted stamp — and never from the `client_slug` column SyncView itself
+wrote at creation. So before the mirror answers there is no evidence at all and
+the row resolves `needs_attribution` / `repair_required`. Run against the live
+row with its mirrored fields stripped, the shipped resolver returns exactly
+that; run against the row as it stands, it returns `resolved` / `direct_project`.
+
+The gate was RIGHT for those twelve seconds — nothing had confirmed who owned
+the row — but it announced itself as a repair, so a transient sync read as a
+broken client and cost a round trip. **The fix is copy, not verdict.** A row in
+the narrow syncing shape (no persisted stamp, no project from any source, no
+Linear issue yet, and a stored slug that is a currently ACTIVE roster client)
+now reads "Syncing to Linear" in its chip, its notice, its side-card project row
+and its gate text, in the neutral muted key rather than the amber repair one.
+The write is still refused, the row still groups under the needs-attribution
+sentinel, and every other unresolved state — a stamp Linear invalidated, an
+unmapped project, a conflict, a slug that is not on the active roster — keeps
+the repair banner it has always had.
+
+`test/prod-attribution-sync-pending-copy.js` executes the real functions out of
+the shipped file and pins both halves: the softer wording for the syncing shape,
+and each of the six ways out of it keeping its own banner.
+
+**What this does NOT fix,** and is the owner's call: attribution still ignores
+the row's own `client_slug`, so if the mirror ever fails outright rather than
+lagging, the card stays read-only until somebody notices. Resolving a native,
+pre-mirror row from its stored active-roster slug would close that, and is a
+verdict change rather than a copy change. Measured today: **139 live rows**
+carry no `raw_project_id`, so this read path reaches further than the one card.
+
+- Done when: shipped (copy). The verdict question above stays open.
+
+## 188. [2026-09-09, lane LX-URGENT, BUILT and HELD — front-end + EF source shipped; the EF half is NOT deployable from the repo, see below] The URGENT ping only ever pointed one way, and the second direction had to be the same machine rather than a second one
+
+The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
+editor in `#video-editing`. The mirror case had no affordance at all. A card parked
+at **Kasper Approval** could sit there indefinitely, and the only escalation was the
+SMM chasing Kasper by hand — which leaves no trace on the row, so nothing on Kasper's
+own screen said which of the cards in his queue could not wait.
+
+**Shape.** The second flavour is deliberately ONE machine with the first, not a
+parallel one: same button, same `_calUrgentSlackDispatch` confirm → POST → latch,
+same four-column marker, same "the marker dies with its round" rule.
+`URGENT_PING_KINDS` holds the only two things that actually differ (destination and
+copy) and `kind` defaults to `'editor'` at every call site, so **no pre-existing call
+path changed behaviour**. A third flavour would be a row in that table.
+
+**The one predicate.** `_calKasperUrgentActive(post)` decides BOTH the button's Sent
+latch and membership of the new Urgent section. That is the point: the section is not
+a second opinion about what is urgent, it is the same fact rendered twice, so the two
+cannot drift. Urgent is a **split of waiting**, not a fourth bucket — an urgent card
+is a waiting card with a ping on it, and it renders, acts and finishes identically.
+Both queue-count pills had to add the split back (`urgent + waiting`), or pinging a
+card would silently shrink the count of work Kasper still owes.
+
+**Two things this ran into that the video ping never had to.**
+
+**1. Only video and graphic carried a change-stamp.** `video_status_at` /
+`graphic_status_at` exist because the Linear reconciler needed them (2026-06-19,
+GRA-6339); caption and title never did. The round key needs one for whichever
+component the ping was fired from, so the migration extends the existing
+`calendar_posts_stamp_status_at` trigger to all four. Rows that predate it carry
+null, and the predicate treats **unstamped-and-still-at-Kasper-Approval as live**
+rather than as a failed round — the generous direction on purpose, because the
+failure that matters here is a pinged card silently *missing* from the Urgent
+section, not one lingering a round too long.
+
+**2. A pill can change flavour in place.** `_calUpdateCardStatusDisplay` used to
+toggle the URGENT button's *state*; a component moving Tweaks Needed → Kasper
+Approval now has to swap the **button**, because the two carry different handlers.
+Restyling it in place would have left a pill that looks right and pings the wrong
+person — a bug with no visible symptom until someone in `#video-editing` is asked
+about a card they have nothing to do with. Both in-place updaters (calendar and
+samples) now remove-and-rebuild on a `data-urgent-kind` mismatch.
+
+**Recipient is never in the payload.** The browser sends card context only, exactly
+as the editor ping does; `send-urgent-kasper-slack` resolves Kasper itself and
+rebuilds the review-tab link, accepting a URL from the request only when it is on
+the SyncView origin. Same reason the editor ping never trusted a mention: a webhook
+that takes its recipient from an open page is a spam relay with extra steps.
+
+**The deploy instruction this item first carried was the 2026-07-15 landmine,
+verbatim.** It read: run the migration, then deploy `calendar-upsert` and
+`sample-review-upsert` by hand because both are `NO CI DEPLOY PATH`. That is
+true of the manifest and catastrophic in practice. Those two writers are the
+⛔ FROZEN pair: live is `calendar-upsert` v43 / `sample-review-upsert` v44,
+**owner-un-gated**, reverted to the pre-#836 tokenless source so clients' existing
+review links keep saving. The repo source still calls `authorizeBrowserWrite`.
+A plain `supabase functions deploy` of the repo source therefore RE-GATES them and
+`401`s every client approval and comment on a pre-existing link — the outage that
+happened **twice on 2026-07-15**, and `--no-verify-jwt` does not help because the
+refusal is application-level, not JWT-level.
+
+The generalisation, and the reason this keeps recurring: **`NO CI DEPLOY PATH`
+reads like "deploy it by hand" and for these two it means "there is a live
+divergence CI is deliberately not allowed to overwrite".** The manifest states
+deploy ownership; it does not state whether the repo source is what is live. For
+every other function those are the same sentence. For these two they are opposite
+ones, and nothing in the manifest says so. PR #813's readiness pass already had to
+replace these two functions' stale "deploy after merge" notes with freeze markers
+once (`EXECUTION_LOG.md`, 2026-07-16). This is the third time the instruction has
+been re-derived from the manifest and been wrong.
+
+**So the marker columns are NOT deployable from this branch, and this item does
+not claim otherwise.** The source change here is correct as *source* — it is what
+the reviewed tree should say — but shipping it to the live writers means porting
+the allow-list delta onto the exact live un-gated sources and deploying those,
+which is an owner-approved operation under the freeze, not a step in a PR
+description. Until that happens the allow-list drops the four marker fields: the
+DM still sends and the Urgent section stays empty. **That failure mode is quiet**,
+and it is now the expected state rather than a symptom of something broken.
+
+**Owner step that IS safe and self-contained:** the migration
+(`migrations/2026-09-09-kasper-urgent-pings.sql`). It only adds columns and widens
+an existing trigger — it touches no Edge Function and cannot re-gate anything.
+
+**THE SAME ASSUMPTION IS IN THE MIGRATION, ONE LAYER DOWN.** Its
+`create or replace function public.calendar_posts_stamp_status_at()` was written
+by copying the body out of `migrations/calendar-status-at-migration.sql` and
+adding two branches. That copy assumes **the repo's migration file matches the
+live function** — the identical assumption that made the deploy instruction
+above dangerous, applied to Postgres instead of to an Edge Function. If the live
+trigger has drifted from that file, `create or replace` silently overwrites the
+drift. Nothing in the repo can tell you whether it has. Read the live definition
+FIRST and compare its video/graphic branches:
+
+```sql
+select pg_get_functiondef('public.calendar_posts_stamp_status_at'::regproc);
+```
+
+The generalisation, which is the actual lesson of this item and is bigger than
+either instance: **this repository is not the state of the system.** For most
+files it is, which is exactly why the exceptions are dangerous — they read
+identically. Two are now known (the frozen writers; possibly this trigger), both
+found only because something checked rather than assumed. Before any change is
+applied to a live artifact, read the live artifact.
+
+**Owner decisions, 2026-09-09 (second round).** The owner asked for the feature
+to be made safe to merge rather than held indefinitely, and chose the register +
+review gates below but NOT the re-issue-every-link path that would close the
+divergence for good. So:
+
+3. **A kill-switch, defaulting OFF, now gates the whole affordance**
+   (`kasper_urgent_ping_enabled` in `syncview_runtime_flags`; the browser fails
+   closed on a missing row, missing key, failed read or malformed value). With it
+   off the feature is INERT — no button, so no click, no write, no DM. This is
+   what makes merging safe before the EF half exists, and it is one row to turn
+   on afterwards with no deploy.
+
+   It exists because "the front-end just adds a button" was wrong. Without the
+   EF, a ping still POSTs a patch whose four marker fields the allow-list drops,
+   leaving an UPDATE that writes only `updated_at` — and `dedupeByLinearIssue`
+   (`scripts/linear-sync-reconcile.js:285`) picks the canonical row by most-recent
+   `updated_at`, so on a card sharing a Linear link with another, a no-op ping can
+   flip which row the calendar shows. Its own comment names that hazard. Status
+   direction is unaffected (it keys on `*_status_at`, the GRA-6339 fix).
+4. **`docs/ops/LIVE_DIVERGENCE_REGISTER.md` + `test/live-divergence-register.js`.**
+   A change touching a registered path must touch the register in the same diff;
+   a registered file must carry its own inline ⛔ warning and no copy-pasteable
+   deploy command. The register is parsed for its own path list, so adding an
+   entry arms the gate with no second place to edit. The owner declined the
+   re-issue path, so this divergence is permanent — which is precisely why it
+   needed a machine, not a memory.
+
+**Owner decisions, 2026-09-09 (first round).**
+1. **The PR was HELD, not merged** (marked draft, title prefixed `[HOLD]`). The
+   owner's standard is that a client's approvals must never break, and half of
+   this feature cannot be proven until the Edge Function half is real. It merges
+   when the marker fields are live in the un-gated writers, not before.
+2. **The `send-urgent-kasper-slack` webhook stays unauthenticated**, at parity
+   with `send-urgent-slack` and every other browser-called SyncView webhook.
+   Codex's P1 is accurate and is accepted, not refuted: an unauthenticated caller
+   can cause repeated bot DMs to one person. It reads nothing, writes nothing,
+   cannot inject a mention or an off-origin link past the sanitiser, and the
+   recipient can mute it. Authentication is deferred to the n8n replacement
+   (`docs/independence/N8N_REPLACEMENT_PLAN.md`) so the whole surface moves
+   together rather than one endpoint being hardened while its twin stays open.
+
+**TWO DEFECTS THAT MUST BE FIXED *IN* THE PORT, NOT BEFORE IT.** Codex's third
+round found both. Neither is fixable in this branch in any way that could ship,
+because both live in the artifact that has not been written yet — the live
+un-gated writer source — and both are unreachable while the kill-switch is off
+(no button, so no click path at all). Recording them here rather than patching
+the un-shippable copy:
+
+1. **The marker needs a delivered state, not just a sent-at.** Round 2 moved the
+   Kasper ping to persist-before-Slack so a failed write could not produce a DM
+   about a section that never populates. That traded one failure for its mirror:
+   the marker now lands, the card repaints as Urgent, and if the webhook then
+   fails, Kasper never got the DM — while the blank-field guard stops the empty
+   marker from clearing it, so reloads keep suppressing the retry. Slack and
+   Postgres have no shared transaction, so *some* window exists whichever order
+   you pick; the fix is to stop pretending otherwise. Add
+   `kasper_urgent_delivered_at` and require it in `_calKasperUrgentActive`, so a
+   marker with no delivery is pending, invisible in the Urgent section, and
+   retryable. That is a schema + writer change, i.e. the port.
+2. **The marker guard reads a stale snapshot.** `applyKasperUrgentMarkerGuards`
+   approves against `readExisting`, and the `.update()` that follows carries no
+   status predicate — so a component moved out of Kasper Approval by another
+   reviewer inside that window still gets a marker written, and the DM points at
+   a section the live row already excludes it from. The fix is a conditional
+   update (`.eq(comp + "_status", "Kasper Approval")` plus the round key) in both
+   writers. Also the port.
+
+Both are listed in the register entry's "to ship a change" path. A port that
+lands the allow-list delta without them ships two known P1s.
+
+**The exact delta to port when the writers are done.** Recorded here so the
+person doing it is not re-deriving it from a diff. Onto the LIVE un-gated source
+of each of `calendar-upsert` and `sample-review-upsert`:
+
+```
+1. ALLOWED             += kasper_urgent_pinged_at, kasper_urgent_status_at,
+                          kasper_urgent_comp, kasper_urgent_by
+2. SCALAR_FIELDS       += the same four
+3. + KASPER_URGENT_MARKER_FIELDS  (the same four, as a roster const)
+4. + KASPER_URGENT_COMPONENTS     (calendar: video/graphic/caption/title;
+                                   samples: video/graphic)
+5. + kasperUrgentComp() and applyKasperUrgentMarkerGuards(), called from
+     applyGuards() right after applyUrgentMarkerGuards()
+6. + the kasper_urgent_ping row in buildEvents()
+```
+
+Steps 5 and 6 are lifted verbatim from this branch. Steps 1-4 are list additions.
+Nothing in the delta touches authorization, CORS, or any existing guard — which
+is what makes it portable onto a source this branch does not contain.
+
+## 189. [2026-09-09] The half-commit behind 186, replicated, root-caused, and half fixed: a lost response is not a failed write
+
+Item 186 closed the client-visible refusal and said plainly that it did not
+explain why the `calendar_posts` leg never followed its own committed gateway
+write. This is that explanation, established by replication rather than by
+reading, in `qa/client-approve-half-commit/probe.js`.
+
+**Method.** The harness serves the repo, boots the real `index.html`, seeds one
+card at `Client Approval` and drives the REAL client approve path. The client
+branch needs no client token: `_calReviewMode()` returns `client` for any view
+that is not `smmreview`, so `_calReviewApplyApprove` takes the same branch,
+stamps the same `client_<comp>_approved_at` and routes the same gateway write.
+Leg 1 (gateway) and leg 2 (`calendar_posts`) are recorded separately and each
+fault is scored against the fingerprint measured on the live card: committed AND
+stale AND unstamped AND still reading `Client Approval` to the client.
+
+| Fault injected | Leg 1 | Leg 2 | Verdict |
+|---|---|---|---|
+| none (control) | commits | writes | correct |
+| **gateway response lost** | **commits** | **never** | **reproduces** |
+| storage refuses the checkpoint | commits | never | no: card stays Approved, storage error shown |
+| source write rejected (500) | commits | attempted | no: card stays Approved, retry armed |
+
+**Only a lost response reproduces it**, and the other two are ruled out on the
+record rather than by argument. A browser cannot distinguish "the server never
+received it" from "the server committed it and the reply was lost". The catch in
+`_calFlushCardSave` assumed the first, rolled the card back through
+`_CAL_ROLLBACK_FIELDS`, and abandoned leg 2. **The rollback is the whole
+mechanism**: it is what put the card back to `Awaiting your approval` with the
+Approve button live, which is what produced the repeat clicks that met 186's
+refusal.
+
+**The finding that decides the fix.** The durable repair journal ALREADY
+completes leg 2 correctly. Harness case `A2` proves it: lose the first response,
+restore connectivity, let `_writeUiResumeSourceRepairs` run, and the source row
+lands with the right status and the right sign-off stamp. Nothing is missing.
+
+**THE BROWSER FIX WAS ATTEMPTED AND WITHDRAWN. Four review rounds, seven
+findings, every one a real defect in the FIX rather than in the original code.**
+Recorded in full, because the next person to open this will otherwise make the
+same attempt:
+
+1. *Absence had no route home.* A request that died before reaching the server
+   threw `status_reapply_required`, and `_calRetrySave` refuses to checkpoint
+   without a committed repair ref, so the write was lost while the journal went
+   on insisting it was owed.
+2. *No CAS on this lane.* Reissuing on proven absence can overwrite another
+   actor's status: Calendar/SXR status payloads carry neither `expected_status`
+   nor `expected_updated_at`, and `production-write` requires them on the
+   `production` surface only. The comment claiming server CAS settled that race
+   was false.
+3. *Legacy fallback.* A missing or rolled-back reroute flag sends the reissue to
+   `_calLegacyPushStatusToLinear`, which fires unawaited and returns `skipped`.
+4. *A 5xx is not proof of non-commit,* so treating it as definitive rolls the
+   card back and re-arms the control: the original incident through another door.
+5. *But a blanket `status >= 500` is wrong too.* `authority_unavailable` throws
+   503 BEFORE `beforeAttempt` reserves the journal record, while
+   `gatewayAttempted` is already true, so a never-sent request would arm a
+   checkpoint with no repair refs and strand the card as "Source repair receipt
+   missing".
+6. *The optimistic approval was invisible as unconfirmed.* `_calReviewPanelHtml`
+   returns the "Approved / Locked in" collapse before any error is read, and
+   both queue predicates plus `_calReviewCardBody` filter on
+   `_calReviewComponentActive`, which an optimistically-Approved component
+   fails. The not-confirmed copy therefore never reaches a real client link in
+   the single-component case: exactly the case the change targeted.
+7. *The harness kept not proving what it claimed.* It recorded a commit before
+   every simulated abort (masking the pre-server path), scored only against the
+   fingerprint (so a broken recovery passed for the wrong reason), and DEFINED
+   an `error-after-commit` fault it never ran.
+
+**Why withdrawn rather than iterated.** The server half of 186 is deployed
+(`production-write` v70), so a client no longer meets the refusal loop and this
+is defence in depth, not an emergency. The area couples optimistic card state, a
+two-leg write, a repair journal, authority preflight and two queue predicates,
+and each patch surfaced another interaction. A correct fix needs CAS on the
+calendar status lane and one coherent unconfirmed-state contract across the
+review surfaces: edge-function work that overlaps almost entirely with the
+server-side reconciler. Half of it, shipped to a client-facing surface, is how
+the original incident happened.
+
+**What ships instead: the replication, with the defect pinned.** Harness case
+`A` asserts the CURRENT behaviour by name (a committed-but-lost response rolls
+the card back and drops the sign-off stamp), so this cannot be quietly "fixed"
+or regress further without someone deliberately rewriting a contract.
+
+**What is still open, and it is the real one.** That repair runs only in that
+client's browser, only if she comes back. She met an error, reported it, and
+closed the tab, so a write the server had already committed was left unfinished
+with nothing server-side able to complete it; her card stayed stale until an
+unrelated staff browser projected the canonical status back at 19:32. **The
+completion of a committed write still depends on one particular browser session
+surviving.** Closing that needs a server-side reconciler (a deliverable whose
+status disagrees with its card row is a repairable fact, visible without any
+browser), which is an owner decision about who owns the card row and is
+deliberately NOT taken here. The planned review-surface fault sweep across
+Client / SMM / Kasper should shape it before it is built.
+
+## 190. [2026-09-10, OPEN — reproduced, corroborated by the live row] Two silent losses on the review surfaces: the client's sign-off stamp, and a change request that never reaches the card
+
+**Found by the review-surface sweep (`qa/review-surface-sweep`), and it explains
+an anomaly item 186 recorded as unexplained.**
+
+A client approve that meets ANY of the three write faults recovers its component
+status to `Approved` and never writes `client_<comp>_approved_at`. The no-fault
+control writes it correctly, so this is the recovery path dropping it rather
+than the action failing to produce it.
+
+| client / approve | source row after recovery | sign-off stamp |
+|---|---|---|
+| no fault (control) | `Approved` | **present** |
+| gateway answer lost | `Approved` | **missing** |
+| 5xx after commit | `Approved` | **missing** |
+| source write rejected | `Approved` | **missing** |
+
+**The live row agrees.** Item 186's production card ended at
+`video_status = Approved` with `client_video_approved_at = null`, and that was
+noted at the time as unexplained. It now has a mechanism and a reproduction.
+
+**Why this one matters more than its size suggests.** Every other symptom in
+this family is a temporary disagreement that heals. This one is a PERMANENT loss
+of the only record that the client personally signed off. The status says the
+work was approved; nothing says who approved it. On a product whose entire
+service is client approval, that row IS the evidence, and after any network
+hiccup it is blank. Nobody notices, because the card looks correct.
+
+**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE, AND IT IS UNCONFIRMED: a change
+request may commit on the server and never reach the card.** Read the caveat
+under it before acting: the eighth review round showed at least one of its six
+rows is a harness artifact, so this is a lead, not an established defect.** Client and SMM alike, under a lost gateway
+answer, a 5xx after commit, or a never-sent request that later resumes: the
+gateway records the comment, `calendar_posts` gets nothing, and the resume does
+not close the gap. The editor opens the card and sees no change request while
+the server holds one. This one is worse in a specific way: with the approve at
+least the STATUS eventually agrees, whereas here the card shows no sign that
+anything was ever asked for.
+
+It was missed twice, and the reason is worth recording: the sweep's scorer
+skipped its thread check whenever no source write landed, which is precisely the
+case where the split happens, so two published versions of the sweep concluded
+"requesting a change is sound on both surfaces". A committed comment is a fact
+about the SERVER and has to be compared whether or not any source patch landed.
+
+**THE SWEEP'S COUNTS ARE NOT TRUSTWORTHY, and finding 1 does not depend on
+them.** After eight review rounds the probe was shown to be wrong in both
+directions at once: it over-reports (a staff boot creates a repair journal a
+real client link would not, since client comments get `repair = null`) and
+under-reports (its pre-resume window compares only component status, missing the
+comment splits). Finding 1 stands anyway because the LIVE production row
+corroborates it independently. Finding 2 does not, and is held as a lead until
+someone reruns it from a real tokened client context. `qa/review-surface-sweep`
+is marked instrument-only for the same reason.
+
+**Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
+belongs with the server-side reconciler rather than as another browser patch:
+the recovery path that restores the status is the same one that would carry the
+stamp, and OPEN_REPAIRS 189 records why patching that path in the browser was
+abandoned after seven review findings.
+
+**What would prove a fix:** the sweep's `client / approve` rows flag zero
+companion problems across all four faults with the control still writing the
+stamp, AND every `request-change` row carries its committed comment into the
+source row.

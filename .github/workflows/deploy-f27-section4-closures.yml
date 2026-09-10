@@ -291,8 +291,17 @@ jobs:
       # its first physical line would carry the label. See
       # test/f27-section4-deploy-lane.js CANDIDATES for the full note. No
       # migration, no new import, file count unchanged at 5.
-      # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432
+      # Re-pinned 2026-09-09: a client re-sending the status her row already
+      # holds is admitted as the no-op it is, instead of being refused
+      # 403 operation_forbidden and told her account is not permitted to make
+      # the change (clientOperationAllowed). The status branch is not inert on
+      # equality, so the same release suppresses the overdue due-date bump for
+      # a client no-op: the bump is default-on, and `due` is an operation the
+      # handler refuses to a client, so it must not arrive through the back of
+      # an idempotent status write. Staff no-ops keep it. No
+      # migration, no schema, no new import, file count unchanged at 5.
+      # (Previous pin: 27d1a608fd... -- production-write v70, 2026-09-08.)
+      PRODUCTION_WRITE_SOURCE_SHA256: fc721251eeb6bd5c5f75456657ee51e105e452e6234a4121e61b93dd1b59de90
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

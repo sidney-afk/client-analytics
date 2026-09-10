@@ -98,7 +98,63 @@ const LANES = Object.freeze([
    * which the cutoff disables — re-homing it is what keeps "a checker cannot
    * report its own death" true after Linear is gone.
    */
-  { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'schedule 15m + 20m crosscheck', max_age_minutes: 180,
+  /*
+   * max_age_minutes is 360, not the 180 the two crons imply, because GitHub
+   * does not deliver those crons. MEASURED 2026-09-08 over both hosts' actual
+   * run history: monitoring-deadman.yml (cron every 15m) fired 8 times in 29
+   * hours and monitoring-crosscheck.yml (cron every 20m) 5 times in 16, so the
+   * COMBINED beat — which is what this lane's freshness actually depends on —
+   * arrives every 46 to 274 minutes rather than every 15. GitHub schedules a
+   * cron on a best-effort queue and drops firings under account load; this
+   * repository ran 42,000+ workflow runs, and the dispatched lanes crowd out
+   * the scheduled ones.
+   *
+   * At 180 the lane therefore reported ITSELF stale on any gap over three
+   * hours, which happened twice on 2026-09-08 alone (215m and 274m) and five
+   * times in the eight runs before it. Every one of those pages was false: the
+   * relay delivered, every watched lane was healthy, and nothing had stopped.
+   * A dead-man's switch whose only routine finding is its own death is the
+   * alarm-fatigue failure this whole file exists to prevent — the next reader
+   * discounts it, and the page that matters arrives looking identical.
+   *
+   * 360 clears the worst observed combined gap (274m) by about a third.
+   *
+   * WHAT THAT DOES AND DOES NOT BUY, stated as arithmetic because the first
+   * version of this comment got it wrong and said "pages within six hours":
+   * freshness is only evaluated when a host actually runs, so the real
+   * detection time is max_age_minutes PLUS the observation interval, not
+   * max_age_minutes alone. A lane that stops right after a beat is seen at
+   * age 274 by the next host (healthy) and only at age 548 by the one after,
+   * putting detection near 360 + 274 = 634 minutes, about ten and a half
+   * hours, with typical nearer nine.
+   *
+   * 634 IS AN ESTIMATE, NOT A BOUND, and the distinction matters for a record
+   * operators lean on: 274 is the largest gap in the sampled history, not a
+   * limit GitHub honours. Best-effort scheduling can drop firings for longer
+   * than anything measured here, which pushes detection past 634 by however
+   * long the gap runs; and if BOTH hosts stop firing, no page is produced at
+   * all. That last case is the residual the runbook already names — a total
+   * Actions outage silences both halves — and closing it needs an observer
+   * outside Actions, not a different number here.
+   *
+   * There is no threshold that fixes this, and that is the point worth
+   * carrying: no-false-positives requires max_age above the 274-minute
+   * observation gap, which by the same arithmetic puts the floor on worst-case
+   * detection at about 548 minutes whatever number is chosen. Trading 360 down
+   * to 300 buys roughly an hour of deadline and spends most of the false-alarm
+   * margin to get it. The bind is the observation interval, not the threshold,
+   * so only a host that actually runs on time can shorten this materially.
+   *
+   * Two things would let this come back down, and neither is a code change
+   * here: dispatching a host on a reliable external timer the way the
+   * reconcilers are dispatched every 15 minutes, or cutting the repository's
+   * scheduled-workflow load so GitHub stops dropping firings. Note also that
+   * linear-deliverables-reconcile.yml is listed as a host but contributes a
+   * beat only on its SCHEDULED runs (its --check step is gated on
+   * event_name == 'schedule'), so its frequent dispatched runs do not help,
+   * and the Linear exit retires it entirely.
+   */
+  { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'schedule 15m + 20m crosscheck (GitHub delivers ~1 per 3-5h)', max_age_minutes: 360,
     hosts: ['monitoring-deadman.yml', 'monitoring-crosscheck.yml', 'linear-deliverables-reconcile.yml'],
     heartbeat_flag: '--check', retired: null },
   { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160,

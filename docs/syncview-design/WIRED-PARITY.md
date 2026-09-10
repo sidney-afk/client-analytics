@@ -370,7 +370,7 @@ Owner-ratified B2 read-only additions, first added to the locked artifact and th
 1. Display menu includes `Show sub-issues`, default on. Turning it off hides only sub-issues whose parent is also in the current view; orphaned sub-issues remain visible so in-flight work does not disappear.
 2. Display menu includes `Ordering` with Due date, Updated, and Created. The default remains the existing status -> due-date -> label ordering; Created/Updated use the same status grouping with newest rows first inside each status.
 3. Group-by, ordering, and sub-issue visibility persist in the wired tab through localStorage and URL/history state. This is a wired-only `PORT-DELTA`; the artifact keeps display state in memory.
-4. Command-palette issue search now also matches issue briefs/descriptions. The wired predicate uses migrated B1 brief text, marked as a `PORT-DELTA`.
+4. Command-palette issue search matches title and identifier. It does **not** match description text, and that claim is now stated accurately rather than aspirationally. Deliverable briefs were never searchable here: `brief` is not in `PROD_DELIVERABLE_SELECT`, so a deliverable's `desc` is empty at boot and always has been. Batch-parent descriptions WERE searchable until 2026-09-09, when the boot read stopped carrying `batches.description` (OPEN_REPAIRS 182); 1,540 of 1,688 batches carry one, so that is the size of what changed. Restoring description search means asking the server for matches when the palette has a query — not reinstating a 1 MB boot read to make an in-memory scan possible. Tracked as OPEN_REPAIRS 183.
 5. Client group headers and row client chips route through the project page path, matching the artifact and showing top-level parent issues first instead of a flat client-filtered list.
 
 Owner-accepted wired-exceeds-artifact divergences:
@@ -1082,3 +1082,37 @@ that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
     `test/prod-deep-link-open-id-key.js` pins. Suites:
     `test/prod-deep-link-linear-identifier.js` (resolver, executed) and
     `test/identifier-team-move-repair.js` (the repair's shape).
+
+## A native card waiting on the Linear mirror says so (2026-09-09)
+
+An SMM filed a thumbnail from the content calendar, and the card refused every
+edit under **"Client attribution needs repair."** The client was fine.
+OPEN_REPAIRS 187.
+
+-   **Candidate behaviour.** Native creation writes the deliverable row first
+    and mirrors it into Linear after. `_prodResolveAttributions` derives the
+    client from the MIRRORED fields only — the row's own Linear project, then
+    its ancestors, then the persisted stamp — and never from the `client_slug`
+    column SyncView itself wrote at creation. So between the insert and the
+    mirror's answer a brand new card has no evidence at all, resolves
+    `needs_attribution` / `repair_required: true`, and every write control on it
+    is gated shut behind repair wording. Measured on the row that produced the
+    report: created from the calendar at 19:28:29.255Z, stamped `resolved` /
+    `direct_project` at 19:28:41.440Z. Twelve seconds, correct on both sides of
+    the gap, and the reader was told their client was broken.
+-   **Wired behaviour.** A row in the syncing shape — no persisted stamp, no
+    project from any source, no Linear issue yet, and a stored slug that is a
+    currently ACTIVE roster client (`_prodAttributionSyncPending`) — reads
+    **"Syncing to Linear"** in its chip, its notice, its side-card project row
+    and its gate text, in the neutral muted key rather than the amber repair
+    one, and the side card names the client SyncView stored rather than
+    "Needs attribution".
+-   **What does NOT move.** The verdict. The attribution state is still
+    `needs_attribution`, `_prodAttributionGateText` still returns a non-empty
+    refusal so the write is still refused, the row still groups under the
+    `__needs_attribution__` sentinel, and no node is added or removed. Every
+    other unresolved state — a stamp Linear invalidated, an unmapped project, a
+    conflict, a slug that is not on the active roster — keeps the repair banner
+    it has always had. Pinned by
+    `test/prod-attribution-sync-pending-copy.js`, which executes the shipped
+    functions and asserts each of the six ways out of the syncing shape.

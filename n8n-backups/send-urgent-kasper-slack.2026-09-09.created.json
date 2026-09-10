@@ -1,0 +1,220 @@
+{
+  "_backup_note": "Created 2026-09-09 by the Kasper-approval URGENT ping change. Twin of 'SyncView — Urgent Tweak → Slack' (send-urgent-slack), aimed at Kasper instead of the editor: POST /webhook/send-urgent-kasper-slack with card context only, and the workflow — not the browser — decides who gets the DM and validates the review-tab link against the SyncView origin. Published active on creation; this file is the as-created snapshot.",
+  "name": "SyncView — Urgent Kasper Review → Slack",
+  "id": "1WjZZjfQjDlg1Crf",
+  "activeVersionId": "f442f701-94bb-48bd-9f35-6cc4ff45da63",
+  "connections": {
+    "Receive POST": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "DM Kasper",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DM Kasper": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "802f4fe1-050d-4597-bff4-509aef74820a",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        96
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-urgent-kasper-slack",
+        "responseMode": "responseNode",
+        "authentication": "none",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "7157f8ad-bc87-4b68-ba33-4f159e49cbb7"
+    },
+    {
+      "id": "dabfd94d-1fd3-42a8-8c7d-0f57baddd8ae",
+      "name": "Parse & Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Twin of \"SyncView — Urgent Tweak → Slack\", aimed the other way: that one\n// pings the EDITOR in #video-editing about a video at Tweaks Needed; this one\n// DMs KASPER about a card parked at Kasper Approval.\n//\n// The recipient is NOT taken from the request. The browser sends card context\n// only, exactly as the editor ping does, so nothing a page can post decides who\n// gets messaged.\nconst item = $input.first().json;\nconst b = (item && item.body) ? item.body : item;\nconst clean = (v, max) => String(v == null ? '' : v)\n  .replace(/[<>@]/g, '')\n  .replace(/[\\r\\n\\t]+/g, ' ')\n  .replace(/\\s{2,}/g, ' ')\n  .trim()\n  .slice(0, max || 80);\n\nconst client = clean(b && b.client, 80);\nconst name = clean(b && (b.name || b.postName), 120);\nconst surface = String((b && b.surface) || '').trim() === 'samples' ? 'samples' : 'calendar';\nconst component = ['video', 'graphic', 'caption', 'title'].includes(String((b && b.component) || '').trim())\n  ? String(b.component).trim()\n  : '';\n\n// The link is rebuilt here rather than trusted: a URL from the request is only\n// accepted when it is on the SyncView origin, so a forged payload cannot turn a\n// Slack DM from the SyncView Bot into a link to somewhere else.\nconst ORIGIN = 'https://syncview.synchrosocial.com/';\nconst fallback = ORIGIN + '#kasper' + (surface === 'samples' ? '/samples' : '');\nconst asked = String((b && b.url) || '').trim();\nconst url = (asked.indexOf(ORIGIN) === 0 && asked.length <= 300) ? asked : fallback;\n\n// A ping with no card behind it is refused: the DM would say nothing useful and\n// the SMM would never learn it went nowhere.\nconst valid = !!(client || name);\nconst error = valid ? '' : 'Missing client and card name';\n\nconst COMPONENT_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };\nconst waitingOn = component ? (COMPONENT_LABELS[component] || component) : '';\n\nlet text = 'URGENT — WAITING ON YOUR REVIEW';\nif (client) text += '\\nClient: ' + client;\nif (name) text += '\\nCard: ' + name;\nif (waitingOn) text += '\\nWaiting on: ' + waitingOn;\ntext += '\\nYour review tab: ' + url;\ntext += '\\n\\nIt is in the Urgent section at the top.';\n\nreturn [{ json: { valid, error, client, name, surface, component, url, text } }];"
+      }
+    },
+    {
+      "id": "11197133-8a97-4a96-8da1-d8719d57426b",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "34e2b8dc-aa12-4c32-a4ad-eb8ff0b27eb9",
+      "name": "DM Kasper",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "message",
+        "operation": "post",
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "mode": "id",
+          "value": "U02RBFE3BK8"
+        },
+        "messageType": "text",
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "unfurl_links": false,
+          "unfurl_media": false,
+          "mrkdwn": true
+        }
+      },
+      "webhookId": "891137a1-19f5-4789-b2b9-ee982bcb1638",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      }
+    },
+    {
+      "id": "13454b3f-f516-4027-8379-15b53d8c4dbf",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ ({ ok: true, posted: true, url: $('Parse & Validate').item.json.url }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "45904fad-293e-4f1e-b865-7e06814d136f",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        672,
+        192
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ ({ ok: false, error: $json.error }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -35,7 +35,25 @@ function grabFunc(name) {
   throw new Error('unbalanced braces: ' + name);
 }
 
+// The dispatch is now shared by two ping FLAVOURS (editor / kasper) and reads
+// its copy + destination out of URGENT_PING_KINDS, so the sandbox has to carry
+// the real table rather than a stub — otherwise this suite would pass while the
+// live confirm text and webhook came from somewhere it never looked at.
+function grabBlockConst(name) {
+  const at = INDEX.indexOf('const ' + name + ' = {');
+  if (at < 0) throw new Error('const not found: ' + name);
+  let depth = 0;
+  for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
+    const c = INDEX[j];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1) + ';'; }
+  }
+  throw new Error('unbalanced braces: ' + name);
+}
+
 const SRC = [
+  grabBlockConst('URGENT_PING_KINDS'),
+  grabFunc('_urgentKind'),
   grabFunc('_calUrgentSlackDispatch'),
   grabFunc('_calSendUrgentSlack'),
   grabFunc('_kasperSendUrgentSlack'),
@@ -60,6 +78,7 @@ function build(env) {
       return Promise.resolve({ ok: true });
     },
     URGENT_SLACK_URL: 'http://x/webhook/send-urgent-slack',
+    URGENT_KASPER_SLACK_URL: 'http://x/webhook/send-urgent-kasper-slack',
     calState: env.calState || { client: '', posts: [] },
     _kasperState: env._kasperState || { items: [], replies: [] },
     wlCanonicalClient: (s) => s,

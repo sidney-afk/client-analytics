@@ -474,3 +474,15 @@ shared ordered local candidate. A detected component-fill signature error was
 corrected to the five arguments in both SQL owners, retaining exact body and
 permission checks. This metadata proof does not validate operational configuration
 or a hosted installation. The earlier one-object absence remains in the evidence.
+
+### Hosted upgrade classification remains required
+
+The 2026-09-10T23:17:02.658Z metadata-only observation returns CONTRACT_ABSENT:
+140 absent checks, seven existing incompatible objects and two compatible checks
+out of 149. The seven existing objects include the browser view, workload
+snapshot and five native write/intake routines. An incompatibility receipt does
+not distinguish function-body, security or permission differences. Capture and
+review their exact current definitions and custody privately before any future
+upgrade; do not infer a safe replacement from the synthetic baseline. The check
+skipped configuration reads and made no changes. See the recovery checkpoint
+and aggregate evidence for the exact public object keys. Installation HOLD.

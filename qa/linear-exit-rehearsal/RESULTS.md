@@ -1,5 +1,31 @@
 # Completed isolated evidence
 
+## Latest hosted metadata observation
+
+At 2026-09-10T23:17:02.658Z, the prepared read-only preflight observed 149 hosted
+metadata objects: 140 absent, seven present but incompatible, and two compatible.
+The result is CONTRACT_ABSENT; configuration reads were skipped. The initial
+CLI read was followed by one metadata-only read to retain both absent and
+present-incompatible classifications (the CLI prioritizes absent objects).
+No schema, configuration or application data was changed.
+
+The 140 absent checks comprise 69 columns, 42 routines, 16 triggers, seven
+relations, two constraints, two indexes and two sequences. These overlap by
+owner and are not 140 independent migration tasks. The seven existing mismatches
+are the browser deliverables view, workload snapshot, intake append, component
+fill, deliverable writer, comment writer and comment lifecycle writer. The check
+reports compatibility, not which body/ACL subcondition differs. Full keys and
+the private receipt hash are retained in the aggregate evidence.
+
+This confirms the prepared candidate has not reached hosted contract readiness.
+It does not supply a complete installed catalog/backup, validate configuration,
+or authorize replacing existing definitions. Next preparation priority is an
+exact read-only baseline/custody package and reviewed upgrade classification for
+existing owners, retaining the local installation/recovery evidence and remaining
+interruption limits. Notification configuration/handover and WR-101 remain open.
+Installation HOLD. No merge, deployment, workflow or n8n execution.
+
+
 ## Latest installed-candidate metadata preflight
 
 The preflight-installed lane now proves all 149 release metadata objects match

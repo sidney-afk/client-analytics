@@ -406,7 +406,12 @@ function detect(world) {
      * scripts/linear-sync-reconcile.js applies. */
     if (String(card.status || '').toLowerCase() === 'archived') return null;
     if (ONLY_CLIENT && String(card.client || '').toLowerCase() !== ONLY_CLIENT) return null;
-    return { del, card };
+    /* The component travels WITH the resolution, from the same validated team
+     * that chose the reverse-link slot. Deriving it again at the call site from
+     * `kind` is what silently dropped a `kind='other'` approval: resolve()
+     * accepted it through the graphic slot and the caller then produced neither
+     * a repair nor a skip. Same argument as the client rule — one place. */
+    return { del, card, component: teamComp };
   }
 
   /* A. A committed client APPROVE whose card carries no sign-off stamp.
@@ -447,8 +452,16 @@ function detect(world) {
       continue;
     }
     if (!hit) continue;
-    const comp = COMPONENT_FOR_KIND[String(hit.del.kind || '').toLowerCase()];
-    if (!comp) continue;
+    const comp = hit.component;
+    /* resolve() refuses an unknown team, so this cannot fire today; it is here
+     * because the failure it replaces was a SILENT `continue`, and a committed
+     * client approval disappearing without a line in the report is the one
+     * outcome this job must never have. */
+    if (!comp) {
+      skipped.push({ kind: 'stamp', reason: 'no_component_for_deliverable',
+        card: hit.card.id, component: '' });
+      continue;
+    }
     /* `source_edited_at` is when the CLIENT's write committed; `processed_at`
      * is when linear-outbound finished carrying it onward, which on a retried
      * or delayed delivery is minutes or hours later. The documented contract is
@@ -573,7 +586,7 @@ function detect(world) {
     const named = String(pc.component || '').trim().toLowerCase();
     const comp = named
       ? COMPONENT_FOR_KIND[named]
-      : COMPONENT_FOR_KIND[String(hit.del.kind || '').toLowerCase()];
+      : hit.component;
     if (!comp) {
       if (named) {
         skipped.push({ kind: 'comment', reason: 'unmapped_component', card: hit.card.id,

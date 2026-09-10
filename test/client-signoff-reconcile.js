@@ -893,6 +893,43 @@ check('the reverse slot is chosen by team, not by the card that happens to match
   assert.equal(skipped[0].reason, 'card_does_not_link_back');
 });
 
+/* ROUND 13. Round 12 gave `kind='other'` a defensible component through its
+   team, and then the stamp path derived the component from `kind` anyway, got
+   nothing, and `continue`d — so a committed client approval on such a card
+   produced NEITHER a repair NOR a line in the report. A silent drop is the one
+   outcome this job must not have, since the report is what a person acts on.
+   The component now travels with the resolution, from the same validated team
+   that chose the reverse-link slot. Live: 147 `other` deliverables, zero
+   committed client approvals ever, so this writes nothing today. */
+check('an approval on a kind with no component mapping stamps through its team', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    deliverables: [DEL({ kind: 'other', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1' })],
+  }));
+  assert.equal(findings.length, 1, 'accepted by resolve() but dropped by the caller is a silent loss');
+  assert.equal(findings[0].component, 'graphic');
+  assert.equal(patchFor(findings[0]).client_graphic_approved_at, '2026-09-05T10:00:00.000Z');
+});
+
+/* Nothing this job refuses may leave the report silent: every rejection path
+   must put a line in `skipped`, or a person reading the run learns nothing. */
+check('every refused approval is reported, never silently dropped', () => {
+  const cases = [
+    ['not_a_calendar_deliverable', { deliverables: [DEL({ origin: 'samples' })] }],
+    ['kind_and_team_disagree', { deliverables: [DEL({ kind: 'video', team: 'graphics' })] }],
+    ['unknown_team', { deliverables: [DEL({ team: '' })] }],
+    ['card_does_not_link_back', { cards: [CARD({ video_deliverable_id: 'other' })] }],
+    ['approval_belongs_to_another_client', { outbox: [APPROVE({ client_slug: 'previousclient' })] }],
+  ];
+  for (const [reason, over] of cases) {
+    const { findings, skipped } = detect(world(Object.assign({ outbox: [APPROVE()] }, over)));
+    assert.equal(findings.length, 0, reason);
+    assert.equal(skipped.length, 1, reason + ' must produce exactly one report line');
+    assert.equal(skipped[0].reason, reason);
+  }
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');
@@ -949,5 +986,18 @@ check('body comparison ignores only whitespace shape', () => {
 
 (async () => {
   for (const [label, fn] of asyncChecks) { await fn(); checks++; console.log('  ok — ' + label); }
+  /* THE RUNBOOK'S COUNT IS PART OF THE SUITE. It went stale within one round of
+     being written, and a runbook that publishes a stale count is evidence a
+     later session plans against. Asserted last, when the real count is known. */
+  {
+    const doc = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '../docs/ops/CLIENT_SIGNOFF_RECONCILE.md'), 'utf8');
+    const m = doc.match(/(\d+) checks/);
+    assert.ok(m, 'the runbook must publish a check count');
+    checks++;
+    assert.equal(Number(m[1]), checks,
+      `docs/ops/CLIENT_SIGNOFF_RECONCILE.md says ${m[1]} checks; the suite runs ${checks}`);
+    console.log('  ok — the runbook publishes the count this suite actually runs');
+  }
 console.log(`PASS: ${checks} checks — committed client actions are completed from server evidence, and a card that moved on is never overwritten`);
 })();

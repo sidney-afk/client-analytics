@@ -117,10 +117,12 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 64 checks, each
+construction through fixtures — no credentials, no network. 77 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
-removed. Keep this number current: a runbook that publishes a stale count is
-evidence a later session will plan against. The cases that must
+removed. **That number is asserted by the suite itself** — this line said 64
+after round 12 added ten, which is exactly the stale evidence a later session
+would plan against, so keeping it current is no longer left to whoever
+remembers. The cases that must
 NOT repair are asserted first and in the most detail, because a false positive
 here republishes settled work or duplicates a client's own words back at them.
 
@@ -327,6 +329,13 @@ So `resolve()` requires the link to close both ways:
   `team='graphics'` cannot say which review it belongs to, and is refused;
 - a `kind` this job maps to no component — `other` is live, with
   `team='graphics'` — still resolves, through its team.
+
+The validated component **travels with the resolution**. Deriving it again at
+the call site from `kind` is what made a `kind='other'` approval vanish: the
+link check accepted it through the graphic slot and the caller then produced
+neither a repair nor a report line. Every refusal now writes a line into
+`skipped`; a committed client approval disappearing silently is the one outcome
+this job must not have, because the report is what a person acts on.
 
 This lives in `resolve()` next to the client rule, for the reason round 10
 established: identity questions answered per call site get answered

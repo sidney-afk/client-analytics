@@ -19689,3 +19689,37 @@ rather than counted twice.
 
 **Twelve rounds, 30 findings.** Rounds 9 through 12 were all identity taken from
 one side, and 12 was a defect in 11's fix.
+
+### 195n. Round 13: a component derived twice, and an approval that vanished
+
+195m gave `kind='other'` a defensible component through its `team`. The stamp
+path then derived the component from `kind` anyway, got nothing, and `continue`d
+— so a committed client approval on such a card produced **neither a repair nor
+a line in the report**. That is worse than a wrong repair: the report is what a
+person acts on, and a silent drop tells them the row does not exist.
+
+The validated component now travels with the resolution, from the same team that
+chose the reverse-link slot, and every refusal writes a line into `skipped`. The
+same one-place argument as 195j–195m: a value derived twice gets derived
+inconsistently.
+
+Live: 147 `other` deliverables, **zero** committed client approvals on any of
+them, so this writes nothing today.
+
+Also fixed, and the more embarrassing half: the runbook still published **64
+checks** one round after the suite reached 74 — under a line telling the reader
+to keep that number current. It is now **asserted by the suite itself**, so it
+cannot go stale again. A runbook that publishes a stale count is evidence a
+later session plans against.
+
+77 checks. Both controls fire: deriving the component from `kind` at the call
+site, and restoring the silent `continue`.
+
+A note on the controls themselves, since this PR has now found five tests that
+passed for the wrong reason: the second control looked like it did not fire,
+because the grep used to check it matched only `AssertionError` and the sabotage
+produced a `TypeError`. The instrument was wrong, not the control. Read the
+suite's exit status, not a pattern chosen in advance.
+
+**Thirteen rounds, 32 findings.** Round 13 was a defect in 12's fix, which was a
+defect in 11's fix.

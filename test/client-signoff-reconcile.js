@@ -1981,6 +1981,42 @@ check('a reply is judged by its root, as the renderer judges it', () => {
   assert.equal(findings.length, 1, 'the client sees neither the root nor its reply');
 });
 
+/* ROUND 35. The root map was built from the RAW cell; `_calCommentsForView`
+   drops tombstoned and hidden entries FIRST and only then indexes by id. So a
+   hidden root is absent from the renderer's map and its surviving reply is
+   judged by its own audience — while my map resurrected the hidden root and
+   judged the reply by it. A hidden client-addressed root with an internal reply
+   was therefore called visible, and claimed. */
+check('a reply under a HIDDEN root is judged by itself, as the renderer judges it', () => {
+  const onCard = JSON.stringify([
+    { id: 'root-1', body: 'hidden but client-addressed', role: 'client',
+      audience: 'client', hidden: true },
+    { id: 'pc_x1', body: 'totally different text', role: 'smm',
+      audience: 'internal', parent_id: 'root-1', is_tweak: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1,
+    'the root is hidden, so the reply stands alone and is internal');
+});
+
+/* And the reply-under-a-VISIBLE-root case still resolves through the root, or
+   the prefilter would have quietly undone round 34. */
+check('a reply under a visible internal root is still judged by that root', () => {
+  const onCard = JSON.stringify([
+    { id: 'root-1', body: 'internal thread', role: 'smm', is_tweak: false },
+    { id: 'pc_x1', body: 'totally different text', role: 'client',
+      parent_id: 'root-1', is_tweak: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1, 'the root is internal and present, so the reply inherits it');
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

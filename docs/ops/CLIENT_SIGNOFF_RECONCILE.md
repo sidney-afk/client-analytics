@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 140 checks, each
+construction through fixtures — no credentials, no network. 142 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -155,7 +155,15 @@ one of them: it also drops every `role: 'kasper'` message outright ("never
 expose Kasper authorship" — a hard exclusion that beats an explicit
 `audience: 'client'`), and it judges a reply by its thread **root's** audience,
 not its own. All three are mirrored here, the last one by resolving the root out
-of the same cell the renderer resolves it from.
+of the **same prefiltered list** the renderer indexes: it drops tombstoned and
+hidden entries *first* and only then builds its id map, so a hidden root is
+absent from it and a surviving reply falls back to its own audience. Indexing
+the raw cell instead resurrects that root.
+
+One deliberate divergence from the renderer, and only one: a **deleted** entry
+claimed by id is still a claim here, because the client withdrew their own
+request. It is excluded from the root map (as the renderer excludes it) but not
+from being claimed.
 
 The same predicate gates the **exact-id** claim. An id match is the strongest
 evidence this job has and still is not evidence of delivery: an internal root is

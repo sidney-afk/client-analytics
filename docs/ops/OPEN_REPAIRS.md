@@ -20348,3 +20348,28 @@ path had two more rules wrapped around the one I extracted.
 140 checks, three controls, all confirmed by exit status.
 
 **Thirty-four rounds, 75 findings.**
+
+### 196aj. Round 35: mirroring the caller's rules, but not its order
+
+196ai mirrored all three of `_calCommentsForView`'s rules and still got the
+**order** wrong. The renderer drops tombstoned and hidden entries FIRST and only
+then indexes by id, so a hidden root is absent from its map and a surviving
+reply falls back to its own audience. Indexing the raw cell resurrected the
+hidden root: a hidden client-addressed root with an internal reply read as
+visible, and the reply could claim a committed request.
+
+Fixed by building the root map from the same prefiltered list. One deliberate
+divergence remains and is documented rather than accidental: a **deleted** entry
+claimed by id is still a claim, because withdrawn is not unseen — it is excluded
+from the root map exactly as the renderer excludes it, but not from being
+claimed.
+
+142 checks, two controls, both confirmed by exit status, including one against
+the over-correction of emptying the root map (which would silently undo 196ai's
+reply rule).
+
+**Thirty-five rounds, 76 findings.** Four consecutive rounds on one predicate:
+a role blacklist, then the wrong surface's function, then the right function
+without its caller's other rules, and now those rules in the wrong order. The
+progression is worth keeping: each step was closer and each was still not the
+thing itself.

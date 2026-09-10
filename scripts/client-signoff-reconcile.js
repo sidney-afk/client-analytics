@@ -352,7 +352,14 @@ function stampSurvives(card, comp, stampValue) {
 const isVisibleOnCard = (entry, list) => {
   if (!entry || entry.hidden) return false;
   if (entry.role === 'kasper') return false;
-  const rows = Array.isArray(list) ? list : [];
+  /* THE ROOT MAP IS BUILT FROM THE FILTERED LIST, as the renderer builds it.
+   * `_calCommentsForView` drops tombstoned and hidden entries FIRST and only
+   * then indexes by id — so a hidden root is absent from the map and its
+   * surviving reply falls back to being judged by its own audience. Indexing the
+   * raw list instead resurrects that root: a hidden client-addressed root with
+   * an internal reply would have been called visible, and the reply claimed. */
+  const rows = (Array.isArray(list) ? list : [])
+    .filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
   const byId = new Map();
   for (const c of rows) if (c && c.id) byId.set(c.id, c);
   const root = (entry.parent_id && byId.has(entry.parent_id)) ? byId.get(entry.parent_id) : entry;

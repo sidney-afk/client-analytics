@@ -477,9 +477,19 @@ setTimeout(() => {
      (ids repeat across clients); without pinged-at, a card pinged again in a
      LATER round is skipped forever, because its columns only ever hold the
      latest ping. Both were real defects here. (Codex P2 on PR 1383, twice.) */
-  check('the backfill de-dups per client AND per ping round, not per card',
-    (led.match(/where e\.client = [ps]\.client/g) || []).length === 2
-    && (led.match(/e\.payload->'pinged_at' = to_jsonb\([ps]\.kasper_urgent_pinged_at\)/g) || []).length === 2);
+  for (const [part, re] of [
+    ['the client',     /where e\.client = [ps]\.client/g],
+    ['the card id',    /and e\.(?:post_id = p|sample_id = s)\.id/g],
+    ['the action',     /and e\.action = 'kasper_urgent_ping'/g],
+    ['the ping round', /and e\.payload->'pinged_at' = to_jsonb\([ps]\.kasper_urgent_pinged_at\)/g],
+  ]) {
+    /* One check per DIMENSION, on both tables. The previous version of this
+       claimed to pin all four and asserted two, which is the same shape of
+       hole it was written to close: a test that describes more than it
+       checks. Each of these is verified to fail on its own. */
+    check('the backfill de-dup key pins ' + part + ', on both tables',
+      (led.match(re) || []).length === 2);
+  }
 
   const mig = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-09-kasper-urgent-pings.sql'), 'utf8');
   check('migration adds the marker columns to both tables',

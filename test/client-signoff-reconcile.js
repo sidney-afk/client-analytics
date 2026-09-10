@@ -263,6 +263,93 @@ check('restoring a sign-off never rewrites the overall status', () => {
     'a stamp repair touches the stamp and nothing else');
 });
 
+/* ROUND 42, and a write-correctness finding rather than a report one. The
+   house sweep `_calClearStaleApprovals` reads the WHOLE card and clears a stale
+   sign-off on every component. That is right in the app, where it runs on a
+   save that just moved one; here it meant a stamp repair copied the sweep's
+   whole output into the patch and cleared an UNRELATED component's stamp, on
+   the strength of a status this job never touched. The check above could not
+   see it because its fixture has no stale sibling stamp — the defect lives
+   entirely in the state that fixture omits. */
+check('a stamp repair never clears another component\'s stamp', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({
+      status: 'Approved',
+      /* A sibling carrying a sign-off while sitting below Client Approval. */
+      graphic_status: 'In Progress',
+      client_graphic_approved_at: '2026-08-01T10:00:00.000Z',
+    })],
+  }));
+  assert.equal(findings.length, 1);
+  const patch = patchFor(findings[0]);
+  assert.deepEqual(Object.keys(patch).sort(), ['client_video_approved_at', 'id'],
+    'the repair writes its own stamp and nothing else: ' + JSON.stringify(patch));
+  assert.ok(!('client_graphic_approved_at' in patch),
+    "another component's sign-off is not this repair's to clear");
+});
+
+/* THE SWEEP IS NOT DISABLED, ONLY SCOPED. A repair that actually moves a
+   component still writes what the sweep decided — that is the app's own rule
+   and the reason the sweep is called at all. */
+check('a repair that moves a component still applies the house sweep', () => {
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({
+      video_status: 'Client Approval',
+      client_video_approved_at: '2026-08-01T10:00:00.000Z',
+      /* An UNRELATED stale sibling, so this check distinguishes "the sweep
+         still runs" from "the sweep is copied wholesale". The first draft of
+         this check had no sibling, so narrowing the rule to the target field
+         alone still passed it — a control that would not fire, which this PR
+         treats as a broken check rather than a redundant one. */
+      graphic_status: 'In Progress',
+      client_graphic_approved_at: '2026-08-01T10:00:00.000Z',
+    })],
+  }));
+  const patch = patchFor(findings[0]);
+  assert.equal(patch.video_status, 'Tweaks Needed');
+  assert.equal(patch.client_video_approved_at, '',
+    'the component this repair moved just left the round that sign-off belonged to');
+  assert.ok(!('client_graphic_approved_at' in patch),
+    'a component this repair did not move is still not its business');
+});
+
+/* `kasper_approved_at` is not a component stamp: the app clears it when NO
+   component is left above, which can only become true because this repair moved
+   one. So it travels with a move and never with a stamp repair. Both directions
+   are asserted, because the first draft gated it on a set whose branch could
+   not be made to fail. */
+check('the kasper sign-off follows a move, and only a move', () => {
+  const moved = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({
+      video_status: 'Client Approval', graphic_status: 'In Progress',
+      caption_status: 'In Progress', title_status: '',
+      kasper_approved_at: '2026-08-01T10:00:00.000Z',
+    })],
+  }));
+  const movedPatch = patchFor(moved.findings[0]);
+  assert.equal(movedPatch.video_status, 'Tweaks Needed');
+  assert.equal(movedPatch.kasper_approved_at, '',
+    'this repair left no component above, so the app clears it');
+
+  /* THE OTHER DIRECTION IS UNREACHABLE, AND THAT IS THE POINT. A stamp repair
+     requires its own component to be ABOVE (stampSurvives), and the app clears
+     this field only when NO component is above — so the sweep can never clear
+     it on a stamp repair. A first draft guarded the branch on `movedComponent`
+     anyway; the sabotage removing that guard could not be made to fail, which
+     this PR reads as decoration rather than safety (196u). Asserted as
+     reachability instead of as a vacuous "does not write it". */
+  const still = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({ status: 'Approved', kasper_approved_at: '2026-08-01T10:00:00.000Z' })],
+  }));
+  const stampPatch = patchFor(still.findings[0]);
+  assert.deepEqual(Object.keys(stampPatch).sort(), ['client_video_approved_at', 'id'],
+    'the stamp repair writes its own stamp only, so the question never arises');
+});
+
 check('a lost change request reaches the card and moves it to Tweaks Needed', () => {
   const { findings } = detect(world({
     comments: [TWEAK()], cards: [CARD({ video_status: 'Client Approval' })],

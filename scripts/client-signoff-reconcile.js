@@ -1231,8 +1231,57 @@ function patchFor(finding) {
   /* The house sweep, on the app's own rule: a component dropping to Tweaks
    * Needed must not keep a client sign-off from the round it just left. */
   _calClearStaleApprovals(clone, pending);
+  /* THE SWEEP READS THE WHOLE CARD; THE PATCH MAY NOT WRITE THE WHOLE CARD.
+   * `_calClearStaleApprovals` clears a stale sign-off on EVERY component, which
+   * is right in the app (it runs on a save that just moved one) and wrong here
+   * when this repair moved nothing. A stamp repair that copied the sweep's whole
+   * output would clear an unrelated component's stamp on the strength of a
+   * status this job never touched — breaking the one promise the workflow and
+   * the runbook both make, that a repair writes the missing sign-off and
+   * nothing else.
+   *
+   * So a repair that moved a component writes what the sweep decided; a repair
+   * that moved nothing writes at most its OWN stamp field. Keeping the target
+   * field rather than skipping the sweep entirely preserves it as a self-check:
+   * if the component this stamp belongs to is somehow not above, the sweep
+   * blanks the very field being written rather than letting it through.
+   *
+   * Live: 0 of 10,839 cards carry a stale stamp on a component below Client
+   * Approval, so no repair today writes a different field either way. The app
+   * runs this sweep on every save, which is why the state is empty — and why a
+   * fixture without a stale sibling, like the one the existing
+   * "touches the stamp and nothing else" test used, cannot see this. */
   for (const key of Object.keys(pending)) {
-    if (/_approved_at$/.test(key)) patch[key] = pending[key];
+    if (!/_approved_at$/.test(key)) continue;
+    /* `kasper_approved_at` is not a component stamp: the app clears it when NO
+     * component is left above, which can only become true because this repair
+     * moved one. So it travels with a move and never with a stamp repair. */
+    if (key === 'kasper_approved_at') {
+      /* NOT GUARDED ON `movedComponent`, deliberately. The app clears this only
+       * when NO component is left above — and a stamp repair requires its own
+       * component to BE above (`stampSurvives`), so the sweep cannot clear it on
+       * one. The guard's second half is therefore unreachable, and a sabotage
+       * that removed it could not be made to fail. This PR takes an unfireable
+       * control as evidence of decoration rather than of safety (196u), so the
+       * guard is not written; the reachability argument is the rule. */
+      patch[key] = pending[key];
+      continue;
+    }
+    /* ONLY THIS REPAIR'S OWN COMPONENT. Every repair acts on exactly one
+     * component — its own — so the only stamp the sweep may clear here is that
+     * component's: either because this repair moved it out from under (the
+     * app's rule, and this repair's own consequence) or, on a stamp repair, as
+     * a self-check on the very field being written. Any OTHER component's stale
+     * stamp sits on a status this job never touched, and cleaning it up is not
+     * this repair's business — which is the whole content of the promise that a
+     * repair writes the missing sign-off and nothing else.
+     *
+     * Written as one condition rather than a `movedComponents` set: a set would
+     * read as if some repair could move a different component, and its extra
+     * branch could not be made to fail under sabotage — a rule with no effect,
+     * which this PR removed once already in 196u and will not reintroduce. */
+    if (key !== STAMP_FIELD(comp)) continue;
+    patch[key] = pending[key];
   }
   /* The overall pill is recomputed ONLY when this repair actually moved a
    * component. Restoring a sign-off stamp changes no component status, so

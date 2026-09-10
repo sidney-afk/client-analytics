@@ -20631,3 +20631,53 @@ or identity-scoping work, and the last four were each created by the fix before
 them. The findings are getting smaller, which is the signal to stop iterating and
 merge rather than to keep going: the write path itself has been unchanged since
 round 40's clock fix, and the report is now internally consistent.
+
+### 196ar. Round 42: the write path breaking this job's own one-sentence promise
+
+The first write-correctness finding since 196ap, and the most direct
+contradiction in this PR: the workflow and the runbook both promise a repair
+writes the missing sign-off **and nothing else**, and the patch builder could
+clear a DIFFERENT component's stamp.
+
+`_calClearStaleApprovals` reads the whole card and clears a stale sign-off on
+every component. That is correct in the app, where it runs on a save that just
+moved one. Here its entire output was copied into the patch — so a stamp repair,
+which moves nothing, wrote `client_<other>_approved_at = ''` on the strength of
+a status this job never touched.
+
+Fixed: the sweep's component output is accepted only for the repair's OWN
+component, either because the repair moved it (the app's rule, and this repair's
+consequence) or, on a stamp repair, as a self-check on the very field being
+written.
+
+**Why the existing test could not see it.** `a stamp repair touches the stamp
+and nothing else` has asserted the exact patch keys since round 3 — but its
+fixture has no stale sibling stamp, and the defect lives entirely in the state
+that fixture omits. An exact-match assertion is only as complete as the world it
+runs against.
+
+Measured live: **0 of 10,839 cards** carry a sign-off on a component below
+Client Approval, so no repair today writes a different field either way. The
+reason the state is empty is that the app runs this sweep on every save — which
+is also why a card in that state would have to come from outside the app, which
+is exactly what this job is.
+
+**Two rules were removed during the fix for having no effect**, which matters
+more than the fix:
+- A `movedComponents` SET, so the sweep could be accepted per moved component.
+  Every repair acts on exactly one component — its own — so the set's extra
+  branch could never differ from the simple condition, and its sabotage could
+  not be made to fail.
+- A `movedComponent` guard on `kasper_approved_at`. The app clears that only
+  when NO component is left above, and a stamp repair requires its own component
+  to BE above, so the sweep cannot clear it on one. The guard's second half is
+  unreachable.
+
+Both were caught by controls that passed while sabotaged, not by review. This PR
+has now removed three rules for this reason (196u, and these two), and the test
+of a rule is the same every time: **if no sabotage of it can fail the suite, it
+is decoration.**
+
+159 checks. Controls by exit status: copying the whole sweep again, and dropping
+the kasper clear on a repair that does move a component. Full runner: 2 of 427,
+baseline.

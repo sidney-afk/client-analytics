@@ -193,3 +193,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-deploy-preflight-ordered.js` ? actual release metadata validation against the inventory-ordered disposable candidate.
 
 - `test/linear-exit-view-provenance.js` ? local PostgreSQL reconstruction against a pinned hosted-view definition hash.
+
+- `docs/independence/LINEAR_EXIT_RECOVERY_SCOPE_20260910.json` ? observed tables outside history-v11 and provisional source-backed custody decisions.

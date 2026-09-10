@@ -1,5 +1,24 @@
 # Completed isolated evidence
 
+## Latest outside-corpus preservation review
+
+A source-backed scope register now enumerates all 34 observed public tables
+outside history-v11: docs/independence/LINEAR_EXIT_RECOVERY_SCOPE_20260910.json.
+Nine need priority preservation decisions: thumbnail revisions; comment import
+conflicts, read audit and rate-window state; protected archive rescue config;
+legacy Workload; an untraced parent-claim backup; filming plans; and content
+samples. The remaining 25 map to adjacent application-owner custody decisions.
+No table is marked safe to exclude. No row contents were inspected and no data
+loss is inferred from this scope gap.
+
+Next preparation: define explicit restore/retention contracts for the priority
+owners before extending the versioned corpus. Thumbnail objects and protected
+configuration need separate custody; rate-window reset cannot stand in for
+audit-history preservation. The parent-claim backup's provenance is unresolved.
+Any successor must preserve history-v11's authenticated meaning and keep prior
+evidence scoped. Scheduled v3 remains unchanged. Installation HOLD.
+
+
 ## Latest hosted recovery catalog inspection
 
 The unchanged ordered recovery source also passes all 31 checks across 52 tables

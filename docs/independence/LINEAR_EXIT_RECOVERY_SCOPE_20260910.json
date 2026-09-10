@@ -1,0 +1,478 @@
+{
+  "classification": "SOURCE_REVIEW_OF_PRIOR_LIVE_METADATA",
+  "observed_at": "2026-09-10T23:27:21.129Z",
+  "catalog_capture_sha256": "2a1fb65ed180cbd8df81c243c30caa07175dfea44baea2372d872535951e1ddd",
+  "history_corpus": "history-v11",
+  "current_tables": 67,
+  "corpus_tables_currently_present": 33,
+  "outside_corpus": 34,
+  "application_data_inspected": false,
+  "scope_complete": false,
+  "installation": "HOLD",
+  "tables": [
+    {
+      "table": "ai_client_onboarding",
+      "source_declarations": [
+        "migrations/ai-onboarding-supabase-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/ai-onboarding-supabase-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ]
+    },
+    {
+      "table": "batches_parent_claim_backup_20260824",
+      "source_declarations": [],
+      "disposition": "UNRESOLVED_PROVENANCE_RETAIN",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "No targeted repository owner found; preserve pending provenance and custody review.",
+      "review_references": []
+    },
+    {
+      "table": "caption_prompts",
+      "source_declarations": [
+        "migrations/2026-07-04-a4-settings-edge-functions.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-07-04-a4-settings-edge-functions.sql"
+      ]
+    },
+    {
+      "table": "client_credential_events",
+      "source_declarations": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ]
+    },
+    {
+      "table": "client_credentials",
+      "source_declarations": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ]
+    },
+    {
+      "table": "client_credentials_rev",
+      "source_declarations": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/client-credentials-migration.sql",
+        "migrations/live-schema-baseline-2026-07-03.sql"
+      ]
+    },
+    {
+      "table": "client_onboarding",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/onboarding-supabase-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/onboarding-supabase-migration.sql"
+      ]
+    },
+    {
+      "table": "content_samples",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/samples-supabase-migration.sql"
+      ],
+      "disposition": "REVIEW_ADJACENT_CONTENT_CUSTODY",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Adjacent sample content is not a justified exclusion.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/samples-supabase-migration.sql"
+      ]
+    },
+    {
+      "table": "filming_plans",
+      "source_declarations": [
+        "migrations/2026-07-09-filming-plans-source.sql"
+      ],
+      "disposition": "REVIEW_ADJACENT_CONTENT_CUSTODY",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Adjacent content/workflow data is not a justified exclusion.",
+      "review_references": [
+        "migrations/2026-07-09-filming-plans-source.sql"
+      ]
+    },
+    {
+      "table": "hiring_application_events",
+      "source_declarations": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ]
+    },
+    {
+      "table": "hiring_applications",
+      "source_declarations": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ]
+    },
+    {
+      "table": "hiring_invite_jobs",
+      "source_declarations": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-hiring-applications.sql"
+      ]
+    },
+    {
+      "table": "kasper_ad_campaign_daily",
+      "source_declarations": [
+        "migrations/2026-08-27-kasper-ad-performance-multi-campaign.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-27-kasper-ad-performance-multi-campaign.sql"
+      ]
+    },
+    {
+      "table": "kasper_ad_leads",
+      "source_declarations": [
+        "migrations/2026-08-24-kasper-ad-performance-v2.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-kasper-ad-performance-v2.sql"
+      ]
+    },
+    {
+      "table": "kasper_ad_performance_by_ad_daily",
+      "source_declarations": [
+        "migrations/2026-08-24-kasper-ad-performance-v2.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-kasper-ad-performance-v2.sql"
+      ]
+    },
+    {
+      "table": "kasper_ad_performance_daily",
+      "source_declarations": [
+        "migrations/2026-08-24-kasper-ad-performance.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-kasper-ad-performance.sql"
+      ]
+    },
+    {
+      "table": "kasper_ad_unfinished_leads",
+      "source_declarations": [
+        "migrations/2026-08-24-kasper-ad-performance-unfinished-leads.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-kasper-ad-performance-unfinished-leads.sql"
+      ]
+    },
+    {
+      "table": "legacy_onboarding",
+      "source_declarations": [
+        "migrations/legacy-onboarding-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/legacy-onboarding-migration.sql"
+      ]
+    },
+    {
+      "table": "linear_archive_asset_rescue_config",
+      "source_declarations": [
+        "migrations/2026-07-23-f34-f53-production-attachments.sql"
+      ],
+      "disposition": "SECURE_CONFIGURATION_RECOVERY",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Protected rescue configuration needs separate secure recovery; do not place values in public artifacts.",
+      "review_references": [
+        "docs/ops/F34_LINEAR_ASSET_RESCUE.md"
+      ]
+    },
+    {
+      "table": "onboarding_fallback",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/onboarding-fallback-supabase-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/onboarding-fallback-supabase-migration.sql"
+      ]
+    },
+    {
+      "table": "production_comment_import_conflicts",
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ],
+      "disposition": "RETAIN_IMPORT_EVIDENCE",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Preserve unresolved comment import identity and coverage evidence.",
+      "review_references": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "production_comment_read_audit",
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ],
+      "disposition": "RETAIN_ACCESS_EVIDENCE",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Durable read-access history needs an explicit retention and restore contract.",
+      "review_references": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "production_comment_read_budget",
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ],
+      "disposition": "REVIEW_RESET_VERSUS_RESTORE",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Rate-window state requires a justified reset/restore policy distinct from audit history.",
+      "review_references": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "quiz_intake_log",
+      "source_declarations": [
+        "migrations/2026-08-24-quiz-responses.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-quiz-responses.sql"
+      ]
+    },
+    {
+      "table": "quiz_responses",
+      "source_declarations": [
+        "migrations/2026-08-24-quiz-responses.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-08-24-quiz-responses.sql"
+      ]
+    },
+    {
+      "table": "sales_intakes",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/sales-intake-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/sales-intake-migration.sql"
+      ]
+    },
+    {
+      "table": "smm_weekly_reports",
+      "source_declarations": [
+        "migrations/2026-07-10-smm-weekly-reports.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-07-10-smm-weekly-reports.sql"
+      ]
+    },
+    {
+      "table": "social_media_managers",
+      "source_declarations": [
+        "migrations/2026-07-10-smm-weekly-reports.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-07-10-smm-weekly-reports.sql"
+      ]
+    },
+    {
+      "table": "templates",
+      "source_declarations": [
+        "migrations/2026-07-04-a4-settings-edge-functions.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/2026-07-04-a4-settings-edge-functions.sql"
+      ]
+    },
+    {
+      "table": "thumbnail_media_revisions",
+      "source_declarations": [
+        "migrations/2026-07-09-thumbnail-media-revisions.sql"
+      ],
+      "disposition": "RETAIN_HISTORY_AND_OBJECT_CUSTODY",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Retained thumbnail baseline/latest evidence and private Storage references need data plus object custody.",
+      "review_references": [
+        "migrations/2026-07-14-thumbnail-revision-v2.sql"
+      ]
+    },
+    {
+      "table": "tiktok_accounts",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ]
+    },
+    {
+      "table": "tiktok_oauth_state",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ]
+    },
+    {
+      "table": "tiktok_pilot_posts",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ],
+      "disposition": "SEPARATE_CUSTODY_REVIEW",
+      "safe_to_exclude": false,
+      "priority": "SEPARATE_APPLICATION_OWNER_DECISION",
+      "reason": "Repository ownership is identified where available; exclusion from Linear-exit recovery still needs an explicit preservation decision.",
+      "review_references": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/ttpilot-schema-migration.sql"
+      ]
+    },
+    {
+      "table": "workload_issues",
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/workload-issues-supabase-migration.sql"
+      ],
+      "disposition": "REVIEW_LEGACY_RETENTION_AND_CONSUMERS",
+      "safe_to_exclude": false,
+      "priority": "PRIORITY_PRESERVATION_DECISION",
+      "reason": "Provider-derived projection has documented consumers; rebuildability after exit is not established.",
+      "review_references": [
+        "docs/ops/WORKLOAD_NATIVE_SOURCE.md"
+      ]
+    }
+  ],
+  "review_limits": "Table-name/source mapping only; no row-content inspection, no data-loss finding, no authorized exclusions.",
+  "priority_tables": 9,
+  "other_application_tables": 25
+}

@@ -513,3 +513,15 @@ are published. No application data or sequence values were captured.
 The unchanged ordered recovery rehearsal passes 31 checks across 52 tables on
 local PostgreSQL 17.11 with the supported explicit major-version switch. This
 extends version coverage without proving the hosted baseline or a real backup.
+
+### Outside-corpus owner decisions
+
+The recovery scope register enumerates all 34 currently observed tables outside
+history-v11 and their source declarations. Nine priority owners need explicit
+preservation contracts; 25 adjacent application tables need separate custody
+decisions. None is declared safely excluded. Do not silently append tables to
+an authenticated old corpus or reset audit/import history as transient state.
+Thumbnail Storage bytes and rescue configuration require separate private
+custody. The parent-claim backup remains untraced. Review the register before
+proposing a successor corpus; this source review authorizes no live backup or
+retention change.

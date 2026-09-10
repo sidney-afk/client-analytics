@@ -6923,3 +6923,10 @@ still refused. Ledger OPEN_REPAIRS 187, parity WIRED-PARITY 2026-09-09.
 `client_slug`, so a mirror that fails outright rather than lagging leaves a card
 read-only until somebody notices. Measured the same day: **139 live rows** carry
 no `raw_project_id`.
+
+
+## 2026-09-10 — Frozen client writers: urgent markers live, feature still off
+
+Owner-authorized live-source deployment through the Supabase API: calendar-upsert 48 → 49 at 16:34:51 UTC, then sample-review-upsert 49 → 50 at 16:36:53 UTC after Calendar verification. Exact candidate source readback passed; both preserve verify_jwt=false and contain zero authorizeBrowserWrite occurrences. Tokenless name/comment saves and all six supported marker/component combinations persisted on database readback. Test fixtures were removed using last-write guards. Runtime flag kasper_urgent_ping_enabled remains absent.
+
+See [complete receipt, bundle hashes and rollback](docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). This is the deliberately frozen pair, not an F27 Section 4 deployment; repository writer copies were not deployed.

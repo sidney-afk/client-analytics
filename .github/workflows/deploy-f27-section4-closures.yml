@@ -300,7 +300,8 @@ jobs:
       # (Prior pins: 65647320... first lifted gateway; 27d1a608... files=5,
       # #1361 2026-09-08; ccbdd136f4...
       # production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 555c968f09c9faf97e3f23eee8adfa678c8a48995006405540f8bd34618d6410
+      # Integrated main client status no-op authorization and due-bump guard.
+      PRODUCTION_WRITE_SOURCE_SHA256: 715f32e1ab0c68ab4782967cdb00cbbf4aff487237f73a861d5b72ffe209beae
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

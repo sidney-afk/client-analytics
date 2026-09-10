@@ -111,7 +111,10 @@ create trigger trg_sample_reviews_kasper_urgent_ping_ledger_upd
 -- ============================================================
 -- Backfill the pings that happened before the trigger existed, so the ledger
 -- starts complete rather than starting now. Idempotent: re-running adds
--- nothing. `ts` is the recorded marker rather than now(), and the payload says
+-- nothing. The de-dup is scoped by CLIENT as well as id, because both tables
+-- are keyed `(client, id)` and card ids genuinely repeat across clients -- 13
+-- of them do today. Matching on id alone would let one client's ping silently
+-- suppress another client's backfill (Codex P2 on PR 1383). `ts` is the recorded marker rather than now(), and the payload says
 -- so, because a backfilled row must not pretend to be a live observation.
 -- ============================================================
 insert into public.calendar_post_events
@@ -126,7 +129,9 @@ select p.client, p.id, p.kasper_urgent_pinged_at,
 from public.calendar_posts p
 where p.kasper_urgent_pinged_at is not null
   and not exists (select 1 from public.calendar_post_events e
-                   where e.post_id = p.id and e.action = 'kasper_urgent_ping');
+                   where e.client = p.client        -- (client, id) is the key, and
+                     and e.post_id = p.id              -- ids DO repeat across clients
+                     and e.action = 'kasper_urgent_ping');
 
 insert into public.sample_review_events
   (client, sample_id, ts, actor, role, action, component, source, payload)
@@ -140,4 +145,6 @@ select s.client, s.id, s.kasper_urgent_pinged_at,
 from public.sample_reviews s
 where s.kasper_urgent_pinged_at is not null
   and not exists (select 1 from public.sample_review_events e
-                   where e.sample_id = s.id and e.action = 'kasper_urgent_ping');
+                   where e.client = s.client        -- (client, id) is the key, and
+                     and e.sample_id = s.id              -- ids DO repeat across clients
+                     and e.action = 'kasper_urgent_ping');

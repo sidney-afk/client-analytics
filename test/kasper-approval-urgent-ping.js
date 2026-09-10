@@ -441,7 +441,7 @@ setTimeout(() => {
        file could see (OPEN_REPAIRS 195). A database trigger owns it now, and
        putting it back would double-write. */
     check(slug + ' does NOT claim to write the ping ledger row itself',
-      !ef.includes('ev("kasper_urgent_ping"')
+      !/ev\(\s*(['"`])kasper_urgent_ping\1/.test(ef)
       && ef.includes('written by a DATABASE TRIGGER'));
   }
 

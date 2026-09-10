@@ -497,9 +497,23 @@ function detect(world) {
        * that matter most: both delivery legs failed AND the crosswalk is stale,
        * so nothing else in the system names this approval either. */
       if (typeof unwritten === 'string') {
-        skipped.push({ kind: 'stamp',
-          reason: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
-          carrier_status: carrier || '(none)', card: '(unlinked)',
+        /* DO NOT CLAIM THE CARD LEG FAILED WHEN THE CARD IS UNKNOWN. The four
+         * qualifying tests the resolvable rows go through — stamp already
+         * present, a later reopen, a later client request, current status — all
+         * need a card, and this row has none. Running them is impossible;
+         * asserting their conclusion anyway would tell the operator "this
+         * approval reached neither leg" about a card that may well carry the
+         * stamp already.
+         *
+         * The alternative considered and rejected: follow the half-link anyway
+         * to check the stamp. That is the exact trust the crosswalk gate exists
+         * to refuse, and using it to SUPPRESS a report would hide a real loss on
+         * a mis-linked card. So the row is kept and its claim is narrowed to
+         * what is actually known: the carrier did not write, and the card
+         * cannot be identified. */
+        skipped.push({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+          refusal: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
+          carrier_status: carrier || '(none)', card: '(unidentified)',
           deliverable: String((row && row.entity_id) || ''), component: '' });
         continue;
       }
@@ -1030,10 +1044,11 @@ function classify({ findings, skipped }) {
    * so nothing else in the system names that approval. Keyed on the carrier
    * status the row carries rather than on the reason, so a future refusal reason
    * cannot quietly fall out of this bucket the way this one did. */
-  const carrierFailed = skipped.filter(row =>
-    row.reason === 'carrier_did_not_write' || (row.kind === 'stamp' && row.carrier_status));
-  const leftAlone = skipped.filter(row =>
-    !NEEDS_A_PERSON.has(row.reason) && !(row.kind === 'stamp' && row.carrier_status));
+  const carrierFailed = skipped.filter(row => row.kind === 'stamp'
+    && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write')));
+  const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
+    && !(row.kind === 'stamp'
+      && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write'))));
   const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
     `NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length + carrierFailed.length}  `
@@ -1079,11 +1094,12 @@ async function main() {
     log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''}`
       + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
       + `${row.component ? ` [${row.component}]` : ''} `
-      + 'a client APPROVE reached neither leg '
-      + `(carrier ${row.carrier_status}`
-      + `${row.reason === 'carrier_did_not_write' ? '' : `, ${row.reason}`}`
-      + `, card reads ${row.card_status || 'unknown'}) `
-      + '— REPORT ONLY, a person decides');
+      + (row.reason === 'carrier_did_not_write'
+        ? `a client APPROVE reached neither leg (carrier ${row.carrier_status}, `
+          + `card reads ${row.card_status || 'unknown'})`
+        : `a client APPROVE was not carried (carrier ${row.carrier_status}) and its card `
+          + `cannot be identified (${row.refusal}) — whether the card leg landed is UNKNOWN`)
+      + ' — REPORT ONLY, a person decides');
   }
   for (const row of ambiguous) {
     log(`  » card ${row.card} [${row.component}] request ${row.comment} matches only a `

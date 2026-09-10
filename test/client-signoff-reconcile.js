@@ -766,7 +766,8 @@ checkAsync('the entry point actually runs, end to end, and reports what it found
   assert.match(out, /carrier stale/, out);
   /* And the unresolvable one names what it could not resolve, or the operator
      has nothing to look up. */
-  assert.match(out, /deliverable del-3 a client APPROVE reached neither leg/, out);
+  assert.match(out, /deliverable del-3 a client APPROVE was not carried/, out);
+  assert.match(out, /whether the card leg landed is UNKNOWN/, out);
   assert.match(out, /card_does_not_link_back/, out);
 });
 
@@ -1119,7 +1120,11 @@ check('a lost approval that cannot resolve a card is still reported', () => {
   ]) {
     const { skipped } = detect(world(Object.assign({ outbox: [APPROVE({ status: 'pending' })] }, over)));
     assert.equal(skipped.length, 1, reason + ' must not vanish on the unwritten path');
-    assert.equal(skipped[0].reason, reason);
+    /* The reason states only what is KNOWN — the carrier did not write and the
+       card cannot be identified — with the refusal carried alongside. Claiming
+       "reached neither leg" here would assert a card leg nobody can check. */
+    assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
+    assert.equal(skipped[0].refusal, reason);
     assert.equal(skipped[0].deliverable, 'del-1', 'the row must name what it could not resolve');
   }
 });
@@ -1162,13 +1167,44 @@ check('revalidation refreshes every source detection reads', () => {
 check('a lost approval that could not resolve a card counts as needing a person', () => {
   const { classify } = require('../scripts/client-signoff-reconcile.js');
   const { carrierFailed, leftAlone, lines } = classify({ findings: [], skipped: [
-    { kind: 'stamp', reason: 'card_does_not_link_back', carrier_status: 'pending',
-      card: '(unlinked)', deliverable: 'del-9', component: '' },
+    { kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+      refusal: 'card_does_not_link_back', carrier_status: 'pending',
+      card: '(unidentified)', deliverable: 'del-9', component: '' },
     { kind: 'stamp', reason: 'superseded_status', card: 'card-2', component: 'video' },
   ] });
   assert.equal(carrierFailed.length, 1, 'a refusal on the unwritten path is carrier-failure work');
   assert.equal(leftAlone.length, 1);
   assert.match(lines.find(l => l.startsWith('NEEDS A PERSON')), /reached neither leg 1/);
+});
+
+/* ROUND 19. The refusal row claimed the approval "reached neither leg" — but the
+   four qualifying tests (stamp already present, later reopen, later client
+   request, current status) ALL need a card, and this row has none. Asserting
+   their conclusion anyway sends the operator after a loss that may not exist.
+   The row is kept, since nothing else in the system names that approval, and
+   its claim is narrowed to what is known. */
+check('a lost approval with no identifiable card does not claim the card leg failed', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ status: 'pending' })],
+    cards: [CARD({ video_deliverable_id: 'other' })],
+  }));
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
+  assert.equal(skipped[0].refusal, 'card_does_not_link_back');
+  assert.equal(skipped[0].card, '(unidentified)', 'not "(unlinked)": the claim is about knowledge');
+});
+
+/* Deliberately NOT done, and recorded so the next session meets the decision
+   rather than rediscovering it: following the half-link to read the stamp
+   anyway would let a mis-linked card SUPPRESS a real loss, and it is the exact
+   trust the crosswalk gate exists to refuse. A resolvable row still gets all
+   four tests — that path is unchanged. */
+check('a resolvable carrier failure still gets the full qualification', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ status: 'stale' })],
+    cards: [CARD({ client_video_approved_at: '2026-09-04T00:00:00.000Z' })],
+  }));
+  assert.equal(skipped.length, 0, 'an already-stamped card is not a lost approval');
 });
 
 check('a properly linked card is still stamped normally', () => {

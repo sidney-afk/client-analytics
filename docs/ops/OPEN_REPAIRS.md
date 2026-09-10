@@ -19884,3 +19884,29 @@ so a future refusal reason cannot quietly fall out the way this one did.
 92 checks, two controls, both confirmed by exit status.
 
 **Eighteen rounds, 43 findings.**
+
+### 195t. Round 19: reporting a conclusion that could not be checked
+
+The crosswalk-refusal row added in 195s told the operator that an approval
+"reached neither leg". It could not know that. All four qualifying tests — stamp
+already present, a later reopen, a later client request, current status — need a
+card, and a refusal row has none. So a half-linked card that already carried the
+stamp would still be reported as a lost approval, sending someone after nothing.
+
+The row is kept — nothing else in the system names that approval — but its claim
+is now narrowed to what is known: the carrier did not write, the card cannot be
+identified, and **whether the card leg landed is unknown**
+(`carrier_did_not_write_and_card_unknown`, with the refusal carried alongside).
+
+Considered and rejected, recorded so the next session meets the decision rather
+than rediscovering it: following the half-link anyway to read the stamp. That is
+the exact trust the crosswalk gate exists to refuse, and using it to SUPPRESS a
+report would let a mis-linked card hide a real loss. Reporting an uncertain row
+costs an operator a lookup; suppressing a real one costs a client their sign-off.
+
+94 checks, two controls, both confirmed by exit status.
+
+**Nineteen rounds, 44 findings.** This one is a different shape from 11–18: not a
+rule left unapplied, but a claim stated more confidently than the evidence
+supported. Worth naming separately, because the fix for the first kind is
+discipline and the fix for this kind is saying less.

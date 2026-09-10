@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 92 checks, each
+construction through fixtures — no credentials, no network. 94 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -370,6 +370,20 @@ stayed green. A suite that never executes the program cannot tell you the
 program runs. Two checks now drive the real CLI in a real process over fixtures,
 and `classify()` returns the buckets rather than only the lines, so no caller
 can name a grouping that is not there.
+
+**A row whose card cannot be identified does not claim the card leg failed.**
+The four qualifying tests — stamp already present, a later reopen, a later
+client request, current status — all need a card. A crosswalk refusal has none,
+so running them is impossible and asserting their conclusion would send someone
+after a loss that may not exist. Such a row is still reported, because nothing
+else in the system names that approval, but its claim is narrowed to what is
+known: the carrier did not write, the card cannot be identified, and whether the
+card leg landed is unknown.
+
+Considered and rejected: following the half-link anyway to read the stamp. That
+is the exact trust the crosswalk gate exists to refuse, and using it to
+*suppress* a report would let a mis-linked card hide a real loss. Resolvable
+rows are unchanged and still get all four tests.
 
 The summary's own counts are a rule, not decoration: the workflow tells the
 operator to read them, so `summaryLines()` is a pure exported function and the

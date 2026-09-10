@@ -19069,3 +19069,12 @@ not yet dispatched — whoever runs the fix should include every identifier
 actually blocking someone in one dispatch rather than one at a time.
 `scripts/calendar-native-link-gap-check.js` still finds the remaining bucket
 across every client.
+
+
+## 193. [2026-09-10, LIVE; feature flag remains off] Frozen writers persist urgent markers without re-gating client saves
+
+Follow-up to 188. Calendar v48 → v49 and Samples v49 → v50 were deployed from the exact downloaded ungated live sources plus the reviewed additive marker patch. Samples also required MIRROR_COLS additions. Calendar strips caption/title status timestamps from updates. Both retain verify_jwt=false, zero authorizeBrowserWrite occurrences, unchanged CORS and byte-identical shared code. Repository writer copies remain unsuitable for deployment.
+
+Twenty offline cases pass. Real tokenless name/comment saves and all six supported component-marker writes returned HTTP 200/ok:true; separate database reads confirmed persistence and server-derived marker clocks. Dedicated test cards were removed with last-write guards. No notification or interactive-browser behavior is claimed. The feature flag was absent and remains off.
+
+Full versions, bundle hashes, evidence limits, rollback and next action: [deployment receipt](FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md). Next: owner decides when to enable and check the visible ping flow; no additional marker deployment is owed. Separate approval-recovery work is unchanged.

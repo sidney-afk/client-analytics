@@ -1384,6 +1384,79 @@ check('the headline does not assert a card leg the detail calls unknown', () => 
   assert.match(needs, /NEEDS A PERSON \(never written\): 2\b/, needs);
 });
 
+/* ROUND 24. A written approve followed by a NEWER committed approve whose
+   carrier did not write: the repair used the older time, so an apply run would
+   stamp an obsolete moment while the same run reported the newer one as lost.
+
+   The fix is NOT to suppress the repair. Measured on live data, all three such
+   pairs are a client re-clicking about two seconds later after the
+   `operation_forbidden` error — OPEN_REPAIRS 189's own incident, and one of them
+   is the card this job was written for. Suppressing would have discarded that
+   repair. It is the same event, not a new decision, so the CLOCK moves and the
+   repair stands. */
+check('the stamp carries the latest committed approval, written or not', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [
+      APPROVE({ source_edited_at: '2026-09-05T10:00:00.000Z', created_at: '2026-09-05T10:00:00.000Z' }),
+      APPROVE({ status: 'skipped', source_edited_at: '2026-09-05T10:00:02.000Z',
+        created_at: '2026-09-05T10:00:02.000Z' }),
+    ],
+  }));
+  assert.equal(findings.length, 1, 'a re-click two seconds later is not a supersession');
+  assert.equal(findings[0].stamp_at, '2026-09-05T10:00:02.000Z', 'the later act is the operative one');
+  assert.equal(skipped.some(x => x.reason === 'carrier_did_not_write'), false,
+    'the run must not report as lost the event it is about to stamp');
+});
+
+/* THE ASYMMETRY SURVIVES. An unwritten approve may correct the clock; it must
+   never rescue a stamp that a reopen has already refused, because a written
+   approve is the only evidence narrow enough to repair on. */
+check('a later unwritten approve cannot rescue a stamp a reopen refused', () => {
+  const reopen = { entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'written',
+    role: 'designer', payload: { status: 'tweak' }, source_edited_at: '2026-09-06T00:00:00.000Z',
+    created_at: '2026-09-06T00:00:00.000Z', test_only: false };
+  const { findings, skipped } = detect(world({
+    outbox: [
+      APPROVE({ source_edited_at: '2026-09-05T00:00:00.000Z', created_at: '2026-09-05T00:00:00.000Z' }),
+      reopen,
+      APPROVE({ status: 'stale', source_edited_at: '2026-09-07T00:00:00.000Z',
+        created_at: '2026-09-07T00:00:00.000Z' }),
+    ],
+  }));
+  assert.equal(findings.length, 0, 'the written approve is superseded; the unwritten one cannot repair');
+  assert.equal(skipped.filter(x => x.reason === 'carrier_did_not_write').length, 1,
+    'and the newer loss is still reported');
+});
+
+/* The ambiguity gate used a bare body match while the fallback beside it applies
+   `couldBeClientTweak`. A staff note, reply or deleted entry sharing the wording
+   cannot be a delivery of the client's request, so calling it an ambiguous
+   repeat tells the operator duplication is possible when the request is simply
+   absent — two answers from the same facts, one line apart. */
+check('a completed STAFF twin is not an ambiguous repeat', () => {
+  const onCard = JSON.stringify([
+    { id: 'cal-1', body: 'Please fix the intro', done: true, role: 'kasper' },
+  ]);
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(skipped.some(x => x.reason === 'ambiguous_repeat_of_completed_request'), false,
+    'a staff note cannot be a delivery of the client\'s request');
+  assert.equal(findings.length, 1, 'the request is absent, and is reported as such');
+});
+
+check('a completed CLIENT twin is still an ambiguous repeat', () => {
+  const onCard = JSON.stringify([
+    { id: 'cal-1', body: 'Please fix the intro', done: true, role: 'client' },
+  ]);
+  const { skipped } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(skipped.some(x => x.reason === 'ambiguous_repeat_of_completed_request'), true);
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

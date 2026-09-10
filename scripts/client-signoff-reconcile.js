@@ -498,6 +498,7 @@ function detect(world) {
    * leaving the card alone. */
   const latestApprove = new Map();
   const unwrittenApprove = new Map();
+  const repairedKeys = new Set();
   for (const row of world.outbox) {
     if (row && row.test_only === true) continue;
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
@@ -606,7 +607,31 @@ function detect(world) {
       latestApprove.set(key, { at, card: hit.card, comp, deliverableId: String(hit.del.id) });
     }
   }
-  for (const { at, card, comp, deliverableId } of latestApprove.values()) {
+  for (const [key, entry] of latestApprove) {
+    const { card, comp, deliverableId } = entry;
+    /* THE LATEST COMMITTED APPROVAL IS THE OPERATIVE ONE, and a row exists in
+     * `mirror_outbox` because the CLIENT'S WRITE COMMITTED — its status only
+     * describes what the carrier did afterwards. So a later approve whose
+     * carrier skipped is still the client's most recent act, and stamping the
+     * earlier time would date the sign-off to a superseded event.
+     *
+     * A WRITTEN approve is still required to repair at all (the narrow side of
+     * the asymmetry); only the CLOCK comes from the broader set. Live, all three
+     * such pairs are a client re-clicking two seconds later after the
+     * `operation_forbidden` error, which is OPEN_REPAIRS 189's own incident:
+     * treating the newer row as a supersession would discard the repair for the
+     * card this job was written for. It is the same event, not a new decision.
+     *
+     * Every supersession test below then runs against THIS time, so a reopen
+     * between the two is still caught. */
+    /* THE ASYMMETRY IS PRESERVED: every supersession test below runs against
+     * the WRITTEN approve's time (`entry.at`, the narrow evidence), and only the
+     * value written to the card comes from the broader set. An unwritten approve
+     * can therefore correct the CLOCK but can never rescue a stamp a reopen or a
+     * client request has already refused — which is what "broad evidence for
+     * leaving it alone, narrow evidence for repairing" has meant since round 1. */
+    const later = unwrittenApprove.get(key);
+    const at = later && Date.parse(later.at) > Date.parse(entry.at) ? later.at : entry.at;
     if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
     /* SUPERSEDED BY A LATER ROUND. The card's CURRENT status is not enough:
      * a client approves, the work is reopened (clearing the stamp), staff later
@@ -619,7 +644,7 @@ function detect(world) {
      * is the work progressing, and treating that as supersession would discard
      * every genuine repair — measured against live rows, all of which had
      * exactly such a forward transition. */
-    const approvedMs = Date.parse(at);
+    const approvedMs = Date.parse(entry.at);
     const reopened = (transitionsByDeliverable.get(deliverableId) || []).some(t => {
       const ms = Date.parse(t.at);
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
@@ -629,7 +654,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
-    if (supersededByRequest(deliverableId, at)) {
+    if (supersededByRequest(deliverableId, entry.at)) {
       skipped.push({ kind: 'stamp', reason: 'superseded_by_later_client_request',
         card: card.id, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
@@ -639,6 +664,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
+    repairedKeys.add(key);
     findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
       deliverable_id: deliverableId,
       detail: `sign-off stamp missing for a committed client approve (${at})` });
@@ -650,12 +676,15 @@ function detect(world) {
    * only one worth a line. A row failing either is a stamp that is absent by
    * design, and reporting it would send someone after nothing. */
   for (const [key, cand] of unwrittenApprove) {
-    /* A WRITTEN APPROVE ONLY SUPERSEDES A LATER ONE IF IT IS ITSELF LATER. The
-     * key names a (card, component), not a review: an older written approve,
-     * then a reopen, then a NEWER client approve whose carrier failed, would
-     * otherwise suppress the new lost approval — while the old written one is
-     * separately rejected by the reopen test, leaving the current loss reported
-     * nowhere. Compare the clocks, not the presence of a key. */
+    /* A REPAIR ALREADY COVERS THIS REVIEW. The repair now carries the latest
+     * committed approval's own time, including this row's, so reporting it as a
+     * loss would name the same event the run is about to fix.
+     *
+     * Keyed on a repair actually being MADE, not on a written approve existing:
+     * an older written approve, then a reopen, then a newer approve whose
+     * carrier failed leaves no repair (the reopen rejects it), and that current
+     * loss must still be reported. */
+    if (repairedKeys.has(key)) continue;
     const written = latestApprove.get(key);
     if (written && Date.parse(written.at) >= Date.parse(cand.at)) continue;
     const { at, card, comp, deliverableId, carrier } = cand;
@@ -811,8 +840,14 @@ function detect(world) {
      * state. So the job does neither: it reports, which is the one honest
      * option, and a person decides. This is also the clearest evidence that
      * request DELIVERY is a guessing game in a way stamp repair is not. */
+    /* The twin must be an entry that COULD be this client's request root — the
+     * same eligibility the body fallback applies. A staff note, a reply or a
+     * deleted entry that happens to share the wording cannot be a delivery of
+     * the client's request, so calling it an ambiguous repeat tells the operator
+     * duplication is possible when the request is simply absent. Two different
+     * answers from the same pair of facts, one line apart. */
     const doneTwin = list.some((c, i) =>
-      !consumed.has(i) && normText(c.body) === body && c.done === true);
+      !consumed.has(i) && normText(c.body) === body && c.done === true && couldBeClientTweak(c));
     if (doneTwin && !pc.resolved_at) {
       skipped.push({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
         card: hit.card.id, component: comp, comment: pc.id });

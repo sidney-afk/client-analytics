@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 103 checks, each
+construction through fixtures — no credentials, no network. 107 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -447,6 +447,25 @@ shipped doing nothing. Three columns were added to the reads for this rule, so
 the suite asserts the projections themselves: every deliverable read must
 project `origin` and `team`, and every card read must project both reverse-link
 columns.
+
+## The latest committed approval sets the clock; only a written one can repair
+
+A row exists in `mirror_outbox` because the **client's write committed** — its
+status describes what the carrier did afterwards. So a later approve whose
+carrier skipped is still the client's most recent act, and stamping the earlier
+one would date the sign-off to a superseded event while the same run reported
+the newer one as lost.
+
+The asymmetry that has held since round 1 is preserved exactly: **every
+supersession test runs against the WRITTEN approve's time**, and only the value
+written to the card comes from the broader set. An unwritten approve can correct
+the clock; it can never rescue a stamp that a reopen or a client request has
+already refused.
+
+Live, all three such pairs are a client re-clicking about two seconds later
+after the `operation_forbidden` error — item 189's own incident, and one of them
+is the card this job was written for. Treating the newer row as a supersession
+would have discarded that repair. It is the same event, not a new decision.
 
 ## A later client request supersedes an approval, and the outbox cannot say so
 

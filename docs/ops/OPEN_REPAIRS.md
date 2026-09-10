@@ -20017,3 +20017,33 @@ because 195t only looked at the line it was fixing.
 103 checks, two controls, both confirmed by exit status.
 
 **Twenty-three rounds, 51 findings.**
+
+### 195y. Round 24: an obsolete stamp time, and a suggestion that would have discarded the founding repair
+
+**A written approve followed by a newer committed approve whose carrier did not
+write.** The repair used the older time, so an apply run would have stamped an
+obsolete moment while the same run reported the newer approval as a loss —
+contradicting the rule that the latest approval is operative.
+
+**The suggested fix was to suppress the older repair. Measuring refused it.** All
+three live pairs are a client re-clicking about **two seconds** later after the
+`operation_forbidden` error — item 189's own incident — and one of them is the
+card this job was written for. Suppressing would have discarded that repair. It
+is the same event, not a new decision, so the CLOCK moves and the repair stands.
+That is the third time in this PR a review suggestion was right about the defect
+and wrong about the remedy, and each time the live rows were what said so.
+
+The asymmetry from round 1 is preserved exactly: **every supersession test runs
+against the WRITTEN approve's time**, and only the value written to the card
+comes from the broader set. An unwritten approve corrects the clock; it can never
+rescue a stamp a reopen has refused. Controlled in both directions.
+
+**The ambiguity gate matched bodies without the client-root test** that the
+fallback one line below applies. A staff note, reply or deleted entry sharing the
+wording cannot be a delivery of the client's request, so calling it an ambiguous
+repeat told the operator duplication was possible when the request was simply
+absent — two answers from the same facts, a line apart.
+
+107 checks, four controls, all confirmed by exit status.
+
+**Twenty-four rounds, 53 findings.**

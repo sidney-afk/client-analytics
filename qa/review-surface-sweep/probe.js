@@ -87,6 +87,7 @@ async function run(actor, action, fault) {
   const gatewayCommits = [];
   const upserts = [];          // what the browser TRIED to write
   const persistedRow = {};     // what the source row actually holds
+  let healed = false;          // flipped when the outage ends, before the resume
   const errors = [];
   let nativeStatus = actor.key === 'smm' ? 'smm_approval' : 'client_approval';
   let nativeStatusAt = new Date(Date.now() - 3600 * 1000).toISOString();
@@ -120,7 +121,7 @@ async function run(actor, action, fault) {
 
   await page.route('**/functions/v1/production-write', async route => {
     const body = JSON.parse(route.request().postData() || '{}');
-    if (fault.gateway === 'pre-server') return route.abort('connectionfailed');
+    if (fault.gateway === 'pre-server' && !healed) return route.abort('connectionfailed');
     if (body.reconcile_only === true) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
         ok: true, outcome: 'absent',
@@ -130,8 +131,8 @@ async function run(actor, action, fault) {
     // to arrive, never the write failing to happen.
     gatewayCommits.push({ operation: body.operation, status: body.status || null });
     if (body.operation === 'status' && body.status) { nativeStatus = String(body.status); nativeStatusAt = new Date().toISOString(); }
-    if (fault.gateway === 'drop') return route.abort('connectionfailed');
-    if (fault.gateway === '5xx') return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'entity_lookup_unavailable' }) });
+    if (fault.gateway === 'drop' && !healed) return route.abort('connectionfailed');
+    if (fault.gateway === '5xx' && !healed) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'entity_lookup_unavailable' }) });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       ok: true, native_committed: true, authority: 'syncview', complete: true,
       row: { id: VID, status: nativeStatus, updated_at: new Date().toISOString(), client_slug: SLUG, team: 'video' } }) });
@@ -147,7 +148,7 @@ async function run(actor, action, fault) {
        false because of it. Attempts and persisted state are now separate, and
        only a 2xx moves the persisted one. */
     upserts.push(body.post || {});
-    if (fault.upsert === 'fail') return route.fulfill({ status: 500, contentType: 'text/html', body: 'boom' });
+    if (fault.upsert === 'fail' && !healed) return route.fulfill({ status: 500, contentType: 'text/html', body: 'boom' });
     Object.assign(persistedRow, body.post || {});
     await route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ ok: true, post: Object.assign({ updated_at: new Date().toISOString() }, body.post) }) });
@@ -156,6 +157,7 @@ async function run(actor, action, fault) {
   try {
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window._calReviewApplyApprove === 'function' && typeof calState !== 'undefined', null, { timeout: 25000 });
+  await page.exposeFunction('__probeHeal', () => { healed = true; });
   await page.evaluate(() => {
     _syncviewStaffIdentitySave({ key: 'sweep-role-key', role: 'admin', member: { id: 'admin', name: 'Sweep Admin', role: 'admin', team: 'graphics' } });
     _syncviewAcceptStaffVerification();
@@ -191,8 +193,25 @@ async function run(actor, action, fault) {
     let threw = null;
     try { await ACTIONS[actionKey](); } catch (e) { threw = String(e && (e.code || e.message)).slice(0, 80); }
     await new Promise(r => setTimeout(r, 2600));
+    const settled = Object.assign({}, calState.posts.find(p => p.id === card) || {});
+
+    /* RECOVERABILITY IS MEASURED, NOT INFERRED. The first version read
+       `_writeUiRetrySourceAt` and called its absence STUCK. That flag is absent
+       on an ambiguous gateway failure only because the source-save phase never
+       began, while `_writeUiGatewayWithRepair` has ALREADY persisted an
+       attempted repair journal before transport -- which a later resume
+       reconciles. Inferring from the flag therefore mislabelled every
+       journal-backed case and overstated the headline. So: end the outage, run
+       the real resume, and look at what actually lands. */
+    window.__probeHeal && await window.__probeHeal();
+    let resumeError = null;
+    try { await _writeUiResumeSourceRepairs(); } catch (e) { resumeError = String(e && (e.code || e.message)).slice(0, 60); }
+    await new Promise(r => setTimeout(r, 2600));
     const post = calState.posts.find(p => p.id === card) || {};
     return {
+      settledStatus: settled.video_status,
+      settledError: settled._saveError || null,
+      resumeError,
       threw,
       /* A run that wrote NOTHING anywhere is a harness failure, not a passing
          case. Recorded so the summary can refuse to score it. */
@@ -246,11 +265,13 @@ function score(out) {
   const backed = serverMoved || out.result.retryArmed || !!out.result.saveError || !gatewayInvolved;
   const truthful = !moved || backed;
 
-  /* A disagreement with a repair armed heals itself on the next load; one
-     without is stuck until a human notices. Both are wrong, and conflating
-     them would overstate the first and understate the second. */
-  const recoverable = !!out.result.retryArmed;
-  return { agree, truthful, recoverable, sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved };
+  /* Recovered means the source row agrees with the server AFTER a real resume
+     with connectivity restored. Anything still disagreeing at that point is
+     stuck in the sense that matters: no amount of that browser coming back
+     will fix it. */
+  const recovered = agree;
+  return { agree, truthful, recovered, sheetStatus, serverStatus: out.nativeStatus, ui, gatewayInvolved,
+    settledDisagreed: out.result.settledStatus !== undefined && String(out.result.settledStatus || '') !== String(NATIVE_TO_CARD[String(out.nativeStatus)] || '') };
 }
 
 (async () => {
@@ -271,7 +292,14 @@ function score(out) {
           process.exit(1);
         }
         const inert = fault.key === 'none' && !out.gatewayCommits.length && !out.upserts.length && !out.result.touchedAnything;
-        if (inert) { rows.push({ actor: actor.key, action: action.key, fault: fault.key, harnessError: 'control run wrote nothing: the action did not execute' }); continue; }
+        if (inert) {
+          /* Also fatal. A warning row that the summary then excludes is the
+             same false-clean shape as a swallowed harness error. */
+          console.error('\nHARNESS ERROR on ' + [actor.key, action.key, fault.key].join(' / ')
+            + ': the control run wrote nothing anywhere, so the action did not execute.');
+          console.error('The sweep proves nothing when an action does not run. Fix the harness and re-run.');
+          process.exit(1);
+        }
         out.action = action.key; out.actor = actor.key;
         rows.push(Object.assign({ actor: actor.key, action: action.key, fault: fault.key }, score(out), {
           commits: out.gatewayCommits.length, upserts: out.upserts.length,

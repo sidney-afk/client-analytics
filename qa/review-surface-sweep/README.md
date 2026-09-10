@@ -24,28 +24,34 @@ Two questions per combination, answered mechanically:
 
 A run can agree and still lie, and can disagree honestly. Both are scored.
 
-## Result, 2026-09-10: 35 combinations, 11 flagged, split by whether they heal
+## Result, 2026-09-10: 35 combinations, 0 permanently broken, 1 real defect
 
-| actor | action | answer lost / 5xx after commit | never sent | source write rejected |
-|---|---|---|---|---|
-| client | approve | **STUCK** | honest failure | disagrees, self-heals |
-| smm | approve (to Kasper) | **STUCK** | honest failure | disagrees, self-heals |
-| smm | approve (to client) | **STUCK** | honest failure | disagrees, self-heals |
-| both | request a change | agrees | honest failure | disagrees, self-heals |
-| both | comment | gateway not involved | gateway not involved | error shown |
+**Every combination recovers**, once that browser comes back with connectivity
+and `_writeUiResumeSourceRepairs` runs. The browser's repair machinery is sound
+across every actor, action and fault tested here. An earlier version of this
+file claimed six STUCK rows; that was wrong, and the mistake is recorded below.
 
-**STUCK** means the server and the card disagree and NO repair is armed, so it
-stays wrong until a human notices. **Self-heals** means they disagree but a
-repair is armed to finish the write on the next load. Both are wrong; only one
-of them stays wrong.
+What IS real, and measured:
 
-**The six STUCK rows are one defect: an approve whose gateway answer is lost, or
-answered 5xx after the commit.** It is NOT client-only, which is the finding
-that matters: the same hole sits under the SMM's approve and under
-approve-and-route-to-client. A staff approval can be recorded on the server
-while the calendar keeps showing the card as awaiting review.
+| | measured |
+|---|---|
+| Does the card disagree with the server at the moment of the fault? | **Yes**, for an approve whose gateway answer is lost or answered 5xx after committing (`settledDisagreed`) |
+| Does it recover on a later load in the same browser? | **Yes**, every time |
+| Does it recover if that browser never comes back? | **No. Nothing else finishes it.** |
 
-**Two things this rules out**, which is as useful as what it found:
+**So the defect is not that the repair is broken. It is that the repair lives in
+the wrong place.** It runs only in the browser that made the write, only if that
+browser returns online. Someone who meets an error and closes the tab (which is
+what people do) leaves a card that disagrees with the server, and the calendar
+row is what *everyone else* reads in the meantime. That is exactly what happened
+in OPEN_REPAIRS 186: the client's card stayed stale until an unrelated staff
+browser happened to project the canonical status back, fourteen minutes later.
+
+This is a stronger argument for the server-side reconciler than the earlier
+wrong reading was, not a weaker one: the logic does not need inventing, it needs
+relocating somewhere that does not depend on one person's tab.
+
+**Two things it rules out**, which is as useful as what it found:
 
 - *A plain comment never reaches the gateway on this path at all* -- it writes
   the card's tweaks column only, so the dual-write class does not apply.
@@ -62,7 +68,7 @@ while the calendar keeps showing the card as awaiting review.
 - The video component only, and one card at a time. No concurrency between two
   people acting on the same card.
 
-## Four harness bugs found while building it, all recorded
+## Five harness bugs found while building it, all recorded
 
 Both produced FALSE CLEAN results, which is the failure mode that matters in a
 test:
@@ -84,4 +90,13 @@ test:
    sweep where every single run failed to boot could print
    `35 combinations, flagged: 0` and read as a clean bill of health. Harness
    errors are now fatal, and per-run cleanup moved into `finally` so a thrown
-   run cannot leave the browser and HTTP server open holding node alive.
+   run cannot leave the browser and HTTP server open holding node alive. The
+   same treatment applies to a control run that writes nothing anywhere.
+5. **Recoverability was INFERRED from a flag instead of measured**, and that
+   produced the wrong headline. `_writeUiRetrySourceAt` is absent on an
+   ambiguous gateway failure only because the source-save phase never began,
+   while `_writeUiGatewayWithRepair` has already persisted an attempted repair
+   journal BEFORE transport, which a later resume reconciles. Reading the flag
+   therefore labelled every journal-backed case STUCK when none of them are.
+   The probe now ends the outage, runs the real resume, and classifies on what
+   actually lands.

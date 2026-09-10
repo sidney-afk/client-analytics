@@ -40504,6 +40504,18 @@
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
                     const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.video_status = current;
+                    /* Adopting a replay status IS a sub-status change, so the
+                       stale-stamp rule owes this path too. Without it a client
+                       approval whose source upsert failed, retried after the
+                       native row moved on, writes the newer status while
+                       KEEPING edits.client_video_approved_at -- a card reading
+                       Tweaks Needed with a client sign-off on it. The journal
+                       replay has its own guard; the click-Retry path
+                       (_calRetrySave -> _calFlushCardSave) never reaches it.
+                       Reusing _calClearStaleApprovals rather than restating the
+                       status list keeps one definition of "below client
+                       approval" in the file. */
+                    _calClearStaleApprovals(post, edits);
                 }
                 checkpointCommittedSource();
             }
@@ -40530,6 +40542,8 @@
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
                     const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
                     if (current) edits.graphic_status = current;
+                    // Same rule, same reason as the video branch above.
+                    _calClearStaleApprovals(post, edits);
                 }
                 checkpointCommittedSource();
             }

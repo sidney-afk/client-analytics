@@ -24,3 +24,40 @@ for (const component of ['video', 'graphic']) {
   assert.equal(post['client_' + component + '_approved_at'], undefined, 'status alone must never invent client sign-off');
 }
 console.log('PASS: captured stamps follow existing stale-approval rules; no stamp is fabricated');
+
+/* THE CLICK-RETRY PATH OWES THE SAME RULE.
+   The guard above lives in _writeUiApplyJournalEdits, which only the JOURNAL
+   replay reaches. When a client approval's gateway write commits but the
+   Calendar source upsert fails, the card exposes _calRetrySave; if the native
+   status advanced meanwhile, _calFlushCardSave adopts it via
+   _writeUiAdoptReplayStatus while retaining edits.client_<comp>_approved_at,
+   and the source row is written as Tweaks Needed WITH a client sign-off on it.
+   Two assertions: the rule itself behaves, and the flush is actually wired to
+   it after both adoption sites. */
+const flush = source.slice(source.indexOf('    async function _calFlushCardSave('),
+  source.indexOf('    function _calRetrySave('));
+for (const component of ['video', 'graphic']) {
+  const adopt = new RegExp("_writeUiAdoptReplayStatus\\(post, '" + component
+    + "'[\\s\\S]{0,1400}?_calClearStaleApprovals\\(post, edits\\)");
+  assert.ok(adopt.test(flush),
+    'the ' + component + ' replay adoption must clear a stale sign-off before the source write');
+}
+
+const staleBegin = source.indexOf('    function _calClearStaleApprovals(');
+const staleEnd = source.indexOf('\n    function ', staleBegin + 10);
+assert.ok(staleBegin > 0 && staleEnd > staleBegin);
+const staleCtx = vm.createContext({
+  CAL_COMPONENTS: ['video', 'graphic', 'caption'],
+  _calNormStatus: value => String(value || '').trim(),
+});
+vm.runInContext(source.slice(staleBegin, staleEnd), staleCtx);
+for (const [status, kept] of [['Tweaks Needed', false], ['In Progress', false],
+  ['For SMM Approval', false], ['Kasper Approval', false],
+  ['Client Approval', true], ['Approved', true], ['Scheduled', true], ['Posted', true]]) {
+  const post = { video_status: status, client_video_approved_at: '2026-09-10T00:00:00.000Z' };
+  const pending = { client_video_approved_at: '2026-09-10T00:00:00.000Z' };
+  staleCtx._calClearStaleApprovals(post, pending);
+  assert.equal(!!post.client_video_approved_at, kept, status + ': stamp retention must follow the status');
+  assert.equal(!!pending.client_video_approved_at, kept, status + ': the pending write must agree with the card');
+}
+console.log('PASS: the click-retry path clears a stale sign-off, and the rule itself holds');

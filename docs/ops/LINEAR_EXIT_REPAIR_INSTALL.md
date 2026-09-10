@@ -439,7 +439,7 @@ preserved across 25 later entries, then exact final replay without duplicates.
 Global provider debt remains zero. This is five-table scoped evidence, not full
 data preservation, card materialization or interrupted internal-commit recovery.
 
-### Internal-statement interruption case still required
+### Selected internal-statement interruption evidence
 
 The inventory identifies 12 remaining owners with autocommit statements. A
 completed-entry checkpoint cannot establish safety inside these owners. A small
@@ -449,5 +449,9 @@ after the replacement, reconnect, and require partial-state refusal against the
 previous completed prefix before any further owner executes. Do not wrap the
 file in a new transaction or certify the partial function/ACL state as complete.
 An atomic intake case must separately prove rollback when its transaction is
-interrupted. These are proposed next tests, not executed evidence or permission
-to resume a real installation.
+interrupted. The supported installation-interruption lane now proves these two selected
+connection-termination points, with atomic catalog/affected-row rollback and
+partial autocommit refusal after 29 completed entries. The partial state is left
+unrepaired; accepted business-call replay preserves current rows. All remaining
+internal boundaries, parent/process-kill recovery and safe partial-state repair
+remain unproven. This does not permit resuming a real installation.

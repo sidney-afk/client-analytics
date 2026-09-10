@@ -183,3 +183,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-install-order.js`: inventory-ordered disposable installation attempt with after-entry catalog fingerprints and explicit baseline/interruption limits.
 
 - `test/linear-exit-install-resume.js`, `test/helpers/linear-exit-install-step.js`: disposable fresh-process entry continuation and private checkpoint validation; not a production resume controller.
+
+- `test/linear-exit-install-interruption.js` ? isolated atomic rollback and partial-owner refusal entry point.

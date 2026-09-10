@@ -1,5 +1,29 @@
 # Completed isolated evidence
 
+## Latest selected internal-step interruption proof
+
+Normal resume was rerun on the final shared test code: all 42 entries, 44
+workers, 25 accepted-work boundaries and both refusal cases passed again.
+That disposable server also stopped. Source-inventory and repository-map checks pass.
+
+The installation-interruption lane passed on disposable PG16. It executes the
+actual hash-verified atomic intake source up to its outer COMMIT, then terminates
+its PostgreSQL connection (57P01). The prior catalog, affected table rows and
+checkpoint remain unchanged; a fresh normal worker then completes atomic intake.
+After 29 completed entries, it executes only the first Workload label-shape
+function replacement, before REVOKE/GRANT, and terminates that connection. The
+committed partial catalog differs; a fresh worker refuses before owner execution.
+Accepted native work remains intact, including exact business-call replay at
+that partial state. No migration repair or migration replay is attempted.
+
+The owned server stopped with exit 0. Source base is `702ddb6f` plus working-tree
+tests. Focused review found no blocker. After the run, log wording was clarified
+from final to current row images and explicit false scope markers were added;
+assertions were unchanged. This is two selected connection-termination points,
+not every internal boundary, an operating-system process kill, parent restart,
+concurrency or recovery of partially installed state. Installation remains HOLD.
+
+
 ## Latest accepted native work preservation
 
 The strengthened installation-resume lane passed on disposable PG16: one actual

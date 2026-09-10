@@ -151,3 +151,18 @@ prove parent/process-kill recovery, concurrent-worker exclusion, internal commit
 recovery, or the gap between SQL commit and checkpoint replacement. Catalog
 fingerprints do not attest business data; accepted-work preservation remains
 a separate requirement. No production resume mechanism is authorized.
+
+## Internal-step interruption rehearsal
+
+Use `-Lane installation-interruption` for the focused interruption test. It
+uses actual inventory source prefixes in the disposable database. Atomic intake
+is interrupted before its outer COMMIT; rollback must retain the prior catalog
+and checkpoint before a fresh normal worker executes it. A later autocommit
+owner is interrupted after its first statement; the resulting catalog must
+refuse continuation from the old checkpoint. The lane stops at that refusal
+and checks accepted work, rather than repairing or certifying the partial state.
+
+A PASS covers these selected interruption points only. It does not establish
+every internal boundary, operating-system process kill, parent restart/key
+custody, concurrent-worker exclusion or recovery of a partial installation.
+The complete normal resume lane remains a separate proof.

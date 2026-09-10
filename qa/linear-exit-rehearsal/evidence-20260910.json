@@ -539,5 +539,65 @@
     "card_materialization_proven": false,
     "all_data_preservation_proven": false,
     "commit_checkpoint_gap_recovery_proven": false
+  },
+  "selected_internal_interruption": {
+    "marker": "LINEAR_EXIT_INSTALL_INTERRUPTION_OK",
+    "completed_entries": 29,
+    "atomic_connection_rollback": true,
+    "partial_autocommit_refusal": true,
+    "accepted_work_preserved": true,
+    "partial_state_repaired": false,
+    "full_baseline_proven": false,
+    "all_internal_boundaries_proven": false,
+    "classification": "ISOLATED_POSTGRES_SELECTED_CONNECTION_TERMINATION",
+    "source_base": "702ddb6f1cf2e3e862b069559e61f83dc1f9a72c",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-interruption-44e8436cf13b42388797af62a52e8e91",
+    "unit_log_sha256": "d48ecbafdb46c555b1cbee3ef65743c0f54ff46432cd59eb55ddd4d237bdd36a",
+    "prefixes": [
+      {
+        "stage": "interruption_source_prefix",
+        "id": "atomic-native-intake",
+        "source_sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
+        "prefix_sha256": "800c87aa7fe441b6806f548463b26c04447875a22a15166fd7a7e89f8d33da6d",
+        "prefix_bytes": 66657
+      },
+      {
+        "stage": "interruption_source_prefix",
+        "id": "2026-09-08-workload-native-label-state-shape.sql",
+        "source_sha256": "7bdc0dac5793197cc14878f67614eb05cf4408e3d923da53772a5d5f7841faf8",
+        "prefix_sha256": "a781b65c8e0a4fe58569aa96de8912c97cff46d6ce957638a7483147fdd9f68b",
+        "prefix_bytes": 2325
+      }
+    ],
+    "post_run_changes": "wording and false scope markers only; assertions unchanged",
+    "server_stopped": true,
+    "process_kill_recovery_proven": false,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false
+  },
+  "normal_resume_after_interruption_changes": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "accepted_business_work_preservation_proven": true,
+    "accepted_work_later_boundaries": 25,
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "receipt": "linear-exit-installation-resume-aa5f0c2d771748bb88f69e59f0f70c0e",
+    "unit_log_sha256": "c0d0e17d7021ad225b869770a0e681cd625e9462299455aab79f54ba88a218f8",
+    "source_base": "702ddb6f1cf2e3e862b069559e61f83dc1f9a72c",
+    "working_tree_changes": true,
+    "server_stopped": true,
+    "source_hashes": {
+      "test/linear-exit-install-resume.js": "15836bb82af9293267ed8d09786b0cbb60a0bc5f9ba567c6cc510df44440030e",
+      "test/helpers/linear-exit-install-step.js": "9db3c3384071ca77213b7c3e612208ddb2b29fc256f977cc8a3a370534a19b0c",
+      "test/linear-exit-install-interruption.js": "a03dc1e93ed930529277482e80bfe002e1838e79c4282cdf662c27f46830300c"
+    }
   }
 }

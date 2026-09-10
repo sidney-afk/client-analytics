@@ -21,7 +21,7 @@ function runSql(sql,file){
  assert.equal(env.F63_REQUIRE_POSTGRES,'1');assert.ok(['127.0.0.1','localhost','::1'].includes(env.INSTALL_STEP_HOST));
  const args=['-X','-q','-t','-A','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose','-h',env.INSTALL_STEP_HOST,'-p',env.INSTALL_STEP_PORT,'-U',env.INSTALL_STEP_USER,'-d',env.INSTALL_STEP_DB,'-f',file||'-'];
  const r=cp.spawnSync(env.INSTALL_STEP_PSQL,args,{encoding:'utf8',windowsHide:true,env:{...env,PGCLIENTENCODING:'UTF8'},...(file?{}:{input:sql})});
- if(r.status!==0){const e=Error('step_sql_failed');e.sqlstate=((r.stderr||'').match(/ERROR:\s+([0-9A-Z]{5}):/)||[])[1]||'UNAVAILABLE';throw e;}
+ if(r.status!==0){const e=Error('step_sql_failed');e.sqlstate=((r.stderr||'').match(/(?:ERROR|FATAL):\s+([0-9A-Z]{5}):/)||[])[1]||'UNAVAILABLE';throw e;}
  return r.stdout.trim();
 }
 function fingerprint(){const value=runSql(recovery.fingerprintSql());assert.match(value,/^[a-f0-9]{32}$/);return value;}
@@ -46,6 +46,22 @@ function step(checkpointFile){
    const composed=require('../../scripts/native-intake-named-append-compose').fromRepository();assert.equal(sha(composed.sql),entry.sha256);
    temporary=path.join(path.dirname(checkpointFile),'atomic-'+process.pid+'.sql');fs.writeFileSync(temporary,composed.sql,{flag:'wx'});file=temporary;
   }else{file=path.join(ROOT,entry.path);assert.equal(sha(fs.readFileSync(file)),entry.sha256);}
+  if(process.env.INSTALL_STEP_INTERRUPT){
+   const sql=fs.readFileSync(file,'utf8'),statements=recovery.splitSqlStatements(sql);let end;
+   if(process.env.INSTALL_STEP_INTERRUPT==='atomic_before_commit'){
+    assert.equal(id,'atomic-native-intake');assert.equal(entry.transaction.classification,'single_explicit_transaction');
+    const last=statements.at(-1);assert.match(last.text,/^commit$/i);end=sql.lastIndexOf(last.text);assert.ok(end>0);
+   }else{
+    assert.equal(process.env.INSTALL_STEP_INTERRUPT,'autocommit_after_replace');assert.equal(id,'2026-09-08-workload-native-label-state-shape.sql');
+    assert.equal(entry.transaction.classification,'autocommit_statements');assert.equal(statements.length,3);
+    assert.match(statements[0].text,/^create or replace function public\.workload_native_label_state_absent/);assert.match(statements[1].text,/^revoke /);assert.match(statements[2].text,/^grant /);
+    const at=sql.indexOf(statements[0].text);assert.ok(at>=0);end=at+statements[0].text.length;assert.equal(sql[end],';');end++;
+   }
+   const prefix=sql.slice(0,end);
+   console.log(JSON.stringify({stage:'interruption_source_prefix',id,source_sha256:entry.sha256,prefix_sha256:sha(prefix),prefix_bytes:Buffer.byteLength(prefix)}));
+   runSql(prefix+'\nselect pg_terminate_backend(pg_backend_pid());\n');
+   throw Error('connection_termination_not_observed');
+  }
   runSql(null,file);assert.equal(plan().digest,p.digest,'published_inventory_drift');
   const next=signed({inventory_sha256:p.digest,run_id:checkpoint.run_id,database_identity:checkpoint.database_identity,completed:[...checkpoint.completed,id],catalog_md5:fingerprint()},key);
   const tmp=checkpointFile+'.'+process.pid+'.next';fs.writeFileSync(tmp,JSON.stringify(next),{flag:'wx'});fs.renameSync(tmp,checkpointFile);

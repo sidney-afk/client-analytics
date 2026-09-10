@@ -2,6 +2,20 @@
 
 **Installation HOLD. Documentation only; no runtime changes or deployment authorization.**
 
+## Latest preparation update: expanded composition
+
+Draft PR #1382 contains the integrated build and portable rehearsal package.
+The expanded composition preserves 41 earlier assertions and adds three real
+provisioning/browser/Workload checks, then correctly fails at the notification
+schema prerequisite. `deleted_at` is absent on hosted `batches`, `deliverables`,
+`calendar_posts` and `sample_reviews`, confirmed by catalog-only reads; no
+repository migration owner was found for those four columns. Synthetic test
+columns do not satisfy this requirement. Resolve canonical deletion semantics
+and the source owner before claiming full notification composition. See
+`../../qa/linear-exit-rehearsal/RESULTS.md` and
+`../ops/LINEAR_EXIT_REPAIR_INSTALL.md` for the bounded evidence and dependency.
+No merge, deployment, workflow dispatch or production change is authorized.
+
 ## Preserved source
 
 The returned local repair is commit `78b8c62adda4c8ee4853025cdff6def82f27ba63`,

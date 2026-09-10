@@ -1,5 +1,14 @@
 # Linear exit owner composition rehearsal
 
+Current extension: the lane also installs the actual provisioning and complete
+Workload owners, then verifies provisioning, browser attribution and the native
+Workload row. It reaches 44 passing assertions before a hard
+`NOTIFICATION_SOURCE_SCHEMA_REQUIRED` failure: the four card/batch/deliverable
+`deleted_at` columns have no established source owner. Notification SQL is not
+applied past that gate. The earlier 41-check PASS below describes the prior
+bounded lane; it is not the current overall result. See
+`qa/linear-exit-rehearsal/RESULTS.md` for evidence and limits.
+
 Run `node test/linear-exit-owner-composition.js` only against an owned disposable loopback PostgreSQL instance with `F63_REQUIRE_POSTGRES=1` and the existing F42 PostgreSQL connection variables. It creates and drops its own test database. It never contacts Supabase, Slack, Linear or n8n.
 
 The source order is A1, B0, the native-intake harness prerequisites, legacy artifact owners, full F27, root manifest, label foundation, atomic native intake plus named append, receipt retention, native assignment and label owners, event assignee, ordinary receipts and repairs, then retirement admission and recognizer. Legacy artifact owners must precede full F27: applying their old enqueue replacements afterward discards the F27 wrapper. Fixture authority changes occur only after the F27 preinstall gate accepts the dormant baseline.

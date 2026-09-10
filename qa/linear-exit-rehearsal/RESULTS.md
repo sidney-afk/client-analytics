@@ -1,5 +1,22 @@
 # Completed isolated evidence
 
+## Expanded composition: installation blocker exposed
+
+The next composition revision reaches 44 passing assertions, then exits with
+`NOTIFICATION_SOURCE_SCHEMA_REQUIRED`. It preserves the original 41 checks and
+adds actual client provisioning, browser project/epoch projection and Workload
+snapshot assertions. The provisioning migration now owns `native_project_ids`;
+the harness no longer supplies that column manually.
+
+The missing columns are `batches.deleted_at`, `deliverables.deleted_at`,
+`calendar_posts.deleted_at` and `sample_reviews.deleted_at`. A separate hosted
+catalog-only read confirmed all four tables exist and all four columns are
+absent. No hosted rows were read or changed. Notification composition remains
+unproven; this expanded lane is **FAIL**, not a new 44-check overall PASS.
+The owned server stopped. Private receipt directory:
+`linear-exit-composition-7867b68f4b0c47b287ae4846f62be281`.
+Earlier evidence below remains tied to its older, narrower source revision.
+
 ## Repository-package reproduction
 
 Commit `02964b12723284cefc395feaa93f221cd22fc095` was executed using the committed

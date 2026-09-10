@@ -142,6 +142,18 @@ async function main() {
       '2026-09-08-native-intake-receipt-retention.sql',
       '2026-09-06-native-existing-assignment.sql',
       '2026-09-06-native-label-writes.sql',
+      '2026-07-04-a2-writer-edge-functions.sql',
+      '2026-07-04-a4-settings-edge-functions.sql',
+      '2026-07-13-write-ui-reroute-allowlist.sql',
+      '2026-08-04-client-access-auto-provision.sql',
+      '2026-09-09-native-client-provisioning.sql',
+      'workload-issues-supabase-migration.sql',
+      '2026-07-19-workload-plan.sql',
+      '2026-09-02-workload-native-view.sql',
+      '2026-09-05-workload-native-membership.sql',
+      '2026-09-08-workload-native-label-state-shape.sql',
+      '2026-09-09-workload-native-roster.sql',
+      '2026-09-09-native-attribution-browser-projection.sql',
     ]) { console.log('COMPOSITION_APPLY ' + file); cluster.runFile(path.join(MIGRATIONS,file)); }
 
 
@@ -629,6 +641,25 @@ async function main() {
     ok('future cutoff table lock releases the waiting typed writer through the real guard',
       Number(scalar(cluster, "select id from public.mirror_outbox where dedup_key='retired-lock-race'")) > highWater);
 
+    console.log(`LINEAR_EXIT_OWNER_COMPOSITION_BASE_OK ${passed} assertions`);
+    // Provision through the actual owner. The projection fixture below is explicit
+    // synthetic data, not a claim that this lane exercises native intake itself.
+    cluster.exec(`update public.syncview_runtime_flags set value='{"video":{"enabled":true,"epoch":"composition-v1"},"graphics":{"enabled":true,"epoch":"composition-g1"}}'::jsonb where key='native_intake_epochs';`);
+    const provision = jsonRows(cluster, "select public.production_native_client_provision('composition-provision','compositionclient','Composition Fixture') as result")[0].result;
+    ok('real provisioning creates opaque native projects', provision.ok === true && provision.outcome === 'created' && /^svproj_video_[a-f0-9]{32}$/.test(provision.native_project_ids.video));
+    cluster.exec(`insert into public.batches(id,client_slug,team,name,status) values ('composition-batch','compositionclient','video','Composition fixture','active');
+      insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,assignee_id,linear_raw)
+      values ('composition-deliverable','composition-batch','compositionclient','video','video','Projection fixture','todo','33333333-3333-4333-8333-333333333331',${json({attribution:{schema:'syncview_attribution_v1',state:'resolved',source:'native_intake_project',client_slug:'compositionclient',team:'video',project_id:provision.native_project_ids.video,native_epoch:'composition-v1'}})});`);
+    const projected = jsonRows(cluster,"select raw_attribution_project_id,raw_attribution_native_epoch,raw_attribution_client_slug from public.production_deliverables_browser_v1 where id='composition-deliverable'")[0];
+    ok('final browser projection resolves the actual provisioned client mapping', projected.raw_attribution_project_id === provision.native_project_ids.video && projected.raw_attribution_client_slug === 'compositionclient' && projected.raw_attribution_native_epoch === 'composition-v1');
+    const workload = jsonRows(cluster,'select public.workload_native_snapshot_v1() as result')[0].result;
+    ok('final Workload RPC includes the native provisioned client row', workload.ok === true && workload.complete === true && workload.rows.some(row => row.id === 'composition-deliverable' && row.source === 'native' && row.client_slug === 'compositionclient'));
+    console.log(`LINEAR_EXIT_OWNER_COMPOSITION_READERS_OK ${passed} assertions`);
+    // Refuse to manufacture notification prerequisites absent from source owners.
+    const missing = jsonRows(cluster, `select e.table_name from (values ('deliverables'),('batches'),('calendar_posts'),('sample_reviews')) e(table_name)
+      where not exists (select 1 from information_schema.columns c where c.table_schema='public' and c.table_name=e.table_name and c.column_name='deleted_at') order by e.table_name`);
+    assert.equal(missing.length,0,'NOTIFICATION_SOURCE_SCHEMA_REQUIRED: '+missing.map(row=>row.table_name+'.deleted_at').join(','));
+    cluster.runFile(path.join(MIGRATIONS,'2026-09-09-native-notification-outbox.sql'));
     console.log(`LINEAR_EXIT_OWNER_COMPOSITION_OK ${passed} assertions`);
   } finally {
     try {

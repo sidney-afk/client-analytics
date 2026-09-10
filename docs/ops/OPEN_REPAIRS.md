@@ -20323,3 +20323,28 @@ client entry claimed by id is still a claim, because withdrawn is not unseen.
 138 checks, two controls, both confirmed by exit status.
 
 **Thirty-three rounds, 74 findings.**
+
+### 196ai. Round 34: extracting one function is not mirroring the caller
+
+196ah fixed "restated instead of called" by extracting `_calMsgAudience`. But
+`_calCommentsForView` applies **three** rules, and that function is one:
+
+1. drop tombstoned and `hidden` entries,
+2. drop every `role: 'kasper'` message outright — "never expose Kasper
+   authorship", a hard exclusion that **overrides** an explicit
+   `audience: 'client'`,
+3. keep only threads whose ROOT is client-addressed, replies inheriting it.
+
+A mis-tagged Kasper root could therefore claim a committed client request by id
+or by body, and a reply was judged by its own audience while the app judges it
+by its root's. Both are now mirrored, the reply case by resolving the root out of
+the same cell the renderer uses.
+
+The correction to 196ah's lesson: **calling the right function is not the same as
+mirroring the caller.** The question is never "which function computes this" but
+"what does the code path that actually renders this to the client do", and that
+path had two more rules wrapped around the one I extracted.
+
+140 checks, three controls, all confirmed by exit status.
+
+**Thirty-four rounds, 75 findings.**

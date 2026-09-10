@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 138 checks, each
+construction through fixtures — no credentials, no network. 140 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -149,6 +149,13 @@ but still wrong for these cells, and would have reported delivered requests as
 absent for exactly the roles the two surfaces treat differently. The direction
 is not "staff cannot deliver": **779 live root entries carry role `smm` with
 audience `client`**, and the app shows those to the client.
+
+`_calCommentsForView` applies **three** rules and the audience function is only
+one of them: it also drops every `role: 'kasper'` message outright ("never
+expose Kasper authorship" — a hard exclusion that beats an explicit
+`audience: 'client'`), and it judges a reply by its thread **root's** audience,
+not its own. All three are mirrored here, the last one by resolving the root out
+of the same cell the renderer resolves it from.
 
 The same predicate gates the **exact-id** claim. An id match is the strongest
 evidence this job has and still is not evidence of delivery: an internal root is

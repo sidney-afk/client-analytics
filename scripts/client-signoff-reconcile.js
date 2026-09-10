@@ -339,11 +339,31 @@ function stampSurvives(card, comp, stampValue) {
  * these cells hold schema-less JSON — a legacy or imported entry carrying
  * `hidden: 1` or `hidden: "true"` is invisible in the app, so testing `=== true`
  * would let exactly the entry this rule exists to refuse claim a request. */
-const isVisibleOnCard = (entry) => !!entry && !entry.hidden
-  && _calMsgAudience(entry) === 'client';
+/* `_calCommentsForView` applies THREE rules, not one: it drops tombstoned and
+ * `hidden` entries, it drops every `role: 'kasper'` message outright ("never
+ * expose Kasper authorship" — a hard exclusion that overrides an explicit
+ * `audience: 'client'`), and it keeps only threads whose ROOT is client-
+ * addressed, replies inheriting their root. Mirroring `_calMsgAudience` alone
+ * mirrored one of the three.
+ *
+ * `list` is the whole cell, so a reply's root can be resolved the way the
+ * renderer resolves it. Without it a reply carrying a matching id would be
+ * judged on its own audience while the app judges it on its root's. */
+const isVisibleOnCard = (entry, list) => {
+  if (!entry || entry.hidden) return false;
+  if (entry.role === 'kasper') return false;
+  const rows = Array.isArray(list) ? list : [];
+  const byId = new Map();
+  for (const c of rows) if (c && c.id) byId.set(c.id, c);
+  const root = (entry.parent_id && byId.has(entry.parent_id)) ? byId.get(entry.parent_id) : entry;
+  return _calMsgAudience(root) === 'client';
+};
 function couldBeClientTweak(entry) {
   if (!entry) return false;
   if (entry.hidden) return false;
+  /* The renderer's hard exclusion, which overrides an explicit client audience:
+   * a Kasper-authored message is never shown to a client at all. */
+  if (String(entry.role || '').trim().toLowerCase() === 'kasper') return false;
   if (entry.deleted === true) return false;
   if (entry.parent_id) return false;
   return _calMsgAudience(entry) === 'client';
@@ -967,7 +987,7 @@ function detect(world) {
      * strongest evidence this job has, and it is still not evidence that a
      * client can SEE their request. */
     const at = row.list.findIndex((c, i) =>
-      !consumed.has(i) && ids.includes(String(c.id || '')) && isVisibleOnCard(c));
+      !consumed.has(i) && ids.includes(String(c.id || '')) && isVisibleOnCard(c, row.list));
     if (at >= 0) { consumed.add(at); claimOf.set(row, at); }
   }
 

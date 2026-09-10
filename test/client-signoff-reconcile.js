@@ -1946,6 +1946,41 @@ check('a deleted CLIENT entry claimed by id is still a claim after the audience 
   assert.equal(findings.length, 0, 'withdrawn is still not unseen');
 });
 
+/* ROUND 34. `_calCommentsForView` applies THREE rules and round 33 mirrored one.
+   It also drops every `role: 'kasper'` message outright — "never expose Kasper
+   authorship", a hard exclusion that overrides an explicit client audience —
+   and it judges a REPLY by its thread ROOT's audience, not its own. */
+check('a Kasper entry never delivers, even tagged audience client', () => {
+  for (const key of ['pc_x1', 'body']) {
+    const onCard = JSON.stringify([{
+      id: key === 'pc_x1' ? 'pc_x1' : 'cal-9',
+      body: key === 'pc_x1' ? 'totally different text' : 'Please fix the intro',
+      role: 'kasper', audience: 'client', is_tweak: true,
+    }]);
+    const { findings } = detect(world({
+      comments: [TWEAK()],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 1,
+      `matched by ${key}: the app never shows Kasper authorship to a client`);
+  }
+});
+
+check('a reply is judged by its root, as the renderer judges it', () => {
+  /* The reply itself would read as client-visible; its root is internal, and
+     `_calCommentsForView` resolves replies through the root. */
+  const onCard = JSON.stringify([
+    { id: 'root-1', body: 'internal thread', role: 'smm', is_tweak: false },
+    { id: 'pc_x1', body: 'totally different text', role: 'client',
+      parent_id: 'root-1', is_tweak: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 1, 'the client sees neither the root nor its reply');
+});
+
 check('a properly linked card is still stamped normally', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');

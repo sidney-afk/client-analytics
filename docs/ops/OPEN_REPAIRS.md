@@ -19309,5 +19309,13 @@ wrong reason. It is the reason every rule here carries a sabotage control, and
 the reason a control that does not fire is treated as a broken test rather than
 a redundant one.
 
+**AND IT WAS ALREADY IN THE LIVE REPAIR LIST.** This was not a latent risk. Of
+the five stamp repairs the job had been reporting, re-running the detection with
+the composite join returns **four**. The fifth (`p_native_93e7…_1`, graphic) is a
+card id that belongs to TWO clients, and the id-only lookup had selected the one
+that does not own the deliverable. Dispatching an apply run before this round
+would have written one client's approval onto another client's card. The dry-run
+discipline is the only reason it did not.
+
 Also this round: the runbook still published 30 checks after Round 3 raised it
 to 33. Corrected, now 37, with a note to keep it current.

@@ -83,6 +83,38 @@ does not establish that lifecycle contract. The prior isolated browser and
 notification tests used synthetic columns and do not prove this prerequisite.
 This metadata inspection read no application rows and changed no hosted state.
 
+Source tracing narrows the repair: adding four nullable columns would not fix
+the lifecycle mismatch. Calendar `_calArchiveOne` and Samples `_sxrArchiveOne`
+in `index.html` archive cards with `status: 'Archived'`. Samples retains its
+component substatus; Calendar's deliverable parking is best effort. Thus an
+archived card can still have video substatus `Tweaks Needed`. B1 owns batch
+`active`/`done`/`archived` status. Deliverable archive/delete evidence is retained
+in `linear_raw` and interpreted by `_prodDeliverableLive`; canceled status is
+not equivalent to deletion. `production_comments.deleted_at` remains a real,
+separate comment contract.
+
+The prepared notification repair must align gateway admission and SQL intent
+creation/claim checks with those owners. Preserve client, reciprocal card,
+assignee, team, round, authority and destination checks. Revalidate lifecycle
+at claim time, including batch changes after admission; a later provider send
+still has the documented point-in-time limitation. Required regression cases
+include archived Samples retaining tweak substatus, archived Calendar after
+failed parking, archived batches, raw-marked deliverables, and archive between
+intent creation and claim. Retain positive active-target and canceled-status
+semantics. Do not alter frozen card writers or create dummy deletion columns
+to make the existing fixture pass. This repair is specified, **not built or
+verified**; the current expanded composition failure remains authoritative.
+
+Use the existing normalized card-status predicate from component-fill and
+reconciliation (`lower(btrim(coalesce(status,''))) <> 'archived'`). Deliverable
+marker handling must preserve false-like values rather than interpreting every
+non-null JSON field as deletion. Additional tests must cover marker variants,
+card rebinding, batch/client/team changes, assignee changes, round advance and
+physical row absence between enqueue and claim. Validate retained receipts
+across archive/restore, and rerun existing status/comment cases. A shared SQL
+eligibility predicate should prevent enqueue and claim checks from diverging;
+its access contract must remain restricted with the other notification owners.
+
 For Workload, preserve its separate prerequisite chain: the native view before
 the membership/snapshot RPC, then
 `2026-09-08-workload-native-label-state-shape.sql` after the membership SQL, followed by

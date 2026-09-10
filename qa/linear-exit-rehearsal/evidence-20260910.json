@@ -1069,5 +1069,82 @@
         "matches_observation": false
       }
     ]
+  },
+  "hosted_recovery_catalog_inspection": {
+    "classification": "LIVE_READ_RECOVERY_CATALOG_INSPECTION",
+    "observed_at": "2026-09-10T23:27:21.129Z",
+    "source": "b86654e1b73c53b097b93396a2110e6d09c39e14",
+    "query_sha256": "a42421bda26035b2365b0a1333dc967bc787a7b8ecc5a7dbeba437a9d3ee583d",
+    "private_capture_sha256": "2a1fb65ed180cbd8df81c243c30caa07175dfea44baea2372d872535951e1ddd",
+    "catalog_fingerprint_md5": "1b4370cc138361dbb32cfb686e9a0f77",
+    "counts": {
+      "tables": 67,
+      "views": 5,
+      "sequences": 14,
+      "functions": 115,
+      "triggers": 28,
+      "disabled_triggers": 0,
+      "policies": 31,
+      "indexes": 177,
+      "constraints": 247,
+      "types": 0,
+      "dependency_edges": 11,
+      "evaluated_expressions": 536
+    },
+    "server_version_num": 170006,
+    "history_v11_corpus": {
+      "expected": 52,
+      "present": 33,
+      "absent": [
+        "card_change_journal",
+        "production_intake_manifests",
+        "production_card_provenance",
+        "calendar_feedback_materializations",
+        "production_card_materialization_receipts",
+        "production_card_materialization_ingress",
+        "production_label_catalog_versions",
+        "linear_outbound_cutoff_control",
+        "legacy_intake_native_triage",
+        "native_brief_media_occurrences",
+        "production_native_client_provisions",
+        "syncview_retirement_admission",
+        "production_native_identifier_mint",
+        "production_native_identifier_grants",
+        "production_native_ordinary_receipt_admissions",
+        "production_notification_config",
+        "production_notification_intents",
+        "production_notification_delivery_receipts",
+        "production_notification_reconciliations"
+      ]
+    },
+    "application_rows_read": false,
+    "sequence_values_read": false,
+    "pg_dump_captured": false,
+    "restorable_backup_proven": false,
+    "full_dependency_closure_proven": false,
+    "hosted_mutation": false,
+    "current_public_tables_outside_history_v11_corpus": 34
+  },
+  "ordered_recovery_postgres17": {
+    "status": "PASS",
+    "passed": 31,
+    "table_count": 52,
+    "install_source_inventory": {
+      "identity": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+      "sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+      "classification": "SOURCE_ONLY",
+      "execution_order": "PUBLISHED_INVENTORY_DEPENDENCY_ORDER"
+    },
+    "classification": "ISOLATED_POSTGRES_ORDERED_SCHEMA_DATA_RECOVERY",
+    "postgres_version": "17.11",
+    "observed_hosted_version": "17.6",
+    "patch_identical": false,
+    "receipt": "linear-exit-recovery-upstream-ledger-d8e97669af914aaa8c1224de618638a1",
+    "unit_log_sha256": "03824d38a69fcdec103f2b3e569a93204f8278bdc41741c218bd9a037d17b861",
+    "source_base": "b86654e1b73c53b097b93396a2110e6d09c39e14",
+    "recovery_source_unchanged": true,
+    "runner_explicit_major_opt_in": true,
+    "server_stopped": true,
+    "hosted_recovery_proven": false
   }
 }

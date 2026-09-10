@@ -1,5 +1,30 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Latest hosted recovery catalog inspection
+
+The unchanged ordered recovery source also passes all 31 checks across 52 tables
+on local PostgreSQL 17.11. The server stopped, exit 0. This adds major-version
+coverage for the observed 17.6 host, not patch-identical or hosted recovery proof.
+Use the explicit RecoveryPostgres17 runner switch; other lane restrictions remain.
+
+At 2026-09-10T23:27:21.129Z, one read-only SELECT reused the recovery engine's
+catalog fingerprint, inventory, prerequisite, dependency-edge and evaluated-
+expression queries. Raw metadata remains private; its hash and aggregate counts
+are published. The host reports PostgreSQL 17.6, with 67 public tables, five
+views, 14 sequences, 115 routines, 28 triggers (none disabled), 31 policies,
+177 indexes and 247 constraints. The selected queries return 11 dependency edges
+and 536 evaluated expressions; these are not complete dependency closure.
+
+Of the prepared history-v11 recovery corpus's 52 tables, 33 currently exist and
+19 are absent. Another 34 current public tables fall outside that corpus and
+need explicit exit-scope/custody classification; the count alone does not make
+each one a migration requirement. The exact absent repository-owned names are
+in aggregate evidence.
+This is catalog inspection only: no application rows, sequence values or pg_dump
+were captured. It is not a restorable backup or complete installation baseline.
+No hosted mutations occurred. Installation HOLD.
+
+
 ## Latest hosted-view provenance resolution
 
 The local view-provenance lane reproduces the captured hosted view definition

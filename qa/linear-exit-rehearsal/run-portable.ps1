@@ -2,6 +2,7 @@ param(
  [Parameter(Mandatory=$true)][string]$PgBin,
  [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
+ [switch]$RecoveryPostgres17,
  [string]$OutputRoot
 )
 # Windows, preinstalled PG16/17 + Node22+ + Git Bash only. No installation or
@@ -17,7 +18,8 @@ foreach ($binary in @('initdb.exe','pg_ctl.exe','psql.exe','postgres.exe')) {
 $pgVersion=(& (Join-Path $pgPath 'postgres.exe') --version) -join ''
 if ($LASTEXITCODE -ne 0 -or $pgVersion -notmatch '\b(16|17)\.') { throw 'Preinstalled PostgreSQL 16 or 17 required.' }
 $pgMajor=$Matches[1]
-$expectedMajor=if ($Lane -eq 'f27') { '17' } else { '16' }
+if ($RecoveryPostgres17 -and $Lane -ne 'recovery-upstream-ledger') { throw 'RecoveryPostgres17 is restricted to recovery-upstream-ledger.' }
+$expectedMajor=if ($Lane -eq 'f27' -or $RecoveryPostgres17) { '17' } else { '16' }
 if ($pgMajor -ne $expectedMajor) { throw "Lane $Lane requires PostgreSQL $expectedMajor binaries." }
 $node=(Get-Command node -CommandType Application -ErrorAction Stop).Source
 $nodeVersion=(& $node --version) -join ''

@@ -500,3 +500,16 @@ PostgreSQL from the August 23 attribution-slug-guard-widening owner. The focused
 view-provenance lane matches the pinned hosted hash with no normalization or
 private SQL execution. All seven selected predecessor bodies/definitions are
 identified; complete baseline, dependency and upgrade safety remain open.
+
+### Hosted catalog scope and PostgreSQL 17 rehearsal
+
+The recovery engine's read-only catalog queries observe a PostgreSQL 17.6 host
+with 67 public tables; 33 overlap the prepared 52-table corpus, 19 candidate
+corpus tables are absent, and 34 current tables are outside that corpus. Those
+34 require explicit exit-scope/custody classification before claiming complete
+coverage. Raw expressions and metadata remain private; aggregate hashes/counts
+are published. No application data or sequence values were captured.
+
+The unchanged ordered recovery rehearsal passes 31 checks across 52 tables on
+local PostgreSQL 17.11 with the supported explicit major-version switch. This
+extends version coverage without proving the hosted baseline or a real backup.

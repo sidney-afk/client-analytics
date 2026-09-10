@@ -189,3 +189,9 @@ and compare PostgreSQL's pretty view definition with the pinned hosted SHA256
 observation. This test needs no private captured source and executes no hosted
 SQL. A match identifies the selected definition at the recorded observation;
 it does not prove grants, dependencies, complete baseline or upgrade safety.
+
+For the explicit PostgreSQL 17 recovery variant, use `-Lane recovery-upstream-ledger`
+with `-RecoveryPostgres17` and PostgreSQL 17 binaries. The switch is refused for
+other lanes; the normal recovery lane still requires PostgreSQL 16. Report exact
+versions separately: matching a hosted major version does not prove matching
+patch versions, platform configuration or live recovery.

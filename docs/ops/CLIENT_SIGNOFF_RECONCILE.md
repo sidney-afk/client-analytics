@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 126 checks, each
+construction through fixtures — no credentials, no network. 130 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. **That number is asserted by the suite itself** — this line said 64
 after round 12 added ten, which is exactly the stale evidence a later session
@@ -129,6 +129,21 @@ here republishes settled work or duplicates a client's own words back at them.
 The suite is proven by sabotage, not by passing: removing the stale-approval
 gate, the closed-round gate, the body comparison, the commit-time stamp, or the
 stale sweep each makes it fail. Re-run those controls if you change a rule.
+
+## An entry the app never renders cannot be a delivery
+
+`hidden` is the app's audit-suppression flag. `_calCommentsForView` filters it
+out for **every** audience, and `index.html` names the case it exists for:
+"legacy cross-client feedback that bled onto the wrong client's row". So a
+hidden twin claiming a client's request would declare it delivered while the
+client cannot see it — and would do so most readily on exactly the cross-client
+mess the flag was created to bury. Refused on both claim passes; live, 4 cells
+carry one.
+
+A **deleted** entry claimed by id is deliberately still a claim: the client
+withdrew their own request, and re-delivering it would reopen a component over
+something they took back. Withdrawn is not the same as unseen, and a first draft
+of the hidden rule collapsed the two.
 
 ## Identity: why matching is a consume, not a search
 

@@ -20211,3 +20211,30 @@ in 196x: a false headline over a correct detail line is worse than either alone.
 126 checks, four controls, all confirmed by exit status.
 
 **Twenty-nine rounds, 67 findings.**
+
+### 196ae. Round 30: an entry nobody can see, and a card thrown away after it was found
+
+**A `hidden` entry could claim a client's request.** `_calCommentsForView`
+filters `hidden` out for every audience, so such an entry is invisible to
+everyone — and `index.html` names the case it exists for: "legacy cross-client
+feedback that bled onto the wrong client's row". Claiming one declares a request
+delivered while the client cannot see it, most readily on precisely the
+cross-client mess the flag was created to bury. Refused on both claim passes.
+Live: **4 cells** carry a hidden entry.
+
+The first draft of that fix also refused **deleted** entries and broke the
+round-6 rule: a deleted entry claimed by id is still a claim, because the client
+withdrew their own request and re-delivering it would reopen a component over
+something they took back. The existing check caught it immediately, which is the
+argument for keeping old checks that look redundant. Withdrawn is not unseen, and
+there is now a control against collapsing them again.
+
+**A refusal threw away a card it had already found.** `resolve()` locates the
+exact (client, id) row and only then discovers the reverse link is stale — but
+returned a bare string, so the row printed "its card cannot be found" about a
+card sitting right there, sending an operator after a missing-card problem that
+does not exist. The refusal now carries the card it found, on both paths.
+
+130 checks, four controls, all confirmed by exit status.
+
+**Thirty rounds, 69 findings.**

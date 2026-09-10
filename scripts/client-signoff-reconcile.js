@@ -311,8 +311,22 @@ function stampSurvives(card, comp, stampValue) {
  * entries, replies and deleted entries never represent one. Absent role is
  * allowed (legacy rows predate the field); an explicit staff role is not. */
 const STAFF_ROLES = new Set(['kasper', 'smm', 'admin', 'editor', 'designer', 'system']);
+/* An entry the app never renders cannot be a delivery of anything. `hidden` is
+ * the app's audit-suppression flag — `_calCommentsForView` filters it out for
+ * EVERY audience, and index.html names the case it exists for: "legacy
+ * cross-client feedback that bled onto the wrong client's row". So a hidden
+ * twin claiming a client's request would declare it delivered while it is
+ * invisible to the client, and would do so most readily on exactly the
+ * cross-client mess the flag was created to bury. Live: 4 cells carry one. */
+/* ONLY `hidden`. A DELETED entry claimed by id is deliberately still a claim:
+ * the client withdrew their own request, and re-delivering it would reopen a
+ * component over something they took back — that is the round-6 rule, and a
+ * first draft of this fix broke it. Hidden is different: the client never took
+ * anything back, they simply cannot see it. */
+const isVisibleOnCard = (entry) => !!entry && entry.hidden !== true;
 function couldBeClientTweak(entry) {
   if (!entry) return false;
+  if (entry.hidden === true) return false;
   if (entry.deleted === true) return false;
   if (entry.parent_id) return false;
   const role = String(entry.role || '').trim().toLowerCase();
@@ -463,7 +477,12 @@ function detect(world) {
     if (kindComp && kindComp !== teamComp) return 'kind_and_team_disagree';
     const id = String(del.id || '').trim();
     if (!id || String(card[REVERSE_LINK_FIELD[teamComp]] || '').trim() !== id) {
-      return 'card_does_not_link_back';
+      /* THE CARD IS KNOWN HERE. resolve() has already located the exact
+       * (client, id) row; what failed is the link back, not the lookup. A bare
+       * string throws that identity away and the row prints "its card cannot be
+       * found", sending an operator after a missing card that is sitting right
+       * there. The refusal carries the card it found. */
+      return { refused: 'card_does_not_link_back', card };
     }
     /* Re-checked against the CARD's own client: the early scope test used the
      * deliverable's, and a card mid-move can disagree with it. */
@@ -598,6 +617,13 @@ function detect(world) {
        * objects here made the unwritten branch silently drop exactly the rows
        * that matter most: both delivery legs failed AND the crosswalk is stale,
        * so nothing else in the system names this approval either. */
+      if (unwritten && unwritten.refused) {
+        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+          refusal: unwritten.refused, carrier_status: carrier || '(none)',
+          card: unwritten.card.id, client: unwritten.card.client,
+          deliverable: String((row && row.entity_id) || ''), component: '' });
+        continue;
+      }
       if (typeof unwritten === 'string') {
         /* DO NOT CLAIM THE CARD LEG FAILED WHEN THE CARD IS UNKNOWN. The four
          * qualifying tests the resolvable rows go through — stamp already
@@ -638,6 +664,12 @@ function detect(world) {
       continue;
     }
     const hit = resolve(row && row.entity_id, row && row.client_slug);
+    if (hit && hit.refused) {
+      skip({ kind: 'stamp', reason: hit.refused, crosswalk_broken: true,
+        deliverable: String((row && row.entity_id) || ''),
+        card: hit.card.id, client: hit.card.client, component: '' });
+      continue;
+    }
     if (typeof hit === 'string') {
       /* A COMMITTED CLIENT APPROVAL WHOSE CARD CANNOT BE FOUND IS WORK, not a
        * card that moved on. Without the deliverable and the client this printed
@@ -835,6 +867,12 @@ function detect(world) {
   const resolved = [];
   for (const pc of commentsInOrder) {
     const hit = resolve(pc.deliverable_id, pc.client_slug);
+    if (hit && hit.refused) {
+      skip({ kind: 'comment', reason: hit.refused, crosswalk_broken: true,
+        deliverable: String(pc.deliverable_id || ''),
+        card: hit.card.id, client: hit.card.client, component: '', comment: pc.id });
+      continue;
+    }
     if (typeof hit === 'string') {
       /* THE SAME RULE AS THE STAMP PATH. A committed client REQUEST whose card
        * cannot be found is the delivery half's whole result — reporting lost
@@ -909,7 +947,11 @@ function detect(world) {
     if (!consumedByCard.has(row.cellKey)) consumedByCard.set(row.cellKey, new Set());
     const consumed = consumedByCard.get(row.cellKey);
     const ids = [String(row.pc.id || ''), String(row.pc.native_comment_id || '')].filter(Boolean);
-    const at = row.list.findIndex((c, i) => !consumed.has(i) && ids.includes(String(c.id || '')));
+    /* The ID pass refuses a hidden entry as well. An exact id match is the
+     * strongest evidence this job has, and it is still not evidence that a
+     * client can SEE their request. */
+    const at = row.list.findIndex((c, i) =>
+      !consumed.has(i) && ids.includes(String(c.id || '')) && isVisibleOnCard(c));
     if (at >= 0) { consumed.add(at); claimOf.set(row, at); }
   }
 

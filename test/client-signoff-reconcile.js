@@ -1277,14 +1277,42 @@ check('a lost approval that could not resolve a card counts as needing a person'
    The row is kept, since nothing else in the system names that approval, and
    its claim is narrowed to what is known. */
 check('a lost approval with no identifiable card does not claim the card leg failed', () => {
+  /* `unknown_team` genuinely identifies no card; a stale REVERSE LINK does, and
+     round 30 made that refusal carry it. Both must still refuse to claim a card
+     leg they could not test. */
+  const { skipped } = detect(world({
+    outbox: [APPROVE({ status: 'pending' })],
+    deliverables: [DEL({ team: '' })],
+  }));
+  assert.equal(skipped.length, 1);
+  assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
+  assert.equal(skipped[0].refusal, 'unknown_team');
+  assert.equal(skipped[0].card, '(unidentified)', 'not "(unlinked)": the claim is about knowledge');
+});
+
+/* ROUND 30. resolve() had already located the exact (client, id) card before
+   refusing on the reverse link, and returning a bare string threw that identity
+   away — so the row printed "its card cannot be found" about a card sitting
+   right there, sending an operator after a missing-card problem that does not
+   exist. The refusal carries the card it found. */
+check('a stale reverse link names the card it found', () => {
   const { skipped } = detect(world({
     outbox: [APPROVE({ status: 'pending' })],
     cards: [CARD({ video_deliverable_id: 'other' })],
   }));
   assert.equal(skipped.length, 1);
   assert.equal(skipped[0].reason, 'carrier_did_not_write_and_card_unknown');
-  assert.equal(skipped[0].refusal, 'card_does_not_link_back');
-  assert.equal(skipped[0].card, '(unidentified)', 'not "(unlinked)": the claim is about knowledge');
+  assert.equal(skipped[0].card, 'card-1', 'the card was located; only the link failed');
+  assert.equal(skipped[0].client, 'testclient');
+});
+
+check('a written approve on a half-linked card names the card too', () => {
+  const { skipped } = detect(world({
+    outbox: [APPROVE()], cards: [CARD({ video_deliverable_id: 'other' })],
+  }));
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
+  assert.equal(skipped[0].card, 'card-1');
+  assert.equal(skipped[0].client, 'testclient');
 });
 
 /* Deliberately NOT done, and recorded so the next session meets the decision
@@ -1748,6 +1776,41 @@ check('the headline separates a missing card from an ambiguous review', () => {
   const needs = lines.find(l => l.startsWith('NEEDS A PERSON'));
   assert.match(needs, /card is missing 1/, needs);
   assert.match(needs, /cannot carry 1/, needs);
+});
+
+/* ROUND 30. `hidden` is the app's audit-suppression flag: `_calCommentsForView`
+   filters it out for EVERY audience, and index.html names the case it exists
+   for — "legacy cross-client feedback that bled onto the wrong client's row".
+   A hidden twin claiming a request declares it delivered while the client
+   cannot see it, and does so most readily on exactly the cross-client mess the
+   flag was created to bury. Live: 4 cells carry one. */
+check('a hidden entry is not a delivery, by id or by body', () => {
+  for (const key of ['pc_x1', 'nat-77']) {
+    const onCard = JSON.stringify([
+      { id: key, body: 'Please fix the intro', role: 'client', is_tweak: true, hidden: true },
+    ]);
+    const { findings } = detect(world({
+      comments: [TWEAK({ native_comment_id: 'nat-77' })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+    }));
+    assert.equal(findings.length, 1,
+      `a hidden entry matched by ${key === 'pc_x1' ? 'id' : 'native id'} is invisible to the client`);
+  }
+});
+
+/* THE RULE IT MUST NOT SWALLOW: a DELETED entry claimed by id is still a claim.
+   The client withdrew their own request, and re-delivering it would reopen a
+   component over something they took back. A first draft of the hidden fix
+   broke exactly this, which is why the round-6 check caught it. */
+check('a deleted entry claimed by id is still a claim', () => {
+  const onCard = JSON.stringify([
+    { id: 'pc_x1', body: 'Please fix the intro', role: 'client', is_tweak: true, deleted: true },
+  ]);
+  const { findings } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: onCard })],
+  }));
+  assert.equal(findings.length, 0, 'withdrawn is not the same as unseen');
 });
 
 check('a properly linked card is still stamped normally', () => {

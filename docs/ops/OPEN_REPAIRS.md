@@ -19617,3 +19617,44 @@ populated, so both checks are free.
 
 **Ten rounds, 28 findings.** Rounds 9 and 10 were both on the stamp path, which
 the round-8 narrowing had called the settled half.
+
+### 195l. Round 11: a card id is a one-way pointer, and following it alone is not a link
+
+`deliverables.card_id` is plain text with **no foreign key**
+(`migrations/2026-07-06-b1-linear-data-model.sql`), written by one side only.
+The reconciler followed it forward and stopped there, so a stale pointer left by
+a re-link, or a Samples deliverable whose `card_id` happens to name a real
+same-client calendar card, would have produced a **writable stamp** on a card
+that never had anything to do with that approval.
+
+The product already had the rule and the reasoning. `_prodCrosswalkMismatchFields`
+in `index.html` accepts a deliverable as describing a card only when origin,
+team, `client_slug` and `card_id` all agree, and it treats unknown as
+not-linked, because acting on a half-link destroys real comment history. F42
+recorded the live evidence behind that gate. The reconciler was not applying its
+own product's rule.
+
+The link now has to close both ways, checked in `resolve()` beside the client
+rule: the deliverable must carry `origin='calendar'`, and the card's own slot
+for that deliverable's component (`video_deliverable_id` /
+`graphic_deliverable_id`) must name it back. A `kind` this job maps to no
+component (`other`, live today) still has to be named by one slot or the other;
+what is never enough is neither.
+
+Measured live before writing the rule: of the calendar-origin deliverables
+carrying a card id, **1,394 of 1,394 reverse-link correctly** and none are
+mismatched; all **56** Samples-origin card ids resolve to no same-client
+calendar card at all, and none of them collides with a calendar card id under
+any client. **Zero rows affected today.** One re-link creates one silently, and
+it would be a write.
+
+71 checks. Three controls, all confirmed to fire: the reverse-link refusal
+removed, the origin refusal removed, and `origin` dropped from the projection —
+that last one is the **round-1 lesson as a test**, since a fixture sets whatever
+field it likes and a rule can pass every case here while being inert in
+production because the real query never fetches the column. The suite now
+asserts the projections themselves.
+
+**Eleven rounds, 29 findings.** Rounds 9, 10 and 11 were all the same shape:
+identity taken from one side. The round-8 narrowing called the stamp path the
+settled half, and three consecutive rounds have landed on it.

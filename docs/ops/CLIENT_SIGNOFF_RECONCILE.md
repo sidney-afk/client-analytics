@@ -259,7 +259,7 @@ dry run rather than silently forgotten.
 Re-check with the query in OPEN_REPAIRS 195g. If that count ever stops being
 zero, the gate is one line to relax.
 
-## Revalidation refreshes all three sources, not just the card
+## Revalidation refreshes every source detection used, not just the card
 
 Before each write the job re-reads **the card, the source comment row, the
 deliverable, and the deliverable's status transitions**. Each was added because the previous scope
@@ -300,6 +300,50 @@ next source will not remember to ask.**
 
 Zero live rows in either table today; one card move creates them silently, and
 both fields are always populated, so the check costs nothing.
+
+## A card id is a pointer, not a link
+
+`deliverables.card_id` is a plain text column with **no foreign key**, and it is
+written by one side only. Following it forward and stopping there accepts a card
+that never named this deliverable back: a stale pointer left by a re-link, or a
+Samples deliverable whose `card_id` happens to name a real same-client calendar
+card, would resolve to a card and produce a writable stamp on it.
+
+The product's own canonical rule is the full crosswalk.
+`_prodCrosswalkMismatchFields` (`index.html`) accepts a deliverable as
+describing a card only when origin, team, `client_slug` and `card_id` all agree,
+and treats unknown as not-linked — because acting on a half-link is what erases
+a card's real comment history.
+
+So `resolve()` requires the link to close both ways:
+
+- the deliverable must carry `origin='calendar'`; Samples belongs to sxr and
+  `manual` to neither surface;
+- the card's slot for that deliverable's component must name it back
+  (`video_deliverable_id` for video work, `graphic_deliverable_id` for graphic),
+  which is also the team half of the crosswalk;
+- a `kind` this job maps to no component — `other` is live and reverse-links
+  through the graphic slot — must still be named by one slot or the other. What
+  is never enough is neither.
+
+This lives in `resolve()` next to the client rule, for the reason round 10
+established: identity questions answered per call site get answered
+inconsistently. Rounds 9, 10 and 11 were all the same shape — identity taken
+from one side — in three different places.
+
+Live shape when the rule was added: **1,394 of 1,394** calendar-origin
+deliverables with a card id reverse-link correctly; all **56** Samples-origin
+card ids resolve to no same-client calendar card at all. Zero rows are affected
+today, and one re-link creates one silently, as a write.
+
+### The projection is part of the rule
+
+A fixture sets whatever field it likes, so a rule can pass every offline case
+while being **inert in production** because the real query never fetches the
+column it reads. That is exactly how this job's first `source_edited_at` fix
+shipped doing nothing. Three columns were added to the reads for this rule, so
+the suite asserts the projections themselves: every deliverable read must
+project `origin`, and every card read must project both reverse-link columns.
 
 ## The race this does not close
 

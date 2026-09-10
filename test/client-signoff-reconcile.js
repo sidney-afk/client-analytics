@@ -23,10 +23,13 @@ const CARD = (over) => Object.assign({
   video_tweaks: '', graphic_tweaks: '', caption_tweaks: '',
   client_video_approved_at: null, client_graphic_approved_at: null,
   client_caption_approved_at: null, kasper_approved_at: null,
+  /* The card side of the crosswalk. A default fixture is a PROPERLY LINKED
+     card: the deliverable names the card and the card names it back. */
+  video_deliverable_id: 'del-1', graphic_deliverable_id: null,
   updated_at: '2026-09-01T00:00:00.000Z',
 }, over || {});
 const DEL = (over) => Object.assign({
-  id: 'del-1', card_id: 'card-1', kind: 'video', client_slug: 'testclient',
+  id: 'del-1', card_id: 'card-1', kind: 'video', origin: 'calendar', client_slug: 'testclient',
 }, over || {});
 const APPROVE = (over) => Object.assign({
   entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'written',
@@ -235,6 +238,9 @@ check('the card entry is recognised by its native comment id', () => {
 check('a thumbnail deliverable stamps the graphic component', () => {
   const { findings } = detect(world({
     outbox: [APPROVE()], deliverables: [DEL({ kind: 'thumbnail' })],
+    /* Graphic work reverse-links through the GRAPHIC slot, which is also the
+       team half of the product's crosswalk. */
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1' })],
   }));
   assert.equal(findings.length, 1);
   assert.equal(findings[0].component, 'graphic');
@@ -778,6 +784,76 @@ check('an outbox row with no client is not treated as a mismatch', () => {
   assert.equal(findings.length, 1, 'absent is not conflicting; live rows all carry one');
 });
 
+/* ROUND 11. Same shape again, a third time: identity taken from ONE side.
+   `deliverables.card_id` is plain text with no foreign key, written by one side
+   only, so following it alone accepts a card that never named this deliverable
+   back. The product's own gate (_prodCrosswalkMismatchFields, index.html)
+   requires the full crosswalk and refuses a half-link precisely because acting
+   on one destroys data. Live shape when this was added: every calendar-origin
+   deliverable carrying a card_id reverse-links correctly, and every
+   Samples-origin card_id resolves to no same-client calendar card at all — zero
+   rows affected, and one re-link creates one silently, as a WRITE. */
+check('a card that does not name the deliverable back is never stamped', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({ video_deliverable_id: 'del-someone-else' })],
+  }));
+  assert.equal(findings.length, 0, 'a one-way pointer is not a link');
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
+});
+
+check('a card with no deliverable link at all is never stamped', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: null })],
+  }));
+  assert.equal(findings.length, 0, 'unknown is treated as not-linked, matching the product gate');
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
+});
+
+/* The Samples surface writes its own deliverables with origin='samples'. If one
+   ever carries a card_id that names a real same-client calendar card, following
+   the pointer would stamp a calendar card from an sxr approval. */
+check('a deliverable from another surface never resolves to a calendar card', () => {
+  for (const origin of ['samples', 'manual', '', undefined]) {
+    const { findings, skipped } = detect(world({
+      outbox: [APPROVE()], deliverables: [DEL({ origin })],
+    }));
+    assert.equal(findings.length, 0, `origin=${origin} must not stamp a calendar card`);
+    assert.equal(skipped[0].reason, 'not_a_calendar_deliverable');
+  }
+});
+
+/* The gate covers the report half too: a cross-linked REPAIR INSTRUCTION is a
+   wrong report, and reporting is the whole deliverable for change requests. */
+check('a change request on a half-linked card is not reported against it', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK()],
+    cards: [CARD({ video_status: 'Client Approval', video_deliverable_id: 'del-other' })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
+});
+
+/* `other` is a live kind that this job maps to no component but that DOES
+   reverse-link, through the graphic slot. Refusing it outright would be the
+   over-correction; refusing only a link that closes nowhere is the rule. */
+check('a kind with no component mapping still passes on a slot that names it', () => {
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ component: 'graphic' })],
+    deliverables: [DEL({ kind: 'other' })],
+    cards: [CARD({ graphic_status: 'Client Approval', graphic_deliverable_id: 'del-1' })],
+  }));
+  assert.equal(skipped.filter(x => x.reason === 'card_does_not_link_back').length, 0,
+    'either slot naming it back closes the loop when the kind cannot say which');
+  assert.equal(findings.length, 1);
+});
+
+check('a properly linked card is still stamped normally', () => {
+  const { findings } = detect(world({ outbox: [APPROVE()] }));
+  assert.equal(findings.length, 1, 'the gate must not refuse the intact live shape');
+});
+
 check('a stamp finding carries its deliverable so revalidation can refresh it', () => {
   const { findings } = detect(world({ outbox: [APPROVE()] }));
   assert.equal(findings[0].deliverable_id, 'del-1',
@@ -792,6 +868,30 @@ check('staleness is decided by the app\'s own rule, for every status', () => {
   }
   for (const status of ['Tweaks Needed', 'In Progress']) {
     assert.equal(stampSurvives(CARD({ video_status: status }), 'video', 'T'), false, status);
+  }
+});
+
+/* THE ROUND-1 LESSON, AS A TEST. A fixture sets whatever field it likes, so a
+   rule can pass every case here while being INERT in production because the
+   real query never fetches the column it reads. That is exactly how the first
+   `source_edited_at` fix shipped doing nothing. The crosswalk rule reads three
+   columns that were not previously projected, so assert the projections. */
+check('the crosswalk columns are actually fetched, in every read', () => {
+  const src = require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8');
+  /* The selects are written as concatenated string literals for readability;
+     join those back together before matching, or this check reads only the
+     first fragment and passes on a column that is not there. */
+  const joined = src.replace(/'\s*\+\s*'/g, '');
+  const selects = joined.match(/select=[^`']*/g) || [];
+  const deliverableSelects = selects.filter(q => q.includes('card_id'));
+  const cardSelects = selects.filter(q => q.includes('client_video_approved_at'));
+  assert.ok(deliverableSelects.length >= 2, 'both the scan and the revalidation read deliverables');
+  assert.ok(cardSelects.length >= 2, 'both the scan and the revalidation read cards');
+  for (const q of deliverableSelects) assert.match(q, /\borigin\b/, 'origin must be projected: ' + q);
+  for (const q of cardSelects) {
+    assert.match(q, /video_deliverable_id/, 'reverse link must be projected: ' + q);
+    assert.match(q, /graphic_deliverable_id/, 'reverse link must be projected: ' + q);
   }
 });
 

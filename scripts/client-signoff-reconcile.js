@@ -157,6 +157,14 @@ const WRITABLE_KINDS = new Set(['stamp']);
 const COMPONENT_FOR_KIND = {
   video: 'video', thumbnail: 'graphic', graphic: 'graphic', caption: 'caption', title: 'title',
 };
+/* The card side of the crosswalk. Only the two components that carry a work
+ * item have a reverse pointer; caption and title never do
+ * (`_writeUiComponentHasWorkItem`, index.html). */
+const REVERSE_LINK_FIELD = { video: 'video_deliverable_id', graphic: 'graphic_deliverable_id' };
+/* Cards live on the calendar surface; `samples` deliverables belong to sxr and
+ * `manual` ones to neither (PROD_CROSSWALK_SURFACE_ORIGIN, index.html). */
+const SURFACE_ORIGIN_FOR_CARDS = 'calendar';
+
 const STAMP_FIELD = (comp) => 'client_' + comp + '_approved_at';
 const TWEAKS_FIELD = (comp) => comp + '_tweaks';
 const STATUS_FIELD = (comp) => comp + '_status';
@@ -252,7 +260,7 @@ async function loadWorld() {
       'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
       + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
       + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`, 'id'),
-    restRows('deliverables', 'select=id,card_id,kind,client_slug,status,status_at', 'id'),
+    restRows('deliverables', 'select=id,card_id,kind,origin,client_slug,status,status_at', 'id'),
   ]);
   const cardIds = new Set(deliverables.map(d => d && d.card_id).filter(Boolean));
   const cards = [];
@@ -263,7 +271,8 @@ async function loadWorld() {
       'select=id,client,name,status,video_status,graphic_status,caption_status,'
       + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
       + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
-      + 'client_title_approved_at,kasper_approved_at'
+      + 'client_title_approved_at,kasper_approved_at,'
+      + 'video_deliverable_id,graphic_deliverable_id'
       + `&id=in.(${chunk})`, 'id'));
   }
   return { outbox, comments, deliverables, cards };
@@ -335,6 +344,50 @@ function detect(world) {
     if (!card) return null;
     const owner = String(rowClient || '').trim().toLowerCase();
     if (owner && owner !== String(card.client || '').trim().toLowerCase()) return 'client_mismatch';
+    /* CARRYING A CARD ID IS NOT THE SAME AS BEING LINKED TO THAT CARD.
+     *
+     * `deliverables.card_id` is a plain text column with NO foreign key
+     * (migrations/2026-07-06-b1-linear-data-model.sql), and it is written by
+     * one side only. The product's own canonical rule is the full crosswalk:
+     * `_prodCrosswalkMismatchFields` in index.html accepts a deliverable as
+     * describing a card only when origin, team, client_slug and card_id all
+     * agree, and refuses to treat a half-link as linked precisely because
+     * acting on one destroys real data. F42 recorded the live evidence: every
+     * deliverable with origin='manual' carries no card_id at all, so a
+     * card-side-only link produces exactly this state.
+     *
+     * Following the one-way pointer alone would let a Samples deliverable whose
+     * card_id happens to name an existing same-client calendar card, or a stale
+     * pointer left behind by a re-link, produce a WRITABLE stamp on a card that
+     * never had anything to do with this approval.
+     *
+     * So the link must close both ways: this deliverable's own component slot
+     * on the card must name this deliverable back. That subsumes the team half
+     * of the crosswalk (video work reverse-links through
+     * `video_deliverable_id`, graphic work through `graphic_deliverable_id`),
+     * and it is checked HERE, next to the client rule, for the same reason
+     * round 10 moved that one here: identity questions answered per call site
+     * get answered inconsistently.
+     *
+     * Live shape at the time of writing: of the calendar-origin deliverables
+     * carrying a card_id, every one reverse-links correctly, and every
+     * Samples-origin card_id resolves to no same-client calendar card at all.
+     * Zero rows are affected today. One re-link or one id collision creates
+     * one silently, and it would be a write. */
+    if (SURFACE_ORIGIN_FOR_CARDS !== String(del.origin || '').trim().toLowerCase()) {
+      return 'not_a_calendar_deliverable';
+    }
+    const slotComp = COMPONENT_FOR_KIND[String(del.kind || '').toLowerCase()];
+    const slot = REVERSE_LINK_FIELD[slotComp];
+    const id = String(del.id || '').trim();
+    /* A kind this job does not map to a component (`other`, live today and
+     * reverse-linked through the graphic slot) still has to close the loop; it
+     * just cannot say through WHICH slot, so either one naming it back is
+     * enough. What is never enough is neither. */
+    const linksBack = slot
+      ? String(card[slot] || '').trim() === id
+      : Object.values(REVERSE_LINK_FIELD).some(f => String(card[f] || '').trim() === id);
+    if (!id || !linksBack) return 'card_does_not_link_back';
     /* Archived is the card's OVERALL status, not a column — same test
      * scripts/linear-sync-reconcile.js applies. */
     if (String(card.status || '').toLowerCase() === 'archived') return null;
@@ -373,9 +426,10 @@ function detect(world) {
     const to = String((row && row.payload && row.payload.status) || '').toLowerCase();
     if (to !== 'approved') continue;
     const hit = resolve(row && row.entity_id, row && row.client_slug);
-    if (hit === 'client_mismatch') {
-      skipped.push({ kind: 'stamp', reason: 'approval_belongs_to_another_client',
-        card: '(another client)', component: '' });
+    if (typeof hit === 'string') {
+      skipped.push({ kind: 'stamp',
+        reason: hit === 'client_mismatch' ? 'approval_belongs_to_another_client' : hit,
+        card: '(unlinked)', component: '' });
       continue;
     }
     if (!hit) continue;
@@ -489,9 +543,10 @@ function detect(world) {
   const resolved = [];
   for (const pc of commentsInOrder) {
     const hit = resolve(pc.deliverable_id, pc.client_slug);
-    if (hit === 'client_mismatch') {
-      skipped.push({ kind: 'comment', reason: 'request_belongs_to_another_client',
-        card: '(another client)', component: '', comment: pc.id });
+    if (typeof hit === 'string') {
+      skipped.push({ kind: 'comment',
+        reason: hit === 'client_mismatch' ? 'request_belongs_to_another_client' : hit,
+        card: '(unlinked)', component: '', comment: pc.id });
       continue;
     }
     if (!hit) continue;
@@ -729,7 +784,7 @@ async function revalidate(world, finding) {
   let deliverables = world.deliverables;
   if (finding.deliverable_id) {
     const rows = await restRows('deliverables',
-      'select=id,card_id,kind,client_slug,status,status_at'
+      'select=id,card_id,kind,origin,client_slug,status,status_at'
       + `&id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
     deliverables = world.deliverables
       .filter(d => String(d && d.id) !== String(finding.deliverable_id))
@@ -763,7 +818,8 @@ async function revalidate(world, finding) {
     'select=id,client,name,status,video_status,graphic_status,caption_status,'
     + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
     + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
-    + 'client_title_approved_at,kasper_approved_at'
+    + 'client_title_approved_at,kasper_approved_at,'
+    + 'video_deliverable_id,graphic_deliverable_id'
     + `&id=eq.${encodeURIComponent(finding.card.id)}`
     + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
   if (!fresh.length) return null;

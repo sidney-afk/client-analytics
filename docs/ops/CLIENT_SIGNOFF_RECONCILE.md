@@ -117,7 +117,7 @@ reports and writes nothing.
 ## Testing it
 
 `test/client-signoff-reconcile.js` drives the real detection and patch
-construction through fixtures — no credentials, no network. 58 checks, each
+construction through fixtures — no credentials, no network. 62 checks, each
 rule backed by a sabotage control that must fail the suite when the rule is
 removed. Keep this number current: a runbook that publishes a stale count is
 evidence a later session will plan against. The cases that must
@@ -258,6 +258,33 @@ dry run rather than silently forgotten.
 
 Re-check with the query in OPEN_REPAIRS 195g. If that count ever stops being
 zero, the gate is one line to relax.
+
+## Revalidation refreshes all three sources, not just the card
+
+Before each write the job re-reads **the card, the source comment row, and the
+deliverable's status transitions**. Each was added because the previous scope
+was not enough:
+
+- the **card** alone misses a resolution that happened only on the server;
+- the **source row** alone misses a reopen, which lives in the outbox;
+- a component reopened after `loadWorld` and returned to `Approved` before the
+  write passes `stampSurvives` on the fresh card while the reopen is invisible,
+  and the obsolete approval gets restored.
+
+All three are keyed reads scoped to the one row being repaired.
+
+## An approval is bound to the client it was made for
+
+`scripts/move-card-client.js` moves a card between clients by rewriting
+`calendar_posts.client` and `deliverables.client_slug`; historical
+`mirror_outbox` rows keep the **original** client. Resolving purely through the
+deliverable's current client would therefore stamp the new client's card with
+the previous client's sign-off.
+
+So the event's own `client_slug` must match the card's, or the approval is
+refused as `approval_belongs_to_another_client`. Zero live rows today; one card
+move creates them silently, and the field is always populated, so the check
+costs nothing.
 
 ## The race this does not close
 

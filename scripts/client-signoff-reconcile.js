@@ -245,7 +245,8 @@ async function loadWorld() {
      * `source_edited_at` is the client's own write clock and must be selected
      * or the code that prefers it silently falls back to `created_at`. */
     restRows('mirror_outbox',
-      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,role,test_only'
+      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      + 'role,client_slug,test_only'
       + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`, 'id'),
     restRows('production_comments',
       'select=id,native_comment_id,deliverable_id,component,body,author_name,role,is_tweak,round,audience,'
@@ -363,6 +364,21 @@ function detect(world) {
      * last resort. */
     const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
     if (!at) continue;
+    /* THE EVENT CARRIES ITS OWN CLIENT, AND IT IS NOT REDUNDANT.
+     * `scripts/move-card-client.js` moves a card between clients by rewriting
+     * `calendar_posts.client` and `deliverables.client_slug`, and historical
+     * outbox rows keep the ORIGINAL client. Resolving purely through the
+     * deliverable's CURRENT client would therefore stamp the new client's card
+     * with the previous client's sign-off. Zero live rows today; a single card
+     * move creates them silently, and the field is always populated, so the
+     * check is free. */
+    const eventClient = String(row.client_slug || '').trim().toLowerCase();
+    const cardClient = String(hit.card.client || '').trim().toLowerCase();
+    if (eventClient && eventClient !== cardClient) {
+      skipped.push({ kind: 'stamp', reason: 'approval_belongs_to_another_client',
+        card: hit.card.id, component: comp });
+      continue;
+    }
     const key = cardKey(hit.card.client, hit.card.id) + '|' + comp;
     const prev = latestApprove.get(key);
     if (!prev || Date.parse(at) > Date.parse(prev.at)) {
@@ -398,6 +414,7 @@ function detect(world) {
       continue;
     }
     findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
+      deliverable_id: deliverableId,
       detail: `sign-off stamp missing for a committed client approve (${at})` });
   }
 
@@ -685,6 +702,23 @@ async function revalidate(world, finding) {
    * it as open, or finish a status leg no longer owed, and strip a sign-off on
    * the strength of stale lifecycle state. Round 7 answered the half of this
    * that the CARD can see; this is the half only the source knows. */
+  /* And the TRANSITIONS. A component reopened after `loadWorld` and returned to
+   * Approved before the write passes `stampSurvives` on the fresh card while the
+   * reopen is missing from the snapshot, so the obsolete approval is restored.
+   * The card cannot see that; only the outbox can. Scoped to the one
+   * deliverable, so it is a single keyed read per repair. */
+  let outbox = world.outbox;
+  if (finding.deliverable_id) {
+    const rows = await restRows('mirror_outbox',
+      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      + 'role,client_slug,test_only'
+      + `&operation=eq.status&entity=eq.deliverable`
+      + `&entity_id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    outbox = world.outbox
+      .filter(r => String(r && r.entity_id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
+
   let comments = world.comments;
   if (finding.comment) {
     const row = await restRows('production_comments',
@@ -705,7 +739,7 @@ async function revalidate(world, finding) {
     + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
   if (!fresh.length) return null;
   const again = detect({
-    outbox: world.outbox, comments,
+    outbox, comments,
     deliverables: world.deliverables, cards: fresh,
   });
   const match = again.findings.find(f =>
@@ -751,11 +785,18 @@ async function main() {
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
   const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
   const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
+  /* An AMBIGUOUS request is delivery work that needs a person just as much as a
+   * plainly absent one; it lands in `skipped` only because the job cannot
+   * decide it. Counting it as "left alone" would let this summary report zero
+   * delivery work while eight requests wait for a decision. */
+  const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
+  const leftAlone = skipped.filter(row => row.reason !== 'ambiguous_repeat_of_completed_request');
   log(`REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`);
-  log(`REPORT ONLY (never written): ${reportOnly.length}  `
+  log(`NEEDS A PERSON (never written): ${reportOnly.length + ambiguous.length}  `
     + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
-    + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length})`);
-  log(`left alone: ${skipped.length} (a card that moved on is never overwritten)`);
+    + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
+    + `ambiguous repeat ${ambiguous.length})`);
+  log(`left alone: ${leftAlone.length} (a card that moved on is never overwritten)`);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
@@ -768,9 +809,14 @@ async function main() {
       + `${Object.keys(patch).filter(k => k !== 'id').map(k =>
         `${k}=${k.endsWith('_tweaks') ? '(+1 request)' : JSON.stringify(patch[k])}`).join(' ')}`);
   }
-  for (const s of skipped) {
-    log(`  ~ card ${s.card} [${s.component}] left alone: ${s.reason}`
-      + `${s.card_status ? ` (card reads ${s.card_status})` : ''}`);
+  for (const row of ambiguous) {
+    log(`  » card ${row.card} [${row.component}] request ${row.comment} matches only a `
+      + 'COMPLETED entry — cannot tell a repeat from a duplicate; a person decides');
+  }
+  for (const row of leftAlone) {
+    log(`  ~ card ${row.card} [${row.component}] left alone: ${row.reason}`
+      + `${row.comment ? ` (request ${row.comment})` : ''}`
+      + `${row.card_status ? ` (card reads ${row.card_status})` : ''}`);
   }
 
   let applied = 0;

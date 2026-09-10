@@ -19538,3 +19538,43 @@ the ambiguous rows reported for a person. The dry run labels them distinctly —
 a report line as a pending write.
 
 58 checks, thirty-three controls.
+
+### 195j. [2026-09-10] Round 9: two P1s on the STAMP path, which the round-8 argument had called the settled half
+
+Worth recording plainly, because it qualifies the reasoning behind 195i. The
+narrowing was argued on the grounds that stamp repair is simple and its rules
+had been stable since round 2. The very next review found **two P1s on the stamp
+path**. The narrowing is still right — the delivery half produced far more, and
+the ambiguity it ended at is undecidable rather than merely hard — but "settled"
+was too strong, and it was my word, not the evidence's.
+
+**1. An approval was not bound to the client it was made for.**
+`scripts/move-card-client.js` moves a card between clients by rewriting
+`calendar_posts.client` and `deliverables.client_slug`, and historical
+`mirror_outbox` rows keep the ORIGINAL client. Resolving purely through the
+deliverable's CURRENT client would stamp the new client's card with the previous
+client's sign-off. **Zero live rows today, and one card move creates them
+silently.** The event's `client_slug` is always populated, so the check is free:
+a mismatch is now refused as `approval_belongs_to_another_client`.
+
+This is the second cross-client hole in this job (round 4 was the composite key)
+and both were invisible until named. The pattern to carry forward: **identity
+here is never a single column.**
+
+**2. Revalidation refreshed the card and the source row, but not the
+transitions.** A component reopened after `loadWorld` and returned to `Approved`
+before the write passes `stampSurvives` on the fresh card while the reopen is
+absent from the snapshot, so the obsolete approval is restored. The card cannot
+see that; only the outbox can. Revalidation now re-reads all three — card,
+source row, transitions — each scoped to the row being repaired. Rounds 7, 8 and
+9 each added one of those three, which is its own small lesson about
+revalidating against a partial snapshot.
+
+**3. (P2, but it mattered more than that.)** The ambiguous rows were counted as
+"left alone", so the summary could report zero delivery work while eight
+requests waited for a decision, and the per-row line omitted the request id.
+Since reporting is now the entire deliverable for the delivery half, a summary
+that hides the work is a defect in the product, not the log. They are now
+counted under `NEEDS A PERSON` with their request ids.
+
+62 checks, two more controls.

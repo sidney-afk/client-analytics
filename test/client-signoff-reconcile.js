@@ -732,6 +732,39 @@ checkAsync('the write itself refuses anything that is not a stamp', async () => 
   }
 });
 
+/* CODEX ROUND 9, ON THE NARROWED JOB. Two P1s landed on the STAMP path, which
+   I had described as the simple, stable half — worth recording, because it was
+   not as settled as the round-8 argument implied. */
+
+/* move-card-client.js rewrites calendar_posts.client and
+   deliverables.client_slug but leaves historical outbox rows on the ORIGINAL
+   client. Resolving purely through the deliverable's CURRENT client would stamp
+   the new client's card with the previous client's sign-off. */
+check('an approval belonging to another client never stamps this one', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE({ client_slug: 'previousclient' })],
+    cards: [CARD({ client: 'testclient' })],
+  }));
+  assert.equal(findings.length, 0);
+  assert.equal(skipped[0].reason, 'approval_belongs_to_another_client');
+});
+
+check('an approval whose event client matches is stamped normally', () => {
+  const { findings } = detect(world({ outbox: [APPROVE({ client_slug: 'testclient' })] }));
+  assert.equal(findings.length, 1);
+});
+
+check('an outbox row with no client is not treated as a mismatch', () => {
+  const { findings } = detect(world({ outbox: [APPROVE({ client_slug: null })] }));
+  assert.equal(findings.length, 1, 'absent is not conflicting; live rows all carry one');
+});
+
+check('a stamp finding carries its deliverable so revalidation can refresh it', () => {
+  const { findings } = detect(world({ outbox: [APPROVE()] }));
+  assert.equal(findings[0].deliverable_id, 'del-1',
+    'without it, revalidation cannot re-read the transitions that decide supersession');
+});
+
 /* ── the shared rule ──────────────────────────────────────────────────── */
 
 check('staleness is decided by the app\'s own rule, for every status', () => {

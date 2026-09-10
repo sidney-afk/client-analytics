@@ -24,60 +24,60 @@ Two questions per combination, answered mechanically:
 
 A run can agree and still lie, and can disagree honestly. Both are scored.
 
-## Result, 2026-09-10: 35 combinations, 9 flagged, TWO real findings
+## STATUS: INSTRUMENT ONLY. THE COUNTS ARE NOT TRUSTWORTHY.
 
-### 1. A client approve loses the sign-off stamp (3 rows)
+Do not quote a number from this probe. After eight review rounds and fourteen
+findings, the eighth round showed the count is wrong in **both directions at the
+same time**:
 
-A client approve that hits any of the three faults recovers its status to
-`Approved` and never writes `client_video_approved_at`. The control writes it,
-so the recovery path drops it.
+- **Over-reporting.** `client / request-change / never-sent` is a harness
+  artifact. This boots a STAFF session, so `_isClientLink` is false; a real
+  client link gets `repair = null` for comments (`index.html` ~33102), while
+  this run creates a staff repair journal whose resume reissues the never-sent
+  comment. A real client produces no resumed commit there at all.
+- **Under-reporting.** The pre-resume window metric compares only component
+  status, so it misses the comment splits entirely: six published where this
+  same mock demonstrates ten.
+- And a companion check has a presence guard that skips the exact missing-field
+  case it claims to cover.
 
-| client / approve | source row after recovery | sign-off stamp |
-|---|---|---|
-| no fault (control) | `Approved` | **present** |
-| gateway answer lost | `Approved` | **missing** |
-| 5xx after commit | `Approved` | **missing** |
-| source write rejected | `Approved` | **missing** |
+Being wrong in both directions simultaneously is the signal that this needs
+rebuilding around a different measurement model, not another patch. Stopping
+here was a pre-committed rule, stated on the PR before this round ran.
 
-**The live incident row agrees.** OPEN_REPAIRS 186's production card ended at
-`video_status = Approved` with `client_video_approved_at = null`, recorded at
-the time as unexplained. The record says the work was approved, but not that the
-CLIENT approved it, on a product whose service is client sign-off.
+## The one finding that stands on evidence OUTSIDE this harness
 
-### 2. A change request commits on the server and never reaches the card (6 rows)
+**A client approve loses the sign-off stamp.** The status recovers to
+`Approved`; `client_video_approved_at` is never written. The no-fault control
+writes it correctly.
 
-Client and SMM, under `response-lost`, `5xx-after-commit` and `never-sent`: the
-gateway records the comment, the `calendar_posts` row gets nothing, and the
-resume does not close the gap.
+This one survives the harness being untrustworthy because **the live production
+row agrees**: OPEN_REPAIRS 186's card ended at `video_status = Approved` with
+`client_video_approved_at = null`, recorded at the time as unexplained. Two
+independent sources, one of them production data. The record says the work was
+approved but not that the CLIENT approved it, on a product whose service is
+client sign-off.
 
-| client / request-change | gateway commits | source writes | card thread |
-|---|---|---|---|
-| no fault (control) | 2 | 1 | present |
-| gateway answer lost | 2 | 0 | **absent** |
-| 5xx after commit | 2 | 0 | **absent** |
-| never sent (then resumed) | 1 | 0 | **absent** |
+## The second finding is UNCONFIRMED
 
-So the editor opens the card and sees no change request, while the server holds
-one. **This corrects a conclusion this README published twice.** Earlier versions
-said "requesting a change is sound on both surfaces". That was an artefact of a
-scorer that skipped the thread check whenever no source write landed, which is
-exactly the case where the split occurs.
+**A change request may commit on the server and never reach the card.** The
+mechanism is plausible and the mock demonstrates it, but at least one of the six
+rows is the staff-only artifact above, and the count is unreliable in both
+directions. It needs a real tokened client-link boot before anyone acts on it.
 
-### The window, and what it is honest to conclude
+## What a rebuild needs, so the next attempt does not repeat this
 
-Six combinations disagree at the moment of the fault, before any recovery: an
-approve whose gateway answer is lost or answered 5xx, on the client's approve
-and both SMM routes.
-
-**What this harness does NOT establish:** that nothing would have finished the
-row. It runs ONE browser and always restores connectivity before resuming. That
-no other browser or background projector would have completed it is an inference
-from there being no server-side projector, NOT a measurement here.
-
-### One thing it still rules out
-
-A request that never left the browser and was never resumed moves nothing on
-either side, and the failure is visible.
+1. **A real tokened client context**, not a staff boot relying on
+   `_calReviewMode()` returning `client`. The client-link branches
+   (`repair = null` for comments, the `_isClientLink` status gate) materially
+   change the recovery contract, and inferring client behaviour from a staff
+   session is what produced the artifact.
+2. **One measurement model applied uniformly**: every field an action writes,
+   compared at BOTH checkpoints (settled, and after resume), for status and
+   comments alike. The bugs here came from checking different things at
+   different checkpoints and gating some checks and not others.
+3. **A no-resume lane**, so "would anything have finished this" stops being an
+   inference.
 
 ## What it does not cover, stated so nobody reads more into it
 
@@ -89,12 +89,12 @@ either side, and the failure is visible.
 - The video component only, and one card at a time. No concurrency between two
   people acting on the same card.
 
-## Eleven harness bugs found while building it, all recorded
+## Fourteen harness bugs found while building it, all recorded
 
-**Every published result from this probe was wrong until this one**, across seven
-review rounds: 6 flagged, then 11, then 0, then 11, then 3, now 9. Two of those
-published tables also carried a WRONG CONCLUSION ("requesting a change is
-sound"), not just a wrong count. Most of the
+**EVERY published result from this probe has been wrong**, across eight review
+rounds: 6 flagged, then 11, then 0, then 11, then 3, then 9. Two of those tables
+also carried a WRONG CONCLUSION ("requesting a change is sound"), not just a
+wrong count. All fourteen bugs were found by review; none by the author. Most of the
 bugs produced FALSE CLEANS. That history is kept here deliberately, because a
 number from this file is only worth what the scorer behind it is worth.
 
@@ -157,3 +157,11 @@ test:
     card. A committed comment is a fact about the SERVER and must be compared
     whether or not any source patch landed. This is what took the count from 3
     to 9 and overturned the "request-change is sound" conclusion.
+
+12. **The staff boot cannot stand in for a client link.** A real client link
+    gets `repair = null` for comments while this creates a staff repair journal,
+    so at least one published client finding is an artifact of the harness.
+13. **The pre-resume window metric compared only component status**, missing the
+    comment splits: six published where the same mock demonstrates ten.
+14. **The overall-status companion check has a presence guard** that skips the
+    exact missing-field case it claims to cover.

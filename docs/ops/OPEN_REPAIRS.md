@@ -18923,8 +18923,10 @@ work was approved; nothing says who approved it. On a product whose entire
 service is client approval, that row IS the evidence, and after any network
 hiccup it is blank. Nobody notices, because the card looks correct.
 
-**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE: a change request commits on the
-server and never reaches the card.** Client and SMM alike, under a lost gateway
+**A SECOND, DISTINCT SPLIT ON THE SAME SURFACE, AND IT IS UNCONFIRMED: a change
+request may commit on the server and never reach the card.** Read the caveat
+under it before acting: the eighth review round showed at least one of its six
+rows is a harness artifact, so this is a lead, not an established defect.** Client and SMM alike, under a lost gateway
 answer, a 5xx after commit, or a never-sent request that later resumes: the
 gateway records the comment, `calendar_posts` gets nothing, and the resume does
 not close the gap. The editor opens the card and sees no change request while
@@ -18937,6 +18939,16 @@ skipped its thread check whenever no source write landed, which is precisely the
 case where the split happens, so two published versions of the sweep concluded
 "requesting a change is sound on both surfaces". A committed comment is a fact
 about the SERVER and has to be compared whether or not any source patch landed.
+
+**THE SWEEP'S COUNTS ARE NOT TRUSTWORTHY, and finding 1 does not depend on
+them.** After eight review rounds the probe was shown to be wrong in both
+directions at once: it over-reports (a staff boot creates a repair journal a
+real client link would not, since client comments get `repair = null`) and
+under-reports (its pre-resume window compares only component status, missing the
+comment splits). Finding 1 stands anyway because the LIVE production row
+corroborates it independently. Finding 2 does not, and is held as a lead until
+someone reruns it from a real tokened client context. `qa/review-surface-sweep`
+is marked instrument-only for the same reason.
 
 **Not fixed here.** The sweep is an instrument, not a repair, and the fix likely
 belongs with the server-side reconciler rather than as another browser patch:

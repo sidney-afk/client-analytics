@@ -29,7 +29,8 @@ const CARD = (over) => Object.assign({
   updated_at: '2026-09-01T00:00:00.000Z',
 }, over || {});
 const DEL = (over) => Object.assign({
-  id: 'del-1', card_id: 'card-1', kind: 'video', origin: 'calendar', client_slug: 'testclient',
+  id: 'del-1', card_id: 'card-1', kind: 'video', team: 'video', origin: 'calendar',
+  client_slug: 'testclient',
 }, over || {});
 const APPROVE = (over) => Object.assign({
   entity_id: 'del-1', entity: 'deliverable', operation: 'status', status: 'written',
@@ -237,7 +238,7 @@ check('the card entry is recognised by its native comment id', () => {
 
 check('a thumbnail deliverable stamps the graphic component', () => {
   const { findings } = detect(world({
-    outbox: [APPROVE()], deliverables: [DEL({ kind: 'thumbnail' })],
+    outbox: [APPROVE()], deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
     /* Graphic work reverse-links through the GRAPHIC slot, which is also the
        team half of the product's crosswalk. */
     cards: [CARD({ video_deliverable_id: null, graphic_deliverable_id: 'del-1' })],
@@ -835,18 +836,61 @@ check('a change request on a half-linked card is not reported against it', () =>
   assert.equal(skipped[0].reason, 'card_does_not_link_back');
 });
 
-/* `other` is a live kind that this job maps to no component but that DOES
-   reverse-link, through the graphic slot. Refusing it outright would be the
-   over-correction; refusing only a link that closes nowhere is the rule. */
-check('a kind with no component mapping still passes on a slot that names it', () => {
+/* `other` is a live kind that this job maps to no component, but its TEAM says
+   graphics, so after round 12 it has a defensible slot rather than needing the
+   weaker "either slot will do" rule. Refusing it outright would be the
+   over-correction. */
+check('a kind with no component mapping resolves through its team', () => {
   const { findings, skipped } = detect(world({
     comments: [TWEAK({ component: 'graphic' })],
-    deliverables: [DEL({ kind: 'other' })],
+    deliverables: [DEL({ kind: 'other', team: 'graphics' })],
     cards: [CARD({ graphic_status: 'Client Approval', graphic_deliverable_id: 'del-1' })],
   }));
   assert.equal(skipped.filter(x => x.reason === 'card_does_not_link_back').length, 0,
-    'either slot naming it back closes the loop when the kind cannot say which');
+    'team names the slot when the kind cannot');
   assert.equal(findings.length, 1);
+});
+
+/* ROUND 12. I claimed the reverse link subsumed the team half of the crosswalk.
+   It does not: `kind` and `team` are independently constrained columns, and the
+   slot was derived from `kind`, so a row carrying kind='video' with
+   team='graphics' passed on a matching `video_deliverable_id` and would have
+   written a client VIDEO stamp. The slot is now derived from TEAM — the app's
+   own `_prodCrosswalkTeamForComponent`, inverted — and a kind that maps to a
+   different component is refused outright. */
+check('a deliverable whose kind and team disagree is never stamped', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()], deliverables: [DEL({ kind: 'video', team: 'graphics' })],
+  }));
+  assert.equal(findings.length, 0, 'a row that cannot say which review it belongs to is not a link');
+  assert.equal(skipped[0].reason, 'kind_and_team_disagree');
+});
+
+check('a deliverable with no usable team is never stamped', () => {
+  for (const team of ['', null, undefined, 'design']) {
+    const { findings, skipped } = detect(world({
+      outbox: [APPROVE()], deliverables: [DEL({ team })],
+    }));
+    assert.equal(findings.length, 0, `team=${team} must not resolve`);
+    assert.equal(skipped[0].reason, 'unknown_team');
+  }
+});
+
+/* The slot must come from team, not from kind: with team='graphics' the graphic
+   slot is the one that has to name it, and a matching VIDEO slot is not a pass.
+   HONEST NOTE ON ITS CONTROL: deriving the slot from `kind` instead fails to
+   break this suite on its own, because the only rows where the two choices
+   differ are exactly the rows the kind/team agreement rule above already
+   refuses. Removing BOTH does fail (measured). So this is one rule with two
+   expressions, not two independent rules, and it is not counted as a separate
+   control — a control that does not fire is treated here as a broken test. */
+check('the reverse slot is chosen by team, not by the card that happens to match', () => {
+  const { findings, skipped } = detect(world({
+    outbox: [APPROVE()], deliverables: [DEL({ kind: 'thumbnail', team: 'graphics' })],
+    cards: [CARD({ video_deliverable_id: 'del-1', graphic_deliverable_id: null })],
+  }));
+  assert.equal(findings.length, 0, 'graphic work linked only through the video slot is not linked');
+  assert.equal(skipped[0].reason, 'card_does_not_link_back');
 });
 
 check('a properly linked card is still stamped normally', () => {
@@ -888,7 +932,10 @@ check('the crosswalk columns are actually fetched, in every read', () => {
   const cardSelects = selects.filter(q => q.includes('client_video_approved_at'));
   assert.ok(deliverableSelects.length >= 2, 'both the scan and the revalidation read deliverables');
   assert.ok(cardSelects.length >= 2, 'both the scan and the revalidation read cards');
-  for (const q of deliverableSelects) assert.match(q, /\borigin\b/, 'origin must be projected: ' + q);
+  for (const q of deliverableSelects) {
+    assert.match(q, /\borigin\b/, 'origin must be projected: ' + q);
+    assert.match(q, /\bteam\b/, 'team must be projected: ' + q);
+  }
   for (const q of cardSelects) {
     assert.match(q, /video_deliverable_id/, 'reverse link must be projected: ' + q);
     assert.match(q, /graphic_deliverable_id/, 'reverse link must be projected: ' + q);

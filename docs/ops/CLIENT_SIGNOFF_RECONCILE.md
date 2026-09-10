@@ -319,12 +319,14 @@ So `resolve()` requires the link to close both ways:
 
 - the deliverable must carry `origin='calendar'`; Samples belongs to sxr and
   `manual` to neither surface;
-- the card's slot for that deliverable's component must name it back
-  (`video_deliverable_id` for video work, `graphic_deliverable_id` for graphic),
-  which is also the team half of the crosswalk;
-- a `kind` this job maps to no component — `other` is live and reverse-links
-  through the graphic slot — must still be named by one slot or the other. What
-  is never enough is neither.
+- the deliverable's `team` decides which slot must name it back
+  (`video_deliverable_id` for `video`, `graphic_deliverable_id` for `graphics`),
+  using the app's own component→team map inverted;
+- where `kind` maps to a component it must agree with `team`. The two are
+  independently constrained columns, so a row carrying `kind='video'` with
+  `team='graphics'` cannot say which review it belongs to, and is refused;
+- a `kind` this job maps to no component — `other` is live, with
+  `team='graphics'` — still resolves, through its team.
 
 This lives in `resolve()` next to the client rule, for the reason round 10
 established: identity questions answered per call site get answered
@@ -343,7 +345,8 @@ while being **inert in production** because the real query never fetches the
 column it reads. That is exactly how this job's first `source_edited_at` fix
 shipped doing nothing. Three columns were added to the reads for this rule, so
 the suite asserts the projections themselves: every deliverable read must
-project `origin`, and every card read must project both reverse-link columns.
+project `origin` and `team`, and every card read must project both reverse-link
+columns.
 
 ## The race this does not close
 

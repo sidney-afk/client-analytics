@@ -161,6 +161,10 @@ const COMPONENT_FOR_KIND = {
  * item have a reverse pointer; caption and title never do
  * (`_writeUiComponentHasWorkItem`, index.html). */
 const REVERSE_LINK_FIELD = { video: 'video_deliverable_id', graphic: 'graphic_deliverable_id' };
+/* The inverse of the app's own `_prodCrosswalkTeamForComponent` (index.html).
+ * Note `graphics` (the team) against `graphic` (the component): the card's
+ * vocabulary and the deliverable's are not the same word here either. */
+const COMPONENT_FOR_TEAM = { video: 'video', graphics: 'graphic' };
 /* Cards live on the calendar surface; `samples` deliverables belong to sxr and
  * `manual` ones to neither (PROD_CROSSWALK_SURFACE_ORIGIN, index.html). */
 const SURFACE_ORIGIN_FOR_CARDS = 'calendar';
@@ -260,7 +264,7 @@ async function loadWorld() {
       'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
       + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
       + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`, 'id'),
-    restRows('deliverables', 'select=id,card_id,kind,origin,client_slug,status,status_at', 'id'),
+    restRows('deliverables', 'select=id,card_id,kind,team,origin,client_slug,status,status_at', 'id'),
   ]);
   const cardIds = new Set(deliverables.map(d => d && d.card_id).filter(Boolean));
   const cards = [];
@@ -377,17 +381,27 @@ function detect(world) {
     if (SURFACE_ORIGIN_FOR_CARDS !== String(del.origin || '').trim().toLowerCase()) {
       return 'not_a_calendar_deliverable';
     }
-    const slotComp = COMPONENT_FOR_KIND[String(del.kind || '').toLowerCase()];
-    const slot = REVERSE_LINK_FIELD[slotComp];
+    /* TEAM IS ITS OWN FIELD IN THE CANONICAL PREDICATE, and `kind` and `team`
+     * are independently constrained columns, so the reverse-link slot — which
+     * is derived from one of them — cannot stand in for the other. A row
+     * carrying kind='video' with team='graphics' would otherwise pass on a
+     * matching `video_deliverable_id` and write a client VIDEO stamp.
+     *
+     * Deriving the slot from TEAM rather than kind is what makes this the
+     * canonical check instead of a lookalike: `_prodCrosswalkTeamForComponent`
+     * is the app's own component→team map, and it is also what gives kind
+     * `other` (live, team='graphics') a defensible slot instead of the weaker
+     * "either slot will do" rule this replaces. Where `kind` DOES map to a
+     * component it must agree, since a disagreement means the row cannot say
+     * which review it belongs to at all. */
+    const teamComp = COMPONENT_FOR_TEAM[String(del.team || '').trim().toLowerCase()];
+    if (!teamComp) return 'unknown_team';
+    const kindComp = COMPONENT_FOR_KIND[String(del.kind || '').toLowerCase()];
+    if (kindComp && kindComp !== teamComp) return 'kind_and_team_disagree';
     const id = String(del.id || '').trim();
-    /* A kind this job does not map to a component (`other`, live today and
-     * reverse-linked through the graphic slot) still has to close the loop; it
-     * just cannot say through WHICH slot, so either one naming it back is
-     * enough. What is never enough is neither. */
-    const linksBack = slot
-      ? String(card[slot] || '').trim() === id
-      : Object.values(REVERSE_LINK_FIELD).some(f => String(card[f] || '').trim() === id);
-    if (!id || !linksBack) return 'card_does_not_link_back';
+    if (!id || String(card[REVERSE_LINK_FIELD[teamComp]] || '').trim() !== id) {
+      return 'card_does_not_link_back';
+    }
     /* Archived is the card's OVERALL status, not a column — same test
      * scripts/linear-sync-reconcile.js applies. */
     if (String(card.status || '').toLowerCase() === 'archived') return null;
@@ -784,7 +798,7 @@ async function revalidate(world, finding) {
   let deliverables = world.deliverables;
   if (finding.deliverable_id) {
     const rows = await restRows('deliverables',
-      'select=id,card_id,kind,origin,client_slug,status,status_at'
+      'select=id,card_id,kind,team,origin,client_slug,status,status_at'
       + `&id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
     deliverables = world.deliverables
       .filter(d => String(d && d.id) !== String(finding.deliverable_id))

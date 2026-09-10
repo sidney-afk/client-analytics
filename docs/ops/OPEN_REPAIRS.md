@@ -19658,3 +19658,34 @@ asserts the projections themselves.
 **Eleven rounds, 29 findings.** Rounds 9, 10 and 11 were all the same shape:
 identity taken from one side. The round-8 narrowing called the stamp path the
 settled half, and three consecutive rounds have landed on it.
+
+### 195m. Round 12: the reverse link does not subsume the team
+
+195l claimed the card's reverse-link slot covered the `team` half of the
+crosswalk. It did not. `kind` and `team` are independently constrained columns
+on `deliverables`, and the slot was derived from `kind` — so a row carrying
+`kind='video'` with `team='graphics'` passed on a matching `video_deliverable_id`
+and would have written a client **video** stamp on graphics work. The canonical
+predicate checks `team` as its own field, which is exactly why it is its own
+field.
+
+The slot is now chosen by `team`, using the app's own component→team map
+inverted, and a `kind` that maps to a different component is refused as
+`kind_and_team_disagree`. That also gives kind `other` (live, `team='graphics'`)
+a defensible slot, replacing 195l's weaker "either slot will do" rule.
+
+Measured: across the deliverables carrying a card id, `kind` and `team` agree on
+every row today, and the full-crosswalk figure is the same 1,394 of 1,394. The
+figure survived — but 195l asserted it against the narrower predicate, so it was
+an unchecked claim when it was published, and that is the correction worth
+recording rather than the number.
+
+74 checks. Two controls that fire independently: the kind/team agreement removed,
+and `team` dropped from the projection. A third — deriving the slot from `kind`
+again — **does not fail the suite on its own**, because the only rows where the
+two choices differ are the ones the agreement rule already refuses. Removing both
+does fail. So it is one rule with two expressions, and it is recorded as one
+rather than counted twice.
+
+**Twelve rounds, 30 findings.** Rounds 9 through 12 were all identity taken from
+one side, and 12 was a defect in 11's fix.

@@ -46,6 +46,10 @@ function expect(condition, message) {
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) return;
+    // The staff entry gate verifies a role key on every boot with a POST that
+    // writes nothing; authentication, not a mutation. Same exemption as
+    // isWriteLikeRequest in prod-test-utils.js.
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/key-verify') return;
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-comments') return;
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-write') {
       let body = null;

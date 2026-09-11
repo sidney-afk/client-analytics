@@ -152,7 +152,12 @@ async function assertNoWriteRequests(requests) {
       && typeof body.client_slug === 'string'
       && body.client_slug.length > 0;
   };
+  // The staff entry gate verifies a role key on every boot with a POST that
+  // writes nothing; it is authentication, not a mutation. Same exemption as
+  // isWriteLikeRequest in prod-test-utils.js.
+  const isEntryGateVerify = r => /\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(r.url || '');
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
+    && !isEntryGateVerify(r)
     && !isCommentRead(r)
     && !isLabelsRead(r)
     && !isAssetAccessRead(r)

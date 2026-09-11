@@ -92,3 +92,5 @@ verify the boundary. Preserve `ordinary_post_cutoff_total`, `nonterminal_total`,
 `native_post_cutoff_total` and `f27_post_cutoff_total` distinctions. A census query
 is not proof that every outside-outbox writer was frozen. There is no generic
 unretire RPC; reopening admission needs its own reviewed recovery decision.
+
+Detailed source boundaries, deferred-request drain requirements and pending race matrix: [final freeze preparation](LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md). This is a design contract, not activation authorization.

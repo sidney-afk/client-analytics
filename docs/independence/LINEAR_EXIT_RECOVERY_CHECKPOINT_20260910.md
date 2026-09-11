@@ -1235,3 +1235,8 @@ No merge/deployment/production/n8n changes.
 ## Retirement boundary preparation (2026-09-11)
 
 PG17 isolated batch-description lock coverage passes: a separate outbox lock blocks the real service-role RPC with no row/event change; releasing it permits the same write and one event. See `LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json` in docs/independence. The initial counterexample hypothesis was disproved, and the failed runs remain recorded. Whole-application freeze, frozen-handler boundaries, final snapshot/delta ordering and activation remain unproven. Ordinary native receipts and their recognizer already exist; the retirement runbook now reflects that. The literal B5 zero-outbox-row gate remains unchanged pending reconciliation with typed native receipts. Installation HOLD.
+
+
+## Next retirement-critical preparation step
+
+See [final freeze preparation](../ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md) for the source-owned boundary and race matrix. Frozen handlers split comment, scalar and deferred event/tweak requests; HTTP success does not establish complete drain. The next isolated rehearsal must include the captured serving source and disclose the Calendar comment-RPC prerequisite absent from the dated bootstrap. No global freeze or activation proof is claimed.

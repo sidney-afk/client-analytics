@@ -282,3 +282,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/linear-exit-retirement-freeze-postgres.js: isolated batch-description authority-lock coverage and released-lock control.
 - docs/independence/LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json: bounded lock evidence; global freeze unproven.
+
+- docs/ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md: final admission/drain design and unresolved frozen-handler race evidence.

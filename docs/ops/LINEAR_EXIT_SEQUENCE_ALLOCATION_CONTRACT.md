@@ -43,3 +43,28 @@ created on the old source after capture. Final cutover needs a separate reviewed
 write/delta boundary. This document neither pauses writers nor authorizes that
 operation. Source maintenance, hosted restoration and Linear retirement remain
 future explicitly authorized actions.
+
+## Application sequence catalog probe
+
+PG17 sequence-application passed for15 catalog-mapped public sequences in receipt
+`linear-exit-sequence-application-d5e42b1b78864e13b98c410e4ae1f402`, exit0 and
+server stopped. All had positive increment1, no cycling and cache1. The next
+allocation was within sequence range and above each known integer consumer's
+maximum. Thirteen consumer tables were empty; only flag_flips and
+production_card_provenance had rows. This is a mostly-empty local catalog/bound
+probe, not authenticated populated-snapshot verification or consumer closure.
+Separate catalog/state/max reads do not prove concurrent-capture consistency.
+The report LINEAR_EXIT_SEQUENCE_APPLICATION_20260911.json preserves those limits.
+
+A bounded review of inventoried owners, atomic inputs and supplements found no
+executable direct nextval/setval/restart/currval/lastval call. That does not prove
+absence of external/manual or future calls. Native identifiers are a separate
+allocator: production_native_identifier_allocate updates the transactional
+production_native_identifier_mint.next_ordinal cursor and checks deliverables
+and grants (2026-09-07-native-identifier-mint.sql). Random review tokens,
+UUID defaults and epoch/base36 thumbnail tokens are also outside sequence bounds.
+
+Next: bind complete supported sequence/consumer definitions and snapshot extrema
+into capture validation, with populated counterexamples. Keep native identifier
+cursor/cutover coordination separate. No runtime format or hosted writer change;
+installation stays HOLD. No merge/deployment/production/n8n write occurred.

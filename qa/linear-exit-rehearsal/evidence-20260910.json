@@ -1334,5 +1334,17 @@
     "application_writer_contract_proven": false,
     "global_sequence_fence_proven": false,
     "installation_ready": false
+  },
+  "sequence_application": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_DEPENDENCIES_AND_BOUNDS",
+    "status": "PASS_CATALOG_BOUND_ONLY",
+    "sequences": 15,
+    "empty_consumer_tables": 13,
+    "receipt": "linear-exit-sequence-application-d5e42b1b78864e13b98c410e4ae1f402",
+    "exit": 0,
+    "server_stopped": true,
+    "consumer_closure_proven": false,
+    "concurrent_capture_consistency_proven": false,
+    "installation_ready": false
   }
 }

@@ -247,3 +247,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/linear-exit-sequence-consistency-postgres.js: isolated sequence/cached allocation counterexamples.
 - docs/independence/LINEAR_EXIT_SEQUENCE_CONSISTENCY_20260911.json: seven-check sequence semantics evidence.
+
+- test/linear-exit-sequence-application.js: composed sequence dependency/bound probe.
+- docs/independence/LINEAR_EXIT_SEQUENCE_APPLICATION_20260911.json:15-sequence catalog/bound evidence with empty-consumer limits.

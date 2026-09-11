@@ -250,3 +250,5 @@ durability and off-device custody are not proven. The application recovery lane
 stores/reopens its real synthetic capture before reconstruction.
 
 Use -Lane sequence-consistency with PG17 for isolated sequence/snapshot semantics, safe monotonic allocation and reset/manual-ID collision counterexamples. It does not prove the application sequence inventory or authorize a writer pause.
+
+Use -Lane sequence-application with PG17 for actual composed sequence catalog mappings and local integer bounds. Empty consumers are explicit; this lane does not prove dynamic consumer closure or shared-snapshot capture.

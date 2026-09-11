@@ -20893,3 +20893,169 @@ Verified: `staff-entry-gate`,
 `kasper-cal-cache-bounded`, and all 23 `client-entry-sequence` scenarios pass.
 `b4-staff-login` reaches a failure that reproduces identically on `origin/main`
 (a creative-role toast, unrelated to this change).
+
+## 199. [2026-09-11, BUILT] The first live run answered its own biggest question: seven of its nine "needs a person" rows were rows the card itself had produced
+
+The reconcile lane from 197 ran for the first time on `ca91d26`, dry, over 4,465
+committed client status writes and 352 committed client change requests. It
+proposed **4 sign-off stamps** and flagged **9 rows for a person**.
+
+**Reading the nine is what mattered, and seven of them were noise from one
+cause.** `scripts/f42-card-comment-import.js` backfilled `production_comments`
+FROM card entries, naming each imported row by hashing the entry it copied:
+`'pc_card_' + sha256([surface, cardId, component, nativeId].join(':'))`. Those
+rows carry their OWN id in `native_comment_id` rather than the card entry's, so
+neither half of the id pass could match them. Every one fell through to the body
+fallback, found its own source entry sitting on the card marked done, and was
+reported as an "ambiguous repeat" — asking a person to decide whether a client
+request had gone missing from the very card it was copied out of.
+
+**A row born from a card cannot be missing from that card.** The id pass now
+recomputes the hash, which is proof rather than a prefix guess: it matches only
+if THIS entry, on THIS card, under THIS component produced THIS row. A
+`pc_card_` row whose entry has since been deleted still matches nothing and is
+still reported, which is correct.
+
+Verified against the live row that prompted it: `pc_card_d41eb2d6…` is exactly
+`sha256('calendar:<card>:caption:<entry id>')`, and that entry is on the card,
+done, resolved 2026-07-30.
+
+**The other two, both correctly left to a person and both resolved by reading
+the card event log rather than by guessing:**
+
+- **The caption leg** (197at) on one repaired card. The event log settles it: the
+  CLIENT moved caption to Tweaks Needed at 21:50 on 2026-09-09, and the SMM moved
+  it to Approved at 22:12. The client never approved that caption, she complained
+  about it. Writing a client stamp there would have claimed a sign-off that the
+  event log directly contradicts. **Decision: never write it.** This is the
+  strongest argument yet for the report-only rule, because the inference that
+  looked safe was wrong.
+- **The one genuinely lost change request.** A client wrote two comments 65
+  seconds apart; the first landed, the second did not. Its STATUS leg did land
+  (the card moved to Tweaks Needed), so the team saw the flag, did a revision the
+  same day and returned the card. Only the words were lost. **Delivering it today
+  would flip that card back to Tweaks Needed and reopen a round that was already
+  served**, which is precisely why delivery is report-only. Decision: no write;
+  the human question is whether that second note was ever addressed.
+
+**What the first run proves about the design.** The two rules that carried it
+were the two the tests attack hardest: evidence repairs and never invents, and a
+card that moved on is never overwritten. Both report-only rows would have been
+WRONG to write, and the run said so without writing them. The stamp count landed
+on 4, the number this work has claimed since its first measurement.
+
+168 checks, three controls by exit status: recognition removed, the wrong surface
+in the hash, and a `pc_card_` prefix check standing in for the hash. Full runner:
+2 of 427, both failing identically on `origin/main`.
+
+Next run should read **4 repairs, 2 for a person**.
+
+### 199a. Round 2: the fix for a restated rule was itself a restated rule
+
+The backfill recognition in 199 recomputed the importer's fingerprint **in the
+reconciler**. Review caught that the two derivations already disagreed:
+`f42-card-comment-import` builds its `nativeId` as
+`clean(raw.id || raw.comment_id || raw.native_comment_id)` — TRIMMED, with two
+fallbacks — while the copy hashed a raw `entry.id`. For an entry in any of those
+shapes the fingerprints differ, so the false positive survives **exactly where
+the fix was supposed to kill it**.
+
+This is 197ah to 197aj again, one PR later: a rule restated instead of called.
+
+**So the identity moved into the importer and both sides call it.**
+`cardEntryNativeId` and `cardEntryProductionId` now live in
+`f42-card-comment-import.js`, which owns both halves (which value is the id, and
+how it is hashed). The importer's own five derivation sites were collapsed onto
+the shared function too, so the file no longer repeats it either. The reconciler
+requires it. There is no copy left to drift.
+
+Live: all **9,005** card entries carry a clean `id` with no whitespace and no
+fallback, so no live row moves. The value is that a copy cannot drift, because
+there is no copy.
+
+**Two of this round's own checks were wrong, and the controls caught both.**
+
+1. **A circular expectation.** The first draft built each fixture's row id by
+   calling `cardEntryProductionId` — the function under test. Narrowing the
+   importer's derivation then moved BOTH sides together and the sabotage passed.
+   **A check that computes its expectation with the code it is checking asserts
+   only that the code agrees with itself.** The fingerprint is now spelled out
+   once in the test as an independent fixed point both sides must meet.
+2. **Half the buckets.** The rebuilt check still passed under two sabotages,
+   because a fingerprint that fails to match does not produce a FINDING: it
+   produces a `skipped` row reading `ambiguous_repeat_of_completed_request`,
+   which is the original false positive wearing a different hat. The check now
+   asserts both buckets.
+
+Neither was caught by reading the test. Both were caught by sabotaging the code
+and watching a green suite. That is the fourth and fifth time in this work that
+a control has failed to fire and exposed the check rather than the code.
+
+170 checks. Three controls by exit status: a local copy hashing the raw id, the
+importer's derivation narrowed to `raw.id`, and its trim dropped. Plus a
+structural check that the reconciler contains no `createHash`, no `'pc_card_'`
+literal, and does require the importer — so a future session cannot quietly
+rebuild the copy. Full runner: 2 of 427, baseline.
+
+### 199b. Round 3: half an identity shared is still a copy, and the third check to pass for the wrong reason
+
+Two findings, and the second is the more serious one.
+
+**1. The card id was left behind.** 199a moved the native-id derivation into the
+importer but not the CARD id: `planSurface` reads `clean(row.id)`, while the
+shared helper hashed whatever the caller handed it. A reconciler passing a raw
+`calendar_posts.id` with whitespace would resolve the card, then compute a
+different fingerprint and report the false positive anyway. Sharing one of the
+four inputs is not sharing the identity. **Every input is normalized inside
+`cardEntryProductionId` now**, so the two callers cannot hash different strings.
+
+**2. TWO OF THE THREE NEW FIXTURES NEVER REACHED THE CODE THEY TESTED.**
+`parseComments` refuses the WHOLE cell when any entry lacks `id`, and that
+refusal is load-bearing: a rebuilt array drops id-less entries, so accepting
+such a cell would erase legacy client words. The `comment_id` and
+`native_comment_id` fixtures therefore died at the parse and were reported as
+`card_cell_unparseable` — while the checks passed, because they asserted
+`findings` and the `ambiguous_repeat` subset rather than **all** of `skipped`.
+
+So the importer's fallbacks are UNREACHABLE from the reconciler, and 199a's
+claim that three derivations were covered was wrong. The checks now assert what
+actually happens: the whitespace case is recognised with `skipped` deep-equal to
+`[]`, and an id-less cell is asserted to be REPORTED as an incomplete read
+rather than claimed. A nicer sentence would have been a false one.
+
+**That is the third check in this PR to pass for the wrong reason, and all three
+were the same mistake in different clothes:** asserting a subset of the output.
+Round 2 asserted only `findings`; its fix asserted `findings` plus one skip
+reason; round 3 shows the answer is to assert the whole shape and let anything
+unexpected fail. `assert.deepEqual(skipped, [])` cannot be satisfied by a row
+quietly moving to another bucket.
+
+Live: 10,978 cards and 9,005 card entries, none with whitespace in an id, none
+missing `id`. No live row moves. Everything here is about two copies being
+unable to disagree.
+
+172 checks. Three controls by exit status: the card id no longer normalized, the
+native id trim dropped, recognition removed entirely. Full runner: 2 of 427,
+baseline.
+
+### 199c. Renumbered from 198 to 199, the third collision in two days
+
+Main merged PR #1385 (the staff entry gate) while this branch was in review and
+took **198**. This block and its sub-entries are now **199, 199a–199c**, with the
+three cross-references inside them moved along.
+
+That is the third time in two days: 195 to 196, 196 to 197 (197as), and now 198
+to 199. The cost each time is a conflicted merge plus a reference sweep, and the
+risk each time is a renumbered block whose own pointers still name the old
+number, which then reads as a citation of a different, real entry.
+
+**197as proposed the durable fix and it is still the right one: a ledger entry
+should claim its number at MERGE time, not at write time.** Three collisions in
+two days is enough evidence to stop treating this as bad luck. It is a change to
+the ledger convention, so it stays a proposal rather than something this PR
+makes on its own.
+
+Checked after the merge, per this file's own standing instruction: no duplicate
+`## N.` headers introduced, and no duplicate `### 199x.` sub-headers. The six
+duplicate top-level numbers in this file are all present identically on
+`origin/main`.

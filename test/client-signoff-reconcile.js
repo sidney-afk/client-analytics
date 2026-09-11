@@ -2570,6 +2570,62 @@ check('a caption that is not split raises nothing', () => {
   }
 });
 
+/* ROUND 46 (first live run). `f42-card-comment-import.js` backfilled
+   production_comments FROM card entries, naming each row by hashing the entry
+   it copied. Those rows carry their OWN id in native_comment_id, so neither
+   half of the id pass matched, every one fell to the body fallback, found its
+   own source entry marked done, and was reported as an "ambiguous repeat".
+   Seven of the nine rows on the first live run were this, and all seven were
+   noise: a row cannot be missing from the card it was copied out of. */
+const backfillId = (cardId, component, nativeId) =>
+  'pc_card_' + require('node:crypto').createHash('sha256')
+    .update(['calendar', cardId, component, nativeId].join(':')).digest('hex');
+
+check('a row backfilled FROM a card entry is claimed by that entry', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, done: true, done_at: '2026-09-06T00:00:00.000Z' };
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 0, 'the entry IS the row; nothing is missing');
+  assert.equal(skipped.filter(r => r.reason === 'ambiguous_repeat_of_completed_request').length, 0,
+    'and it is not an ambiguity for a person to resolve either');
+});
+
+/* THE HASH IS PROOF, NOT A PREFIX GUESS. A `pc_card_` row whose entry is NOT on
+   this card must still be reported: that one really is absent. Asserted three
+   ways, because each is a different way the hash could be wrong. */
+check('a backfill id only claims the entry that actually produced it', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client', is_tweak: true };
+  for (const [label, pcId] of [
+    ['another card', backfillId('card-OTHER', 'video', 'c_native_1')],
+    ['another component', backfillId('card-1', 'caption', 'c_native_1')],
+    ['another entry', backfillId('card-1', 'video', 'c_native_OTHER')],
+  ]) {
+    const { findings } = detect(world({
+      comments: [TWEAK({ id: pcId, native_comment_id: pcId, body: 'Something else entirely' })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 1,
+      `a hash from ${label} must not claim this entry`);
+  }
+});
+
+/* AND IT IS STILL JUDGED BY WHAT THE CLIENT CAN SEE. A hidden entry does not
+   become visible just because a row was hashed from it. */
+check('a backfill id cannot claim a hidden entry', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, hidden: true };
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 1, 'hidden is not delivered, whatever the id says');
+});
+
 check('body comparison ignores only whitespace shape', () => {
   assert.equal(normText('  a   b \n c '), 'a b c');
   assert.notEqual(normText('fix the intro'), normText('fix the outro'));

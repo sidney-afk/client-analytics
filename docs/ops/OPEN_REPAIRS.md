@@ -20779,3 +20779,59 @@ whether it fires (one live row), but not whether it can fire TWICE on one card.
 **A new report needs its cardinality measured, not just its trigger.**
 
 165 checks, two controls by exit status. Full runner: 2 of 427, baseline.
+
+## 198. [2026-09-11, BUILT] The first live run answered its own biggest question: seven of its nine "needs a person" rows were rows the card itself had produced
+
+The reconcile lane from 197 ran for the first time on `ca91d26`, dry, over 4,465
+committed client status writes and 352 committed client change requests. It
+proposed **4 sign-off stamps** and flagged **9 rows for a person**.
+
+**Reading the nine is what mattered, and seven of them were noise from one
+cause.** `scripts/f42-card-comment-import.js` backfilled `production_comments`
+FROM card entries, naming each imported row by hashing the entry it copied:
+`'pc_card_' + sha256([surface, cardId, component, nativeId].join(':'))`. Those
+rows carry their OWN id in `native_comment_id` rather than the card entry's, so
+neither half of the id pass could match them. Every one fell through to the body
+fallback, found its own source entry sitting on the card marked done, and was
+reported as an "ambiguous repeat" — asking a person to decide whether a client
+request had gone missing from the very card it was copied out of.
+
+**A row born from a card cannot be missing from that card.** The id pass now
+recomputes the hash, which is proof rather than a prefix guess: it matches only
+if THIS entry, on THIS card, under THIS component produced THIS row. A
+`pc_card_` row whose entry has since been deleted still matches nothing and is
+still reported, which is correct.
+
+Verified against the live row that prompted it: `pc_card_d41eb2d6…` is exactly
+`sha256('calendar:<card>:caption:<entry id>')`, and that entry is on the card,
+done, resolved 2026-07-30.
+
+**The other two, both correctly left to a person and both resolved by reading
+the card event log rather than by guessing:**
+
+- **The caption leg** (197at) on one repaired card. The event log settles it: the
+  CLIENT moved caption to Tweaks Needed at 21:50 on 2026-09-09, and the SMM moved
+  it to Approved at 22:12. The client never approved that caption, she complained
+  about it. Writing a client stamp there would have claimed a sign-off that the
+  event log directly contradicts. **Decision: never write it.** This is the
+  strongest argument yet for the report-only rule, because the inference that
+  looked safe was wrong.
+- **The one genuinely lost change request.** A client wrote two comments 65
+  seconds apart; the first landed, the second did not. Its STATUS leg did land
+  (the card moved to Tweaks Needed), so the team saw the flag, did a revision the
+  same day and returned the card. Only the words were lost. **Delivering it today
+  would flip that card back to Tweaks Needed and reopen a round that was already
+  served**, which is precisely why delivery is report-only. Decision: no write;
+  the human question is whether that second note was ever addressed.
+
+**What the first run proves about the design.** The two rules that carried it
+were the two the tests attack hardest: evidence repairs and never invents, and a
+card that moved on is never overwritten. Both report-only rows would have been
+WRONG to write, and the run said so without writing them. The stamp count landed
+on 4, the number this work has claimed since its first measurement.
+
+168 checks, three controls by exit status: recognition removed, the wrong surface
+in the hash, and a `pc_card_` prefix check standing in for the hash. Full runner:
+2 of 427, both failing identically on `origin/main`.
+
+Next run should read **4 repairs, 2 for a person**.

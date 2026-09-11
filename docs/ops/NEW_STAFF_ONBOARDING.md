@@ -36,7 +36,8 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 - [ ] Invite them to Slack (§5). If they are an editor, also register them for urgent tweak pings (§5), this is a separate step
 - [ ] If this hire gets the Time Off benefit, set them up in SyncView's Time Off admin panel (§6), otherwise their request form will not work
 - [ ] If assigning a client right away, that is a separate, per client step, follow §7 and `NEW_CLIENT_ONBOARDING.md`
-- [ ] Confirm they can actually log in: SyncView, Staff sign in, their name should now be in the dropdown, then their tier's role key. For an editor or designer, also confirm they appear in the Create Post assignee picker for their team
+- [ ] For an editor or designer, also register them in Workload's roster (§8), a working login and Linear mapping are not enough on their own for Workload's planning views
+- [ ] Confirm they can actually log in: SyncView, Staff sign in, their name should now be in the dropdown, then their tier's role key. For an editor, also confirm they appear in the Create Post assignee picker for the video team. A designer has no equivalent picker, see §2's `default_for_team` note instead
 
 ## 2. The `team_members` insert
 
@@ -60,6 +61,19 @@ returning id, name, email, role, team, active, created_at;
 - Leave `linear_user_id` out of the insert, there is nothing to put there yet, see §4. Leave
   `slack_user_id` out too, it has no reader anywhere in the codebase (§5), setting it buys
   nothing.
+- `default_for_team` is not in the insert above either, so it lands on its column default,
+  `false`. For a **designer only**, this is what actually gets new graphics work
+  auto-assigned to them: exactly one active designer may hold it `true` at a time
+  (`autoAssigneeForIntake()`, `supabase/functions/production-write/index.ts`). A second
+  `true` row does not just misroute work, it makes every graphics intake fail outright with
+  `graphics_default_assignee_unavailable`. There is no manual fallback either, Create Post
+  deliberately does not offer a graphics picker at all (`index.html`'s own comment: "that
+  team assigns by its single `default_for_team` designer... the gateway still refuses a
+  graphics override outright"). If this hire replaces the current default designer, flip
+  both rows in the same operation, the old one to `false` and the new one to `true`. If
+  they are an additional, non-default designer, leave it `false` and settle with the owner
+  how their work is meant to route before calling onboarding complete, this doc does not
+  have an answer for that.
 
 ## 3. The role key handoff
 
@@ -178,14 +192,36 @@ to the new hire; in Slack, invite them to the existing `{client}-creative` chann
 are ordinary manual actions in their respective tools, this doc's automation was built for
 a client's first SMM, not a handoff between two.
 
+## 8. Workload roster (editor and designer)
+
+A separate system from everything above, and easy to miss because nothing else in this
+doc touches it: Workload's capacity and assignment-filter views read from three constants
+hardcoded directly in `index.html`, not from `team_members` or any database table.
+`WL_ALLOWED_EDITORS` and `WL_ALLOWED_GRAPHICS` are the normalized-name allowlists Workload
+filters assigned rows through (`wlIsAllowedEditor()`), and `WL_VIDEO_EDITORS` separately
+seeds the "freest first" capacity ranking with every video editor, including one currently
+at zero active work, keyed by Linear user id. None of this reads `team_members` or
+`linear_user_id`, or anything else this doc has set up. A hire can pass every check above,
+the `team_members` row, the role key, the Linear mapping, and still be invisible to
+Workload: excluded from the capacity ranking, and their assigned work filtered out of the
+normal planning views.
+
+This needs a code change, not a data change: add the new hire's normalized name
+(`wlNormalizeEditor()` has the exact rule, roughly lowercase, accents stripped, separators
+removed) to the matching allowlist, and for a video editor, their Linear user id and
+display name to `WL_VIDEO_EDITORS` too. That means an ordinary PR to `index.html`,
+reviewed and merged like any other code change, not something to hand-edit and hope.
+Verify by opening Workload after it ships and confirming the hire actually shows up.
+
 ## What's automatic, and what is not
 
 - Automatic: the SyncView staff sign in dropdown, the moment the `team_members` row exists.
   That is the only thing on this list that is.
 - Manual, every time: the `team_members` insert (`team` included, for editor/designer), the
   `linear_user_id` lookup and update, the Linear and Slack invites, relaying the role key by
-  hand, Time Off enablement if this hire gets that benefit, and everything in §7, which
-  happens once per client assignment, not once per hire.
+  hand, Time Off enablement if this hire gets that benefit, the Workload roster code change
+  for an editor or designer (§8), and everything in §7, which happens once per client
+  assignment, not once per hire.
 
 ## Gotchas & drift to watch
 
@@ -225,6 +261,15 @@ a client's first SMM, not a handoff between two.
    checks role compatibility, so a brand new editor can sign in fine while still being
    unable to appear in the assignee picker (§4, gotcha 5) or file a Time Off request (§6).
    "They can log in" is not the same question as "they can do their job", check both.
+8. **Graphics has no picker and no second default.** Create Post never offers a graphics
+   assignee choice at all, work routes to whichever single `team_members` row has
+   `default_for_team` true. Giving a new designer that flag without clearing it from
+   whoever had it before does not create a second option, it breaks all graphics intake
+   (§2).
+9. **Workload has its own hardcoded roster, entirely separate from `team_members`.**
+   `WL_ALLOWED_EDITORS`, `WL_ALLOWED_GRAPHICS`, and `WL_VIDEO_EDITORS` in `index.html` are
+   what Workload actually reads. Nothing else in this doc updates them, so nothing else in
+   this doc is sufficient to make a new editor or designer visible there (§8).
 
 ## Reference appendix
 
@@ -239,6 +284,8 @@ a client's first SMM, not a handoff between two.
 | Time Off gating and admin setup action | `supabase/functions/pto/index.ts` (`requestTimeOff`, `setStartDate`), `index.html` (`ptoAdminMember` / `ptoAdminStart` / `ptoAdminEnabled`) |
 | SMM roster, client assignment, Linear key, Slack ID | SyncView Google Sheet, "Social Media Managers" tab, synced into Supabase `public.social_media_managers`; keyed by client, see §7 |
 | Editor urgent-tweak Slack resolution | `index.html` (`URGENT_SLACK_URL`), n8n `send-urgent-slack` workflow, SyncView Google Sheet "Video Editors" tab (`docs/truth/SHEETS.md`); see §5 |
+| Graphics single-default auto-assignment | `supabase/functions/production-write/index.ts` (`autoAssigneeForIntake()`), `team_members.default_for_team`; see §2 |
+| Workload's hardcoded roster (separate from `team_members`) | `index.html` (`WL_ALLOWED_EDITORS`, `WL_ALLOWED_GRAPHICS`, `WL_VIDEO_EDITORS`, `wlNormalizeEditor()`); see §8 |
 | Role and auth scaffold migration | `migrations/2026-07-05-b0-linear-auth-scaffold.sql` |
 | Historical one time seed script, not a live path | `scripts/b0-seed-auth-scaffold.js` |
 | Client onboarding, for assigning a client afterward | `docs/ops/NEW_CLIENT_ONBOARDING.md` |

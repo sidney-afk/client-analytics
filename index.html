@@ -27391,18 +27391,72 @@
        to bare "try again": it is named, and its HTTP status decides only
        whether waiting is worth suggesting. */
     function _writeUiFailureText(operation, code, status) {
-        const specific = WRITE_UI_FAILURE_CODE_TEXT[code];
+        const key = String(code == null ? '' : code);
+        /* OWN PROPERTIES ONLY. Both text tables are object LITERALS, so a code
+           naming an Object.prototype member -- `constructor`, `toString`,
+           `valueOf`, `hasOwnProperty` -- read back a truthy function and was
+           returned as though it were an entry, painting the literal
+           "undefined (code: constructor)" at the person. A code is free text on
+           the transport path (`_writeUiReportFailure` uses `error.message` when
+           the error carries no code), so that set is reachable, and every
+           member of it is exactly the shape the fallback below exists to catch.
+           WRITE_UI_FAILURE_CODE_CLASS is already Object.create(null); these two
+           are not, and the guard costs nothing. */
+        const own = (table, name) =>
+            (Object.prototype.hasOwnProperty.call(table, name) ? table[name] : null);
+        const specific = own(WRITE_UI_FAILURE_CODE_TEXT, key);
         if (specific) return specific;
-        const klass = WRITE_UI_FAILURE_CLASS_TEXT[WRITE_UI_FAILURE_CODE_CLASS[code]];
+        const klass = own(WRITE_UI_FAILURE_CLASS_TEXT, String(WRITE_UI_FAILURE_CODE_CLASS[key] || ''));
         if (klass) return klass;
+        /* AN UNRECOGNISED CODE CANNOT PROMISE THAT NOTHING WAS COMMITTED.
+           This text used to end ", and nothing was committed. Try once more" for
+           every shape that was not a 4xx -- which is to say for a 5xx, where the
+           write service received the request and failed part-way THROUGH it, and
+           for a transport error, where the browser never learned whether the
+           request arrived at all. In both, the one thing the browser cannot know
+           is the one thing the sentence asserted; and "try once more" on a write
+           that DID land is how a duplicate gets made. That is the 2026-08-26
+           shape exactly, where "safe to retry" cost a videographer eleven
+           identical submissions (OPEN_REPAIRS 180).
+           A classified code may still promise it -- the `wait` class does -- but
+           that promise is the gateway's, made about a refusal it raised BEFORE
+           committing anything. Nothing here has a gateway's word to pass on, so
+           the honest answer is that the outcome is unknown and the next action
+           is to look, not to repeat. A 4xx keeps its wording: an unknown code
+           with a client-error status is still a decision the service made rather
+           than a write it half-did, and it never claimed otherwise.
+           THE NOTE BOX IS NAMED FIRST, for the reason every other
+           reload-advising entry in these tables names it first (the `reload`
+           class, the `repair` class, and both `comment_parent_*` codes): an
+           EDIT draft lives only in memory -- a root note and a reply each
+           mirror to `sessionStorage`, an edit has no such key -- so telling
+           someone to reload without that warning makes the advice itself
+           destroy the text the failed write was carrying. Codex P1 on this PR,
+           and it is OPEN_REPAIRS 13 arriving through the fix for OPEN_REPAIRS
+           180: exactly the trap the older entries were written to stop. */
+        const CHECK_AFTER_RELOAD = 'Copy anything still in the note box first — an edit draft lives'
+            + ' only in this tab. Then reload and check before doing it again: repeating a write that'
+            + ' did go through makes a second copy of it. If it is not there after the reload, send'
+            + ' this code to the owner.';
         const numeric = Number(status || 0);
-        const retryable = !numeric || numeric >= 500;
+        if (!numeric) {
+            return {
+                title: 'Write may not be saved',
+                text: 'The native ' + operation + ' never got an answer, so whether it saved is not known. '
+                    + CHECK_AFTER_RELOAD
+            };
+        }
+        if (numeric >= 500) {
+            return {
+                title: 'Write may not be saved',
+                text: 'The native ' + operation + ' failed inside the write service with a code this app does not'
+                    + ' recognise, so whether it saved is not known. ' + CHECK_AFTER_RELOAD
+            };
+        }
         return {
             title: 'Write not saved',
-            text: 'The native ' + operation + ' was refused with a code this app does not recognise'
-                + (retryable
-                    ? ', and nothing was committed. Try once more; if it repeats, send this code to the owner.'
-                    : '. Retrying is unlikely to help — send this code to the owner.')
+            text: 'The native ' + operation + ' was refused with a code this app does not recognise.'
+                + ' Retrying is unlikely to help — send this code to the owner.'
         };
     }
     /* `context` is optional and carries the identifiers the QUEUE items already
@@ -34467,7 +34521,18 @@
         try {
             const fetchOne = (u) => fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) }).then(r => r.json());
             const tasks = [fetchOne(url)];
-            if (urlG) tasks.push(fetchOne(urlG));
+            /* THE OPTIONAL HALF MUST NOT BE ABLE TO KILL THE REQUIRED ONE.
+               `Promise.all` rejects as soon as any member does, so a graphics
+               parent that answered a 502 -- or any body `r.json()` could not
+               parse -- threw the whole lookup into the catch below and threw
+               away a video parent that had already come back cleanly, sending
+               the person back to the start screen to paste both links again.
+               The `ok:false` answer from the same endpoint was ALREADY
+               tolerated eight lines down, so the two failure shapes of one
+               optional field disagreed about how much they were allowed to
+               cost. Settled to null here, which is the shape that branch
+               already handles. */
+            if (urlG) tasks.push(fetchOne(urlG).catch(() => null));
             const results = await Promise.all(tasks);
             const jsonV = results[0];
             if (!jsonV.ok) throw new Error(jsonV.error || 'Linear lookup failed');
@@ -34480,6 +34545,16 @@
                 if (jsonG && jsonG.ok) {
                     graphicParent = jsonG.parent || null;
                     graphicSubs = jsonG.subIssues || [];
+                } else {
+                    /* Tolerated, but not in silence. Somebody who pasted a
+                       thumbnail link and gets a screen with no thumbnails on it
+                       would otherwise read that as "this parent has none",
+                       which is a different fact from "we could not read it".
+                       Said here rather than on the pick screen so it covers
+                       both shapes -- a refused lookup and one that never
+                       answered -- through one line. */
+                    showNotify('Thumbnail parent not read',
+                        'The video parent loaded, but the thumbnail parent link could not be read, so nothing is paired to a thumbnail below. Carry on with the video sub-issues, or close this and try the thumbnail link again.');
                 }
             }
             // Pair graphics → video by title (e.g., "Video 1" ↔ "Video 1").
@@ -34744,7 +34819,18 @@
         try {
             const fetchOne = (u) => fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) }).then(r => r.json());
             const tasks = [fetchOne(url)];
-            if (urlG) tasks.push(fetchOne(urlG));
+            /* THE OPTIONAL HALF MUST NOT BE ABLE TO KILL THE REQUIRED ONE.
+               `Promise.all` rejects as soon as any member does, so a graphics
+               parent that answered a 502 -- or any body `r.json()` could not
+               parse -- threw the whole lookup into the catch below and threw
+               away a video parent that had already come back cleanly, sending
+               the person back to the start screen to paste both links again.
+               The `ok:false` answer from the same endpoint was ALREADY
+               tolerated eight lines down, so the two failure shapes of one
+               optional field disagreed about how much they were allowed to
+               cost. Settled to null here, which is the shape that branch
+               already handles. */
+            if (urlG) tasks.push(fetchOne(urlG).catch(() => null));
             const results = await Promise.all(tasks);
             const jsonV = results[0];
             if (!jsonV.ok) throw new Error(jsonV.error || 'Linear lookup failed');
@@ -34757,6 +34843,16 @@
                 if (jsonG && jsonG.ok) {
                     graphicParent = jsonG.parent || null;
                     graphicSubs = jsonG.subIssues || [];
+                } else {
+                    /* Tolerated, but not in silence. Somebody who pasted a
+                       thumbnail link and gets a screen with no thumbnails on it
+                       would otherwise read that as "this parent has none",
+                       which is a different fact from "we could not read it".
+                       Said here rather than on the pick screen so it covers
+                       both shapes -- a refused lookup and one that never
+                       answered -- through one line. */
+                    showNotify('Thumbnail parent not read',
+                        'The video parent loaded, but the thumbnail parent link could not be read, so nothing is paired to a thumbnail below. Carry on with the video sub-issues, or close this and try the thumbnail link again.');
                 }
             }
             // Pair each video sub with its title-matched graphic, fall back
@@ -66196,6 +66292,17 @@
         if (!forClient[pid] && Object.keys(forClient).length >= SXR_PARKED_EDIT_MAX_CARDS) {
             _writeUiQueueDiagnostic('sxr', 'parked_edit_capacity_dropped',
                 { kind: 'component_fill' }, { code: 'parked_edit_cap' });
+            /* SAID OUT LOUD, like every other outcome on this path. The bucket
+               already left `_sxrPendingEdits` two lines above and the cap
+               refuses to take it, so this branch DESTROYS the edit -- the one
+               thing parking exists to stop. A diagnostic row records it for
+               whoever asks later; nobody asks later, because the person who
+               typed it was never told it was gone. */
+            showNotify('That edit was not saved',
+                'This tab is already holding unsaved edits for ' + SXR_PARKED_EDIT_MAX_CARDS
+                + ' other cards on ' + key + ', so this one could not be held as well. It was not'
+                + ' written anywhere and cannot be brought back. Open ' + key + ' again to save the'
+                + ' edits being held, then retype this one.');
             return;
         }
         /* WHOSE EDIT IT IS, kept with it (Codex P1 on PR 1342, fifth pass).
@@ -66235,6 +66342,18 @@
                 delete forClient[pid];
                 _writeUiQueueDiagnostic('sxr', 'parked_edit_card_gone',
                     { kind: 'component_fill' }, { code: 'card_absent_on_restore' });
+                /* Told, for the same reason the principal-changed drop below is
+                   told. This is the branch the person waited for: they were
+                   promised "open the client again and it will save", they did,
+                   and the card the load returned no longer includes theirs. Not
+                   restoring is right -- re-queuing would make the engine INSERT
+                   it as a brand-new sample, which is the defect parking exists
+                   to avoid -- but silence turns a correct refusal into the
+                   silent data loss of the promise. */
+                showNotify('An unsaved edit was discarded',
+                    'A change typed on a card of ' + key + ' was still waiting to be saved, and that'
+                    + ' card is no longer in this client \u2014 archived, moved or removed while it'
+                    + ' waited. Nothing was written, and the change is gone.');
                 continue;
             }
             // Not this person's edit to send. Dropped rather than replayed under

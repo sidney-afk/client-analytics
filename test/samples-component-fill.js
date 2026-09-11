@@ -260,6 +260,21 @@ function parkChecks() {
     'a card the reload no longer returns is dropped rather than restored, because re-queuing it would insert it as a new sample');
   ok(gone.seen.diagnostics.some(row => row.outcome === 'parked_edit_card_gone'),
     'and that drop is recorded too');
+  /* RECORDED IS NOT TOLD. This is the branch the person WAITED for: the park
+     notice promised "open that client again and it will save", they did, and
+     the card their edit belongs to is not in what came back. Refusing to
+     restore is correct -- re-queuing inserts it as a new sample -- but a
+     diagnostic row is read by whoever goes looking, and nobody goes looking for
+     an edit they believe was saved. */
+  ok(gone.seen.notified.some(n => /discarded/i.test(n.title)),
+    'and the person who typed it is TOLD, not merely recorded: an edit dropped after being promised a save is silent data loss');
+  ok(gone.seen.notified.some(n => /no longer in this client/i.test(n.message)
+    && /nothing was written/i.test(n.message)),
+    'and told why and what it means, so the message is actionable rather than an apology');
+  ok(gone.seen.notified.every(n => !/will save|try again/i.test(n.message))
+    || gone.seen.notified.filter(n => /discarded/i.test(n.title))
+      .every(n => !/will save|try again/i.test(n.message)),
+    'and never promises a recovery that does not exist: this edit is gone, not deferred');
 
   /* Bounded: this is a repair, not a queue. */
   const many = parkHarness([]);
@@ -268,6 +283,17 @@ function parkChecks() {
     'parking is capped, so a tab left open for a week cannot grow it without limit');
   ok(many.seen.diagnostics.some(row => row.outcome === 'parked_edit_capacity_dropped'),
     'and hitting the cap is recorded rather than silent');
+  /* The cap DESTROYS an edit. `_sxrParkEditsForClient` takes the bucket out of
+     `_sxrPendingEdits` before it reaches this branch, so a refusal to park is
+     not a deferral -- it is the data loss the whole parking mechanism was
+     written to prevent, arriving through the mechanism itself. */
+  ok(many.pending['sr_54'] === undefined && many.parked.testclient.sr_54 === undefined,
+    'the 51st card is neither queued nor parked, so the cap really does destroy it');
+  ok(many.seen.notified.some(n => /not saved/i.test(n.title) && /cannot be brought back/i.test(n.message)),
+    'so the person is told it is gone, in those words, rather than left believing the park notice applied to theirs');
+  ok(many.seen.notified.filter(n => /cannot be brought back/i.test(n.message))
+    .every(n => n.message.includes('testclient')),
+    'and told which client the held edits belong to, which is the only action left to them');
 
   /* An empty bucket is not worth a notification. */
   const empty = parkHarness([{ id: 'sr_3' }]);

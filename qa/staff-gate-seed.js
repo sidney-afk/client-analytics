@@ -69,6 +69,40 @@ async function seedStaffIdentity(target, member, key) {
   }));
 }
 
+// Re-creates the posture that suites predating the entry gate were written
+// against: the app BOOTS, but nothing is verified. It matters for the ?prod=1
+// preview lanes. Before the gate they ran with no identity at all, so the app
+// never attempted a staff-gated call. Seed a verified admin instead and it does
+// attempt them -- with a stub key the real backend rejects, which is a 401 and a
+// console error on every one, plus read-shaped POSTs those suites never expected
+// to see. Dropping the verification the instant the gate lifts keeps the door
+// satisfied and leaves the app in the state those assertions describe.
+//
+// It wraps _syncviewAcceptStaffVerification, which the app calls at the end of a
+// successful verification: the gate lifts, then this drops the flag again. The
+// identity stays stored, so nothing purges and no gate returns (that is
+// _syncviewStaffIdentityClear); only _syncviewStaffIdentityValid() goes false.
+// init()'s own await already holds the verified identity by then, so boot
+// proceeds and the anon reads still run.
+async function dropVerificationAfterBoot(target) {
+  await target.addInitScript(() => {
+    // Poll: the app declares this function partway through a multi-megabyte
+    // script, and an init script runs before any of it. The gate lift waits on a
+    // network round trip, so this wins the race by a wide margin.
+    const timer = setInterval(() => {
+      if (typeof window._syncviewAcceptStaffVerification !== 'function') return;
+      clearInterval(timer);
+      const real = window._syncviewAcceptStaffVerification;
+      window._syncviewAcceptStaffVerification = function () {
+        const result = real.apply(this, arguments);
+        try { window._syncviewInvalidateStaffVerification(); } catch (e) {}
+        return result;
+      };
+    }, 5);
+    setTimeout(() => clearInterval(timer), 30000);
+  });
+}
+
 // `target` is a Playwright BrowserContext or Page.
 //
 // The verifier is answered with a ROUTE, not by patching window.fetch in the
@@ -79,8 +113,9 @@ async function seedStaffIdentity(target, member, key) {
 // most recently registered route first, so call this BEFORE a specific
 // key-verify mock you want to win, and AFTER any catch-all `route('**/*')`
 // that would otherwise swallow it.
-async function seedStaffGate(target) {
+async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
+  if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
   await target.route('**/functions/v1/key-verify', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -88,4 +123,4 @@ async function seedStaffGate(target) {
   }));
 }
 
-module.exports = { seedStaffGate, seedStaffIdentity, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

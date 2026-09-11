@@ -51,7 +51,13 @@ function isWriteLikeRequest(req) {
 }
 
 async function installProductionInit(page) {
-  await seedStaffGate(page);
+  // These suites all describe the ?prod=1 preview as an UNVERIFIED visitor sees
+  // it, which is what the retired shared password gave them. The gate needs a
+  // verified key to boot the app at all, so boot with one and drop it the
+  // instant the gate lifts. See dropVerificationAfterBoot in
+  // qa/staff-gate-seed.js for why a verified stub admin is the wrong posture
+  // here (401s and console noise on every staff-gated call).
+  await seedStaffGate(page, { dropVerificationAfterBoot: true });
   await page.addInitScript(() => {
     window.__prodBootMarks = [];
     const record = () => {

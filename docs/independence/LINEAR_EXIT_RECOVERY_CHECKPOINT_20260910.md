@@ -826,3 +826,31 @@ combined database restoration remain pending; the API reports
 `same_snapshot_proven:false`. See the priority recovery contract's required
 integration boundary for concurrent-write and incomplete-publication tests.
 Full schema, sequence and object custody remain open. Installation stays HOLD.
+
+## Shared-snapshot capture component
+
+The opt-in `scripts/linear-exit-priority-capture.js` API now captures companion
+rows through the still-open parent exported snapshot. It validates final parent
+bytes and the companion before returning both buffers. It publishes no files;
+owned temporary staging is removed on success or failure. Existing default
+capture callers do not supply the new optional snapshot callback.
+
+ISOLATED_POSTGRES PG16: seven checks pass in receipt
+`linear-exit-priority-snapshot-a53a8500038847949f229e6dac7d61df` (exit zero,
+owned server stopped). Actual restricted-role pg_dump and companion reads retain
+the earlier rows despite an intervening write; a separate capture sees the newer
+state and cross-pair validation refuses mixing them. German date formatting is
+normalized to ISO during companion reads. Parent validation and companion schema
+failures return no pair and leave no new private staging directory. An earlier
+four-check receipt `linear-exit-priority-snapshot-f11c9a082ad64d6ea34abd0391b0de97`
+is superseded by the strengthened test. Offline regression: 18 recovery package
+checks and nine pair checks pass.
+
+Scope: a synthetic 61-table database with selected populated rows, not the full
+application owners or hosted data. This proves the selected concurrent-write
+snapshot case; combined reconstruction, full row population, sequence fencing,
+object custody, arbitrary concurrent DDL and durable pair publication remain
+open. The pair verifier alone still cannot infer snapshot provenance from bytes.
+Installation remains HOLD; no merge, deployment or hosted/n8n writes occurred.
+
+Default recovery regression after the optional hook: PG16 recovery-upstream-ledger PASS31/52, receipt linear-exit-recovery-upstream-ledger-74c52cbeebea44d2a3fc77d87b8115c6, exit0 and server stopped. Existing ordered baseline and restored upstream-ledger proof retained. This separate run does not reconstruct the companion.

@@ -1188,5 +1188,29 @@
     "same_snapshot_proven": false,
     "combined_postgres_restore_proven": false,
     "installation_ready": false
+  },
+  "priority_snapshot": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 7,
+    "receipt": "linear-exit-priority-snapshot-a53a8500038847949f229e6dac7d61df",
+    "exit": 0,
+    "server_stopped": true,
+    "actual_pg_dump": true,
+    "selected_concurrent_write_consistent": true,
+    "synthetic_schema_only": true,
+    "full_restore_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_capture_proven": false,
+    "durable_pair_publication_proven": false,
+    "installation_ready": false,
+    "default_recovery_regression": {
+      "receipt": "linear-exit-recovery-upstream-ledger-74c52cbeebea44d2a3fc77d87b8115c6",
+      "checks_passed": 31,
+      "tables": 52,
+      "upstream_ledger_verified": true,
+      "exit": 0,
+      "server_stopped": true
+    }
   }
 }

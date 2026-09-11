@@ -1286,6 +1286,9 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     // never body text. This replaces the earlier equivalent query injection.
     references = resolveCallableContract(query, seedTokens, edges.filter(edge=>!(edge.kind==='default'&&plan.defaults.some(item=>(edge.relation===item.table||edge.relation==='public.'+item.table)&&edge.function===item.signature.slice(0,-2)))), requiredExtensionNames);
     if (typeof hooks.afterDumps === 'function') await hooks.afterDumps();
+    // Optional prepared companion reads import this still-live exported snapshot.
+    // Default capture and scheduled callers do not supply this hook.
+    if (typeof hooks.captureSnapshot === 'function') await hooks.captureSnapshot(query);
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');
   } finally {

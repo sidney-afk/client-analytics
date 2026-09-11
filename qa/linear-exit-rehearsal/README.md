@@ -201,3 +201,9 @@ nine-table row companion rehearsal. It uses synthetic schemas built from the
 pinned observed column/key contract. It is not a production capture tool or a
 complete schema restore: defaults, triggers, policies, semantic dependencies,
 sequence custody and referenced objects require separate recovery proof.
+
+Use `-Lane priority-snapshot` with PostgreSQL 16 binaries (including pg_dump)
+for the integrated parent/companion snapshot rehearsal. The lane requires an
+owned disposable server and uses synthetic schema/data, not hosted captures.
+Consult RESULTS.md for run-specific outcomes; selecting the lane is not proof
+of complete recovery, sequence consistency or an authorized release.

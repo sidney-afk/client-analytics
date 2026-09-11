@@ -206,3 +206,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - test/linear-exit-priority-companion-postgres.js: isolated typed row capture and companion restore rehearsal.
 
 - test/linear-exit-priority-companion-pair.js: actual recovery parser and companion linkage with synthetic packages.
+
+- scripts/linear-exit-priority-capture.js: opt-in shared-snapshot in-memory recovery pair capture.
+- test/linear-exit-priority-snapshot-postgres.js: synthetic concurrent-write snapshot and failure cleanup proof.

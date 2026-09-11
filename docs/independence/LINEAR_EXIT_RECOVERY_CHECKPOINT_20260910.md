@@ -1,5 +1,7 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+**Current continuation entry:** [Claude handoff](LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md). Owner requested a budget stop; preparation remains HOLD.
+
 ## Current preparation status
 
 Current isolated evidence is recorded in the linked result artifacts on draft PR #1382. The prepared source

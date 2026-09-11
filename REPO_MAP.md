@@ -303,3 +303,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - scripts/client-signoff-native-verification.js: private snapshot-bound native verification evidence.
 - test/client-signoff-native-verification.js: offline native detection/revalidation and reporting controls.
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_20260911.json: scoped integration evidence and remaining SQL rehearsal.
+
+- docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md: owner-requested budget stop, exact code revision and Claude next steps.

@@ -229,3 +229,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - scripts/linear-exit-backup-observed-baseline.js: PG17-only selected-catalog reconstruction for isolated preparation.
 
 - docs/independence/LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_RESULT_20260911.json: PG17 nine-table selected catalog comparison evidence.
+
+- test/linear-exit-priority-application-recovery.js: populated application-owner pair capture/restore rehearsal.
+- docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_20260911.json: source-bound PG17 application recovery result.

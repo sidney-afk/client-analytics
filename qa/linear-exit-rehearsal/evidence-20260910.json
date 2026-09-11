@@ -1278,5 +1278,21 @@
     "populated_application_recovery_proven": false,
     "historical_provenance_proven": false,
     "installation_ready": false
+  },
+  "priority_application_recovery": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "receipt": "linear-exit-priority-application-recovery-096bc812ff0c4b85bd9ba3c7c409acf9",
+    "exit": 0,
+    "server_stopped": true,
+    "actual_application_owners": true,
+    "synthetic_rows_only": true,
+    "owner_relative_reconstruction": true,
+    "hosted_restore_proven": false,
+    "sequence_custody_proven": false,
+    "installation_ready": false
   }
 }

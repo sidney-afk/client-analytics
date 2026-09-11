@@ -722,3 +722,24 @@ supplement and observed backup baseline stay separate from the published63
 inventory. Populated application capture/restore, restored behavior, sequence
 fencing, object custody and durable publication remain open. No merge,
 deployment, production data write or n8n activity; installation remains HOLD.
+
+## Populated application-schema pair recovery
+
+PG17 priority-application-recovery passed on the actual ordered application
+owners, four-source supplement and observed backup baseline. Receipt:
+`linear-exit-priority-application-recovery-096bc812ff0c4b85bd9ba3c7c409acf9`, exit0,
+owned server stopped. All nine companion tables contain synthetic rows satisfying
+actual constraints. A restricted capture role ran the real parent/companion
+capture; a restricted empty target reconstructed the authenticated pair. The
+existing parent52 schema/digest/sequence checks and companion row/key/multiset
+verification passed before commit. No parser or migration constraint was relaxed.
+
+The public receipt is LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_20260911.json.
+Source backup selected-catalog/32-grant comparison occurred before seeding.
+Restoration retains the recovery engine's owner-relative model; it does not
+claim identical hosted owner/grantor identity. This lane proves successful
+application-shaped synthetic recovery, not all restored workflow behavior,
+concurrent sequence fencing, real data/object custody, complete platform
+baseline, hosted restoration or durable pair publication. Earlier default gap
+failures retain their original scopes. Installation remains HOLD; no merge,
+deployment, production data write or n8n operation occurred.

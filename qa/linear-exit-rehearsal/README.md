@@ -230,3 +230,5 @@ backup table to be absent and uses the captured standard owner/ACL, including
 MAINTAIN. Selected catalog fields are verified transactionally and with a fresh
 read before the nine-table match can pass. This is a local observed baseline,
 not a historical migration or full hosted/platform recovery proof.
+
+Use -Lane priority-application-recovery with PG17 binaries including pg_dump for populated synthetic capture/restore on ordered application owners plus the explicit supplements. It uses restricted roles and existing verification; it does not prove hosted or object recovery.

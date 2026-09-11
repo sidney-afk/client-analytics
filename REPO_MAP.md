@@ -236,3 +236,9 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - test/helpers/linear-exit-priority-restored-behavior.js: post-restore budget, identity, thumbnail and actual-role access checks.
 
 - docs/independence/LINEAR_EXIT_PRIORITY_RESTORED_BEHAVIOR_20260911.json: selected post-restore runtime/access evidence.
+
+- scripts/linear-exit-priority-pair-storage.js: authenticated local pair container and exclusive publication.
+- test/linear-exit-priority-pair-storage.js: synthetic filesystem and cross-process pair storage checks.
+- test/helpers/priority-recovery-package-fixture.js: shared offline synthetic parent package fixture.
+
+- docs/independence/LINEAR_EXIT_PRIORITY_LOCAL_STORAGE_20260911.json: application recovery through stored/reopened pair.

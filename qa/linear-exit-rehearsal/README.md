@@ -238,3 +238,13 @@ near-exhausted budget continuity within the captured five-minute window, audit
 identity allocation, thumbnail watcher/token updates and six role-based table
 read denials. A window rollover fails explicitly. Row effects are rolled back;
 sequence allocation is nontransactional and does not prove a source write fence.
+
+`node test/linear-exit-priority-pair-storage.js` tests local pair framing and
+exclusive publication, including separate-process writers/readers. The prepared
+storage API requires an existing trusted private directory and an explicit key.
+Each component is limited to128MiB. It flushes a complete temporary file, verifies
+it, then creates the final hardlink exclusively; unsupported filesystems fail
+closed. Inspect the destination after publicationMayExist errors; retries never
+overwrite. Authentication is not encryption. Windows ACLs, directory/power-loss
+durability and off-device custody are not proven. The application recovery lane
+stores/reopens its real synthetic capture before reconstruction.

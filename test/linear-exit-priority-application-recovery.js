@@ -24,7 +24,13 @@ async function main(){try{
  cluster.exec(`create role ${role} login nosuperuser nocreatedb nocreaterole bypassrls password 'synthetic-capture-only';grant usage on schema public,extensions to ${role};grant select on all tables in schema public to ${role};grant select on all sequences in schema public to ${role};`);
  const key=Buffer.alloc(32,21).toString('base64');const env={...process.env,PGHOST:cluster.host,PGPORT:String(cluster.port),PGDATABASE:cluster.db,PGUSER:role,PGPASSWORD:'synthetic-capture-only',PGOPTIONS:''};
  stage='actual-capture-pair';
- const pair=await capturePair({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`});
+ const captured=await capturePair({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`});
+ stage='local-pair-storage';
+ assert.ok(process.env.PROOF_OUTPUT_ROOT,'PRIVATE_OUTPUT_REQUIRED');
+ const storage=require('../scripts/linear-exit-priority-pair-storage');
+ const stored=storage.writePair({directory:process.env.PROOF_OUTPUT_ROOT,name:'application-pair.private',...captured,hmacInput:key});
+ const pair=storage.readPair(stored.path,key);
+ assert.deepEqual(pair.parentBytes,captured.parentBytes);assert.deepEqual(pair.companionBytes,captured.companionBytes);
  const verified=companion.verifyPair(pair.companionBytes,pair.parentBytes,key);assert.ok(Object.values(verified.companion.tables).every(t=>t.rows.length>0));
  stage='target-prerequisites';targetDb='priority_app_target_'+process.pid;
  cluster.run('','postgres',{sql:`create database ${targetDb}`});
@@ -38,7 +44,7 @@ async function main(){try{
  stage='restored-runtime-behavior';
  const execute=(user,password,sql)=>cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',user,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:sql,env:{...process.env,PGPASSWORD:password},encoding:'utf8',windowsHide:true});
  const behavior=require('./helpers/linear-exit-priority-restored-behavior').verify({owner:sql=>execute(restoreRole,'synthetic-restore-only',sql),asRole:(role,sql)=>execute(cluster.user,process.env.PGPASSWORD,`begin;set local role ${role};${sql}rollback;`)});
- console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK',inventory_sha256:proof.inventory_sha256,supplement:extra,observed_backup:baseline,parent_tables:52,populated_companion_tables:9,behavior,application_source_owners:true,synthetic_rows_only:true,owner_relative_reconstruction:true,full_dependency_closure_proven:false,hosted_restore_proven:false,sequence_custody_proven:false}));
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK',inventory_sha256:proof.inventory_sha256,supplement:extra,observed_backup:baseline,parent_tables:52,populated_companion_tables:9,local_storage:{reopened_before_restore:true,container_sha256:stored.container_sha256,atomic_no_overwrite:stored.atomic_no_overwrite,power_loss_durability_proven:false,off_device_custody_proven:false},behavior,application_source_owners:true,synthetic_rows_only:true,owner_relative_reconstruction:true,full_dependency_closure_proven:false,hosted_restore_proven:false,sequence_custody_proven:false}));
 }catch(error){
  if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'application-recovery.private-error.log'),String(error.stack||error)+'\n'+String(error.detail||''));
  console.error(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_FAILED',stage,code:'APPLICATION_RECOVERY_GATE_REFUSED'}));process.exitCode=1;

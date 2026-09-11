@@ -142,3 +142,30 @@ handover coverage. Row changes are rolled back; sequence nextval is not
 transactional, so the local identity check does not establish source sequence
 fencing. Object bytes/custody, durable pair publication and hosted recovery
 remain open. No merge/deployment/production/n8n write; installation remains HOLD.
+
+## Local pair storage and reopening
+
+The prepared pair storage API verifies both components, writes a bounded framed
+file (128MiB/component), flushes/verifies it and creates the destination through
+an exclusive hardlink. It never overwrites an existing path or falls back to a
+weaker rename. Twelve offline filesystem tests pass, including two competing
+processes, fresh-process reopening, corruption/truncation, temporary collisions,
+flush/link failures and ambiguous post-publication errors. Nine pair-validation
+checks still pass after shared fixture extraction. Cleanup touches owned temps
+only. Inspect the destination after publicationMayExist errors; do not infer
+absence from an error or retry by overwriting.
+
+The actual PG17 application capture is now stored and reopened before restore.
+Receipt `linear-exit-priority-application-recovery-a1fff484bbab4671a5af8c509f79f979`
+passed parent52/companion9 and all nine restored behavior checks, exit0 and server
+stopped. Public result: LINEAR_EXIT_PRIORITY_LOCAL_STORAGE_20260911.json.
+Retained failure b51ee3701bd74e25af834e97ee2229a4 stopped at local-pair-storage:
+Windows lstat reported unavailable device0 while fstat returned the volume ID.
+The fix preserves inode/type/size checks and compares available device IDs.
+
+This proves selected local file publication/reopening, not Windows ACL isolation,
+directory/power-loss durability, off-device custody, encryption or object-byte
+backup. HMAC authentication is not encryption. Trusted private directory custody
+is required; actual private packages are not GitHub artifacts. Source sequence
+fencing and hosted recovery remain open. No merge/deploy/production/n8n write;
+installation remains HOLD.

@@ -1,61 +1,94 @@
 # SyncView retirement admission runbook
 
-**Status: source-only — NOT READY FOR ACTIVATION.** Applying the migration installs an **active** gate and read-only census; it does not stop admission or change any flag. The activation RPC intentionally refuses until ordinary native mutations have server-issued typed receipts. Do not replace that missing contract with a client setting, a stopped outbound worker, a deleted queue row, or an n8n edit.
+**Preparation only; activation remains blocked.** The current source always
+refuses `production_syncview_retirement_activate(text)`. Ordinary native receipts
+and their retirement recognizer are now implemented; the remaining refusal is
+not evidence that those source components are absent. Nothing in this runbook
+merges, deploys, enables retirement or authorizes a hosted write.
 
-## What this closes
+## Current receipt capability
 
-`linear_outbound_enabled = {"mode":"off"}` stops the drain. It does not stop the database RPCs for ordinary status, comment, due date, title, description, attachment, or provider-mode create work from inserting more `mirror_outbox` rows. The retirement trigger is on that common insert boundary, so a refusal rolls the owning mutation back atomically.
+Use `NATIVE_ORDINARY_RECEIPTS_OWNER_MATRIX.md` for writer ownership and the exact
+operation allowlist. The prepared source includes:
 
-The gate permits only receipts whose earlier native guards have already proven their own typed terminal semantics:
-
-| Kind | Required proof | Why it may pass after retirement |
+| Mutation family | Prepared completion contract | Retirement preparation limit |
 | --- | --- | --- |
-| Native intake | `_native_intake_epoch`, request marker, `status='skipped'`, and matching `linear_result.native_only/epoch` | The native write completed in the same server transaction; the receipt is its immutable evidence. |
-| Native assignment | `_native_assignment_epoch`, `status='skipped'`, and matching `linear_result.native_assignment/epoch` | Same durable receipt identity, already checked by the assignment guard. |
-| Native labels | catalog UUID marker, `status='skipped'`, and matching `linear_result.native_labels/catalog_version` | Same durable receipt identity, already checked by the label guard. |
-| F27 drill | Reserved `__f27_drill__` TEST row with rollback ID and `f27_drill=true` | The installed F27 drill contract remains distinct from both native and provider work. |
+| Intake | Existing typed native intake receipt | Preserve its guard and exact replay. |
+| Assignee | Existing typed native assignment receipt | Preserve its separate epoch. |
+| Labels | Existing typed catalog receipt | Preserve its catalog/version binding. |
+| Status, due, title, priority, archive, restore, parent, description, attachment | Typed ordinary receipt and immutable admission ledger | Source and isolated evidence exist; hosted capability is not inferred. |
+| Comment add/reply/edit/delete/resolve/unresolve | Typed ordinary completion and lifecycle repair | Preserve durable identity/replay and the installed owner order. |
+| Batch description and asset | Native row/event mutation without an outbox insert | Description is coordinated through the shared authority lock; asset coverage needs its own proof. |
+| Other ordinary batch operations | Gateway refusal | Do not invent a provider bypass. |
+| F27 reserved drill | Separate typed TEST receipt | Preserve the installed safety contract. |
 
-No other TEST row, no provider receipt, and no bare `skipped` status is admitted. Existing exact retries remain the installed enqueue helper’s pre-insert idempotency result; a new ordinary insert is refused.
+`2026-09-10-syncview-retirement-native-ordinary-recognizer.sql` extends the
+original recognizer to ordinary native receipts. Its inclusion and typed/malformed
+receipt checks are in the prepared source and isolated tests. The activation RPC
+in `2026-09-09-syncview-retirement-admission.sql` still unconditionally raises
+`syncview_retirement_native_receipt_contract_required`; that error name is retained
+for compatibility, not used here as a current missing-component diagnosis.
 
-## Current capability matrix
+## What the outbox boundary does and does not cover
 
-| Mutation family | Current receipt | Safe after retirement? | Required work |
-| --- | --- | --- | --- |
-| Intake create | Typed native intake epoch and terminal result | Yes | Existing contract; preserve it. |
-| Assignee | Typed native assignment epoch and terminal result | Yes | Existing contract; preserve it. |
-| Labels | Typed native catalog version and terminal result | Yes | Existing contract; preserve it. |
-| Status, due, title, priority, archive, restore, parent | Provider-shaped `mirror_outbox` receipt from `production_deliverable_write` | **No** | Issue a server-owned native epoch/receipt inside the same wrapper transaction. |
-| Description, attachment | Same provider-shaped deliverable receipt | **No** | Same server-owned native receipt work. |
-| Comment add/edit/delete | Provider-shaped `mirror_outbox` receipt from comment write/lifecycle RPCs | **No** | Add an equivalent typed receipt to both comment transactions. |
-| Comment resolve/unresolve | Native lifecycle mutation with no outbox receipt | **Not proven** | Define durable native completion/replay evidence before activation. |
-| Batch ordinary mutation | Provider-shaped batch receipt | **No** | Add a typed batch receipt or retain an explicit provider path. |
-| TEST/provider receipts | Provider-shaped, even when TEST | No | TEST never bypasses retirement admission. |
-| Reserved F27 drill | Reserved rollback-id typed TEST receipt | Yes | Existing contract; preserve it. |
+Stopping the outbound drain does not stop database writers. The retirement trigger
+checks newly inserted outbox rows and refuses unsupported provider-shaped work;
+its refusal rolls that owning transaction back. Accepted typed native receipts
+remain immutable completion evidence. Exact retries retain their owner semantics.
 
-The current trigger would reject the unsupported rows rather than create hidden debt, which correctly protects the queue but rolls their transaction back. That is why the activation RPC is intentionally blocked.
+A `SHARE ROW EXCLUSIVE` lock on `mirror_outbox` coordinates that table's writers.
+Whole-application freeze coverage remains unproven. A writer can participate
+in this lock through a shared guard even without inserting an outbox row:
 
-## Future release sequence (after the matrix is complete)
+| Path | Source owner | Needed boundary evidence |
+| --- | --- | --- |
+| Batch description | `2026-09-01-batch-description-cas-timestamptz.sql` | The isolated RPC blocks through `production_assert_authority`, which requests an outbox `ROW EXCLUSIVE` lock. |
+| Batch asset | `2026-08-31-batch-asset-client-slug-insert-arm.sql` | Trace the shared authority guard and prove its scoped row/event boundary independently. |
+| Calendar | Frozen `calendar-upsert` handler | Account for business-row/comment and separate event writes. |
+| Samples | Frozen `sample-review-upsert` handler | Account for business-row/comment and separate event writes. |
 
-1. Apply `migrations/2026-09-09-syncview-retirement-admission.sql` through the approved database release path. It aborts if the installed F27 and typed-native triggers are absent. Confirm the monitor reports `{"verdict":"dormant","ok":true}`.
+The attempted description counterexample in isolated PG17 receipt
+`930a5627` failed with a lock timeout in `production_assert_authority`.
+It did not demonstrate a write crossing the held lock. Preserve that failure;
+absence of an outbox insert does not imply absence of lock participation.
 
-2. Drain and verify the queue in the same release window. The activation RPC refuses any row whose status is `pending`, `failed`, or `shadow_ok`; do not waive that refusal. Inspect the aggregate census only:
+This is a minimum boundary-review list, not a complete caller census. Do not edit
+or re-gate the frozen handlers to make a preparation test pass. A future reviewed
+freeze must cover browser, stale-tab, retry, service and automation writes, with
+explicit refusal and no partial accepted business/event state. Every write
+accepted before the cutoff must be included in the final snapshot or a proved
+delta handover. A human request to stop typing is insufficient.
 
-```sql
-select public.production_syncview_retirement_census();
-```
+## Reconcile B5 acceptance before activation
 
-3. Replace the blocked activation RPC only after every unsupported row above has a server-owned typed receipt and an exact replay test. The future activation must take `mirror_outbox` in `share row exclusive` mode before recording the high-water. Writers already inside finish before that high-water; later writers wait and then read retired mode in the trigger. A concurrent ordinary mutation must therefore either get its typed native receipt or be refused before its business mutation commits.
+The B5 checklist currently says a retired TEST mutation creates zero outbox rows.
+The prepared architecture intentionally retains typed terminal native receipts
+in that table. These are different criteria. Do not mark the literal zero-row
+box complete merely because provider debt is zero.
 
-4. Re-run the census and retain its aggregate result with the release evidence. Required retired values are `ordinary_post_cutoff_total = 0` and `nonterminal_total = 0`. `native_post_cutoff_total` and `f27_post_cutoff_total` may be nonzero because they are separately typed terminal receipts.
+Proposed release-plan criterion: zero new provider-bound work and zero unresolved
+provider debt, with only validated immutable native completions and the distinct
+F27 contract permitted. The owner must ratify the final criterion in the later
+implementation plan, or the implementation must meet the existing literal gate.
+This preparation document does not silently change the approved checkbox.
 
-```sql
-select public.production_syncview_retirement_census();
-```
+## Future owner-run release prerequisites
 
-5. Confirm `.github/workflows/syncview-retirement-census.yml` completes green after activation. It is a read-only health check and must remain scheduled after the cutoff. Retire a main schedule only in that schedule’s own paired workflow/watchdog change; this contract does not disable schedules.
+Keep the activation RPC refusing while preparing the full freeze/race, final
+snapshot/delta and recovery contract. Source-exact installation, serving/config
+readback, archive/object completeness, notification handover and each teardown
+inverse remain separate gates in `GO_LIVE_CHECKLIST.md` Phase5 and the recovery
+checkpoint. No local test substitutes for their hosted evidence.
 
-## Retry and recovery
+A later authorized window must follow the canonical B5 order: enforce the freeze,
+classify and disposition final provider work, prove the scoped debt result,
+disable normal outbound, perform a detect-only reconcile, finish archive/export,
+and only then activate/read back the reviewed retired epoch. Any difference or
+new provider intent aborts that progression under the freeze. Do not dispatch
+or run these steps during preparation.
 
-At present, `production_syncview_retirement_activate(...)` always fails with `syncview_retirement_native_receipt_contract_required`. This is the expected result until the capability matrix is complete; it performs no flag, queue, or business-row mutation.
-
-There is intentionally no unretire RPC in this migration. Reopening server admission changes the release boundary and needs its own reviewed recovery decision with the stored high-water and F27 state still intact.
+After authorized activation, aggregate census and an independent observer must
+verify the boundary. Preserve `ordinary_post_cutoff_total`, `nonterminal_total`,
+`native_post_cutoff_total` and `f27_post_cutoff_total` distinctions. A census query
+is not proof that every outside-outbox writer was frozen. There is no generic
+unretire RPC; reopening admission needs its own reviewed recovery decision.

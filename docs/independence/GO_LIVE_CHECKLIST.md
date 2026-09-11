@@ -991,6 +991,17 @@ replacement agreed/proved to the gate chosen for F138.
 
 ## Phase 5 — B5: retire Linear (its own project)
 
+Preparation clarification: `docs/ops/SYNCVIEW_RETIREMENT_RUNBOOK.md` now records
+implemented ordinary receipt recognition, the still-refusing activation RPC,
+and unproven whole-application freeze coverage. The description RPC participates
+through the shared authority lock despite making no outbox insert; its attempted
+counterexample timed out. Frozen Calendar/Samples boundaries remain unproven.
+The prepared architecture retains typed terminal
+receipts; that does **not** satisfy the literal zero-outbox-row checkbox below.
+Resolve that criterion in the later owner-approved release plan. No checkbox or
+activation authorization changes here.
+
+
 Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md §13** (D-22's roughly one-week dual-ready fallback,
 archive-completeness + full private export, then the owner-gated retirement order with a proved
 inverse per action — Workload feeder,

@@ -944,3 +944,8 @@ still uses private plaintext scratch; key provisioning/rotation, scratch/Windows
 ACLs, power-loss behavior and off-device custody remain open. Plaintext/default
 formats are unchanged; encrypted mode is explicit. Installation HOLD.
 No merge/deployment/production/n8n changes.
+
+
+## Retirement boundary preparation (2026-09-11)
+
+PG17 isolated batch-description lock coverage passes: a separate outbox lock blocks the real service-role RPC with no row/event change; releasing it permits the same write and one event. See `LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json` in docs/independence. The initial counterexample hypothesis was disproved, and the failed runs remain recorded. Whole-application freeze, frozen-handler boundaries, final snapshot/delta ordering and activation remain unproven. Ordinary native receipts and their recognizer already exist; the retirement runbook now reflects that. The literal B5 zero-outbox-row gate remains unchanged pending reconciliation with typed native receipts. Installation HOLD.

@@ -279,3 +279,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - test/linear-exit-credential-encrypted-storage.js: encryption, tamper and file failure controls.
 - test/helpers/credential-storage-fixture.js: synthetic authenticated triple fixture.
 - docs/independence/LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json: isolated encrypted-file recovery evidence.
+
+- test/linear-exit-retirement-freeze-postgres.js: isolated batch-description authority-lock coverage and released-lock control.
+- docs/independence/LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json: bounded lock evidence; global freeze unproven.

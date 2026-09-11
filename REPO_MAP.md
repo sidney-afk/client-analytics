@@ -284,3 +284,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json: bounded lock evidence; global freeze unproven.
 
 - docs/ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md: final admission/drain design and unresolved frozen-handler race evidence.
+
+- test/linear-exit-calendar-freeze-postgres.js: captured Calendar service-role row/event crossing of held outbox lock.
+- docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json: isolated counterexample and exact source supplements.

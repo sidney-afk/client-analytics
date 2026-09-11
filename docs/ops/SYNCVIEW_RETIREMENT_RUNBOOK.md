@@ -94,3 +94,8 @@ is not proof that every outside-outbox writer was frozen. There is no generic
 unretire RPC; reopening admission needs its own reviewed recovery decision.
 
 Detailed source boundaries, deferred-request drain requirements and pending race matrix: [final freeze preparation](LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md). This is a design contract, not activation authorization.
+
+Captured Calendar v49 now has an isolated service-role counterexample: its scalar
+status row and event commit under the held outbox lock. Exact supplements and
+limits are in ../independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json. This is
+not a hosted write or proof of a complete replacement freeze.

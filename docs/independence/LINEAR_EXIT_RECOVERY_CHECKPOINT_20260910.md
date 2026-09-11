@@ -1240,3 +1240,8 @@ PG17 isolated batch-description lock coverage passes: a separate outbox lock blo
 ## Next retirement-critical preparation step
 
 See [final freeze preparation](../ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md) for the source-owned boundary and race matrix. Frozen handlers split comment, scalar and deferred event/tweak requests; HTTP success does not establish complete drain. The next isolated rehearsal must include the captured serving source and disclose the Calendar comment-RPC prerequisite absent from the dated bootstrap. No global freeze or activation proof is claimed.
+
+
+## Captured Calendar lock counterexample (2026-09-11)
+
+The actual captured Calendar v49 handler, using the SQL adapter with asserted service_role, commits a status change and one semantic event while a separate mirror_outbox lock remains held. See docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json. This proves that outbox locking alone is insufficient in this isolated composed schema. The test supplements the baseline with the exact comment-RPC source and seven dated-source Calendar ACL statements; earlier fixture and missing-ACL failures remain recorded. It does not prove hosted behavior, a complete freeze, comment races or deferred-work drain under a paused request. Installation HOLD.

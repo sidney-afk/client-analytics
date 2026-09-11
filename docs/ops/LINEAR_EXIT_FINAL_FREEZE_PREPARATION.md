@@ -1,6 +1,7 @@
 # Final freeze preparation contract
 
-Status: SOURCE_ONLY design, not an executable release procedure. Installation HOLD.
+Status: preparation design with bounded ISOLATED_CAPTURED_HANDLER_SQL evidence;
+not an executable release procedure. Installation HOLD.
 No handler, database, hosted configuration or activation change is authorized by
 this document. Preserve the frozen tokenless Calendar and Samples contracts.
 
@@ -87,3 +88,11 @@ partial state. Preserve the failure as evidence for the unresolved protocol.
 The canonical B5 literal zero-outbox-row requirement also remains unresolved
 against retained typed native completions. This document does not ratify the
 proposed zero-provider-debt interpretation. See SYNCVIEW_RETIREMENT_RUNBOOK.md.
+
+## Isolated counterexample now proved
+
+See ../independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json: the captured Calendar
+status-update handler commits row and event while the outbox lock remains held,
+under service_role with explicit source ACL supplements. This closes the narrow
+question of whether that lock alone freezes this path: it does not. All proposed
+admission/drain mechanisms and the remaining race matrix stay unproven.

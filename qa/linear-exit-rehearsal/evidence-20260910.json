@@ -1617,5 +1617,63 @@
       "Source owner supplement is separate from the pinned 63-entry inventory.",
       "No hosted writes, activation, deployment or merge."
     ]
+  },
+  "calendar_freeze_counterexample": {
+    "marker": "LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN",
+    "calendar_row_and_event_committed_under_outbox_lock": true,
+    "global_freeze_proven": false,
+    "activation_authorized": false,
+    "source_owner": "migrations/2026-06-18-atomic-comment-merge.sql",
+    "source_sha256": "c354f499112921e8c6056f5ac9018cfd480d46e173c036e29cfe8165f7769927",
+    "selective_acl_supplement": {
+      "source": "migrations/live-schema-baseline-2026-07-03.sql",
+      "source_sha256": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+      "statement_count": 7,
+      "statements": [
+        "grant delete on table public.calendar_posts to service_role;",
+        "grant insert on table public.calendar_posts to service_role;",
+        "grant references on table public.calendar_posts to service_role;",
+        "grant select on table public.calendar_posts to service_role;",
+        "grant trigger on table public.calendar_posts to service_role;",
+        "grant truncate on table public.calendar_posts to service_role;",
+        "grant update on table public.calendar_posts to service_role;"
+      ]
+    },
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "capture_hashes": {
+      "functions/calendar-upsert/index.ts": "5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada",
+      "functions/_shared/thumbnail-revisions.ts": "fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9"
+    },
+    "scope": "ISOLATED_CAPTURED_HANDLER_SQL",
+    "sdk_transport": "SQL adapter, not hosted PostgREST",
+    "deferred_callbacks_drained": true,
+    "network_attempts": 0,
+    "handler_database_role": "service_role",
+    "result": "PASS_COUNTEREXAMPLE",
+    "installation": "HOLD",
+    "receipt_directory": "linear-exit-calendar-freeze-5ff2c206413b4fb89ab849e729ae7031",
+    "unit_log_sha256": "f8428ecde06104bad9412d5af9dd62a905cf1a548beeba434bdcd0cfb53df3b9",
+    "server_stopped": true,
+    "earlier_runs": [
+      {
+        "id": "07241de8ddd945eba695cef4d77e53f5",
+        "result": "FAIL",
+        "reason": "Stale batch control in initial test; owner-role run not final proof."
+      },
+      {
+        "id": "d9202c707d6542b58a1d40a35c0f0260",
+        "result": "FAIL",
+        "reason": "Calendar SELECT permission absent from partial baseline; handler refused initial read."
+      }
+    ],
+    "limits": [
+      "Captured Calendar v49 scalar status update only; no hosted save or fresh serving equivalence.",
+      "SQL SDK adapter under asserted service_role; not hosted PostgREST or Deno.",
+      "Comment RPC source installed explicitly but comment-update race not exercised.",
+      "Seven exact dated-source ACL statements supplement partial baseline; original inventory unchanged.",
+      "Deferred callbacks awaited here, not deliberately paused to prove final drain.",
+      "Global fetch refused with zero attempts; no claim of complete transport sandbox.",
+      "No global freeze, Samples race, activation or final snapshot proof."
+    ]
   }
 }

@@ -949,3 +949,8 @@ No merge/deployment/production/n8n changes.
 ## Retirement boundary preparation (2026-09-11)
 
 PG17 isolated batch-description lock coverage passes: a separate outbox lock blocks the real service-role RPC with no row/event change; releasing it permits the same write and one event. See `LINEAR_EXIT_RETIREMENT_FREEZE_20260911.json` in docs/independence. The initial counterexample hypothesis was disproved, and the failed runs remain recorded. Whole-application freeze, frozen-handler boundaries, final snapshot/delta ordering and activation remain unproven. Ordinary native receipts and their recognizer already exist; the retirement runbook now reflects that. The literal B5 zero-outbox-row gate remains unchanged pending reconciliation with typed native receipts. Installation HOLD.
+
+
+## Captured Calendar lock counterexample (2026-09-11)
+
+The actual captured Calendar v49 handler, using the SQL adapter with asserted service_role, commits a status change and one semantic event while a separate mirror_outbox lock remains held. See docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json. This proves that outbox locking alone is insufficient in this isolated composed schema. The test supplements the baseline with the exact comment-RPC source and seven dated-source Calendar ACL statements; earlier fixture and missing-ACL failures remain recorded. It does not prove hosted behavior, a complete freeze, comment races or deferred-work drain under a paused request. Installation HOLD.

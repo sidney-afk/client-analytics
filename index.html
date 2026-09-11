@@ -12544,7 +12544,17 @@
       }).catch(()=>{ _obvSlugSet = new Set(); })
         .finally(()=>{ _obvSlugLoading = false; });
     }
-    function _obvHasOnboarding(name){ return !!(_obvSlugSet && _obvSlugSet.has(wlNormalizeClient(name))); }
+    function _obvHasOnboarding(name){
+        if (!_obvSlugSet) return false;
+        const slug = wlNormalizeClient(name);
+        if (!slug) return false;
+        if (_obvSlugSet.has(slug)) return true;
+        // A brand/project client name has no natural first/last split, so a
+        // submitter sometimes puts the same name in both onboarding-form
+        // fields, which doubles the generated slug. Recognize that shape
+        // too rather than losing the match.
+        return _obvSlugSet.has(slug + slug);
+    }
     function _obvOpenStandalone(slug){ try { window.open('?onboarding_view=' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
 
     // Standalone per-client onboarding viewer (its own browser tab, ?onboarding_view=<slug>).

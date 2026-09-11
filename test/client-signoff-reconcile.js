@@ -23,7 +23,16 @@ const CARD = (over) => Object.assign({
   video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved',
   video_tweaks: '', graphic_tweaks: '', caption_tweaks: '',
   client_video_approved_at: null, client_graphic_approved_at: null,
-  client_caption_approved_at: null, kasper_approved_at: null,
+  /* CAPTION IS SIGNED OFF IN THE DEFAULT FIXTURE (round 43). A whole-post
+     client approve stamps video, graphic and caption together, so a card whose
+     caption reads Approved with no caption stamp is a SPLIT state, not the
+     ordinary one — live, 171 of 230 committed calendar approvals carry the
+     caption stamp. Leaving the default split made every stamp test also raise
+     the caption-leg report, which would have buried the new rule in noise
+     instead of testing it. The split is set deliberately where it is under
+     test. */
+  client_caption_approved_at: '2026-09-05T10:00:00.000Z',
+  kasper_approved_at: null,
   /* The card side of the crosswalk. A default fixture is a PROPERLY LINKED
      card: the deliverable names the card and the card names it back. */
   video_deliverable_id: 'del-1', graphic_deliverable_id: null,
@@ -2436,6 +2445,91 @@ check('the supersession clock refuses to answer without a client', () => {
   const calls = (stripComments(src).match(/supersededByRequest\(/g) || []).length;
   assert.equal(calls, 3, 'one definition and two call sites, all passing the client');
   assert.ok(typeof d === 'function');
+});
+
+/* ROUND 43, a P1 and the first finding in many rounds to say the repair itself
+   was INCOMPLETE rather than mislabelled. `_calClientApprove` is the client
+   link's only approve action and it stamps video, graphic AND caption in one
+   save. Caption alone has no work item and no deliverable, so it has no outbox
+   row and a deliverable-driven repair can never reach it: the run would fix two
+   thirds of the client's action and leave the third reading unapproved.
+
+   Live: of 230 committed calendar-origin client approvals, 171 carry a caption
+   stamp and 9 sit approved without one — and ONE of the rows this job repairs
+   is in that state, so this reports a real row today. */
+check('the caption leg of a whole-post approve is reported', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({ caption_status: 'Approved', client_caption_approved_at: null })],
+  }));
+  const stamp = findings.filter(f => f.kind === 'stamp');
+  const legs = findings.filter(f => f.kind === 'caption_leg');
+  assert.equal(stamp.length, 1, 'the video repair still happens');
+  assert.equal(legs.length, 1, 'and the caption leg is reported alongside it');
+  assert.equal(legs[0].card.id, 'card-1');
+  assert.equal(legs[0].component, 'caption');
+  /* COUNTED AND PRINTED, both: rounds 38 and 39 were spent on a bucket that had
+     one without the other, so the new kind gets its headline term and its row
+     asserted together, through the real CLI. */
+  const { classify } = require('../scripts/client-signoff-reconcile.js');
+  const needs = classify({ findings, skipped: [] }).lines
+    .find(l => l.startsWith('NEEDS A PERSON'));
+  assert.match(needs, /caption leg of a whole-post approve 1/, needs);
+});
+
+checkAsync('the caption leg prints a row an operator can act on', async () => {
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const fixture = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'csr-')), 'world.json');
+  fs.writeFileSync(fixture, JSON.stringify({
+    outbox: [APPROVE()], comments: [], deliverables: [DEL()],
+    cards: [CARD({ caption_status: 'Approved', client_caption_approved_at: null })],
+  }));
+  const out = execFileSync(process.execPath,
+    [path.join(__dirname, '../scripts/client-signoff-reconcile.js'), `--fixtures=${fixture}`],
+    { encoding: 'utf8' });
+  assert.match(out, /caption leg of a whole-post approve 1/, out);
+  assert.match(out, /card card-1 \(testclient\) \[caption\][^\n]*REPORT ONLY/, out);
+  assert.match(out, /would need client_caption_approved_at/, out);
+  /* And it must not read as a pending write. */
+  assert.doesNotMatch(out, /\[caption\][^\n]*→ writes/, out);
+  assert.match(out, /REPAIRS \(written on --apply\): 1 sign-off stamp\(s\)/, out);
+});
+
+/* REPORTED, NEVER WRITTEN. The outbox row proves the client approved this
+   DELIVERABLE; it does not prove which surface they used, and a component-level
+   approve stamps only its own component. Writing caption would infer the
+   client's action from the card's state, which is the one thing this job
+   refuses to do. */
+checkAsync('the caption leg is never writable', async () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE()],
+    cards: [CARD({ caption_status: 'Approved', client_caption_approved_at: null })],
+  }));
+  const leg = findings.find(f => f.kind === 'caption_leg');
+  assert.equal(leg.writable, false);
+  /* `writePatch` is async and takes (card, patch, kind): it REJECTS rather than
+     throwing synchronously, so `assert.throws` here passes vacuously by never
+     calling the guard at all. The first draft of this check did exactly that. */
+  const { writePatch } = require('../scripts/client-signoff-reconcile.js');
+  await assert.rejects(() => writePatch(leg.card, { id: leg.card.id }, leg.kind),
+    /writes stamps only/,
+    'the write guard refuses the kind, so detection cannot make it writable');
+});
+
+/* AND IT IS NOT RAISED WHEN THERE IS NOTHING SPLIT. A caption already signed
+   off, or one not approved at all, is not a missing leg — reporting either
+   would bury the real row in noise. */
+check('a caption that is not split raises nothing', () => {
+  for (const over of [
+    { caption_status: 'Approved' },                                   // already stamped
+    { caption_status: 'In Progress', client_caption_approved_at: null },
+    { caption_status: '', client_caption_approved_at: null },
+  ]) {
+    const { findings } = detect(world({ outbox: [APPROVE()], cards: [CARD(over)] }));
+    assert.equal(findings.filter(f => f.kind === 'caption_leg').length, 0,
+      'no split here: ' + JSON.stringify(over));
+  }
 });
 
 check('body comparison ignores only whitespace shape', () => {

@@ -898,6 +898,37 @@ function detect(world) {
     findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
       deliverable_id: deliverableId,
       detail: `sign-off stamp missing for a committed client approve (${at})` });
+    /* THE CAPTION LEG OF A WHOLE-POST APPROVE, REPORTED AND NEVER WRITTEN.
+     *
+     * `_calClientApprove` (index.html) is the client link's only approve
+     * action, and it stamps video, graphic AND caption in one save. Caption is
+     * the one of the three with no work item and no deliverable of its own, so
+     * it has no outbox row and this loop can never reach it — a repair driven
+     * off the deliverable therefore completes two thirds of the client's
+     * action and leaves the third looking unapproved forever.
+     *
+     * IT IS REPORTED, NOT WRITTEN, and the reason is this job's founding rule:
+     * evidence repairs and never invents. The outbox row proves the client
+     * approved THIS deliverable; it does not prove which surface they used, and
+     * a component-level approve from the production review stamps only its own
+     * component. A caption status reading Approved could equally have been set
+     * by staff. Writing the caption stamp would infer the client's action from
+     * the card's state, which is the one thing this job refuses to do — and
+     * `WRITABLE_KINDS` refuses the kind anyway, so a later edit cannot make it
+     * writable by accident.
+     *
+     * Live: of 230 committed calendar-origin client approvals, 171 carry a
+     * caption stamp and 9 sit approved without one; of the rows this job
+     * repairs, ONE is in that state. So this reports a real row today. */
+    if (comp !== 'caption'
+        && _calNormStatus(card.caption_status || '') === 'Approved'
+        && !String(card.client_caption_approved_at || '').trim()) {
+      findings.push({ kind: 'caption_leg', writable: false, card, component: 'caption',
+        stamp_at: at, deliverable_id: deliverableId,
+        detail: 'caption reads Approved with no client sign-off, on a card whose '
+          + `${comp} sign-off this run repairs — a whole-post approve stamps all `
+          + 'three, and caption has no deliverable to carry its own evidence' });
+    }
   }
 
   /* THE SAME SUPERSESSION TESTS THE WRITTEN PATH RUNS, over the approvals whose
@@ -1168,6 +1199,16 @@ function patchFor(finding) {
   const patch = { id: card.id };
   const pending = {};
   let movedComponent = false;
+
+  /* A KIND WITH NO PATCH AT ALL RETURNS EARLY, EXPLICITLY. `caption_leg` is
+   * reported and never written, and it carries no `comment`, so falling through
+   * to the delivery branch dereferenced `finding.comment.native_comment_id` and
+   * killed the whole run — every offline check still green, because the crash
+   * lives in the entry point's plan loop. That is round 16's lesson exactly,
+   * and the CLI check is what caught it again. An unknown kind is a bug, not a
+   * patch: it gets an empty patch and the renderer says what a person must
+   * decide. */
+  if (finding.kind === 'caption_leg') return patch;
 
   if (finding.kind === 'status_only') {
     /* Only the status leg is owed; the request is already on the card. */
@@ -1527,6 +1568,7 @@ function classify({ findings, skipped }) {
       + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length + undecidable.length}  `
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
       + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
+      + `caption leg of a whole-post approve ${reportOnly.filter(f => f.kind === 'caption_leg').length}, `
       + `ambiguous repeat ${ambiguous.length}, `
       + `client approve that reached neither leg ${carrierFailedKnown.length}, `
       + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
@@ -1564,6 +1606,14 @@ async function main() {
     log(`  ${WRITABLE_KINDS.has(finding.kind) ? '·' : '»'} card ${finding.card.id} `
       + `(${finding.card.client}) [${finding.component}] ${finding.detail}`
       + `${WRITABLE_KINDS.has(finding.kind) ? '' : '  — REPORT ONLY, a person decides'}`);
+    /* A CAPTION LEG HAS NO PATCH TO PREVIEW, and printing an empty "would need"
+     * would read as a repair with nothing in it. What a person needs here is
+     * the field and the question, not a diff this job declines to compute. */
+    if (finding.kind === 'caption_leg') {
+      log('        would need client_caption_approved_at, but only a person can say '
+        + 'whether the client approved the whole post or just this component');
+      continue;
+    }
     /* The arrow means "this is written"; a report-only row shows what a person
      * WOULD have to do, and must not read as a pending write. */
     log(`      ${WRITABLE_KINDS.has(finding.kind) ? '→ writes' : '  would need'} `

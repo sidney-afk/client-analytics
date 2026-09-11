@@ -20715,3 +20715,47 @@ conflicted merge plus a cross-reference sweep. A ledger numbered by hand cannot
 be appended to concurrently without this; the durable fix is for entries to
 claim their number at merge time rather than at write time, which is a change to
 the ledger convention and not something this PR should make on its own.
+
+### 197at. Round 43: the repair was INCOMPLETE, not mislabelled, and it has a live victim
+
+A P1, and the first finding in many rounds to say the repair itself falls short
+rather than that a report line is wrong.
+
+`_calClientApprove` (index.html) is the client link's only approve action, and it
+stamps **video, graphic AND caption** in one save. Caption is the one of the
+three with no work item and no deliverable of its own, so it has no
+`mirror_outbox` row and a deliverable-driven repair can never reach it. The run
+would complete two thirds of a client's action and leave the third reading
+approved-but-unsigned forever.
+
+**Measured, and it is not hypothetical.** Of 230 committed calendar-origin
+client approvals, 171 carry a caption stamp and 9 sit approved without one. Of
+the rows THIS JOB REPAIRS, **one** is in that state — a card still reading
+Approved whose caption would have stayed unsigned after an apply run. That is
+the first round since 197x to name a live victim.
+
+**Reported, never written, and the reason is the founding rule.** The outbox row
+proves the client approved that DELIVERABLE; it does not prove which surface
+they used, and a component-level approve from the production review stamps only
+its own component. A caption reading Approved could equally have been set by
+staff. Writing the caption stamp would infer the client's action from the card's
+state, which is the one thing this job refuses to do. `WRITABLE_KINDS` refuses
+the new kind at the write, so a later edit to detection cannot make it writable
+by accident — the same placement argued in 197.
+
+**Round 16, again, and the CLI check earned its keep.** `patchFor` had no branch
+for the new kind, so it fell through to the delivery branch and dereferenced
+`finding.comment.native_comment_id`. **Every offline check was green**; the whole
+run died at the entry point. The plan loop builds patches for all findings before
+the renderer can skip anything, so the crash could only be seen by running the
+program. It is now an explicit early return.
+
+**And the default fixture was itself in the split state**, so every stamp test
+began raising the new report. The fixture now carries a caption stamp, which is
+both the live-majority shape (171 of 230) and a card that is internally
+consistent; the split is set deliberately where it is under test. A fixture that
+quietly contains the condition under test makes the new rule invisible in noise.
+
+163 checks. Four controls by exit status: detection removed, the kind made
+writable, the `patchFor` crash restored, and the headline term removed. Full
+runner: 2 of 427, baseline.

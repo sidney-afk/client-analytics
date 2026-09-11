@@ -1274,3 +1274,8 @@ The next build change is specified in [native sign-off contract](../ops/LINEAR_E
 ## Native sign-off verifier prepared
 
 The read-only service-role verifier now has isolated PG17 evidence in docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json. Actual native client approvals verify; forged/mismatched bindings and protected ledger reads are refused. Historical epochs remain valid evidence. It is a separate source supplement, not an installed release or integrated reconciler. Next: preserve exact receipt IDs and consume fresh verification during detection and pre-write revalidation. Installation HOLD.
+
+
+## Wrap-up: native sign-off integration
+
+Reconciler initial reads and pre-write checks now consume protected native receipt verification. 39 focused offline checks plus 165 existing checks pass; the separate SQL verifier passed 43 isolated checks. The combined SQL-integrated reader/planner/revalidation test remains next. See LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_20260911.json and the Claude handoff for the stop point. No implementation in production is authorized. Installation HOLD.

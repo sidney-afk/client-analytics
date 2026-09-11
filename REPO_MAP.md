@@ -299,3 +299,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - migrations/2026-09-11-native-signoff-verifier.sql: service-only read-only native approval admission verification.
 - test/linear-exit-native-signoff-postgres.js: actual native write, permission and ledger-binding controls.
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json: isolated verifier evidence; reconciler integration open.
+
+- scripts/client-signoff-native-verification.js: private snapshot-bound native verification evidence.
+- test/client-signoff-native-verification.js: offline native detection/revalidation and reporting controls.
+- docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_20260911.json: scoped integration evidence and remaining SQL rehearsal.

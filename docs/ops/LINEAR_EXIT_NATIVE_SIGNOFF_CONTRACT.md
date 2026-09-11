@@ -1,6 +1,6 @@
 # Native sign-off reconciler compatibility contract
 
-Database verifier prepared and isolated-tested; reconciler integration unbuilt. Installation HOLD. No merge, deployment,
+Database verifier isolated-tested; reconciler integration offline-tested. Installation HOLD. No merge, deployment,
 workflow execution, live repair or frozen-writer change is authorized here.
 The upstream 165-check suite covers the carried reconciler, not this extension.
 
@@ -94,3 +94,15 @@ See ../independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json for actual
 native-write, protected-access, invalid-binding and historical-epoch evidence.
 The migration is an explicit isolated supplement; release inventory integration,
 initial reconciler reads, planning and pre-write revalidation remain unbuilt.
+
+## Prepared reconciler integration
+
+Initial load and pre-write revalidation now request fresh protected verification.
+The helper keeps evidence in a private WeakMap, checks pre-await snapshots before
+publishing any batch, and retains lossless IDs and microsecond clocks. Missing
+verification appears as unresolved work, not an ordinary left-alone result.
+See ../independence/LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_20260911.json: 39 focused
+offline checks and 165 existing checks pass. The transport in these tests is
+synthetic; an actual SQL-integrated reader/planner/revalidation rehearsal remains
+required. Earlier unbuilt statements above describe prior milestones.
+Column alias/cast syntax follows the [PostgREST API documentation](https://docs.postgrest.org/en/v12/references/api/tables_views.html#casting-columns); deployed PostgREST behavior was not tested here.

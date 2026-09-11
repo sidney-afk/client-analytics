@@ -1,0 +1,24 @@
+{
+  "classification": "OFFLINE_TEST",
+  "result": "PASS",
+  "native_checks": 39,
+  "existing_checks": 165,
+  "source_sha256": {
+    "scripts/client-signoff-reconcile.js": "2809c98382ddf4a2900ecb6267000daf0621e3da0606fd0bcfe6fbb5abc2726b",
+    "scripts/client-signoff-native-verification.js": "c7555f8cfb447aef044b437e2d25b414f1e2b91928e9a8a2043cd6d6d4c64683",
+    "test/client-signoff-native-verification.js": "24106c7ecea2513f8d05261eb7f6d393badc056ba19497b84ba2d996e1496433"
+  },
+  "integration": [
+    "Initial read and pre-write revalidation call protected verifier.",
+    "Lossless string IDs, exact microsecond ordering, immutable row evidence across awaits.",
+    "Changed or unavailable verification refuses native repair; separate actionable report bucket."
+  ],
+  "prior_failure": "CLI fixture test initially used unsupported positional option and exited 1; corrected to --fixtures= with child credentials cleared. No apply requested.",
+  "limits": [
+    "RPC transport responses in these tests are synthetic; SQL verifier has separate 43-check evidence.",
+    "Actual SQL-integrated reconciler reader/planner/revalidation remains unproven.",
+    "Verifier release inventory and deployment preflight integration remain open.",
+    "Calendar final write remains separate from revalidation; whole-application freeze and hosted behavior unproven."
+  ],
+  "installation": "HOLD"
+}

@@ -85,6 +85,7 @@ const FIXTURES = String(argOf('fixtures') || '').trim();
 const LOOKBACK_DAYS = Number(process.env.LOOKBACK_DAYS || argOf('days') || 180);
 
 const REST = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1';
+const nativeVerification=require('./client-signoff-native-verification');
 const UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 const SYNCVIEW_STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
@@ -224,6 +225,11 @@ const normText = (s) => String(s == null ? '' : s).normalize('NFC').replace(/\s+
  * is the dangerous direction here — if it is a later reopen, the supersession
  * test never sees it and a stale approval gets restored. Every paged read is
  * therefore ordered by a unique column. */
+async function nativeAttest(ids) {
+ if(!SERVICE_KEY)throw Error('native_verifier_unavailable');
+ const res=await fetch(REST+'/rpc/production_native_signoff_verify',{method:'POST',headers:{apikey:SERVICE_KEY,Authorization:'Bearer '+SERVICE_KEY,'Content-Type':'application/json'},body:JSON.stringify({p_receipt_ids:ids})});
+ if(!res.ok)throw Error('native_verifier_unavailable');return res.json();
+}
 async function restRows(table, query, orderBy) {
   /* The order column is checked FIRST: a missing one is a defect in this file,
    * true in every environment, while a missing credential is environmental. */
@@ -269,7 +275,7 @@ async function loadWorld() {
      * `source_edited_at` is the client's own write clock and must be selected
      * or the code that prefers it silently falls back to `created_at`. */
     restRows('mirror_outbox',
-      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      'select=id_text:id::text,entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
       + 'role,client_slug,test_only'
       + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`, 'id'),
     restRows('production_comments',
@@ -291,6 +297,7 @@ async function loadWorld() {
       + 'video_deliverable_id,graphic_deliverable_id'
       + `&id=in.(${chunk})`, 'id'));
   }
+  await nativeVerification.verifyRows(outbox, nativeAttest);
   return { outbox, comments, deliverables, cards };
 }
 
@@ -677,12 +684,12 @@ function detect(world) {
     const at = String(pc.created_at || '');
     const key = requestKey(id, comp, pc.client_slug);
     const prev = latestClientRequest.get(key);
-    if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(key, at);
+    if (!prev || (nativeVerification.clock(at)&&nativeVerification.clock(prev)?nativeVerification.clock(at)>nativeVerification.clock(prev):Date.parse(at)>Date.parse(prev))) latestClientRequest.set(key, at);
   }
   /* A plain function, not an arrow: `arguments` in an arrow belongs to the
    * enclosing scope, so the guard would read detect()'s own arguments and fire
    * on every call. Same trap `resolve()` documents. */
-  function supersededByRequest(deliverableId, component, approvedAt, rowClient) {
+  function supersededByRequest(deliverableId, component, approvedAt, rowClient, exactNative=false) {
     if (arguments.length < 3) throw new Error('supersededByRequest needs a component');
     /* THE CLIENT IS REQUIRED, enforced by arity for the same reason `resolve()`
      * enforces its own: a default would silently accept `undefined` and answer
@@ -697,6 +704,7 @@ function detect(world) {
     ];
     const apprMs = Date.parse(approvedAt || '');
     return candidates.some(req => {
+      if(exactNative&&req){const a=nativeVerification.clock(approvedAt),b=nativeVerification.clock(req);if(!a||!b)return true;return b>a;}
       const reqMs = Date.parse(req || '');
       return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
     });
@@ -728,7 +736,9 @@ function detect(world) {
      * in the window, 4 are already stamped and would be noise; 1 is a genuinely
      * lost client approval that this job named nowhere before now. */
     const carrier = String((row && row.status) || '').toLowerCase();
-    if (carrier !== 'written') {
+    const nativeBinding=nativeVerification.evidence(row);
+    if(nativeVerification.candidate(row)&&row.payload?._native_ordinary_receipt&&!nativeBinding){skip({kind:'stamp',reason:'native_verification_required',client:row.client_slug,card:'(unidentified)',receipt_id:row.id_text,entity_id:row.entity_id});continue;}
+    if (carrier !== 'written' && !nativeBinding) {
       /* COLLECTED, NOT REPORTED HERE. Reporting at this point skips the
        * supersession checks the written path runs below, which would raise an
        * actionable-looking "lost approval" for a sign-off that is missing ON
@@ -833,12 +843,13 @@ function detect(world) {
     if (!at) continue;
     const key = cardKey(hit.card.client, hit.card.id) + '|' + comp;
     const prev = latestApprove.get(key);
-    if (!prev || Date.parse(at) > Date.parse(prev.at)) {
-      latestApprove.set(key, { at, card: hit.card, comp, deliverableId: String(hit.del.id) });
+    if (!prev || ((nativeBinding || prev.nativeBinding) && nativeVerification.clock(at) && nativeVerification.clock(prev.at) ? nativeVerification.clock(at) > nativeVerification.clock(prev.at) : Date.parse(at) > Date.parse(prev.at))) {
+      latestApprove.set(key, { at, card: hit.card, comp, deliverableId: String(hit.del.id), nativeBinding });
     }
   }
   for (const [key, entry] of latestApprove) {
-    const { card, comp, deliverableId } = entry;
+    const { card, comp, deliverableId, nativeBinding } = entry;
+    if(nativeBinding && world.outbox.some(r=>r!==null&&r.client_slug===nativeBinding.client_slug&&r.test_only!==true&&r.entity==='deliverable'&&r.operation==='status'&&r.entity_id===deliverableId&&r.payload?.status==='approved'&&r.role==='client'&&nativeVerification.clock(r.source_edited_at)>nativeBinding.source_edited_at)){skip({kind:'stamp',reason:'native_verification_newer_approval',client:card.client,card:card.id});continue;}
     /* THE LATEST COMMITTED APPROVAL IS THE OPERATIVE ONE, and a row exists in
      * `mirror_outbox` because the CLIENT'S WRITE COMMITTED — its status only
      * describes what the carrier did afterwards. So a later approve whose
@@ -861,7 +872,7 @@ function detect(world) {
      * client request has already refused — which is what "broad evidence for
      * leaving it alone, narrow evidence for repairing" has meant since round 1. */
     const later = unwrittenApprove.get(key);
-    const at = later && Date.parse(later.at) > Date.parse(entry.at) ? later.at : entry.at;
+    const at = nativeBinding ? nativeBinding.source_edited_at : later && Date.parse(later.at) > Date.parse(entry.at) ? later.at : entry.at;
     if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
     /* SUPERSEDED BY A LATER ROUND. The card's CURRENT status is not enough:
      * a client approves, the work is reopened (clearing the stamp), staff later
@@ -876,6 +887,7 @@ function detect(world) {
      * exactly such a forward transition. */
     const approvedMs = Date.parse(entry.at);
     const reopened = (transitionsByDeliverable.get(deliverableId) || []).some(t => {
+      if(nativeBinding&&reopensBelowApproved(t.status)){const a=nativeVerification.clock(entry.at),b=nativeVerification.clock(t.at);return !a||!b||b>a;}
       const ms = Date.parse(t.at);
       return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
     });
@@ -885,7 +897,7 @@ function detect(world) {
         card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
     }
-    if (supersededByRequest(deliverableId, comp, entry.at, card.client)) {
+    if (supersededByRequest(deliverableId, comp, entry.at, card.client, !!nativeBinding)) {
       skip({ kind: 'stamp', reason: 'superseded_by_later_client_request',
         card: card.id, client: card.client, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
       continue;
@@ -899,6 +911,7 @@ function detect(world) {
     repairedKeys.add(key);
     findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
       deliverable_id: deliverableId,
+      ...(nativeBinding?{native_receipt_binding:nativeBinding}:{}),
       detail: `sign-off stamp missing for a committed client approve (${at})` });
     /* THE CAPTION LEG OF A WHOLE-POST APPROVE, REPORTED AND NEVER WRITTEN.
      *
@@ -1396,10 +1409,11 @@ async function revalidate(world, finding) {
   let outbox = world.outbox;
   if (finding.deliverable_id) {
     const rows = await restRows('mirror_outbox',
-      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      'select=id_text:id::text,entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
       + 'role,client_slug,test_only'
       + `&operation=eq.status&entity=eq.deliverable`
       + `&entity_id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    await nativeVerification.verifyRows(rows,nativeAttest);
     outbox = world.outbox
       .filter(r => String(r && r.entity_id) !== String(finding.deliverable_id))
       .concat(rows);
@@ -1446,6 +1460,7 @@ async function revalidate(world, finding) {
   const again = detect({ outbox, comments, deliverables, cards: fresh });
   const match = again.findings.find(f =>
     f.kind === finding.kind
+    && JSON.stringify(f.native_receipt_binding||null)===JSON.stringify(finding.native_receipt_binding||null)
     && f.component === finding.component
     && String(f.card.id) === String(finding.card.id)
     && cardKey(f.card.client, f.card.id) === cardKey(finding.card.client, finding.card.id)
@@ -1567,16 +1582,18 @@ function classify({ findings, skipped }) {
    * were invisible in `NEEDS A PERSON`. Live today both are 0 rows — no cell
    * fails to parse and every named component is mapped — so this changes a
    * report nobody has seen yet, which is the cheapest time to change it. */
+  const nativeVerificationNeeded=skipped.filter(row=>row.reason==='native_verification_required');
   const undecidable = skipped.filter(row => UNDECIDABLE.has(row.reason));
   const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
     && !UNDECIDABLE.has(row.reason)
+    && row.reason!=='native_verification_required'
     && !row.crosswalk_broken
     && !(row.kind === 'stamp'
       && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write'))));
   const lines = [
     `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
     `NEEDS A PERSON (never written): `
-      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length + undecidable.length}  `
+      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length + undecidable.length + nativeVerificationNeeded.length}  `
       + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
       + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
       + `caption leg of a whole-post approve ${reportOnly.filter(f => f.kind === 'caption_leg').length}, `
@@ -1588,12 +1605,12 @@ function classify({ findings, skipped }) {
       + `request naming a review its deliverable cannot carry ${componentAmbiguous.length}, `
       + `card found but its deliverable's team names no review ${teamUnknown.length}, `
       + `card found but its deliverable's kind and team name different reviews ${kindTeamDisagree.length}, `
-      + `undecidable on a live card ${undecidable.length})`,
+      + `undecidable on a live card ${undecidable.length}, native approval verification unavailable ${nativeVerificationNeeded.length})`,
     `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
   ];
   return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
     carrierFailedUnknownCard, crosswalkBroken, cardMissing, linkStale, componentAmbiguous,
-    teamUnknown, kindTeamDisagree, undecidable, leftAlone, lines };
+    teamUnknown, kindTeamDisagree, undecidable, nativeVerificationNeeded, leftAlone, lines };
 }
 const summaryLines = (input) => classify(input).lines;
 
@@ -1606,9 +1623,10 @@ async function main() {
     + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
   log(`scanned: ${world.outbox.length} committed client status writes, `
     + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
-  const { writable, ambiguous, carrierFailed, crosswalkBroken, undecidable, leftAlone, lines } =
+  const { writable, ambiguous, carrierFailed, crosswalkBroken, undecidable, nativeVerificationNeeded, leftAlone, lines } =
     classify({ findings, skipped });
   for (const line of lines) log(line);
+  for(const row of nativeVerificationNeeded) log(`  native approval receipt ${row.receipt_id || "(invalid identity)"} entity ${row.entity_id || "(unknown)"} (${row.client || "(unknown client)"}): verification unavailable; card not established; REPORT ONLY`);
 
   const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
   for (const { finding, patch } of plan) {
@@ -1781,4 +1799,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { detect, summaryLines, classify, failureLine, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };
+module.exports = { loadWorld, revalidate, detect, summaryLines, classify, failureLine, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

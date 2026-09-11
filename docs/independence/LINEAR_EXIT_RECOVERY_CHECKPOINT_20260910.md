@@ -1264,3 +1264,8 @@ sign-off completion proof. The next build task is a typed admitted-native
 compatibility contract and negative controls, without treating all skipped rows
 as approvals. Include this caller in final admission/drain. Unrelated upstream
 truth/register and n8n snapshot changes were not imported or verified.
+
+
+## Native sign-off implementation contract
+
+The next build change is specified in [native sign-off contract](../ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md): a bounded service-only read-only verifier binds actual native receipts to the protected admission ledger, then initial detection and pre-write revalidation consume fresh verified identities. The ledger stays private and generic skipped receipts stay ineligible. This extension is unbuilt; the existing 165 checks do not prove it.

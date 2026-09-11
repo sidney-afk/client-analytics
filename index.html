@@ -22609,26 +22609,26 @@
         return _syncviewStaffIdentityValid() ? _syncviewStaffIdentityLoad() : null;
     }
     /* ---- Staff entry gate ----------------------------------------------
-       ADMISSION (may the app shell be used at all) is deliberately weaker
-       than VERIFICATION (may this action touch data). Verification is what
-       _syncviewStaffIdentityValid() reports and what every capability check
-       and every outbound header already requires; nothing below loosens it.
-       Admission additionally covers one case: the key verifier is briefly
-       unreachable (network/5xx, NOT a 401) and this browser holds an identity
-       it verified recently. Locking the whole team out of a read-only shell
-       over a Supabase blip costs more than it buys, and the grace window
-       grants no capability — writes still fail closed on the missing
-       verification. A 401 is never grace: that path clears the identity. */
-    const SYNCVIEW_STAFF_GRACE_MS = 24 * 60 * 60 * 1000;
-    function _syncviewStaffGraceActive() {
-        const identity = _syncviewStaffIdentityLoad();
-        if (!identity || !identity.key || !identity.member || !identity.member.id || !identity.role) return false;
-        const stamp = Date.parse(identity.verified_at || '');
-        return !!stamp && (Date.now() - stamp) < SYNCVIEW_STAFF_GRACE_MS && (Date.now() - stamp) > -60000;
-    }
-    function _syncviewStaffAdmitted() {
-        return _syncviewStaffIdentityValid() || _syncviewStaffGraceActive();
-    }
+       ADMISSION (may the app shell be opened) and VERIFICATION (may this
+       action touch data) are separate, and BOTH now require the key-verify
+       Edge Function to agree. Nothing the browser holds is ever treated as
+       proof: a stored identity is writable by hand in devtools, so it decides
+       only what to PAINT before the server answers.
+
+       An earlier revision of this change admitted the shell during a verifier
+       outage when the stored identity carried a recent `verified_at`, so that
+       a Supabase blip would not lock the team out. Codex caught it on #1385
+       and was right: `verified_at` is a field in that same hand-writable blob,
+       so anyone could set it to now, block ONLY the verifier request, and walk
+       into the shell -- the outage was manufacturable, which made the grace
+       window a bypass rather than a cushion. It also bought less than it
+       looked: every read the shell performs goes to the same Supabase host as
+       key-verify, so a genuine outage leaves the app empty anyway. The only
+       case it covered was key-verify alone being broken, which is precisely
+       the case an attacker can produce on demand. There is no offline proof to
+       replace it with -- an unforgeable one would have to be server-issued and
+       server-checked, which is what key-verify already is -- so the gate now
+       fails closed on every verification failure. */
     function _syncviewStaffIdentityStorageChanged(event) {
         if (!event || event.key !== SYNCVIEW_STAFF_IDENTITY_KEY) return;
         try { if (event.storageArea && event.storageArea !== localStorage) return; } catch (e) {}
@@ -23301,13 +23301,11 @@
                     else _syncviewStaffIdentityVerified = false;
                     _syncviewStaffRefreshChrome();
                     console.warn('[SyncView] staff key verifier unavailable; keeping auth permissive', e);
-                    // Verifier unreachable, key not rejected. A recently
-                    // verified browser keeps the read-only shell (writes still
-                    // fail closed); anything older gates.
-                    if (_syncviewStaffGateRequired()) {
-                        if (_syncviewStaffGraceActive()) _syncviewLiftStaffGate();
-                        else _syncviewOpenStaffGate();
-                    }
+                    // Verifier unreachable and the key was NOT rejected. The
+                    // door still fails closed: the only thing that could admit
+                    // here is the stored blob, and the stored blob is not
+                    // proof of anything (see the entry-gate note above).
+                    if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
                 }
                 return null;
             }

@@ -187,7 +187,26 @@ async function selectMember(page, member) {
       const style = getComputedStyle(el);
       return { background: style.backgroundColor, blur: style.backdropFilter || style.webkitBackdropFilter || '' };
     });
-    assert(scrim.background !== 'rgba(0, 0, 0, 0)' && scrim.blur.includes('blur(3px)'), 'staff sign-in uses a dimmed blurred scrim');
+    // Entry mode (the staff entry gate, 2026-09-10) deliberately drops the
+    // scrim: it is not a dialog over the app, it IS the page, and the gate
+    // cover behind it is already opaque. A scrim there would dim the gate's
+    // own ground and read as a modal over something reachable. The dimmed
+    // blurred scrim still belongs to the dialog form, which is asserted
+    // against the ungated standalone onboarding viewer below.
+    const entryGrounded = await page.evaluate(() => {
+      const overlay = document.getElementById('staffIdentityOverlay');
+      const cover = document.getElementById('staffGateOverlay');
+      return {
+        entry: overlay.classList.contains('is-entry'),
+        scrim: getComputedStyle(overlay).backgroundColor,
+        coverOpaque: getComputedStyle(cover).display !== 'none'
+          && !/rgba\(.*,\s*0\)$/.test(getComputedStyle(cover).backgroundColor),
+      };
+    });
+    assert(entryGrounded.entry && entryGrounded.scrim === 'rgba(0, 0, 0, 0)' && entryGrounded.coverOpaque,
+      'staff sign-in as the entry gate sits on its own opaque ground, with no scrim over a page that is not there');
+    assert(scrim.blur === '' || scrim.blur === 'none' || !scrim.blur.includes('blur(3px)'),
+      'and does not blur that ground');
 
     await page.fill('#staffIdentityKey', ADMIN_KEY);
     await page.click('#staffIdentitySubmit');

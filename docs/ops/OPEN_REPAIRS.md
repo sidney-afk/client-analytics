@@ -19145,13 +19145,23 @@ blob. Writing the naive version of this — gate on presence of the blob — wou
 have made the door forgeable in devtools, which is why `test/staff-entry-gate.js`
 drives that exact case in a real browser.
 
-**The grace window, and what it deliberately does not grant.** When the
-verifier is unreachable (network/5xx, never a 401) and this browser holds an
-identity verified within 24h, the shell stays open. It is read-only by
-construction: `_syncviewStaffIdentityValid()` still reports false, so every
-capability check and every outbound staff header still fails closed. A Supabase
-blip is a nuisance, not a team-wide lockout; an expired grace gates. Both
-branches are covered.
+**The grace window that was in the first revision, and why it is gone.** The
+first cut of this admitted the shell during a verifier outage when the stored
+identity carried a `verified_at` within 24h, so a Supabase blip would not lock
+the team out. Codex's review of #1385 flagged it P1 and was right: `verified_at`
+is a field in the same hand-writable blob, so anyone could set it to now, block
+ONLY the verifier request, and walk into the shell. The "outage" was
+manufacturable, which made it a bypass rather than a cushion. It also bought
+less than it looked: every read the shell performs goes to the same Supabase
+host as `key-verify`, so a genuine outage leaves the app empty anyway; the sole
+case it covered was `key-verify` alone being broken, which is exactly the case
+an attacker can produce on demand. There is no offline substitute — an
+unforgeable proof would have to be server-issued and server-checked, which is
+what `key-verify` already is — so **the gate fails closed on every verification
+failure**, not only a 401. The cost is accepted: a `key-verify` outage while the
+rest of Supabase is healthy locks staff out until it is redeployed. The two
+guards that asserted the old behaviour now assert the closed one, including a
+fresh timestamp plus a blocked verifier.
 
 **Blast radius that mattered more than the feature.** Surfaces with their own
 access model must never meet this gate: `?c=` client share links, `?intake=1`,

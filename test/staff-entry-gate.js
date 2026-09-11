@@ -123,28 +123,33 @@ function identity(verifiedAt) {
       await context.close();
     }
 
-    // 3. Verifier unreachable, key never rejected: a recently verified browser
-    //    keeps the read-only shell. A Supabase blip is not a lockout.
+    // 3. THE OTHER LOAD-BEARING NEGATIVE, and the one this file exists for
+    //    after Codex's P1 on #1385: a verifier outage is NOT a way in. An
+    //    earlier revision admitted the shell when the stored identity carried
+    //    a recent `verified_at` -- but that field lives in the same blob the
+    //    attacker writes, and blocking only the verifier request is something
+    //    any visitor can do, so the "outage" was manufacturable on demand.
     {
       const { context, page } = await openPage(browser, origin, {
         identity: identity(new Date().toISOString()), keyVerify: 'down'
       });
-      await page.waitForTimeout(2500);
-      const grace = await state(page);
-      ok(!grace.cover && !grace.card, 'a recently verified browser rides out a verifier outage');
-      ok(grace.verified === false,
-        'THE LOAD-BEARING NEGATIVE: riding it out is NOT verification -- every write still '
-        + 'fails closed, so the grace window can never become a way to act unverified');
+      await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
+      const down = await state(page);
+      ok(down.cover && down.card,
+        'a fresh `verified_at` plus a blocked verifier does NOT open the shell: '
+        + 'the door fails closed on every verification failure, not just a 401');
+      ok(down.verified === false, 'and nothing on that path is treated as verified');
       await context.close();
     }
 
-    // 4. ...but the grace window is a window. An old identity re-verifies or gates.
+    // 4. The same holds for an old identity: there is no timestamp, recent or
+    //    stale, that substitutes for the server answering.
     {
       const stale = new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString();
       const { context, page } = await openPage(browser, origin, { identity: identity(stale), keyVerify: 'down' });
       await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
       const expired = await state(page);
-      ok(expired.cover && expired.card, 'an identity last verified two days ago gates when the verifier is unreachable');
+      ok(expired.cover && expired.card, 'an older stored identity gates just the same when the verifier is unreachable');
       await context.close();
     }
 

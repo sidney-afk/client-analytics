@@ -854,3 +854,33 @@ open. The pair verifier alone still cannot infer snapshot provenance from bytes.
 Installation remains HOLD; no merge, deployment or hosted/n8n writes occurred.
 
 Default recovery regression after the optional hook: PG16 recovery-upstream-ledger PASS31/52, receipt linear-exit-recovery-upstream-ledger-74c52cbeebea44d2a3fc77d87b8115c6, exit0 and server stopped. Existing ordered baseline and restored upstream-ledger proof retained. This separate run does not reconstruct the companion.
+
+## Combined reconstruction component
+
+`reconstructPairSql` authenticates the actual parent and companion bytes before
+building one transaction. It loads nine-table rows before post-data constraints
+and triggers, retains parent schema/digest/sequence verification, then verifies
+exact companion row multisets and key shapes. Other parent-omitted tables must
+remain empty. The parent manifest's omitted list retains its original meaning;
+companion coverage is separate. Default reconstruction has no supplement.
+
+ISOLATED_POSTGRES PG16: 11 checks pass in
+`linear-exit-priority-restore-202b7e706a274650b786cce7c9064855`, exit zero and
+owned server stopped. This includes the seven snapshot cases plus all-nine
+population, successful restricted-target reconstruction, late type failure
+rollback and injected duplicate-loss verification rollback. The source has 52
+synthetic parent tables and nine populated companion tables. The duplicate-loss
+fault is test-only SQL manipulation; the production generator exposes no raw
+SQL injection callback. Both negative restores leave the public schema empty.
+
+Retained failure: `linear-exit-priority-restore-f7cf9109732044568a07644ed484201b`
+lacked required platform roles in the bare test target scaffold. The fixture now
+creates those roles explicitly; no target guard was relaxed. Offline recovery
+package checks remain 18 PASS and pair checks nine PASS. The earlier 31/52
+application-shaped recovery run predates this renderer change and is not a new
+combined application recovery result.
+
+This closes synthetic combined reconstruction only. Real application triggers,
+foreign keys, full schema composition, source sequence fencing, referenced object
+custody, hosted restore and durable pair publication remain unproven. No merge,
+deployment, production or n8n write occurred. Installation remains HOLD.

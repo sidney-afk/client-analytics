@@ -209,3 +209,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - scripts/linear-exit-priority-capture.js: opt-in shared-snapshot in-memory recovery pair capture.
 - test/linear-exit-priority-snapshot-postgres.js: synthetic concurrent-write snapshot and failure cleanup proof.
+
+- scripts/linear-exit-priority-reconstruct.js: authenticated companion SQL sections for atomic pair restore.
+- test/linear-exit-priority-restore-postgres.js: combined restricted-target synthetic pair reconstruction.

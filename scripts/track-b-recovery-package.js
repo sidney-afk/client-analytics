@@ -1030,6 +1030,16 @@ function inTransactionVerificationSql(manifest) {
 }
 
 function reconstructSql(pkg) {
+  return renderReconstruction(pkg, null);
+}
+
+function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
+  const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
+  const supplement = require('./linear-exit-priority-reconstruct').sections(pair.companion, pair.parent.manifest);
+  return renderReconstruction(pair.parent, supplement);
+}
+
+function renderReconstruction(pkg, supplement) {
   const { manifest, corpus, data, schema } = pkg;
   const deferred = verifyDeferredDefaults([...schema.pre.statements, ...schema.post.statements], manifest, backup.parseStrictPgDump(data, corpus));
   const before = deferredDefaultPlan(schema.pre.statements, !!manifest.deferred_defaults);
@@ -1041,10 +1051,12 @@ function reconstructSql(pkg) {
     targetPrerequisiteSql(manifest),
     ...before.statements.map(text => `${text};`),
     backup.renderSafeCopySections(data, corpus).trimEnd(),
+    ...(supplement ? [supplement.beforePost] : []),
     ...sequenceValueSql(manifest),
     ...deferred.defaults.map(item => `ALTER TABLE public.${item.table} ALTER COLUMN ${item.column} SET DEFAULT ${item.expression};`),
     ...schema.post.statements.map(text => `${text};`),
     inTransactionVerificationSql(manifest),
+    ...(supplement ? [supplement.verify] : []),
     'commit;',
     '',
   ].join('\n');
@@ -1437,6 +1449,7 @@ module.exports = {
   prerequisitesSql,
   readRecoveryPackage,
   reconstructSql,
+  reconstructPairSql,
   recoveryName,
   requiredExtensions,
   runPsql,

@@ -1212,5 +1212,23 @@
       "exit": 0,
       "server_stopped": true
     }
+  },
+  "priority_combined_restore": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 11,
+    "receipt": "linear-exit-priority-restore-202b7e706a274650b786cce7c9064855",
+    "exit": 0,
+    "server_stopped": true,
+    "populated_companion_tables": 9,
+    "parent_tables": 52,
+    "actual_pair_reconstruction": true,
+    "late_type_and_duplicate_loss_rollback": true,
+    "retained_failure": "linear-exit-priority-restore-f7cf9109732044568a07644ed484201b",
+    "synthetic_schema_only": true,
+    "complete_application_schema_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_restore_proven": false,
+    "installation_ready": false
   }
 }

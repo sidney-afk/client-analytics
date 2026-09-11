@@ -207,3 +207,10 @@ for the integrated parent/companion snapshot rehearsal. The lane requires an
 owned disposable server and uses synthetic schema/data, not hosted captures.
 Consult RESULTS.md for run-specific outcomes; selecting the lane is not proof
 of complete recovery, sequence consistency or an authorized release.
+
+Use `-Lane priority-restore` for the combined synthetic parent/companion restore
+rehearsal. The prepared `reconstructPairSql` API authenticates both byte buffers,
+loads the companion before post-data constraints/triggers, and verifies covered
+rows plus remaining omitted-table emptiness before the single commit. It does
+not execute SQL itself or authorize a hosted target. Run-specific results and
+remaining application-schema/custody limits are recorded in RESULTS.md.

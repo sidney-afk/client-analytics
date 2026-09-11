@@ -218,3 +218,6 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md: missing owner integration and application proof requirements.
 
 - docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_GAPS_20260910.json: retained actual application schema gap report.
+
+- scripts/linear-exit-priority-schema-supplement.js: pinned known-owner schema supplement, excluding application seeds.
+- docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SUPPLEMENT_20260910.json: retained eight-exact/one-missing composition evidence.

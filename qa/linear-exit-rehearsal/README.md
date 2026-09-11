@@ -221,3 +221,5 @@ owners or synthetic priority tables. It emits a sanitized catalog gap report and
 exits nonzero unless all nine exact row/key shapes match. Missing/mismatched
 results remain failures; they do not invalidate the separately scoped synthetic
 round-trip tests or establish a complete application backup.
+
+Use -Lane priority-application-supplement for the explicit four-source supplement before the same strict nine-table comparison. It stays separate from the published inventory and fails while any table is missing.

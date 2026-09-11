@@ -1243,5 +1243,17 @@
     "application_rows_read": false,
     "additional_application_owners_applied": false,
     "installation_ready": false
+  },
+  "priority_application_supplement": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_GAP_PROBE",
+    "status": "FAIL",
+    "exact_tables": 8,
+    "missing_tables": 1,
+    "receipt": "linear-exit-priority-application-supplement-a2a72555281941a6b3f3e64ceaf3ff09",
+    "exit": 1,
+    "server_stopped": true,
+    "published_inventory_unchanged": true,
+    "application_seed_rows_executed": false,
+    "installation_ready": false
   }
 }

@@ -212,3 +212,24 @@ The owner/dependency and acceptance plan is in
 `docs/ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md`. Preserve this failing
 probe while preparing explicitly scoped missing owners; the untraced backup
 still requires provenance/full-schema evidence. Installation remains HOLD.
+
+## Explicit known-owner supplement result
+
+The optional PG16 priority-application-supplement lane reaches eight exact row/key
+contracts and one missing table, with overall FAIL preserved. Receipt:
+`linear-exit-priority-application-supplement-a2a72555281941a6b3f3e64ceaf3ff09`,
+exit1, owned server stopped. The only missing table is
+batches_parent_claim_backup_20260824. No definition was manufactured for it.
+
+The separate helper pins four complete source hashes before execution. Samples
+and filming use deterministic schema excerpts excluding application seeds;
+thumbnail base and v2 execute in order using the existing disclosed platform
+scaffold. Public report LINEAR_EXIT_PRIORITY_APPLICATION_SUPPLEMENT_20260910.json
+contains source/excerpt hashes, not SQL or seed values. The original 63-entry
+inventory and default five-exact/four-missing probe are unchanged.
+
+This closes composition of the three known missing table owners in this scoped
+supplement only. Application-shaped populated capture/restore, thumbnail behavior,
+complete platform/schema equivalence and backup provenance remain open. Sequence
+fencing, Storage object custody and durable package publication are separate.
+Installation remains HOLD; no merge, deployment or hosted/n8n writes occurred.

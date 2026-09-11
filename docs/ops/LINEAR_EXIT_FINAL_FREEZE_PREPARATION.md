@@ -96,3 +96,13 @@ status-update handler commits row and event while the outbox lock remains held,
 under service_role with explicit source ACL supplements. This closes the narrow
 question of whether that lock alone freezes this path: it does not. All proposed
 admission/drain mechanisms and the remaining race matrix stay unproven.
+
+## Response completion is insufficient: isolated evidence
+
+The optional -DeferredEvents lane pauses actual event SQL at the SDK seam,
+observes a successful response and committed status with the event absent, then
+releases and verifies the real event. See
+../independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json. The handler and its
+captured dependency hashes remain unchanged. This closes one required race
+observation; it does not supply the missing request-admission or durable drain
+mechanism. Never derive a final export boundary from completed HTTP responses.

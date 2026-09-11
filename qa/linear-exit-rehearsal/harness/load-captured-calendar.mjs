@@ -7,7 +7,7 @@ export const captureHashes = {
   'functions/calendar-upsert/index.ts': '5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada',
   'functions/_shared/thumbnail-revisions.ts': 'fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9',
 };
-export async function loadCapturedCalendar() {
+export async function loadCapturedCalendar({sdkModulePath} = {}) {
   const captureRoot = path.resolve(process.env.PROOF_HARNESS_ROOT, '../serving');
   for (const [file, expected] of Object.entries(captureHashes)) {
     const actual = createHash('sha256').update(fs.readFileSync(path.join(captureRoot, file))).digest('hex');
@@ -18,7 +18,7 @@ export async function loadCapturedCalendar() {
     if (source.split(needle).length !== 2) throw Error('captured writer seam drift: ' + needle);
     source = source.replace(needle, replacement);
   }
-  once('"npm:@supabase/supabase-js@2.49.8"', JSON.stringify(pathToFileURL(path.join(process.env.PROOF_HARNESS_ROOT, 'sdk.mjs')).href));
+  once('"npm:@supabase/supabase-js@2.49.8"', JSON.stringify(pathToFileURL(sdkModulePath || path.join(process.env.PROOF_HARNESS_ROOT, 'sdk.mjs')).href));
   once('"../_shared/thumbnail-revisions.ts"', JSON.stringify(pathToFileURL(path.join(captureRoot, 'functions/_shared/thumbnail-revisions.ts')).href));
   once('Deno.serve(', 'globalThis.__capturedCalendarServe(');
   const generated = path.join(process.env.PROOF_OUTPUT_ROOT, 'captured-calendar-generated.ts');

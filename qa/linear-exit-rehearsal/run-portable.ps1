@@ -6,6 +6,7 @@ param(
  [switch]$SequenceBounds,
  [switch]$NativeIdentifiers,
  [switch]$EncryptedCredentials,
+ [switch]$DeferredEvents,
  [string]$OutputRoot
 )
 # Windows, preinstalled PG16/17 + Node22+ + Git Bash only. No installation or
@@ -13,6 +14,7 @@ param(
 $ErrorActionPreference='Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'This runner requires Windows.' }
 if ($Lane -eq 'journey' -and !$ServingMode) { throw 'Journey requires explicit -ServingMode.' }
+if ($DeferredEvents -and $Lane -ne 'calendar-freeze') { throw 'DeferredEvents is restricted to calendar-freeze.' }
 if ($EncryptedCredentials -and $Lane -ne 'credential-recovery') { throw 'EncryptedCredentials is restricted to credential-recovery.' }
 if ($NativeIdentifiers -and $Lane -ne 'priority-application-recovery') { throw 'NativeIdentifiers is restricted to priority-application-recovery.' }
 if ($SequenceBounds -and $Lane -ne 'priority-application-recovery') { throw 'SequenceBounds is restricted to priority-application-recovery.' }
@@ -154,10 +156,14 @@ try {
  if ($SequenceBounds) { $arguments+= '--sequence-bounds' }
  if ($NativeIdentifiers) { $arguments+= '--native-identifiers' }
  if ($EncryptedCredentials) { $arguments+= '--encrypted' }
+ if ($DeferredEvents) { $arguments+= '--deferred-events' }
  if ($Lane -in @('priority-application-supplement','priority-observed-baseline')) { $arguments+= '--supplement-three' }
  if ($Lane -eq 'priority-observed-baseline') { $arguments+= '--observed-backup' }
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
+ if ($result -eq 0 -and $DeferredEvents) {
+  if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_CALENDAR_DEFERRED_GAP_PROVEN' -Quiet)) { throw 'Required deferred Calendar marker missing.' }
+ }
 
  if ($result -eq 0 -and $EncryptedCredentials) {
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_CREDENTIAL_ENCRYPTED_RECOVERY_OK' -Quiet)) { throw 'Required encrypted credential recovery marker missing.' }

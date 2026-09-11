@@ -1,0 +1,50 @@
+{
+  "marker": "LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN",
+  "deferred_event_response_gap_proven": true,
+  "calendar_row_and_event_committed_under_outbox_lock": true,
+  "global_freeze_proven": false,
+  "activation_authorized": false,
+  "source_owner": "migrations/2026-06-18-atomic-comment-merge.sql",
+  "source_sha256": "c354f499112921e8c6056f5ac9018cfd480d46e173c036e29cfe8165f7769927",
+  "selective_acl_supplement": {
+    "source": "migrations/live-schema-baseline-2026-07-03.sql",
+    "source_sha256": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+    "statement_count": 7,
+    "statements": [
+      "grant delete on table public.calendar_posts to service_role;",
+      "grant insert on table public.calendar_posts to service_role;",
+      "grant references on table public.calendar_posts to service_role;",
+      "grant select on table public.calendar_posts to service_role;",
+      "grant trigger on table public.calendar_posts to service_role;",
+      "grant truncate on table public.calendar_posts to service_role;",
+      "grant update on table public.calendar_posts to service_role;"
+    ]
+  },
+  "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+  "capture_hashes": {
+    "functions/calendar-upsert/index.ts": "5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada",
+    "functions/_shared/thumbnail-revisions.ts": "fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9"
+  },
+  "scope": "ISOLATED_CAPTURED_HANDLER_SQL",
+  "sdk_transport": "SQL adapter, not hosted PostgREST",
+  "deferred_callbacks_drained": true,
+  "network_attempts": 0,
+  "handler_database_role": "service_role",
+  "deferred_marker": {
+    "marker": "LINEAR_EXIT_CALENDAR_DEFERRED_GAP_PROVEN",
+    "response_and_row_preceded_event": true,
+    "real_event_released_and_persisted": true
+  },
+  "result": "PASS_CONTROLLED_RESPONSE_EVENT_GAP",
+  "installation": "HOLD",
+  "receipt_directory": "linear-exit-calendar-freeze-36494075c6a84067b5cb0e0fa629a4d6",
+  "unit_log_sha256": "6ed20522a262e0b7c8e0d7a3f0a287f106429405a387c0bc8f3bc74d595b0fa3",
+  "server_stopped": true,
+  "limits": [
+    "Actual captured v49 source with controlled SDK event delay and real service-role PostgreSQL; not hosted PostgREST/Deno.",
+    "Only scalar status and its event; comments, Samples, background tweak effects and complete caller closure unproven.",
+    "No final export or restoration performed by this test.",
+    "Completion of this controlled event is not a production drain mechanism.",
+    "Default earlier probe and failed runs remain in LINEAR_EXIT_CALENDAR_FREEZE_20260911.json."
+  ]
+}

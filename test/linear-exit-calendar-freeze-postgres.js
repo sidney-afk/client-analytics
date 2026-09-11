@@ -25,7 +25,18 @@ async function main(){try{
  globalThis.EdgeRuntime={waitUntil:p=>pending.push(Promise.resolve(p))};
  globalThis.fetch=async()=>{fetchAttempts++;throw Error('NETWORK_FORBIDDEN');};
  const {loadCapturedCalendar,captureHashes}=await import(pathToFileURL(path.join(process.env.PROOF_HARNESS_ROOT,'load-captured-calendar.mjs')).href);
- const handler=await loadCapturedCalendar();
+ const deferred=process.argv.includes('--deferred-events');
+ let releaseEvents;let eventAttempted=false;let sdkModulePath;
+ if(deferred){
+ const gate=new Promise(resolve=>releaseEvents=resolve);
+ globalThis.__calendarEventGate=()=>{eventAttempted=true;return gate;};
+ sdkModulePath=path.join(process.env.PROOF_OUTPUT_ROOT,'calendar-deferred-sdk.mjs');
+ const realSdk=pathToFileURL(path.join(process.env.PROOF_HARNESS_ROOT,'sdk.mjs')).href;
+ fs.writeFileSync(sdkModulePath,`import * as real from ${JSON.stringify(realSdk)};
+ export const SupabaseClient=real.SupabaseClient;
+ export function createClient(...args){const client=real.createClient(...args);return {...client,from(table){const b=client.from(table);if(table!=='calendar_post_events')return b;return new Proxy(b,{get(target,key){if(key==='then')return (resolve,reject)=>globalThis.__calendarEventGate().then(()=>target.then(resolve,reject));const value=Reflect.get(target,key);return typeof value==='function'?(...a)=>{const result=value.apply(target,a);return result===target?new Proxy(target,this):result;}:value;}});}};}`);
+ }
+ const handler=await loadCapturedCalendar({sdkModulePath});
  const before=cluster.scalarJson(`select jsonb_build_object('events',(select count(*) from public.calendar_post_events where post_id='synthetic-freeze-card'),'outbox',(select count(*) from public.mirror_outbox))`);
  stage='outbox-lock';
  locker=cp.spawn(cluster.psql,['-X','-q','-t','-A','-v','ON_ERROR_STOP=1','-h',cluster.host,'-p',cluster.port,'-U',cluster.user,'-d',cluster.db],{windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,PGCLIENTENCODING:'UTF8'}});
@@ -39,12 +50,18 @@ async function main(){try{
  const role=await shim.runSql('select current_user;');assert.equal(role.status,0);assert.equal(role.stdout.trim(),'service_role');
  const response=await handler.post({client:'synthetic-freeze',post:{id:'synthetic-freeze-card',status:'Published'}},{'content-type':'application/json','x-syncview-source':'ui'});
  assert.equal(response.status,200);const result=await response.json();assert.equal(result.ok,true);assert.notEqual(result._conflict,true);
+ if(deferred){
+ assert.equal(eventAttempted,true);process.env.PGOPTIONS=priorOptions;
+ const boundary=cluster.scalarJson(`select jsonb_build_object('status',(select status from public.calendar_posts where id='synthetic-freeze-card' and client='synthetic-freeze'),'events',(select count(*) from public.calendar_post_events where post_id='synthetic-freeze-card'))`);
+ assert.equal(boundary.status,'Published');assert.equal(boundary.events,before.events);assert.equal(locked(),true);
+ process.env.PGOPTIONS=priorOptions+' -c role=service_role';releaseEvents();
+ }
  await Promise.all(pending);process.env.PGOPTIONS=priorOptions;assert.equal(locked(),true);assert.equal(fetchAttempts,0);
  const after=cluster.scalarJson(`select jsonb_build_object('status',(select status from public.calendar_posts where id='synthetic-freeze-card' and client='synthetic-freeze'),'events',(select count(*) from public.calendar_post_events where post_id='synthetic-freeze-card'),'action',(select action from public.calendar_post_events where post_id='synthetic-freeze-card' order by id desc limit 1),'outbox',(select count(*) from public.mirror_outbox))`);
  assert.equal(after.status,'Published');assert.equal(after.events,before.events+1);assert.equal(after.action,'status_change');assert.equal(after.outbox,before.outbox);
  locker.stdin.end('rollback;\n');await new Promise(resolve=>locker.once('close',resolve));locker=null;
  assert.equal(locked(),false);
- console.log(JSON.stringify({marker:'LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN',calendar_row_and_event_committed_under_outbox_lock:true,global_freeze_proven:false,activation_authorized:false,source_owner:owner,source_sha256:hash,selective_acl_supplement:{source:aclSource,source_sha256:aclHash,statement_count:aclStatements.length,statements:aclStatements},inventory_sha256:inventory.inventory_sha256,capture_hashes:captureHashes,scope:'ISOLATED_CAPTURED_HANDLER_SQL',sdk_transport:'SQL adapter, not hosted PostgREST',deferred_callbacks_drained:true,network_attempts:fetchAttempts,handler_database_role:"service_role"}));
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN',deferred_event_response_gap_proven:deferred,calendar_row_and_event_committed_under_outbox_lock:true,global_freeze_proven:false,activation_authorized:false,source_owner:owner,source_sha256:hash,selective_acl_supplement:{source:aclSource,source_sha256:aclHash,statement_count:aclStatements.length,statements:aclStatements},inventory_sha256:inventory.inventory_sha256,capture_hashes:captureHashes,scope:'ISOLATED_CAPTURED_HANDLER_SQL',sdk_transport:'SQL adapter, not hosted PostgREST',deferred_callbacks_drained:true,network_attempts:fetchAttempts,handler_database_role:"service_role"}));
+ if(deferred)console.log(JSON.stringify({marker:'LINEAR_EXIT_CALENDAR_DEFERRED_GAP_PROVEN',response_and_row_preceded_event:true,real_event_released_and_persisted:true}));
  }catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'calendar-freeze.private-error.log'),String(e.stack||e));console.error(JSON.stringify({marker:'LINEAR_EXIT_CALENDAR_FREEZE_FAILED',stage}));process.exitCode=1;}finally{if(originalPgOptions===undefined)delete process.env.PGOPTIONS;else process.env.PGOPTIONS=originalPgOptions;if(locker){locker.stdin.end('rollback;\n');await new Promise(resolve=>{locker.once('close',resolve);setTimeout(()=>{locker.kill();resolve();},2000);});}cluster.stop();}}
 main();
-

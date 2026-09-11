@@ -287,3 +287,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/linear-exit-calendar-freeze-postgres.js: captured Calendar service-role row/event crossing of held outbox lock.
 - docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json: isolated counterexample and exact source supplements.
+
+- docs/independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json: controlled response-before-event SQL evidence.

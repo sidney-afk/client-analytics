@@ -1245,3 +1245,8 @@ See [final freeze preparation](../ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md) f
 ## Captured Calendar lock counterexample (2026-09-11)
 
 The actual captured Calendar v49 handler, using the SQL adapter with asserted service_role, commits a status change and one semantic event while a separate mirror_outbox lock remains held. See docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json. This proves that outbox locking alone is insufficient in this isolated composed schema. The test supplements the baseline with the exact comment-RPC source and seven dated-source Calendar ACL statements; earlier fixture and missing-ACL failures remain recorded. It does not prove hosted behavior, a complete freeze, comment races or deferred-work drain under a paused request. Installation HOLD.
+
+
+## Calendar response/event boundary (2026-09-11)
+
+The optional calendar-freeze -DeferredEvents rehearsal passes with actual captured v49 source: HTTP success and persisted status precede a deliberately paused semantic-event SQL submission; releasing it persists the event under the held outbox lock. Evidence: docs/independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json. This rules out treating HTTP completion as full write completion. It does not implement admission/drain, perform final export, or prove hosted behavior. Installation HOLD.

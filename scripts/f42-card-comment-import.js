@@ -110,6 +110,28 @@ function productionId(surface, cardId, component, nativeId) {
     .digest('hex');
 }
 
+/* THE IMPORTED ROW'S IDENTITY: THE DERIVATION AND THE HASH, TOGETHER.
+ *
+ * `productionId` alone is only half of it. WHICH value goes in as `nativeId` is
+ * the other half, and it is not obvious: the entry's own `id`, falling back to
+ * `comment_id` then `native_comment_id`, each trimmed. A caller that hashes a
+ * raw `entry.id` gets a DIFFERENT fingerprint for the same entry and concludes
+ * the row does not belong to it.
+ *
+ * That is not hypothetical. `scripts/client-signoff-reconcile.js` recomputes
+ * this fingerprint to recognise the rows this importer created, and its first
+ * version restated the derivation instead of calling it. Exported and called
+ * from both places so the two cannot drift — the same lesson the reconciler's
+ * own renderer rules were rewritten six times to learn. */
+function cardEntryNativeId(raw) {
+  return clean(raw && (raw.id || raw.comment_id || raw.native_comment_id));
+}
+
+function cardEntryProductionId(surface, cardId, component, raw) {
+  const nativeId = cardEntryNativeId(raw);
+  return nativeId ? productionId(surface, cardId, component, nativeId) : '';
+}
+
 function safeAttachments(value) {
   return arrayValue(value).slice(0, 20).map(raw => {
     const item = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -647,7 +669,7 @@ function planSurface(input, options = {}) {
         list.forEach(raw => conflicts.push({
           classification: 'missing_client_slug',
           surface, card_id: cardId, component,
-          native_comment_id: clean(raw.id || raw.comment_id || raw.native_comment_id) || null,
+          native_comment_id: cardEntryNativeId(raw) || null,
         }));
         continue;
       }
@@ -664,7 +686,7 @@ function planSurface(input, options = {}) {
         list.forEach(raw => deferrals.push({
           classification: 'missing_deliverable_id',
           surface, card_id: cardId, component,
-          native_comment_id: clean(raw.id || raw.comment_id || raw.native_comment_id) || null,
+          native_comment_id: cardEntryNativeId(raw) || null,
           reason: 'card_has_no_native_deliverable_binding',
         }));
         continue;
@@ -678,7 +700,7 @@ function planSurface(input, options = {}) {
       });
       if (crosswalk.deferrals.length || crosswalk.defects.length) {
         list.forEach(raw => {
-          const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id) || null;
+          const nativeId = cardEntryNativeId(raw) || null;
           crosswalk.deferrals.forEach(issue => deferrals.push({ ...issue, native_comment_id: nativeId }));
           crosswalk.defects.forEach(issue => defects.push({ ...issue, native_comment_id: nativeId }));
         });
@@ -688,7 +710,7 @@ function planSurface(input, options = {}) {
       const rawByNativeId = new Map();
       const parentNativeById = new Map();
       list.forEach(raw => {
-        const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id);
+        const nativeId = cardEntryNativeId(raw);
         if (!nativeId) return;
         if (!idMap.has(nativeId)) idMap.set(nativeId, productionId(surface, cardId, component, nativeId));
         if (!rawByNativeId.has(nativeId)) rawByNativeId.set(nativeId, raw);
@@ -709,7 +731,7 @@ function planSurface(input, options = {}) {
         return ownAudience(rawByNativeId.get(cursor) || {});
       };
       list.forEach(raw => {
-        const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id);
+        const nativeId = cardEntryNativeId(raw);
         if (!nativeId) {
           conflicts.push({ classification: 'missing_comment_id', surface, card_id: cardId, component });
           return;
@@ -1061,6 +1083,8 @@ module.exports = {
   firstNulPath,
   nulByteConflicts,
   attachmentConflicts,
+  cardEntryNativeId,
+  cardEntryProductionId,
   commentsFor,
   isExplicitlyInternal,
   isValidTimestampValue,

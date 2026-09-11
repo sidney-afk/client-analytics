@@ -2577,6 +2577,13 @@ check('a caption that is not split raises nothing', () => {
    own source entry marked done, and was reported as an "ambiguous repeat".
    Seven of the nine rows on the first live run were this, and all seven were
    noise: a row cannot be missing from the card it was copied out of. */
+/* AN INDEPENDENT HASH, DELIBERATELY NOT THE IMPORTER'S FUNCTION.
+   The first draft of these checks built the fixture's row id by calling
+   `cardEntryProductionId`, the very thing under test — so narrowing the
+   importer's derivation moved BOTH sides together and the sabotage control
+   passed while broken. A check that computes its expectation with the code it
+   is checking asserts only that the code agrees with itself. This spells the
+   fingerprint out once, here, as the fixed point both sides must meet. */
 const backfillId = (cardId, component, nativeId) =>
   'pc_card_' + require('node:crypto').createHash('sha256')
     .update(['calendar', cardId, component, nativeId].join(':')).digest('hex');
@@ -2624,6 +2631,54 @@ check('a backfill id cannot claim a hidden entry', () => {
     cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
   }));
   assert.equal(findings.length, 1, 'hidden is not delivered, whatever the id says');
+});
+
+/* ROUND 2 of the backfill PR. The importer TRIMS the id and falls back to
+   `comment_id` then `native_comment_id`. The first version of this fix hashed a
+   raw `entry.id`, so for any entry in those shapes it produced a different
+   fingerprint than the row actually carries, and the false positive survived
+   exactly where it was supposed to die. Live today all 9,005 card entries carry
+   a clean `id`, so no live row moves — the point is that the copy could not
+   drift, because there is no longer a copy. */
+check('an entry the importer would have named differently is still recognised', () => {
+  for (const [label, entryFields] of [
+    ['whitespace around the id', { id: '  c_native_1  ' }],
+    ['no id, but a comment_id', { comment_id: 'c_native_1' }],
+    ['no id, but a native_comment_id', { native_comment_id: 'c_native_1' }],
+  ]) {
+    const entry = Object.assign({ body: 'Please fix the intro', role: 'client',
+      is_tweak: true, done: true }, entryFields);
+    /* Named by the INDEPENDENT hash of the id the importer would have derived
+       (trimmed, with its fallbacks), so this fails if the reconciler stops
+       following that derivation. */
+    const pcId = backfillId('card-1', 'video', 'c_native_1');
+    const { findings, skipped } = detect(world({
+      comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    /* BOTH BUCKETS. When the fingerprint fails to match, the row does not
+       become a finding — it lands in `skipped` as an ambiguous repeat, which is
+       the original false positive wearing a different hat. A first draft of
+       this check asserted only `findings` and therefore passed under two
+       sabotages of the derivation it exists to pin. */
+    assert.equal(findings.length, 0, `${label}: the entry IS the row`);
+    assert.equal(skipped.filter(r => r.reason === 'ambiguous_repeat_of_completed_request').length, 0,
+      `${label}: and it is not an ambiguity for a person either`);
+  }
+});
+
+/* AND THE FINGERPRINT IS NOT REBUILT HERE. A future session recomputing the
+   hash in this file would reintroduce exactly the drift round 2 found, so the
+   source is asserted to call the importer rather than to own a copy. */
+check('the reconciler calls the importer for this identity, it does not rebuild it', () => {
+  const src = stripComments(require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8'));
+  assert.match(src, /require\('\.\/f42-card-comment-import\.js'\)/,
+    'the importer owns this identity');
+  assert.doesNotMatch(src, /createHash\('sha256'\)/,
+    'no local re-implementation of the fingerprint');
+  assert.doesNotMatch(src, /'pc_card_'/,
+    'not even the prefix is spelled out twice');
 });
 
 check('body comparison ignores only whitespace shape', () => {

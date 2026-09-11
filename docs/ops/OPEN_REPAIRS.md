@@ -20835,3 +20835,50 @@ in the hash, and a `pc_card_` prefix check standing in for the hash. Full runner
 2 of 427, both failing identically on `origin/main`.
 
 Next run should read **4 repairs, 2 for a person**.
+
+### 198a. Round 2: the fix for a restated rule was itself a restated rule
+
+The backfill recognition in 198 recomputed the importer's fingerprint **in the
+reconciler**. Review caught that the two derivations already disagreed:
+`f42-card-comment-import` builds its `nativeId` as
+`clean(raw.id || raw.comment_id || raw.native_comment_id)` — TRIMMED, with two
+fallbacks — while the copy hashed a raw `entry.id`. For an entry in any of those
+shapes the fingerprints differ, so the false positive survives **exactly where
+the fix was supposed to kill it**.
+
+This is 197ah to 197aj again, one PR later: a rule restated instead of called.
+
+**So the identity moved into the importer and both sides call it.**
+`cardEntryNativeId` and `cardEntryProductionId` now live in
+`f42-card-comment-import.js`, which owns both halves (which value is the id, and
+how it is hashed). The importer's own five derivation sites were collapsed onto
+the shared function too, so the file no longer repeats it either. The reconciler
+requires it. There is no copy left to drift.
+
+Live: all **9,005** card entries carry a clean `id` with no whitespace and no
+fallback, so no live row moves. The value is that a copy cannot drift, because
+there is no copy.
+
+**Two of this round's own checks were wrong, and the controls caught both.**
+
+1. **A circular expectation.** The first draft built each fixture's row id by
+   calling `cardEntryProductionId` — the function under test. Narrowing the
+   importer's derivation then moved BOTH sides together and the sabotage passed.
+   **A check that computes its expectation with the code it is checking asserts
+   only that the code agrees with itself.** The fingerprint is now spelled out
+   once in the test as an independent fixed point both sides must meet.
+2. **Half the buckets.** The rebuilt check still passed under two sabotages,
+   because a fingerprint that fails to match does not produce a FINDING: it
+   produces a `skipped` row reading `ambiguous_repeat_of_completed_request`,
+   which is the original false positive wearing a different hat. The check now
+   asserts both buckets.
+
+Neither was caught by reading the test. Both were caught by sabotaging the code
+and watching a green suite. That is the fourth and fifth time in this work that
+a control has failed to fire and exposed the check rather than the code.
+
+170 checks. Three controls by exit status: a local copy hashing the raw id, the
+importer's derivation narrowed to `raw.id`, and its trim dropped. Plus a
+structural check that the reconciler contains no `createHash`, no `'pc_card_'`
+literal, and does require the importer — so a future session cannot quietly
+rebuild the copy. Full runner: 2 of 427, baseline.

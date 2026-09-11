@@ -423,32 +423,32 @@ function couldBeClientTweak(entry) {
 /* A SERVER ROW THAT WAS BORN FROM THE CARD CANNOT BE MISSING FROM IT.
  *
  * `scripts/f42-card-comment-import.js` backfilled `production_comments` FROM
- * card entries, and it names each imported row by hashing the entry it copied:
+ * card entries, naming each imported row by a fingerprint of the entry it
+ * copied. Those rows carry their OWN id in `native_comment_id`, not the card
+ * entry's, so neither half of the id pass could match them. Every one fell
+ * through to the body fallback, found its own source entry marked done, and was
+ * reported as an "ambiguous repeat" — asking a person to decide whether a
+ * client request had gone missing from the very card it was copied out of.
+ * Measured on the first live run: SEVEN of the nine rows needing a person were
+ * this, and all seven were noise.
  *
- *     'pc_card_' + sha256([surface, cardId, component, nativeId].join(':'))
+ * THE IMPORTER'S OWN FUNCTION IS CALLED, NOT COPIED. The first version of this
+ * fix recomputed the hash here and got the derivation subtly wrong: the importer
+ * trims the id and falls back to `comment_id` / `native_comment_id`, so a copy
+ * hashing a raw `entry.id` produces a different fingerprint for the same entry
+ * and the false positive survives. Rounds 32 to 37 of the reconciler PR were
+ * six consecutive findings on exactly that shape, and the answer there was the
+ * same as here: write it once, call it twice.
  *
- * Those rows carry their OWN id in `native_comment_id`, not the card entry's,
- * so neither half of the id pass could match them and every one fell through to
- * the body fallback. There it found the entry, saw it marked done, and reported
- * an "ambiguous repeat" — asking a person to decide whether a client request
- * had gone missing from the very card it was copied out of. Measured on the
- * first live run: SEVEN of the nine rows needing a person were this, and all
- * seven were noise.
- *
- * Recomputing the hash is PROOF, not a prefix guess: the id matches only if
- * this exact entry on this exact card and component produced this exact row.
- * A `pc_card_` row whose entry has since been deleted still matches nothing and
- * is still reported, which is correct — that one really is absent.
- *
- * Verified against live row pc_card_d41eb2d6… on 2026-09-11: it is
- * sha256('calendar:' + <card> + ':caption:' + <entry id>), and that entry is on
- * the card, done, resolved 2026-07-30. */
+ * Recomputing the fingerprint is PROOF, not a prefix guess: it matches only if
+ * this exact entry, on this exact card and component, produced this exact row.
+ * A `pc_card_` row whose entry has since been deleted matches nothing and is
+ * still reported, which is correct — that one really is absent. */
+const { cardEntryProductionId } = require('./f42-card-comment-import.js');
 const CARD_IMPORT_SURFACE = 'calendar';
-const cardDerivedId = (cardId, component, nativeId) => {
-  if (!cardId || !component || !nativeId) return '';
-  return 'pc_card_' + crypto.createHash('sha256')
-    .update([CARD_IMPORT_SURFACE, cardId, component, nativeId].join(':'))
-    .digest('hex');
+const cardDerivedId = (cardId, component, entry) => {
+  if (!cardId || !component || !entry) return '';
+  return cardEntryProductionId(CARD_IMPORT_SURFACE, cardId, component, entry);
 };
 
 const cardKey = (client, id) => String(client || '').trim().toLowerCase() + '|' + String(id || '');
@@ -1159,7 +1159,7 @@ function detect(world) {
      * client can SEE their request. */
     const at = row.list.findIndex((c, i) =>
       !consumed.has(i)
-      && (ids.includes(String(c.id || '')) || cardDerivedId(row.hit.card.id, row.comp, c.id) === String(row.pc.id || ''))
+      && (ids.includes(String(c.id || '')) || cardDerivedId(row.hit.card.id, row.comp, c) === String(row.pc.id || ''))
       && isVisibleOnCard(c, row.list));
     if (at >= 0) { consumed.add(at); claimOf.set(row, at); }
   }

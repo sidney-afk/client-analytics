@@ -68,3 +68,52 @@ Next: bind complete supported sequence/consumer definitions and snapshot extrema
 into capture validation, with populated counterexamples. Keep native identifier
 cursor/cutover coordination separate. No runtime format or hosted writer change;
 installation stays HOLD. No merge/deployment/production/n8n write occurred.
+
+
+## Separate native identifier continuity acceptance
+
+The native allocator is table-backed. The current default recovery rehearsal
+explicitly asserts empty `production_native_identifier_mint` and
+`production_native_identifier_grants` tables. Exact row checks on that fixture
+therefore do not prove populated allocator continuity.
+
+The next distinct acceptance case must seed the synthetic team through the real
+seed function, create work through the real identifier trigger, and retain a
+grant whose deliverable is absent. After authenticated capture and isolated
+restore, compare cursor, grant and deliverable rows exactly; allocate new work
+and prove that existing identifiers and reserved identifiers are skipped, and
+that a provider overwrite of a granted identifier is refused. Keep the default
+empty-state assertions and perform all allocations on disposable databases.
+
+Source review found no concrete allocator defect: allocation advances a locked
+team cursor and checks both deliverables and grants before reserving a name
+(`2026-09-07-native-identifier-mint.sql`, allocator function). This is a missing
+populated recovery test, not evidence that production allocation is broken.
+This acceptance remains unexecuted and does not replace final cutover controls.
+
+
+## Opt-in proof-bearing capture and reconstruction
+
+`capturePair({captureSequenceBounds: true, ...})` adds authenticated
+`sequence_bounds_v1` metadata to the parent. It uses the parent's already
+recorded sequence state and the exported row snapshot for consumer definitions
+and maxima. Support is deliberately bounded to the 15 application sequences,
+positive noncycling generators, covered integer consumers, and identity or
+direct nextval defaults. Transformed defaults and unsupported consumers refuse
+assurance. The next value must fit both sequence and consumer type ranges and
+exceed every captured consumer maximum.
+
+Use `reconstructPairSqlWithSequenceBounds` for such pairs. This authenticates
+both components and independently compares restored catalog mappings and actual
+maxima before COMMIT, in addition to the existing row/schema/state checks.
+The current ordinary renderers refuse proof-bearing packages. Existing packages
+without the optional field retain their default behavior. Older readers may
+ignore the field and do not enforce this assurance; this is supplemental
+assurance requiring the new renderer, not a format boundary that old software
+will necessarily reject.
+
+Rehearse with the existing portable runner, PostgreSQL 17 binaries, lane
+`priority-application-recovery` and `-SequenceBounds`. The runner requires a
+separate completion marker and zero exit. It never targets a hosted database.
+Complete external/manual consumer closure, administrative reset exclusion,
+post-capture source writes and final cutover coordination remain unproven.

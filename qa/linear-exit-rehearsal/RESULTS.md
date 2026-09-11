@@ -834,3 +834,21 @@ Next: bind complete supported sequence/consumer definitions and snapshot extrema
 into capture validation, with populated counterexamples. Keep native identifier
 cursor/cutover coordination separate. No runtime format or hosted writer change;
 installation stays HOLD. No merge/deployment/production/n8n write occurred.
+
+
+## Authenticated sequence-bound recovery result
+
+PG17 opt-in application recovery PASS: `linear-exit-priority-application-recovery-2b2604a128d8490da1f03407e8820bd4`,
+exit0 and owned server stopped. Six sequence acceptance checks cover required
+proof/consumer coverage, altered catalog mappings, false snapshot maxima and
+manual high-ID capture refusal; actual target refusals leave public schema empty.
+Fifteen sequence bounds, the 52-table parent, nine populated companion tables
+and nine selected restored behavior checks pass. Eleven offline validator checks
+include transformed-default and consumer integer-overflow refusals.
+
+The earlier a0d1cfea31854f6eaa77d6e0c180e6db pass predates those final restrictions
+and is superseded. See LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json and the sequence
+allocation contract for scope and invocation. Older readers do not enforce the
+optional assurance. External/manual consumers, source resets, populated native
+identifier cursor recovery and final cutover remain separate open gates.
+No merge, deployment, hosted or n8n writes occurred. Installation HOLD.

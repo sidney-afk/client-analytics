@@ -7,6 +7,7 @@ const supplement=require('../scripts/linear-exit-priority-schema-supplement');co
 const backup=require('../scripts/track-b-backup');const recovery=require('../scripts/track-b-recovery-package');const companion=require('../scripts/linear-exit-priority-companion');const {capturePair}=require('../scripts/linear-exit-priority-capture');
 if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_POSTGRES_REQUIRED');
 const cluster=new Cluster();assert.ok(['127.0.0.1','localhost','::1'].includes(cluster.host));
+const sequenceBounds=process.argv.includes('--sequence-bounds');
 let stage='install',targetDb;
 async function main(){try{
  const proof=install({},()=>null);const extra=supplement.apply(cluster);const baseline=observed.apply(cluster);
@@ -24,7 +25,8 @@ async function main(){try{
  cluster.exec(`create role ${role} login nosuperuser nocreatedb nocreaterole bypassrls password 'synthetic-capture-only';grant usage on schema public,extensions to ${role};grant select on all tables in schema public to ${role};grant select on all sequences in schema public to ${role};`);
  const key=Buffer.alloc(32,21).toString('base64');const env={...process.env,PGHOST:cluster.host,PGPORT:String(cluster.port),PGDATABASE:cluster.db,PGUSER:role,PGPASSWORD:'synthetic-capture-only',PGOPTIONS:''};
  stage='actual-capture-pair';
- const captured=await capturePair({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`});
+ const captureOptions={env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`,captureSequenceBounds:sequenceBounds};
+ const captured=await capturePair(captureOptions);
  stage='local-pair-storage';
  assert.ok(process.env.PROOF_OUTPUT_ROOT,'PRIVATE_OUTPUT_REQUIRED');
  const storage=require('../scripts/linear-exit-priority-pair-storage');
@@ -39,11 +41,38 @@ async function main(){try{
  const grants=cp.spawnSync(cluster.psql,[...args,'-v','mode=target','-v','existing_role='+restoreRole,'-v','confirmation=EMPTY_SCRATCH_TARGET_ONLY','-v','scratch_project_ref=abcdefghijklmnopqrst','-f',path.resolve(__dirname,'../scripts/track-b-recovery-prerequisites.sql')],{encoding:'utf8',windowsHide:true});
  assert.equal(grants.status,0,grants.stderr);
  stage='actual-pair-reconstruction';
- const result=cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',restoreRole,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:recovery.reconstructPairSql(pair.companionBytes,pair.parentBytes,key),env:{...env,PGPASSWORD:'synthetic-restore-only'},encoding:'utf8',windowsHide:true});
+ const applySql=sql=>cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',restoreRole,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:sql,env:{...env,PGPASSWORD:'synthetic-restore-only'},encoding:'utf8',windowsHide:true});
+ let boundChecks=0;
+ if(sequenceBounds){
+  assert.throws(()=>recovery.reconstructSql(verified.parent),/PAIR_RENDERER_REQUIRED/);assert.throws(()=>recovery.reconstructPairSql(pair.companionBytes,pair.parentBytes,key),/PAIR_RENDERER_REQUIRED/);boundChecks++;
+  const reseal=mutate=>{
+   const manifest=JSON.parse(JSON.stringify(verified.parent.manifest));mutate(manifest);
+   const parentBytes=recovery.packRecoveryPackage({preData:verified.parent.preData,postData:verified.parent.postData,data:verified.parent.data,manifest},key).bytes;
+   const identity={package_sha256:require('crypto').createHash('sha256').update(parentBytes).digest('hex'),schema_fingerprint:manifest.schema.fingerprint};
+   return {parentBytes,companionBytes:companion.encode(verified.companion.tables,identity,key)};
+  };
+  const missing=reseal(m=>{m.sequence_bounds_v1.sequences[0].consumers=[];});
+  assert.throws(()=>recovery.reconstructPairSqlWithSequenceBounds(missing.companionBytes,missing.parentBytes,key),/CONSUMER_COVERAGE/);boundChecks++;
+  const stripped=reseal(m=>{delete m.sequence_bounds_v1;});
+  assert.throws(()=>recovery.reconstructPairSqlWithSequenceBounds(stripped.companionBytes,stripped.parentBytes,key),/CONTRACT_REQUIRED/);boundChecks++;
+  for(const mutate of [m=>{m.sequence_bounds_v1.sequences[0].consumers[0].table='card_change_journal';},m=>{m.sequence_bounds_v1.sequences.find(s=>s.name==='production_comment_read_audit_id_seq').consumers[0].maximum_value='0';}]){
+   const altered=reseal(mutate);const refusal=applySql(recovery.reconstructPairSqlWithSequenceBounds(altered.companionBytes,altered.parentBytes,key));
+   assert.notEqual(refusal.status,0);assert.match(refusal.stderr,/SEQUENCE_BOUNDS_TARGET_(MAPPING|MAXIMUM)_MISMATCH/);
+   assert.equal(cluster.run('',targetDb,{sql:"select count(*) from pg_class where relnamespace='public'::regnamespace",tuplesOnly:true}),'0');boundChecks++;
+  }
+ }
+ const render=sequenceBounds?recovery.reconstructPairSqlWithSequenceBounds:recovery.reconstructPairSql;
+ const result=applySql(render(pair.companionBytes,pair.parentBytes,key));
  if(result.status!==0){const e=Error('APPLICATION_PAIR_RECONSTRUCTION_REFUSED');e.detail=result.stderr;throw e;}
  stage='restored-runtime-behavior';
  const execute=(user,password,sql)=>cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',user,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:sql,env:{...process.env,PGPASSWORD:password},encoding:'utf8',windowsHide:true});
  const behavior=require('./helpers/linear-exit-priority-restored-behavior').verify({owner:sql=>execute(restoreRole,'synthetic-restore-only',sql),asRole:(role,sql)=>execute(cluster.user,process.env.PGPASSWORD,`begin;set local role ${role};${sql}rollback;`)});
+ if(sequenceBounds){
+  stage='manual-high-id-refusal';
+  cluster.exec("insert into public.production_comment_read_audit(id,actor_key,auth_kind,decision,reason) values(9007199254740993,'synthetic-manual-high','staff','allow','synthetic')");
+  await assert.rejects(()=>capturePair(captureOptions),/SEQUENCE_BOUNDS_UNSAFE_MAXIMUM/);boundChecks++;
+  console.log(JSON.stringify({marker:'LINEAR_EXIT_SEQUENCE_BOUNDS_OK',checks:boundChecks,sequences:15,authenticated_snapshot_maxima:true,target_mapping_and_maxima_enforced:true,recorded_parent_sequence_state_used:true,consumer_closure_proven:false,source_writer_reset_exclusion_proven:false}));
+ }
  console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK',inventory_sha256:proof.inventory_sha256,supplement:extra,observed_backup:baseline,parent_tables:52,populated_companion_tables:9,local_storage:{reopened_before_restore:true,container_sha256:stored.container_sha256,atomic_no_overwrite:stored.atomic_no_overwrite,power_loss_durability_proven:false,off_device_custody_proven:false},behavior,application_source_owners:true,synthetic_rows_only:true,owner_relative_reconstruction:true,full_dependency_closure_proven:false,hosted_restore_proven:false,sequence_custody_proven:false}));
 }catch(error){
  if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'application-recovery.private-error.log'),String(error.stack||error)+'\n'+String(error.detail||''));

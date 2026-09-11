@@ -2,7 +2,7 @@
 
 ## Current preparation status
 
-Verified through commit `eec684a9` on draft PR #1382. The prepared source
+Current isolated evidence is recorded in the linked result artifacts on draft PR #1382. The prepared source
 includes the reviewed upstream patch through `fcebb856`; nothing is merged or
 deployed by this work.
 
@@ -11,9 +11,11 @@ authenticated companion, using application source owners and an explicitly
 observed backup-table baseline. Authenticated local pair storage and selected
 restored budget, audit, thumbnail and access-control behavior also pass. These
 are synthetic local recovery results, not hosted recovery or full workflow proof.
-The 15-sequence catalog probe passes, but 13 consumers were empty and its reads
-were not tied to the capture snapshot. Enforced populated sequence bounds remain
-under preparation; do not infer them from that probe.
+An opt-in proof-bearing capture and restore now passes six sequence checks
+for 15 catalog-mapped sequences, with populated audit/conflict consumers and
+independent target mapping/maxima verification. See
+LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json; external/manual consumer closure
+and source cutover remain unproven.
 
 Installation remains **HOLD**. The other 25 tables have no approved exclusion;
 complete platform/schema equivalence, referenced object/document custody,

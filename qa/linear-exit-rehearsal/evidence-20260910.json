@@ -1346,5 +1346,46 @@
     "consumer_closure_proven": false,
     "concurrent_capture_consistency_proven": false,
     "installation_ready": false
+  },
+  "sequence_bounds": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "receipt": "linear-exit-priority-application-recovery-2b2604a128d8490da1f03407e8820bd4",
+    "exit": 0,
+    "server_stopped": true,
+    "sequence_checks": 6,
+    "sequences": 15,
+    "restored_behavior_checks": 9,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "authenticated_snapshot_maxima": true,
+    "target_mapping_and_maxima_enforced": true,
+    "recorded_parent_sequence_state_used": true,
+    "offline_checks": 11,
+    "supersedes_pre_hardening_pass": "linear-exit-priority-application-recovery-a0d1cfea31854f6eaa77d6e0c180e6db",
+    "consumer_closure_proven": false,
+    "source_writer_reset_exclusion_proven": false,
+    "hosted_restore_proven": false,
+    "installation_ready": false,
+    "source_sha256": {
+      "scripts/linear-exit-sequence-bounds.js": "60ced07378d2ad781277afc205c8f037b55336526dac1f59be440b246acefdb8",
+      "scripts/track-b-recovery-package.js": "83785961d4eebaae8c0625ac6121e532ce7e9783654b7109760326ebd296ca28",
+      "test/linear-exit-sequence-bounds.js": "adadb59a5a1ff47cf69bfc2b1172cb5b688ed9286176cb8ea18af91ba66ef56d",
+      "test/linear-exit-priority-application-recovery.js": "7da394eecfb2e3e392cabe96c260f583da101324887eadf8bcc38b5ac7543772",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "ce606eb99ae281a0583c664b991f21166f9c6e272e959c4f0ded56e789719bd7"
+    },
+    "source_hash_scope": "Executed working-tree bytes; Git checkout line-ending normalization may change byte hashes.",
+    "prior_reader_compatibility": {
+      "marker": "LINEAR_EXIT_PRIOR_READER_COMPATIBILITY_OBSERVED",
+      "classification": "OFFLINE_ACTUAL_PRIOR_MODULE_ACTUAL_CAPTURED_PACKAGE",
+      "prior_ref": "de6543ae",
+      "prior_source_sha256": "d86f9137c6b60de7002d857df45a1ac377ec657b751bf57d9646a444be939d8c",
+      "parent_sha256": "27ca2d452efd389d0600030fcb6cbdaaf95c3e3c6f2380bd13cff5fac7b54e1d",
+      "prior_reader_accepts_optional_proof": true,
+      "prior_plain_renderer_enforces_sequence_bounds": false,
+      "current_module_dependencies_used": true,
+      "sql_executed": false
+    }
   }
 }

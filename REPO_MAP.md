@@ -250,3 +250,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/linear-exit-sequence-application.js: composed sequence dependency/bound probe.
 - docs/independence/LINEAR_EXIT_SEQUENCE_APPLICATION_20260911.json:15-sequence catalog/bound evidence with empty-consumer limits.
+
+- scripts/linear-exit-sequence-bounds.js: opt-in authenticated snapshot bounds and target verification.
+- test/linear-exit-sequence-bounds.js: numeric, coverage and direct allocator validation controls.
+- docs/independence/LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json: isolated bounded capture and restore evidence.

@@ -3,6 +3,7 @@ param(
  [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [switch]$RecoveryPostgres17,
+ [switch]$SequenceBounds,
  [string]$OutputRoot
 )
 # Windows, preinstalled PG16/17 + Node22+ + Git Bash only. No installation or
@@ -10,6 +11,7 @@ param(
 $ErrorActionPreference='Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'This runner requires Windows.' }
 if ($Lane -eq 'journey' -and !$ServingMode) { throw 'Journey requires explicit -ServingMode.' }
+if ($SequenceBounds -and $Lane -ne 'priority-application-recovery') { throw 'SequenceBounds is restricted to priority-application-recovery.' }
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $pgPath=(Resolve-Path -LiteralPath $PgBin).Path
 foreach ($binary in @('initdb.exe','pg_ctl.exe','psql.exe','postgres.exe')) {
@@ -140,10 +142,14 @@ try {
   foreach ($key in $recoverySettings.Keys) { Set-ProofEnvironment $key $recoverySettings[$key] }
  }
  $arguments=@($entry)
+ if ($SequenceBounds) { $arguments+= '--sequence-bounds' }
  if ($Lane -in @('priority-application-supplement','priority-observed-baseline')) { $arguments+= '--supplement-three' }
  if ($Lane -eq 'priority-observed-baseline') { $arguments+= '--observed-backup' }
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
+ if ($result -eq 0 -and $SequenceBounds) {
+  if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_SEQUENCE_BOUNDS_OK' -Quiet)) { throw 'Required sequence bounds proof marker missing.' }
+ }
  if ($result -eq 0 -and $Lane -in @('recovery','recovery-upstream-ledger')) {
   $recoveryDirectories=@(Get-ChildItem -LiteralPath (Join-Path $runRoot 'recovery') -Directory -Filter 'schema-history-v11-*')
   if ($recoveryDirectories.Count -ne 1) { throw 'Expected exactly one owned versioned recovery run.' }

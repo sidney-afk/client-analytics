@@ -905,6 +905,7 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
   }
   const deferred = verifyDeferredDefaults([...pre.statements, ...post.statements], manifest, parsed);
   const callable = verifyCallableContract(deferred.statements, manifest);
+  if (Object.hasOwn(manifest, 'sequence_bounds_v1')) require('./linear-exit-sequence-bounds').validate(manifest.sequence_bounds_v1, manifest.sequences);
   return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable, deferred };
 }
 
@@ -1030,12 +1031,21 @@ function inTransactionVerificationSql(manifest) {
 }
 
 function reconstructSql(pkg) {
+  if (Object.hasOwn(pkg.manifest, 'sequence_bounds_v1')) throw new Error('SEQUENCE_BOUNDS_PAIR_RENDERER_REQUIRED');
   return renderReconstruction(pkg, null);
 }
 
 function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
   const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
+  if (Object.hasOwn(pair.parent.manifest, 'sequence_bounds_v1')) throw new Error('SEQUENCE_BOUNDS_PAIR_RENDERER_REQUIRED');
   const supplement = require('./linear-exit-priority-reconstruct').sections(pair.companion, pair.parent.manifest);
+  return renderReconstruction(pair.parent, supplement);
+}
+
+function reconstructPairSqlWithSequenceBounds(companionBytes, parentBytes, hmacInput) {
+  const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
+  const supplement = require('./linear-exit-priority-reconstruct').sections(pair.companion, pair.parent.manifest);
+  supplement.verify += '\n' + require('./linear-exit-sequence-bounds').targetSql(pair.parent.manifest.sequence_bounds_v1, pair.parent.manifest.sequences);
   return renderReconstruction(pair.parent, supplement);
 }
 
@@ -1244,7 +1254,8 @@ function resolveCallableContract(query, seedTokens, edges, requiredExtensionName
   return references;
 }
 
-async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {} }) {
+async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {}, captureSequenceBounds = false }) {
+  if (captureSequenceBounds !== false && (captureSequenceBounds !== true || corpusName !== 'history-v11' || typeof hooks.captureSnapshot !== 'function')) throw new Error('SEQUENCE_BOUNDS_COMPANION_CAPTURE_REQUIRED');
   const corpus = backup.resolveCorpus(corpusName);
   const key = backup.parseHmacKey(hmacInput);
   const sourceRef = backup.assertProductionSource(sourceUrl);
@@ -1253,7 +1264,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const dir = tempDir || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-recovery-'));
   const files = { pre: path.join(dir, 'pre-data.sql'), post: path.join(dir, 'post-data.sql'), data: path.join(dir, 'data.sql') };
   const session = await openSnapshotSession(env, psql);
-  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections; let deferredContract;
+  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections; let deferredContract; let sequenceBounds;
   try {
     const query = sql => runPsql(env, sql, { psql, snapshot: session.snapshot });
     fingerprintBefore = query(fingerprintSql());
@@ -1301,6 +1312,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     // Optional prepared companion reads import this still-live exported snapshot.
     // Default capture and scheduled callers do not supply this hook.
     if (typeof hooks.captureSnapshot === 'function') await hooks.captureSnapshot(query);
+    if (captureSequenceBounds) sequenceBounds = require('./linear-exit-sequence-bounds').capture(query, sequences);
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');
   } finally {
@@ -1338,6 +1350,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     data: { table_count: corpus.tables.length, tables: inspected },
     omitted_data_tables: omitted,
     sequences,
+    ...(captureSequenceBounds ? { sequence_bounds_v1: sequenceBounds } : {}),
     callable_references: strippedReferences,
     deferred_defaults: deferredContract,
     prerequisites: {
@@ -1450,6 +1463,7 @@ module.exports = {
   readRecoveryPackage,
   reconstructSql,
   reconstructPairSql,
+  reconstructPairSqlWithSequenceBounds,
   recoveryName,
   requiredExtensions,
   runPsql,

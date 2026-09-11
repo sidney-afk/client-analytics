@@ -7,6 +7,7 @@
 //   - caption note → NO Linear push
 //   - cross-client safety: every captured issue is SIDNEY's card's test issue, never another's
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_lin_' + TS;
 const VURL = 'https://linear.app/sidtest/issue/SIDV-' + TS;     // fake video issue (no real Linear)
@@ -21,7 +22,7 @@ const ADD = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
   const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   const setCalls = [], addCalls = [];
   await ctx.route('**/webhook/linear-set-status', async (route) => {
     try { setCalls.push(JSON.parse(route.request().postData() || '{}')); } catch (e) { setCalls.push({ parseErr: true }); }

@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -45,6 +46,10 @@ function expect(condition, message) {
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('request', request => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) return;
+    // The staff entry gate verifies a role key on every boot with a POST that
+    // writes nothing; authentication, not a mutation. Same exemption as
+    // isWriteLikeRequest in prod-test-utils.js.
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/key-verify') return;
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-comments') return;
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-write') {
       let body = null;
@@ -66,7 +71,7 @@ function expect(condition, message) {
     }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   await page.route('**/functions/v1/production-comments', async route => {
     const request = route.request();
     commentReads++;
@@ -190,9 +195,17 @@ function expect(condition, message) {
       .slice(0, 2));
     expect(ids.length >= 2, 'fixture requires two attribution-resolved live Production rows');
 
+    // The signed-out comments state is still a real state, but the entry gate
+    // changed how a harness gets into it: the suite must sign in to boot at all,
+    // so it drops the VERIFICATION here instead. That is the same state the app
+    // reaches when a sibling tab signs out or the verifier goes away mid-session.
+    // _syncviewInvalidateStaffVerification() clears the verified flag and bumps
+    // the epoch only; it does not purge state or re-raise the gate, so the rows
+    // read above survive and the assertion below still means what it meant.
+    await page.evaluate(() => _syncviewInvalidateStaffVerification());
     await page.evaluate(id => _prodOpenDeliverable(id), ids[0]);
     await page.waitForSelector('[data-prod-comments-state="signin"]', { timeout: 5000 });
-    expect(commentReads === 0, 'signed-out detail must not request comment bodies');
+    expect(commentReads === 0, 'an unverified detail must not request comment bodies');
 
     await page.evaluate(id => {
       _syncviewStaffIdentitySave({ key: 'browser-test-role-key', role: 'admin', member: { id: 'browser-test-member', name: 'Browser Test' } });

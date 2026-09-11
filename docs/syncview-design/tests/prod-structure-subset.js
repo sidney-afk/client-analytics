@@ -8,6 +8,7 @@
  * verifies the wired ?prod=1 tab has the same structure while remaining write-silent.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -151,7 +152,12 @@ async function assertNoWriteRequests(requests) {
       && typeof body.client_slug === 'string'
       && body.client_slug.length > 0;
   };
+  // The staff entry gate verifies a role key on every boot with a POST that
+  // writes nothing; it is authentication, not a mutation. Same exemption as
+  // isWriteLikeRequest in prod-test-utils.js.
+  const isEntryGateVerify = r => /\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(r.url || '');
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
+    && !isEntryGateVerify(r)
     && !isCommentRead(r)
     && !isLabelsRead(r)
     && !isAssetAccessRead(r)
@@ -183,8 +189,8 @@ async function assertNoWriteRequests(requests) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   const readConsoleAudit = installReadConsoleAudit(page);
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
+  await seedStaffGate(page);
   await page.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

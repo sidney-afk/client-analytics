@@ -17,6 +17,7 @@
  * _prodRender. Four viewport heights, a long list and a short one.
  */
 const fs = require('node:fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('node:http');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -138,7 +139,7 @@ async function measure(page, rowCount) {
         status: 200, contentType: 'application/json', body: '{"ok":true}',
       }));
       const page = await context.newPage();
-      await page.addInitScript(() => { localStorage.setItem('syncview_auth_v1', 'ok'); });
+      await seedStaffGate(page);
       await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.prod-view', { timeout: 45000 });
       await page.waitForFunction(

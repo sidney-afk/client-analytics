@@ -145,13 +145,13 @@ ok(Number.isFinite(MAX) && MAX > 0, 'the cap is a real number (' + MAX + ')');
     [key('a'), entry(1000)],
     ['syncview_cal_archived_v1_someclient', 'KEEP'],
     ['syncview_prod_cache_v1', 'KEEP'],
-    ['syncview_auth_v1', 'ok'],
+    ['syncview_staff_identity_v1', 'KEEP'],
     ['syncview_kasper_cal_partial', 'KEEP'],   // prefix but no _v1 suffix
   ];
   const after = run(foreign, 'b');
   ok(after.get('syncview_cal_archived_v1_someclient') === 'KEEP'
     && after.get('syncview_prod_cache_v1') === 'KEEP'
-    && after.get('syncview_auth_v1') === 'ok',
+    && after.get('syncview_staff_identity_v1') === 'KEEP',
     'THE LOAD-BEARING NEGATIVE: nothing outside this cache is evicted. The archive ledger in '
     + 'particular is NOT a cache -- it holds local state that cannot be re-fetched');
   ok(after.get('syncview_kasper_cal_partial') === 'KEEP',

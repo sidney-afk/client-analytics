@@ -72,16 +72,42 @@ const browser = await PW.chromium.launch({ headless: true, args: ['--ignore-cert
   or `process.env`; browser and unrelated child environments must strip client-entry
   credentials. Never commit, paste into examples, or print the token.
 
-### The password gate
-The app shows a password overlay (`#passwordOverlay`). Don't type the password in
-your scripts — **seed the auth flag in localStorage before the page scripts run**:
+### The staff entry gate
+The shared staff password is **gone** (2026-09-10, `OPEN_REPAIRS` 198). There is no
+`#passwordOverlay` and no `submitPassword()`, and seeding `syncview_auth_v1` does
+nothing — the app deletes that key on load. Staff entry is now the roster name +
+personal role key, and a stored identity opens the door only once the `key-verify`
+Edge Function confirms it, so a harness needs BOTH a stored identity and an answer
+from that verifier.
+
+Use the shared seed rather than hand-rolling either half:
 ```js
+const { seedStaffGate } = require('../staff-gate-seed.js');   // path from your suite
+
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+await seedStaffGate(ctx);   // stored identity + a key-verify route stub
 ```
-(If you ever need the real overlay path: fill `#passwordInput` and call
-`window.submitPassword()`. But the localStorage seed is cleaner and avoids putting
-the team password in a script.)
+**Know what that grants.** A fulfilled `key-verify` makes the identity VALID, so
+`_syncviewStaffCan()` opens every browser-side capability of the seeded role, and
+this seed is an admin by default: credentials, review links, intake, onboarding,
+hiring, PTO admin. It is NOT the old password's "shell and nothing more". What it
+cannot do is the part that protects real data: the stub key still goes to the REAL
+backend on every staff call and is still rejected, so no harness writes anything
+and no server-gated read returns. Seed a narrower role when your suite does not
+need an admin.
+
+**If your suite already mocks `key-verify`**, use `seedStaffIdentity(ctx, member)`
+instead. `seedStaffGate` answers the verifier by patching `window.fetch`, which
+**shadows a Playwright route for the same URL**: the request never reaches the
+network layer, so your own mock never fires and a suite that waits on it hangs.
+`seedStaffIdentity` seeds the stored identity only and lets your mock answer with
+your own member. Suites that manage their own identity outright (`b4-staff-login`,
+the PTO harnesses) need neither.
+
+To drive the real sign-in UI instead of seeding: the card is `#staffIdentityForm`
+— choose a name through `#staffIdentityMemberBtn`, fill `#staffIdentityKey`, submit
+`#staffIdentitySubmit`. It has no cancel and does not close on Escape or a backdrop
+click, because on a staff surface it IS the page.
 
 ### Timezone (for date/tz bugs)
 The "off-by-one date" bug only reproduces in Americas timezones. Set it per
@@ -143,7 +169,7 @@ function capture(page) {
 
 async function ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
-  await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(c);   // see "The staff entry gate" above
   return c;
 }
 

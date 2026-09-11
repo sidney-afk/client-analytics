@@ -53,6 +53,7 @@
  * it pass again.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -198,7 +199,7 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.stack || e.message));
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
   const calls = await mockNetwork(page, mockOpts);
   await page.goto(`http://127.0.0.1:${port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
   // state: 'attached', not the default 'visible' -- <option> elements in a

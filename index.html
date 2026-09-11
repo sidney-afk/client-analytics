@@ -19,7 +19,7 @@
          the style block) suppress the wrong chrome from the very first
          paint. The app script lifts each tag at the exact point its own
          show/hide logic takes over: data-boot-nav in navTo()/render() and
-         init()'s catch and boot-password in submitPassword(); boot-client,
+         init()'s catch and boot-gate in _syncviewLiftStaffGate(); boot-client,
          boot-onboarding, and boot-intake are permanent document-owner locks,
          like the body.onboarding-mode/.intake-mode classes they anticipate. Must
          never throw and never log — headless probes boot this file
@@ -78,9 +78,16 @@
                 de.setAttribute('data-boot-nav', smmSeg);
                 return;
             }
+            // Staff entry gate. This check is synchronous and localStorage is
+            // writable by hand, so presence of a saved identity is only a PAINT
+            // hint: it decides whether to paint the app shell or the sign-in
+            // gate, never what anyone is allowed to do. The real door is
+            // _syncviewStaffIdentityBoot()'s server verification, which drops
+            // the gate back over the app when the saved identity does not
+            // verify (see "Staff entry gate" in the app script).
             var authed = false;
-            try { authed = localStorage.getItem('syncview_auth_v1') === 'ok'; } catch (e) {}
-            if (!authed) { de.classList.add('boot-password'); return; }
+            try { authed = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+            if (!authed) { de.classList.add('boot-gate'); return; }
             // Authed staff: predict the landing tab (mirror of init()'s
             // router, conservative — when unsure, tag nothing and boot
             // exactly as today) so a refresh on e.g. #calendar never paints
@@ -1961,11 +1968,23 @@
            (.header needs !important because its markup has inline display:grid.) */
         html.boot-client .header { display: none !important; }
         html.boot-client #pageTop { display: none; }
-        /* Unauthenticated staff visit: the opaque password overlay covers
-           from first paint instead of popping in after the app script
-           evaluates (!important beats the overlay's inline display:none;
-           submitPassword removes the class on success). */
-        html.boot-password #passwordOverlay { display: flex !important; }
+        /* Signed-out staff visit: the opaque sign-in gate covers from first
+           paint instead of popping in after the app script evaluates
+           (!important beats the overlay's inline display:none; the gate is
+           lifted only once a staff identity is admitted). */
+        html.boot-gate #staffGateOverlay { display: flex !important; }
+        /* Below .staff-auth-overlay (9998): the sign-in card sits ON the cover. */
+        #staffGateOverlay { position: fixed; inset: 0; z-index: 9990; display: none; align-items: center; justify-content: center; background: var(--bg, var(--sv-bg-f5f5f3)); }
+        .staff-gate-inner { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 0 24px; }
+        .staff-gate-inner img { width: 36px; height: 36px; border-radius: 8px; }
+        .staff-gate-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--sv-fg-111); }
+        .staff-gate-note { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.82rem; color: var(--sv-fg-888); max-width: 300px; line-height: 1.5; }
+        .staff-gate-retry { margin-top: 4px; }
+        /* Entry mode is the whole page, not a dialog over a page: the card sits
+           directly on the gate's own ground, with no dimming and no second
+           welcome line competing with it. */
+        .staff-auth-overlay.is-entry { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+        #staffGateOverlay.is-carded .staff-gate-inner { display: none; }
         /* Staff refresh landing on a non-home tab: suppress the hardcoded
            Analytics-active pill and the "Client Analytics" overview header,
            and pre-light the pill of the tab actually being restored.
@@ -7976,29 +7995,17 @@
     </div>
 </div>
 
-<!-- Password gate -->
-<div id="passwordOverlay" style="display:none;position:fixed;inset:0;background:var(--bg,var(--sv-bg-f5f5f3));z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:0;">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:340px;padding:0 24px;">
-        <img src="syncview-favicon.png" alt="SyncView" style="width:36px;height:36px;border-radius:8px;">
-        <div style="text-align:center;">
-            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:700;color:var(--sv-fg-111);margin-bottom:6px;">Welcome to SyncView</div>
-            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.82rem;color:var(--sv-fg-888);">Enter your password to continue</div>
+<!-- Staff sign-in gate. Opaque cover shown until a staff identity is admitted.
+     The sign-in card itself is rendered on top of this by
+     _syncviewOpenStaffIdentity({ entry: true }) once the roster loads. -->
+<div id="staffGateOverlay">
+    <div class="staff-gate-inner">
+        <img src="syncview-favicon.png" alt="SyncView">
+        <div>
+            <div class="staff-gate-title">Welcome to SyncView</div>
+            <div class="staff-gate-note" id="staffGateNote">Preparing secure sign-in…</div>
         </div>
-        <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
-            <div style="position:relative;width:100%;">
-                <input id="passwordInput" type="password" placeholder="Password" autocomplete="current-password"
-                    style="width:100%;box-sizing:border-box;padding:12px 42px 12px 14px;border:1.5px solid var(--sv-border-e0e0de);border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.9rem;background:var(--sv-bg-fff);color:var(--sv-fg-111);outline:none;transition:border-color 0.15s;"
-                    onkeydown="if(event.key==='Enter')submitPassword()"
-                    onfocus="this.style.borderColor='var(--sv-border-111)'" onblur="this.style.borderColor='var(--sv-border-e0e0de)'">
-                <button onclick="(function(){const i=document.getElementById('passwordInput');const e=document.getElementById('eyeOpen');const c=document.getElementById('eyeClosed');i.type=i.type==='password'?'text':'password';e.style.display=i.type==='text'?'none':'block';c.style.display=i.type==='text'?'block':'none';})()" type="button"
-                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:2px;color:var(--sv-fg-888);display:flex;align-items:center;">
-                    <svg id="eyeOpen" width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>
-                    <svg id="eyeClosed" width="18" height="18" viewBox="0 0 20 20" fill="none" style="display:none"><path d="M3 3l14 14M8.5 8.6A2.5 2.5 0 0 0 12.4 12M6.1 5.1C4.2 6.3 2.7 8.3 2 10c1.6 3.8 5 6 8 6a8.4 8.4 0 0 0 3.9-1M9 4.1C9.3 4 9.7 4 10 4c3 0 6.4 2.2 8 6-.4 1-.9 1.9-1.6 2.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-            </div>
-            <div id="passwordError" style="display:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.78rem;color:var(--sv-fg-dc2626);text-align:center;">Incorrect password. Please try again.</div>
-            <button onclick="submitPassword()" style="width:100%;padding:12px;background:var(--sv-bg-111);color:var(--sv-fg-fff);border:none;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Continue</button>
-        </div>
+        <button class="cal-import-btn-primary staff-gate-retry" type="button" id="staffGateRetry" hidden onclick="_syncviewOpenStaffGate()">Try again</button>
     </div>
 </div>
 
@@ -22586,6 +22593,13 @@
     function _syncviewAcceptStaffVerification() {
         _syncviewStaffVerificationEpoch++;
         _syncviewStaffIdentityVerified = true;
+        // A verification accepted while the gate is up IS the gate coming down,
+        // whatever path produced it (the entry form, boot re-verification, or a
+        // sibling tab signing back in).
+        try {
+            if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()
+                && _syncviewStaffIdentityValid()) _syncviewLiftStaffGate();
+        } catch (e) {}
     }
     function _syncviewStaffIdentityClear() {
         _syncviewStaffPurgeSensitiveState();
@@ -22595,6 +22609,7 @@
         try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
         _syncviewStaffClearLegacyIdentityStorage();
         _syncviewStaffRefreshChrome();
+        if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()) _syncviewOpenStaffGate();
     }
     function _syncviewStaffIdentityValid() {
         const identity = _syncviewStaffIdentityLoad();
@@ -22603,6 +22618,27 @@
     function _syncviewStaffIdentityForHeaders() {
         return _syncviewStaffIdentityValid() ? _syncviewStaffIdentityLoad() : null;
     }
+    /* ---- Staff entry gate ----------------------------------------------
+       ADMISSION (may the app shell be opened) and VERIFICATION (may this
+       action touch data) are separate, and BOTH now require the key-verify
+       Edge Function to agree. Nothing the browser holds is ever treated as
+       proof: a stored identity is writable by hand in devtools, so it decides
+       only what to PAINT before the server answers.
+
+       An earlier revision of this change admitted the shell during a verifier
+       outage when the stored identity carried a recent `verified_at`, so that
+       a Supabase blip would not lock the team out. Codex caught it in review
+       and was right: `verified_at` is a field in that same hand-writable blob,
+       so anyone could set it to now, block ONLY the verifier request, and walk
+       into the shell -- the outage was manufacturable, which made the grace
+       window a bypass rather than a cushion. It also bought less than it
+       looked: every read the shell performs goes to the same Supabase host as
+       key-verify, so a genuine outage leaves the app empty anyway. The only
+       case it covered was key-verify alone being broken, which is precisely
+       the case an attacker can produce on demand. There is no offline proof to
+       replace it with -- an unforgeable one would have to be server-issued and
+       server-checked, which is what key-verify already is -- so the gate now
+       fails closed on every verification failure. */
     function _syncviewStaffIdentityStorageChanged(event) {
         if (!event || event.key !== SYNCVIEW_STAFF_IDENTITY_KEY) return;
         try { if (event.storageArea && event.storageArea !== localStorage) return; } catch (e) {}
@@ -22620,6 +22656,10 @@
             try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
             _syncviewStaffClearLegacyIdentityStorage();
             _syncviewStaffRefreshChrome();
+            // typeof-guarded like the calls around it: this handler is lifted
+            // into an isolated VM by test/workload-plan-failclosed.js, where the
+            // gate helpers are not defined.
+            if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()) _syncviewOpenStaffGate();
             return;
         }
         if (nextSignature === currentSignature && _syncviewStaffIdentityVerified) return;
@@ -22990,6 +23030,7 @@
         overlay._syncviewClosed = true;
         if (overlay._syncviewKeydown) document.removeEventListener('keydown', overlay._syncviewKeydown, true);
         try { if (typeof _ccCloseSelect === 'function') _ccCloseSelect('staffIdentityMember'); } catch (e) {}
+        document.getElementById('staffGateOverlay')?.classList.remove('is-carded');
         const done = overlay._syncviewResolve;
         if (overlay) overlay.remove();
         if (typeof done === 'function') done(value || null);
@@ -23006,8 +23047,11 @@
         button.setAttribute('aria-label', label);
         button.title = label;
     }
-    function _syncviewBindStaffIdentityOverlay(overlay) {
-        overlay.onclick = event => { if (event.target === overlay) _syncviewCloseStaffIdentity(null); };
+    function _syncviewBindStaffIdentityOverlay(overlay, entry) {
+        overlay._syncviewEntry = !!entry;
+        // Entry mode IS the door: there is nothing behind it to dismiss to,
+        // so backdrop clicks and Escape must not close it.
+        overlay.onclick = event => { if (event.target === overlay && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
         overlay._syncviewKeydown = event => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -23019,7 +23063,7 @@
                         return;
                     }
                 } catch (e) {}
-                _syncviewCloseStaffIdentity(null);
+                if (!overlay._syncviewEntry) _syncviewCloseStaffIdentity(null);
                 return;
             }
             if (event.key !== 'Tab') return;
@@ -23037,7 +23081,7 @@
         };
         document.addEventListener('keydown', overlay._syncviewKeydown, true);
     }
-    function _syncviewRenderStaffIdentityForm(overlay, roster) {
+    function _syncviewRenderStaffIdentityForm(overlay, roster, entry) {
         const current = _syncviewStaffIdentityLoad();
         const selectedId = current && current.member ? String(current.member.id || '') : '';
         const memberItems = [{ value: '', label: 'Choose your name' }].concat(roster.map(member => ({ value: String(member.id), label: String(member.name) })));
@@ -23045,13 +23089,16 @@
         overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle" aria-describedby="staffIdentityIntro staffIdentitySecure">'
             + '<div class="staff-auth-head"><span class="staff-auth-mark" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2.2 14.2 4v4.1c0 3.4-2 5.9-5.2 7.7-3.2-1.8-5.2-4.3-5.2-7.7V4L9 2.2Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><path d="m6.8 8.8 1.5 1.5 3-3.1" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
             + '<div class="staff-auth-title-wrap"><div class="staff-auth-eyebrow">SyncView staff</div><h2 id="staffIdentityTitle">Staff sign in</h2></div></div>'
-            + '<p class="staff-auth-intro" id="staffIdentityIntro">Choose your roster name and enter the role key for your work.</p>'
+            + '<p class="staff-auth-intro" id="staffIdentityIntro">' + (entry
+                ? 'Choose your name and enter your personal role key to open SyncView.'
+                : 'Choose your roster name and enter the role key for your work.') + '</p>'
             + '<div class="staff-auth-fields">'
             + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
             + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" aria-describedby="staffIdentityError" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
             + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div><div class="staff-auth-status" id="staffIdentityStatus" role="status" aria-live="polite"></div>'
             + '<div class="staff-auth-secure" id="staffIdentitySecure"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"/></svg><span>Your role key stays on this device and is sent only to SyncView secure functions.</span></div>'
-            + '<div class="staff-auth-actions"><button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">Not now</button><button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
+            + '<div class="staff-auth-actions">' + (entry ? '' : '<button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">Not now</button>')
+            + '<button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
             + '</form>';
         const form = overlay.querySelector('#staffIdentityForm');
         const memberInput = overlay.querySelector('#staffIdentityMember');
@@ -23086,7 +23133,8 @@
             submit.innerHTML = busy ? '<span class="staff-auth-spinner" aria-hidden="true"></span>Verifying…' : 'Continue';
             status.textContent = busy ? 'Verifying your identity…' : '';
         };
-        overlay.querySelector('#staffIdentityCancel').onclick = () => _syncviewCloseStaffIdentity(null);
+        const cancel = overlay.querySelector('#staffIdentityCancel');
+        if (cancel) cancel.onclick = () => _syncviewCloseStaffIdentity(null);
         memberInput.addEventListener('change', clearError);
         key.addEventListener('input', clearError);
         form.onsubmit = async event => {
@@ -23105,6 +23153,7 @@
                 _syncviewStaffRefreshChrome();
                 _syncviewCloseStaffIdentity(verified);
                 if (typeof _writeUiResumeLegacyQueues === 'function') _writeUiResumeLegacyQueues('staff-verified');
+                if (entry) _syncviewLiftStaffGate();
             } catch (e) {
                 if (!overlay.isConnected || overlay._syncviewClosed) return;
                 setBusy(false);
@@ -23133,7 +23182,7 @@
         }
         const identity = _syncviewStaffIdentityForHeaders();
         if (identity) {
-            _syncviewOpenStaffAccount();
+            if (!options.entry) _syncviewOpenStaffAccount();
             return Promise.resolve(identity);
         }
         _syncviewCloseStaffAccount();
@@ -23145,13 +23194,18 @@
             const result = new Promise(resolve => { overlay._syncviewResolve = resolve; });
             overlay.innerHTML = '<div class="staff-auth-card" role="dialog" aria-modal="true" aria-label="Preparing staff sign in" aria-busy="true" tabindex="-1"><div class="staff-auth-loading"><span class="staff-auth-spinner" aria-hidden="true"></span><strong>Preparing secure sign-in</strong><span>Loading the active staff roster…</span></div></div>';
             document.body.appendChild(overlay);
-            _syncviewBindStaffIdentityOverlay(overlay);
+            // .cal-import-overlay's z-index (260) is declared later in the
+            // sheet than .staff-auth-overlay's, so it wins. Entry mode has to
+            // sit ON the gate cover (9990), and only entry mode does.
+            if (options.entry) { overlay.style.zIndex = '9995'; overlay.classList.add('is-entry'); }
+            _syncviewBindStaffIdentityOverlay(overlay, options.entry);
             setTimeout(() => overlay.querySelector('[role="dialog"]')?.focus(), 0);
             try {
                 const roster = await _syncviewStaffRoster();
                 if (!overlay.isConnected || overlay._syncviewClosed) return await result;
                 if (!roster.length) throw new Error('No active staff roster rows are available');
-                _syncviewRenderStaffIdentityForm(overlay, roster);
+                _syncviewRenderStaffIdentityForm(overlay, roster, options.entry);
+                if (options.entry) document.getElementById('staffGateOverlay')?.classList.add('is-carded');
                 return await result;
             } catch (error) {
                 _syncviewCloseStaffIdentity(null, { restoreFocus: !options.silent });
@@ -23165,6 +23219,56 @@
         }).finally(() => { _syncviewStaffPromptPromise = null; });
         return _syncviewStaffPromptPromise;
     }
+    /* The gate cover itself. Painted pre-boot by html.boot-gate (see the
+       <head> boot script); these lift it, drop it back, or park it on an
+       error state. Surfaces with their own access model (client share links,
+       ?intake=1, the onboarding funnels, the SMM weekly entry) never gate. */
+    function _syncviewStaffGateRequired() {
+        try {
+            if (_isSmmWeeklyEntry || _isOnboardingView) return false;
+        } catch (e) {}
+        return _syncviewStaffEligible();
+    }
+    function _syncviewSetStaffGateNote(text, retry) {
+        const note = document.getElementById('staffGateNote');
+        if (note) note.textContent = text;
+        const button = document.getElementById('staffGateRetry');
+        if (button) button.hidden = !retry;
+    }
+    function _syncviewLiftStaffGate() {
+        // An entry-mode sign-in card is part of the gate, so it goes with it.
+        // (Verification can arrive from a sibling tab while this card is open.)
+        try {
+            const prompt = document.getElementById('staffIdentityOverlay');
+            if (prompt && prompt._syncviewEntry) _syncviewCloseStaffIdentity(_syncviewStaffIdentityLoad(), { restoreFocus: false });
+        } catch (e) {}
+        document.documentElement.classList.remove('boot-gate');
+        const overlay = document.getElementById('staffGateOverlay');
+        if (overlay) overlay.style.display = 'none';
+        if (!_syncviewAppBooted) { _syncviewAppBooted = true; try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
+    }
+    /* Drop the gate back over a running app. Sensitive state is purged by the
+       identity clear/invalidate paths that call this, so what sits behind the
+       cover is inert. */
+    function _syncviewShowStaffGate() {
+        document.documentElement.classList.add('boot-gate');
+        const overlay = document.getElementById('staffGateOverlay');
+        if (overlay) overlay.style.display = 'flex';
+        _syncviewSetStaffGateNote('Preparing secure sign-in…', false);
+    }
+    let _syncviewGatePromptOpen = false;
+    function _syncviewOpenStaffGate() {
+        if (!_syncviewStaffGateRequired()) { _syncviewLiftStaffGate(); return Promise.resolve(null); }
+        _syncviewShowStaffGate();
+        if (_syncviewGatePromptOpen) return Promise.resolve(null);
+        _syncviewGatePromptOpen = true;
+        return _syncviewOpenStaffIdentity({ entry: true, silent: true })
+            .then(result => {
+                if (!result) _syncviewSetStaffGateNote('Sign-in could not start. Check your connection and try again.', true);
+                return result;
+            })
+            .finally(() => { _syncviewGatePromptOpen = false; });
+    }
     function _syncviewScheduleStaffPrompt() {
         if (!_syncviewStaffEligible() || _syncviewProdDirectPreview() || _syncviewStaffIdentityLoad()) return;
         try {
@@ -23177,12 +23281,21 @@
         if (_syncviewStaffBootPromise) return _syncviewStaffBootPromise;
         _syncviewStaffBootPromise = (async () => {
             if (!_syncviewStaffEligible()) { _syncviewStaffRefreshChrome(); return null; }
+            // The entry card just verified this identity and lifted the gate,
+            // which starts init(), which lands here. A second POST for the same
+            // key can only lose: a rate-limit or a transient 5xx would now bounce
+            // someone back to the gate moments after they signed in successfully.
+            if (_syncviewStaffIdentityValid()) {
+                _syncviewStaffRefreshChrome();
+                return _syncviewStaffIdentityLoad();
+            }
             const current = _syncviewStaffIdentityLoad();
             if (!current || !current.key || !current.member || !current.member.id) {
                 if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
                 else _syncviewStaffIdentityVerified = false;
                 _syncviewStaffRefreshChrome();
-                _syncviewScheduleStaffPrompt();
+                if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+                else _syncviewScheduleStaffPrompt();
                 return null;
             }
             const currentSignature = _syncviewStaffIdentitySignature(current);
@@ -23194,17 +23307,26 @@
                 _syncviewStaffIdentitySave(verified);
                 _syncviewStaffRefreshChrome();
                 if (typeof _writeUiResumeLegacyQueues === 'function') _writeUiResumeLegacyQueues('staff-verified');
+                if (_syncviewStaffGateRequired()) _syncviewLiftStaffGate();
                 return verified;
             } catch (e) {
                 if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== currentSignature) return null;
                 if (e && e.status === 401) {
+                    // Definitively not one of ours (or a hand-written
+                    // localStorage blob): clear it and put the gate back.
                     _syncviewStaffIdentityClear();
-                    _syncviewScheduleStaffPrompt();
+                    if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+                    else _syncviewScheduleStaffPrompt();
                 } else {
                     if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
                     else _syncviewStaffIdentityVerified = false;
                     _syncviewStaffRefreshChrome();
                     console.warn('[SyncView] staff key verifier unavailable; keeping auth permissive', e);
+                    // Verifier unreachable and the key was NOT rejected. The
+                    // door still fails closed: the only thing that could admit
+                    // here is the stored blob, and the stored blob is not
+                    // proof of anything (see the entry-gate note above).
+                    if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
                 }
                 return null;
             }
@@ -63880,10 +64002,24 @@
         try{
             const _clientEntryStillCurrent=()=>!_isClientLink||_syncviewClientEntryRunCurrent(clientEntryRun);
             if(!_clientEntryStillCurrent())return;
-            // B4 staff identity is cosmetic while auth_enforcement stays
-            // permissive. Validate an existing key before restoring routes;
-            // a missing key prompts after first paint and never blocks boot.
-            if (!_isClientLink) await _syncviewStaffIdentityBoot();
+            // The staff identity IS the door (2026-09-10), so this both
+            // verifies and gates. Painting the cover is not enough: Codex
+            // caught that in review. init() used to run on past this await, so
+            // a forged stored identity plus a blocked verifier still reached
+            // fetchAll() and pulled the anon-readable staff datasets in behind
+            // the cover, where the responses are visible in devtools and the
+            // overlay is one node removal away. Nothing loads until the server
+            // has confirmed who this is.
+            if (!_isClientLink) {
+                const verifiedIdentity = await _syncviewStaffIdentityBoot();
+                if (!verifiedIdentity && _syncviewStaffGateRequired()) {
+                    // Release the boot latch so a successful sign-in on the
+                    // gate can start the app that this return abandoned.
+                    _syncviewAppBooted = false;
+                    return;
+                }
+            }
+            _syncviewAppBooted = true;
             const _ptoFlagReady = _isClientLink ? Promise.resolve(null) : _ptoPrimeFlag();
             // Resume any calendar-card write job a previous session left
             // unfinished (tab closed during the post-submit write window).
@@ -64286,26 +64422,14 @@
         }
     }
 
-    const _AUTH_KEY='syncview_auth_v1';
-    function submitPassword(){
-        const v=document.getElementById('passwordInput').value;
-        if(v==='synchrosocial2026'){
-            // Guarded: with storage blocked (e.g. "Block all cookies") the
-            // setItem throws — auth just won't persist across reloads, but
-            // the overlay must still come down for this session.
-            try { localStorage.setItem(_AUTH_KEY,'ok'); } catch (e) {}
-            // Lift the boot gate's pre-paint overlay rule (display:flex
-            // !important) so the inline hide below actually applies.
-            document.documentElement.classList.remove('boot-password');
-            document.getElementById('passwordOverlay').style.display='none';
-            init();
-        } else {
-            document.getElementById('passwordError').style.display='block';
-            document.getElementById('passwordInput').value='';
-            document.getElementById('passwordInput').style.borderColor='var(--sv-border-dc2626)';
-            setTimeout(()=>document.getElementById('passwordInput').style.borderColor='var(--sv-border-e0e0de)',1500);
-        }
-    }
+    // The shared staff password (localStorage 'syncview_auth_v1') was retired
+    // on 2026-09-10: it was one secret for everyone, readable in this page's
+    // source, and it identified nobody. Staff entry is now the same verified
+    // roster-name + personal role key that already gated every capability.
+    // The stale marker is swept so no browser carries a dead credential.
+    const _LEGACY_AUTH_KEY = 'syncview_auth_v1';
+    try { localStorage.removeItem(_LEGACY_AUTH_KEY); } catch (e) {}
+    let _syncviewAppBooted = false;
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
     const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
     let _syncviewClientEntryCapability = null;
@@ -64688,10 +64812,13 @@
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
         const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
         setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(location.search).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
-    } else if(_isSmmWeeklyEntry||_isIntake||localStorage.getItem(_AUTH_KEY)==='ok'){
+    } else if(_isSmmWeeklyEntry||_isIntake||!!_syncviewStaffIdentityLoad()){
+        // A saved identity boots the app optimistically so signed-in staff
+        // never see the gate flash. It grants nothing: _syncviewStaffIdentityBoot()
+        // runs inside init() and drops the gate back if it does not verify.
         if(_isSmmWeeklyEntry){
-            document.documentElement.classList.remove('boot-password');
-            const _pwS=document.getElementById('passwordOverlay'); if(_pwS) _pwS.style.display='none';
+            document.documentElement.classList.remove('boot-gate');
+            const _pwS=document.getElementById('staffGateOverlay'); if(_pwS) _pwS.style.display='none';
             const _hS=document.querySelector('header.header'); if(_hS) _hS.style.display='none';
             const _ptS=document.getElementById('pageTop'); if(_ptS) _ptS.style.display='none';
         }
@@ -64705,11 +64832,13 @@
             try{localStorage.setItem(NAV_KEY,'linear');}catch(e){}
             history.replaceState({nav:'linear',client:null},'',location.pathname+location.search+'#linear');
         }
+        _syncviewAppBooted = true;
         init();
         if(_isIntake){ try{ navTo('linear', false); }catch(e){} }
     } else {
-        document.getElementById('passwordOverlay').style.display='flex';
-        setTimeout(()=>document.getElementById('passwordInput').focus(),50);
+        // No saved identity on a staff surface: the gate is the whole page
+        // until a role key verifies. init() runs from _syncviewLiftStaffGate().
+        _syncviewOpenStaffGate();
     }
 
     // >>> SXR_BEGIN

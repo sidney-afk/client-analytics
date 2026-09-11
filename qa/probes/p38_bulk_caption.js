@@ -2,6 +2,7 @@
 //   - 3 eligible cards selected → all generate, but at most CAL_CAPJOB_CONCURRENCY in flight at once
 //   - one card's backend returns an error → the others still succeed (batch isn't all-or-nothing)
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const A = 'p_bg_a_' + TS, B = 'p_bg_b_' + TS, C = 'p_bg_c_' + TS;
 const FRAME = 'https://frame.io/test/' + TS;
@@ -12,7 +13,7 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};
   await ctx.route('**/webhook/generate-caption', async (r) => {

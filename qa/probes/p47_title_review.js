@@ -6,6 +6,7 @@
 //   • title has no Linear sub-issue, so a title status change/ tweak NEVER pushes to Linear
 //     (we route every Linear webhook and assert ZERO title-driven calls).
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 const PID = 'p_ttl_' + Math.floor(Date.now() / 1000);
 
@@ -17,7 +18,7 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   // Kasper context with Linear interception so we can prove title never pushes.
   const kctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(kctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await kctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(kctx);
   const linearCalls = [];
   for (const wh of ['linear-set-status', 'linear-add-comment']) {
     await kctx.route('**/webhook/' + wh, async (r) => {

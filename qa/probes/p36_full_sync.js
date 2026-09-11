@@ -3,6 +3,7 @@
 //   (a) the database (Supabase row), (b) the Kasper queue, (c) the client surface,
 //   (d) the Linear push (intercepted, no real Linear mutation).
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_fs_' + TS;
 const VURL = 'https://linear.app/sidtest/issue/FS-' + TS;
@@ -16,7 +17,7 @@ function intercept(ctx, setCalls, addCalls) {
 async function mkPage(browser, setCalls, addCalls) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   await intercept(ctx, setCalls, addCalls);
   const p = await ctx.newPage(); p._errs = [];
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) p._errs.push(m.text()); });

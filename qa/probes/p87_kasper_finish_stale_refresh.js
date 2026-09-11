@@ -26,6 +26,7 @@
 //                    stamp (a genuine SMM hand-back) → card MUST return to
 //                    "Waiting". Proves the fix didn't just disable the feature.
 const Q = require('./lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const { clientEntrySafeChildEnv } = require('../test-client-entry.js');
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 
@@ -100,7 +101,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   // Scripted backend: SMM sheet (empty), upsert (echo, no live write), calendar read (our rows).
   await ctx.route('**docs.google.com/spreadsheets/**', route =>
     route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })

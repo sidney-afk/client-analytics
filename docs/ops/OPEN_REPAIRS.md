@@ -20780,7 +20780,121 @@ whether it fires (one live row), but not whether it can fire TWICE on one card.
 
 165 checks, two controls by exit status. Full runner: 2 of 427, baseline.
 
-## 198. [2026-09-11, BUILT] The first live run answered its own biggest question: seven of its nine "needs a person" rows were rows the card itself had produced
+## 198. The staff entry gate replaces the shared password (2026-09-10)
+
+**What was there.** Two doors, and the wrong one was load-bearing. The outer
+one asked for a single password shared by everyone, hardcoded in `index.html`
+(a public repo) and therefore readable by anyone who opened the page source;
+passing it identified nobody and set `localStorage.syncview_auth_v1='ok'`. The
+inner one — pick your roster name, enter your personal role key, verified by
+the `key-verify` Edge Function — was already the thing gating every capability
+in `_syncviewStaffCan`, but it was OPTIONAL: prompted once a session and
+dismissible with "Not now".
+
+**What it is now.** The shared password is gone (markup, `submitPassword`,
+`boot-password`, and the stale storage marker, which is swept on load). The
+verified identity is the door. Signed-out staff land on `#staffGateOverlay`
+with the sign-in card on it, in entry mode: no "Not now", and neither Escape
+nor a backdrop click dismisses it, because there is nothing behind it to
+dismiss to. Signing out returns there, in every open tab.
+
+**The distinction this turns on, and the trap in it.** ADMISSION (may the shell
+be used) is now separate from VERIFICATION (may this action touch data), and
+only the second is a credential. The pre-paint check in the `<head>` boot
+script is synchronous and reads localStorage, which anyone can write by hand,
+so it decides only what to PAINT: a stored blob boots the app optimistically so
+returning staff never see a gate flash. `_syncviewStaffIdentityBoot()` then
+verifies against the server and drops the gate back on a 401, clearing the
+blob. Writing the naive version of this — gate on presence of the blob — would
+have made the door forgeable in devtools, which is why `test/staff-entry-gate.js`
+drives that exact case in a real browser.
+
+**The grace window that was in the first revision, and why it is gone.** The
+first cut of this admitted the shell during a verifier outage when the stored
+identity carried a `verified_at` within 24h, so a Supabase blip would not lock
+the team out. Codex's review of #1385 flagged it P1 and was right: `verified_at`
+is a field in the same hand-writable blob, so anyone could set it to now, block
+ONLY the verifier request, and walk into the shell. The "outage" was
+manufacturable, which made it a bypass rather than a cushion. It also bought
+less than it looked: every read the shell performs goes to the same Supabase
+host as `key-verify`, so a genuine outage leaves the app empty anyway; the sole
+case it covered was `key-verify` alone being broken, which is exactly the case
+an attacker can produce on demand. There is no offline substitute — an
+unforgeable proof would have to be server-issued and server-checked, which is
+what `key-verify` already is — so **the gate fails closed on every verification
+failure**, not only a 401. The cost is accepted: a `key-verify` outage while the
+rest of Supabase is healthy locks staff out until it is redeployed. The two
+guards that asserted the old behaviour now assert the closed one, including a
+fresh timestamp plus a blocked verifier.
+
+**Blast radius that mattered more than the feature.** Surfaces with their own
+access model must never meet this gate: `?c=` client share links, `?intake=1`,
+the onboarding funnels, `onboarding_view`, and the SMM weekly entry. All four
+are asserted. About 40 harnesses used the retired password to get in; they now
+seed a stub identity and fulfil `key-verify` locally via the new
+`qa/staff-gate-seed.js`. **Be precise about what that grants**, because the
+first version of this entry was not: it said "the shell and nothing more", the
+way the password did. Codex caught that reviewing the PR and was right. A
+fulfilled `key-verify` makes the identity VALID, so `_syncviewStaffCan()` opens
+every browser-side capability of the seeded role, and the seed is an admin by
+default: credentials, review links, intake, onboarding, hiring, PTO admin. What
+it cannot do is the part that protects real data: the stub key still reaches the
+real backend on every staff call and is still rejected, so no harness writes
+anything and no server-gated read returns.
+
+**The second P1, and why painting a cover is not a gate.** Codex's re-review of
+the fixed branch found that the fail-closed path only *painted*:
+`_syncviewStaffIdentityBoot()` resolved `null`, but `init()` ran straight on past
+its unchecked `await` into `fetchAll()`, so a forged identity plus a blocked
+verifier still pulled the anon-readable staff datasets in behind the cover —
+where the responses sit in devtools and the overlay is one node removal away.
+`init()` now returns at that await on a gated surface and releases its boot latch
+so a later successful sign-in starts the app it abandoned. The guard asserts the
+absence directly (no Supabase/Sheet/n8n read on either failure path) and, so the
+negative cannot pass vacuously, asserts that a *verified* boot does read.
+Feature-flag rows (`syncview_runtime_flags`) are excluded and the exclusion is
+argued in the file: they are a key and a boolean, readable with the publishable
+key from any browser regardless of this gate.
+
+**One more from the same review: the app verified the same key twice.** A fresh
+sign-in verified, lifted the gate, started `init()`, and `init()` immediately
+re-POSTed `key-verify` for the identity just accepted. Harmless before, but
+against a fail-closed door a rate-limit or transient 5xx on that redundant call
+would bounce someone back to the gate seconds after a successful sign-in. Boot
+verification now short-circuits when the in-memory identity is already verified.
+
+**How harnesses get in, and the two defects that mechanism produced.** The first
+cut of `qa/staff-gate-seed.js` answered `key-verify` by patching `window.fetch`
+in the page. That shadows a Playwright route for the same URL: the request never
+reaches the network layer, so `pto-ui-polish`'s own verifier mock never fired and
+its fixture wait timed out. It was also an in-page mutation every suite would
+have to reason about. The seed now answers with a ROUTE and touches nothing but
+`localStorage` — with two ordering rules written into the file, since Playwright
+tries the most recent route first: register it BEFORE a specific mock that should
+win, and AFTER any catch-all `route('**/*')` that would swallow it (four
+harnesses were reordered for that). Making the POST visible to the network layer
+then exposed the second defect: `isWriteLikeRequest` counts any non-GET to
+`functions/v1` as a mutation, so the act of signing in failed "this surface
+mutated nothing" in three Production lanes. `key-verify` writes nothing — it
+reads a roster row and answers — so it is excluded there, narrowly: every other
+POST to `functions/v1` still counts.
+
+**Two suites encoded the old design and were updated, not silenced.**
+`b4-staff-login.js` asserted that sign-out leaves a calm signed-out app with no
+prompt; that posture no longer exists on a staff surface. `prod-write-gateway-browser.js`
+signs out mid-run to prove sensitive state is purged, then keeps clicking — it
+now signs back in, because the gate is over the app. The guard lives in `qa/boot/`, not `test/`: `test/run-all.js` auto-discovers every
+`test/*.js` and that lane is dependency-free by contract, so a Playwright suite
+there fails the `unit` job on a runner that never installs a browser. It runs in
+the `Client entry visible boot` workflow, which already triggers on `index.html`.
+
+Verified: `staff-entry-gate`,
+`boot-gate-parity`, `prod-write-gateway-browser`, `prod-boot-budget`,
+`kasper-cal-cache-bounded`, and all 23 `client-entry-sequence` scenarios pass.
+`b4-staff-login` reaches a failure that reproduces identically on `origin/main`
+(a creative-role toast, unrelated to this change).
+
+## 199. [2026-09-11, BUILT] The first live run answered its own biggest question: seven of its nine "needs a person" rows were rows the card itself had produced
 
 The reconcile lane from 197 ran for the first time on `ca91d26`, dry, over 4,465
 committed client status writes and 352 committed client change requests. It
@@ -20836,9 +20950,9 @@ in the hash, and a `pc_card_` prefix check standing in for the hash. Full runner
 
 Next run should read **4 repairs, 2 for a person**.
 
-### 198a. Round 2: the fix for a restated rule was itself a restated rule
+### 199a. Round 2: the fix for a restated rule was itself a restated rule
 
-The backfill recognition in 198 recomputed the importer's fingerprint **in the
+The backfill recognition in 199 recomputed the importer's fingerprint **in the
 reconciler**. Review caught that the two derivations already disagreed:
 `f42-card-comment-import` builds its `nativeId` as
 `clean(raw.id || raw.comment_id || raw.native_comment_id)` — TRIMMED, with two
@@ -20883,11 +20997,11 @@ structural check that the reconciler contains no `createHash`, no `'pc_card_'`
 literal, and does require the importer — so a future session cannot quietly
 rebuild the copy. Full runner: 2 of 427, baseline.
 
-### 198b. Round 3: half an identity shared is still a copy, and the third check to pass for the wrong reason
+### 199b. Round 3: half an identity shared is still a copy, and the third check to pass for the wrong reason
 
 Two findings, and the second is the more serious one.
 
-**1. The card id was left behind.** 198a moved the native-id derivation into the
+**1. The card id was left behind.** 199a moved the native-id derivation into the
 importer but not the CARD id: `planSurface` reads `clean(row.id)`, while the
 shared helper hashed whatever the caller handed it. A reconciler passing a raw
 `calendar_posts.id` with whitespace would resolve the card, then compute a
@@ -20903,7 +21017,7 @@ such a cell would erase legacy client words. The `comment_id` and
 `card_cell_unparseable` — while the checks passed, because they asserted
 `findings` and the `ambiguous_repeat` subset rather than **all** of `skipped`.
 
-So the importer's fallbacks are UNREACHABLE from the reconciler, and 198a's
+So the importer's fallbacks are UNREACHABLE from the reconciler, and 199a's
 claim that three derivations were covered was wrong. The checks now assert what
 actually happens: the whitespace case is recognised with `skipped` deep-equal to
 `[]`, and an id-less cell is asserted to be REPORTED as an incomplete read
@@ -20923,3 +21037,25 @@ unable to disagree.
 172 checks. Three controls by exit status: the card id no longer normalized, the
 native id trim dropped, recognition removed entirely. Full runner: 2 of 427,
 baseline.
+
+### 199c. Renumbered from 198 to 199, the third collision in two days
+
+Main merged PR #1385 (the staff entry gate) while this branch was in review and
+took **198**. This block and its sub-entries are now **199, 199a–199c**, with the
+three cross-references inside them moved along.
+
+That is the third time in two days: 195 to 196, 196 to 197 (197as), and now 198
+to 199. The cost each time is a conflicted merge plus a reference sweep, and the
+risk each time is a renumbered block whose own pointers still name the old
+number, which then reads as a citation of a different, real entry.
+
+**197as proposed the durable fix and it is still the right one: a ledger entry
+should claim its number at MERGE time, not at write time.** Three collisions in
+two days is enough evidence to stop treating this as bad luck. It is a change to
+the ledger convention, so it stays a proposal rather than something this PR
+makes on its own.
+
+Checked after the merge, per this file's own standing instruction: no duplicate
+`## N.` headers introduced, and no duplicate `### 199x.` sub-headers. The six
+duplicate top-level numbers in this file are all present identically on
+`origin/main`.

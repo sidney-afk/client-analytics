@@ -15,6 +15,7 @@
 // Playwright: use the locally-installed module in CI; fall back to the
 // container's global path for ad-hoc local runs.
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { seedStaffGate } = require('./staff-gate-seed.js');
 const {
   TEST_CLIENT,
   clientEntrySafeChildEnv,
@@ -66,7 +67,7 @@ function capture(page) {
 }
 async function _ctx(browser) {
   const c = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(c);
   // write_ui_reroute_clients → DARK for the harness: the TEST client is the
   // sole allowlist member, so the live flag would put it on the #850 gateway
   // lane, which fails Linear-linkless harness cards closed before the source

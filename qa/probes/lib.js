@@ -1,6 +1,7 @@
 // Extended harness for overnight calendar testing. Builds on the repo's golden_lib.
 // Scope: ONLY the `sidneylaruel` test client. Every probe must clean up (archive) what it creates.
 const G = require('../golden_lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const {
   TEST_CLIENT,
   currentTestClientToken,
@@ -60,7 +61,7 @@ async function stubRerouteFlagDark(ctx) {
 }
 async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
-  await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(c);
   await stubRerouteFlagDark(c);
   return c;
 }

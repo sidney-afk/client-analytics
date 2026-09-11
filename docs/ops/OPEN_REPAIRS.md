@@ -13920,6 +13920,751 @@ unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
 
+## 169. [2026-09-07, BUILT AND TESTED, NOT MEASURED — the release gate is closed in source; the item-95/160 acceptance measurement is NOT taken and needs a live read] Workload reads native data, and the first post created after the outbound flip no longer blanks the board
+
+Lane A of the Linear exit. Branch `claude/lx-a-workload-native`, draft PR, not
+merged. This entry records what is proven, what is not, and the two numbers a
+later session would otherwise get wrong.
+
+### The release gate, and why it is not the defect the brief described
+
+`workload_native_snapshot_v1` publishes `pv.workload_labels_complete` into
+`native_metadata`. That column is
+`(production_workload_label_projection(d.linear_raw)->>'complete')::boolean`, and
+that projection answers `complete:false` for ANY `linear_raw` without a
+well-formed `issue.labels` relation
+(`migrations/2026-07-23-f34-f53-production-attachments.sql:64-165`; read, and the
+`jsonb_typeof(v_issue) is distinct from 'object'` early return is the branch that
+fires).
+
+The intake paths write `linear_raw: { attribution: … }` with no `issue` at all --
+`handleComponentFill` (`supabase/functions/production-write/index.ts:6069`) and
+`handleIntakeCreate` (`:6657`, whose own comment says *"No Linear issue exists
+yet; `linear-outbound` adds `issue` alongside this on drain"*). `linear-outbound`
+is what stamps the labels relation. **So the trigger is the outbound flip, not
+2026-09-15** — the same correction item 163 makes about readable names, and for
+the same reason: the thing that dies first is under our own hand and is earlier
+than the cancellation date.
+
+Two corrections to how this was scoped, both verified rather than read:
+
+1. **It is NOT every new deliverable.** `handleProductionCreate` builds
+   `linearIssue.labels = { nodes: selectedLabels, pageInfo: { hasNextPage: false,
+   endCursor: null } }` (`:3663-3667`) and writes `linear_raw: { issue:
+   linearIssue, attribution }` (`:3689`). That path stays complete. The
+   attribution-only rows are the INTAKE paths — which are the volume path for new
+   posts, so the gate stands.
+2. **It is a REGRESSION the integration candidate introduces, not a defect it
+   inherits.** On `origin/main` an unprovable row returns null from
+   `wlNativeMetadataRow` and joins `unavailableIssueIds`
+   (`index.html:14890-14892`), which blanks that row's due date and withholds its
+   weight — one row. The candidate replaced that with a `throw` inside
+   `wlFetchNativeSnapshot`, which fails the WHOLE read for everyone.
+
+**Fixed at both ends, deliberately.** `workload_native_label_state_absent(jsonb)`
+separates *"no provider label state was ever stamped"* (answered complete, with an
+empty label array) from *"a relation exists but is malformed or paginated"* (still
+refused). And the browser degrades the single unprovable row through the
+`partialFailure` channel that already exists, with `partitionFailed:false`, so the
+banner says the true thing and every other row stays fully editable.
+
+**The accepted cost, stated plainly:** a row with no provider label state weighs
+**1x, permanently**. `2× Workload` and `3× Workload` are provider labels and
+nothing native mints one. So after the outbound flip, weighting stops being
+settable for new work until a native label write exists. The owner has been told.
+That is a real functional loss, not a rounding error, and it should not be
+rediscovered as a bug.
+
+### Two numbers, so a later session does not call a working harness broken
+
+- **Item 95's acceptance reading is ~195, not 40.** `_wlNativeDiffReport`
+  (`index.html`, the `?wlnative=1` harness) applies **no client filter** — it keys
+  purely on `linear_id` presence — while item 95 decomposes 195 rows as 116 TEST
+  client + 39 one former off-roster client + **40 active-roster**. The 40 is the
+  subset that matters to a human and the harness cannot separate it; it must be
+  re-derived by joining against the client roster. Item 95 also says 31 of the 40
+  carry a `mirror_in_delete` and the remaining 9 are undecomposed — 40 is not one
+  fix.
+- **`workload_issues` does not empty when Linear dies, it FREEZES.** The n8n
+  reconcile returns `[]` on a bad read and its safety gate keeps the old rows, so
+  ~2,000 rows stay `active=true` with a `synced_at` that stops advancing.
+  Stale-and-plausible is worse than blank, and it is the whole reason this lane
+  must be observed before the reconcile is stopped.
+
+### NOT DONE, and each is blocked on something this session does not have
+
+- **The item-95 / item-160 acceptance measurement is NOT TAKEN.** `?wlnative=1` /
+  `window.wlNativeDiff()` compares the native view against `workload_issues` and
+  needs (a) the view applied and (b) a browser against the live backend. This
+  session has neither. **It stops being runnable the moment the reconcile stops**,
+  so it must be taken while Linear is still connected. Items 95 and 160 therefore
+  stay open, and no number has been written into them.
+- **The `native_assignee_eligible` census (A8) is NOT TAKEN**, for the same
+  reason. `native_assignee_eligible = tm.active and tm.team = d.team and tm.role =
+  ('editor'|'designer')` REPLACES a hardcoded name allowlist under which graphics
+  designers passed with no allowlist at all, so a graphics row assigned to
+  someone whose role is `smm`/`admin`, or whose `team` disagrees with the
+  deliverable's, silently leaves the board. Nobody has counted those rows against
+  live data. The same is true of the CLIENT half: `native_client_active` is
+  `clients.active`, and the TEST client `sidneylaruel` is active, so 116 TEST rows
+  may arrive on the live board at cutover. **Both are counts, and both need one
+  live read.**
+- **`scripts/f40-workload-readiness.js` was left alone.** It audits the
+  `workload_issues`-era population and still works while the reconcile lives. It
+  is NOT the tool for the acceptance measurement, and it needs revisiting when the
+  reconcile stops — at which point it audits a population nothing rebuilds.
+- **A9 (deleting the legacy Workload code) is not done and is blocked on an owner
+  decision.** The snapshot's legacy `union all` arm still emits `workload_issues`
+  rows whose `team_key` is not VID/GRA — the view's own header records 8 such
+  parent rows on Linear teams CON and STR — so `legacy_teams` is never empty and
+  the "Some teams still use the legacy Workload source" banner is permanent and
+  unclearable. Those 8 are parents with no sub-issues and render nothing today.
+
+### Found while doing this, and belonging to somebody else
+
+- **`## 162.` is claimed twice.** `origin/main` now carries
+  `## 162. … The samples card could not complete itself` (merged after item 168
+  was written), while commit `8483498` on the unmerged audit branch carries
+  `## 162. … Every human-readable task name in the estate is minted by Linear`.
+  Item 168 recorded the highest number on main as `161`, which was true when it
+  was written and is not now. This is a NEW collision from concurrent branches,
+  not one of the four pre-existing duplicates (`## 13.`, `## 14.`, `## 22.`,
+  `## 23.`) that item 168 says to leave alone. **The coordinator owns the
+  renumber; lane A did not touch either entry.**
+- **The native deep-link projection is stranded in lane D's region.** The
+  candidate's `?prod=1&batch=<bat_…>` popover header and its
+  `s.nativeId || s.identifier` row links live at `index.html:19472` and `:19540`,
+  inside the 19270-19600 block assigned exclusively to lane D. Lane A did not
+  edit them. The consequence while they are missing: on the Workload popover a
+  native row still links by `identifier`, so a post-cutoff row with no
+  `linear_identifier` falls through to `s.url`, which native rows now serve as
+  `''` — a dead link rather than a wrong one. `test/workload-syncview-links.js`
+  is deliberately left at main's version; the candidate's version carries the
+  three assertions that prove the fix and should be lifted in the same change
+  that lifts the two hunks.
+- **`test/workload-linear-cutoff.js` needs
+  `migrations/2026-09-06-linear-outbound-cutoff.sql`**, which is lane F's. Not
+  lifted.
+- **`qa/workload-consistency/native-adapter-rehearsal.js` and
+  `native-capture-rehearsal.js` need `scripts/card-change-journal-rehearsal.js`
+  and `scripts/card-history-integrated-rehearsal.js`**, which are shared
+  infrastructure several other lanes' work also requires. The five files those two
+  rehearsals sit on top of ARE lifted and their offline suites pass; the two
+  rehearsals and `test/workload-history-integrated.js` (a 10-line shim onto a
+  `scripts/` file that does not exist here) are not.
+
+### What is proven, and by what
+
+Executed, not pattern-matched: `test/workload-native-postgres.js` applies
+`2026-07-05-b0`, `2026-07-06-b1`, `2026-07-19-workload-plan`, the native view and
+this migration to a disposable PostgreSQL 16 database and runs 36 checks against
+it, including the four label-state shapes (`{"attribution":…}`, `null`, an
+`issue` with no `labels`, and a paginated relation) and the alias/refusal/
+snapshot-isolation cases. `test/workload-native-membership.js` extracts the real
+browser readers into an isolated realm — 52 checks — and its A3 cases were
+confirmed to FAIL against the candidate's throw before the fix went in.
+`test/workload-native-realtime.js` pins the channel's table set and executes the
+debounce. Nothing here is deployment, live-population or serving proof, and the
+PR body says so.
+
+**MEASUREMENT TAKEN, 2026-09-07 late evening UTC — this entry's "NOT MEASURED" is
+superseded.** Read-only against the live backend with the browser publishable key,
+while the n8n Workload reconcile was still running (the only window in which the
+comparison is possible). **37 live tasks are present natively and absent from the
+board; 33 are active-roster client work across 11 clients**; 4 are the TEST client.
+27 VID / 10 GRA, 21 video / 16 thumbnail; statuses 30 `Todo`, 5 `In Progress`,
+1 `For SMM approval`, 1 `Tweak Needed`. **Every one carries a `linear_id`**, so
+none is a native row the mirror never reached: each was created, mirrored out, and
+lost provider-side. Item 95 read 40 active-roster rows on 2026-09-01; this reads 33
+on 2026-09-07, so the population is persistent rather than a one-off.
+
+Two things this measurement corrected. **`migrations/2026-09-02-workload-native-view.sql`
+was already applied** — this lane was told to verify the opposite because it appears
+nowhere in `EXECUTION_LOG.md`, and absence from the log is absence of a record, not
+of the change. And the predicted ~195 answers a different question: it comes from
+`_wlNativeDiffReport`, which keys purely on `linear_id` presence with no status or
+client filter. A trap worth naming: the native view's batch arm emits `native_kind`,
+`status` and `status_type` as NULL by design, so a naive live-status test admits all
+1,366 batch rows and reports 1,403 instead of 37. Filter `native_kind is not null`
+first. Full detail and receipts in the coordinator's own ledger entry.
+
+### Codex round 2 on #1344 — a warning that reached state but never reached a person, and one more identifier-only route (2026-09-08)
+
+Codex re-reviewed `996d61f5` and returned two more P1s. Both are against the
+previous pass's own fixes, and neither was caught by a green suite — the same
+shape as the one that caused the outage above.
+
+**1. The dropped-plan warning, third pass. `index.html:18303` / `16807`.**
+OPEN_REPAIRS 177's fix drops a plan whose stored client no longer matches its
+owner, and returns `plans_dropped` so a person can see that a saved work day
+vanished. Pass 1 counted it into a field nothing read. Pass 2 carried the count
+through `wlFetchNativeSnapshot` and wrote an explanatory sentence into
+`wlState.backgroundError`. It still reached nobody, for two independent reasons:
+
+- `renderWorkloadPlanStatus` replaces every `backgroundError` value except the
+  exact legacy-team sentinel with the generic "Workload could not check for
+  newer changes" text, so the explanation was discarded at render time;
+- `wlManualRefresh` clears `backgroundError` outright whenever `legacyTeams` is
+  empty — so pressing the refresh button erased it.
+
+Fixed by giving the condition its own state (`wlState.nativePlansDropped`) and
+its own rendered branch, which is the mechanism the legacy-team message uses to
+survive. A refresh-failure sentence and a dropped-day sentence can now both be
+true and both are rendered; a clean snapshot clears the count, because a warning
+that never goes away stops being read.
+
+**The lesson is about the test, again.** Both earlier passes shipped with a
+check asserting `wlState` held the right string, which is precisely the check
+that cannot see either failure. The replacement drives the shipped composition —
+the gateway's own `projectNativeSnapshot`, then the real `wlLoadSnapshot`, then
+the real `renderWorkloadPlanStatus` against a real element — and asserts on
+rendered text. `test/workload-native-membership.js` no longer stubs the
+renderer at all. Counterfactual: reverting only the renderer branch turns 4
+checks red; reverting only the loader change turns 4 red; the file also carries
+an executed negative control that runs `996d61f5`'s renderer against the same
+state and shows the sentence it threw away.
+
+**2. The sole-item popover header still routed by Linear identifier.
+`index.html:19792`.** The previous pass fixed the popover ROW link; the header
+resolves independently and derived `soleSubIdent` from `soleSub.identifier`
+alone, falling through to `parentIdent`. For a post-outbound deliverable with no
+Linear identifier, the most prominent action on a one-video popover therefore
+opened the synthetic batch parent — whose status is hardcoded `todo`, i.e. the
+one value guaranteed to contradict the pill just clicked — or disappeared when
+no parent identifier resolved either. Now `nativeId || identifier`, matching the
+rows below it. Reverting only that line turns 5 checks red.
+
+### The sweep this earns: every identifier-only route in the Workload regions
+
+Three P1s in two rounds are one class — a row created AFTER the outbound flip,
+which cannot exist today, so it ships invisibly green and breaks on cutover day.
+So every remaining `.identifier` / `linear_issue_url` read in this lane was
+checked by hand against a row carrying neither.
+
+**Correct already, verified rather than assumed.** The popover row link and the
+loose-strip chip link (`nativeId || identifier`); the loose-strip parent button,
+which branches on `nativeBatchId` to `?prod=1&batch=`; the plan/day lookup keys,
+which read `id` first; `wlIssueBusinessFingerprint`, the automatic-placement
+sort and `wlSortSubIssues`, all of which tie-break on `id` so an identifier-less
+row stays deterministic; every label, which reads `title` first; and every
+`s.url ? … : ''` Linear icon, which is omitted rather than aimed elsewhere — a
+native row has no Linear issue, and no link is the honest answer.
+
+**Found, left open, named here rather than fixed.**
+
+1. **The content-calendar button on every popover row passes an identifier
+   only.** `wlOpenInContentCalendar` stores `identifier: ''` for a native row and
+   `_calApplyFocusRequest` returns silently on the empty key; the match itself is
+   against `linear_issue_id`, so even a non-empty native key would not resolve.
+   The reader lands on the right client's calendar with nothing focused. Closing
+   it means teaching the calendar's focus resolution a deliverable-id key, which
+   is the calendar's region and not this lane's.
+2. **The "now working" / overview client chips build `href` from
+   `wlParentUrl`,** which is Linear-only at both ends, so a native row yields
+   `href=""` / `href="#"`. The primary click is intercepted and opens the
+   popover — which routes correctly after this pass — and only a
+   cmd/ctrl/shift-click follows the href, where it is documented as the Linear
+   escape hatch. Deliberately left: it is the same call as the header's
+   `openLinearUrl`, which the suite already blesses as "omitted, not aimed
+   elsewhere". If the owner wants it live, the fix is a `?prod=1&batch=`
+   fallback at both chip call sites.
+3. **The popover's sub-issue ordering tie-breaks on `identifier` with no `id`
+   fallback,** so a group of native rows loses the deliberate ordering the rest
+   of the board has. `Array.prototype.sort` is stable, so nothing shuffles
+   between renders. Cosmetic.
+4. **`wlDebug()` prints and searches by `identifier`,** so native rows print
+   blank and are unfindable by its search. Developer-only surface.
+
+**Not verified by any of this.** No database access in this lane, so nothing
+here is evidence about `workload_plan`, about `workload_native_snapshot_v1`
+against the real table, or about what the deployed `workload-plan` function
+serves. Item 177 is what a green CI on a lane with no data access is worth.
+
+
+### Codex round 3 — the fix for round 2 silenced three other notices (2026-09-08)
+
+The dropped-plan branch added above returned early, exactly like the
+`backgroundError` branch it replaced. That chain is how `renderWorkloadPlanStatus`
+had always worked: the first true notice won and the rest went unsaid. Giving
+the dropped-plan condition its own branch widened the set of situations in which
+that suppression fires, so a drifted plan client could now silence **"capacity
+may be understated; due-date editing is paused"** and **"Nothing is shown here,
+but this is not an empty board"**. Those states are independent of a drifted
+plan, and hiding them makes the board read as MORE complete than it is — the
+absence `AGENTS.md` calls the one failure a reader cannot debug or report.
+
+Precedence is now **ordering, not suppression**: every applicable notice is
+collected in its existing rank and joined. Nothing changed rank. The
+completeness note is still last, because a real plan or metadata problem is more
+urgent — it just no longer goes unsaid on the day something else is also wrong,
+which is precisely the day a reader needs it.
+
+**Not a regression this lane introduced, and worth being exact about that.** The
+early return predates all of this; what the round-2 fix did was give it a new
+trigger. It was still ours to fix, because we widened it.
+
+**A source-shape pin had to be replaced, not deleted.**
+`test/workload-excluded-reported.js` asserted the literal ternary
+`status === 'ready' ? wlExcludedSummaryText` and a token-index comparison for
+"a real refresh failure outranks a completeness note". Both claims are about
+behaviour, and neither pin can tell "is ordered first" from "silences" — so they
+would have gone red for the fix while staying green for the defect. Both are now
+executed against the real renderer: the ordering check reads the rendered text,
+and the ready-guard check paints `loading` / `refreshing` / `stale` / `unknown`
+boards with excluded rows and asserts the note stays absent. Proven red against
+`07a7108` before being kept (2 checks), alongside 4 new composition checks in
+`test/workload-native-membership.js`.
+
+
+### Codex round 4 — the sentence that could never run in the case it existed for (2026-09-08)
+
+The round-3 fix composed the four notices above the terminal branch and left
+that branch a fall-through, on the reasoning that `backgroundError` had always
+suppressed it so it was not a regression. Codex found the sharper fact, and it
+is worth recording because the reasoning was wrong in an instructive way.
+
+`wlLoadSnapshot`'s failure path sets `backgroundError` and
+`planStatus = 'stale' | 'unknown'` on **adjacent lines**. The terminal branch
+only ran when nothing above it had spoken. So in the one situation the sentence
+exists for, it was **always** suppressed — not sometimes, not as a corner case.
+A notice that can never fire is worse than an absent one, because the code reads
+as though the case is covered.
+
+And the loss is not cosmetic: `wlPlanEditingEnabled()` requires `'ready'`, so
+after a failed refresh saved-work-day editing really is off. "Workload could not
+check for newer changes" does not say that. Staff were told the board might be
+slightly stale, when in fact they could no longer drag anything.
+
+Both sentences now join `notices`, ranked directly after the dropped-plan note,
+because "you cannot edit" is the most operationally urgent thing on that line.
+`'stale'` and `'unknown'` can no longer reach the fall-through, which now only
+handles ready/loading/refreshing-with-nothing-to-say.
+
+**The lesson, which is the same one three times over.** "It was already
+suppressed before my change, so it is not my regression" is true and
+insufficient. The question is whether the notice can EVER reach a person, and
+for this one the answer was no — a fact available by reading two adjacent lines
+of the failure path. Four rounds on one function, each closing a variant of
+"a true thing the code computes and never says".
+
+Proven red against `2b107e4`: 4 checks, driven through the real failure path
+rather than hand-set state — `wlLoadSnapshot` is made to reject, and the
+renderer is then read for `editing is paused` (warm board) and
+`editing is disabled` (cold board).
+
+
+### Codex round 5 — three more, one of which I had swept and dismissed (2026-09-08)
+
+**1. The rollup chip's href was empty across the whole live board, and my own
+sweep said otherwise.** Round 2 found `wlParentUrl` (`index.html:18206`) and left
+it, on the reasoning that it was a post-flip degradation of a Linear-only escape
+hatch that only a modifier-click follows. Both halves were wrong.
+`_wlV2MapRow` sets `issue.url = ''` on **every** native row, not only rows
+created after outbound stops — so with both teams on syncview authority this
+resolves to `''` for the entire board *today*, and a right-click / middle-click /
+open-in-new-tab on the primary Workload rollups opens nothing. And Linear stopped
+being the right destination in August (owner, 2026-08-21). Native rows now route
+to SyncLinear: `?prod=1&batch=` when the group has a batch parent, else
+`?prod=1&d=` for the deliverable. Legacy rows keep the provider url.
+
+**The sweep lesson, which is the expensive one here.** The sweep read the call
+site and reasoned about which rows would lack a `url`. It never read
+`_wlV2MapRow`, which clears the field unconditionally two thousand lines away.
+Judging a field "usually populated" from its consumers is how a live defect got
+filed as latent. Read the producer.
+
+**2 and 3. Two notices about the BOARD were gated on the PLAN's freshness.**
+`renderWorkloadPlanStatus` gated both the metadata-degradation notice and the
+exclusion completeness note on `planStatus === 'ready'`. Neither has anything to
+do with plan freshness:
+
+- a warm board whose refresh fails RETAINS `issueSnapshot` and `excluded` and
+  moves to `'stale'`, so the same rows are on screen, the same ones are still
+  excluded, and the note vanished exactly when the board got worse;
+- a cold start that falls back to a cached snapshot paints issues with an empty
+  workload map — 2×/3× work counted as 1× — with `planStatus` and
+  `linearMetadataStatus` both `'unknown'`, so the one sentence that says
+  "capacity may be understated" was suppressed.
+
+Both are now gated on `boardShown` — whether anything is painted at all — which
+is the condition they were always about. During a first load nothing is painted
+and `excluded` is empty, so they stay silent on their own.
+
+`test/workload-excluded-reported.js` had to change its CLAIM, not just its
+harness: it asserted the note is "only offered once the plan itself is ready,
+never over a loading or stale board", and the stale half of that was the defect.
+It now pins both halves of the real rule — a painted board reports its exclusions
+however degraded its plan is, and nothing painted stays silent whatever the plan
+status claims.
+
+**4. The content-calendar button (P2).** Kept, not hidden — the calendar is still
+the right destination, and hiding a working one because part of it cannot be
+fulfilled is the over-strict failure `AGENTS.md` rules against. What changed is
+that the shortfall is now SAID rather than being a silent no-op. Carrying a
+native card target through the snapshot would remove the need for the message
+entirely; that is a projection change in the calendar's region and stays open.
+
+**5. `workload_native_label_state_absent` certified the wrong SHAPE as absent
+(P2), and this one is PROVEN.** `jsonb_typeof(p_raw) is distinct from 'object'`
+is true for a JSON array, string, number or boolean as well as for absence — so a
+malformed `linear_raw` was answered as provably-unlabelled (weight 1×,
+`production_workload_label_projection` skipped) rather than refused, inverting the
+rule the migration states for itself. Repaired in a NEW migration,
+`2026-09-08-workload-native-label-state-shape.sql`, because
+`2026-09-05-workload-native-membership.sql` is already applied live and editing
+an applied migration makes the file lie about the database.
+
+**This one was executed against real SQL.** `test/workload-native-postgres.js`
+normally SKIPs (it demands an explicit disposable instance), which is exactly the
+condition item 177 warns about — so a PostgreSQL 16 instance was started on
+loopback and the lane run for real: 45 checks pass with the corrective migration,
+and the first new check fails without it. **It needs applying**, and it is a third
+owner gate on this branch alongside the live snapshot read and the
+`workload-plan` deploy.
+
+
+### Codex round 6 — the warning fired for work days nobody lost (2026-09-08)
+
+One P2, and it is the sharpest kind: the fix chain above spent four rounds
+making a warning REACH a person, and this one is about it being TRUE.
+
+`workload_plan` deliberately retains a row with `plan_date = NULL` when a user
+clears a saved work day — the clear is the history. The client-mismatch check in
+`native-snapshot.mjs` ran regardless of `plan_date`, so if such a deliverable
+later moved between client accounts, the cleared row was counted in
+`plans_dropped` and the board announced that a saved work day was not being
+shown. There was no saved work day. The card was on automatic placement because
+somebody put it there on purpose, which is the correct state.
+
+Worse than merely wrong: it is **persistent**. The stored client stays drifted
+until repaired, so the false sentence would sit on the board indefinitely. A
+standing false warning is how a true one stops being read — which would quietly
+undo everything rounds 1 through 4 were for.
+
+Now counted only when `plan_date` is non-null. The row is still **dropped rather
+than projected** either way: the safety property — a mismatched plan is never
+attached to an owner — does not depend on `plan_date` and is not relaxed.
+
+Proven red against `676c717`: 4 checks, at the gateway (a cleared drift counts
+zero; a real lost day beside a cleared one counts exactly one; the cleared row is
+still not projected) and end to end through the real renderer (a board whose only
+drift is a cleared day says nothing).
+
+This changes `supabase/functions/workload-plan/native-snapshot.mjs`, so it does
+not add a gate — it changes what the existing `workload-plan` deploy gate must
+carry.
+
+
+### Codex round 7 — this lane silently unlinked calendar cards, and a green guard helped it (2026-09-08)
+
+**1. Post-create discovery was answered by a source that cannot know the answer
+(P1).** `loadLinearIssues(force)` was repointed at the native snapshot and
+`force` was dropped. `_writeLinearVideoCardsToCalendar` still called
+`loadLinearIssues(true)` to find the issues n8n had created seconds earlier, so
+it could pair each calendar card to its sub-issue. Those issues exist ONLY in
+Linear at that moment — the snapshot's legacy rows arrive with the n8n reconcile,
+on its own schedule, far outside the poll's ~100-second window. Every attempt
+missed, and the writer then minted a random `p_...` id with **empty Linear
+links** and marked the card complete. Permanently unlinked, and twinned rather
+than updated by the next import — the exact duplicate-link bug the id scheme
+exists to prevent.
+
+This is the Linear-authoritative intake path; native intake uses
+`_writeNativeSubmissionCardsToCalendar` and its creation receipts, and needs no
+poll. So the affected population is every team still on provider authority —
+**including rollback**, which is the case that most needs it to work.
+
+Fixed by splitting the symbol rather than restoring `force`:
+`wlDiscoverProviderIssues()` keeps the direct, no-cache provider read for this
+one caller. Honouring `force` inside `loadLinearIssues` was the wrong repair —
+it would put a forced Workload *refresh* back on Linear, which is the dependency
+this whole lane exists to remove. Two callers wanting different things from one
+flag is what broke; they get two functions.
+
+**The guard that helped this happen, and how it changed.**
+`test/workload-native-provider-closure.js` claims in its header that "the
+Workload board's READ path no longer touches Linear" — true, and still fully
+enforced. What it ASSERTED was the strictly larger "no legacy loader has any
+caller anywhere", and a green check reads as permission. Its scope is now
+corrected to match its claim: the three board-path loaders must still have zero
+callers, while the provider reader gets exactly one named door, pinned from both
+sides (one caller of the reader, one caller of the door, and that caller named),
+plus a new check that none of `loadLinearIssues` / `wlLoadSnapshot` /
+`wlRefetchSilent` / `wlFetchNativeSnapshot` can reach a provider read at all.
+Widening a guard to fit a fix deserves suspicion; this one is *narrower* in the
+board dimension and only admits a door that can be counted.
+
+`test/calendar-card-write-jobs.js` stubbed `loadLinearIssues` and asserted that
+`true` was passed — which proves the flag and not the transport, and is precisely
+why the suite stayed green through this. The real function now runs against a
+recording fetch and the URL, cache mode and returned rows are read.
+
+**2. `boardShown` was too coarse (P2)** — the answer to a question this lane
+asked in the round-5 re-review. `issueSnapshot` also carries batch parents and
+completed/parked rows that `wlApplyData` drops from every bucket, so a cached
+fallback holding only those would claim a *displayed* capacity was understated
+while displaying nothing. It now counts rows that actually rendered plus rows
+excluded FROM rendering — an all-excluded board shows nothing and is exactly the
+one that most needs to say why.
+
+Proven red against `dcb6ca2`: 8 checks in `test/calendar-card-write-jobs.js`
+(including the executed transport), 1 in `test/workload-native-membership.js`,
+and the closure guard, which cannot even resolve the discovery door on the old
+tree.
+
+
+### Codex round 8 — the round-7 fix seeded the board's safety net, and the harness was still lying (2026-09-08)
+
+Both findings are consequences of round 7's own repairs. The second is the
+FOURTH time on this PR that a green check licensed a defect, and it was found
+because the re-review request asked for exactly that shape.
+
+**1. Discovery wrote the board's cold-start fallback cache (P1).**
+`wlDiscoverProviderIssues` delegates to `_wlLegacyLoadLinearIssues`, whose every
+success path calls `wlWriteCache` into the shared `syncview_linearIssuesCache_v1`.
+`wlLoadSnapshot` uses that cache as its cold-start fallback, so a post-create
+poll seeded the board's safety net with provider rows. During a partial rollback
+that same response also carries the still-SyncView-authoritative team's stale
+Linear state — so a later cold load whose native snapshot was briefly
+unavailable could paint discarded statuses and obsolete membership as the board,
+and look entirely current doing it.
+
+The read is now side-effect-free: `_wlLegacyLoadLinearIssues(force, {skipCacheWrite})`,
+set only by discovery. Discovery answers one question for one caller; it does not
+get to seed the board. The transport harness asserts zero cache writes, with a
+negative control proving the same reader without the flag DOES write — so the
+check is about the flag, not about a stub that never calls through.
+
+**2. The bucketing stub was still reproducing predicates rather than calling
+them (P2).** Round 7 made `wlApplyData`'s stub admit every sub-issue.
+The shipped function admits a row only if it is active AND
+`wlIssueClientAllowed`. This harness sets `wlIsAllowedClient` to false, and the
+cached-fallback fixture was `{id, isSubIssue:true}` — a legacy-shaped row the real
+bucketer would drop on the floor. So the capacity-warning assertion passed
+against a board that would have rendered nothing.
+
+The stub now calls the REAL extracted predicates instead of copying them, the
+fixture is a native row carrying its own membership, and two fidelity checks were
+added: a source pin that `wlApplyData` still gates on those two predicates, and a
+behavioural probe that the stub drops off-roster, completed, parent and
+legacy-unallowed rows. Reproducing a predicate is how a harness starts lying;
+calling it is how it stops.
+
+**Proof.** The P1 is red against `b1abd7d` (the cache-write check). The P2 cannot
+be shown by swapping `index.html` — it lived entirely in the test — so it was
+demonstrated directly: putting round 7's fixture back while keeping the faithful
+stub turns the capacity assertion red, which is the assertion that had been
+passing on a fixture the shipped code would never have bucketed.
+
+**The pattern, now four for four.** A state assertion (rounds 1-2), a
+source-shape pin (round 3), a stubbed transport (round 7), an unfaithful stub
+(round 8). Every one of them was green while the defect shipped. The common
+shape is a test that asserts what the code was ASKED to do rather than what it
+DOES, and on this branch it has been more productive to hunt that shape than to
+hunt behaviour.
+
+
+### Codex round 9 — the fifth green check, and it was in all three harnesses (2026-09-08)
+
+One P2, and it lands squarely on a claim made in round 8's own reply. That reply
+said the bucketing stub now "calls the REAL extracted predicates
+(`wlIsActiveStatus`, `wlIssueClientAllowed`)". Half of that was true.
+`wlIssueClientAllowed` really was extracted; `wlIsActiveStatus` was still the
+hand-written lambda
+
+```
+i => !['completed','canceled','duplicate'].includes(i.statusType)
+```
+
+which models three terminal types and misses `triage`, `backlog`, and every
+parked status NAME in `WL_PARKED_STATUSES` — a set the owner ruled on
+(2026-08-23) precisely because 681 of 1,073 rows were parked. So a cached
+fallback holding only a backlog or an approval-parked row bucketed in the
+harness and rendered nothing in the app, and the `boardShown` capacity
+assertions could still pass against a board that does not exist. Exactly the
+round-8 defect, one level down, in the fix for round 8.
+
+The predicate is now compiled from source together with `wlNormStatus` and the
+sliced `WL_PARKED_STATUSES` table, and the fidelity probe gained backlog, triage
+and parked rows. Proven by restoring the lambda against the new probe: red.
+
+**It was in all three Workload harnesses, and Codex only flagged one.**
+`test/workload-tweak-exclusive-bucket.js` executes the SHIPPED `wlApplyData` and
+fed it `wlIsActiveStatus: () => true`, so its bucket-partition assertions ran over
+fixtures the app would have dropped. `test/workload-linear-browser.js` carried a
+third variant (`completed`/`canceled`/`cancelled`) feeding
+`wlRenderableIssueProjection` and the business fingerprint, plus a `() => true`
+in its native block. All three now compile the real predicate; all three pass
+unchanged otherwise, so nothing was resting on the permissiveness — which is
+luck, not design.
+
+**The tally, five for five.** A state assertion (rounds 1-2), a source-shape pin
+(round 3), a stubbed transport (round 7), an unfaithful stub (round 8), and a
+predicate copy inside the fix for the unfaithful stub (round 9). Every one green
+while the defect shipped. The rule this earns, written plainly because it has now
+cost nine rounds: **a harness may not RE-IMPLEMENT a predicate the shipped code
+owns.** Extract it, or the test is asserting the behaviour you wished for rather
+than the behaviour you have.
+
+
+### Codex round 10 — the modelling stops: the real bucketer is executed (2026-09-08)
+
+One P2, and it is the gap this lane named itself in rounds 8 and 9 and then did
+not close twice. Codex supplied the concrete consequence: the fidelity probe's
+`live('a')` had neither an `assigneeId` nor a date, so the shipped `wlApplyData`
+puts it in `excluded.noAssigneeNoDate` — while the harness asserted it was
+`planned`. The status probes added in round 9 therefore covered only first-stage
+admission, and the `boardShown` checks could stay green while the real board had
+a different visible-versus-excluded state.
+
+**Three rounds were spent patching one predicate at a time, and each round the
+next gap was found inside the patch.** Round 8 replaced a hand-written admission
+filter with two real predicates; round 9 found one of those two was still a
+lambda; round 10 found the stages *after* admission were never modelled at all.
+That is the signature of fixing instances instead of the class.
+
+So the modelling stops. `test/workload-native-membership.js` now compiles and
+executes the **real `wlApplyData`**, whole. The refusal in rounds 8 and 9 —
+"185 lines over 14 dependencies, too fragile to stand up" — was simply wrong, and
+measuring instead of estimating settled it in one command: the transitive
+closure is **29 functions, 433 lines, with every dependency resolvable from
+source** and no external it cannot reach. It needed eight const tables sliced
+alongside (`WL_PARKED_STATUSES`, the roster sets, the client canon, the timezone
+and walk-limit).
+
+The closure is **computed, not listed**, so a new dependency cannot silently
+fall back to a stub — the walk simply picks it up. The probe now asserts through
+the real buckets: one live row renders, and off-roster, completed, parent,
+legacy-unallowed, backlog, triage and parked rows reach no bucket at all; a
+second check asserts the live row is genuinely renderable rather than admitted
+and then excluded, which is precisely the round-10 defect. Every fixture that
+feeds a `boardShown` assertion is now a row the shipped code will actually draw.
+
+Proven red against the round-9 fixture: 2 checks.
+
+**Six for six, and the correction that matters.** The rule written in round 9 —
+a harness may not re-implement a predicate the shipped code owns — was right and
+insufficient. The stronger form, which the last three rounds paid for: **when a
+harness is modelling the code under test, measure the cost of executing the real
+thing before deciding it is too expensive.** Two rounds were spent defending an
+estimate that took thirty seconds to disprove.
+
+
+### Codex round 11 — item 177's outage was still reachable, through the compatibility door (2026-09-08)
+
+One P1, and it is the most important finding of the eleven rounds, because it is
+the SAME OUTAGE as item 177 by a different route.
+
+`action: 'list'` is what an OLD or still-open browser bundle calls. This lane
+routed it through `nativeSnapshot()` — the `workload_native_snapshot_v1` RPC plus
+the `projectNativeSnapshot` validator. That validator refuses the WHOLE snapshot
+on any of: a count mismatch, a duplicate row, `complete:false`, missing or
+non-syncview authority, a missing `native_client_active`, one `linear_id`
+claimed twice, a duplicate projected plan, a malformed `plan_date`, absent
+`legacy_teams`. Any one of them returned **503 to a browser with no other
+source**, which on a cold load paints every pill at its raw deadline with
+saved-day editing disabled — every editor, every client.
+
+**Item 177 relaxed the one drift check that caused the live outage. It did not
+make the other nine refusals survivable, and `list` ran through all of them.**
+The bounded `listPlans` — a paged direct read of `workload_plan` with no
+validator anywhere in it — was still sitting in the file, unreached.
+
+`list` now attempts the enriched answer and falls back to that bounded read when
+validation fails. The healthy path is byte-identical: same aliases, same shape.
+A validation failure now costs the provider aliases (an old browser may not find
+a plan stored under a native id) instead of costing the board. `listPlans` still
+refuses 503 if IT cannot complete, so a partial list can never masquerade as a
+whole one. `native_snapshot` keeps full validation, unchanged — the new bundle
+wants all-or-nothing, the old one cannot survive it.
+
+**Why no check caught it, which is the durable part.** `qa/workload-native/handler.mjs`
+runs the real handler over real SQL, and its query-builder shim implemented only
+`select`, `eq`, `maybeSingle` and `upsert`. `listPlans` uses `not`, `order`,
+`limit` and `gt` — so the shim **could not express the compatibility read at
+all**. A path the harness cannot express is a path the harness silently does not
+cover, and routing `list` away from it was therefore invisible. The shim now
+implements those four, with column-name and limit validation, and the lane
+carries an old-bundle request exercised with the RPC actually broken.
+
+Proven red against `27817b1` on a real PostgreSQL 16 instance: the old-bundle
+check fails. Handler lane 29 → 33 checks.
+
+**The lesson, and it is not the same as rounds 8-10.** Those were harnesses
+modelling code they could have executed. This one is a harness whose transport
+shim was *narrower than the code under test*, so an entire branch fell outside
+what it could even represent. Both shapes end in a green suite over an untested
+path, and the second is harder to see: nothing looks stubbed, the lane is real,
+and the missing coverage is a method that was never called.
+
+
+### Codex round 12 — "unavailable" is usually SLOW, and a try/catch cannot see it (2026-09-08)
+
+One P1. Round 11 asked Codex to review a deliberate deviation from its own
+prescription — it said make the bounded read PRIMARY for `list`, and this lane
+made it a fallback instead, so the healthy payload would stay byte-identical.
+Codex overruled it with a failure this lane had not considered.
+
+**A `workload_native_snapshot_v1()` that HANGS never rejects.** The try/catch
+therefore never fires, and the compatibility client aborts at
+`WL_PLAN_READ_TIMEOUT_MS` (8s, `index.html:14798`) having received nothing —
+every saved day gone, editing disabled, which is the identical board-wide loss
+the round-11 fix existed to remove. The deviation was not a smaller change than
+the prescription; it was a change that only covered the *thrown* half of
+"unavailable", and slow is the commoner half.
+
+Both reads now start together and the enriched one is raced against
+`LIST_ENRICH_BUDGET_MS` (3s), leaving the bounded read most of the client's
+window. That covers the thrown and the slow shapes with one mechanism and still
+keeps the healthy payload identical, which is what the deviation was for. The
+bounded promise's rejection is captured at creation rather than left floating —
+the enriched path routinely abandons one, and an unawaited rejected promise
+takes the isolate down.
+
+**The counterfactual was vacuous on the first attempt, and that is the part
+worth recording.** The new fixture hung the RPC for 6s. Against the PRE-race
+handler that still answered at ~6s, inside the browser's 8s abort, so the check
+passed against the very code it was written to catch. Only a hang LONGER than
+the client deadline discriminates. At 9s the pre-race handler answers in 9128ms
+and the check goes red; the raced handler answers from the bounded read well
+inside the window. A counterfactual that passes against the old code is not a
+counterfactual, and this one had to be run in both directions to notice.
+
+The shim gained `rpcHangMs` alongside `rpcFault`: a rejecting fixture cannot
+express a promise that never settles, so the lane could not previously see this
+class at all — the same "harness narrower than the code" shape as round 11, one
+layer down.
+
+Handler lane 33 → 35 checks, on a real PostgreSQL 16 instance.
+
+
+### Codex round 13 — the deadline was treated as a decision, not a floor (2026-09-08)
+
+One P2, on round 12's own race. The budget expiring made the handler commit to
+the fallback permanently and then wait for the bounded read anyway. If the
+snapshot lands at 3.1s while the paged read is still going at 5s, the enriched
+answer was **already available before anything was returned** and was discarded
+regardless — stripping provider aliases from a response that could have carried
+them. An old bundle cannot match a native-keyed override without those aliases,
+so real saved work days would vanish under nothing worse than transient latency.
+
+The budget is a floor on how long we wait for enrichment ALONE, not a verdict.
+After it expires the still-pending enrichment is raced against the bounded read
+and whichever finishes first is the answer. The deadline guarantee is unchanged:
+we never wait past it for enrichment on its own, because a completed bounded
+read always ends the race.
+
+**The lane could not express the case, again.** The shim could delay the RPC
+(round 12's `rpcHangMs`) but not the table read, so "enrichment is slow but the
+bounded read is slower" had no representation — and without it the lane cannot
+tell *the fallback was genuinely first* from *we threw away an enrichment we
+already had*. It gained `planReadHangMs`, scoped to `workload_plan` selects.
+That is the third consecutive round where the fix required widening what the
+harness can say, which is now the dominant failure mode on this branch.
+
+Handler lane 35 → 37 checks. Red against `546437d`.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended
@@ -14067,6 +14812,87 @@ rewrite, no migration, no deploy — every live action is written up with its un
 in `docs/ops/LINEAR_MEDIA_RESCUE.md` and none was executed. The comment half is
 sequenced after the inbound webhook is off and that sequencing is lane F's call,
 not this lane's.
+### Two Codex P1s closed on #1344 — both are post-flip-only, which is why they needed tests, not eyes (2026-09-08)
+
+Neither finding is reachable on today's board: both concern rows that exist only
+AFTER the outbound flip. That is the whole argument for fixing them now. Item 177
+is the shape of the alternative — ship it green, break it on the day the flip
+happens, discover it with attention elsewhere and rollback harder.
+
+**1. The tweak popover asked Linear for `del_…` ids.** This lane gives every
+native row a `del_…` `id` and keeps the Linear uuid beside it in `linearId`.
+`wlFetchTweakComments` POSTs to a webhook that looks issues up BY LINEAR ID, and
+`wlOpenRollupPopover` was still sending `tweakSubs.map(s => s.id)`. It does not
+error — it answers an empty list, which renders as an empty box, which reads as
+"no tweak comment on this sub-issue". The feedback that sent the work back is the
+single thing an editor opens that popover for, so the failure mode was invisible
+by construction.
+
+Fixed at the CALL SITE only. `wlFetchTweakComments` and `wlRenderTweakComments`
+sit at `index.html:19535` and `:19558` — inside the 19270-19600 block owned
+exclusively by lane D (#1347), which rewrites the fetch to read native comments
+from `production-comments`. **Not touched.** #1347 is unmerged and may land after
+this PR, so this PR must not depend on it: the call site sends the Linear key and
+paints the answer back under the native row key, which works whether or not lane
+D has merged. A legacy row still goes over the wire by its own `id`, because on
+the Linear-derived path that id IS the Linear uuid and `_wlV2MapRow` mints no
+`linearId`.
+
+**A row with NO `linearId` is never sent, and says so.** A deliverable created
+after outbound stops has no Linear issue at all; asking the webhook about it is
+pointless. Its box gets an explicit `wl-tweak-comments-status` row — "No Linear
+sub-issue for this deliverable, so its tweak comments can't be shown here yet" —
+rather than a blank, because a blank asserts the opposite of the truth. The
+failure branch was also narrowed from `querySelectorAll('.wl-tweak-comments')` to
+the rows the fetch actually covered, so a row with no Linear issue is never told
+to "open the sub-issue in Linear".
+
+**2. The popover row link ignored the native id.** `rowSyncUrl` was built from
+`s.identifier` with `s.url` as the fallback. A post-flip row has neither, and
+native rows now serve `url` as `''`, so those rows rendered `href=""` and a click
+reopened the Workload page. Now `wlSyncLinearUrl(s.nativeId || s.identifier) ||
+s.url || ''` — the same route the loose strips already use, and `?prod=1&d=` does
+resolve a `del_…` id because `_prodIssue()` matches on `id` OR `displayId`.
+
+**This corrects an earlier note in this entry.** The bullet above says the native
+row links are "stranded in lane D's region" at `index.html:19472` and `:19540`.
+That was true against the lane map's `d2495eb` anchor and is not true on this
+head: the loose strips are at `:19076` and the popover row link at `:19807`, both
+squarely in lane A. The stranding was a line-number artefact, exactly as this
+entry's own warning about re-checking the region table predicted.
+
+**Both tests were proven RED before being kept**, per this lane's standing rule
+and item 177's lesson:
+
+- `test/workload-tweak-comment-transport.js` (new) slices the real fill block out
+  of `index.html` and executes it against a fake popover, asserting which ids go
+  over the wire, that the answer lands under the native key, and that a row with
+  no Linear issue gets an honest state. **9 of its 17 checks fail against the
+  pre-fix source**, including every core one. `wlRenderTweakComments` is stubbed
+  rather than compiled, deliberately — binding this suite to lane D's current
+  function body would collide on merge.
+- `test/workload-syncview-links.js` had a pin asserting the OLD `rowSyncUrl`
+  expression verbatim. **That pin was the item-177 defect in miniature**: a test
+  asserting the brittle behaviour was correct, keeping the suite green over the
+  bug. It is REPLACED by six executed checks on the sliced statement, four of
+  which (three behavioural) fail against the pre-fix source.
+
+**Suite.** `npm test` → **422 of 423 suites pass**. The one failure is
+`test/truth-sync.js`, which is the shallow-clone baseline in this container
+(`git rev-parse --is-shallow-repository` → true, 332 commits): all 14 of its
+failures are `docs/truth/*` freshness commits not resolving, and the identical
+14 fail on the unmodified tree. Zero new failures.
+`node scripts/repo-identity-exposure-check.js` → at or under baseline.
+
+**One thing a later session should not re-derive.** The two documents the brief
+for this work named as required reading —
+`docs/independence/LINEAR_EXIT_LANES.md` (the lane map) and
+`docs/independence/LINEAR_EXIT_BRIEF_A.md` — **do not exist on any branch in this
+clone**, and `git log --all --diff-filter=A` finds no commit that ever added
+them. The lane boundary honoured here is the 19270-19600 range as recorded in
+this entry's own bullet above, not a map that could be read. Whoever holds the
+map should either commit it or stop citing its path.
+
 ## 170. [2026-09-07/08, BUILT AND UNRUN — the exporter exists, the capture has NOT been taken; one owner decision and one number still missing] The Linear label catalog had no exporter, and the naming mint had no mint
 
 Lane B of the Linear exit (`docs/independence/LINEAR_EXIT_BRIEF_B.md`, branch
@@ -14486,6 +15312,164 @@ here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.m
 rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
+
+## 177. [2026-09-08, LIVE INCIDENT, CAUSED BY US, ROLLED BACK AND FIXED IN SOURCE] Six drifted plan rows blanked a 5,241-row Workload board, because one stale row was allowed to reject the whole snapshot
+
+**What the owner saw.** Every pill on the Workload calendar reading
+**"Deadline fallback"**, on every day, for every editor and every client. Not a
+subset: all of them. Saved work days invisible, drag-to-plan disabled.
+
+**What it actually was.** Not a per-card fault at all. One failed request.
+`wlPlacementMode` (`index.html`) returns `'fallback'` when `planHasSnapshot` is
+false and nothing is loading, so a single failed `workload-plan` `list` call
+degrades *every* pill at once. The board was showing raw due dates, honestly
+labelled, which is the designed degradation — the defect is that it degraded at
+all.
+
+**Sequence.** The owner applied `2026-09-05-workload-native-membership.sql` and
+deployed `workload-plan` from the unmerged lane-A branch, on the coordinator's
+instruction, deliberately BEFORE merging the browser half — backend-first, so
+the old browser would keep working against the new function. The old browser
+does still call `action:'list'`, and the new function still answers that shape
+(`{ok:true,complete:true,plans:[...]}`). What changed underneath is that `list`
+stopped being a table read and became `workload_native_snapshot_v1` passed
+through `projectNativeSnapshot`, an all-or-nothing validator.
+
+**Root cause, in one line of `supabase/functions/workload-plan/native-snapshot.mjs`:**
+
+```js
+if (bound && normalizeClient(owner.native_plan_client_name || owner.client_name) !== plan.client) fail();
+```
+
+`fail()` throws away the ENTIRE snapshot. So any single `workload_plan` row whose
+stored client no longer matches its owner's current client takes down the board
+for everyone.
+
+**The data, measured live by the owner in the SQL editor.** Exactly six rows,
+all the same shape: one stored client slug, whose owners have since moved to two
+other slugs (4 rows and 2 rows). `workload_plan.client` is a snapshot taken when
+the day was saved; owners move between client accounts; the two drift. This is
+ordinary historical drift, not corruption — and six such rows were enough. The
+three slugs are deliberately not named here: this file is public, and the counts
+are what make the entry actionable.
+
+**What was ruled out first, read-only against live data, before touching code:**
+6,848 combined source rows against a 50,000 cap; 0 duplicate ids; 0 blank ids;
+0 native sub-issue rows with a `team_key` outside VID/GRA; 0 `linear_id`s claimed
+by two rows; 0 sub-issue rows with an empty `client_slug`/`client_name`; 0 client
+slugs absent from the roster. The failing condition was the one anon cannot read,
+because `workload_plan` returns 42501 — so the owner ran the query.
+
+**The fix, and what it deliberately does NOT change.** The mismatch check exists
+to stop a saved work day being re-keyed onto another client's card, and that
+safety property is untouched: a mismatched plan is still never attached to an
+owner. What changes is the blast radius. The row is dropped, counted, and every
+other plan projects. The count is returned as `plans_dropped` rather than
+swallowed, because a dropped plan is a work day the board stops showing and
+somebody has to be able to see that it happened.
+
+**The test was the actual defect.** `test/workload-native-membership.js:64`
+listed a "drift the plan's client" mutation among those that MUST throw (the
+snippet is deliberately not backticked here: `test/repo-map-sync.js` reads a
+backticked token as a repository path and fails on one that does not exist,
+which is exactly what it did to this entry's first draft). The
+lane wrote a test asserting the brittleness was correct, and CI was green on
+this PR the whole time — 9/9 checks, including `production-polish` and
+`synthetic-browser`. Unit fixtures cannot find this class of bug; only real data
+can. That assertion is now inverted and pinned by four checks, and the new test
+was proven to go red against the old `fail()` before being kept.
+
+**Rollback.** Redeploy `workload-plan` from `main`, one command, no migration
+reversal needed: the applied migration is additive and nothing calls its RPCs
+once the old function is back. `docs/ops/EF_DEPLOY_MANIFEST.md:58` is right that
+this function has no CI lane; a manual deploy is also a manual rollback.
+
+**Owner-facing lesson, recorded because it will recur.** "Backend first" is the
+correct order and it was not sufficient. The new backend was never executed
+against the real `workload_plan` table before it served the live board — the lane
+had no live access, and the coordinator did not create any. The rule this earns:
+**a deliberate-manual Edge Function that changes how an EXISTING action is served
+must be proven against production data before it is deployed, not merely against
+fixtures.** A green CI on a lane with no data access is not evidence about data.
+
+**Still open.** The six drifted rows are untouched and still drift; after this fix
+they are silently dropped rather than fatal, which is better but is not a repair.
+Deciding whether they should be re-pointed at their current owners (as OPEN_REPAIRS
+156 did for the crosswalk) or cleared is a separate owner decision, and the
+`plans_dropped` count is what will keep it visible.
+
+### The repair, prepared and NOT run — six work days a person actually saved
+
+After the fix above those six rows are dropped rather than fatal, which stops the
+outage and does not undo the loss: an editor who dragged one of those cards to a
+day no longer sees that day. Six real work days, silently gone. So the repair is
+worth having ready even though it is not urgent.
+
+**What drifted.** `workload_plan.client` is written once, at save time, from the
+client the card belonged to then. Nothing rewrites it when a deliverable moves
+between client accounts, and these six moved. The plan day itself is still
+correct; only the client label on it is stale.
+
+**Owner-run, in the SQL editor. Read the count before committing.** The temp
+function replicates `normalizeWriteClient`
+(`supabase/functions/_shared/browser-write-auth-policy.mjs:9`) closely enough for
+these rows; it does not strip accents, which none of them need. Verify that
+assumption on the SELECT before running the UPDATE.
+
+```sql
+create or replace function pg_temp.nc(v text) returns text language sql immutable as $$
+  select regexp_replace(
+           regexp_replace(
+             regexp_replace(lower(coalesce(v,'')), '^dr\.?\s+', ''),
+             '\s+(and|&)\s+', '&', 'g'),
+           '[^a-z0-9&]+', '', 'g');
+$$;
+
+-- 1. LOOK FIRST. Expect exactly the drifted rows, and read every `expected`
+--    before trusting the update to write it.
+select p.issue_id, p.client as stored, pg_temp.nc(n.client_name) as expected,
+       p.plan_date, p.updated_at
+from public.workload_plan p
+join public.workload_issues_native_v1 n
+  on n.is_sub_issue and (n.id = p.issue_id or n.linear_id = p.issue_id)
+where p.client is distinct from pg_temp.nc(n.client_name)
+order by p.issue_id;
+
+-- 2. REPAIR, guarded on the exact count seen in step 1. Change the 6 if the
+--    count has moved; a different number means the population changed and step 1
+--    should be re-read rather than the guard relaxed.
+begin;
+do $$
+declare n integer;
+begin
+  update public.workload_plan p
+     set client = pg_temp.nc(v.client_name)
+    from (select n2.id, n2.linear_id, n2.client_name
+            from public.workload_issues_native_v1 n2 where n2.is_sub_issue) v
+   where (v.id = p.issue_id or v.linear_id = p.issue_id)
+     and p.client is distinct from pg_temp.nc(v.client_name);
+  get diagnostics n = row_count;
+  if n <> 6 then
+    raise exception 'workload_plan client repair refused: expected 6 rows, updated %', n;
+  end if;
+end $$;
+commit;
+```
+
+**Undo.** There is none from the ledger: `workload_plan` keeps no history and the
+prior `client` value is recorded nowhere this repo can read. Before running step
+2, save step 1's result — it *is* the undo, and restoring means writing those
+`stored` values back by `issue_id`. This is the same shape as item 156's
+before-image gap and earns the same follow-up: the sidecar should record what it
+overwrote.
+
+**Do not run this to fix an outage.** It repairs six work days; it does not
+protect the board. The board is protected by the code change above, which holds
+whether or not these rows are ever touched, and holds for the next six rows that
+drift.
+
+**Not exercised.** Written from the live SELECT the owner ran, never executed.
+The guard makes a wrong count refuse rather than write.
 
 ---
 

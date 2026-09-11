@@ -14129,6 +14129,15 @@
         loading: false,
         refreshing: false,
         backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
+        // How many saved work days the gateway refused to attach to their card
+        // (OPEN_REPAIRS 177). Its OWN state rather than a sentence stuffed into
+        // backgroundError, because backgroundError is the transient
+        // refresh-failure channel: the renderer rewrites anything it does not
+        // recognise, and a successful manual refresh clears it. A dropped plan
+        // is neither transient nor a refresh problem -- it is a work day a
+        // person dragged and can no longer see, and it stays true until the
+        // stored client is repaired.
+        nativePlansDropped: 0,
         error: null
     };
 
@@ -14160,12 +14169,16 @@
     const WL_V2_LS_KEY         = 'syncview_workload_v2';
     const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
     const WL_V2_RT_DEBOUNCE_MS = 500;
-    // Realtime auto-update is gated OFF until the reconcile is delta-upsert. The
-    // current reconcile re-writes every row each run (to advance synced_at for the
-    // mark-sweep), which would emit ~1 event per row per run — a flood for open
-    // boards. With this false, v2 still reads Supabase (fast ↻ / mount / tab-return);
-    // it just doesn't push live. Flip to true once the reconcile only writes changed rows.
-    const WL_V2_REALTIME       = false;
+    // Realtime auto-update is ON. It was gated off because the board read
+    // workload_issues, which the n8n reconcile re-wrote in full each run (to
+    // advance synced_at for the mark-sweep) — ~1 event per row per run, a flood
+    // for open boards. The native source writes only what changed, so the
+    // condition that comment named ("flip to true once the reconcile only
+    // writes changed rows") is satisfied by the source swap itself. The channel
+    // below is bound to public.deliverables + public.batches accordingly.
+    // Rollback: set this back to false and push; WL_V2_WATERMARK_POLL_MS still
+    // keeps the board fresh, just more slowly.
+    const WL_V2_REALTIME       = true;
     let _wlV2FlagCache = null;
     function _wlV2Enabled() {
         if (_wlV2FlagCache !== null) return _wlV2FlagCache;
@@ -14184,7 +14197,8 @@
         _wlV2FlagCache = on;
         return on;
     }
-    function _wlV2Ready() { return _wlV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+    // The old sticky mirror kill switch cannot reopen a provider read path.
+    function _wlV2Ready() { return !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
 
     // Fast first paint: publish the (non-sensitive) issue rows and drop the
     // skeleton as soon as the fast Supabase read returns, instead of blocking
@@ -14265,8 +14279,8 @@
         const source = Array.isArray(issues) ? issues : [];
         const subs = source.filter(issue => issue && issue.isSubIssue
             && wlIsActiveStatus(issue)
-            && wlIsAllowedClient(issue.clientName)
-            && (!issue.assigneeId || wlIsAllowedEditor(issue.assigneeName, issue.teamKey, issue.teamName)));
+            && wlIssueClientAllowed(issue)
+            && (!issue.assigneeId || wlIssueEditorAllowed(issue)));
         const parentIds = new Set(subs.map(issue => String(issue.parentId || '')).filter(Boolean));
         return subs.concat(source.filter(issue => issue && !issue.isSubIssue && parentIds.has(String(issue.id || ''))));
     }
@@ -14537,10 +14551,24 @@
         }
     };
 
-    // Realtime: one global channel on workload_issues. A change coalesces into a
-    // cheap watermark check; only an advanced cursor enters the Supabase-only
-    // background comparison lane. Background work never blanks the calendar.
-    const WL_V2_WATERMARK_POLL_MS = 60 * 1000;
+    // Realtime: one global channel on the NATIVE tables the board now reads,
+    // public.deliverables and public.batches. A change coalesces into one
+    // debounced silent refetch. Background work never blanks the calendar.
+    // Both tables are already `replica identity full`, already in the
+    // `supabase_realtime` publication, and already anon-readable under a
+    // `using (true)` policy (migrations/2026-07-06-b1-linear-data-model.sql
+    // :674-680, :694-695, :725-746), so this adds no exposure and needs no
+    // migration.
+    //
+    // The poll behind it is now a SAFETY NET, not the freshness mechanism.
+    // _wlV2CheckWatermark no longer reads a one-row synced_at watermark — it
+    // calls wlRefetchSilent() unconditionally, and each of those is a
+    // workload-plan POST that reads the whole snapshot. At 60s that is a
+    // full-population read every minute per open board against an 8s
+    // WL_PLAN_READ_TIMEOUT_MS. With realtime carrying the updates, 5 minutes
+    // is the catch-up interval for missed events (dropped socket, suspended
+    // tab), not the update path.
+    const WL_V2_WATERMARK_POLL_MS = 5 * 60 * 1000;
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
     let _wlV2WatermarkTimer = null, _wlV2WatermarkBusy = false;
     function _wlV2OnRealtimeChange() {
@@ -14553,14 +14581,15 @@
         }, WL_V2_RT_DEBOUNCE_MS);
     }
     async function _wlV2EnsureSubscribed() {
-        if (!WL_V2_REALTIME) return;            // gated off until the reconcile is delta-upsert (see note above)
+        if (!WL_V2_REALTIME) return;            // one-line rollback lever (see note above)
         if (!_wlV2Ready() || _wlV2Channel) return;
         const client = await _wlV2Client();
         if (!client || !document.querySelector('.workload-view')) return; // left during lib load
         try {
             _wlV2Channel = client
-                .channel('workload_issues')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'workload_issues' }, () => _wlV2OnRealtimeChange())
+                .channel('workload_native')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, () => _wlV2OnRealtimeChange())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'batches' }, () => _wlV2OnRealtimeChange())
                 .subscribe((status) => {
                     if (status === 'SUBSCRIBED') {
                         // A re-subscribe means the socket dropped (suspended tab woke up);
@@ -14593,6 +14622,13 @@
         return String(Array.isArray(rows) && rows[0] && rows[0].synced_at || '');
     }
     async function _wlV2CheckWatermark() {
+        if (_wlV2WatermarkBusy || document.hidden || !document.querySelector('.workload-view')) return;
+        if (wlState.loading || wlState.refreshing || _wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return;
+        _wlV2WatermarkBusy = true;
+        try { await wlRefetchSilent(); }
+        finally { _wlV2WatermarkBusy = false; }
+    }
+    async function _wlLegacyCheckWatermark() {
         if (_wlV2WatermarkBusy || document.hidden || !document.querySelector('.workload-view')) return;
         if (wlState.loading || wlState.refreshing || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') return;
         _wlV2WatermarkBusy = true;
@@ -14640,7 +14676,193 @@
     }
     window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
 
+    function wlIssueClientAllowed(issue) {
+        return issue && issue.workloadSource === 'native'
+            ? issue.nativeClientActive === true : wlIsAllowedClient(issue && issue.clientName);
+    }
+    function wlIssueEditorAllowed(issue) {
+        return issue && issue.workloadSource === 'native'
+            ? issue.nativeAssigneeEligible === true
+            : wlIsAllowedEditor(issue && issue.assigneeName, issue && issue.teamKey, issue && issue.teamName);
+    }
+    function wlSnapshotIdentity() {
+        const value = _syncviewStaffIdentityForHeaders();
+        return value ? JSON.stringify([value.key, value.role, value.member && value.member.id]) : '';
+    }
+    async function wlFetchNativeSnapshot() {
+        await _syncviewRequireStaffIdentity('workload-plan-read');
+        const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
+        const readGeneration = _wlPlanWriteGeneration;
+        if (!owner) throw new Error('Staff sign-in is required to load Workload.');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        try {
+            const response = await fetch(WORKLOAD_PLAN_URL, {
+                method: 'POST', cache: 'no-store', signal: controller.signal,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
+                body: JSON.stringify({ action: 'native_snapshot' })
+            });
+            const value = await response.json();
+            if (!response.ok || !value || value.ok !== true || value.complete !== true
+                || value.contract !== 'workload-native-snapshot-v1'
+                || !Array.isArray(value.rows) || !Array.isArray(value.plans)
+                || value.count !== value.rows.length || !Number.isSafeInteger(value.count)
+                || !Array.isArray(value.legacy_teams)) {
+                const error = new Error('Workload could not load a complete snapshot. Please retry.');
+                error.status = response.status;
+                throw error;
+            }
+            const authority = wlProductionAuthorityValue(value.authority);
+            if (!authority) throw new Error('Workload authority is unavailable.');
+            const fingerprint = wlProductionAuthorityFingerprint(authority);
+            const seen = new Set(), metadata = [], issues = [], unprovableNativeIds = [];
+            for (const row of value.rows) {
+                if (!row || typeof row.id !== 'string' || !row.id || seen.has(row.id)
+                    || !['native','legacy'].includes(row.source) || typeof row.is_sub_issue !== 'boolean') {
+                    throw new Error('Workload row identities are incomplete.');
+                }
+                seen.add(row.id);
+                const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
+                    linearId: row.source === 'native' ? row.linear_id : row.id,
+                    nativeClientActive: row.native_client_active,
+                    nativeAssigneeEligible: row.native_assignee_eligible };
+                if (row.source === 'native') {
+                    if (row.is_sub_issue && (typeof row.native_client_active !== 'boolean'
+                        || typeof row.native_assignee_eligible !== 'boolean'
+                        || !['VID','GRA'].includes(row.team_key))) {
+                        throw new Error('Native Workload membership is incomplete.');
+                    }
+                    issue.nativeId = row.is_sub_issue ? row.id : '';
+                    issue.url = '';
+                    if (row.is_sub_issue && wlIsActiveStatus(issue) && wlIssueClientAllowed(issue)) {
+                        const projected = wlNativeMetadataRow(row.id, row.native_metadata);
+                        const team = wlMetadataTeamBucket(row.team_key, row.team_name);
+                        if (!team || authority[team] !== 'syncview') {
+                            // The snapshot selected this row as native for a
+                            // syncview team; disagreeing about that is a
+                            // contract break, not a data shape, so it still
+                            // fails the whole read.
+                            throw new Error('Native Workload deadlines or weights are incomplete.');
+                        }
+                        if (!projected) {
+                            // ONE row whose deadline/weight cannot be proven is
+                            // withheld, exactly as the metadata reader already
+                            // withholds one — it is never allowed to blank the
+                            // board for everyone. This is the release gate: the
+                            // first deliverable created after the outbound flip
+                            // carries no provider label relation at all, so a
+                            // whole-snapshot throw here is an estate-wide outage
+                            // on a routine create.
+                            unprovableNativeIds.push(row.id);
+                        } else {
+                            metadata.push({ ...projected, due_authority: 'syncview',
+                                due_authority_team: team, due_authority_fingerprint: fingerprint });
+                        }
+                    }
+                }
+                issues.push(issue);
+            }
+            const planIds = new Set();
+            for (const plan of value.plans) {
+                if (!plan || typeof plan.issue_id !== 'string' || !plan.issue_id || planIds.has(plan.issue_id)
+                    || (plan.plan_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(plan.plan_date))) {
+                    throw new Error('Saved work days are incomplete.');
+                }
+                planIds.add(plan.issue_id);
+            }
+            // Provider-authority teams remain explicit compatibility work; they
+            // never substitute for a failed native snapshot or native metadata.
+            const foreign = issues.filter(issue => issue.workloadSource === 'legacy'
+                && issue.isSubIssue && wlIsActiveStatus(issue)
+                && wlMetadataTeamBucket(issue.teamKey, issue.teamName));
+            if (foreign.length) {
+                // Keep the snapshot's explicit provider authority. A second
+                // flag read could mix native weights with an older provider
+                // population during a team transition.
+                const oldRows = await wlFetchForeignLinearMetadata(foreign.map(issue => issue.id));
+                const byId = new Map(oldRows.map(row => [row.issue_id, row]));
+                if (oldRows.length !== foreign.length || byId.size !== foreign.length) {
+                    throw new Error('Legacy Workload metadata is incomplete.');
+                }
+                for (const issue of foreign) {
+                    const row = byId.get(issue.id), team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
+                    if (!row || authority[team] !== 'linear') throw new Error('Legacy Workload metadata is incomplete.');
+                    row.due_authority = 'linear'; row.due_authority_team = team;
+                    row.due_authority_fingerprint = fingerprint;
+                }
+                metadata.push(...oldRows);
+                if (oldRows.partialFailure) metadata.partialFailure = oldRows.partialFailure;
+            }
+            if (unprovableNativeIds.length) {
+                // Same shape wlFetchLinearMetadata publishes, so wlAdoptLinearMetadata
+                // blanks exactly these due dates, withholds their weights, marks the
+                // metadata stale and shows the withheld-only banner. partitionFailed
+                // is false: the read succeeded and every other row is fully editable.
+                const prior = metadata.partialFailure;
+                metadata.partialFailure = {
+                    message: 'Some Workload due metadata is temporarily unavailable.',
+                    partitionFailed: !!(prior && prior.partitionFailed),
+                    issueIds: [...new Set([...((prior && prior.issueIds) || []), ...unprovableNativeIds])],
+                    nativeIssueIds: [...new Set([...((prior && prior.nativeIssueIds) || []), ...unprovableNativeIds])]
+                };
+            }
+            if (session !== _wlPlanSessionGeneration || owner !== wlSnapshotIdentity()) {
+                throw new Error('Staff session changed while Workload was loading.');
+            }
+            return { issues, metadata, plans: { rows: value.plans, readGeneration },
+                fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams,
+                // A dropped plan is a work day somebody DRAGGED and can no longer
+                // see; the card silently reverts to automatic placement, so staff
+                // can plan against the wrong day believing it is current. The
+                // gateway counts them because refusing the whole snapshot over one
+                // drifted row is what took the board down (OPEN_REPAIRS 177) --
+                // but a count nothing reads is the same silence in a new place,
+                // which is what Codex caught on this PR. Carried here so
+                // wlLoadSnapshot can say it out loud.
+                plansDropped: Number.isSafeInteger(value.plans_dropped) && value.plans_dropped > 0
+                    ? value.plans_dropped : 0 };
+        } finally { clearTimeout(timer); }
+    }
     async function loadLinearIssues(force) {
+        // The public symbol is retained for intake discovery callers. Default,
+        // explicit Refresh and forced post-create discovery share one source.
+        return wlFetchNativeSnapshot();
+    }
+    /* POST-CREATE DISCOVERY, WHICH IS A QUESTION ONLY LINEAR CAN ANSWER.
+
+       `_writeLinearVideoCardsToCalendar` polls for the issues n8n has just
+       created, so it can pair each calendar card to its sub-issue. Those issues
+       exist ONLY in Linear at that moment: the native snapshot's legacy rows
+       come from `workload_issues`, which the n8n reconcile populates on its own
+       schedule, far outside this poll's ~100-second window. Answering from the
+       snapshot returns "not found" on every attempt, and the writer then mints a
+       random `p_...` id with empty Linear links -- a permanently unlinked card
+       that a re-import twins instead of updating.
+
+       loadLinearIssues() used to serve this through its `force` flag, and the
+       reader below names this caller in its own comment. It cannot any more:
+       this lane made that function native-only ON PURPOSE, and honouring
+       `force` by routing back to the provider would put a forced Workload
+       refresh on Linear again, which is the dependency the whole exit exists to
+       remove. Two callers wanting two different things from one flag is what
+       broke; they get two functions.
+
+       This one keeps the direct, no-cache provider read for as long as any team
+       is Linear-authoritative -- rollback included, which is the case that most
+       needs it -- and dies with the last of them. */
+    async function wlDiscoverProviderIssues() {
+        // SIDE-EFFECT-FREE. The reader below writes every successful response
+        // into the shared board cache, which wlLoadSnapshot uses as its
+        // cold-start fallback -- so a post-create poll would quietly replace the
+        // native safety net with provider rows. During a partial rollback that
+        // response also carries the still-SyncView-authoritative team's stale
+        // Linear state, so a later cold load could paint discarded statuses and
+        // obsolete membership as if they were current. Discovery answers one
+        // question for one caller; it does not get to seed the board.
+        return _wlLegacyLoadLinearIssues(true, { skipCacheWrite: true });
+    }
+    async function _wlLegacyLoadLinearIssues(force, options) {
+        const skipCacheWrite = !!(options && options.skipCacheWrite);
         const cache = wlReadCache();
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
             return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
@@ -14657,7 +14879,7 @@
                 const issues = await _wlV2FetchIssues();
                 if (Array.isArray(issues) && issues.length) {
                     const fetchedAt = Date.now();
-                    wlWriteCache({ issues, fetchedAt });
+                    if (!skipCacheWrite) wlWriteCache({ issues, fetchedAt });
                     return { issues, fetchedAt, fromCache: false };
                 }
                 console.warn('[Workload v2] Supabase returned 0 active rows — falling back to linear-issues');
@@ -14678,7 +14900,7 @@
         const data = await resp.json();
         const issues = Array.isArray(data) ? data : (data.issues || []);
         const fetchedAt = Date.now();
-        wlWriteCache({ issues, fetchedAt });
+        if (!skipCacheWrite) wlWriteCache({ issues, fetchedAt });
         return { issues, fetchedAt, fromCache: false };
     }
 
@@ -15108,7 +15330,7 @@
 
     async function wlFetchLinearMetadata(issues) {
         const activeIssues = (issues || [])
-            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName));
+            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIssueClientAllowed(issue));
         const activeIds = [...new Set(activeIssues
             .map(issue => String(issue && issue.id || '').trim())
             .filter(Boolean))];
@@ -15418,6 +15640,9 @@
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
         wlState.linearMetadataWithheldOnly = 0;
         wlState.backgroundError = null;
+        // No plans are loaded at all now, so "some of them were dropped" is no
+        // longer a true statement about what is on screen.
+        wlState.nativePlansDropped = 0;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
         }
@@ -15431,6 +15656,58 @@
     // manual plan when plans landed — the bounded set that animates its settle.
     let _wlSettleAnimIds = null;
     async function wlLoadSnapshot(force, fallback) {
+        const generation = ++_wlPlanLoadGeneration, session = _wlPlanSessionGeneration;
+        try {
+            const value = await loadLinearIssues(!!force);
+            if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
+            wlAdoptPlanRows(value.plans);
+            // A6. The cold-start net is WIRED AT BOTH ENDS or not at all. The
+            // catch below still applies a cached board on a failed first load,
+            // and after the source swap nothing on this path wrote that cache
+            // any more (wlWriteCache was left reachable only from the legacy
+            // loader), so the net silently decayed to whatever the browser last
+            // stored under the old source — or to nothing. The provider
+            // fallback that used to make "v2 can never blank the board" true is
+            // gone for good; this localStorage warm start is the only cold-path
+            // net left, so it gets written.
+            wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
+            wlApplyData(value.issues, value.fetchedAt);
+            wlState.nativeLegacyTeams = value.legacyTeams;
+            // Two non-destructive warnings over a board that painted fine, and
+            // they are kept in SEPARATE state on purpose. Writing the
+            // dropped-plan sentence into backgroundError (the previous pass)
+            // put it in a channel the renderer overwrites and a manual refresh
+            // clears, so it never reached anybody. The count is authoritative
+            // per response: a fresh snapshot with nothing dropped clears it.
+            wlState.nativePlansDropped = Number(value.plansDropped) || 0;
+            wlState.backgroundError = value.legacyTeams.length
+                ? 'Some teams still use the legacy Workload source.' : null;
+            wlState.planLoading = false;
+            return value;
+        } catch (error) {
+            if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
+            if (Number(error.status) === 401) _syncviewStaffIdentityClear();
+            else if (Number(error.status) === 403) wlPurgePlanSensitiveState();
+            else {
+                // Bounded by the same TTL the legacy loader used. An unbounded
+                // fallback would paint a weeks-old board that looks current,
+                // which is the one failure shape this program keeps calling
+                // worse than an empty one.
+                if (!wlState.issueSnapshot.length && fallback && Array.isArray(fallback.issues)
+                    && wlIsFresh(fallback.fetchedAt)) {
+                    wlApplyData(fallback.issues, fallback.fetchedAt);
+                }
+                wlState.backgroundError = 'Workload could not refresh. Previously loaded work is shown; retry to update it.';
+                wlState.planStatus = wlState.planHasSnapshot ? 'stale' : 'unknown';
+                wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
+                // Retain the visible last snapshot, but a failed authority /
+                // membership refresh cannot authorize an old deadline route.
+                wlState.dueAuthorityByIssueId.clear();
+            }
+            throw error;
+        }
+    }
+    async function _wlLegacyLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
         let fastPainted = false;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
@@ -16460,7 +16737,6 @@
         try {
             await wlLoadSnapshot(false, cache);
             wlState.error = null;
-            wlState.backgroundError = null;
         } catch (e) {
             console.error('[SyncView] Workload fetch failed:', e);
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
@@ -16511,6 +16787,40 @@
     // loader, never selects a loading state, and publishes only a complete set
     // of issues, saved plans, and Linear metadata.
     async function wlRefetchSilent(options) {
+        if (!document.querySelector('.workload-view') || !_syncviewStaffIdentityForHeaders()) return false;
+        if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size || wlState.loading || wlState.refreshing) return false;
+        if (_wlBackgroundRefreshPromise) return _wlBackgroundRefreshPromise;
+        const run = async () => {
+            const before = wlBackgroundBusinessFingerprint();
+            const editingBefore = `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+            try {
+                const result = await wlLoadSnapshot(false, null);
+                if (!result) return false;
+                wlState.error = null;
+                if (document.querySelector('.workload-view')) {
+                    if (before !== wlBackgroundBusinessFingerprint()
+                        || editingBefore !== `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`) {
+                        renderWorkloadAll({ deferWhilePopoverOpen: true });
+                    }
+                    else renderWorkloadPlanStatus();
+                }
+                return true;
+            } catch (error) {
+                if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+                return false;
+            }
+        };
+        const pending = run();
+        _wlBackgroundRefreshPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_wlBackgroundRefreshPromise === pending) {
+                _wlBackgroundRefreshPromise = null;
+                if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
+            }
+        }
+    }
+    async function _wlLegacyRefetchSilent(options) {
         const sensitiveOnly = !!(options && options.sensitiveOnly);
         if (!document.querySelector('.workload-view') || (!sensitiveOnly && !_wlV2Ready())) return false;
         if (!_syncviewStaffIdentityForHeaders()) return false;
@@ -16647,14 +16957,14 @@
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing || _wlDueWriteInFlight.size) return;
         const priorWatermark = wlState.sourceSyncedAt;
-        const shouldRebaseMirror = _wlV2Ready();
+        const shouldRebaseMirror = false; // native snapshots do not use the mirror watermark
         if (shouldRebaseMirror) wlState.sourceSyncedAt = null;
         wlState.refreshing = true;
         wlSpinnerOn();
         try {
             const payload = await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
-            wlState.backgroundError = null;
+            if (!payload || !payload.legacyTeams || !payload.legacyTeams.length) wlState.backgroundError = null;
             if (shouldRebaseMirror && payload && !payload.usedFallback) {
                 await wlRebaseMirrorWatermarkAfterDirectRefresh();
             } else if (shouldRebaseMirror) {
@@ -16771,19 +17081,18 @@
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
-            if (wlIsAllowedClient(i.clientName)) continue;
+            if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
         }
         if (dropped.size) {
-            console.warn('[workload] dropped sub-issues with unrecognised clients:',
-                [...dropped.entries()].map(([n, c]) => `${n} (${c})`).join(', '));
+            console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIsAllowedClient(i.clientName));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.
-        for (const s of subs) s.clientName = wlCanonicalClient(s.clientName);
+        for (const s of subs) if (s.workloadSource !== 'native') s.clientName = wlCanonicalClient(s.clientName);
 
         // Log who's passing the editor filter so the user can spot people
         // who shouldn't be there — graphic designers currently pass through
@@ -16797,17 +17106,15 @@
             const display = wlDisplayName(s.assigneeName) || s.assigneeName || 'Unknown';
             if (team === 'graphics') {
                 graphicsPass.add(display);
-            } else if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+            } else if (!wlIssueEditorAllowed(s)) {
                 videoDropped.set(display, (videoDropped.get(display) || 0) + 1);
             }
         }
         if (graphicsPass.size) {
-            console.info('[workload] graphic designers passing through (no graphics allowlist yet):',
-                [...graphicsPass].sort().join(', '));
+            console.info('[workload] graphics assignee count:', graphicsPass.size);
         }
         if (videoDropped.size) {
-            console.warn('[workload] dropped sub-issues from non-allowlisted video editors:',
-                [...videoDropped.entries()].map(([n, c]) => `${n} (${c})`).join(', '));
+            console.warn('[workload] excluded assignee row count:', [...videoDropped.values()].reduce((a,b) => a+b,0));
         }
         for (const s of subs) {
             if (!s.parentId) continue;
@@ -16857,7 +17164,7 @@
                is keyed on the row team, so admitting a cross-team row would
                open a second capacity lane for one person and double-count them
                in the matrix. The repair for a mis-teamed row is in Linear. */
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+            if (!wlIssueEditorAllowed(s)) {
                 excluded.offTeamAssignee.push(s);
                 continue;
             }
@@ -17885,7 +18192,7 @@
         const all = wlState.allActiveSubs || [];
         // Editors: scoped to active team filter so Video pill hides graphics-only assignees.
         const editors = [...new Map(all.filter(s => s.assigneeId &&
-                wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName) &&
+                wlIssueEditorAllowed(s) &&
                 (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
@@ -18024,10 +18331,31 @@
 
     /* Workload → content calendar deep link. Opens the calendar page on the
        given client and scrolls to the card linked to that Linear sub-issue. */
+    /* "Open in the content calendar", from a Workload popover row.
+
+       The calendar locates a card by matching the identifier against
+       `linear_issue_id`, so a deliverable with no Linear identifier has nothing
+       to match on and _calApplyFocusRequest returns silently -- the reader lands
+       on the right client's calendar with nothing focused and no explanation,
+       having pressed a button that promised a card.
+
+       The button is NOT hidden: the calendar itself is still the right place to
+       go, and hiding a working destination because one part of it cannot be
+       fulfilled is the over-strict failure AGENTS.md rules against. What changes
+       is that the shortfall is SAID. Carrying a native card target through the
+       snapshot would remove the need for the message; that is a projection
+       change in the calendar's own region and is recorded in OPEN_REPAIRS 169
+       rather than done here. */
     function wlOpenInContentCalendar(clientName, identifier) {
         const canon = wlCanonicalClient(clientName);
         if (!canon) return;
-        _calSetFocusRequest({ client: canon, identifier: String(identifier || '').toUpperCase() });
+        const ident = String(identifier || '').toUpperCase();
+        if (!ident) {
+            showNotify('Opening the calendar, not the card',
+                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
+                + canon + "'s calendar is opening; find the card by title.");
+        }
+        _calSetFocusRequest({ client: canon, identifier: ident });
         try {
             const pins = _calGetPins();
             if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
@@ -18042,12 +18370,35 @@
         return true;
     }
 
-    // URL for the parent issue if we have it; else fall back to the sub-issue URL.
+    /* Where a rollup chip actually POINTS.
+
+       A left-click on these chips is intercepted and opens the popover, so this
+       href is what a right-click, middle-click or "open in new tab" follows. It
+       used to be Linear-only at both ends -- the parent's url, else the sub's --
+       which was right while the board was a Linear mirror.
+
+       It is not right now, and this was a LIVE hole rather than a post-cutover
+       one: _wlV2MapRow clears `url` on EVERY native row, not only the rows
+       created after outbound stops, so with both teams on syncview authority
+       this resolved to '' across the whole board and the chip opened nothing.
+       (I swept this in the previous round and called it a latent post-flip
+       degradation of a secondary affordance. That was wrong on both counts.)
+
+       SyncLinear is also the correct destination now (owner, 2026-08-21), so a
+       native row routes there -- the batch parent when the group has one, else
+       the deliverable itself. Linear stays the fallback for legacy rows, which
+       still carry real provider urls. */
     function wlParentUrl(sub) {
-        if (sub.parentId && wlState.parentById.has(sub.parentId)) {
-            return wlState.parentById.get(sub.parentId).url || sub.url;
+        if (sub && sub.workloadSource === 'native') {
+            const batchId = String(sub.parentId || '');
+            if (batchId) return location.pathname + '?prod=1&batch=' + encodeURIComponent(batchId);
+            const nativeId = String(sub.nativeId || '');
+            if (nativeId) return wlSyncLinearUrl(nativeId);
         }
-        return sub.url;
+        if (sub && sub.parentId && wlState.parentById.has(sub.parentId)) {
+            return wlState.parentById.get(sub.parentId).url || sub.url || '';
+        }
+        return (sub && sub.url) || '';
     }
 
     function wlWeekendExceptions(mondayISO) {
@@ -18153,18 +18504,98 @@
         return lead + parts.join(', and ') + '.';
     }
 
+    /* A saved work day the gateway refused to attach to its card, said out loud.
+
+       The count is the only thing the browser is given -- the gateway drops the
+       plan without naming the row that owned it -- so the sentence names a
+       number and what to do about it rather than pretending to point at cards.
+
+       This is the THIRD pass on the same defect and the first two both died in
+       the plumbing: the count went into a field nothing read, then into
+       `backgroundError`, which renderWorkloadPlanStatus rewrites for every
+       string but one sentinel and wlManualRefresh clears outright. So it is now
+       rendered from its own state, on its own branch, and no refresh-failure
+       path can overwrite or clear it. */
+    function wlDroppedPlanWarningText(count) {
+        const dropped = Number(count) || 0;
+        if (dropped <= 0) return '';
+        return (dropped === 1
+            ? 'One saved work day is not shown'
+            : dropped + ' saved work days are not shown')
+            + ' because the client stored with that work day no longer matches the card.'
+            + ' Those cards are placed automatically; check them before planning around them.';
+    }
+
     function renderWorkloadPlanStatus() {
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
         const status = wlState.planStatus;
         const metadataStatus = wlState.linearMetadataStatus;
-        if (wlState.backgroundError) {
-            el.hidden = false;
-            el.className = 'workload-plan-status is-warning';
-            el.textContent = 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
-            return;
+
+        /* EVERY notice that is true right now, most urgent first.
+
+           This used to be a chain of branches that each returned, so the first
+           true one silenced the rest. The states are independent -- a board can
+           be missing saved work days, have failed its last refresh, be unable to
+           prove its labels AND be hiding excluded rows, all at once -- and
+           silencing "capacity may be understated; due-date editing is paused"
+           because a plan's client drifted makes the board read as MORE complete
+           than it is. That is the failure AGENTS.md calls the one a reader
+           cannot debug or report: an absence.
+
+           So precedence is now ORDERING, not suppression. Each note keeps the
+           rank it had; the ones below it are appended rather than dropped. */
+        const notices = [];
+
+        /* Two of the notices below describe WHAT IS ON SCREEN -- rows whose
+           weight could not be proven, and rows excluded from every panel. Both
+           used to be gated on `planStatus === 'ready'`, which couples them to a
+           state they have nothing to do with: a warm board whose refresh just
+           failed still shows those same rows, still excludes the same ones, and
+           goes to 'stale'. The notice vanished exactly when the board got worse.
+
+           The honest gate is whether a WORKLOAD ITEM is being shown at all --
+           which is NOT the same as `issueSnapshot.length`. That array also
+           carries batch parents and completed/parked rows, every one of which
+           wlApplyData drops from every bucket, so a cached fallback holding
+           only those would have claimed a displayed capacity was understated
+           while displaying nothing. It counts the rows that actually rendered,
+           plus the ones excluded FROM rendering: an all-excluded board shows
+           nothing and is exactly the board that most needs to say why. During a
+           first load both are zero and these stay silent on their own; once
+           something renders, what is true about it is true regardless of how
+           fresh the plan is. */
+        const excludedShown = ((wlState.excluded && wlState.excluded.noAssigneeNoDate) || []).length
+            + ((wlState.excluded && wlState.excluded.offTeamAssignee) || []).length;
+        const boardShown = wlVisibleSubCount() > 0 || excludedShown > 0;
+
+        const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
+        if (droppedText) notices.push(droppedText);
+
+        /* The plan's OWN degraded state, which used to sit in a terminal branch
+           that only ran when nothing above had spoken.
+
+           It therefore never ran in the one situation it exists for:
+           wlLoadSnapshot's failure path sets `backgroundError` and
+           `planStatus = 'stale' | 'unknown'` on adjacent lines, so the notice
+           above it always won. That is not a cosmetic loss --
+           wlPlanEditingEnabled() requires 'ready', so saved-work-day editing
+           really is off, and the generic freshness sentence does not say so.
+           Ranked high because "you cannot edit" is the most operationally
+           urgent thing on this line. */
+        if (status === 'stale') {
+            notices.push('Saved work days could not be refreshed. The last good plan is shown; editing is paused.');
+        } else if (status === 'unknown') {
+            notices.push('Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.');
         }
-        if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
+
+        if (wlState.backgroundError) {
+            notices.push(wlState.backgroundError === 'Some teams still use the legacy Workload source.'
+                ? 'Some teams still use the legacy Workload source.'
+                : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.');
+        }
+
+        if (boardShown && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             /*
              * Two very different situations reach this branch, and until
              * 2026-08-24 both got the sentence below.
@@ -18183,40 +18614,37 @@
              * nothing really is editable. Keep the two apart.
              */
             const withheld = Number(wlState.linearMetadataWithheldOnly) || 0;
-            el.hidden = false;
-            el.className = 'workload-plan-status is-warning';
-            el.textContent = withheld
+            notices.push(withheld
                 ? (withheld === 1
                     ? 'One item is missing its workload label, so it is shown without a weight or a due date. Everything else here is up to date and editable.'
                     : withheld + ' items are missing their workload label, so they are shown without a weight or a due date. Everything else here is up to date and editable.')
-                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
+                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.');
+        }
+
+        /* Still the lowest rank: a real plan or metadata problem is more urgent
+           than a completeness note, so this speaks LAST. It no longer goes
+           unsaid, though -- "Nothing is shown here, but this is not an empty
+           board" is exactly the sentence a reader needs most on the day
+           something else is also wrong. */
+        if (boardShown) {
+            const excludedText = wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount());
+            if (excludedText) notices.push(excludedText);
+        }
+
+        if (notices.length) {
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = notices.join(' ');
             return;
         }
-        if (status === 'ready' || status === 'loading' || status === 'refreshing') {
-            /* Lowest priority by design: a real plan or metadata problem is
-               more urgent than a completeness note, and this only speaks when
-               there is nothing more important to say. */
-            const excludedText = status === 'ready'
-                ? wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount())
-                : '';
-            if (excludedText) {
-                el.hidden = false;
-                el.className = 'workload-plan-status is-warning';
-                el.textContent = excludedText;
-                return;
-            }
-            el.hidden = true;
-            el.className = 'workload-plan-status';
-            el.textContent = '';
-            return;
-        }
-        el.hidden = false;
-        el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
-        if (status === 'stale') {
-            el.textContent = 'Saved work days could not be refreshed. The last good plan is shown; editing is paused.';
-        } else {
-            el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
-        }
+        /* Nothing is wrong: ready, loading or refreshing with no notice to
+           give. 'stale' and 'unknown' can no longer reach here -- each always
+           contributes a notice above -- which is the point: the sentence that
+           used to live down here is now said even when something else is also
+           true. */
+        el.hidden = true;
+        el.className = 'workload-plan-status';
+        el.textContent = '';
     }
 
     function wlVisibleSubCount() {
@@ -18598,7 +19026,7 @@
             if (!s.assigneeId) return;
             if (seen.has(s.id)) return;
             seen.add(s.id);
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) return;
+            if (!wlIssueEditorAllowed(s)) return;
             // The "Editor workload / freest first" panel is for video editors
             // only. Graphics designers have a different per-day capacity and
             // a different definition of "free", so mixing them in skews the
@@ -18823,6 +19251,7 @@
         if (!parentId && !identifier) return null;
         return {
             key: parentId || identifier,
+            nativeBatchId: sub && sub.workloadSource === 'native' ? parentId : '',
             identifier,
             title: String((parent && parent.title) || ''),
             url: String((parent && parent.url) || ''),
@@ -18906,7 +19335,9 @@
             const groupsHtml = groups.map(group => {
                 const parent = group.parent;
                 const subs = wlSortSubIssues(group.subs);
-                const syncUrl = parent ? wlSyncLinearUrl(parent.identifier) : '';
+                const syncUrl = parent && parent.nativeBatchId
+                    ? location.pathname + '?prod=1&batch=' + encodeURIComponent(parent.nativeBatchId)
+                    : parent ? wlSyncLinearUrl(parent.identifier) : '';
                 const parentName = parent ? (parent.identifier || 'the parent issue') : '';
                 const openBtn = syncUrl
                     ? `<a class="wl-loose-open" href="${wlEscape(syncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in SyncLinear to assign its sub-issues')}"><span>Open in SyncLinear</span>${externalMark}</a>`
@@ -18921,7 +19352,7 @@
                     const team = wlTeamBucket(s.teamKey, s.teamName);
                     const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
                     const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
-                    const subSyncUrl = wlSyncLinearUrl(s.identifier) || s.url || '';
+                    const subSyncUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
                     const subLinearBtn = s.url
                         ? `<a class="workload-chip-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape((s.identifier || s.title || 'Sub-issue') + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
                         : '';
@@ -19585,7 +20016,16 @@
            guess -- so the button stays on the parent and says so, and the
            rows below remain the way to each individual video. */
         const soleSub = subs.length === 1 ? subs[0] : null;
-        const soleSubIdent = String(soleSub?.identifier || '');
+        /* Route by the NATIVE id first, exactly as the rows below and the loose
+           strips do. A deliverable created after the outbound flip carries no
+           `linear_identifier` at all, so keying the primary action on
+           `identifier` alone sends the most prominent button on a one-video
+           popover to the SYNTHETIC batch parent -- whose status is hardcoded
+           `todo` and is the one value guaranteed to contradict the pill the
+           reader just clicked -- or renders no button at all when the parent
+           has no identifier either. `?prod=1&d=` resolves a `del_…` id because
+           _prodIssue() matches on `id` OR `displayId`. */
+        const soleSubIdent = String(soleSub?.nativeId || soleSub?.identifier || '');
         const openIdent = soleSubIdent || parentIdent;
         const openIsParent = !soleSubIdent && !!parentIdent;
         const parentSyncUrl = openIdent
@@ -19653,9 +20093,13 @@
             const tweakBox = wlIsTweaksNeeded(s)
                 ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`
                 : '';
-            const rowSyncUrl = s.identifier
-                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(s.identifier))
-                : (s.url || '');
+            // Route by the NATIVE id first, exactly as the loose strips do. A
+            // deliverable created after the outbound flip carries neither
+            // `identifier` nor `url`, so keying on the identifier renders
+            // href="" and the click reloads the Workload page instead of
+            // opening the deliverable. `?prod=1&d=` resolves a `del_…` id
+            // because _prodIssue() matches on `id` OR `displayId`.
+            const rowSyncUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
             const linearBtn = s.url
                 ? `<a class="workload-popover-item-cal workload-popover-item-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Linear" data-tip="Open in Linear"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/></svg></a>`
                 : '';
@@ -19695,20 +20139,58 @@
 
         if (tweakSubs.length) {
             const token = ++_wlTweakCommentsToken;
-            wlFetchTweakComments(tweakSubs.map(s => s.id)).then(byId => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                for (const s of tweakSubs) {
-                    const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
-                    const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
-                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
-                }
-                wlMarkClampedComments(pop);
-            }).catch(() => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
-                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+            /* THE ROW KEY AND THE LOOKUP KEY ARE NO LONGER THE SAME STRING.
+
+               A native row's `id` is its `del_…` identifier and the Linear uuid
+               sits beside it in `linearId`; `wlFetchTweakComments` POSTs to a
+               webhook that looks issues up BY LINEAR ID. Sending `s.id` matches
+               nothing for every native row, and an empty comment list renders as
+               an empty box — so the review feedback that sent the work back
+               disappears silently, which is the one thing this popover exists to
+               show. So: send the Linear key, paint back under the row key.
+
+               A legacy row has no `linearId` (its own `id` IS the Linear uuid),
+               hence the non-native fallback rather than a bare `s.linearId`.
+
+               A deliverable created after outbound stops has no Linear issue at
+               all. It is not sent — the webhook would match nothing — and its box
+               says so, because a blank box reads as "no tweak comment", the
+               opposite of the truth. Lane D moves this source to native comments
+               (`production-comments`); until then this CALL SITE is the only
+               thing that has to know the difference, so `wlFetchTweakComments`
+               itself is left alone and the popover works either way. */
+            const wlTweakLinearKey = s => (s && s.workloadSource === 'native')
+                ? String((s && s.linearId) || '').trim()
+                : String((s && (s.linearId || s.id)) || '').trim();
+            const wlTweakBox = id => {
+                const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : String(id).replace(/"/g, '');
+                return pop.querySelector('[data-wl-comments-for="' + sel + '"]');
+            };
+            const linkable = tweakSubs.filter(s => wlTweakLinearKey(s));
+            for (const s of tweakSubs) {
+                if (wlTweakLinearKey(s)) continue;
+                const box = wlTweakBox(s.id);
+                if (box) box.innerHTML = '<div class="wl-tweak-comments-status">No Linear sub-issue for this deliverable, so its tweak comments can&rsquo;t be shown here yet.</div>';
+            }
+            if (linkable.length) {
+                wlFetchTweakComments(linkable.map(wlTweakLinearKey)).then(byId => {
+                    if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                    for (const s of linkable) {
+                        const box = wlTweakBox(s.id);
+                        if (box) box.innerHTML = wlRenderTweakComments(byId[wlTweakLinearKey(s)]);
+                    }
+                    wlMarkClampedComments(pop);
+                }).catch(() => {
+                    if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                    // Scoped to the rows this fetch actually covered: a row with
+                    // no Linear issue already carries its own true message and
+                    // must not be told to "open the sub-issue in Linear".
+                    for (const s of linkable) {
+                        const box = wlTweakBox(s.id);
+                        if (box) box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                    }
                 });
-            });
+            }
         }
 
         // Position: anchored below the clicked rollup, clamped to viewport.
@@ -49156,7 +49638,10 @@
                 let issues = null;
                 let fetchFailed = false;
                 try {
-                    ({ issues } = await loadLinearIssues(true));
+                    // Provider-direct on purpose: see wlDiscoverProviderIssues.
+                    // The native snapshot cannot see an issue n8n created
+                    // seconds ago, so asking it here silently unlinks the card.
+                    ({ issues } = await wlDiscoverProviderIssues());
                 } catch (e) {
                     fetchFailed = true;
                     pollTrace.push({ attempt, error: 'fetch: ' + String((e && e.message) || e) });

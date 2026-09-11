@@ -66,9 +66,10 @@ There is no per-person password anywhere in this system. SyncView's staff sign i
 a name picker (reading `team_members` live) plus one shared "role key" field per tier. The
 key lives as an edge function secret (`ROLE_KEY_ADMIN` / `ROLE_KEY_SMM` /
 `ROLE_KEY_CREATIVE`) and is not retrievable through any tooling, including this one, by
-design. Whoever already holds the SMM key relays it to the new hire directly. There is
-nothing to rotate or generate for one new person, unless you are deliberately rotating that
-tier's key for everyone at once.
+design. Whoever already holds that tier's key (the same `ROLE_KEY_ADMIN` / `ROLE_KEY_SMM` /
+`ROLE_KEY_CREATIVE` named above, matching the role picked in §2, not always the SMM one)
+relays it to the new hire directly. There is nothing to rotate or generate for one new
+person, unless you are deliberately rotating that tier's key for everyone at once.
 
 ## 4. Linear
 

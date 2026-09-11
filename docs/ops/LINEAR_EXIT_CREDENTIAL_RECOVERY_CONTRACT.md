@@ -1,7 +1,8 @@
 # Credential recovery preparation contract
 
 Status: prepared authenticated triple with stored/reopened local PostgreSQL acceptance.
-Encryption/off-device custody, handler behavior and hosted recovery remain open.
+Optional final-file encryption now has isolated recovery evidence. Independent
+key/off-device custody, handler behavior and hosted recovery remain open.
 No live credential rows were read. Installation remains HOLD.
 
 The next coherent custody group among the 25 remaining tables is
@@ -88,11 +89,11 @@ Next: private encryption/key custody and isolated handler behavior. Preserve the
 while keeping recovery quarantine inert. This does not authorize hosted use.
 
 
-## Next encryption boundary (unimplemented)
+## Optional encryption boundary (prepared and locally verified)
 
 The bounded source review found authentication and file-publication helpers,
-but no reusable recovery encryption envelope. Prepare a separately versioned
-encrypted wrapper around the complete triple; retain inner component verification.
+but no reusable recovery encryption envelope. A separately versioned encrypted wrapper now surrounds the complete triple and
+retains inner component verification.
 Use the built-in Node crypto AES-256-GCM interface, a separate random32-byte
 key, a fresh12-byte nonce and fixed16-byte authentication tag. Authenticate the
 format, key identifier and declared lengths as associated data. Verify the tag
@@ -110,3 +111,19 @@ Local cryptographic tests do not establish private Windows ACLs, capture-time
 plaintext staging safety, key provisioning/rotation and independent recovery,
 power-loss behavior, or off-device encrypted-object retrieval. Those remain
 separate gates before hosted use; this design authorizes no hosted operation.
+
+
+Use `writeEncryptedTriple({directory, name, parentBytes, priorityBytes,
+credentialBytes, hmacInput, encryptionKey, keyId})` and
+`readEncryptedTriple(file, {hmacInput, encryptionKey, keyId})` from the encrypted
+storage module. The encryption key is an explicit32-byte Buffer; the opaque key
+identifier is32 lowercase hexadecimal characters. The helper generates its own
+nonce and rejects an encryption key identical to the32-byte HMAC key. That check
+does not prove independent key generation or custody. No caller nonce is accepted
+by the encoder. Defaults and plaintext storage remain unchanged.
+
+Reproduce the isolated path with the PG17 `credential-recovery` lane and
+`-EncryptedCredentials`. Evidence: LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json.
+The temporary random test key is not retained; do not treat that fixture as an
+independently recoverable operational backup. The next gates are private staging,
+key provisioning and recovery, off-device retrieval and isolated handler behavior.

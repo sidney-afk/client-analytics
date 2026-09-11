@@ -1212,3 +1212,21 @@ Windows ACLs, power-loss durability, encryption or off-device recovery. Private
 packages are not GitHub artifacts. Next encrypted-wrapper/key-custody design is
 recorded in the credential contract and remains unimplemented. Installation HOLD;
 no merge/deployment/production/n8n changes.
+
+
+## Encrypted credential file recovery
+
+The optional AES-256-GCM wrapper passes13 offline checks and actual PG17 recovery
+from the reopened encrypted file in `linear-exit-credential-recovery-38e9ece47e5d480db13e1d8799eebbe8`
+(exit0, server stopped). All3 components remain authenticated after decryption;
+existing credential snapshot, rollback, access and quarantine checks pass. The
+plaintext triple storage retains14 passing checks. The encrypted writer stages
+and publishes ciphertext only, refuses overwrite and authenticates before
+returning decrypted components. See LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json.
+
+The test encryption key was ephemeral and not persisted. This proves file-level
+encryption/recovery within the run, not independent key recovery. Earlier capture
+still uses private plaintext scratch; key provisioning/rotation, scratch/Windows
+ACLs, power-loss behavior and off-device custody remain open. Plaintext/default
+formats are unchanged; encrypted mode is explicit. Installation HOLD.
+No merge/deployment/production/n8n changes.

@@ -274,3 +274,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - scripts/linear-exit-credential-triple-storage.js: bounded complete triple frame and exclusive local publication.
 - test/linear-exit-credential-triple-storage.js: three-part filesystem, fault and cross-process acceptance.
 - docs/independence/LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json: stored/reopened triple PostgreSQL recovery evidence.
+
+- scripts/linear-exit-credential-encrypted-storage.js: authenticated encrypted triple wrapper and ciphertext publication.
+- test/linear-exit-credential-encrypted-storage.js: encryption, tamper and file failure controls.
+- test/helpers/credential-storage-fixture.js: synthetic authenticated triple fixture.
+- docs/independence/LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json: isolated encrypted-file recovery evidence.

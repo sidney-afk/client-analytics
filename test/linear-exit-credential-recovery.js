@@ -6,6 +6,7 @@ const {install}=require('../scripts/linear-exit-composition/recovery-ordered');
 const backup=require('../scripts/track-b-backup');const recovery=require('../scripts/track-b-recovery-package');
 const credential=require('../scripts/linear-exit-credential-companion');
 if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_POSTGRES_REQUIRED');
+const encrypted=process.argv.includes('--encrypted');
 const cluster=new Cluster();assert.ok(['127.0.0.1','localhost','::1'].includes(cluster.host));
 let targetDb,stage='install';
 async function main(){try{
@@ -40,9 +41,11 @@ async function main(){try{
  const triple=await require('../scripts/linear-exit-credential-capture').captureTriple({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`,hooks:{afterDumps:()=>{cluster.exec("update public.client_credentials set password='SYNTHETIC_LATER' where id='00000000-0000-4000-8000-000000000001';insert into public.client_credential_events(client_slug,action) values('synthetic-credential','reveal');update public.client_credentials_rev set rev=8 where client_slug='synthetic-credential';");interveningWrite=true;}}});
  stage='triple-storage';
  assert.ok(process.env.PROOF_OUTPUT_ROOT,'PRIVATE_OUTPUT_REQUIRED');
- const storage=require('../scripts/linear-exit-credential-triple-storage');
- const stored=storage.writeTriple({directory:process.env.PROOF_OUTPUT_ROOT,name:'credential-triple.private',...triple,hmacInput:key});
- const reopened=storage.readTriple(stored.path,key);
+ const storage=require(encrypted?'../scripts/linear-exit-credential-encrypted-storage':'../scripts/linear-exit-credential-triple-storage');
+ const encryptionKey=encrypted?require('crypto').randomBytes(32):null;const keyId='a'.repeat(32);
+ const stored=encrypted?storage.writeEncryptedTriple({directory:process.env.PROOF_OUTPUT_ROOT,name:'credential-triple.encrypted',...triple,hmacInput:key,encryptionKey,keyId}):storage.writeTriple({directory:process.env.PROOF_OUTPUT_ROOT,name:'credential-triple.private',...triple,hmacInput:key});
+ const reopened=encrypted?storage.readEncryptedTriple(stored.path,{hmacInput:key,encryptionKey,keyId}):storage.readTriple(stored.path,key);
+ if(encrypted){assert.equal(fs.existsSync(path.join(process.env.PROOF_OUTPUT_ROOT,'credential-triple.private')),false);assert.equal(fs.readFileSync(stored.path).includes(Buffer.from('SYNTHETIC_NOT_A_CREDENTIAL')),false);}
  for(const name of ['parentBytes','priorityBytes','credentialBytes'])assert.deepEqual(reopened[name],triple[name]);
  const args={...reopened,hmacInput:key};const verified=credential.verifyTriple(args);
  assert.deepEqual(Object.fromEntries(Object.entries(verified.credential.tables).map(([n,t])=>[n,t.rows.length])),{client_credential_events:3,client_credentials:3,client_credentials_rev:1});
@@ -82,7 +85,8 @@ async function main(){try{
   assert.equal(r.status,0,r.stderr);
  }
  const uniqueness=owner(`begin;do $unique$ begin begin insert into public.client_credentials(client_slug,client_name,platform,label) values('synthetic-credential','Synthetic','SYNTHETIC','MAIN');raise exception 'CREDENTIAL_DUPLICATE_ACCEPTED';exception when unique_violation then null;end;end $unique$;rollback;`);assert.equal(uniqueness.status,0,uniqueness.stderr);
- console.log(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK',classification:'ISOLATED_POSTGRES_SYNTHETIC_TRIPLE',inventory_sha256:inventory.inventory_sha256,source,parent_tables:52,populated_priority_tables:9,populated_credential_tables:3,credential_rows:3,event_rows:3,revision_rows:1,legacy_renderers_refused:true,late_row_fault_rollbacks:2,protected_role_denials:denied,revision_role_reads:2,partial_unique_constraint_enforced:true,shared_snapshot_capture:true,concurrent_three_table_write_kept_out_of_snapshot:true,local_storage:{all_three_reopened_before_restore:true,container_sha256:stored.container_sha256,atomic_no_overwrite:stored.atomic_no_overwrite,power_loss_durability_proven:false,off_device_custody_proven:false},encryption_proven:false,handler_behavior_proven:false,realtime_quarantine_preserved:true,hosted_restore_proven:false}));
+ if(encrypted)console.log('LINEAR_EXIT_CREDENTIAL_ENCRYPTED_RECOVERY_OK');
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK',classification:'ISOLATED_POSTGRES_SYNTHETIC_TRIPLE',inventory_sha256:inventory.inventory_sha256,source,parent_tables:52,populated_priority_tables:9,populated_credential_tables:3,credential_rows:3,event_rows:3,revision_rows:1,legacy_renderers_refused:true,late_row_fault_rollbacks:2,protected_role_denials:denied,revision_role_reads:2,partial_unique_constraint_enforced:true,shared_snapshot_capture:true,concurrent_three_table_write_kept_out_of_snapshot:true,local_storage:{all_three_reopened_before_restore:true,container_sha256:stored.container_sha256,atomic_no_overwrite:stored.atomic_no_overwrite,power_loss_durability_proven:false,off_device_custody_proven:false},encryption_proven:encrypted,encryption_scope:encrypted?'final_file_roundtrip_only':null,key_custody_proven:false,handler_behavior_proven:false,realtime_quarantine_preserved:true,hosted_restore_proven:false}));
 }catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'credential-recovery.private-error.log'),String(e.stack||e));console.error(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_FAILED',stage}));process.exitCode=1;}
 finally{if(targetDb)cluster.run('','postgres',{sql:`drop database if exists ${targetDb}`});cluster.stop();}}
 main();

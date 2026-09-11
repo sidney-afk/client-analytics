@@ -1525,5 +1525,59 @@
       "test/linear-exit-credential-triple-storage.js": "9441c13770c6b9b17d6d6e58d64318b7f197f0263eaaa2b97c80eea17fdb9659",
       "test/linear-exit-credential-recovery.js": "c60ff7ecd98dc70d5eee02d2c2bf5aaac69203b287e6209f23f6d003156be5f5"
     }
+  },
+  "credential_encrypted_storage": {
+    "marker": "LINEAR_EXIT_CREDENTIAL_RECOVERY_OK",
+    "classification": "ISOLATED_POSTGRES_SYNTHETIC_TRIPLE",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source": {
+      "source": "migrations/client-credentials-migration.sql",
+      "source_sha256": "eb1c5ac2dc4fa2900225ca916b284367c0223d577e0b631fd74851ead7ad973c",
+      "separate_from_published_inventory": true,
+      "application_seed_rows_executed": false,
+      "hosted_schema_equivalence_proven": false
+    },
+    "parent_tables": 52,
+    "populated_priority_tables": 9,
+    "populated_credential_tables": 3,
+    "credential_rows": 3,
+    "event_rows": 3,
+    "revision_rows": 1,
+    "legacy_renderers_refused": true,
+    "late_row_fault_rollbacks": 2,
+    "protected_role_denials": 4,
+    "revision_role_reads": 2,
+    "partial_unique_constraint_enforced": true,
+    "shared_snapshot_capture": true,
+    "concurrent_three_table_write_kept_out_of_snapshot": true,
+    "local_storage": {
+      "all_three_reopened_before_restore": true,
+      "container_sha256": "4a16b69ccbcd0c2ba45f453470ccc57646c891b7de63504fca91c79104ce3e20",
+      "atomic_no_overwrite": true,
+      "power_loss_durability_proven": false,
+      "off_device_custody_proven": false
+    },
+    "encryption_proven": true,
+    "encryption_scope": "final_file_roundtrip_only",
+    "key_custody_proven": false,
+    "handler_behavior_proven": false,
+    "realtime_quarantine_preserved": true,
+    "hosted_restore_proven": false,
+    "receipt": "linear-exit-credential-recovery-38e9ece47e5d480db13e1d8799eebbe8",
+    "exit": 0,
+    "server_stopped": true,
+    "offline_encrypted_storage_checks": 13,
+    "plaintext_triple_regression_checks": 14,
+    "test_key_ephemeral_not_persisted": true,
+    "installation_ready": false,
+    "source_hash_scope": "Executed working-tree bytes; checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "scripts/linear-exit-credential-encrypted-storage.js": "d1ec197ee9d556841dc1a95169114ee6e2cc3de731da760c28bfb86ea82e3d33",
+      "test/linear-exit-credential-encrypted-storage.js": "17fdff87e98c8f567207d46a969e87b6b4fdd14c949838ef0f93bd39ae87b852",
+      "test/helpers/credential-storage-fixture.js": "dec1749335ebbb94b154f5b789f03980f22a1bd0eb137a6eea6df20061c475cf",
+      "test/linear-exit-credential-recovery.js": "a27292551d407ffb604dd67aa31549fe176914c5611aa4b9f14d68a9080a0433",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "5b39affb4ebb8de3f814a31c5315c3f91e3877aacf73f422b98e509e3e9f7008"
+    },
+    "capture_plaintext_staging_protection_proven": false
   }
 }

@@ -232,3 +232,9 @@ read before the nine-table match can pass. This is a local observed baseline,
 not a historical migration or full hosted/platform recovery proof.
 
 Use -Lane priority-application-recovery with PG17 binaries including pg_dump for populated synthetic capture/restore on ordered application owners plus the explicit supplements. It uses restricted roles and existing verification; it does not prove hosted or object recovery.
+
+The application recovery lane also exercises selected restored behavior:
+near-exhausted budget continuity within the captured five-minute window, audit
+identity allocation, thumbnail watcher/token updates and six role-based table
+read denials. A window rollover fails explicitly. Row effects are rolled back;
+sequence allocation is nontransactional and does not prove a source write fence.

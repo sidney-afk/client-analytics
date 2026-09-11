@@ -122,3 +122,23 @@ concurrent sequence fencing, real data/object custody, complete platform
 baseline, hosted restoration or durable pair publication. Earlier default gap
 failures retain their original scopes. Installation remains HOLD; no merge,
 deployment, production data write or n8n operation occurred.
+
+## Selected restored runtime behavior
+
+PG17 application recovery plus nine behavior checks passed in receipt
+`linear-exit-priority-application-recovery-77a1365b98cc449b87555e9f47cf8d2b`, exit0,
+owned server stopped. Actual restored budget stayed in its captured five-minute
+window and advanced119->120, then refused another request without increasing the
+counter. Missing JSON fields/rows fail closed. Audit allocated a fresh non-null
+ID beyond the restored maximum. The real thumbnail trigger advanced a token on
+a same-link write while retaining one pending continuous watcher. Six actual
+anon/authenticated role reads on protected audit/conflict/thumbnail tables were
+denied. No provider calls were made.
+
+The public result is LINEAR_EXIT_PRIORITY_RESTORED_BEHAVIOR_20260911.json.
+Earlier pre-hardening pass dcf4b8fc7f4d422f87a5fa359abf89a9 is superseded by this
+run. These are selected local behaviors, not complete end-user or provider
+handover coverage. Row changes are rolled back; sequence nextval is not
+transactional, so the local identity check does not establish source sequence
+fencing. Object bytes/custody, durable pair publication and hosted recovery
+remain open. No merge/deployment/production/n8n write; installation remains HOLD.

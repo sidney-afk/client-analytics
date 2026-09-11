@@ -232,3 +232,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/linear-exit-priority-application-recovery.js: populated application-owner pair capture/restore rehearsal.
 - docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_20260911.json: source-bound PG17 application recovery result.
+
+- test/helpers/linear-exit-priority-restored-behavior.js: post-restore budget, identity, thumbnail and actual-role access checks.
+
+- docs/independence/LINEAR_EXIT_PRIORITY_RESTORED_BEHAVIOR_20260911.json: selected post-restore runtime/access evidence.

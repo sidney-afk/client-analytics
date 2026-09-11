@@ -1294,5 +1294,18 @@
     "hosted_restore_proven": false,
     "sequence_custody_proven": false,
     "installation_ready": false
+  },
+  "priority_restored_behavior": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "checks_passed": 9,
+    "protected_role_denials": 6,
+    "receipt": "linear-exit-priority-application-recovery-77a1365b98cc449b87555e9f47cf8d2b",
+    "exit": 0,
+    "server_stopped": true,
+    "provider_calls": false,
+    "source_sequence_fence_proven": false,
+    "installation_ready": false
   }
 }

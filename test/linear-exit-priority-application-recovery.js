@@ -17,7 +17,7 @@ async function main(){try{
  insert into public.thumbnail_media_revisions(surface,client,source_id,thumbnail_url) values('calendar','synthetic-priority','synthetic-priority','https://example.invalid/synthetic');
  insert into public.production_comment_import_conflicts(import_run_id,source_surface,classification) values('synthetic-priority','calendar','missing_card_id');
  insert into public.production_comment_read_audit(actor_key,auth_kind,decision,reason) values('synthetic-priority','staff','allow','synthetic');
- insert into public.production_comment_read_budget(actor_key,window_start,requests) values('synthetic-priority','2026-09-10T00:00:00Z',1);
+ insert into public.production_comment_read_budget(actor_key,window_start,requests) values('synthetic-priority',to_timestamp(floor(extract(epoch from clock_timestamp())/300)*300),119);
  insert into public.linear_archive_asset_rescue_config(config_key,destination_provider,approved_folder_id,rescue_capability_sha256,active) values('active','google_drive_private','synthetic_folder_000000',repeat('0',64),false);
  insert into public.workload_issues(id) values('synthetic-priority');`);
  const role='priority_app_capture_'+process.pid;const restoreRole='priority_app_restore_'+process.pid;
@@ -35,7 +35,10 @@ async function main(){try{
  stage='actual-pair-reconstruction';
  const result=cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',restoreRole,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:recovery.reconstructPairSql(pair.companionBytes,pair.parentBytes,key),env:{...env,PGPASSWORD:'synthetic-restore-only'},encoding:'utf8',windowsHide:true});
  if(result.status!==0){const e=Error('APPLICATION_PAIR_RECONSTRUCTION_REFUSED');e.detail=result.stderr;throw e;}
- console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK',inventory_sha256:proof.inventory_sha256,supplement:extra,observed_backup:baseline,parent_tables:52,populated_companion_tables:9,application_source_owners:true,synthetic_rows_only:true,owner_relative_reconstruction:true,full_dependency_closure_proven:false,hosted_restore_proven:false,sequence_custody_proven:false}));
+ stage='restored-runtime-behavior';
+ const execute=(user,password,sql)=>cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',user,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:sql,env:{...process.env,PGPASSWORD:password},encoding:'utf8',windowsHide:true});
+ const behavior=require('./helpers/linear-exit-priority-restored-behavior').verify({owner:sql=>execute(restoreRole,'synthetic-restore-only',sql),asRole:(role,sql)=>execute(cluster.user,process.env.PGPASSWORD,`begin;set local role ${role};${sql}rollback;`)});
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK',inventory_sha256:proof.inventory_sha256,supplement:extra,observed_backup:baseline,parent_tables:52,populated_companion_tables:9,behavior,application_source_owners:true,synthetic_rows_only:true,owner_relative_reconstruction:true,full_dependency_closure_proven:false,hosted_restore_proven:false,sequence_custody_proven:false}));
 }catch(error){
  if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'application-recovery.private-error.log'),String(error.stack||error)+'\n'+String(error.detail||''));
  console.error(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_FAILED',stage,code:'APPLICATION_RECOVERY_GATE_REFUSED'}));process.exitCode=1;

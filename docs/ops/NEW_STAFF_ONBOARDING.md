@@ -21,7 +21,8 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 | `team_members.team` | For an editor or designer, this must exactly match the team they work in (`video` / `graphics`), it gates both assignee eligibility and their write permissions | Manual, set at insert time, not optional for these two roles |
 | Linear workspace | Lets them log in and, once invited, gives you the ID to put in `team_members.linear_user_id`, which gates whether an editor or designer can be picked as an assignee | Seat invite is manual. Nothing currently backfills `linear_user_id` on its own, see §4 |
 | SMM's personal Linear API key | Only relevant once they are assigned a client. Stored per client assignment row in the Google Sheet, not on `team_members` | Self generated in Linear once they have a seat |
-| SyncView Google Sheet, "Social Media Managers" tab | Keyed by client, not by person, one row per client assignment | Not a general onboarding step, only touched when an SMM is actually assigned a client, see §6 |
+| `pto_members` | Whether their Time Off request form works at all | Admin sets it in SyncView's own Time Off panel, see §6. Not every hire gets this benefit, that is an owner call |
+| SyncView Google Sheet, "Social Media Managers" tab | Keyed by client, not by person, one row per client assignment | Not a general onboarding step, only touched when an SMM is actually assigned a client, see §7 |
 | Slack workspace | The client creative channel automation reads the assigned SMM's row in the Sheet above, not anything on `team_members` | Seat invite is manual; the rest happens at client assignment time |
 | Company email | Identity anchor for the above | Owner's call. Some existing staff use a personal address instead, and that is fine |
 
@@ -32,27 +33,29 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 - [ ] Hand them the existing shared role key for their tier, through a channel you would already trust with a secret. Never in this repo, never in a public Slack channel
 - [ ] Invite them to the Linear workspace. For an editor or designer, look up their Linear user ID once they have joined and set `team_members.linear_user_id` by hand, nothing does this for you (see §4)
 - [ ] Invite them to Slack (§5)
-- [ ] If assigning a client right away, that is a separate, per client step, follow §6 and `NEW_CLIENT_ONBOARDING.md`
+- [ ] If this hire gets the Time Off benefit, set them up in SyncView's Time Off admin panel (§6), otherwise their request form will not work
+- [ ] If assigning a client right away, that is a separate, per client step, follow §7 and `NEW_CLIENT_ONBOARDING.md`
 - [ ] Confirm they can actually log in: SyncView, Staff sign in, their name should now be in the dropdown, then their tier's role key. For an editor or designer, also confirm they appear in the Create Post assignee picker for their team
 
 ## 2. The `team_members` insert
 
 This table's row level security grants `SELECT` to anon/authenticated and nothing else.
 `INSERT` / `UPDATE` / `DELETE` is `service_role` only, on purpose (see the gotchas below).
-Run this with the Supabase service role, not the browser key:
+Run this with the Supabase service role, not the browser key. Fill in every placeholder,
+including `role` and `team`, there is no safe default to copy as is:
 
 ```sql
 insert into public.team_members (name, email, role, team, active)
-values ('<full name>', '<email>', 'smm', null, true)
+values ('<full name>', '<email>', '<role>', <team>, true)
 returning id, name, email, role, team, active, created_at;
 ```
 
-- `role` is a check constraint: `admin`, `smm`, `editor`, `designer`. There is no separate
-  "social media manager" string in the column, `smm` is it.
-- `team`: for `editor` use `'video'`, for `designer` use `'graphics'`, exactly, this is
+- `role`: exactly one of `admin`, `smm`, `editor`, `designer` (a check constraint). There is
+  no separate "social media manager" string, `smm` is it.
+- `team`: `'video'` for `editor`, `'graphics'` for `designer`, an exact match, this is
   required. `assigneeEligibility()` in `supabase/functions/production-write/policy.mjs`
   denies `assignee_out_of_scope` the moment `team` does not match the target team, `null`
-  included. For `admin` and `smm`, leave it `null`, an SMM usually spans both teams.
+  included. Use `null` for `admin` and `smm`, an SMM usually spans both teams.
 - Leave `linear_user_id` out of the insert, there is nothing to put there yet, see §4. Leave
   `slack_user_id` out too, it has no reader anywhere in the codebase (§5), setting it buys
   nothing.
@@ -73,7 +76,7 @@ Two separate things ride on a Linear seat, and neither happens automatically.
 
 **Their personal Linear API key.** Only matters once they are assigned a client: it gets
 stored in the Google Sheet's Social Media Managers tab, one copy per client row they cover
-(§6). Nothing to do here if they have no client yet.
+(§7). Nothing to do here if they have no client yet.
 
 **`team_members.linear_user_id`.** This is what actually gates whether an editor or
 designer can be picked as an assignee (`assigneeEligibility()`,
@@ -108,9 +111,24 @@ column (misnamed, it actually holds a bare Slack user ID) on the assigned SMM's 
 Google Sheet's Social Media Managers tab, not anything on `team_members`
 (`NEW_CLIENT_ONBOARDING.md` §6c). A missing value there parks that client's channel job in
 `waiting` rather than failing loudly. So there is nothing Slack specific to do at general
-onboarding beyond the workspace invite, the rest happens at client assignment time (§6).
+onboarding beyond the workspace invite, the rest happens at client assignment time (§7).
 
-## 6. Assigning their first client
+## 6. Time Off (if this hire gets the benefit)
+
+Not every hire does, that is an owner decision, not a technical one, and nothing below
+applies if they do not. Otherwise: completing everything above still leaves their Time Off
+request form dead. `requestTimeOff()` (`supabase/functions/pto/index.ts`) returns
+`pto_not_enabled` (403) whenever no `pto_members` row exists for them, or one exists with
+`pto_enabled` false, which is the column's default.
+
+This is set through SyncView itself, admin only, not a raw SQL write: sign in as admin,
+open the Time Off admin panel, choose their name from the member picker, set their real PTO
+start date, and check the enabled box. That submits the `set_start_date` action, which
+runs through the `pto_set_member_start_v1` database function rather than a plain insert, so
+balances and history stay consistent from day one. A raw insert against `pto_members`
+skips that and is not the supported path.
+
+## 7. Assigning their first client
 
 Not a general onboarding step, and it works differently than the rest of this doc might
 suggest: the "Social Media Managers" Sheet tab is keyed by client, one row per assignment,
@@ -133,7 +151,8 @@ create for a hire before they have a client; skip this section entirely until th
   That is the only thing on this list that is.
 - Manual, every time: the `team_members` insert (`team` included, for editor/designer), the
   `linear_user_id` lookup and update, the Linear and Slack invites, relaying the role key by
-  hand, and everything in §6, which happens once per client assignment, not once per hire.
+  hand, Time Off enablement if this hire gets that benefit, and everything in §7, which
+  happens once per client assignment, not once per hire.
 
 ## Gotchas & drift to watch
 
@@ -148,13 +167,14 @@ create for a hire before they have a client; skip this section entirely until th
    else would gain write access to the entire staff roster as a result.
 3. **`team_members` and `social_media_managers` are not the same table, and the second one
    is keyed by client, not by person.** A hire only gets a `social_media_managers`-backed
-   row once they are assigned a client (§6); there is nothing to create for them before
+   row once they are assigned a client (§7); there is nothing to create for them before
    that, and no per-person roster entry to keep in sync.
 4. **`team` is mandatory for editor and designer, not a default-to-null field like it is
    for admin/SMM.** Leaving it `null` passes the insert but silently fails every
    assignment for that hire (`assignee_out_of_scope`) and blocks their status/comment
    writes on production work. Get the exact value at intake time (§1), not after something
-   breaks.
+   breaks. The insert template in §2 has no safe copy-paste default for this reason,
+   `role` and `team` are placeholders on purpose.
 5. **`linear_user_id` does not backfill on its own right now.** The scheduled
    reconciliation job runs every 30 minutes but never reaches the code that links it (§4);
    the path that does is manual only and is currently frozen by an authority guard besides.
@@ -168,6 +188,10 @@ create for a hire before they have a client; skip this section entirely until th
    `auth_enforcement` runtime flag does not factor into this branch at all; two earlier
    versions of this doc attributed browser behavior to it, both were wrong, corrected
    2026-09-11.
+7. **A working login says nothing about Time Off or assignability.** `key-verify` only
+   checks role compatibility, so a brand new editor can sign in fine while still being
+   unable to appear in the assignee picker (§4, gotcha 5) or file a Time Off request (§6).
+   "They can log in" is not the same question as "they can do their job", check both.
 
 ## Reference appendix
 
@@ -179,7 +203,8 @@ create for a hire before they have a client; skip this section entirely until th
 | Assignee eligibility and write permission policy (server side, authoritative) | `supabase/functions/production-write/policy.mjs`, `assigneeEligibility()` / `staffOperationAllowed()` |
 | Staff roster, login gate | Supabase `public.team_members` |
 | `linear_user_id` reconciliation logic (not reached by the scheduled run, see §4) | `scripts/b1-linear-backfill.js`, `.github/workflows/b1-linear-incremental-refresh.yml` |
-| SMM roster, client assignment, Linear key, Slack ID | SyncView Google Sheet, "Social Media Managers" tab, synced into Supabase `public.social_media_managers`; keyed by client, see §6 |
+| Time Off gating and admin setup action | `supabase/functions/pto/index.ts` (`requestTimeOff`, `setStartDate`), `index.html` (`ptoAdminMember` / `ptoAdminStart` / `ptoAdminEnabled`) |
+| SMM roster, client assignment, Linear key, Slack ID | SyncView Google Sheet, "Social Media Managers" tab, synced into Supabase `public.social_media_managers`; keyed by client, see §7 |
 | Role and auth scaffold migration | `migrations/2026-07-05-b0-linear-auth-scaffold.sql` |
 | Historical one time seed script, not a live path | `scripts/b0-seed-auth-scaffold.js` |
 | Client onboarding, for assigning a client afterward | `docs/ops/NEW_CLIENT_ONBOARDING.md` |

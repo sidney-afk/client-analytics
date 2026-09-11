@@ -1,0 +1,65 @@
+name: Client review ⇄ card reconcile
+
+# Completes a client review action the server already committed but whose card
+# never received it, because the browser that owed the second leg went away
+# (OPEN_REPAIRS 189/190/195). Detect-and-repair only; it never originates a
+# decision.
+#
+# IT WRITES EXACTLY ONE THING: a missing client sign-off stamp. Change requests
+# that never reached a card are DETECTED AND REPORTED, never written (owner
+# decision, OPEN_REPAIRS 197i) — read them out of the run log; they need a
+# person.
+#
+# See scripts/client-signoff-reconcile.js and
+# docs/ops/CLIENT_SIGNOFF_RECONCILE.md.
+#
+# Dispatch-only, like the other reconcilers, so GitHub cron cannot duplicate a
+# pager's runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only. Even on a write run, sign-off stamps are the only thing written'
+        type: boolean
+        default: true
+      cap:
+        description: 'Safety cap: abort without writing if more than this many repairs'
+        default: '25'
+      client:
+        description: 'Optional: limit to a single client slug'
+        default: ''
+
+concurrency:
+  group: client-signoff-reconcile
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4        # needs index.html for the canonical rules
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Reconcile
+        env:
+          # FAIL CLOSED. Only an explicit dry_run=false writes; a missing or
+          # malformed input reports and writes nothing. (The sibling lane's
+          # `!= 'true'` form treats an EMPTY input as apply, which is the wrong
+          # default for a job that touches client-facing review state.)
+          APPLY: ${{ github.event.inputs.dry_run == 'false' }}
+          CAP: ${{ github.event.inputs.cap || '25' }}
+          ONLY_CLIENT: ${{ github.event.inputs.client || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is missing; refusing to report a clean reconcile."
+            exit 1
+          fi
+          node scripts/client-signoff-reconcile.js

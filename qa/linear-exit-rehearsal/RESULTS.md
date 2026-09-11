@@ -668,3 +668,31 @@ supplement only. Application-shaped populated capture/restore, thumbnail behavio
 complete platform/schema equivalence and backup provenance remain open. Sequence
 fencing, Storage object custody and durable package publication are separate.
 Installation remains HOLD; no merge, deployment or hosted/n8n writes occurred.
+
+## Remaining backup table: observed catalog, not historical owner
+
+Read-only catalog observations at 2026-09-11 00:18:29, 00:19:31 and 00:20:04 UTC
+are summarized in LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json. No application
+rows were read. These were separate queries, not an atomic schema capture.
+Fetched non-shallow Git history contains only recent recovery references, not
+a creation owner for batches_parent_claim_backup_20260824.
+
+Observed: three nullable columns, no defaults/identity/generated expressions,
+constraints, indexes, user triggers, policies, rewrite rules, inheritance links,
+referencing foreign keys or publication membership. The ordinary heap table has
+RLS disabled and standard column storage. Its current four-role permissions
+include PostgreSQL 17 MAINTAIN; PG16 cannot establish exact ACL fidelity. This
+is evidence for a captured-current-schema preparation path, not proof of the
+table's historical purpose, complete dependency closure or retention policy.
+
+Next: bind a coherent current catalog snapshot, prepare an explicitly observed
+baseline on PG17 preserving permissions, then compose/capture/restore it with the
+application owners. Do not label it a recovered historical migration or silently
+remove MAINTAIN for a green PG16 result. Keep the eight-of-nine application probe
+red until the new scope is implemented and verified. Installation stays HOLD.
+
+Private raw receipt SHA256s (catalog/details/publication respectively):
+0041e2f7f38f2e173276ff6aea3a81685eb87fb924900ad5fdf3ccff3f79b417;
+43802a40886df4fb839a686717d1ca9411eb3934178db2bbbb6e566cbd2ba60b;
+3f86c130a0b8485e141e660e4e75e5aa8e07dc95d89373c99ec33b4a15c4d1b5.
+No merge, deployment, production write or n8n action occurred.

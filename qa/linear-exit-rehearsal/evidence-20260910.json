@@ -1255,5 +1255,14 @@
     "published_inventory_unchanged": true,
     "application_seed_rows_executed": false,
     "installation_ready": false
+  },
+  "backup_table_catalog": {
+    "classification": "LIVE_READ_CATALOG_ONLY",
+    "artifact": "docs/independence/LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json",
+    "application_rows_read": false,
+    "atomic_capture": false,
+    "historical_provenance_proven": false,
+    "exact_acl_requires_postgres_major_at_least": 17,
+    "installation_ready": false
   }
 }

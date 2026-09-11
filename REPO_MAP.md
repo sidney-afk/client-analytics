@@ -221,3 +221,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - scripts/linear-exit-priority-schema-supplement.js: pinned known-owner schema supplement, excluding application seeds.
 - docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SUPPLEMENT_20260910.json: retained eight-exact/one-missing composition evidence.
+
+- docs/independence/LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json: current catalog-only backup table evidence and PG17 ACL requirement.

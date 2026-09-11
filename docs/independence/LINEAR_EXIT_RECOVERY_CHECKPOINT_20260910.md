@@ -1,5 +1,32 @@
 # Linear exit recovery checkpoint — 2026-09-10
 
+## Current preparation status
+
+Verified through commit `eec684a9` on draft PR #1382. The prepared source
+includes the reviewed upstream patch through `fcebb856`; nothing is merged or
+deployed by this work.
+
+Isolated PostgreSQL evidence now covers the 52-table parent plus the nine-table
+authenticated companion, using application source owners and an explicitly
+observed backup-table baseline. Authenticated local pair storage and selected
+restored budget, audit, thumbnail and access-control behavior also pass. These
+are synthetic local recovery results, not hosted recovery or full workflow proof.
+The 15-sequence catalog probe passes, but 13 consumers were empty and its reads
+were not tied to the capture snapshot. Enforced populated sequence bounds remain
+under preparation; do not infer them from that probe.
+
+Installation remains **HOLD**. The other 25 tables have no approved exclusion;
+complete platform/schema equivalence, referenced object/document custody,
+hosted recovery/configuration, notification handover and final source cutover
+coordination remain open. WR-101 requires a separate future Edge Function release.
+Only preparation code, sanitized evidence and strategy belong on GitHub; private
+recovery packages remain private. No merge, deployment, workflow dispatch,
+production writes or n8n execution/edit is authorized.
+
+The milestone sections below retain their original evidence and limitations.
+Their old "next" and "unproven" statements describe that milestone, not the
+current status above. Original failing receipts remain failures.
+
 ## Latest priority restore contract
 
 The nine priority tables now have a proposed preservation/acceptance contract

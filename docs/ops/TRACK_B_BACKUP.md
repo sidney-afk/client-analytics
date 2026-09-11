@@ -1,5 +1,32 @@
 # Track-B private backup and restore rehearsal
 
+## Current preparation status
+
+Verified through commit `eec684a9` on draft PR #1382. The prepared source
+includes the reviewed upstream patch through `fcebb856`; nothing is merged or
+deployed by this work.
+
+Isolated PostgreSQL evidence now covers the 52-table parent plus the nine-table
+authenticated companion, using application source owners and an explicitly
+observed backup-table baseline. Authenticated local pair storage and selected
+restored budget, audit, thumbnail and access-control behavior also pass. These
+are synthetic local recovery results, not hosted recovery or full workflow proof.
+The 15-sequence catalog probe passes, but 13 consumers were empty and its reads
+were not tied to the capture snapshot. Enforced populated sequence bounds remain
+under preparation; do not infer them from that probe.
+
+Installation remains **HOLD**. The other 25 tables have no approved exclusion;
+complete platform/schema equivalence, referenced object/document custody,
+hosted recovery/configuration, notification handover and final source cutover
+coordination remain open. WR-101 requires a separate future Edge Function release.
+Only preparation code, sanitized evidence and strategy belong on GitHub; private
+recovery packages remain private. No merge, deployment, workflow dispatch,
+production writes or n8n execution/edit is authorized.
+
+The milestone sections below retain their original evidence and limitations.
+Their old "next" and "unproven" statements describe that milestone, not the
+current status above. Original failing receipts remain failures.
+
 ## Latest verified recovery with upstream ledger
 
 The supported `recovery-upstream-ledger` lane **PASSES31 checks across52
@@ -181,7 +208,7 @@ and `deliverable_events` retains the Editors event-time columns because the
 package carries the exact `pg_dump` COPY column list rather than a fixed list.
 It also retains the Boolean-singleton `syncview_retirement_admission` census state, the native identifier mint/grant owners, and the service-only `description_images` ledger. The v10 prerequisite rejects an identity sequence on every new owner.
 
-`history-v11` is a prepared 52-table successor. It adds the immutable ordinary native receipt admission ledger, notification config, notification intents, delivery receipts, and the operator reconciliation journal. The two notification journals use generated identity sequences; the ordinary admission's mirror-outbox foreign key must be `DEFERRABLE INITIALLY DEFERRED`, so restore begins by deferring constraints and validates all source references before commit. The v11 prerequisite also requires the ordinary receipt guard, all notification source observers, RLS, and their service-only ACL boundaries. It is source preparation only: no v11 disposable restore has been executed or claimed.
+`history-v11` is a prepared 52-table successor. It adds the immutable ordinary native receipt admission ledger, notification config, notification intents, delivery receipts, and the operator reconciliation journal. The two notification journals use generated identity sequences; the ordinary admission's mirror-outbox foreign key must be `DEFERRABLE INITIALLY DEFERRED`, so restore begins by deferring constraints and validates all source references before commit. The v11 prerequisite also requires the ordinary receipt guard, all notification source observers, RLS, and their service-only ACL boundaries. It remains preparation for future hosted use. Disposable v11 restore has since passed; see the current preparation status and scoped receipts above.
 
 Neither version restores Storage bucket configuration or object bytes, signed/Linear-hosted asset availability, provider state, n8n configuration, secrets, or client-facing tokens outside the selected database rows. The restored description ledger is evidence only; its referenced objects require separately verified custody before activation. The receipt
 and data corpus must be advanced again when a new authoritative table is

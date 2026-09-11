@@ -131,7 +131,7 @@ async function proveStrictReaderReplacement() {
     },
   };
   vm.createContext(ctx);
-  vm.runInContext(extractIife('_prodComments') + '\nthis.__reader = _prodComments;', ctx);
+  vm.runInContext(extractFunction('_prodFeedbackState') + '\n' + extractIife('_prodComments') + '\nthis.__reader = _prodComments;', ctx);
   await ctx.__reader.readCanonical('deliverable-1');
   assert.strictEqual(ctx.__reader.find('deliverable-1', 'older').done, true);
   assert.strictEqual(requests.length, 2);

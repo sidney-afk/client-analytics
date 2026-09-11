@@ -152,6 +152,10 @@ export function publicComment(row, principal) {
     edited_at: clean(source.edited_at) || null,
     deleted_at: clean(source.deleted_at) || null,
     resolved_at: clean(source.resolved_at) || null,
+    ...(kind === 'staff' ? {
+      resolved_by_name: clean(source.resolved_by_name) || null,
+      feedback_origin: ['native', 'linear', 'legacy', 'bridge'].includes(lower(source.origin)) ? lower(source.origin) : null,
+    } : {}),
     version: Number.isInteger(Number(source.version)) ? Number(source.version) : 1,
     created_at: clean(source.created_at) || null,
     updated_at: clean(source.updated_at) || null,

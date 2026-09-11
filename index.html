@@ -3014,6 +3014,13 @@
         .prod-comment-state-action, .prod-comment-more { min-height: 27px; margin-top: 8px; padding: 0 10px; border: 1px solid var(--prod-border-soft); border-radius: 7px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; cursor: pointer; }
         .prod-comment-state-action:hover, .prod-comment-more:hover { background: var(--prod-hover); }
         .prod-comment-state-action:disabled, .prod-comment-more:disabled { cursor: default; opacity: .6; }
+        .prod-feedback-status { margin: 12px 0; color: var(--prod-faint); font-size: 12px; line-height: 1.5; }
+        .prod-feedback-status.is-error { color: var(--prod-strong); }
+        .prod-feedback-source { border-top: 1px solid var(--prod-border-soft); margin-top: 12px; padding-top: 12px; }
+        .prod-feedback-heading { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--prod-strong); }
+        .prod-feedback-context { margin-top: 6px; font-size: 12px; color: var(--prod-muted); overflow-wrap: anywhere; }
+        .prod-feedback-status .prod-comment-state-action { min-height: 44px; }
+        .prod-feedback-status .prod-comment-state-action:focus-visible { outline: 2px solid var(--prod-strong); outline-offset: 2px; }
         .prod-comment-loading { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; margin-bottom: 12px; }
         .prod-comment-loading-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
         .prod-composer { margin-top: 12px; display: flex; align-items: flex-start; gap: 10px; }
@@ -3612,6 +3619,10 @@
         .wl-tweak-comments { display: flex; flex-direction: column; gap: 1px; margin: 2px 4px 6px 16px; }
         .wl-tweak-comments:empty { display: none; }
         .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; padding: 2px 4px 2px 8px; }
+        /* An unread row must not read as an empty one: the muted italic above
+           is the house's "nothing here" voice, so the couldn't-ask notice
+           drops the italic and takes the same amber the Frame.io warning uses. */
+        .wl-tweak-comments-status.is-unavailable { color: var(--sv-fg-b45309); font-style: normal; font-weight: 600; }
         .wl-tweak-comment { display: flex; align-items: baseline; gap: 8px; padding: 3px 6px 3px 8px; border-radius: 6px; }
         .wl-tweak-comment:hover { background: var(--bg); }
         .wl-tweak-comment-author { font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
@@ -19380,19 +19391,459 @@
     const WL_TWEAK_COMMENTS_TTL_MS = 5 * 60 * 1000;
     const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
     let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
-    async function wlFetchTweakComments(ids) {
+    // Native rows read their feedback from Supabase (`production-comments`);
+    // anything else keeps the legacy n8n lane in `_wlLegacyFetchTweakComments`.
+    // Lane A's native snapshot supplies `wlSnapshotIdentity()` and each row's
+    // `workloadSource` / `nativeId`; until that lands nothing classifies as
+    // native and every id takes the legacy path, i.e. this function's previous
+    // behaviour byte for byte.
+    //
+    // Routing is deliberately PERMISSIVE (AGENTS.md): a row we cannot classify
+    // falls back rather than refusing, because a refusal here renders as "no
+    // feedback" and an absence is the one failure an editor cannot report.
+    // Integrity INSIDE the native read stays strict for the opposite reason —
+    // feedback presented as complete when it is not is precisely the failure
+    // this lane exists to prevent.
+    // Must equal `PROD_COMMENTS_PAGE_SIZE` (declared in a nested scope this block
+    // cannot see) and the `body.limit === 50` literal that
+    // docs/syncview-design/tests/prod-structure-subset.js and
+    // prod-readonly-smoke.js enforce on every production-comments POST leaving
+    // this page. test/workload-tweak-feedback-source.js asserts all three agree,
+    // so this second declaration cannot drift from the first.
+    const WL_TWEAK_FEEDBACK_PAGE_SIZE = 50;
+    // BOUND THE COLLECTION, NOT ONLY EACH ROW. Settling per row (below) fixed
+    // the failure that let one deliverable destroy the collection, and bought a
+    // second one with it: every native read carries its own
+    // WL_PLAN_READ_TIMEOUT_MS abort, so awaiting them one after another made
+    // this popover's worst case N x that timeout. Twenty unreachable rows held
+    // EVERY box on skeletons for 160s, where the all-or-nothing chain gave up
+    // after 8s and no successful row rendered until the last one had timed out.
+    // Isolation had traded a fast total failure for a slow partial one, which
+    // on a wide rollup is the worse of the two.
+    // Two bounds, because they fail differently. The POOL caps the cost at
+    // ceil(N / pool) timeouts instead of N. The DEADLINE caps the wall clock
+    // outright, so an N nobody predicted still terminates: rows still
+    // outstanding when it expires are aborted and render as failed, and rows
+    // that already settled keep their real answer.
+    // The pool is deliberately SMALL. The endpoint's per-actor rate limit is
+    // one of the failures that produced the original defect, and firing a wide
+    // rollup at it in a single burst would trade a slow read for a rate-limited
+    // one -- the same outage in a different costume.
+    const WL_TWEAK_FEEDBACK_POOL = 4;
+    const WL_TWEAK_FEEDBACK_DEADLINE_MS = 20000;
+    // ONE READ PER DELIVERABLE PER WINDOW, AND NONE AT ALL ONCE NOBODY IS
+    // LOOKING. `production_comment_read_budget_take` allows 120 requests per
+    // actor per fixed five-minute window
+    // (migrations/2026-07-23-production-comment-thread-lifecycle.sql), and it is
+    // PRINCIPAL-wide by design — exhausting it here also stops SyncLinear's
+    // comment panel reading for the rest of that window. A 20-row rollup is 20+
+    // requests, so six opens spend the whole budget.
+    // The pool above is what made that reachable: the same six opens used to
+    // take about sixteen minutes across four windows and now fit inside two
+    // minutes of one. Bounding the wait bought a quota failure, so the wait is
+    // bounded AND the requests are not repeated:
+    //   * a whole, verified read is cached for the same TTL the legacy lane has
+    //     always used on this surface, so re-opening a rollup costs nothing;
+    //   * a read still queued when the popover closes or reopens elsewhere is
+    //     abandoned rather than merely having its paint suppressed.
+    // A failure is never cached — remembering "we could not ask" as an answer is
+    // the one thing this popover must not do — and a hit is served only to the
+    // staff identity that took it.
+    // A CACHED READ CANNOT REVALIDATE A BINDING, so it must not outlive the
+    // client's own evidence that the binding still holds. The endpoint reads the
+    // linked card before AND after building this projection and answers
+    // `link_changed` when the deliverable no longer names that card
+    // (`feedbackCardMatches` in production-comments/feedback.mjs) — a refusal
+    // that exists precisely to withhold the previous card's notes. Serving a
+    // cached response skips that refusal, and a deliverable re-linked to a
+    // different client's card would put THAT client's notes under this one.
+    // No client-side check can prove a binding without spending the read this
+    // cache exists to avoid, so the entry is instead pinned to the two things
+    // the browser can prove: a short life of its own, and the exact snapshot row
+    // the read was made for. `wlApplyData` replaces `issueSnapshot` with fresh
+    // row objects on every refresh, so a hit dies the moment the board learns
+    // anything new about that deliverable — the same identity signal
+    // `_wlNativeTweakComments` already uses to refuse a read whose row moved.
+    // Residual, stated rather than hidden: a re-link the browser has not yet
+    // refreshed into can still be served for up to this TTL. It is minutes
+    // shorter than the legacy lane's, and it is the reason this constant is
+    // separate from WL_TWEAK_COMMENTS_TTL_MS rather than borrowing it.
+    const WL_NATIVE_TWEAK_COMMENTS_TTL_MS = 60 * 1000;
+    const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, issue, scope, rows }
+    // The completed-value cache above cannot help two popovers that overlap:
+    // reopening a rollup before its first reads land means both generations miss
+    // it and both send a request for the same deliverable, so a slow popover
+    // opened repeatedly still spends a pool-sized wave every time. In-flight
+    // reads are therefore shared, not raced. The shared read is abandoned only
+    // once EVERY generation waiting on it has given up — one popover walking
+    // away must not fail the row for the popover that replaced it.
+    const _wlNativeTweakCommentsInFlight = new Map(); // owner + id -> { promise, wanted:Set }
+    // SETTLE PER ROW. A popover lists N deliverables and each one is its own
+    // independent read; this loop used to be a single all-or-nothing await
+    // chain, so the FIRST rejection — an aborted read on the timeout, the
+    // endpoint's per-actor rate limit on a wide rollup, one row whose thread
+    // moved mid-read — escaped it, and the call site's catch painted the
+    // failure over EVERY box, including rows already read whole. Native reads
+    // are neither cached nor cancelled, so a repeated or large rollup open is
+    // where that lands. It is also the shape that blanked the Workload board
+    // on 2026-09-07 (OPEN_REPAIRS 177 — six drifted rows discarded a 5,000-row
+    // snapshot) one layer out: a collection destroyed by one member of it.
+    // So a failed row carries `failed` and renders its own notice, and the
+    // rows that answered render their real feedback. Only a whole-collection
+    // fact still rejects: the signed-in staff identity moving under the read,
+    // after which no row's answer belongs to the person looking at it.
+    // `onRow(id, rows)` — optional — is handed ONE deliverable the moment that
+    // deliverable settles, so a row that answered in 200ms paints at 200ms
+    // instead of waiting on a neighbour that will hang for its whole timeout.
+    // It is never called for a read the collection is about to refuse.
+    // `shouldStop()` — optional — is asked before each row and each page whether
+    // the answer is still wanted. Suppressing the PAINT of an unwanted read was
+    // never enough: the request had already been sent and the actor-wide read
+    // budget already spent on it.
+    async function wlFetchTweakComments(ids, onRow, shouldStop) {
+        const owner = typeof wlSnapshotIdentity === 'function' ? wlSnapshotIdentity() : null;
+        const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
+        const unavailable = () => { const rows = []; rows.failed = true; return rows; };
+        const deadline = Date.now() + WL_TWEAK_FEEDBACK_DEADLINE_MS;
+        const legacy = [], native = [], out = {};
+        // The whole-collection refusal has to reach the SCREEN, not just the
+        // return value. Once the signed-in staff identity moves, no row's
+        // answer belongs to the person looking at the popover, so from that
+        // moment a settled row is neither stored nor painted; the caller's
+        // catch then clears whatever was painted before the change.
+        let scopeChanged = false;
+        const settle = (id, rows) => {
+            if (owner && owner !== wlSnapshotIdentity()) { scopeChanged = true; return; }
+            out[id] = rows;
+            if (typeof onRow === 'function') { try { onRow(id, rows); } catch (e) {} }
+        };
+        const stale = () => typeof shouldStop === 'function' && shouldStop();
+        const cached = (nativeId, issue) => {
+            const hit = _wlNativeTweakCommentsCache.get(nativeId);
+            if (!hit) return null;
+            // A cache entry belongs to the staff identity that took it. Serving
+            // it to another one is the same failure the mid-read identity check
+            // exists to prevent, just deferred by up to a TTL.
+            // It also belongs to the snapshot row it was read for: once the board
+            // refreshes, `issue` is a different object and the binding this
+            // response was verified against is no longer one this browser can
+            // vouch for.
+            if (hit.owner !== owner || hit.issue !== issue
+                || (Date.now() - hit.fetchedAt) >= WL_NATIVE_TWEAK_COMMENTS_TTL_MS) {
+                _wlNativeTweakCommentsCache.delete(nativeId);
+                return null;
+            }
+            return hit.rows;
+        };
+        const remember = (nativeId, issue, rows) => {
+            // Expired entries are dropped on write, so the map is bounded by one
+            // TTL window rather than by how long the tab has been open.
+            for (const [key, hit] of _wlNativeTweakCommentsCache) {
+                if ((Date.now() - hit.fetchedAt) >= WL_NATIVE_TWEAK_COMMENTS_TTL_MS) _wlNativeTweakCommentsCache.delete(key);
+            }
+            // The scope the endpoint verified is recorded with the answer, so a
+            // stored response always says which card binding it was true for.
+            _wlNativeTweakCommentsCache.set(nativeId, { fetchedAt: Date.now(), owner, issue,
+                scope: (rows && rows.scope) || null, rows });
+        };
+        for (const id of ids) {
+            const issue = issues.get(id);
+            const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
+            if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
+            native.push({ id, issue, nativeId, hit: cached(nativeId, issue) });
+        }
+        // Cached rows first. They cost no request and no wait, so there is no
+        // reason for one to queue behind a neighbour that is going to hang.
+        native.sort((a, b) => (a.hit ? 0 : 1) - (b.hit ? 0 : 1));
+        let cursor = 0;
+        const drain = async () => {
+            while (cursor < native.length) {
+                // Asked BEFORE the row is started, not after it has answered:
+                // once the popover is closed or reopened elsewhere, the rows
+                // still queued are the ones worth not spending budget on.
+                if (stale()) break;
+                const row = native[cursor++];
+                if (row.hit) { settle(row.id, row.hit); continue; }
+                // Past the deadline nothing new is started: a read begun here
+                // could only report after the bound this exists to hold.
+                if (Date.now() >= deadline) { settle(row.id, unavailable()); continue; }
+                const key = owner + '\u0000' + row.nativeId;
+                let flight = _wlNativeTweakCommentsInFlight.get(key);
+                // A shared read belongs to the snapshot row it was STARTED for,
+                // exactly as a cached one does. A refresh mid-flight gives this
+                // popover a new row object, and the in-flight read is still
+                // holding the old one — it will reject at its own
+                // snapshot-identity check, so joining it would hand the newly
+                // opened popover an unavailable row instead of a real read of
+                // the refreshed binding. Start a fresh flight instead; the old
+                // one's cleanup only removes the entry if it is still its own.
+                if (flight && flight.issue !== row.issue) flight = null;
+                if (!flight) {
+                    flight = { promise: null, wanted: new Set(), issue: row.issue };
+                    _wlNativeTweakCommentsInFlight.set(key, flight);
+                    flight.wanted.add(stale);
+                    // The shared read inherits the FIRST waiter's deadline, so a
+                    // later generation can see it cut early. That costs one
+                    // re-read on the next open, where racing it costs a request
+                    // every time.
+                    flight.promise = _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline,
+                        () => flight.wanted.size === 0 || [...flight.wanted].every(want => want()));
+                    // ONLY A COMPLETE ANSWER IS WORTH REMEMBERING. The endpoint
+                    // answers 200 with `sourceComplete: false` for a projection
+                    // it could not read whole — `source_unavailable`,
+                    // `link_changed`, `source_limit`. Storing that would hold the
+                    // degraded view for the rest of the TTL even after the source
+                    // recovered or its link was repaired, keeping card-only notes
+                    // invisible: caching an outage extends it, and an absence is
+                    // the failure an editor cannot report (AGENTS.md).
+                    flight.promise.then(rows => {
+                        if (rows && rows.sourceComplete === true) remember(row.nativeId, row.issue, rows);
+                    }, () => {}).then(() => {
+                        if (_wlNativeTweakCommentsInFlight.get(key) === flight) _wlNativeTweakCommentsInFlight.delete(key);
+                    });
+                } else {
+                    flight.wanted.add(stale);
+                }
+                try { settle(row.id, await flight.promise); }
+                catch (e) { settle(row.id, unavailable()); }
+                finally { flight.wanted.delete(stale); }
+            }
+        };
+        const lanes = [];
+        for (let i = 0; i < Math.min(WL_TWEAK_FEEDBACK_POOL, native.length); i++) lanes.push(drain());
+        // The legacy lane is ONE batched request covering every legacy id, so
+        // its failure genuinely leaves all of them unknown — but only them. It
+        // now runs BESIDE the native pool instead of after it: it is an
+        // independent request, and queueing it behind them only ever added
+        // their latency to its own.
+        if (legacy.length) {
+            lanes.push((async () => {
+                try {
+                    const got = await _wlLegacyFetchTweakComments(legacy, deadline);
+                    for (const id of legacy) settle(id, got[id]);
+                } catch (e) { for (const id of legacy) settle(id, unavailable()); }
+            })());
+        }
+        await Promise.all(lanes);
+        // Every id asked for leaves with an answer of its own, because a row
+        // missing from this map renders as an empty box — the same pixels as
+        // "no feedback" and a different fact.
+        for (const id of ids) { if (!out[id]) out[id] = unavailable(); }
+        if (scopeChanged || (owner && owner !== wlSnapshotIdentity())) throw new Error('Feedback scope changed.');
+        return out;
+    }
+    // One deliverable's complete feedback: every canonical comment, plus the
+    // notes still living in the Calendar/Samples card cell (`include_feedback`).
+    // Linear used to be the union point for those two; after the exit this read
+    // is. Pages at the page-wide comment page size so exactly one
+    // production-comments request shape leaves this page.
+    async function _wlNativeTweakComments(issue, nativeId, owner, deadline, shouldStop) {
+        const rows = [], seen = new Set();
+        let before = null, complete = false, feedback = null;
+        const controller = new AbortController();
+        // This row's own timeout, clipped to whatever the collection has left.
+        // A read that started late must not be able to report AFTER the
+        // deadline the popover as a whole is held to, or the bound leaks by
+        // one row's timeout.
+        const budget = Number.isFinite(deadline)
+            ? Math.max(0, Math.min(WL_PLAN_READ_TIMEOUT_MS, deadline - Date.now()))
+            : WL_PLAN_READ_TIMEOUT_MS;
+        const timer = setTimeout(() => controller.abort(), budget);
+        try {
+            for (let page = 0; page < 50; page++) {
+                // A paging read spends one budget request per page, so an
+                // abandoned popover stops costing between pages too. The partial
+                // rows collected so far are dropped rather than presented:
+                // `complete` stays false and the check below refuses them.
+                if (typeof shouldStop === 'function' && shouldStop()) throw new Error('Feedback read was abandoned.');
+                const url = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+                const response = await fetch(url, {
+                    method: 'POST', cache: 'no-store', signal: controller.signal,
+                    headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, url),
+                    body: JSON.stringify({ deliverable_id: nativeId, include_feedback: true, limit: WL_TWEAK_FEEDBACK_PAGE_SIZE, before })
+                });
+                const value = await response.json();
+                // `total` is NULLABLE. The endpoint's exact count scans every
+                // comment row on the deliverable while the page is bounded, so
+                // the count is the half that can hit a statement timeout, and it
+                // now fails open: a count that errored or rejected reports null
+                // beside a page that was read perfectly well. Refusing a null
+                // here would hand this popover the same "Couldn't load this
+                // deliverable's feedback" the fail-open exists to prevent, so
+                // this reader would be the one consumer the repair did not
+                // reach. A null is accepted; anything OTHER than null or a safe
+                // non-negative integer is still a malformed response and still
+                // refuses, `undefined` included -- an older reader that has lost
+                // the field entirely is not the same thing as one that could not
+                // count.
+                const counted = value.total === null ? null : value.total;
+                if (!response.ok || !value || value.ok !== true || value.canonical_thread !== true
+                    || value.audience_scope !== 'all' || !Array.isArray(value.comments)
+                    || (counted !== null && (!Number.isSafeInteger(counted) || counted < 0))
+                    || typeof value.has_more !== 'boolean') {
+                    throw new Error('Feedback is incomplete.');
+                }
+                // Intermediate counts are deliberately NOT retained or compared.
+                // Requiring every counted page to report the same number sounds
+                // like a stability check and is really a false-refusal
+                // generator: the counts are taken at different moments, so
+                // deleting an older row that page 1 counted but had not yet
+                // served makes the terminal count legitimately smaller, while
+                // the rows collected are still the whole current thread.
+                // Comparing them rejected exactly that read.
+                //
+                // It also protected nothing. Everything cross-page agreement
+                // could catch, the terminal count catches on its own: a head
+                // insertion leaves the terminal count above `rows.length`, and a
+                // deletion of an already-collected row leaves it below. The one
+                // case neither catches is a compensating insert-and-delete
+                // between the same two pages, which keeps both counts equal too.
+                // So the comparison cost real reads and bought nothing.
+                feedback = value.feedback || null;
+                for (const row of value.comments) {
+                    if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {
+                        throw new Error('Feedback identities are incomplete.');
+                    }
+                    seen.add(row.id); rows.push(row);
+                }
+                if (!value.has_more) {
+                    // Completeness rests on THIS page's count, the terminal one,
+                    // and on nothing earlier.
+                    //
+                    // The endpoint applies the cursor to the page query ONLY;
+                    // `totalQuery` is filtered by `deliverable_id` (plus audience
+                    // for a client) and never by `before`, so every count it
+                    // returns is a whole-thread count at the moment that page was
+                    // served, and the endpoint reads the page BEFORE its count
+                    // (they are separate transactions, so run concurrently the
+                    // count could predate the page it certifies). A count on the
+                    // terminal page is therefore taken after every request this
+                    // walk made, and `rows.length === counted` tests the walk
+                    // against the thread as it stands at the end of it.
+                    //
+                    // A strong consistency test, not a transaction: the rows
+                    // come from several requests at several moments, so one
+                    // served early and deleted later still leaves a legitimate
+                    // mismatch, and this refuses it. Erring toward the visible,
+                    // reportable failure is the intended direction. That is what catches the one hazard here: rows are
+                    // ordered newest-first and the cursor filters strictly OLDER,
+                    // so a comment posted after page 1 is invisible to every
+                    // later page -- but it IS in the terminal count, which then
+                    // exceeds `rows.length` and refuses. Counts on the preceding
+                    // pages are not needed for that, and requiring them would
+                    // hide a thread that was read whole.
+                    //
+                    // An earlier count cannot stand in: it predates the pages
+                    // after it, so a head insertion following it leaves both the
+                    // row total and that stale count at the same number and the
+                    // subtraction still balances. Hence a terminal page whose
+                    // count failed open proves nothing about a walk that PAGED,
+                    // and only a single-page walk is accepted without a count --
+                    // one query, `has_more === false`, no cursor window for
+                    // anything to hide in. That is also the common case, since it
+                    // covers every deliverable at or under the page size, and a
+                    // paged walk with no terminal count refuses exactly as it did
+                    // before the count began failing open. Refusing is the
+                    // legible failure: "Couldn't load this deliverable's
+                    // feedback" is something an editor can see and report, where
+                    // the alternative silently omits a note just posted.
+                    complete = counted !== null ? rows.length === counted : page === 0;
+                    break;
+                }
+                if (!value.next_cursor || !value.next_cursor.id || !value.next_cursor.created_at
+                    || JSON.stringify(value.next_cursor) === JSON.stringify(before)) {
+                    throw new Error('Feedback pagination is incomplete.');
+                }
+                before = value.next_cursor;
+            }
+            if (!complete || owner !== wlSnapshotIdentity() || !(wlState.issueSnapshot || []).some(row => row === issue)) {
+                throw new Error('Feedback scope changed or is incomplete.');
+            }
+        } finally { clearTimeout(timer); }
+        // Card-cell notes that never became canonical comments are the whole
+        // reason this reads `include_feedback`: a tweak that took the legacy
+        // write lane exists ONLY in the card cell, and Linear was the only
+        // place staff could previously see it next to the canonical thread.
+        // A source row the endpoint marked covered is the SAME note as a
+        // canonical row already in `rows`. Concatenating every source row
+        // unconditionally shows imported feedback twice, and on a thread with
+        // two canonical comments those duplicates fill this popover's three-row
+        // preview and push the genuinely source-only tweak — the one row an
+        // editor needs — behind the collapsed older count. Same coverage and
+        // version check `_prodFeedbackHTML` applies on the SyncLinear panel:
+        // coverage is only believed once THIS browser holds the canonical row
+        // at the proven version and update clock.
+        const canonicalById = new Map(rows.map(row => [String(row.id), row]));
+        const source = (feedback && Array.isArray(feedback.rows) ? feedback.rows : []).filter(row => {
+            const canonical = row.covered_by && canonicalById.get(String(row.covered_by));
+            return !canonical || !Number.isInteger(row.covered_version) || !row.covered_updated_at
+                || Number(canonical.version) !== row.covered_version
+                || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
+        });
+        // NEWEST FIRST ACROSS BOTH SOURCES. `wlRenderTweakComments` shows three
+        // rows and collapses the rest as "older comments", so the order here
+        // decides what an editor actually reads. Concatenating canonical then
+        // source put every card note behind every canonical one regardless of
+        // when it was written: a tweak a client submitted minutes ago sat behind
+        // three older canonical rows and was described as older than them. That
+        // is the same failure the covered-rows fix addressed from the other
+        // direction, and this popover exists to surface exactly that note.
+        // Ties keep canonical before source, which is the previous order; an
+        // undated row sorts last rather than jumping the queue on a NaN.
+        const at = row => {
+            const value = Date.parse(row.createdAt || '');
+            return Number.isFinite(value) ? value : -Infinity;
+        };
+        const shown = [...rows, ...source]
+            .filter(row => !row.deleted_at && !row.resolved_at && !row.deleted && !row.done)
+            .map(row => ({
+                author: row.author_name, body: row.body,
+                createdAt: row.source_created_at || row.created_at,
+                fromCard: row.source_only === true
+            }))
+            .sort((a, b) => at(b) - at(a));
+        shown.native = true;
+        // `complete` above proves the CANONICAL thread was read whole. The card
+        // projection carries its own completeness and must not borrow it —
+        // INCLUDING when it is absent entirely. A reader without `feedback.mjs`
+        // omits the key, and this lane's merge-then-deploy order (the deploy
+        // lane only accepts a `commit_sha` already on `main`) GUARANTEES a
+        // window where this browser is live and that reader is not. Reading a
+        // missing projection as complete presents the canonical comments as the
+        // whole record and silently drops every card-only note.
+        shown.sourceComplete = !!feedback && feedback.complete === true;
+        // The card binding this answer was verified against. Carried so a stored
+        // response can always say which link it was true for, rather than being
+        // a set of notes with no stated provenance.
+        shown.scope = (feedback && feedback.scope) || null;
+        return shown;
+    }
+    async function _wlLegacyFetchTweakComments(ids, deadline) {
         const now = Date.now();
         const missing = ids.filter(id => {
             const hit = _wlTweakCommentsCache.get(id);
             return !(hit && (now - hit.fetchedAt) < WL_TWEAK_COMMENTS_TTL_MS);
         });
         if (missing.length) {
-            const resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: missing })
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
+            // This read carried NO timeout of any kind, so a hung n8n webhook
+            // held the popover on skeletons indefinitely — the same unbounded
+            // wait this change exists to remove, on the other lane. It gets the
+            // whole remaining collection deadline, which is more headroom than
+            // it had in practice: it no longer queues behind the native reads.
+            const controller = new AbortController();
+            const budget = Number.isFinite(deadline)
+                ? Math.max(0, deadline - now)
+                : WL_TWEAK_FEEDBACK_DEADLINE_MS;
+            const timer = setTimeout(() => controller.abort(), budget);
+            let resp, data;
+            try {
+                resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
+                    method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: missing })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                data = await resp.json();
+            } finally { clearTimeout(timer); }
             if (!data || data.ok === false) throw new Error((data && data.error) || 'comments fetch failed');
             const got = data.comments || {};
             for (const id of missing) {
@@ -19404,22 +19855,43 @@
         return out;
     }
     function wlRenderTweakComments(comments) {
-        // No comment on the sub-issue → render nothing. An absent comment is
-        // not worth a row of its own; the empty popover row speaks for itself.
+        // A row whose read FAILED is not a row with nothing to show. Both used
+        // to arrive here as the same empty box, and "this deliverable has no
+        // feedback" and "we could not ask" are identical pixels carrying
+        // opposite facts — the second one an editor acts on by shipping the
+        // cut unchanged. A row with no entry at all counts as a failure too:
+        // silence is never evidence that a client said nothing.
+        if (!comments || comments.failed) {
+            return '<div class="wl-tweak-comments-status is-unavailable" role="status">'
+                + 'Couldn&rsquo;t load this deliverable&rsquo;s feedback. Retry, or open the post in SyncView.</div>';
+        }
+        const native = !!(comments && comments.native);
+        // One incomplete notice, used by both the populated and the empty
+        // branch. An unread card projection is exactly the case where "no
+        // feedback" would be a claim this browser cannot make.
+        const incomplete = native && comments.sourceComplete === false
+            ? '<div class="wl-tweak-comments-status">Some notes on the original card could not be read, so this list may be incomplete.</div>'
+            : '';
+        // A native read that found nothing says so, because after the Linear
+        // exit this popover is the only reader and silence would be
+        // indistinguishable from a broken one. A legacy read keeps rendering
+        // nothing, which is this function's existing behaviour.
         if (!comments || !comments.length) {
-            return '';
+            return native
+                ? incomplete || '<div class="wl-tweak-comments-status">No feedback is available here. Open the post in SyncView to check its review notes.</div>'
+                : '';
         }
         const shown = comments.slice(0, 3);
         const more = comments.length - shown.length;
         // One row per comment: author · body · time. No Frame/Linear link and
         // no card chrome — the body is the signal, everything else is muted.
         return shown.map(c => `<div class="wl-tweak-comment">
-            <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>
+            <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>${c.fromCard ? '<span class="wl-tweak-comment-time">from the card</span>' : ''}
             <span class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)" onkeydown="wlOnTweakCommentKey(event,this)">${wlEscape(c.body || '')}</span>
             <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
-            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
-            : '');
+            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}${native ? '' : ' on the sub-issue in Linear'}</div>`
+            : '') + incomplete;
     }
     // Expand/collapse is only offered on comments whose body genuinely
     // overflows its single row — a short comment that already fits has
@@ -19692,21 +20164,58 @@
             : '';
 
         pop.innerHTML = header + frameNote + items;
+        // EVERY replacement advances the feedback generation, not only one that
+        // starts a read of its own. The line above just destroyed the previous
+        // popover's feedback boxes; a rollup with no tweak rows destroys them
+        // just as thoroughly, and leaving the generation alone there let the
+        // previous read keep paging and draining against content that no longer
+        // holds a single feedback box.
+        const token = ++_wlTweakCommentsToken;
 
         if (tweakSubs.length) {
-            const token = ++_wlTweakCommentsToken;
-            wlFetchTweakComments(tweakSubs.map(s => s.id)).then(byId => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                for (const s of tweakSubs) {
-                    const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
-                    const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
-                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
-                }
+            const live = () => token === _wlTweakCommentsToken && pop.classList.contains('open');
+            // Whether the ANSWER is still wanted. This is deliberately NOT read
+            // off the DOM: `pop` gets its `open` class a few lines below this
+            // block, so every sample taken before then sees a popover that is
+            // not open YET, and a popover closed before its first page returned
+            // was never sampled while open at all — the drain then ran to
+            // completion for a popover nobody was looking at, which is exactly
+            // when the budget protection had to work. The generation counter is
+            // recorded rather than inferred: it advances on every open above and
+            // on every close in wlClosePopover.
+            const abandoned = () => token !== _wlTweakCommentsToken;
+            // PAINT EACH ROW AS IT SETTLES. Every deliverable in this popover is
+            // its own independent read, so a row that answered has no reason to
+            // sit on a skeleton until its slowest neighbour has finished timing
+            // out. The pool and deadline in wlFetchTweakComments bound how long
+            // that slowest neighbour can take; this is what stops it costing the
+            // fast rows anything at all.
+            const painted = new Set();
+            const paintRow = (id, rows) => {
+                if (!live()) return;
+                const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : String(id).replace(/"/g, '');
+                const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
+                if (!box) return;
+                box.innerHTML = wlRenderTweakComments(rows);
+                painted.add(id);
+                // Clamp detection measures rendered width, so it runs on this
+                // row's box now rather than on a whole popover that is still
+                // filling in.
+                wlMarkClampedComments(box);
+            };
+            wlFetchTweakComments(tweakSubs.map(s => s.id), paintRow, abandoned).then(byId => {
+                if (!live()) return;
+                // Backstop for rows the progressive call could not place — a box
+                // that had not been laid out yet. A row already painted is left
+                // ALONE rather than repainted with identical markup: the reads
+                // now take seconds during which an editor can expand a comment,
+                // and rewriting innerHTML under them would collapse it.
+                for (const s of tweakSubs) { if (!painted.has(s.id)) paintRow(s.id, byId[s.id]); }
                 wlMarkClampedComments(pop);
             }).catch(() => {
                 if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
                 pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
-                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load feedback. Retry, or open the post in SyncView.</div>';
                 });
             });
         }
@@ -19806,6 +20315,13 @@
         if (anchor && typeof anchor.setAttribute === 'function') anchor.setAttribute('aria-expanded', 'false');
         pop.classList.remove('open');
         pop.setAttribute('aria-hidden', 'true');
+        // Closing is the other end of the feedback generation opened in
+        // wlOpenRollupPopover. Recording it here is what lets an in-flight
+        // tweak-comment drain stop spending the actor-wide read budget on a
+        // popover nobody is looking at; inferring it from this class instead
+        // missed the case where the popover closed before its first page
+        // returned. (Lane D edit inside a Workload function — noted on the PR.)
+        _wlTweakCommentsToken++;
         wlState.popoverAnchor = null;
         wlClearSpotlight();
         // Paint any data refresh that was deferred while the popover was open.
@@ -56156,7 +56672,7 @@
                 body,
                 created_at: createdAt,
                 updated_at: updatedAt,
-                row_updated_at: String(row.updated_at || '').trim(),
+                row_updated_at: String(row.row_updated_at || row.updated_at || '').trim(),
                 version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
                 attachments,
                 component: String(row.component || '').trim(),
@@ -56165,6 +56681,12 @@
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
+                source_only: row.source_only === true,
+                source_surface: ['calendar', 'sxr'].includes(row.source_surface) ? row.source_surface : '',
+                source_audience: ['client', 'internal'].includes(row.source_audience) ? row.source_audience : '',
+                parent_unavailable: row.parent_unavailable === true,
+                feedback_origin: ['native', 'linear', 'legacy', 'bridge'].includes(row.feedback_origin) ? row.feedback_origin : '',
+                tweak_known: typeof row.is_tweak === 'boolean' && row.tweak_known !== false,
                 edited: !deleted && (!!String(row.edited_at || '').trim() || _prodCommentTruthy(row.edited)
                     || (Number.isFinite(createdMs) && Number.isFinite(updatedMs) && updatedMs > createdMs + 1000)),
                 deleted,
@@ -56215,8 +56737,15 @@
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
             const time = _prodCommentTime(c);
-            const pills = (c.audience === 'client' ? '<span class="prod-comment-pill">Client-visible</span>' : '<span class="prod-comment-pill">Internal</span>')
-                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : '');
+            const sourceLabel = c.source_only ? (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' source'
+                : ({ native: 'Native comment', linear: 'Linear import', legacy: 'Imported feedback', bridge: 'Linked feedback' }[c.feedback_origin] || 'Origin unverified');
+            const audienceLabel = c.source_only ? (c.source_audience === 'client' ? 'Card: client-visible' : c.source_audience === 'internal' ? 'Card: internal' : 'Visibility not recorded')
+                : c.audience === 'client' ? 'Client-visible' : 'Internal';
+            const pills = '<span class="prod-comment-pill">' + _calEsc(audienceLabel) + '</span>'
+                + '<span class="prod-comment-pill">' + _calEsc(sourceLabel) + '</span>'
+                + (['video', 'graphic'].includes(c.component) ? '<span class="prod-comment-pill">' + (c.component === 'video' ? 'Video' : 'Graphics') + '</span>' : '')
+                + (c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Tweak' + (c.round > 0 ? ' · Round ' + _calEsc(String(c.round)) : '') + '</span>' : '')
+                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Open</span>' : '');
             const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
             const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
             const attachments = c.deleted || !c.attachments.length ? '' : '<div class="prod-comment-assets">'
@@ -56224,7 +56753,7 @@
                     + (asset.url ? '<a href="' + _calEscAttr(asset.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(_prodFileLinkLabel(asset.url)) + '</a>' : '<span class="prod-asset-value">No usable link</span>')
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(asset.state) + '">' + _calEsc(_prodAssetStateLabel(asset.state)) + '</span></div>').join('') + '</div>';
             const issueId = String(_prodState.openId || '');
-            const actions = c.deleted ? '' : '<div class="prod-comment-actions">'
+            const actions = c.deleted || c.source_only ? '' : '<div class="prod-comment-actions">'
                 + (!c.done ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'add\',' + _jsAttrArg(c.id) + ')">Reply</button>' : '')
                 + (c.can_edit ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'edit\',' + _jsAttrArg(c.id) + ')">Edit</button>' : '')
                 + (c.can_resolve && !c.parent_id ? '<button class="prod-comment-action" type="button" onclick="_prodCommentLifecycle(' + _jsAttrArg(issueId) + ',' + _jsAttrArg(c.id) + ',' + _jsAttrArg(c.done ? 'unresolve' : 'resolve') + ')">' + (c.done ? 'Reopen' : 'Resolve') + '</button>' : '')
@@ -56234,7 +56763,11 @@
                 + _prodAvatar(null, 18)
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
-                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments + actions + '</div></div>';
+                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments
+                + (c.done && c.resolved_at ? '<div class="prod-feedback-context">Resolved ' + _calEsc(c.resolved_at) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
+                + (c.source_only ? '<div class="prod-feedback-context">Read-only here; manage on the original ' + (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' card.'
+                    + (c.parent_unavailable ? ' Original reply parent is unavailable.' : '') + '</div>' : '')
+                + actions + '</div></div>';
         }
         function _prodCommentLoadingHTML() {
             return Array.from({ length: 2 }, () => '<div class="prod-comment-loading" role="status" aria-label="Loading comments"><span class="prod-skeleton" style="width:18px;height:18px;border-radius:50%;"></span><span class="prod-comment-loading-copy"><span class="prod-skeleton" style="height:11px;width:110px;"></span><span class="prod-skeleton" style="height:12px;width:min(360px,82%);"></span></span></div>').join('');
@@ -56382,6 +56915,46 @@
                 component
             });
         }
+        function _prodFeedbackState(value, previous) {
+            const statuses = ['complete', 'unmapped', 'source_unavailable', 'source_incomplete', 'source_limit', 'source_changed', 'link_changed'];
+            if (!value || value.version !== 1 || !statuses.includes(value.status) || !Array.isArray(value.rows)) {
+                return { status: 'unavailable', complete: false, rows: previous && previous.rows || [], retained: !!(previous && previous.rows && previous.rows.length), scope: previous && previous.scope || null };
+            }
+            const sameScope = !!(previous && previous.scope && value.scope)
+                && JSON.stringify(previous.scope) === JSON.stringify(value.scope);
+            const retained = (value.status === 'source_unavailable' || value.retain_previous === true && ['source_incomplete', 'source_limit'].includes(value.status))
+                && sameScope && previous.rows && previous.rows.length;
+            const incoming = value.rows.filter(row => row && row.source_only === true);
+            return { ...value, complete: value.status === 'complete' && value.complete === true,
+                rows: retained ? [...new Map([...previous.rows, ...incoming].map(row => [String(row.id), row])).values()] : incoming, retained: !!retained };
+        }
+        function _prodFeedbackHTML(feedback, canonicalRows, id, incompleteCanonical) {
+            if (!feedback) return '';
+            const labels = {
+                complete: 'Feedback from the linked card was checked. Earlier versions and resolution history are not included.',
+                unmapped: 'This issue has no verified Calendar or Samples card link. Other feedback may be missing.',
+                source_unavailable: 'Feedback from the linked card could not load. SyncLinear comments remain available.',
+                source_incomplete: 'Some feedback could not be read. The visible notes are not a complete record.',
+                source_limit: 'Some feedback could not be loaded because this record is too large. The view is incomplete.',
+                source_changed: 'Feedback changed while it was loading. Refresh to check it again.',
+                link_changed: 'The original card link has changed. Its notes are withheld until the link is verified.',
+                unavailable: 'Feedback from the original card is unavailable. The view is incomplete.'
+            };
+            const visibleCanonical = new Map((canonicalRows || []).map(row => [String(row.id), row]));
+            const sourceRows = (feedback.rows || []).filter(row => {
+                const canonical = row.covered_by && visibleCanonical.get(String(row.covered_by));
+                return !canonical || !Number.isInteger(row.covered_version) || !row.covered_updated_at
+                    || Number(canonical.version) !== row.covered_version
+                    || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
+            });
+            const incomplete = !feedback.complete || incompleteCanonical;
+            const message = (labels[feedback.status] || labels.unavailable)
+                + (feedback.retained ? ' Previously loaded card notes are shown and may be out of date.' : '')
+                + (incompleteCanonical ? ' Some SyncLinear comments may still be missing.' : '');
+            return '<div class="prod-feedback-status' + (incomplete ? ' is-error' : '') + '" role="status" data-prod-feedback-state="' + _calEscAttr(incomplete ? 'incomplete' : 'complete') + '">'
+                + _calEsc(message) + (incomplete ? ' <button class="prod-comment-state-action" data-prod-feedback-refresh="' + _calEscAttr(id) + '" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Refresh feedback</button>' : '') + '</div>'
+                + (sourceRows.length ? '<div class="prod-feedback-source"><div class="prod-feedback-heading">From the original card</div>' + sourceRows.map(_prodCommentHTML).join('') + '</div>' : '');
+        }
         const _prodComments = (() => {
             const states = new Map();
             let generation = 0;
@@ -56462,6 +57035,7 @@
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
+                const requestIdentity = JSON.stringify(_syncviewStaffIdentityForHeaders() || null);
                 const token = (previous && previous.token || 0) + 1;
                 const refreshing = !append && !!options.refresh && !!current && current.status === 'ready';
                 if (append) states.set(id, { ...current, token, loadingMore: true, moreError: '' });
@@ -56498,6 +57072,8 @@
                         before: cursor || null
                     };
                     if (clientSurface) Object.assign(requestBody, clientSurface);
+                    const includeFeedback = !_isClientLink && !clientSurface && options.canonicalOnly !== true;
+                    if (includeFeedback) requestBody.include_feedback = true;
                     const response = await fetch(PROD_COMMENTS_EF_URL, {
                         method: 'POST',
                         headers: authHeaders(),
@@ -56507,6 +57083,7 @@
                     });
                     const json = await response.json().catch(() => ({}));
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     if (response.status === 401 || response.status === 403) {
                         states.set(id, {
                             status: response.status === 401 ? 'signin' : 'forbidden',
@@ -56541,6 +57118,10 @@
                     states.set(id, {
                         status: 'ready',
                         items: _prodCommentMerge(priorItems, page),
+                        feedback: includeFeedback ? _prodFeedbackState(json.feedback, current && current.feedback)
+                            : !clientSurface && !_isClientLink ? previous && previous.feedback || _prodFeedbackState(null, null) : null,
+                        pageIncomplete: !Array.isArray(json.comments) && !Array.isArray(json.items)
+                            || (json.has_more === true || json.hasMore === true) && !nextCursor,
                         cursor: preserveDeepCursor ? current.cursor : nextCursor,
                         hasMore: preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
                         loadingMore: false,
@@ -56557,6 +57138,7 @@
                     });
                 } catch (e) {
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     // A timeout is not the same event as a refusal, and saying so
                     // is the difference between "try again" and "something is
                     // broken". Both land on the same Retry control.
@@ -56611,6 +57193,7 @@
                     force: true,
                     refresh: true,
                     replace: options.replace === true,
+                    canonicalOnly: true,
                     clientSurface: options.clientSurface || null
                 });
                 for (let page = 1; page < 20; page++) {
@@ -56618,6 +57201,7 @@
                     if (!state || state.status !== 'ready' || !state.hasMore || !state.cursor) break;
                     await load(id, {
                         append: true,
+                        canonicalOnly: true,
                         clientSurface: state.clientSurface || options.clientSurface || null
                     });
                 }
@@ -56639,14 +57223,15 @@
                 if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
                 if (state.status === 'forbidden') return '<div class="prod-comment-state is-error" data-prod-comments-state="forbidden">This comment thread is not available to your exact team or client scope.</div>';
                 if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">' + (state.timedOut ? 'Comments took too long to load.' : 'Comments could not load.') + '<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
-                if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
+                const feedback = _prodFeedbackHTML(state.feedback, state.items, id, !!(state.hasMore || state.pageIncomplete || state.moreError || state.refreshError));
+                if (!state.items.length && !feedback) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
                 const rows = state.items.map(_prodCommentHTML).join('');
                 const refreshError = state.refreshError ? '<div class="prod-comment-state is-error">' + _calEsc(state.refreshError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 const more = state.hasMore
                     ? '<button class="prod-comment-more" type="button" data-prod-comments-more="1" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')"' + (state.loadingMore ? ' disabled' : '') + '>' + (state.loadingMore ? 'Loading older comments…' : 'Load older comments') + '</button>'
                     : '';
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
-                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more;
+                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
             return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
         })();
@@ -63648,7 +64233,7 @@
                     ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
                     : parentSlots ? { slots: parentSlots } : undefined)
                 + subSection
-                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Feedback &amp; tweaks</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
                 + _prodSelectionBar();
         }

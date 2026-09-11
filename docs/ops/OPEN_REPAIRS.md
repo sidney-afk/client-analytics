@@ -13920,6 +13920,461 @@ unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
 
+---
+
+## 172. [2026-09-07, BUILT SOURCE-ONLY — one live defect fixed on the way in; browser live on merge, server needs one dispatch] Linear was the only place both halves of a deliverable's feedback appeared together, and the replacement shipped with the Samples video path dead
+
+Lane D of the Linear exit. Number reserved by `LINEAR_EXIT_LANES.md`. **Collision
+notice:** item 168 assigns 172 to lane F while the lane map assigns it to D and
+gives F 174. This entry takes 172 per the lane map and the session brief; the
+coordinator should settle it before merge rather than either lane renumbering
+unilaterally. Four duplicate `## N.` headers (`## 13.`, `## 14.`, `## 22.`,
+`## 23.`) predate this program — item 168 — and are not touched here.
+
+### The shape of the loss
+
+A tweak note reaches staff by two transports and they do not converge:
+
+- the **canonical** lane writes `production_comments`, which is what SyncLinear's
+  comment panel renders;
+- the **legacy** lane writes the `calendar_posts` / `sample_reviews` tweak cell
+  and the `linear-add-comment` n8n webhook, and never `production_comments`
+  (items 99/102/104).
+
+The Linear sub-issue received both, so opening it showed the complete picture.
+Nothing else does. SyncLinear shows the canonical half only; the Workload
+"Tweaks Needed" popover reads Linear directly through
+`LINEAR_TWEAK_COMMENTS_WEBHOOK` — a single unconditional POST, so on 2026-09-15
+every popover falls into its catch branch and paints *"Couldn't load the
+comments — open the sub-issue in Linear to read them"*: an instruction to open a
+system that no longer exists.
+
+Deterministically, every broken-crosswalk card's feedback took the legacy lane
+(item 104 measured this and found zero exceptions across 46 client `tweak`
+events). After the cutoff those notes exist in the card cell and are visible
+nowhere in the staff view, **with no notice that anything is missing** — which is
+worse than an error, because an absence is the one failure a user cannot report
+accurately.
+
+### The defect found in the replacement, before it shipped
+
+`feedback.mjs:90` as written on the integration candidate and PR 1297:
+
+```js
+const fields = scope.component === 'video' ? ['video_tweaks', 'tweaks'] : ['graphic_tweaks'];
+```
+
+The choice is made on component and is unconditional on **surface**. Line 92 then
+selects those columns from `sample_reviews` whenever the surface is `sxr`.
+`sample_reviews` has no `tweaks` column — `migrations/live-schema-baseline-2026-07-03.sql`
+lists only `video_tweaks` (212) and `graphic_tweaks` (213), and no migration adds
+one (`grep -rn 'sample_reviews' migrations/*.sql | grep 'add column'` returns
+nothing that does). `calendar_posts` does carry `tweaks` (baseline 36).
+
+So **every Samples video deliverable** would have failed the whole card read and
+returned `feedback.status: 'source_unavailable'`, which the panel words as
+*"Feedback from the linked card could not load"* — indistinguishable from a
+transient failure. A permanent fake outage, on the surface the owner named, on
+Kasper's own review path. Fixed by making the field list surface-aware.
+
+The blast radius is small today — item 102's origin histogram puts `samples` at 38
+against `calendar` 1,157 — but it is small for a reason that is itself a gap: the
+Samples crosswalk was never repaired (the Phase 2 runner is calendar-only, and the
+F42 runbook recorded 3 of 1,722 Samples cards linked at 2026-07-24). If Samples is
+ever repaired, this defect scales with it.
+
+**Why the test suite could not have caught it.** `test/component-feedback-read.js`
+substitutes a finite in-memory table that returns whatever key it is asked for, so
+it cannot fail on a column Postgres does not have. The added guard pairs the
+projection with the real schema: it parses the baseline create blocks plus every
+later `add column` for both card tables and asserts that every column the handler
+actually selects, on all four surface × component combinations, exists. Reverting
+the fix turns it red with `sample_reviews has no column 'tweaks' (selected for
+samples/video)` — verified by reverting it.
+
+### Two house guards that had to move together
+
+1. `docs/syncview-design/tests/prod-structure-subset.js:78` requires
+   `body.limit === 50` on every `production-comments` POST leaving the page, while
+   the candidate's Workload popover posted `limit: 100`. **Resolved toward 50, not
+   by widening the guard.** The popover's reader pages until `has_more` is false
+   and refuses unless `rows.length === total`, so the page size changes the number
+   of round trips and *nothing* about completeness. Against that, `100` was a
+   second unnamed page-size literal for an endpoint the page already reads at the
+   named `PROD_COMMENTS_PAGE_SIZE = 50`. The guard was right; the literal was the
+   drift. One page size, one shape, and the guard stays an exact literal instead of
+   an OR of two magic numbers. (Server-side `MAX_LIMIT` is 100, so 100 was legal —
+   just not worth a second shape.)
+2. `docs/ops/EF_DEPLOY_MANIFEST.md:45` must name `feedback.mjs` in the
+   `production-comments` closure or `test/ef-deploy-provenance.js` goes red, because
+   it validates that manifest against the real import closure. Landed in the same
+   commit as the file.
+
+### What is NOT solved here
+
+- **`uploads.linear.app` inside comment and card-cell bodies.**
+  `docs/ops/NATIVE_COMMENT_MEDIA.md` counts 49 non-deleted native comments, 79
+  occurrences, 75 distinct URLs, including five videos of 58-94 MB and two
+  OpenType fonts. `sourceComment` passes card-cell bodies through untouched, so
+  the card-side occurrences are not even in that count — **nobody has counted
+  them.** These die with Linear access and the Feedback panel is where the
+  breakage will show. Lane E's job, not this one; recorded here so the panel is
+  not mistaken for having made the files safe.
+- **The panel's coverage is bounded by the crosswalk, and the crosswalk is mostly
+  unwritten.** `feedbackScope` returns null unless `origin` is calendar|samples
+  AND `card_id` is non-empty, and a null scope renders `unmapped`. Item 102
+  measured 5,150 of 6,241 deliverables with `card_id` NULL on 2026-09-02; item 156
+  repaired 100 of 100 *targeted* calendar slots on 2026-09-05, which is a different
+  and much smaller population. **Neither number was re-measured for this entry** —
+  no live read was taken — so the honest statement is that most deliverables will
+  render `unmapped`, and the panel must never be described as complete coverage.
+- **`caption_tweaks` and `title_tweaks` are never projected.** `calendar_posts`
+  carries both (baseline 50 and 60) and the reader reads neither. This is not a
+  Sept-15 loss — `_writeUiComponentHasWorkItem` returns false for caption and
+  title, so no deliverable exists for them — but the panel is silent about the
+  omission rather than explicit, and a reader will reasonably assume it shows
+  everything on the card.
+- **The Workload popover's native branch is unproven against real data.** It is
+  written against lane A's `workloadSource` / `wlSnapshotIdentity`, both of which
+  have **zero occurrences on origin/main** today. Routing is permissive: with lane
+  A absent nothing classifies as native and every row takes the unchanged legacy
+  lane, so this cannot regress today's board. It also means the native path has
+  never executed against a real snapshot and must be re-verified after lane A
+  merges.
+- **Resolved feedback is dropped from the popover.** The native branch filters
+  `deleted_at || resolved_at`, and Linear showed resolved comments. Whether losing
+  resolved tweak notes from the popover is acceptable, or they should render
+  dimmed, is an owner decision and is left open.
+
+### 2026-09-08 — three Codex findings on PR #1347, all three fixed on `claude/lx-d-feedback`
+
+Appended to 172 rather than opened as new numbers: each finding corrects
+something this entry or `COMPONENT_FEEDBACK.md` already claimed.
+
+- **An absent feedback projection was read as COMPLETE (P1).** `index.html`
+  marked the Workload popover's card projection complete whenever the response
+  carried no `feedback` key at all, so the popover presented the canonical
+  comments as the whole record and silently dropped every card-only note.
+  **This corrects what the coordinator told the owner.** The promise was that
+  during the mixed-version window staff would see an honest "feedback
+  unavailable" banner. That was true only on the SyncLinear panel, where
+  `_prodFeedbackState` already maps a missing projection to `unavailable`; on
+  the popover it was false. The window is not hypothetical: the deploy lane
+  only accepts a `commit_sha` already on `main`, so this lane's merge order is
+  FORCED to be merge-then-deploy and a live browser against an older reader is
+  guaranteed. Both of the popover's branches lied — the populated one by
+  omission, the empty one by rendering "No feedback is available here". Both
+  now show the existing incomplete notice until the matching reader is
+  deployed. The panel needed no change and was verified, not assumed.
+- **Source rows already covered by canonical comments were shown twice (P2).**
+  The popover concatenated every source row unconditionally. On a thread with
+  two canonical comments the duplicates filled the three-row preview and pushed
+  the genuinely source-only tweak behind the collapsed "older comments" count —
+  the one row an editor opens the popover to read. It now applies the same
+  coverage/version check `_prodFeedbackHTML` uses, so coverage is believed only
+  once this browser holds the canonical row at the proven version and update
+  clock.
+- **The importer's tweak default was not applied when matching source rows
+  (P2).** `feedback.mjs` recorded a historical entry that omitted `is_tweak` as
+  `null`, while the F42 importer (`scripts/f42-card-comment-import.js`) reads
+  the same entry out of a `*_tweaks` cell as a tweak. `sameCurrentComment`
+  requires strict equality with the canonical row's imported `true`, so an
+  otherwise exact imported comment could never receive `covered_by` and its
+  duplicate in Feedback & tweaks was PERMANENT. The projection now derives the
+  flag with the importer's own rule; `calendar_posts.tweaks` is the one cell the
+  importer never reads, so it stays honestly unknown and unknown is now
+  non-disqualifying during identity matching, exactly as unknown role and
+  unknown audience already were.
+
+The old `component-feedback-read.js` fixture asserted a canonical row with
+`is_tweak: false` alongside a `video_tweaks` source note — a pairing the
+importer cannot produce. Correcting the fixture to what the importer writes
+turns the pre-existing coverage check red on the unfixed projection, which is
+the shape of item 177: a test that no longer describes production.
+
+### Codex round two: one failed row blanked every row beside it (P1) — the third instance of item 177's pattern
+
+`wlFetchTweakComments` read each native deliverable in one all-or-nothing
+`await` chain. The FIRST rejection escaped the loop, and the popover's call-site
+catch then replaced EVERY feedback box with the error state — discarding rows
+that had already been read whole. Native reads are neither cached nor
+cancelled, so a repeated or wide rollup open is exactly where the rejection
+comes from: an aborted read on the timeout, or the endpoint's per-actor rate
+limit. One unavailable deliverable made working feedback invisible on all the
+others.
+
+This is item 177 one layer out. There, `projectNativeSnapshot` discarded a
+5,000+ row snapshot because six stored plans had drifted from their owners,
+blanking every pill on every editor's Workload board. Same shape: a collection
+processed, one member fails, the failure destroys every member that succeeded.
+Third instance in this programme, second one to reach a user.
+
+**The fix settles per row.** A row that fails carries `failed` and renders its
+own notice; the rows that answered render their real feedback. The legacy lane
+stays batched because it genuinely is one request — its failure leaves every
+legacy id unknown, and only them. Refusal on an integrity violation is
+unchanged in force and narrowed in blast radius: a corrupt or incomplete read
+is still never presented as feedback, it just no longer takes its neighbours
+with it. One whole-collection fact still rejects outright — the signed-in staff
+identity moving under the read — because after that no row's answer belongs to
+the person looking at it.
+
+**The degraded state is the half that never gets designed, so it is stated
+here.** A failed row reads *"Couldn't load this deliverable's feedback. Retry,
+or open the post in SyncView."* in the amber the Frame.io warning uses, without
+the italic. A deliverable genuinely read whole with nothing on it keeps *"No
+feedback is available here. Open the post in SyncView to check its review
+notes."* in the muted italic. Those two were the same empty box before, and
+they are opposite facts: the second one an editor acts on by shipping the cut
+unchanged. A row missing from the map entirely now counts as a failure too —
+silence is never evidence that a client said nothing.
+
+**Proved by counterfactual, not asserted.** The reason this pattern survived
+two review rounds and a live incident is that an all-succeed fixture cannot see
+it. The new case injects a rejection on the middle of three native rows and
+asserts the other two still render their real feedback. Against the unfixed
+tree it is red five ways and then crashes on a null result, because the whole
+read rejects; with the fix the suite is 69 green.
+
+**Sweep of this lane's regions for the same shape** — a loop whose `await`
+rejection escapes, a `Promise.all` over per-row reads, or a catch setting one
+shared error state for a collection:
+
+- `index.html` `wlFetchTweakComments` — the reported site. **Fixed.**
+- `index.html` `_wlNativeTweakComments` — pages one deliverable. A page failure
+  failing that row is correct, not the pattern. **No change.**
+- `index.html` `_wlLegacyFetchTweakComments` — one batched request for every
+  legacy id, so the collection really does share a fate. Now caught at the
+  caller so it cannot take the native rows with it. **Fixed at the caller.**
+- `index.html` the popover's call-site catch — still paints every box, and now
+  only ever runs for the identity change, which invalidates every box. Correct
+  as it stands. **No change.**
+- `index.html` `_prodComments` (`load`/`readCanonical`/`render`) — keyed per
+  issue, and already separates `refreshError`, `moreError` and the card
+  projection from the canonical rows, so one of them failing does not blank the
+  others. `_prodFeedbackState` retains previously loaded rows on
+  `source_unavailable` rather than dropping them. **No change.**
+- `supabase/functions/production-comments/feedback.mjs` — an unparseable tweak
+  field already drops that field, records `sourcePartial`, and projects the
+  rest, which is the item 177 fix applied correctly. The `await
+  importedCommentId(...)` inside the row loop is the pattern's shape, but it
+  hashes local strings: it cannot fail for one row without failing for all, and
+  its failure surfaces honestly as `source_unavailable`. **No change; recorded
+  so the next reader does not have to re-derive it.**
+- `index.html` `_prodProjectCanonicalCardComments` (~line 55986) — **found, NOT
+  fixed, out of this PR's scope.** It stamps every deliverable group `loading`,
+  then reads them under `Promise.all`. `load()` converts every network failure
+  into a state rather than rejecting, so no reachable rejection exists today;
+  if one ever did, the surviving groups would be pinned at `loading` forever —
+  a spinner that never resolves, the absence a user cannot report. `allSettled`
+  alone would make it worse rather than better: the fix has to stamp the
+  rejected group `error` as the in-loop failure branches already do. That is a
+  change to a live projection path that writes legacy storage, on lines this
+  lane's diff does not touch, so it is reported rather than widened into this
+  PR.
+
+### Addendum, 2026-09-08 (lane LX-D): the count fails open, and `total` is nullable
+
+The same sweep's remaining entry, now FIXED rather than reported. It is a defect
+on `main` today and not one this PR introduced; it is folded in here because this
+PR already modifies and redeploys `production-comments`, so it costs one dispatch
+of that lane instead of two. To be exact about WHICH lane, because the session
+brief called it the Section 4 one and it is not: `production-comments` deploys
+through the Track-B four-function step of
+[`deploy-onboarding-edge-functions.yml`](../../.github/workflows/deploy-onboarding-edge-functions.yml)
+(`linear-outbound production-write production-comments production-archive`,
+workflow_dispatch only, one `commit_sha` input under the pinned-SHA/main-ancestry
+guard). The Section 4 closure lane fingerprints `linear-outbound`,
+`production-write`, `deliverable-write` and `batch-write` and does not carry
+`production-comments` at all, so **no sealed rollback capture and no fingerprint
+re-pin is owed for this change** — the onboarding lane computes its fingerprint at
+deploy time and compares it to no repo-tracked expectation.
+
+`supabase/functions/production-comments/index.ts` fired both halves of a read
+together and treated them as one:
+
+```ts
+const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
+if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
+```
+
+The two halves do not age alike. `pageQuery` reads a bounded `limit + 1` (26 for
+every shipped caller). `totalQuery` is `select("id", { count: "exact", head: true })`
+filtered only by `deliverable_id`, plus `audience` for a client principal, so it
+scans every comment row the deliverable has ever accumulated. It is the half that
+grows without bound and the half that can hit a statement timeout. When it did,
+the throw reached the handler's catch, the gateway answered 500 `read_failed`,
+and the browser replaced the ENTIRE feed with *"Comments could not load."* on the
+SyncLinear detail pane and on the calendar/SXR comment modals — while the rows
+themselves had been read perfectly well and were sitting in `pageResult.data`. A
+readable thread was discarded because counting it was slow.
+
+**The repair, and what it deliberately is not.** The two obvious fixes — a
+per-caller `include_total`, or deriving completeness from the page — both change
+the endpoint's contract, and an earlier session correctly declined to make that
+call unasked. So: **the count fails OPEN and the field stays nullable.** The
+count is settled on its own, so neither an error result nor a rejection can fail
+the request; on failure `total` is `null` and the page is served anyway. The page
+read stays fatal, because comments that genuinely cannot be READ must say so
+rather than render as an empty thread. `has_more`, `next_cursor` and the field
+itself are untouched.
+
+`null` means *not counted*. An empty thread still counts `0`.
+
+**Correction, same day, found by the Codex pass on `0d588fa` and fixed in
+`ce1bc25`.** The first version of this entry said no shipped reader was affected
+because the browser never displayed `total`. That was measured against
+`_prodComments` only, which reads `comments`/`items`, `next_cursor` and
+`has_more` and nothing else. It is the wrong key: this endpoint has **two**
+browser consumers, and the other one is the Workload *Tweaks Needed* popover
+reader (`_wlNativeTweakComments`) that lane D added in this same PR. It never
+displays `total` either, but it *validates* it, three times over: a
+`Number.isSafeInteger` guard, a cross-page stability check, and
+`complete = rows.length === total` as its completeness proof. So `total: null`
+went straight into its malformed-response branch and painted *"Couldn't load this
+deliverable's feedback"* — the fail-open would have fixed the SyncLinear pane and
+the calendar/SXR modals and left the popover exactly as broken, on a thread whose
+rows had been read fine. A repair that reaches one of two consumers is not the
+repair.
+
+The reader now accepts a null count and keeps every other guard. `null` is the
+*only* new acceptance — `undefined`, a string, a float, a negative and `NaN` all
+stay refusals, because a reader that has lost the field is not a reader that
+could not count (the same distinction as this PR's earlier P1 about treating a
+missing feedback projection as complete).
+
+**Second correction, and it narrows the fix.** The first version accepted ANY
+uncounted walk on the strength of its terminating `has_more === false`, and
+described the cost as losing a cross-check against a server that wrongly reported
+`has_more`. Codex found the real hazard on `1396c7f` and it is not hypothetical.
+The endpoint orders newest-first and the cursor filters strictly OLDER
+(`created_at.lt`), so **a comment posted after page 1 is invisible to every later
+page**, and the terminating `has_more === false` proves only that nothing older
+remains below the cursor — not that the head of the thread stayed put. A walk
+like that would have been marked complete and, since `ab92bbf`, *cached*, hiding
+a just-submitted note for the cache TTL. That is precisely the unreportable
+absence this lane exists to prevent.
+
+**Third correction, and it settles the rule.** My first answer to the above was
+to require a count on EVERY page. Codex found that over-strict on `9ba499a`, and
+the reason is a property of the endpoint I had not used: **the cursor is applied
+to the page query only.** `totalQuery` is filtered by `deliverable_id` (plus
+audience for a client) and never by `before`, so every count it returns is a
+whole-thread count at the moment that page was served.
+
+That makes the **terminal** page's count the whole proof, and the preceding pages'
+counts irrelevant. A count on the last page is taken after the entire walk, so
+`rows.length === counted` proves the walk holds exactly as many rows as the thread
+contains now; a comment inserted at the head after page 1 is missing from the rows
+but present in that count, which then exceeds them and refuses. Requiring the
+earlier counts as well only hid threads that had been read whole, which is the
+failure this fail-open exists to remove.
+
+The converse does not hold, and that is why the rule is not simply "any count
+will do": an EARLIER count predates the pages after it, so a head insertion
+following it leaves both the collected rows and that stale count at the same
+number and the subtraction still balances. So a paged walk whose terminal count
+failed open still refuses, and a walk with no count at all is accepted only when
+it never paged — one query, `has_more === false`, no cursor window for anything
+to hide in. That single-page case is the common one, covering every deliverable at
+or under the 50-row page size, and a paged walk with no terminal count refuses
+exactly as it did before the count began failing open. Refusing is the legible
+failure here: *"Couldn't load this deliverable's feedback"* is something an editor
+can see and report, against silently omitting a note just posted.
+
+**Open upgrade, no longer needed for the case it was raised for:** a head
+watermark (re-reading page 1 after the walk to prove the newest row did not move)
+would cover a paged walk whose terminal count also failed. The terminal count
+covers the ordinary case for free, so the watermark is now only a fallback for a
+*sustained* count outage across a whole multi-page walk, at the cost of an extra
+request against the 120-per-actor budget. Recorded rather than built.
+
+**Fourth correction, and it removes a check rather than adding one.** Having made
+the terminal count the proof, the code still kept the old cross-page comparison
+that required every counted page to report the same number. Codex found on
+`33f7ab9` that this is not a stability check but a false-refusal generator, and
+the walk-through settles it: the counts are taken at different moments, so an
+older row that page 1 counted but had not yet served can legitimately be deleted
+before the terminal page — the terminal count comes back smaller, the rows
+collected are still the whole current thread, and the comparison rejected them.
+
+It also protected nothing. Enumerated against the terminal-count equality:
+
+| what happens mid-walk | terminal count vs `rows.length` | caught? |
+|---|---|---|
+| comment inserted at the head after page 1 | count is higher | yes, refuses |
+| already-collected row deleted | count is lower | yes, refuses |
+| older, not-yet-served row deleted | equal, and correctly so | accepted, as it should be |
+| compensating insert **and** delete | equal | no — and cross-page agreement missed it too |
+
+So the comparison cost real reads and bought nothing. Intermediate counts are now
+neither retained nor compared, and the local that held them is gone.
+
+`test/workload-tweak-feedback-source.js` grew 35 assertions across the four
+commits and runs **211 pass**. Against `0d588fa`, red on the 4 acceptance
+assertions. Against `1396c7f`, red on the 3 refusals that closed the head-insert
+hole. Against `9ba499a`, red on exactly 1, the over-strict case. Against
+`33f7ab9`, red on exactly **1**, the legitimate mid-walk deletion — with every
+refusal green in both runs, which is what proves those refusals were already
+resting on the terminal count and not on the comparison being removed.
+
+**Fifth correction, and this one is in the Edge Function.** The reasoning above
+says the terminal count is taken after the walk. The implementation did not do
+that: `totalQuery` and `pageQuery` ran under one `Promise.all`, and they are two
+independent PostgREST requests in two transactions, so they observe two different
+database states. The count could therefore be taken BEFORE the page it certifies
+— delete an older row in that window and the count returns one too high for a
+page that is perfectly current, and the Workload reader refuses a thread nothing
+is wrong with. Found by Codex on `2bedb2d`. The race predates this PR (the same
+`Promise.all` shipped on `main`), but the completeness proof documented here
+depends on it not being there.
+
+The page is now read first and the count strictly after it, so the count observes
+a state at or after the page. It costs the page's own latency, bounded at
+`limit + 1` rows and small beside the count's unbounded scan, and it saves the
+scan entirely when the page read fails.
+
+**Stated so it is not over-claimed:** this does not make a multi-page walk exact,
+and no ordering could. The caller's rows come from several requests at several
+moments, so the count can only ever be current with the last of them; a row served
+early and deleted later still leaves a legitimate mismatch, which the reader
+refuses. It is a strong consistency test, not a transaction. Closing that properly
+means serving page and count from one snapshot (an RPC and a migration), which is
+a larger change than this lane should make unasked and is recorded here rather
+than taken.
+
+**Worth recording as a working note, not just as five fixes.** Rounds two through
+five were all repairs to this lane's own previous round, and the sequence went
+unsound → over-strict → still carrying the over-strict remnant → resting on an
+ordering the code never had. Each time the error was reasoning about a component
+from its call site instead of reading it: the browser reader was never checked for
+`total` use, the endpoint's `totalQuery` was never checked for cursor filtering,
+the leftover comparison was never re-examined once the proof beneath it had
+changed, and the two queries were assumed to be ordered because the prose said so.
+A finding fixed at the wrong altitude produces the next finding, and a proof
+written in a comment is not a proof until the code is read against it.
+
+**Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
+TypeScript handler through a transport that refuses ONE of the two queries by
+SHAPE (the head/count read versus the paged read of the same table), which is
+what makes the asymmetric scenario reachable at all, and then feeds the response
+the handler actually produced through the real `_prodComments` module sliced out
+of `index.html`. **27 pass**; red against `bdf365f` at **13 pass / 14 fail**,
+including the browser painting *"Comments could not load."* for a thread whose
+three rows had been read successfully. The six assertions that keep a genuine
+page failure fatal are green in BOTH runs, which is what bounds the change.
+
+A fixture where BOTH queries fail is a different scenario, is correctly still a
+500, and passes against the broken code too — so it proves nothing here and is
+carried only as an explicit guard against a later session weakening the page half.
+
+**Owner decision, still open and deliberately not taken here:** whether this
+endpoint should compute an exact `total` at all. Every shipped caller ignores it,
+so the count is currently an unbounded scan on every comment read that nothing
+reads back. Removing it, or gating it behind an opt-in parameter, is a contract
+change and is the owner's call; this addendum only stops the existing count from
+being able to take the feed down with it.
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended
@@ -14487,11 +14942,616 @@ rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
 
+## 175. [2026-09-08, lane LX-D, FIXED — browser live on merge, no deploy] Settling per row bought isolation with a wait that scales by row count, and the fast rows paid for it
+
+> **⚠️ DUPLICATE NUMBER.** **Three** entries claim `175`. **This one is the
+> lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347)** and is the one
+> meant by every "item 175" reference in PR #1347's comments and commit
+> messages. The other two are the Linear-exit naming-mint finding (2026-09-07)
+> and the calendar deep-link fix (2026-09-08, PR #1354). Following the
+> convention set in the coordination set's own collision addendum: none is
+> renumbered, because all three are cited from text that cannot be edited, and
+> the ledger is append-only. Cite these by DATE **and PR**, not number alone.
+> Next free header at the time of writing: **179** (`## 178.` is the highest).
+
+
+Number: **175**, the next free header (`## 174.` is the highest in the file;
+`172` is lane D's and is left as it stands). The four duplicate headers item 168
+names (`## 13.`, `## 14.`, `## 22.`, `## 23.`) predate this programme and are not
+touched here.
+
+### The second-order cost of a first-order fix
+
+Item 172's last repair made `wlFetchTweakComments` settle per deliverable, so one
+unreadable row could no longer blank the feedback beside it. It settled them
+**sequentially**, and that is where the cost landed. Each native read arms its own
+`WL_PLAN_READ_TIMEOUT_MS` abort, so awaiting them one after another makes the
+popover's worst case `N x 8s`:
+
+| rollup | before item 172 | after item 172 (sequential settle) | now |
+|---|---|---|---|
+| 3 unreachable rows | 8s, everything blanked | 24s | 8s |
+| 12 | 8s, everything blanked | 96s | 20s |
+| 20 | 8s, everything blanked | 160s | 20s |
+| 40 | 8s, everything blanked | 320s | 20s |
+| 80 | 8s, everything blanked | 640s | 20s |
+
+Measured, not estimated: `test/workload-tweak-feedback-source.js` drives the real
+functions against a virtual clock and reports the numbers above. The reviewer's
+report said "15-second timeout" and "about five minutes" for 20 rows; the shipped
+per-row abort is 8s, so the real figure was 160s. Same defect, and the corrected
+number is the one this entry publishes.
+
+Worse than the total: **no successful row rendered until the whole loop finished.**
+A deliverable that answered in 200ms sat on a skeleton behind a neighbour that
+was going to hang for its full timeout and then fail anyway.
+
+Isolation had traded a fast total failure for a slow partial one. On a wide
+rollup that is the worse of the two, because the total failure at least told the
+editor to go and look somewhere else after 8 seconds.
+
+### The bound
+
+Three parts, and they fail differently on purpose.
+
+1. **A pool of 4** native reads in flight. Caps the cost at `ceil(N / 4)` timeouts
+   instead of `N`. Deliberately small: the endpoint's per-actor rate limit is one
+   of the failures that produced the original all-or-nothing defect, and firing a
+   wide rollup at it in a single burst would trade a slow read for a rate-limited
+   one — the same outage in a different costume. `Promise.all` over every row
+   would have been the obvious fix and is the one that walks straight into it.
+2. **A 20s collection deadline.** Rows still outstanding when it expires are
+   aborted and render as the "couldn't load" state; rows that already settled keep
+   their real answer. It also **clips each row's own abort** to whatever the
+   collection has left, so a read that started late cannot report after the bound
+   — without that, the deadline leaks by one row's timeout.
+3. **Progressive paint.** `wlFetchTweakComments(ids, onRow)` hands each deliverable
+   to the caller the moment it settles, and the popover paints that row's box then
+   and there. The pool and deadline bound how long the slowest row can take; this
+   is what stops it costing the fast rows anything at all.
+
+Both numbers are product decisions — how long staff stare at a skeleton — not
+tuning constants, and they are declared beside `WL_TWEAK_FEEDBACK_PAGE_SIZE` where
+they can be argued with.
+
+### One thing found on the way in: the legacy lane had no bound at all
+
+`_wlLegacyFetchTweakComments` armed no `AbortController` and no timeout. A hung
+n8n webhook held the popover on skeletons **indefinitely** — the same defect the
+review found, on the other lane, and it would have made "the collection is
+bounded" false however well the native side behaved. It now runs *beside* the
+native pool rather than after it (it is an independent request; queueing it behind
+them only ever added their latency to its own) and is cut at the same 20s
+deadline.
+
+**The one behaviour change with a risk attached, stated plainly:** a legacy batch
+that today takes longer than 20s and eventually succeeds will now render
+"couldn't load this deliverable's feedback" instead. Against that: it starts ~8s
+to ~160s earlier than it used to, so in wall-clock terms it has more headroom than
+before, not less. If the owner disagrees, `WL_TWEAK_FEEDBACK_DEADLINE_MS` is the
+single place to change it.
+
+### Not traded into a third thing
+
+The check the brief asked for. Bounding a wait can buy back a correctness failure
+three ways, and each is pinned:
+
+- **Concurrency vs. the rate limit** — peak in-flight is asserted equal to the
+  pool at 3/12/20/40 rows, so this cannot silently become an unbounded fan-out.
+- **The deadline vs. a truthful "no feedback"** — a row cut off by the deadline
+  renders the amber "couldn't load" notice, never the muted "No feedback is
+  available here". Item 172's whole point survives, and is re-proved through a
+  *hang* rather than a rejection.
+- **Progressive paint vs. the whole-collection refusal** — painting early is only
+  safe if the one fact that invalidates every row still stops it. A row that
+  settles after the signed-in staff identity moves is neither stored nor handed to
+  the caller, the read still rejects, and the caller's catch clears what was
+  already on screen. Asserted: nothing is painted on the way out of that refusal.
+
+### Proof
+
+`node test/workload-tweak-feedback-source.js` — **116 green** with the fix,
+**19 red** against `b3148e1f` (the tree with per-row settling and no bound),
+including `doubling and quadrupling the rollup does not move the wall clock at
+all (160000/320000/640000ms)` and `a hung legacy webhook no longer holds the
+popover open forever`.
+
+The fixture makes reads **hang, not reject**. That difference is the whole
+finding: a rejection is instant and cannot reproduce it. Nothing resolves those
+fetches; the only thing that ends them is the `AbortController` the code under
+test arms, and time advances by firing the code's own timers in order against a
+virtual clock. So the assertions are a measurement of wall clock, not of ordering.
+
+The sandbox also carried a hand-typed `WL_PLAN_READ_TIMEOUT_MS: 15000` while
+`index.html` ships `8000`. Left alone it would have published a worst case nearly
+double the real one — the failure mode AGENTS.md records from 2026-09-05. It now
+reads the shipped declaration, as the page size already did.
+
+### Follow-up on the same PR: the bound bought a quota failure (Codex P2 on `ce70ceb`)
+
+Exactly the third thing the brief warned about, and worth recording because the
+trade was invisible until someone counted requests instead of seconds.
+
+`production_comment_read_budget_take`
+(`migrations/2026-07-23-production-comment-thread-lifecycle.sql`) allows **120
+requests per actor per fixed five-minute window**, and the comment on it says the
+budget is *deliberately principal-wide*. So exhausting it from this popover does
+not degrade the popover — it returns the budget denial for **every**
+`production-comments` read that principal makes for the rest of the window,
+SyncLinear's comment panel included.
+
+A 20-row rollup is 20+ requests (one per deliverable, more if a thread pages).
+Six opens is the whole budget. Before the pool, six opens of a wide rollup took
+about **sixteen minutes** and spread across four windows, so it never landed.
+After the pool they fit inside **two minutes of one window**. The row count did
+not change; the rate did, and the rate is what the budget measures.
+
+Two repairs, both named by the reviewer:
+
+1. **Cache whole, verified reads per deliverable** for `WL_TWEAK_COMMENTS_TTL_MS`
+   — the same five minutes the legacy lane has always cached on this surface, so
+   this is the behaviour the popover already had rather than a new one. Six opens
+   now cost 20 requests instead of 120. A **failure is never cached**: remembering
+   "we could not ask" as an answer would turn one aborted read into five minutes
+   of false outage on a healthy row. A hit is served **only to the staff identity
+   that took it** — serving it to another is the mid-read identity failure this
+   lane already refuses, deferred by up to a TTL. Cached rows are served first,
+   because a row that costs no request has no business queueing behind one that
+   is going to hang.
+2. **Abandon queued reads when nobody is looking.** Suppressing the *paint* of an
+   unwanted read was never enough: the request had already gone out and the budget
+   was already spent. The drain now asks before each row — and
+   `_wlNativeTweakComments` before each page — whether the answer is still wanted.
+   A popover closed after its first row answered costs 4 requests (the wave
+   already in flight) instead of 20.
+
+**The trap in wiring that predicate, since it would have shipped a dead popover.**
+`pop` gets its `open` class a few lines *below* the fetch call, so a predicate
+that reads "not open" as "closed" returns true on the very first check and
+abandons every read before one has started — the popover would load nothing, ever.
+`wasOpen` is what separates *not open yet* from *closed*, and there is a test
+pinning it in source rather than trusting the next reader to notice.
+
+**The cost, stated:** feedback posted within the TTL may not appear until it
+expires. Against that, the alternative is a budget denial that blanks feedback on
+two surfaces for up to five minutes, and the legacy lane on this same popover has
+cached for five minutes since it was built.
+
+Proof: **142 green**, **15 red against `ce70ceb`** (the tree the reviewer read),
+including `six opens of that rollup cost 20 requests, not 120 — the whole
+actor-wide budget` and `a popover closed after the first row costs 12 requests`
+against the fixed `4`. The budget number is read out of the migration that
+enforces it rather than retyped, on the same rule that caught the sandbox's
+hand-typed row timeout.
+
+### Second follow-up: the cancellation itself was inferred, not recorded (three Codex P2s on `4df6522`)
+
+Three findings, and two of them share one root cause worth naming: **the fix
+inferred lifecycle from DOM state instead of recording it.** That is the same
+class of mistake as reading an absence for a fact, one layer down.
+
+1. **The generation only advanced when the new rollup had tweak rows.** The
+   `++_wlTweakCommentsToken` sat inside `if (tweakSubs.length)`. A replacement
+   popover with no tweak-needed rows destroyed the previous popover's feedback
+   boxes and left the generation alone, so the previous drain saw both its token
+   and the `open` class as live and kept paging against content that no longer
+   held a single feedback box. Moved above the guard, to the line right after
+   `pop.innerHTML` — where the boxes are actually destroyed.
+2. **A popover closed before its first page returned was never detected.** The
+   predicate used a `wasOpen` latch to distinguish "not open yet" from "closed",
+   which only works if some sample happened *while* it was open. Every sample for
+   a single-page first row is taken in the synchronous prelude, before
+   `pop.classList.add('open')` runs. So open-then-close-quickly left `wasOpen`
+   false forever and the drain ran to completion — for a popover nobody was
+   looking at, which is precisely the case the budget protection exists for.
+   The predicate is now the recorded generation alone (`token !==
+   _wlTweakCommentsToken`) and reads no DOM state; `wlClosePopover` advances it.
+3. **Overlapping opens raced instead of sharing.** Reopening a rollup before its
+   first reads land means both generations miss the completed-value cache and both
+   request the same deliverable, so a slow popover opened repeatedly still spent a
+   pool-sized wave each time. In-flight reads are now shared. The shared read is
+   abandoned only once **every** generation waiting on it has given up — one
+   popover walking away must not fail the row for the popover that replaced it —
+   and it inherits the first waiter's deadline, so a later generation can see it
+   cut early. That costs one re-read on the next open; racing it cost a request
+   every time.
+
+**Two lines landed outside this lane's declared regions**, and the coordinator
+should see them rather than discover them: `_wlTweakCommentsToken++` inside
+`wlClosePopover`, and the hoist of the generation bump above `if
+(tweakSubs.length)` in `wlOpenRollupPopover`. Both are Workload functions. Both
+are purely about the feedback read's generation and touch nothing else in those
+functions. The alternative was to keep inferring closure from a class that is set
+after the read starts, which is the defect above; it is worth a flagged
+cross-region edit rather than a knowingly fragile one.
+
+Proof: **152 green**, **6 red against `4df6522`**, including `the feedback
+generation advances on every popover replacement`, `closing the popover records
+itself in the same generation`, and `two overlapping opens of the same deliverable
+cost ONE request, not two`. The abandon bound is re-measured under sharing and is
+unchanged at one pool-sized wave.
+
+### Third follow-up: the created-time fallback, third member of the importer-parity family (Codex P2 on `7329a64`)
+
+Not a consequence of anything above — an independent defect in `feedback.mjs`
+that the same review pass found. It is the third instance of one pattern, which
+is why it belongs in the record rather than in a commit message alone:
+
+> the projection re-derives a field the F42 importer already has a rule for, and
+> re-derives it slightly differently, so `sameCurrentComment`'s strict equality
+> can never meet the imported canonical row and the note duplicates forever.
+
+Instance 1 was `is_tweak` (item 172, fixed by `6dcf531f`). Instance 2 is this
+one. The importer accepts an entry carrying only `updated_at` and writes that
+value as `source_created_at`
+(`scripts/f42-card-comment-import.js`, `normalizeComment`); the projection's
+fallback list stopped at `ts`, so the same entry projected `null`. Strict
+equality on that field then made coverage impossible: the note stayed visible
+**twice**, and on a thread with two canonical comments the duplicate can push a
+genuinely source-only tweak out of the Workload popover's three-row preview —
+the one row an editor opens the popover to read.
+
+Fixed by mirroring the importer's fallback list exactly, `updated_at` last and
+snake case only, so a camelCase-only row still projects the same absence the
+importer records for it.
+
+**Where the mirror deliberately STOPS, and why.** For an entry with no timestamp
+anywhere the importer writes `new Date(0).toISOString()`. Copying that would
+print a 1970 date beside a tweak note in the popover — inventing a fact rather
+than reporting one, which is the failure this lane exists to prevent. The cost is
+that such a row cannot be covered and shows twice. That trade is taken
+deliberately: a visible duplicate is the mild failure, and a note wrongly HIDDEN
+by a loosened identity match is the one nobody can report. The alternative
+considered and rejected was making a null `source_created_at` non-disqualifying
+the way unknown `is_tweak` already is; with every other identity field already
+required to match exactly, it would rarely be wrong, but when it was wrong it
+would hide a note rather than repeat one.
+
+Proof: `node test/component-feedback-read.js` — **33 pass**, red against
+`7329a64` on `video_tweaks with updated_at only`. Like the `is_tweak` check
+beside it, the test runs BOTH real functions and compares their answers rather
+than restating the rule, so the pair cannot drift apart a third time.
+
+### Fourth follow-up: a cached read cannot vouch for a card binding (Codex P1 on `4baa587`)
+
+The cache added two follow-ups above bought its own correctness failure, and this
+one is worse in kind than the quota problem it was solving.
+
+`production-comments` reads the linked Calendar/Samples card **before and after**
+building the feedback projection and returns `link_changed` when the deliverable
+no longer names that card (`feedbackCardMatches`,
+`supabase/functions/production-comments/feedback.mjs`). That refusal exists
+precisely to withhold the previous card's notes. A cached response skips it
+entirely — so a deliverable re-linked within the TTL showed the **former card's**
+notes, and because `feedbackCardMatches` also checks `card.client`, a re-link
+across clients would put one client's notes under another client's deliverable.
+On a public repo with client-confidential content that is the wrong direction to
+be wrong in.
+
+**There is no complete browser-side fix, and that is the honest finding.**
+Validating a binding requires reading it, which is the request the cache exists to
+avoid. So the entry is pinned to the two things the browser can actually prove:
+
+1. **A short life of its own.** `WL_NATIVE_TWEAK_COMMENTS_TTL_MS` is one minute,
+   declared separately rather than borrowing the legacy lane's five. It still
+   covers the burst this cache was added for — six opens of a rollup in quick
+   succession — while cutting the staleness window fivefold.
+2. **The exact snapshot row the read was made for.** `wlApplyData` replaces
+   `issueSnapshot` with fresh row objects on every refresh, so a hit dies the
+   moment the board learns anything new about that deliverable. This is the same
+   identity signal `_wlNativeTweakComments` already uses to refuse a read whose
+   row moved under it, reused rather than invented.
+
+The verified `scope` now travels with the answer and is recorded with the cache
+entry, so a stored response always states which binding it was true for instead
+of being a set of notes with no provenance.
+
+**Residual risk, for the owner rather than buried in a comment:** a re-link the
+browser has not yet refreshed into can still be served for up to one minute.
+Removing that last window means removing the cross-open cache, which puts the
+120-request actor-wide budget back in reach (six opens of a 20-row rollup). That
+is a product call between a one-minute stale-binding window and a five-minute
+comment blackout across two surfaces, and it is recorded here so it can be taken
+deliberately. `WL_NATIVE_TWEAK_COMMENTS_TTL_MS` is the single place to change it,
+and setting it to `0` disables cross-open caching entirely.
+
+Proof: **159 green**, **6 red against `4baa587`**, including `once the board
+refreshes, the cached answer is no longer one this browser can vouch for and the
+deliverable is read again` and `so a re-linked deliverable shows the feedback of
+the card it is bound to NOW`.
+
+### Fifth follow-up: caching an outage extends it, and one refusal path never rechecked its binding (two Codex P2s on `e2fdc38`)
+
+**1. A degraded answer was remembered.** `production-comments` answers HTTP 200
+with an *incomplete* projection for `source_unavailable`, `link_changed` and
+`source_limit`; `_wlNativeTweakComments` resolves normally in all three cases with
+`sourceComplete === false`, and `remember` stored them unconditionally. Reopening
+the popover then served the degraded view for the rest of the TTL **even after the
+source recovered or the link was repaired**, keeping card-only notes invisible.
+Caching an outage extends it, and the thing it hides is the absence an editor
+cannot report. Only a projection read whole is stored now. The complete case is
+still cached, so the budget fix stands — asserted, not assumed.
+
+One consequence worth stating: during the merge-then-deploy window, where this
+browser is live and the reader that supplies `feedback` is not, the projection is
+absent and therefore incomplete, so **nothing native caches at all in that
+window** and the budget pressure returns to what it was. That is the right way
+round — a knowingly incomplete answer must not be held — but it is a real,
+temporary cost and not a free improvement.
+
+**2. The size refusal authorised retention on a binding it had not rechecked.**
+Every other outcome performs a second `readCard()` and can return `link_changed`;
+the `source_limit` early return did not, yet it returns `retain_previous: true`,
+which tells `_prodFeedbackState` (`index.html`) to KEEP the notes already on
+screen. A card detached between the first read and the response therefore still
+authorised retention of its notes.
+
+That one matters beyond its own blast radius: **the previous follow-up's cache
+reasoning leaned on "the endpoint reads the card before and after".** For this
+branch that was not true, so the guarantee published one commit earlier was
+weaker than stated. It now rechecks the reciprocal link before granting
+retention, reading the **binding columns only** so an already-oversized card is
+not pulled through the transport twice.
+
+Proof: **164 green** on the Workload suite and **34 pass** on
+`test/component-feedback-read.js`; red against `e2fdc38` on `reopening asks again
+rather than serving the degraded answer back` and on the size refusal returning
+`source_limit` where it must now return `link_changed`.
+
+### Sixth follow-up: stop finding importer-parity divergences one at a time (two Codex P2s on `ab92bbf`, plus four the sweep found)
+
+**1. The preview showed the oldest feedback.** `wlRenderTweakComments` renders
+three rows and collapses the rest as "older comments", and the merge was
+`[...canonical, ...source]` — so every card note sat behind every canonical row
+regardless of when it was written. A tweak a client submitted minutes ago
+appeared *below* three older canonical rows and was described as older than them.
+That is precisely the note this popover exists to surface, and it is the same
+failure the covered-rows fix (item 172) addressed from the other direction. Now
+merged newest-first; ties keep canonical before source (the previous order) and
+an undated row sorts last rather than jumping the queue on a `NaN`.
+
+**2. The importer-parity family, closed as a family.** The reviewer reported the
+`resolved_at` fallback: the importer dates a resolution it was told about but not
+*when* from the updated time, the projection left it null, `sameCurrentComment`
+compares strictly, coverage becomes impossible, the note duplicates forever.
+Correct — and it was the **third** instance of that exact shape found one at a
+time by review (`is_tweak`, `source_created_at`, `resolved_at`).
+
+Finding the fourth the same way would have been a process failure, so rather than
+fix the reported field and wait, `test/component-feedback-read.js` grew a
+**parity matrix**: it drives BOTH real functions over the raw shapes historical
+cards actually contain and asserts the projection is covered by exactly what the
+importer would have written.
+
+The matrix immediately failed on **seven** shapes, of which the review had
+reported one. Three distinct root causes:
+
+- `resolved_at` — the reported one.
+- `author_name` — an entry with no author is labelled by the importer from its
+  role (`Client` / `SyncView`); the projection wrote `Unknown author`, so no
+  authorless historical note could ever be covered.
+- `role` — the importer lower-cases it; the projection did not, so any entry
+  whose card stored `SMM` rather than `smm` duplicated forever.
+
+All three fixed by executing the importer's rule rather than a rule that
+resembles it. One deliberate non-mirror, for the same reason as the epoch
+default: the emitted `role` still stays **null** when the entry has none. An
+unknown role is deliberately non-disqualifying in the match, and defaulting it to
+`smm` would start *refusing* coverage on rows the importer never touched —
+trading a duplicate for a hidden note, which is the wrong direction.
+
+**A fixture bug found on the way, worth recording because it looked like a
+product bug.** The virtual clock replaced `Date` with a bare `{ now }` object,
+silently losing `parse`, `UTC` and construction. Invisible until the sorting fix
+above called `Date.parse`, at which point five unrelated concurrency tests went
+red and looked like a regression in the product. The stub is now a real `Date`
+subclass with only `now` overridden.
+
+Proof: **170 green** on the Workload suite and **35 pass** on
+`test/component-feedback-read.js`; red against `ab92bbf` on the three preview
+ordering assertions and on the parity matrix listing all seven divergent shapes.
+
+### Seventh follow-up: the resolution branch order, and a gap in the matrix built to prevent exactly this (Codex P2 on `6c0c665`)
+
+The parity matrix added one commit earlier was supposed to end this family. It
+did not, and the reason is worth recording: **the previous session considered
+this exact case, decided against mirroring it, and then left the shape out of the
+matrix.** A deliberate exception that is not written down as a test case is
+indistinguishable from an oversight, and the next reader has no way to tell which
+it was.
+
+The importer takes `done_at || sourceUpdatedAt` whenever either boolean says
+resolved and **never consults `resolved_at`** on that branch; only an entry with
+no boolean at all is dated from `resolved_at`. The projection preferred the
+explicit `resolved_at`, so three shapes diverged and duplicated forever.
+
+The earlier reasoning for keeping the explicit value was that mirroring would
+change a displayed resolution time. **That was wrong on the facts.** A source
+row's `resolved_at` is consumed as a boolean and never rendered as a time: the
+popover filters resolved rows out entirely, and the panel reads it as `done`
+(`index.html` — the normaliser keeps `resolved_at` "only as a boolean"). So the
+accuracy being protected did not exist, and the cost — a permanent duplicate —
+was real. Mirrored now, and the missing shapes added to the matrix.
+
+**Two divergences are now deliberate, and the matrix asserts the exact set rather
+than an empty one**, so a new divergence still fails and removing one of these
+forces the list to be updated:
+
+1. An entry with no timestamp anywhere (the importer defaults to the epoch;
+   projecting a 1970 date beside a tweak note invents a fact).
+2. An entry whose deleted/resolved flag is the **string** `"true"`. The importer
+   counts only a real `true`, so mirroring means making the projection strict —
+   and the identical predicate governs `deleted`, so it would start **showing the
+   body of a note the card marked deleted**. The duplicate is accepted; the
+   suppression is kept. Trading a duplicate for exposed content is the one
+   direction this lane never goes.
+
+Proof: **35 pass**; red against `6c0c665` with the matrix naming all four shapes
+that were divergent there.
+
+### Eighth follow-up: the resolver-name order, and an exception set that named a sample of itself (two Codex P2s on `6e799b2`)
+
+**1. `resolved_by_name` precedence.** The importer takes
+`clean(raw.done_by || raw.resolved_by_name)`; the projection had the operands
+reversed. Invisible except on a row carrying BOTH with different values — which
+is exactly the row the strict comparison then refuses to cover. Mirrored.
+
+Worth noting where this one came from: a previous session in this lane looked at
+this line during the parity sweep, wrote it off as "order differs but the `||`
+result is the same set unless both are present and different. Minor," and moved
+on. The whole point of that sweep was that "minor" divergences here are not
+minor — they are permanent duplicates. The matrix now carries the both-present
+shape.
+
+**2. The deliberate-exception set named a sample of itself.** The previous
+follow-up asserted an *exact* divergence set and called that tight. It listed two
+shapes, both `done: "true"`. But the projection's `truthy` helper also accepts
+`1`, `"1"` and `"yes"`, and the same predicate governs `resolved`, `deleted` and
+`is_deleted` — sixteen divergent shapes in total, of which the list named two. A
+matrix that pins two members of a sixteen-member family does not detect changes
+to that family, so the assertion was weaker than the commit claimed.
+
+The set is now **derived from the shipped `truthy` helper** rather than
+hand-listed: the test parses the accepted representations out of `feedback.mjs`
+and generates one shape per (flag field × accepted value). Widening `truthy`
+therefore widens the matrix instead of silently widening the exception it names.
+
+The exception itself is unchanged and still deliberate: mirroring the importer
+means making the projection strict, the identical predicate governs `deleted`,
+and that would start showing the body of a note the card marked deleted. The
+duplicate is accepted; the suppression is kept.
+
+Proof: **35 pass**; red against `6e799b2` with the matrix naming all seventeen
+shapes divergent there — the resolver-name row plus the full sixteen-member
+truthy family it had not been enumerating.
+
+### Ninth follow-up: a set derived from source literals is not derived from behaviour (Codex P2 on `eae7b31`)
+
+The previous follow-up replaced a hand-listed exception set with a *derived* one
+and called that the structural fix. It derived the set by **parsing `truthy`'s
+source literals**. But `truthy` normalises its input —
+`clean(value).toLowerCase()` — so `" TRUE "`, `"Yes"`, `"YES"` and `" yes "` are
+accepted by the projection and appeared in none of them. Ten accepted values
+exist where the scrape found four, so **twenty-four divergent shapes across the
+four flag fields were still outside the "exact" set** the commit claimed was
+tight.
+
+This is the third time in this sequence the same mistake has been made at a
+different altitude: hand-list → sample of a family → scrape of a source → and
+only now, execute the thing itself. Reading an implementation is not the same as
+running it, and each time the gap was invisible precisely because the artefact
+*looked* derived.
+
+The matrix now imports the real `clean` from `policy.mjs`, extracts the shipped
+`truthy` expression and **executes it** against a candidate pool that deliberately
+includes case and whitespace variants and falsy values. Membership of the
+deliberate family is whatever the predicate actually accepts and the importer's
+literal `true` does not. Two guards keep the pool honest: it must exercise the
+accepting branch, and it must exercise the rejecting one — and the rejected
+values are asserted to stay **covered**, which confines the exception to the
+accepting branch rather than to flag fields in general.
+
+Counterfactual, run rather than reasoned: swapping the executed predicate back for
+the literal scrape turns the matrix red, naming `"TRUE"`, `" true "`, `" TRUE "`
+and the rest as unnamed divergences.
+
+Coverage: 10 accepted values × 4 flag fields = 40 deliberate shapes, plus 8
+rejected values × 4 fields = 32 shapes proven still covered, where the previous
+version pinned 16 and proved none of the rejecting branch.
+
+Proof: **35 pass**.
+
+### Tenth follow-up: a flight that outlived its row, and a pool that was still hand-drawn (two Codex P2s on `4d745bf`)
+
+**1. A refreshed row joined a stale flight.** In-flight sharing keyed on
+`owner + deliverable`, which says nothing about WHICH snapshot row the read was
+started for. When a Workload refresh replaced `issueSnapshot` mid-flight, the next
+popover found that key and joined a read created with the OLD row object — a read
+that then rejects at its own snapshot-identity check. The newly opened popover
+therefore got an unavailable row instead of a real read of the refreshed binding.
+
+This is the same rule the cache already followed (an answer belongs to the row it
+was read for) applied to the flight map, which the earlier commit added without
+carrying the rule across. A flight is now scoped to `row.issue`; a refreshed row
+starts its own, and the old flight's cleanup only removes the map entry if it is
+still its own.
+
+**2. The candidate pool was still hand-drawn.** The previous follow-up executed
+the predicate instead of reading it, which was the right direction, but applied it
+to a fixed list of examples. `"TrUe"` and `"\ttrue\n"` are accepted and were not in
+it, and adding a token such as `"on"` to `truthy` would have left the matrix green
+without testing it once. Third refinement of the same idea, and the honest
+statement of what is achievable: **full enumeration of an arbitrary predicate's
+input space is impossible.** What is achievable, and what this now does:
+
+- read the predicate's declared **vocabulary** — every `value === <literal>`
+  comparison and every member of its token list;
+- **generate** each string token's normalisation forms (case permutations, the
+  whitespace `clean` strips);
+- **verify** every generated form against the executed predicate, so a change to
+  the normalisation fails here instead of silently under-generating;
+- keep a reject pool and assert those stay covered.
+
+Counterfactuals run, not argued. Adding `'on'` to `truthy`: the vocabulary picks
+it up and its eight forms enter the matrix automatically (green, having actually
+exercised it — it is a deliberate divergence). Removing `.toLowerCase()` from
+`truthy`: the verification fails with *"the predicate no longer accepts
+\"TRUE\""*.
+
+Coverage: 20 generated forms from 5 declared vocabulary entries, 19 divergent ×
+4 flag fields = **76** deliberate shapes, up from 40, plus the reject pool.
+
+Proof: **176 green** on the Workload suite (6 new, covering the flight/row
+scoping) and **35 pass** on `test/component-feedback-read.js`.
+
+### Eleventh follow-up: reply audience, mirrored for MATCHING and not for the label (Codex P2 on `d1f83d8`)
+
+Same family again, and the first member of it where the naive fix would have made
+a **displayed** claim untrue — so it is worth recording how the two were
+separated rather than only that they were.
+
+The F42 planner makes a reply inherit its thread ROOT's audience ("a reply never
+sets its own client visibility"), so the canonical twin of a client-marked reply
+under an internal root carries `internal`. The projection reported the reply's
+row-local `client`, `sameCurrentComment` compares audience exactly, and the reply
+duplicated forever.
+
+**What was NOT done, and why.** The obvious fix — make `source_audience` inherit —
+would have been wrong. The SyncLinear panel renders that field as
+*"Card: client-visible"* / *"Card: internal"* (`_prodCommentHTML`), a label about
+what the **card recorded**. Replacing it with the importer's resolved value would
+have made a visible provenance label say something the card never said. Two
+earlier rounds in this sequence went wrong by reasoning about display effects
+without checking them; this time the render path was read first, and it decided
+the shape of the fix.
+
+So the inherited audience is computed for **matching only** and passed to
+`sameCurrentComment` as a third argument; the emitted field stays row-local. The
+importer's root walk (topmost reachable ancestor, across every alias field of the
+component) is mirrored, including its `ownAudience` rule.
+
+**The mirror is verified, not trusted.** `feedback.mjs` cannot import a Node
+script, so it carries its own `ownAudience`. Since a hand-written mirror is
+precisely what the last several rounds have been about, the test extracts that
+mirror, executes it, and compares it against the importer's **exported**
+`ownAudience` across fourteen audience/role shapes. A drift fails there.
+
+**A fixture bug this exposed.** The parity matrix built its canonical rows with a
+hard-coded `resolvedAudience: 'internal'`, where the planner computes it with
+`ownAudience`. For a client-role root the fixture therefore disagreed with
+production, and the new matching surfaced it as a divergence in the projection
+when it was a divergence in the *fixture*. It now calls the importer's exported
+rule. Second fixture defect this sequence has produced (after the `{ now }` Date
+stub), both of which first presented as product failures.
+
+Proof: **37 pass**; red against `d1f83d8` with `a client-marked reply under an
+internal root is covered by its imported twin instead of duplicating`
+(`actual: undefined, expected: 'reply'`).
 ---
 
 ## 175. [2026-09-08, FIXED — additive, no URL/parsing change] A pasted calendar-card link opened "normally," with no way to tell which card it was
 
-> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the calendar deep-link pair (2026-09-08, PR #1354).** The other `175` is the Linear-exit naming-mint finding (2026-09-07). Concurrent branches claimed the same number and neither was renumbered, because the exit's `175` is cited 43 times across docs, PR comments and commit messages that cannot be edited. Cite these by DATE, not number alone.
+> **⚠️ DUPLICATE NUMBER.** Three entries claim `175`. **This one is the calendar deep-link pair (2026-09-08, PR #1354).** The others are the Linear-exit naming-mint finding (2026-09-07) and the lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347; count corrected there when that branch merged `main`). Concurrent branches claimed the same number and neither was renumbered, because the exit's `175` is cited 43 times across docs, PR comments and commit messages that cannot be edited. Cite these by DATE, not number alone.
 
 
 Third report of the same shape, after items covered by the 2026-08-26 and
@@ -14808,7 +15868,7 @@ verifying both attributes are set before `document.body.appendChild(el)`.
 
 ## 175. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
 
-> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the Linear-exit naming-mint finding (2026-09-07)** and is the one meant by every "item 175" reference in `docs/independence/`, the lane briefs, the handoff, and the exit PR comments. The other `175` is a calendar deep-link fix (2026-09-08, PR #1354).
+> **⚠️ DUPLICATE NUMBER.** Three entries claim `175`. **This one is the Linear-exit naming-mint finding (2026-09-07)** and is the one meant by every "item 175" reference in `docs/independence/`, the lane briefs, the handoff, and the exit PR comments. The others are a calendar deep-link fix (2026-09-08, PR #1354) and the lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347).
 
 
 **Mechanism, read out of the source rather than inferred.**
@@ -15383,6 +16443,42 @@ session was still pushing to `claude/lx-d-feedback` at the time of this entry.
 Two sessions on one branch is how region ownership gets violated, and that
 convention is the reason six concurrent sessions never collided on a 79,418-line
 file tonight. It waits for the branch to go quiet.
+
+### Addendum, 2026-09-08 — CORRECTION to the 05:15 entry: the fail-open DID break a caller, and it was the one this lane had just built
+
+The decision above was implemented on `claude/lx-d-feedback` (PR #1347,
+`0d588fa`). It was the right decision and it stands. One of its supporting
+claims did not.
+
+> *"It breaks no caller that works today. Any reader of `total` must already
+> cope with a number it cannot verify."*
+
+**It broke a caller immediately.** `production-comments` has two browser
+consumers, not one. The second is `_wlNativeTweakComments`, the Workload
+"Tweaks Needed" reader that lane D added in the very PR the fix landed in. It
+never *displays* `total` — which is what "no consumer" was really measuring —
+but it **validates** it three ways: a `Number.isSafeInteger` guard, a cross-page
+stability check, and `complete = rows.length === total` as its completeness
+proof. `total: null` went straight into its malformed-response branch and
+painted *"Couldn't load this deliverable's feedback"* on a thread whose rows had
+been read perfectly well. Codex caught it as a P1 on `0d588fa`; fixed in
+`1396c7f`, and narrowed three times after that (`9ba499a`, `33f7ab9`,
+`2bedb2d`) before the completeness rule was actually sound. The endpoint also
+had to start reading its page BEFORE its count (`bc248f6`), because two
+concurrent PostgREST queries observe two different database states.
+
+**The transferable part, since this is the second time in two days this exact
+mistake has been made in this ledger** (see the 2026-09-05 note in `AGENTS.md`,
+*"measure with the key the shipped code uses"*): *"has no consumer"* was
+answered by looking for something that renders the field. A field can be
+load-bearing without ever being drawn. The question that would have got it right
+is "what would break if this were null", and it has to be asked of the branch
+the fix is destined for, not only of `main`.
+
+None of this changes the decision. Fail-open with a nullable field was still the
+smallest correct repair, and the owner decision it left open — whether the
+endpoint should compute an exact count at all — is still open and still not
+urgent.
 
 ### Addendum, 2026-09-08 07:20 — what the night cost, and the session I stopped
 

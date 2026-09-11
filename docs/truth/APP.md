@@ -1,5 +1,11 @@
 # App logic (`index.html`) — current truth
 
+Source-only draft addition (2026-09-05): SyncLinear's **Feedback & tweaks** view
+keeps all canonical comments and adds staff-only read-only notes from the exact
+mapped Calendar/Samples component. Missing or partial source coverage is explicit;
+client permissions, writers and lifecycle ownership remain unchanged. Contract,
+mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
 > + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
 > policy introduced in `production-write` v26 and now served by F27 closure v27; F95

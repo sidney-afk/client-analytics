@@ -7,6 +7,7 @@ F64/D-17 provider-session containment remains open.
 
 | File | What | How to run |
 |---|---|---|
+| `prod-feedback-browser.js` | Actual comment component/loader/focus source with fictional transport: canonical plus exact-mapped read-only source feedback, pagination/completeness, failures, privacy, keyboard and mobile/theme layouts. No app-router or live-history claim. | `node docs/syncview-design/tests/prod-feedback-browser.js` |
 | `prod-readonly-smoke.js` | B2 wired-tab read-only suite. Runs against `index.html?prod=1`, verifies real migrated rows, team filters, detail/deep links, batch links, board columns, disabled write affordances, no write-like browser requests, and 0 page/console errors. | `node docs/syncview-design/tests/prod-readonly-smoke.js` |
 | `prod-polish-gate.js` | Aggregate runner for boot, structure, locked live-read/zero-mutation smoke, comment reads, fully mocked write gateway, interaction, accessibility/focus, layout, behavior, and pixels. CI splits `fast`/`interaction`/`heavy`; only `fast` runs automatically on PRs. F105 repaired the post-#813 fixture/layout/read-audit epoch. Locked lanes may read live data; no lane may send a live mutation. | `npm run test:prod-polish` |
 | `prod-comments-browser.js` | Fully intercepted comment-read contract: staff auth, newest/older paging, refresh races, merge/escaping/visibility/error states, and a Linear-authoritative composer that remains guarded. Its POST is a read operation to the mocked `production-comments` function. | `node docs/syncview-design/tests/prod-comments-browser.js` |

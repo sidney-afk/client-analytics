@@ -3,7 +3,9 @@
 ## Current preparation status
 
 Current isolated evidence is recorded in the linked result artifacts on draft PR #1382. The prepared source
-includes the reviewed upstream patch through `fcebb856`; nothing is merged or
+includes the reviewed upstream patch through `fcebb856` plus the four-file
+client-signoff reconciler carry-forward from `ca91d26a` (see
+LINEAR_EXIT_UPSTREAM_SIGNOFF_20260911.json). This is not all of newer main; nothing is merged or
 deployed by this work.
 
 Isolated PostgreSQL evidence now covers the 52-table parent plus the nine-table
@@ -11,8 +13,9 @@ authenticated companion, using application source owners and an explicitly
 observed backup-table baseline. Authenticated local pair storage and selected
 restored budget, audit, thumbnail and access-control behavior also pass. A
 separate three-table credential companion now has stored/reopened triple recovery
-evidence at LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json; encryption and off-device
-custody remain unproven. These
+evidence at LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json and optional encrypted
+recovery at LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json; independent key
+recovery and off-device custody remain unproven. These
 are synthetic local recovery results, not hosted recovery or full workflow proof.
 An opt-in proof-bearing capture and restore now passes six sequence checks
 for 15 catalog-mapped sequences, with populated audit/conflict consumers and
@@ -20,7 +23,7 @@ independent target mapping/maxima verification. See
 LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json; external/manual consumer closure
 and source cutover remain unproven.
 
-Installation remains **HOLD**. The other 25 tables have no approved exclusion;
+Installation remains **HOLD**. The other 22 tables have no approved exclusion;
 complete platform/schema equivalence, referenced object/document custody,
 hosted recovery/configuration, notification handover and final source cutover
 coordination remain open. WR-101 requires a separate future Edge Function release.
@@ -1250,3 +1253,14 @@ The actual captured Calendar v49 handler, using the SQL adapter with asserted se
 ## Calendar response/event boundary (2026-09-11)
 
 The optional calendar-freeze -DeferredEvents rehearsal passes with actual captured v49 source: HTTP success and persisted status precede a deliberately paused semantic-event SQL submission; releasing it persists the event under the held outbox lock. Evidence: docs/independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json. This rules out treating HTTP completion as full write completion. It does not implement admission/drain, perform final export, or prove hosted behavior. Installation HOLD.
+
+
+## Newer main: selective sign-off carry-forward
+
+Four exact source files from ca91d26a add the client-signoff script, its manual
+workflow, runbook and 165-check offline suite. No workflow was dispatched.
+Native skipped approval receipts remain report-only, so this is not native
+sign-off completion proof. The next build task is a typed admitted-native
+compatibility contract and negative controls, without treating all skipped rows
+as approvals. Include this caller in final admission/drain. Unrelated upstream
+truth/register and n8n snapshot changes were not imported or verified.

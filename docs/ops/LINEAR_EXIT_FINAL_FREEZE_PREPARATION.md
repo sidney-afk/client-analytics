@@ -106,3 +106,13 @@ releases and verifies the real event. See
 captured dependency hashes remain unchanged. This closes one required race
 observation; it does not supply the missing request-admission or durable drain
 mechanism. Never derive a final export boundary from completed HTTP responses.
+
+## Additional caller from newer main
+
+The client-signoff reconciler revalidates evidence and then posts a repair to
+Calendar in a separate request. Include every active apply run in the admission
+and drain inventory. Dispatch-only and default dry-run prevent automatic use
+of this prepared workflow, but do not establish a freeze for an existing runner.
+Its native skipped-receipt repair eligibility remains incomplete; see
+../independence/LINEAR_EXIT_UPSTREAM_SIGNOFF_20260911.json. No workflow dispatch
+or production repair is authorized by this carry-forward.

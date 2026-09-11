@@ -289,3 +289,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_CALENDAR_FREEZE_20260911.json: isolated counterexample and exact source supplements.
 
 - docs/independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json: controlled response-before-event SQL evidence.
+
+- scripts/client-signoff-reconcile.js and test/client-signoff-reconcile.js: upstream sign-off repair and offline checks; native receipt completion remains open.
+- docs/ops/CLIENT_SIGNOFF_RECONCILE.md and .github/workflows/client-signoff-reconcile.yml: upstream runbook and manual workflow, not dispatched in migration preparation.
+- docs/independence/LINEAR_EXIT_UPSTREAM_SIGNOFF_20260911.json: exact selective upstream carry-forward evidence.

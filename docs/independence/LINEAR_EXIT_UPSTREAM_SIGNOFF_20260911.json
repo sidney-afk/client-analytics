@@ -1,0 +1,39 @@
+{
+  "classification": "OFFLINE_TEST_AND_SOURCE_REVIEW",
+  "installation": "HOLD",
+  "upstream_commit": "ca91d26a740d5d44b166d57861448a4dc6f5ca22",
+  "previous_integrated_upstream": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+  "scope": "Selective exact four-file carry-forward, not complete integration of newer main.",
+  "files": [
+    {
+      "path": "scripts/client-signoff-reconcile.js",
+      "sha256": "a42326f602c12894d76630052214cc31c89dcd050c744e50933894f431de9cdf",
+      "upstream_blob": "352045a56d156c6d0f22080a41011f6ee01eb5d0"
+    },
+    {
+      "path": "test/client-signoff-reconcile.js",
+      "sha256": "db55f6276c51c920883b11e4d813e9c9f496c8f9e2bfaa51efef6d0dc338d806",
+      "upstream_blob": "9611222b86a9a71cb3fa39e2b4307ec6d1b7f749"
+    },
+    {
+      "path": ".github/workflows/client-signoff-reconcile.yml",
+      "sha256": "d4a3e0d2c679354f08929fe83b14e894916690ebe5e29df6529df618fbf682ad",
+      "upstream_blob": "63cb75c28c8d1c7bb655714fa77d5d8419a48410"
+    },
+    {
+      "path": "docs/ops/CLIENT_SIGNOFF_RECONCILE.md",
+      "sha256": "1e47598f998cde00b0a8f2d51e06dd780528771c97088c5c9a353937a1dc5296",
+      "upstream_blob": "74962d93be706c746b5431840180e57c6adc8cb0"
+    }
+  ],
+  "offline_checks": 165,
+  "offline_result": "PASS",
+  "prior_attempt": "FAIL after cases: required upstream runbook was not yet copied; resolved by including exact source runbook.",
+  "remaining": [
+    "Native skipped approval receipts remain report-only; admitted native contract requires separate integration and tests.",
+    "Reconciler apply calls Calendar outside outbox freeze boundary; include active runs in admission/drain.",
+    "Other upstream documentation and n8n snapshot delta not imported or independently verified."
+  ],
+  "no_merge": true,
+  "no_deploy_or_workflow_dispatch": true
+}

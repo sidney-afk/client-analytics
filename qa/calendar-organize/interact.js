@@ -11,6 +11,7 @@
  * is aborted. Run via `node qa/calendar-organize/run.js`.
  */
 const http = require('http');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const fs = require('fs');
 const path = require('path');
 const PORT = Number(process.env.SV_QA_PORT || 8000);
@@ -44,8 +45,11 @@ const ok = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else { fai
   const browser = await PW.chromium.launch({ args: ['--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
   await ctx.route('**/*', r => r.request().url().startsWith(ORIGIN) ? r.continue() : r.abort());
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   await ctx.addInitScript(() => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); localStorage.setItem('syncview_theme', 'dark'); } catch (e) {}
+    try { localStorage.setItem('syncview_theme', 'dark'); } catch (e) {}
   });
   const page = await ctx.newPage();
   const errs = [];

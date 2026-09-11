@@ -20779,3 +20779,117 @@ whether it fires (one live row), but not whether it can fire TWICE on one card.
 **A new report needs its cardinality measured, not just its trigger.**
 
 165 checks, two controls by exit status. Full runner: 2 of 427, baseline.
+
+## 198. The staff entry gate replaces the shared password (2026-09-10)
+
+**What was there.** Two doors, and the wrong one was load-bearing. The outer
+one asked for a single password shared by everyone, hardcoded in `index.html`
+(a public repo) and therefore readable by anyone who opened the page source;
+passing it identified nobody and set `localStorage.syncview_auth_v1='ok'`. The
+inner one — pick your roster name, enter your personal role key, verified by
+the `key-verify` Edge Function — was already the thing gating every capability
+in `_syncviewStaffCan`, but it was OPTIONAL: prompted once a session and
+dismissible with "Not now".
+
+**What it is now.** The shared password is gone (markup, `submitPassword`,
+`boot-password`, and the stale storage marker, which is swept on load). The
+verified identity is the door. Signed-out staff land on `#staffGateOverlay`
+with the sign-in card on it, in entry mode: no "Not now", and neither Escape
+nor a backdrop click dismisses it, because there is nothing behind it to
+dismiss to. Signing out returns there, in every open tab.
+
+**The distinction this turns on, and the trap in it.** ADMISSION (may the shell
+be used) is now separate from VERIFICATION (may this action touch data), and
+only the second is a credential. The pre-paint check in the `<head>` boot
+script is synchronous and reads localStorage, which anyone can write by hand,
+so it decides only what to PAINT: a stored blob boots the app optimistically so
+returning staff never see a gate flash. `_syncviewStaffIdentityBoot()` then
+verifies against the server and drops the gate back on a 401, clearing the
+blob. Writing the naive version of this — gate on presence of the blob — would
+have made the door forgeable in devtools, which is why `test/staff-entry-gate.js`
+drives that exact case in a real browser.
+
+**The grace window that was in the first revision, and why it is gone.** The
+first cut of this admitted the shell during a verifier outage when the stored
+identity carried a `verified_at` within 24h, so a Supabase blip would not lock
+the team out. Codex's review of #1385 flagged it P1 and was right: `verified_at`
+is a field in the same hand-writable blob, so anyone could set it to now, block
+ONLY the verifier request, and walk into the shell. The "outage" was
+manufacturable, which made it a bypass rather than a cushion. It also bought
+less than it looked: every read the shell performs goes to the same Supabase
+host as `key-verify`, so a genuine outage leaves the app empty anyway; the sole
+case it covered was `key-verify` alone being broken, which is exactly the case
+an attacker can produce on demand. There is no offline substitute — an
+unforgeable proof would have to be server-issued and server-checked, which is
+what `key-verify` already is — so **the gate fails closed on every verification
+failure**, not only a 401. The cost is accepted: a `key-verify` outage while the
+rest of Supabase is healthy locks staff out until it is redeployed. The two
+guards that asserted the old behaviour now assert the closed one, including a
+fresh timestamp plus a blocked verifier.
+
+**Blast radius that mattered more than the feature.** Surfaces with their own
+access model must never meet this gate: `?c=` client share links, `?intake=1`,
+the onboarding funnels, `onboarding_view`, and the SMM weekly entry. All four
+are asserted. About 40 harnesses used the retired password to get in; they now
+seed a stub identity and fulfil `key-verify` locally via the new
+`qa/staff-gate-seed.js`. **Be precise about what that grants**, because the
+first version of this entry was not: it said "the shell and nothing more", the
+way the password did. Codex caught that reviewing the PR and was right. A
+fulfilled `key-verify` makes the identity VALID, so `_syncviewStaffCan()` opens
+every browser-side capability of the seeded role, and the seed is an admin by
+default: credentials, review links, intake, onboarding, hiring, PTO admin. What
+it cannot do is the part that protects real data: the stub key still reaches the
+real backend on every staff call and is still rejected, so no harness writes
+anything and no server-gated read returns.
+
+**The second P1, and why painting a cover is not a gate.** Codex's re-review of
+the fixed branch found that the fail-closed path only *painted*:
+`_syncviewStaffIdentityBoot()` resolved `null`, but `init()` ran straight on past
+its unchecked `await` into `fetchAll()`, so a forged identity plus a blocked
+verifier still pulled the anon-readable staff datasets in behind the cover —
+where the responses sit in devtools and the overlay is one node removal away.
+`init()` now returns at that await on a gated surface and releases its boot latch
+so a later successful sign-in starts the app it abandoned. The guard asserts the
+absence directly (no Supabase/Sheet/n8n read on either failure path) and, so the
+negative cannot pass vacuously, asserts that a *verified* boot does read.
+Feature-flag rows (`syncview_runtime_flags`) are excluded and the exclusion is
+argued in the file: they are a key and a boolean, readable with the publishable
+key from any browser regardless of this gate.
+
+**One more from the same review: the app verified the same key twice.** A fresh
+sign-in verified, lifted the gate, started `init()`, and `init()` immediately
+re-POSTed `key-verify` for the identity just accepted. Harmless before, but
+against a fail-closed door a rate-limit or transient 5xx on that redundant call
+would bounce someone back to the gate seconds after a successful sign-in. Boot
+verification now short-circuits when the in-memory identity is already verified.
+
+**How harnesses get in, and the two defects that mechanism produced.** The first
+cut of `qa/staff-gate-seed.js` answered `key-verify` by patching `window.fetch`
+in the page. That shadows a Playwright route for the same URL: the request never
+reaches the network layer, so `pto-ui-polish`'s own verifier mock never fired and
+its fixture wait timed out. It was also an in-page mutation every suite would
+have to reason about. The seed now answers with a ROUTE and touches nothing but
+`localStorage` — with two ordering rules written into the file, since Playwright
+tries the most recent route first: register it BEFORE a specific mock that should
+win, and AFTER any catch-all `route('**/*')` that would swallow it (four
+harnesses were reordered for that). Making the POST visible to the network layer
+then exposed the second defect: `isWriteLikeRequest` counts any non-GET to
+`functions/v1` as a mutation, so the act of signing in failed "this surface
+mutated nothing" in three Production lanes. `key-verify` writes nothing — it
+reads a roster row and answers — so it is excluded there, narrowly: every other
+POST to `functions/v1` still counts.
+
+**Two suites encoded the old design and were updated, not silenced.**
+`b4-staff-login.js` asserted that sign-out leaves a calm signed-out app with no
+prompt; that posture no longer exists on a staff surface. `prod-write-gateway-browser.js`
+signs out mid-run to prove sensitive state is purged, then keeps clicking — it
+now signs back in, because the gate is over the app. The guard lives in `qa/boot/`, not `test/`: `test/run-all.js` auto-discovers every
+`test/*.js` and that lane is dependency-free by contract, so a Playwright suite
+there fails the `unit` job on a runner that never installs a browser. It runs in
+the `Client entry visible boot` workflow, which already triggers on `index.html`.
+
+Verified: `staff-entry-gate`,
+`boot-gate-parity`, `prod-write-gateway-browser`, `prod-boot-budget`,
+`kasper-cal-cache-bounded`, and all 23 `client-entry-sequence` scenarios pass.
+`b4-staff-login` reaches a failure that reproduces identically on `origin/main`
+(a creative-role toast, unrelated to this change).

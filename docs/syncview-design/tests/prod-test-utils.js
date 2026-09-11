@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 
@@ -40,12 +41,24 @@ function isWriteLikeRequest(req) {
   const method = typeof req.method === 'function' ? req.method() : req.method;
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
   const url = typeof req.url === 'function' ? req.url() : req.url;
+  // The staff entry gate verifies a role key on every boot with a POST that
+  // writes nothing — it reads the roster row for that key and answers. It is
+  // authentication, not a mutation, and counting it here would make "this
+  // surface mutated nothing" fail on the act of signing in. Narrow on purpose:
+  // every other POST to functions/v1 still counts.
+  if (/\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(url || '')) return false;
   return /supabase|n8n|webhook|syncview|rest\/v1|functions\/v1/i.test(url || '');
 }
 
 async function installProductionInit(page) {
+  // These suites all describe the ?prod=1 preview as an UNVERIFIED visitor sees
+  // it, which is what the retired shared password gave them. The gate needs a
+  // verified key to boot the app at all, so boot with one and drop it the
+  // instant the gate lifts. See dropVerificationAfterBoot in
+  // qa/staff-gate-seed.js for why a verified stub admin is the wrong posture
+  // here (401s and console noise on every staff-gated call).
+  await seedStaffGate(page, { dropVerificationAfterBoot: true });
   await page.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     window.__prodBootMarks = [];
     const record = () => {
       try {

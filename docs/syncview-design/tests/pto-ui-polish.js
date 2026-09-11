@@ -183,7 +183,6 @@ function initialOverview() {
 
 async function installFixture(page, state) {
   await page.addInitScript(({ identity, key }) => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     localStorage.removeItem('syncview_theme');
     localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({
       key,

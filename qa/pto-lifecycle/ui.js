@@ -234,8 +234,14 @@ async function signOut(page) {
 }
 
 async function signIn(page, persona) {
-  await page.locator('#headerMenuButton').click();
-  await page.locator('#staffIdentitySignOut').click();
+  // Since the staff entry gate replaced the shared password (2026-09-10), a
+  // signed-out staff tab already has the sign-in card open on the gate cover,
+  // and the header menu is behind that cover. Only go through the menu when
+  // there is no card on screen.
+  if (!await page.locator('#staffIdentityForm').count()) {
+    await page.locator('#headerMenuButton').click();
+    await page.locator('#staffIdentitySignOut').click();
+  }
   await page.waitForSelector('#staffIdentityMemberBtn');
   await page.locator('#staffIdentityMemberBtn').click();
   await page.locator(`#staffIdentityMemberMenu [data-value="${persona.member.id}"]`).click();

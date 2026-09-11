@@ -9,6 +9,7 @@
  * errors, and the no-write request invariant.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -562,11 +563,11 @@ async function selectionChecks(page) {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push(req));
+  await seedStaffGate(page);
   await page.addInitScript(() => {
     window.__prodProbeErrors = [];
     window.addEventListener('error', e => window.__prodProbeErrors.push(e.message || String(e.error || e)));
     window.addEventListener('unhandledrejection', e => window.__prodProbeErrors.push(String(e.reason || e)));
-    localStorage.setItem('syncview_auth_v1', 'ok');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

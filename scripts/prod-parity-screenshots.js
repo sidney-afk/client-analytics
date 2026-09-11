@@ -4,6 +4,7 @@
  * paired artifact/wired screenshots for reviewer inspection.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -53,8 +54,8 @@ async function safe(page, fn) {
   const browser = await chromium.launch({ headless: true });
   const artifact = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   const wired = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  await seedStaffGate(wired);
   await wired.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

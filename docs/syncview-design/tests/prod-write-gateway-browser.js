@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -190,7 +191,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       implicitCardWrites.push({ method: request.method(), url: request.url() });
     }
   });
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await seedStaffGate(page);
 
   await page.route('**/functions/v1/key-verify', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
@@ -982,6 +983,15 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && purgedCreateState.savedDraft === null
       && purgedCreateState.recoveryGate.includes('Sign in'),
     'a delayed create_options response restored protected creation state after sign-out');
+
+    // Sign-out now drops the staff entry gate over the app (it is the door, not
+    // a header affordance), so the rest of this run needs the identity back.
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewAcceptStaffVerification();
+      _syncviewStaffRefreshChrome();
+      _prodRender();
+    });
 
     await page.evaluate(() => {
       _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });

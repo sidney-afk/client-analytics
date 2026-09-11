@@ -54,3 +54,5 @@ jobs:
         run: npx playwright install chromium
       - name: Drive streamed first paint, reload, and BFCache once
         run: npm run test:boot
+      - name: Prove the staff entry gate opens only on a server-verified key
+        run: node qa/boot/staff-entry-gate.js

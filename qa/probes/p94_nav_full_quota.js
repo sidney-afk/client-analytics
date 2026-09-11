@@ -11,6 +11,7 @@
 // clicking the top nav tabs actually navigates.
 const lib = require('../sxr_courier_lib.js');
 
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com)/;
 
 function forwardExternal(method, url, headers, postData) {
@@ -41,6 +42,9 @@ async function run() {
       body: response.body,
     });
   });
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   // Deterministically reproduce the user's exact console error: a FULL quota
   // where writing NAV_KEY ('syncview_nav') throws QuotaExceededError. Headless
   // Chromium's real quota is too large to fill reliably, so we intercept
@@ -48,7 +52,6 @@ async function run() {
   // real near-full quota behaves once the big cache keys already occupy it).
   await ctx.addInitScript(() => {
     try {
-      localStorage.setItem('syncview_auth_v1', 'ok');
       const proto = Object.getPrototypeOf(localStorage);
       const orig = proto.setItem;
       proto.setItem = function (k, v) {

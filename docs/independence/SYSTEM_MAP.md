@@ -32,7 +32,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   not a safe kill switch; removal/empty-list rollback is blocked until equivalent auth/scope exists.
   They are read at load and live-updated over realtime. Full active roster on all three since 2026-07-07.
 - **Auth is mixed, not one gate.** (The shared app-shell password was RETIRED 2026-09-10 —
-  OPEN_REPAIRS 196. Staff entry is now the verified roster-name + personal role key, and the
+  OPEN_REPAIRS 198. Staff entry is now the verified roster-name + personal role key, and the
   stored identity is a paint hint, not a credential: boot re-verifies it server-side and gates
   on a 401.) Public
   REST/endpoint locations remain visible in source. Protected client-token, staff-key, role, and

@@ -1,0 +1,1784 @@
+'use strict';
+/*
+ * Client review ⇄ card reconciler — the server-side completion of a client's
+ * committed review action.
+ *
+ *   node scripts/client-signoff-reconcile.js                  # DRY-RUN: report only
+ *   node scripts/client-signoff-reconcile.js --apply          # apply repairs
+ *   node scripts/client-signoff-reconcile.js --client=<slug>  # scope to one client
+ *   node scripts/client-signoff-reconcile.js --fixtures=f.json --json   # offline
+ *
+ * WHY THIS EXISTS (OPEN_REPAIRS 186/189/190/191)
+ *   A client review action writes TWO legs: the gateway's deliverable row, then
+ *   the `calendar_posts` row humans actually read. The gateway leg is durable —
+ *   `mirror_outbox` records that it committed. The card leg runs in the client's
+ *   browser, and a repair journal finishes it ONLY in that browser and ONLY if
+ *   she comes back. She met an error, reported it and closed the tab, so a write
+ *   the server had already committed stayed unfinished with nothing server-side
+ *   able to complete it (item 189, "the completion of a committed write still
+ *   depends on one particular browser session surviving").
+ *
+ *   This closes that. A committed client action whose card never received it is
+ *   a repairable FACT, visible without any browser.
+ *
+ * THE RULE — evidence repairs, it never invents
+ *   Every repair is driven by something the SERVER already committed, and every
+ *   value written comes from that record:
+ *     · a sign-off stamp is the commit time of the client's approve, never "now"
+ *       and never derived from the status (deriving a stamp from a status is the
+ *       exact lie item 190 is about, pointing the other way);
+ *     · a change request's body, author, round and clock come from
+ *       `production_comments`, never reconstructed.
+ *   If the server has no record, this job does nothing. It is a completion
+ *   mechanism, not a source of truth.
+ *
+ * THE RULE — a card that has moved on is never overwritten
+ *   A committed action can be superseded by later work, and finishing a stale
+ *   write would undo it. So:
+ *     · a sign-off stamp is only restored where the app's OWN stale-approval
+ *       rule (`_calClearStaleApprovals`, extracted from index.html at runtime)
+ *       would keep it. If that rule would clear it, the component has moved
+ *       below client approval and the approval is superseded — report, never
+ *       write. This is the same rule the browser fix in item 191 applies, so the
+ *       two can never disagree about what "stale" means.
+ *     · a change request is only delivered while the component is still IN the
+ *       review round (Client Approval / Tweaks Needed). Once it reads Approved,
+ *       re-injecting a Tweaks-Needed request would reopen settled work and
+ *       contradict a later decision, which is worse than the omission it fixes.
+ *
+ * SAFETY
+ *   - DRY-RUN BY DEFAULT. Writes only with --apply (or APPLY=true).
+ *   - CAP: a run wanting more repairs than the cap ABORTS without writing. A
+ *     mass divergence is a bug or an incident, and a human should look before
+ *     hundreds of client-facing rows move.
+ *   - Writes go only through `calendar-upsert`, the same safe endpoint the other
+ *     reconcilers use, so the overall pill and the stale-approval sweep are
+ *     recomputed by the canonical path rather than by anything written here.
+ *   - Reads need SUPABASE_SERVICE_ROLE_KEY (`mirror_outbox` and
+ *     `production_comments` are not readable with the publishable key); writes
+ *     need SYNCVIEW_STAFF_KEY. Neither is ever printed.
+ *   - --fixtures runs the entire decision path offline with no credentials and
+ *     no network, which is how the tests exercise it.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const ARGV = process.argv.slice(2);
+const argOf = (name) => {
+  const hit = ARGV.find(a => a === '--' + name || a.startsWith('--' + name + '='));
+  if (!hit) return '';
+  return hit.includes('=') ? hit.slice(hit.indexOf('=') + 1) : 'true';
+};
+const APPLY = ARGV.includes('--apply') || /^(1|true|yes)$/i.test(process.env.APPLY || '');
+const JSON_OUT = ARGV.includes('--json');
+/* The cap is a free-form workflow input, so it has to be VALIDATED, not just
+ * coerced. `Number('25x')` is NaN, every comparison with NaN is false, and the
+ * advertised mass-repair abort would silently pass an unlimited plan. */
+const CAP_RAW = String(process.env.CAP || argOf('cap') || '25').trim();
+const CAP = Number(CAP_RAW);
+if (!Number.isInteger(CAP) || CAP <= 0) {
+  console.error(`client-signoff-reconcile: cap must be a positive whole number, got ${JSON.stringify(CAP_RAW)}`);
+  process.exit(2);
+}
+const ONLY_CLIENT = String(argOf('client') || process.env.ONLY_CLIENT || '').trim().toLowerCase();
+const FIXTURES = String(argOf('fixtures') || '').trim();
+const LOOKBACK_DAYS = Number(process.env.LOOKBACK_DAYS || argOf('days') || 180);
+
+const REST = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1';
+const UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
+const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const SYNCVIEW_STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
+
+const lines = [];
+const log = (m) => { lines.push(m); if (!JSON_OUT) console.log(m); };
+
+/* ── canonical logic, extracted verbatim from index.html ──────────────────
+ * The stale-approval rule and the overall-status computation must be the app's
+ * own, not a copy: a second implementation of "is this approval stale" is a
+ * second opinion, and the two would drift. Same technique as
+ * scripts/linear-sync-reconcile.js. */
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const grabFunc = (name) => {
+  const at = SRC.indexOf('function ' + name + '(');
+  if (at < 0) throw new Error('fn ' + name);
+  let depth = 0;
+  for (let j = SRC.indexOf('{', at); j < SRC.length; j++) {
+    if (SRC[j] === '{') depth++;
+    else if (SRC[j] === '}' && --depth === 0) return SRC.slice(at, j + 1);
+  }
+  throw new Error('braces ' + name);
+};
+const grabConst = (name) => SRC.match(new RegExp('^\\s*const ' + name + '\\s*=.*;\\s*$', 'm'))[0];
+const mod = new Function([
+  grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'),
+  grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'), grabFunc('_calClearStaleApprovals'),
+  grabFunc('_calMapNativeStatusStrict'), grabFunc('_calMsgAudience'),
+].join('\n') + ';return { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict, _calMsgAudience };')();
+const { CAL_PRIORITY, _calNormStatus, computeOverallStatus, _calClearStaleApprovals, _calMapNativeStatusStrict, _calMsgAudience } = mod;
+
+/* Does a later committed transition REOPEN the component, i.e. take it back
+ * below Approved? Ranked with the app's own CAL_PRIORITY after the app's own
+ * native mapper, so this cannot drift from the lifecycle the product defines.
+ * An unmapped native status (canceled, triage, anything unrecognised) counts as
+ * a reopen: fail closed, because the safe answer is to leave the card alone. */
+function reopensBelowApproved(nativeStatus) {
+  const mapped = _calMapNativeStatusStrict(nativeStatus);
+  if (!mapped) return true;
+  const rank = CAL_PRIORITY[mapped];
+  return !(typeof rank === 'number' && rank >= CAL_PRIORITY['Approved']);
+}
+
+/* A deliverable's `kind` and the card's component vocabulary are not the same
+ * word for the graphic lane; everything downstream speaks the card's. */
+/* WHAT THIS JOB IS ALLOWED TO WRITE.
+ *
+ * Stamp repair only. Change-request DELIVERY is detected and reported, never
+ * written — an owner decision taken after eight review rounds and 23 findings,
+ * of which nearly every one since round 2 landed on delivery rather than on
+ * stamps, and the last three rounds were each a defect created by the previous
+ * round's fix. OPEN_REPAIRS 189 records the same pattern on the browser-side
+ * attempt at this problem, abandoned for the same reason.
+ *
+ * The asymmetry is in the problems themselves, not in the effort spent:
+ *   · a STAMP repair reads a committed approve, checks for a later reopen and
+ *     writes one dated field. Nothing to match, nothing to merge.
+ *   · a DELIVERY must decide identity across two systems with no shared ids,
+ *     reconcile two lifecycle clocks, merge into a cell whose format predates
+ *     ids, and survive a non-atomic two-step write. Round 8 ended at 8 live
+ *     rows where the data cannot say whether delivering is a repair or a
+ *     duplicate.
+ *
+ * Detection stays fully wired, because the report is the deliverable for that
+ * half: it tells a person exactly which requests never reached a card. The
+ * guard lives at the WRITE, so no future edit to detection can make delivery
+ * writable by accident. */
+const WRITABLE_KINDS = new Set(['stamp']);
+
+const COMPONENT_FOR_KIND = {
+  video: 'video', thumbnail: 'graphic', graphic: 'graphic', caption: 'caption', title: 'title',
+};
+/* The card side of the crosswalk. Only the two components that carry a work
+ * item have a reverse pointer; caption and title never do
+ * (`_writeUiComponentHasWorkItem`, index.html). */
+const REVERSE_LINK_FIELD = { video: 'video_deliverable_id', graphic: 'graphic_deliverable_id' };
+/* The inverse of the app's own `_prodCrosswalkTeamForComponent` (index.html).
+ * Note `graphics` (the team) against `graphic` (the component): the card's
+ * vocabulary and the deliverable's are not the same word here either. */
+const COMPONENT_FOR_TEAM = { video: 'video', graphics: 'graphic' };
+/* WHICH REVIEWS A LINKED DELIVERABLE CAN CARRY. `scripts/f42-card-comment-import.js`
+ * states the canonical contract in as many words: "graphic -> Graphics; every
+ * video/caption/title thread shares the Video deliverable." So a caption or
+ * title request on graphics-linked work is malformed — it names a review that
+ * deliverable never carries — and `REVERSE_LINK_FIELD` cannot express that,
+ * because caption and title have no reverse link of their own. */
+const COMPONENTS_FOR_LINK = { video: ['video', 'caption', 'title'], graphic: ['graphic'] };
+const componentFitsLink = (comp, linked) => {
+  if (!comp || !linked) return true;              // nothing to contradict
+  const allowed = COMPONENTS_FOR_LINK[linked];
+  return !allowed || allowed.includes(comp);
+};
+/* Cards live on the calendar surface; `samples` deliverables belong to sxr and
+ * `manual` ones to neither (PROD_CROSSWALK_SURFACE_ORIGIN, index.html). */
+const SURFACE_ORIGIN_FOR_CARDS = 'calendar';
+
+const STAMP_FIELD = (comp) => 'client_' + comp + '_approved_at';
+const TWEAKS_FIELD = (comp) => comp + '_tweaks';
+const STATUS_FIELD = (comp) => comp + '_status';
+
+/* Comments live in one per-component cell as a JSON array (index.html
+ * `_calStringifyComments`). Parsing it is what makes the body comparison
+ * trustworthy: comparing the raw cell as text reports a false miss on every
+ * request containing a quote or a newline, because the cell stores those
+ * JSON-escaped. */
+function parseComments(cell) {
+  const raw = String(cell || '').trim();
+  if (!raw) return [];
+  let list;
+  try {
+    list = JSON.parse(raw);
+  } catch (_) {
+    return null;   // unreadable: the caller must skip, never treat it as empty
+  }
+  /* Valid JSON that is not an array, or an array holding entries WITHOUT ids,
+   * is an INCOMPLETE read, not an empty one — the same judgement the browser's
+   * `_calLoadCommentsField` makes. Treating either as empty is how a repair
+   * erases legacy feedback: `stringifyComments` and the merge RPC drop id-less
+   * entries, so writing a rebuilt array over a cell holding them destroys real
+   * client words that simply predate the id field. Refuse instead. */
+  if (!Array.isArray(list)) return null;
+  const objects = list.filter(c => c && typeof c === 'object');
+  if (objects.length !== list.length) return null;
+  if (objects.some(c => !c.id)) return null;
+  return objects;
+}
+function stringifyComments(list) {
+  const keep = Array.isArray(list) ? list.filter(c => c && c.id) : [];
+  return keep.length ? JSON.stringify(keep) : '';
+}
+const normText = (s) => String(s == null ? '' : s).normalize('NFC').replace(/\s+/g, ' ').trim();
+
+/* ── reads ──────────────────────────────────────────────────────────────── */
+/* Offset pagination without a total order is not stable: each page is a separate
+ * query and the database may order them differently, so a row can be skipped or
+ * repeated between pages. The outbox read alone exceeds one page. A SKIPPED row
+ * is the dangerous direction here — if it is a later reopen, the supersession
+ * test never sees it and a stale approval gets restored. Every paged read is
+ * therefore ordered by a unique column. */
+async function restRows(table, query, orderBy) {
+  /* The order column is checked FIRST: a missing one is a defect in this file,
+   * true in every environment, while a missing credential is environmental. */
+  if (!orderBy) throw new Error(`restRows(${table}) needs a unique order column`);
+  if (!SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required (or use --fixtures)');
+  const out = [];
+  let offset = 0;
+  const page = 1000;
+  for (;;) {
+    const url = `${REST}/${table}?${query}&order=${orderBy}.asc&limit=${page}&offset=${offset}`;
+    const res = await fetch(url, {
+      headers: { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`${table}: HTTP ${res.status}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) throw new Error(`${table}: unexpected payload`);
+    out.push(...rows);
+    if (rows.length < page) break;
+    offset += page;
+  }
+  return out;
+}
+
+async function loadWorld() {
+  if (FIXTURES) {
+    const raw = JSON.parse(fs.readFileSync(FIXTURES, 'utf8'));
+    return {
+      outbox: raw.outbox || [], comments: raw.comments || [],
+      deliverables: raw.deliverables || [], cards: raw.cards || [],
+    };
+  }
+  const since = new Date(Date.now() - LOOKBACK_DAYS * 864e5).toISOString();
+  const [outbox, comments, deliverables] = await Promise.all([
+    /* NOTE THE MISSING STATUS FILTER, AND `source_edited_at`.
+     * A row exists in `mirror_outbox` because the NATIVE write committed; its
+     * `status` describes what the Linear carrier did afterwards (`written`,
+     * `skipped`, `stale`, and `pending` while in flight). Filtering on
+     * `written` therefore equates outbound delivery with source commit, which
+     * hides a reopen whose delivery is pending or was skipped — and an
+     * invisible reopen is exactly what lets a stale approval be restored.
+     * So every row is read, and the two uses are deliberately ASYMMETRIC
+     * below: broad evidence for "leave it alone", narrow evidence for "repair".
+     * `source_edited_at` is the client's own write clock and must be selected
+     * or the code that prefers it silently falls back to `created_at`. */
+    restRows('mirror_outbox',
+      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      + 'role,client_slug,test_only'
+      + `&operation=eq.status&entity=eq.deliverable&created_at=gte.${since}`, 'id'),
+    restRows('production_comments',
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&role=eq.client&is_tweak=is.true&created_at=gte.${since}`, 'id'),
+    restRows('deliverables', 'select=id,card_id,kind,team,origin,client_slug,status,status_at', 'id'),
+  ]);
+  const cardIds = new Set(deliverables.map(d => d && d.card_id).filter(Boolean));
+  const cards = [];
+  const ids = [...cardIds];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200).map(encodeURIComponent).join(',');
+    cards.push(...await restRows('calendar_posts',
+      'select=id,client,name,status,video_status,graphic_status,caption_status,'
+      + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
+      + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
+      + 'client_title_approved_at,kasper_approved_at,'
+      + 'video_deliverable_id,graphic_deliverable_id'
+      + `&id=in.(${chunk})`, 'id'));
+  }
+  return { outbox, comments, deliverables, cards };
+}
+
+/* ── detection ──────────────────────────────────────────────────────────── */
+
+/* Would the app's own rule keep a client sign-off on a component sitting at
+ * this status? Asking the rule itself, rather than restating which statuses
+ * count as "at or past client approval", is what guarantees this job and the
+ * browser can never disagree about staleness. */
+function stampSurvives(card, comp, stampValue) {
+  const clone = Object.assign({}, card, { [STAMP_FIELD(comp)]: stampValue });
+  const edits = { [STAMP_FIELD(comp)]: stampValue };
+  _calClearStaleApprovals(clone, edits);
+  return edits[STAMP_FIELD(comp)] === stampValue && clone[STAMP_FIELD(comp)] === stampValue;
+}
+
+/* Could this card entry be a client's own change-request root? Staff-authored
+ * entries, replies and deleted entries never represent one. Absent role is
+ * allowed (legacy rows predate the field); an explicit staff role is not. */
+/* THE CALENDAR'S OWN AUDIENCE RULE, taken as a function rather than restated.
+ *
+ * These cells are `calendar_posts.*_tweaks`, rendered by `_calCommentsForView`,
+ * which calls `_calMsgAudience` — and that rule is NOT the one the Production
+ * surface uses. Calendar defaults only `kasper` and `smm` to internal;
+ * everything else without an explicit audience is CLIENT-VISIBLE. I first wrote
+ * this from `index.html`'s Production normalization, which defaults every
+ * non-client role to internal, and it would have reported delivered requests as
+ * absent for exactly the roles that surface treats differently.
+ *
+ * Extracting the function is the fix for that class of error, not a more
+ * careful copy: the same technique the job already uses for `_calNormStatus`
+ * and `_calClearStaleApprovals`, and the reason those three cannot drift. */
+/* An entry the app never renders cannot be a delivery of anything. `hidden` is
+ * the app's audit-suppression flag — `_calCommentsForView` filters it out for
+ * EVERY audience, and index.html names the case it exists for: "legacy
+ * cross-client feedback that bled onto the wrong client's row". So a hidden
+ * twin claiming a client's request would declare it delivered while it is
+ * invisible to the client, and would do so most readily on exactly the
+ * cross-client mess the flag was created to bury. Live: 4 cells carry one. */
+/* ONLY `hidden`. A DELETED entry claimed by id is deliberately still a claim:
+ * the client withdrew their own request, and re-delivering it would reopen a
+ * component over something they took back — that is the round-6 rule, and a
+ * first draft of this fix broke it. Hidden is different: the client never took
+ * anything back, they simply cannot see it. */
+/* TRUTHY, like the renderer. `_calCommentsForView` filters on `!c.hidden`, and
+ * these cells hold schema-less JSON — a legacy or imported entry carrying
+ * `hidden: 1` or `hidden: "true"` is invisible in the app, so testing `=== true`
+ * would let exactly the entry this rule exists to refuse claim a request. */
+/* `_calCommentsForView` applies THREE rules, not one: it drops tombstoned and
+ * `hidden` entries, it drops every `role: 'kasper'` message outright ("never
+ * expose Kasper authorship" — a hard exclusion that overrides an explicit
+ * `audience: 'client'`), and it keeps only threads whose ROOT is client-
+ * addressed, replies inheriting their root. Mirroring `_calMsgAudience` alone
+ * mirrored one of the three.
+ *
+ * `list` is the whole cell, so a reply's root can be resolved the way the
+ * renderer resolves it. Without it a reply carrying a matching id would be
+ * judged on its own audience while the app judges it on its root's. */
+/* ONE DEFINITION, CALLED TWICE. Rounds 32 to 37 were all the same failure:
+ * two predicates in this file each restating `_calCommentsForView`, drifting
+ * from it and from each other a rule at a time. By round 37 the two disagreed
+ * about their own Kasper check — one exact like the renderer, one normalized —
+ * and the finding had no live victim at all. A sixth mirror would have bought
+ * another round of the same. So the renderer's rules live here once, and both
+ * callers call them.
+ *
+ * `_calCommentsForView` is, in order: drop tombstoned (`deleted` unless
+ * `canonical`) and `hidden`; then, for a client link, drop every `role:
+ * 'kasper'` message outright ("never expose Kasper authorship" — a hard
+ * exclusion that overrides an explicit `audience: 'client'`); then keep only
+ * threads whose ROOT is client-addressed, replies inheriting their root.
+ *
+ * COMPARISONS MATCH THE RENDERER EXACTLY, including where that is stricter
+ * than it looks: `c.role === 'kasper'` is an exact compare, and `_calMsgAudience`
+ * compares the stored role exactly too, so a `role: "Kasper"` entry IS client-
+ * visible in the app. Normalizing here refused an entry the client can read and
+ * would have reported a delivered request as absent. Live today all 8,902 card
+ * entries carry an exact lowercase role, so nothing moves either way — the
+ * point is that a copy cannot be stricter than the original by accident.
+ *
+ * `deleted` and `hidden` are read for TRUTH, not for `=== true`, because that
+ * is how the renderer reads them and these cells hold schema-less JSON. */
+const rendererDrops = (c) => !c || (c.deleted && !c.canonical) || !!c.hidden;
+
+/* THE ROOT MAP IS BUILT FROM THE FILTERED LIST, as the renderer builds it.
+ * `_calCommentsForView` drops tombstoned and hidden entries FIRST and only then
+ * indexes by id — so a hidden root is absent from the map and its surviving
+ * reply falls back to being judged by its own audience. Indexing the raw list
+ * instead resurrects that root: a hidden client-addressed root with an internal
+ * reply would have been called visible, and the reply claimed. */
+const clientCanSee = (entry, list) => {
+  if (!entry || entry.hidden) return false;
+  if (entry.role === 'kasper') return false;
+  const byId = new Map();
+  for (const c of (Array.isArray(list) ? list : [])) {
+    if (!rendererDrops(c) && c.id) byId.set(c.id, c);
+  }
+  const root = (entry.parent_id && byId.has(entry.parent_id)) ? byId.get(entry.parent_id) : entry;
+  return _calMsgAudience(root) === 'client';
+};
+
+/* THE ID PASS. Deliberately does NOT apply `rendererDrops` to the entry itself:
+ * a DELETED entry claimed by id is still a claim, because the client withdrew
+ * their own request and re-delivering it would reopen a component over
+ * something they took back (the round-6 rule, which a first draft of the hidden
+ * fix broke). Hidden is different and IS refused: the client never took
+ * anything back, they simply cannot see it. The tombstone rule still governs
+ * the ROOT MAP, exactly as the renderer applies it. */
+const isVisibleOnCard = (entry, list) => clientCanSee(entry, list);
+
+/* THE BODY PASS. Text is not identity, so this one requires the entry to be
+ * something that could BE the client's request root: not tombstoned away, not a
+ * reply, and visible to the client. `[entry]` is its own list because a root
+ * resolves to itself. */
+function couldBeClientTweak(entry) {
+  if (!entry) return false;
+  if (rendererDrops(entry)) return false;
+  if (entry.parent_id) return false;
+  return clientCanSee(entry, [entry]);
+}
+
+/* calendar_posts is keyed by (client, id), NOT by id alone: 13 live card ids are
+ * used by more than one client, and 17 deliverables point at one of them. Keying
+ * anything here by id alone lets one client's card stand in for another's, which
+ * on an apply run would write a client's approval or their words onto a
+ * different client's card. Every lookup, consumption key and re-read is
+ * therefore composite. */
+const cardKey = (client, id) => String(client || '').trim().toLowerCase() + '|' + String(id || '');
+
+function detect(world) {
+  /* EVERY SKIP ROW CARRIES ITS CLIENT. `calendar_posts` is keyed by
+   * (client, id) and 13 live ids are shared across clients, so a bare card id
+   * does not say whose card to open — and the dispatch workflow passes no
+   * `--json`, so these lines are all an operator gets. Adding the field at each
+   * push site is what produced three rounds of "this row still has no client";
+   * a row that names a card without naming a client now throws in tests rather
+   * than shipping. */
+  const skipped = [];
+  const skip = (row) => {
+    if (row && row.card && row.card !== '(unidentified)' && !row.client) {
+      throw new Error(`skip row for card ${row.card} names no client`);
+    }
+    skipped.push(row);
+    return row;
+  };
+  const cardById = new Map(world.cards.map(c => [cardKey(c.client, c.id), c]));
+  const delById = new Map(world.deliverables.map(d => [String(d.id), d]));
+  const findings = [];
+
+  /* EVERY ROW THAT TAKES PART IN A REPAIR MUST AGREE ABOUT THE CLIENT, and the
+   * check belongs in ONE place rather than being rediscovered per table.
+   *
+   * `scripts/move-card-client.js` moves a card between clients by rewriting
+   * `calendar_posts.client` and `deliverables.client_slug`; historical rows in
+   * `mirror_outbox` and `production_comments` keep the client they were written
+   * for. Round 9 closed this for the outbox and round 10 found the identical
+   * hole one table over, which is the argument for making it structural: the
+   * caller MUST pass the client its own row carries, so a future source cannot
+   * be wired in without answering the question.
+   *
+   * An absent client is not a conflict (legacy rows), but a DIFFERENT one is. */
+  /* A plain function, not an arrow, so `arguments.length` can tell "the caller
+   * did not pass a client" (a programming error) from "this row's client column
+   * is empty" (legitimate, and treated as absent rather than conflicting). A
+   * default parameter cannot distinguish those: it fires on `undefined` too. */
+  function resolve(deliverableId, rowClient) {
+    if (arguments.length < 2) throw new Error("resolve() needs the row's own client");
+    const del = delById.get(String(deliverableId || ''));
+    /* THE CLIENT SCOPE COMES FIRST, before any refusal is produced. A run
+     * advertised as limited to one client must not report another client's rows
+     * or count them — the operator would be sent to investigate work they did
+     * not ask about. Scoped on the row's own client (or the deliverable's) since
+     * the refusals below are precisely the cases where no card is identified. */
+    if (ONLY_CLIENT) {
+      /* THE ROW'S OWN CLIENT WINS. After `move-card-client.js` runs, historical
+       * outbox and comment rows still carry the PREVIOUS client while the
+       * deliverable carries the new one — preferring the deliverable would put
+       * A's historical rows in a `--client=B` run and hide them from
+       * `--client=A`, the exact opposite of row-owned scope. The deliverable is
+       * the legacy fallback, for rows whose own client column is empty. */
+      const scope = String(rowClient || (del && del.client_slug) || '').trim().toLowerCase();
+      if (scope && scope !== ONLY_CLIENT) return null;
+    }
+    /* STRUCTURAL FAILURES ARE REPORTABLE; INTENTIONAL SUPPRESSION IS NOT.
+     * `null` used to mean both, so a client approval whose deliverable is
+     * missing, carries no card_id or no client, or names a card that is not
+     * there, vanished from the report exactly like an archived card that is
+     * meant to be ignored. Those are opposite things: one is a lost approval
+     * nobody will hear about, the other is a decision. From here `null` means
+     * ONLY "deliberately out of scope" — archived, or another client on a
+     * scoped run — and everything else names itself. */
+    if (!del) return 'deliverable_unknown';
+    /* ANOTHER SURFACE IS OUT OF SCOPE, NOT A BROKEN CROSSWALK — and this test
+     * has to come BEFORE the card lookup, or a Samples deliverable fails to
+     * find a `calendar_posts` row and is escalated as a lost Calendar approval.
+     * Its card is not missing; it lives on the Samples surface, which this job
+     * does not read. Live: 2 of the 227 committed client approvals are Samples,
+     * and both would have been reported as lost. False alerts bury the real
+     * ones, which is the entire argument for the report being short. */
+    if (SURFACE_ORIGIN_FOR_CARDS !== String(del.origin || '').trim().toLowerCase()) return null;
+    if (!String(del.card_id || '').trim()) return 'deliverable_names_no_card';
+    /* No client on the deliverable means the card cannot be identified, and
+     * guessing is what this whole guard exists to prevent. */
+    if (!String(del.client_slug || '').trim()) return 'deliverable_names_no_client';
+    const card = cardById.get(cardKey(del.client_slug, del.card_id));
+    if (!card) return 'card_not_found';
+    /* ARCHIVED IS DECIDED BEFORE ANY REFUSAL, for the same reason the surface
+     * test moved ahead of the card lookup in round 22: an archived card is
+     * DELIBERATELY out of scope, so a stale reverse link on one must not be
+     * escalated as a broken crosswalk. The report promises to suppress archived
+     * cards; producing a refusal for one breaks that promise from behind.
+     * Archived is the card's OVERALL status, not a column — same test
+     * scripts/linear-sync-reconcile.js applies. */
+    if (String(card.status || '').toLowerCase() === 'archived') return null;
+    const owner = String(rowClient || '').trim().toLowerCase();
+    if (owner && owner !== String(card.client || '').trim().toLowerCase()) return 'client_mismatch';
+    /* CARRYING A CARD ID IS NOT THE SAME AS BEING LINKED TO THAT CARD.
+     *
+     * `deliverables.card_id` is a plain text column with NO foreign key
+     * (migrations/2026-07-06-b1-linear-data-model.sql), and it is written by
+     * one side only. The product's own canonical rule is the full crosswalk:
+     * `_prodCrosswalkMismatchFields` in index.html accepts a deliverable as
+     * describing a card only when origin, team, client_slug and card_id all
+     * agree, and refuses to treat a half-link as linked precisely because
+     * acting on one destroys real data. F42 recorded the live evidence: every
+     * deliverable with origin='manual' carries no card_id at all, so a
+     * card-side-only link produces exactly this state.
+     *
+     * Following the one-way pointer alone would let a Samples deliverable whose
+     * card_id happens to name an existing same-client calendar card, or a stale
+     * pointer left behind by a re-link, produce a WRITABLE stamp on a card that
+     * never had anything to do with this approval.
+     *
+     * So the link must close both ways: this deliverable's own component slot
+     * on the card must name this deliverable back. That subsumes the team half
+     * of the crosswalk (video work reverse-links through
+     * `video_deliverable_id`, graphic work through `graphic_deliverable_id`),
+     * and it is checked HERE, next to the client rule, for the same reason
+     * round 10 moved that one here: identity questions answered per call site
+     * get answered inconsistently.
+     *
+     * Live shape at the time of writing: of the calendar-origin deliverables
+     * carrying a card_id, every one reverse-links correctly, and every
+     * Samples-origin card_id resolves to no same-client calendar card at all.
+     * Zero rows are affected today. One re-link or one id collision creates
+     * one silently, and it would be a write. */
+    /* TEAM IS ITS OWN FIELD IN THE CANONICAL PREDICATE, and `kind` and `team`
+     * are independently constrained columns, so the reverse-link slot — which
+     * is derived from one of them — cannot stand in for the other. A row
+     * carrying kind='video' with team='graphics' would otherwise pass on a
+     * matching `video_deliverable_id` and write a client VIDEO stamp.
+     *
+     * Deriving the slot from TEAM rather than kind is what makes this the
+     * canonical check instead of a lookalike: `_prodCrosswalkTeamForComponent`
+     * is the app's own component→team map, and it is also what gives kind
+     * `other` (live, team='graphics') a defensible slot instead of the weaker
+     * "either slot will do" rule this replaces. Where `kind` DOES map to a
+     * component it must agree, since a disagreement means the row cannot say
+     * which review it belongs to at all. */
+    /* THESE TWO CARRY THE CARD FOR THE SAME REASON `card_does_not_link_back`
+     * does, and they sit three lines above it: resolve() has ALREADY located
+     * the exact (client, id) row. What failed is the deliverable's team
+     * mapping, not the lookup. Returned as bare strings they were counted and
+     * printed as an action "whose card is missing", sending an operator after a
+     * card that is sitting right there — the round-25 defect, in the same
+     * function, one round after the neighbouring case was fixed. */
+    const teamComp = COMPONENT_FOR_TEAM[String(del.team || '').trim().toLowerCase()];
+    if (!teamComp) return { refused: 'unknown_team', card };
+    const kindComp = COMPONENT_FOR_KIND[String(del.kind || '').toLowerCase()];
+    if (kindComp && kindComp !== teamComp) return { refused: 'kind_and_team_disagree', card };
+    const id = String(del.id || '').trim();
+    if (!id || String(card[REVERSE_LINK_FIELD[teamComp]] || '').trim() !== id) {
+      /* THE CARD IS KNOWN HERE. resolve() has already located the exact
+       * (client, id) row; what failed is the link back, not the lookup. A bare
+       * string throws that identity away and the row prints "its card cannot be
+       * found", sending an operator after a missing card that is sitting right
+       * there. The refusal carries the card it found. */
+      return { refused: 'card_does_not_link_back', card };
+    }
+    /* Re-checked against the CARD's own client: the early scope test used the
+     * deliverable's, and a card mid-move can disagree with it. */
+    if (ONLY_CLIENT && String(card.client || '').toLowerCase() !== ONLY_CLIENT) return null;
+    /* The component travels WITH the resolution, from the same validated team
+     * that chose the reverse-link slot. Deriving it again at the call site from
+     * `kind` is what silently dropped a `kind='other'` approval: resolve()
+     * accepted it through the graphic slot and the caller then produced neither
+     * a repair nor a skip. Same argument as the client rule — one place. */
+    return { del, card, component: teamComp };
+  }
+
+  /* A. A committed client APPROVE whose card carries no sign-off stamp.
+   * Keyed to the latest committed approve per (card, component): a later
+   * approval is the operative sign-off, and an earlier one would understate
+   * when the client actually signed. */
+  /* Every committed status transition, by deliverable, so a later REOPEN can be
+   * seen. The read now carries all roles: a client's approval is just as
+   * superseded by a designer reopening the work as by another client action. */
+  const transitionsByDeliverable = new Map();
+  for (const row of world.outbox) {
+    if (!row || row.test_only === true) continue;
+    const key = String(row.entity_id || '');
+    if (!key) continue;
+    if (!transitionsByDeliverable.has(key)) transitionsByDeliverable.set(key, []);
+    transitionsByDeliverable.get(key).push({
+      at: String(row.source_edited_at || row.created_at || row.processed_at || ''),
+      status: String((row.payload && row.payload.status) || '').toLowerCase(),
+    });
+  }
+
+  /* A LATER CLIENT CHANGE REQUEST SUPERSEDES AN APPROVAL, and the outbox cannot
+   * always say so. A tweak commits its comment leg and its status leg
+   * separately; when the status leg fails, no transition exists for the reopen
+   * test to find, and the card can still read Approved. Restoring the older
+   * stamp there claims the client signed off on work they had since asked to
+   * change — while this same run separately reports their request as
+   * `review_round_closed`. The two halves of one contradiction.
+   *
+   * `world.comments` is already filtered to committed, non-deleted client
+   * tweaks, so their clock is available without another read.
+   * Live: none of the four repair candidates has a later client request, so
+   * this changes no repair today. It is the falsest positive this job could
+   * produce, which is why it is checked anyway. */
+  /* KEYED BY COMPONENT, not by deliverable. One deliverable carries the video
+   * work AND the caption and title reviews, so a caption request would
+   * otherwise supersede a video sign-off that has nothing to do with it — and
+   * after round 26, a request whose named component CONTRADICTS the validated
+   * link would suppress a stamp while being refused as unusable in the same
+   * run. A request supersedes the review it belongs to, and no other. */
+  const requestComponent = (pc) => {
+    const named = String((pc && pc.component) || '').trim().toLowerCase();
+    const del = delById.get(String((pc && pc.deliverable_id) || ''));
+    const linked = COMPONENT_FOR_TEAM[String((del && del.team) || '').trim().toLowerCase()];
+    /* NOTE ON A RULE DELIBERATELY NOT ADDED HERE. A request whose named
+     * component contradicts the validated link (round 26) needs no exclusion:
+     * keying by component already puts it on a key no approval from this
+     * deliverable can occupy, since the deliverable resolves to the OTHER
+     * component. Adding the exclusion anyway produced a control that would not
+     * fire, which this PR treats as a broken test rather than a redundant one —
+     * so the rule came back out. */
+    if (named) {
+      /* A NAME THIS JOB CANNOT MAP SUPERSEDES NOTHING. The request path reports
+       * such a row as `unmapped_component` and refuses to say which review it
+       * belongs to; falling back to the deliverable's link here would have the
+       * clock decide the very question the report declines to answer, and
+       * suppress a valid missing approval on the strength of it. Reserved for an
+       * EMPTY name, which is the only case with nothing to contradict. */
+      const comp = COMPONENT_FOR_KIND[named];
+      if (!comp) return '';
+      /* A request that names a review its deliverable cannot carry supersedes
+       * nothing either: the run refuses it as unplaceable in the same pass, and
+       * a caption label on graphics work must not stop the graphic sign-off. */
+      return componentFitsLink(comp, linked) ? comp : '';
+    }
+    return linked || '';
+  };
+  /* KEYED BY CLIENT TOO, for the reason every identity rule in this job exists:
+   * a deliverable and its card can MOVE between clients, and historical
+   * `production_comments` keep the `client_slug` they were written with. Keyed
+   * only by deliverable and component, a newer request belonging to ANOTHER
+   * client suppressed this client's missing stamp — while the request path,
+   * in the same run, refused that same row as belonging to another client.
+   * One row, two answers, which is the shape this PR has hit most often.
+   *
+   * A request naming NO client still supersedes, deliberately. Supersession is
+   * the broad side: refusing to write leaves the card alone, while narrowing it
+   * risks stamping an approval the client had already superseded. So only a
+   * request whose client is KNOWN AND DIFFERENT is excluded — exactly the rows
+   * the request path refuses.
+   *
+   * Live, measured rather than assumed: of 349 committed client requests, ONE
+   * carries a client that differs from its deliverable's, and none carries no
+   * client at all. That one names a deliverable with no card and no client
+   * approval, so it can suppress nothing today and no repair moves. Recorded
+   * as one rather than zero on purpose: an earlier note in this PR said zero
+   * cross-client rows, and the row that exists is the whole reason this key
+   * needs the client in it. */
+  const latestClientRequest = new Map();
+  const requestKey = (id, comp, client) => id + '|' + comp + '|' + String(client || '').trim().toLowerCase();
+  for (const pc of world.comments) {
+    if (!pc || pc.deleted_at) continue;
+    const id = String(pc.deliverable_id || '');
+    const comp = requestComponent(pc);
+    if (!id || !comp) continue;
+    const at = String(pc.created_at || '');
+    const key = requestKey(id, comp, pc.client_slug);
+    const prev = latestClientRequest.get(key);
+    if (!prev || Date.parse(at) > Date.parse(prev)) latestClientRequest.set(key, at);
+  }
+  /* A plain function, not an arrow: `arguments` in an arrow belongs to the
+   * enclosing scope, so the guard would read detect()'s own arguments and fire
+   * on every call. Same trap `resolve()` documents. */
+  function supersededByRequest(deliverableId, component, approvedAt, rowClient) {
+    if (arguments.length < 3) throw new Error('supersededByRequest needs a component');
+    /* THE CLIENT IS REQUIRED, enforced by arity for the same reason `resolve()`
+     * enforces its own: a default would silently accept `undefined` and answer
+     * on every client's requests at once, which is the bug this argument
+     * exists to close. */
+    if (arguments.length < 4) throw new Error('supersededByRequest needs the row\'s client');
+    const id = String(deliverableId), comp = String(component || '');
+    /* This client's own requests, plus those that name no client at all. */
+    const candidates = [
+      latestClientRequest.get(requestKey(id, comp, rowClient)),
+      latestClientRequest.get(requestKey(id, comp, '')),
+    ];
+    const apprMs = Date.parse(approvedAt || '');
+    return candidates.some(req => {
+      const reqMs = Date.parse(req || '');
+      return isFinite(reqMs) && isFinite(apprMs) && reqMs > apprMs;
+    });
+  }
+
+  /* The REPAIR side stays narrow: only a row the carrier actually wrote is
+   * taken as a client approval to act on. The supersession side above is
+   * deliberately broader. Erring narrow here and broad there both err toward
+   * leaving the card alone. */
+  const latestApprove = new Map();
+  const unwrittenApprove = new Map();
+  const repairedKeys = new Set();
+  /* One caption-leg report per CARD: see the guard at its push site. */
+  const captionLegReported = new Set();
+  for (const row of world.outbox) {
+    if (row && row.test_only === true) continue;
+    if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
+    const to = String((row && row.payload && row.payload.status) || '').toLowerCase();
+    if (to !== 'approved') continue;
+    /* THE NARROW WRITE POLICY IS NOT A LICENCE TO SAY NOTHING. Only a row the
+     * carrier actually wrote is acted on, but a client approval whose carrier
+     * status is `pending`, `skipped`, `stale` or a failure is the very case an
+     * operator is looking for when both legs went wrong: the outbound never
+     * landed AND the browser never wrote the card. Exiting here silently
+     * produced neither a stamp nor a line, which reads as "nothing to
+     * investigate".
+     *
+     * Reported ONLY when the stamp is actually absent. Live: of the 5 such rows
+     * in the window, 4 are already stamped and would be noise; 1 is a genuinely
+     * lost client approval that this job named nowhere before now. */
+    const carrier = String((row && row.status) || '').toLowerCase();
+    if (carrier !== 'written') {
+      /* COLLECTED, NOT REPORTED HERE. Reporting at this point skips the
+       * supersession checks the written path runs below, which would raise an
+       * actionable-looking "lost approval" for a sign-off that is missing ON
+       * PURPOSE — reopened after the client approved, or sitting on a component
+       * that has since moved below Approved. A false lead in a report a person
+       * reads is the same class of harm as a false repair. */
+      const unwritten = resolve(row && row.entity_id, row && row.client_slug);
+      /* THE SAME REFUSAL THE WRITTEN PATH REPORTS. Accepting only resolved
+       * objects here made the unwritten branch silently drop exactly the rows
+       * that matter most: both delivery legs failed AND the crosswalk is stale,
+       * so nothing else in the system names this approval either. */
+      if (unwritten && unwritten.refused) {
+        /* A DIFFERENT REASON FROM THE BRANCH BELOW, because a different thing
+         * is known. Every refusal that arrives here carries the card resolve()
+         * located, so calling this row `..._and_card_unknown` while printing
+         * that card contradicts itself. What is unknown is the card LEG, which
+         * is what keeps both rows in the same bucket. */
+        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_crosswalk_refused',
+          refusal: unwritten.refused, carrier_status: carrier || '(none)',
+          card: unwritten.card.id, client: unwritten.card.client,
+          deliverable: String((row && row.entity_id) || ''), component: '' });
+        continue;
+      }
+      if (typeof unwritten === 'string') {
+        /* DO NOT CLAIM THE CARD LEG FAILED WHEN THE CARD IS UNKNOWN. The four
+         * qualifying tests the resolvable rows go through — stamp already
+         * present, a later reopen, a later client request, current status — all
+         * need a card, and this row has none. Running them is impossible;
+         * asserting their conclusion anyway would tell the operator "this
+         * approval reached neither leg" about a card that may well carry the
+         * stamp already.
+         *
+         * The alternative considered and rejected: follow the half-link anyway
+         * to check the stamp. That is the exact trust the crosswalk gate exists
+         * to refuse, and using it to SUPPRESS a report would hide a real loss on
+         * a mis-linked card. So the row is kept and its claim is narrowed to
+         * what is actually known: the carrier did not write, and the card
+         * cannot be identified. */
+        skip({ kind: 'stamp', reason: 'carrier_did_not_write_and_card_unknown',
+          refusal: unwritten === 'client_mismatch' ? 'approval_belongs_to_another_client' : unwritten,
+          carrier_status: carrier || '(none)', card: '(unidentified)',
+          /* The EVENT's client, not the deliverable's. After a card move the
+           * two differ, and the row belongs to whoever approved — without it
+           * the line names a deliverable and an unidentified card and never
+           * says whose approval failed. */
+          client: String((row && row.client_slug) || ''),
+          deliverable: String((row && row.entity_id) || ''), component: '' });
+        continue;
+      }
+      if (unwritten && unwritten.component) {
+        const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
+        if (at) {
+          const key = cardKey(unwritten.card.client, unwritten.card.id) + '|' + unwritten.component;
+          const prev = unwrittenApprove.get(key);
+          if (!prev || Date.parse(at) > Date.parse(prev.at)) {
+            unwrittenApprove.set(key, { at, card: unwritten.card, comp: unwritten.component,
+              deliverableId: String(unwritten.del.id), carrier: carrier || '(none)' });
+          }
+        }
+      }
+      continue;
+    }
+    const hit = resolve(row && row.entity_id, row && row.client_slug);
+    if (hit && hit.refused) {
+      skip({ kind: 'stamp', reason: hit.refused, crosswalk_broken: true,
+        deliverable: String((row && row.entity_id) || ''),
+        card: hit.card.id, client: hit.card.client, component: '' });
+      continue;
+    }
+    if (typeof hit === 'string') {
+      /* A COMMITTED CLIENT APPROVAL WHOSE CARD CANNOT BE FOUND IS WORK, not a
+       * card that moved on. Without the deliverable and the client this printed
+       * as `card (unlinked) [] left alone: card_not_found` — indistinguishable
+       * rows an operator cannot act on, which is the whole thing round 20 set
+       * out to surface. It does NOT claim the carrier failed: the carrier
+       * wrote. Only the crosswalk is broken. */
+      skip({ kind: 'stamp',
+        reason: hit === 'client_mismatch' ? 'approval_belongs_to_another_client' : hit,
+        crosswalk_broken: hit !== 'client_mismatch',
+        deliverable: String((row && row.entity_id) || ''),
+        client: String((row && row.client_slug) || ''),
+        card: '(unidentified)', component: '' });
+      continue;
+    }
+    if (!hit) continue;
+    const comp = hit.component;
+    /* resolve() refuses an unknown team, so this cannot fire today; it is here
+     * because the failure it replaces was a SILENT `continue`, and a committed
+     * client approval disappearing without a line in the report is the one
+     * outcome this job must never have. */
+    if (!comp) {
+      skip({ kind: 'stamp', reason: 'no_component_for_deliverable',
+        card: hit.card.id, client: hit.card.client, component: '' });
+      continue;
+    }
+    /* `source_edited_at` is when the CLIENT's write committed; `processed_at`
+     * is when linear-outbound finished carrying it onward, which on a retried
+     * or delayed delivery is minutes or hours later. The documented contract is
+     * the commit time, so the originating clock wins and processed_at is only a
+     * last resort. */
+    const at = String(row.source_edited_at || row.created_at || row.processed_at || '');
+    if (!at) continue;
+    const key = cardKey(hit.card.client, hit.card.id) + '|' + comp;
+    const prev = latestApprove.get(key);
+    if (!prev || Date.parse(at) > Date.parse(prev.at)) {
+      latestApprove.set(key, { at, card: hit.card, comp, deliverableId: String(hit.del.id) });
+    }
+  }
+  for (const [key, entry] of latestApprove) {
+    const { card, comp, deliverableId } = entry;
+    /* THE LATEST COMMITTED APPROVAL IS THE OPERATIVE ONE, and a row exists in
+     * `mirror_outbox` because the CLIENT'S WRITE COMMITTED — its status only
+     * describes what the carrier did afterwards. So a later approve whose
+     * carrier skipped is still the client's most recent act, and stamping the
+     * earlier time would date the sign-off to a superseded event.
+     *
+     * A WRITTEN approve is still required to repair at all (the narrow side of
+     * the asymmetry); only the CLOCK comes from the broader set. Live, all three
+     * such pairs are a client re-clicking two seconds later after the
+     * `operation_forbidden` error, which is OPEN_REPAIRS 189's own incident:
+     * treating the newer row as a supersession would discard the repair for the
+     * card this job was written for. It is the same event, not a new decision.
+     *
+     * Every supersession test below then runs against THIS time, so a reopen
+     * between the two is still caught. */
+    /* THE ASYMMETRY IS PRESERVED: every supersession test below runs against
+     * the WRITTEN approve's time (`entry.at`, the narrow evidence), and only the
+     * value written to the card comes from the broader set. An unwritten approve
+     * can therefore correct the CLOCK but can never rescue a stamp a reopen or a
+     * client request has already refused — which is what "broad evidence for
+     * leaving it alone, narrow evidence for repairing" has meant since round 1. */
+    const later = unwrittenApprove.get(key);
+    const at = later && Date.parse(later.at) > Date.parse(entry.at) ? later.at : entry.at;
+    if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
+    /* SUPERSEDED BY A LATER ROUND. The card's CURRENT status is not enough:
+     * a client approves, the work is reopened (clearing the stamp), staff later
+     * advance it back to Approved, and the card reads Approved again while the
+     * client never saw the new revision. Stamping there would claim a sign-off
+     * that did not happen. So look for a reopen AFTER the approval, not just at
+     * where the component sits now.
+     *
+     * Only a move back BELOW Approved counts. A later `posted` or `scheduled`
+     * is the work progressing, and treating that as supersession would discard
+     * every genuine repair — measured against live rows, all of which had
+     * exactly such a forward transition. */
+    const approvedMs = Date.parse(entry.at);
+    const reopened = (transitionsByDeliverable.get(deliverableId) || []).some(t => {
+      const ms = Date.parse(t.at);
+      return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
+    });
+    if (reopened) {
+      skip({ kind: 'stamp', reason: 'superseded_by_later_reopen',
+        card: card.id, client: card.client, component: comp,
+        card_status: card[STATUS_FIELD(comp)] || '' });
+      continue;
+    }
+    if (supersededByRequest(deliverableId, comp, entry.at, card.client)) {
+      skip({ kind: 'stamp', reason: 'superseded_by_later_client_request',
+        card: card.id, client: card.client, component: comp, card_status: card[STATUS_FIELD(comp)] || '' });
+      continue;
+    }
+    if (!stampSurvives(card, comp, at)) {
+      skip({ kind: 'stamp', reason: 'superseded_status',
+        card: card.id, client: card.client, component: comp,
+        card_status: card[STATUS_FIELD(comp)] || '' });
+      continue;
+    }
+    repairedKeys.add(key);
+    findings.push({ kind: 'stamp', writable: true, card, component: comp, stamp_at: at,
+      deliverable_id: deliverableId,
+      detail: `sign-off stamp missing for a committed client approve (${at})` });
+    /* THE CAPTION LEG OF A WHOLE-POST APPROVE, REPORTED AND NEVER WRITTEN.
+     *
+     * `_calClientApprove` (index.html) is the client link's only approve
+     * action, and it stamps video, graphic AND caption in one save. Caption is
+     * the one of the three with no work item and no deliverable of its own, so
+     * it has no outbox row and this loop can never reach it — a repair driven
+     * off the deliverable therefore completes two thirds of the client's
+     * action and leaves the third looking unapproved forever.
+     *
+     * IT IS REPORTED, NOT WRITTEN, and the reason is this job's founding rule:
+     * evidence repairs and never invents. The outbox row proves the client
+     * approved THIS deliverable; it does not prove which surface they used, and
+     * a component-level approve from the production review stamps only its own
+     * component. A caption status reading Approved could equally have been set
+     * by staff. Writing the caption stamp would infer the client's action from
+     * the card's state, which is the one thing this job refuses to do — and
+     * `WRITABLE_KINDS` refuses the kind anyway, so a later edit cannot make it
+     * writable by accident.
+     *
+     * Live: of 230 committed calendar-origin client approvals, 171 carry a
+     * caption stamp and 9 sit approved without one; of the rows this job
+     * repairs, ONE is in that state. So this reports a real row today. */
+    /* ONCE PER CARD, NOT ONCE PER REPAIRED DELIVERABLE. `client_caption_approved_at`
+     * is ONE field on ONE card, so a card whose video AND graphic stamps are both
+     * repaired would otherwise report the same missing caption leg twice and
+     * print two operator tasks for one decision. Keyed composite, like every
+     * other card key here: 13 live ids are shared across clients. Live today no
+     * card has both stamps missing, so nothing doubles yet — but the count comes
+     * from the field, and a field cannot be missing twice. */
+    if (comp !== 'caption'
+        && _calNormStatus(card.caption_status || '') === 'Approved'
+        && !String(card.client_caption_approved_at || '').trim()
+        && !captionLegReported.has(cardKey(card.client, card.id))) {
+      captionLegReported.add(cardKey(card.client, card.id));
+      findings.push({ kind: 'caption_leg', writable: false, card, component: 'caption',
+        stamp_at: at, deliverable_id: deliverableId,
+        detail: 'caption reads Approved with no client sign-off, on a card whose '
+          + `${comp} sign-off this run repairs — a whole-post approve stamps all `
+          + 'three, and caption has no deliverable to carry its own evidence' });
+    }
+  }
+
+  /* THE SAME SUPERSESSION TESTS THE WRITTEN PATH RUNS, over the approvals whose
+   * carrier never wrote. A row surviving both is a client approval that reached
+   * neither the card nor the outbound: the case an operator is hunting, and the
+   * only one worth a line. A row failing either is a stamp that is absent by
+   * design, and reporting it would send someone after nothing. */
+  for (const [key, cand] of unwrittenApprove) {
+    /* A REPAIR ALREADY COVERS THIS REVIEW. The repair now carries the latest
+     * committed approval's own time, including this row's, so reporting it as a
+     * loss would name the same event the run is about to fix.
+     *
+     * Keyed on a repair actually being MADE, not on a written approve existing:
+     * an older written approve, then a reopen, then a newer approve whose
+     * carrier failed leaves no repair (the reopen rejects it), and that current
+     * loss must still be reported. */
+    if (repairedKeys.has(key)) continue;
+    const written = latestApprove.get(key);
+    if (written && Date.parse(written.at) >= Date.parse(cand.at)) continue;
+    const { at, card, comp, deliverableId, carrier } = cand;
+    if (String(card[STAMP_FIELD(comp)] || '').trim()) continue;   // already stamped
+    const approvedMs = Date.parse(at);
+    const reopened = (transitionsByDeliverable.get(deliverableId) || []).some(t => {
+      const ms = Date.parse(t.at);
+      return isFinite(ms) && isFinite(approvedMs) && ms > approvedMs && reopensBelowApproved(t.status);
+    });
+    if (reopened || !stampSurvives(card, comp, at)) continue;
+    if (supersededByRequest(deliverableId, comp, at, card.client)) continue;
+    skip({ kind: 'stamp', reason: 'carrier_did_not_write', carrier_status: carrier,
+      card: card.id, client: card.client, component: comp,
+      card_status: card[STATUS_FIELD(comp)] || '' });
+  }
+
+  /* B2. PARTIAL REPAIR — the postcondition on this job's own work.
+   * `calendar-upsert` merges comments and updates scalars as two separate
+   * operations, so a failure between them leaves the request on the card with
+   * the status leg never applied. Presence alone would then suppress the
+   * finding forever, and the round would sit at Client Approval with an
+   * unanswered request on it.
+   *
+   * This runs over EVERY claim, id-made or body-made, because the id pass is
+   * exactly the one that recognises this job's own earlier delivery. Scoped to
+   * entries carrying `recovered_by`, so it can only fire on this job's own
+   * unfinished work and never on an ordinary card sitting at Client Approval.
+   * Placed after both claim passes for the same reason. */
+  const partialRepairPass = () => {
+    for (const row of resolved) {
+      if (!claimOf.has(row)) continue;
+      const { pc, hit, comp, list } = row;
+      if (pc.resolved_at) continue;           // no status leg was ever owed
+      const entry = list[claimOf.get(row)];
+      if (!entry || entry.recovered_by !== 'client-signoff-reconcile') continue;
+      /* THE CARD ENTRY'S OWN LIFECYCLE OVERRULES A STALE SNAPSHOT. `loadWorld`
+       * may have read the source comment before someone resolved it, leaving
+       * `pc.resolved_at` empty while the card already shows the entry done. In
+       * that window this pass would move a resolved component back to Tweaks
+       * Needed and the sweep would strip its sign-off. The card was read later,
+       * so where the two disagree the card wins. */
+      if (entry.done === true || entry.deleted === true) continue;
+      if (_calNormStatus(hit.card[STATUS_FIELD(comp)] || '') !== 'Client Approval') continue;
+      findings.push({ kind: 'status_only', writable: false, card: hit.card, component: comp,
+        comment: pc,
+        detail: `a request this job delivered never got its status leg (${pc.id})` });
+    }
+  };
+
+  /* B. A committed client CHANGE REQUEST that never reached the card.
+   *
+   * IDENTITY, and why it is not a simple `some()`.
+   *   · The card usually stores the request under `native_comment_id`, not the
+   *     production_comments row id. Measured live: the row id matches 4 card
+   *     entries, the native id matches 57. Comparing only the row id therefore
+   *     misses almost every delivered request and leaves the body doing all the
+   *     work.
+   *   · Body alone cannot tell repeats apart. A client who asks for the same
+   *     thing again in a later round ("fix the intro", again) would be matched
+   *     against the FIRST round's entry and their new request would stay
+   *     invisible — the exact failure this job exists to prevent.
+   * So each card entry is CONSUMED by at most one server request: ids claim
+   * their entry first, then bodies claim what is left. Two identical requests
+   * on the server need two identical entries on the card, or one is missing.
+   * Counting rather than existence-checking is what makes repeats work without
+   * depending on the two systems agreeing about round numbers (they do not
+   * always: 2 of 317 live body matches sit on a different round). */
+  const consumedByCard = new Map();   // card|comp -> Set of consumed indices
+  const commentsInOrder = world.comments
+    .filter(pc => pc && !pc.deleted_at)
+    .slice()
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+  /* Resolve each request to its card cell ONCE, so the id pass below can run
+   * across every request before any body fallback does. */
+  const resolved = [];
+  for (const pc of commentsInOrder) {
+    const hit = resolve(pc.deliverable_id, pc.client_slug);
+    if (hit && hit.refused) {
+      skip({ kind: 'comment', reason: hit.refused, crosswalk_broken: true,
+        deliverable: String(pc.deliverable_id || ''),
+        card: hit.card.id, client: hit.card.client, component: '', comment: pc.id });
+      continue;
+    }
+    if (typeof hit === 'string') {
+      /* THE SAME RULE AS THE STAMP PATH. A committed client REQUEST whose card
+       * cannot be found is the delivery half's whole result — reporting lost
+       * requests is all this job does for them — so filing it under "a card
+       * that moved on" buries the one thing an operator can act on. It carries
+       * its own identity for the same reason, and claims nothing about a card
+       * leg it could not look at. */
+      skip({ kind: 'comment',
+        reason: hit === 'client_mismatch' ? 'request_belongs_to_another_client' : hit,
+        crosswalk_broken: hit !== 'client_mismatch',
+        deliverable: String(pc.deliverable_id || ''),
+        client: String(pc.client_slug || ''),
+        card: '(unidentified)', component: '', comment: pc.id });
+      continue;
+    }
+    if (!hit) continue;
+    /* A request NAMES its component. Falling back to the deliverable's kind
+     * when that name is unrecognised is how title feedback lands in
+     * `video_tweaks` and drags `video_status` to Tweaks Needed: the wrong
+     * review, mutated on the strength of a guess. The kind is a fallback only
+     * when the request names nothing at all; a named-but-unmappable component
+     * is reported and left alone. */
+    const named = String(pc.component || '').trim().toLowerCase();
+    const comp = named
+      ? COMPONENT_FOR_KIND[named]
+      : hit.component;
+    /* `production_comments.component` has no constraint tying it to the
+     * deliverable's team, so a malformed or imported row can name `video` on
+     * work whose validated card binding is graphic. Trusting the name there
+     * reports the request as absent from the WRONG review and sends the
+     * operator to a component the request could never have been delivered to.
+     * The validated link wins over the label, and the disagreement is reported
+     * rather than resolved by picking one. */
+    if (!componentFitsLink(comp, hit.component)) {
+      /* The card has NOT moved on: the report cannot say which review the
+       * client meant, which is a person's decision, not an intentional skip. */
+      skip({ kind: 'comment', reason: 'named_component_contradicts_link',
+        crosswalk_broken: true,
+        card: hit.card.id, client: hit.card.client, component: comp,
+        deliverable: String(pc.deliverable_id || ''),
+        linked_component: hit.component, comment: pc.id });
+      continue;
+    }
+    if (!comp) {
+      if (named) {
+        skip({ kind: 'comment', reason: 'unmapped_component',
+          card: hit.card.id, client: hit.card.client,
+          component: named, comment: pc.id });
+      }
+      continue;
+    }
+    const body = normText(pc.body);
+    if (!body) continue;
+    const list = parseComments(hit.card[TWEAKS_FIELD(comp)]);
+    if (list === null) {
+      /* THE REQUEST ID BELONGS ON THIS ROW TOO. One cell can be the target of
+       * several committed requests, and the renderer prints a request only when
+       * the row carries one — so without it every reported row for that cell is
+       * the same line and the operator cannot tell which `production_comments`
+       * records to open. The sibling `unmapped_component` skip has carried it
+       * all along, which is what made the omission easy to miss. */
+      skip({ kind: 'comment', reason: 'card_cell_unparseable',
+        card: hit.card.id, client: hit.card.client, component: comp, comment: pc.id });
+      continue;
+    }
+    resolved.push({ pc, hit, comp, body, list, cellKey: cardKey(hit.card.client, hit.card.id) + '|' + comp });
+  }
+
+  /* PASS 1 — EXACT IDENTITY FIRST, ACROSS EVERY REQUEST.
+   * Claiming ids globally before any body fallback matters when two requests
+   * share a body and the card holds only the later one under its native id: a
+   * single pass in date order lets the EARLIER request consume that entry by
+   * body, and the later one is then reported missing and delivered again while
+   * the older request's identity and round vanish. Ids are exact, so they get
+   * first refusal everywhere. */
+  const claimOf = new Map();
+  for (const row of resolved) {
+    if (!consumedByCard.has(row.cellKey)) consumedByCard.set(row.cellKey, new Set());
+    const consumed = consumedByCard.get(row.cellKey);
+    const ids = [String(row.pc.id || ''), String(row.pc.native_comment_id || '')].filter(Boolean);
+    /* The ID pass refuses a hidden entry as well. An exact id match is the
+     * strongest evidence this job has, and it is still not evidence that a
+     * client can SEE their request. */
+    const at = row.list.findIndex((c, i) =>
+      !consumed.has(i) && ids.includes(String(c.id || '')) && isVisibleOnCard(c, row.list));
+    if (at >= 0) { consumed.add(at); claimOf.set(row, at); }
+  }
+
+  for (const row of resolved) {
+    if (claimOf.has(row)) continue;
+    const { pc, hit, comp, body, list, cellKey } = row;
+    const consumed = consumedByCard.get(cellKey);
+    /* PASS 2 — body fallback, but only onto an entry that could actually BE
+     * this client request. An internal staff note, a reply, or a deleted entry
+     * carrying the same words is not a delivery of it, and consuming one would
+     * declare the client's request delivered while it is nowhere on the card.
+     * Measured live: all 327 card entries matching a client request are
+     * client-authored roots, and 18 of them carry is_tweak:false — so authorship
+     * and shape are required, and is_tweak deliberately is not. */
+    const claimed = list.findIndex((c, i) =>
+      !consumed.has(i) && normText(c.body) === body && couldBeClientTweak(c)
+      && !(pc.resolved_at == null && c.done === true));
+    if (claimed >= 0) { consumed.add(claimed); claimOf.set(row, claimed); continue; }
+
+    /* AN UNRESOLVED REQUEST WHOSE ONLY BODY MATCH IS A **DONE** ENTRY IS
+     * AMBIGUOUS, AND NEITHER ANSWER IS SAFE.
+     *   · Treat it as delivered, and if the done entry is an OLDER request with
+     *     the same words, this client's live feedback stays invisible.
+     *   · Deliver it, and if the done entry IS this request (resolved on the
+     *     card while the source row lagged), the client sees their own words
+     *     twice.
+     * Body text cannot tell those apart, and 8 live rows sit in exactly this
+     * state. So the job does neither: it reports, which is the one honest
+     * option, and a person decides. This is also the clearest evidence that
+     * request DELIVERY is a guessing game in a way stamp repair is not. */
+    /* The twin must be an entry that COULD be this client's request root — the
+     * same eligibility the body fallback applies. A staff note, a reply or a
+     * deleted entry that happens to share the wording cannot be a delivery of
+     * the client's request, so calling it an ambiguous repeat tells the operator
+     * duplication is possible when the request is simply absent. Two different
+     * answers from the same pair of facts, one line apart. */
+    const doneTwin = list.some((c, i) =>
+      !consumed.has(i) && normText(c.body) === body && c.done === true && couldBeClientTweak(c));
+    if (doneTwin && !pc.resolved_at) {
+      skip({ kind: 'comment', reason: 'ambiguous_repeat_of_completed_request',
+        card: hit.card.id, client: hit.card.client, component: comp, comment: pc.id });
+      continue;
+    }
+    const status = _calNormStatus(hit.card[STATUS_FIELD(comp)] || '');
+    if (status !== 'Client Approval' && status !== 'Tweaks Needed') {
+      /* A RESOLVED request on a closed round is reported under its own reason
+       * rather than written. Since round 6 a resolved patch is status-neutral,
+       * so restoring one here would reopen nothing — but measured against live
+       * rows, 100 resolved requests sit on closed rounds and NOT ONE of them is
+       * missing from its card. Writing them would repair nothing today while
+       * making a class of 100 closed cards writable, and this job's standing
+       * bias is to leave a card alone. Reported, so an operator can see it and
+       * the row is never silently forgotten; the gate is one line to relax if
+       * that count ever stops being zero. */
+      skip({
+        kind: 'comment',
+        reason: pc.resolved_at ? 'review_round_closed_resolved' : 'review_round_closed',
+        card: hit.card.id, client: hit.card.client, component: comp,
+        card_status: status, comment: pc.id,
+      });
+      continue;
+    }
+    findings.push({ kind: 'comment', writable: false, card: hit.card, component: comp,
+      comment: pc, existing: list,
+      detail: `committed client change request absent from the card (${pc.id})` });
+  }
+
+  partialRepairPass();
+
+  return { findings, skipped };
+}
+
+/* ── repair ─────────────────────────────────────────────────────────────── */
+
+/* Builds the patch for one finding. The card clone is only ever used to
+ * recompute the overall pill and to run the stale-approval sweep; the patch
+ * carries the minimum set of fields the repair actually changes. */
+function patchFor(finding) {
+  const card = finding.card;
+  const comp = finding.component;
+  const clone = JSON.parse(JSON.stringify(card));
+  const patch = { id: card.id };
+  const pending = {};
+  let movedComponent = false;
+
+  /* A KIND WITH NO PATCH AT ALL RETURNS EARLY, EXPLICITLY. `caption_leg` is
+   * reported and never written, and it carries no `comment`, so falling through
+   * to the delivery branch dereferenced `finding.comment.native_comment_id` and
+   * killed the whole run — every offline check still green, because the crash
+   * lives in the entry point's plan loop. That is round 16's lesson exactly,
+   * and the CLI check is what caught it again. An unknown kind is a bug, not a
+   * patch: it gets an empty patch and the renderer says what a person must
+   * decide. */
+  if (finding.kind === 'caption_leg') return patch;
+
+  if (finding.kind === 'status_only') {
+    /* Only the status leg is owed; the request is already on the card. */
+    clone[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    patch[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    pending[STATUS_FIELD(comp)] = 'Tweaks Needed';
+    movedComponent = true;
+  } else if (finding.kind === 'stamp') {
+    clone[STAMP_FIELD(comp)] = finding.stamp_at;
+    patch[STAMP_FIELD(comp)] = finding.stamp_at;
+  } else {
+    const pc = finding.comment;
+    /* Rebuilt from the server's own record. `id` is the production comment id,
+     * so a later run recognises this request as delivered and a second copy can
+     * never be appended. */
+    /* The browser's canonical projector and its source-repair journal store
+     * `native_comment_id`. If this job completes a closed browser's failed leg
+     * and that browser later resumes its journal, an atomic merge keyed on a
+     * different id keeps BOTH copies and the client sees their own request
+     * twice. Detection already recognises either id, so writing the native one
+     * makes server-side and browser recovery converge. */
+    const appended = {
+      id: String(pc.native_comment_id || pc.id),
+      parent_id: null,
+      author: String(pc.author_name || 'Client'),
+      role: 'client',
+      is_tweak: true,
+      audience: String(pc.audience || 'client'),
+      round: Number(pc.round || 0) || (finding.existing.filter(c => c && c.is_tweak !== false).length + 1),
+      body: String(pc.body || ''),
+      created_at: String(pc.created_at || ''),
+      updated_at: String(pc.updated_at || pc.created_at || ''),
+      /* A request already resolved on the server must not be republished as
+       * live work. 103 of 345 live client requests carry a resolution, so
+       * hard-coding `done: false` would hand the team completed feedback as an
+       * open task. The resolution travels with the request. */
+      done: !!pc.resolved_at,
+      done_at: String(pc.resolved_at || ''),
+      done_by: String(pc.resolved_at ? (pc.resolved_by_name || 'Resolved') : ''),
+      /* Provenance: this row was completed server-side from a committed write,
+       * not typed into this card by a person. */
+      recovered_by: 'client-signoff-reconcile',
+    };
+    const list = finding.existing.concat([appended]);
+    clone[TWEAKS_FIELD(comp)] = stringifyComments(list);
+    patch[TWEAKS_FIELD(comp)] = clone[TWEAKS_FIELD(comp)];
+    /* A RESOLVED request carries no status change. Delivering it restores the
+     * record; moving the component to Tweaks Needed would reopen work that is
+     * already finished, and the stale sweep would then strip a sign-off on the
+     * strength of a request nobody is waiting on. Carrying `done` while still
+     * flipping the status would have been the worst of both. */
+    if (!pc.resolved_at
+        && _calNormStatus(card[STATUS_FIELD(comp)] || '') === 'Client Approval') {
+      clone[STATUS_FIELD(comp)] = 'Tweaks Needed';
+      patch[STATUS_FIELD(comp)] = 'Tweaks Needed';
+      pending[STATUS_FIELD(comp)] = 'Tweaks Needed';
+      movedComponent = true;
+    }
+  }
+
+  /* The house sweep, on the app's own rule: a component dropping to Tweaks
+   * Needed must not keep a client sign-off from the round it just left. */
+  _calClearStaleApprovals(clone, pending);
+  /* THE SWEEP READS THE WHOLE CARD; THE PATCH MAY NOT WRITE THE WHOLE CARD.
+   * `_calClearStaleApprovals` clears a stale sign-off on EVERY component, which
+   * is right in the app (it runs on a save that just moved one) and wrong here
+   * when this repair moved nothing. A stamp repair that copied the sweep's whole
+   * output would clear an unrelated component's stamp on the strength of a
+   * status this job never touched — breaking the one promise the workflow and
+   * the runbook both make, that a repair writes the missing sign-off and
+   * nothing else.
+   *
+   * So a repair that moved a component writes what the sweep decided; a repair
+   * that moved nothing writes at most its OWN stamp field. Keeping the target
+   * field rather than skipping the sweep entirely preserves it as a self-check:
+   * if the component this stamp belongs to is somehow not above, the sweep
+   * blanks the very field being written rather than letting it through.
+   *
+   * Live: 0 of 10,839 cards carry a stale stamp on a component below Client
+   * Approval, so no repair today writes a different field either way. The app
+   * runs this sweep on every save, which is why the state is empty — and why a
+   * fixture without a stale sibling, like the one the existing
+   * "touches the stamp and nothing else" test used, cannot see this. */
+  for (const key of Object.keys(pending)) {
+    if (!/_approved_at$/.test(key)) continue;
+    /* `kasper_approved_at` is not a component stamp: the app clears it when NO
+     * component is left above, which can only become true because this repair
+     * moved one. So it travels with a move and never with a stamp repair. */
+    if (key === 'kasper_approved_at') {
+      /* NOT GUARDED ON `movedComponent`, deliberately. The app clears this only
+       * when NO component is left above — and a stamp repair requires its own
+       * component to BE above (`stampSurvives`), so the sweep cannot clear it on
+       * one. The guard's second half is therefore unreachable, and a sabotage
+       * that removed it could not be made to fail. This PR takes an unfireable
+       * control as evidence of decoration rather than of safety (197u), so the
+       * guard is not written; the reachability argument is the rule. */
+      patch[key] = pending[key];
+      continue;
+    }
+    /* ONLY THIS REPAIR'S OWN COMPONENT. Every repair acts on exactly one
+     * component — its own — so the only stamp the sweep may clear here is that
+     * component's: either because this repair moved it out from under (the
+     * app's rule, and this repair's own consequence) or, on a stamp repair, as
+     * a self-check on the very field being written. Any OTHER component's stale
+     * stamp sits on a status this job never touched, and cleaning it up is not
+     * this repair's business — which is the whole content of the promise that a
+     * repair writes the missing sign-off and nothing else.
+     *
+     * Written as one condition rather than a `movedComponents` set: a set would
+     * read as if some repair could move a different component, and its extra
+     * branch could not be made to fail under sabotage — a rule with no effect,
+     * which this PR removed once already in 197u and will not reintroduce. */
+    if (key !== STAMP_FIELD(comp)) continue;
+    patch[key] = pending[key];
+  }
+  /* The overall pill is recomputed ONLY when this repair actually moved a
+   * component. Restoring a sign-off stamp changes no component status, so
+   * recomputing there would rewrite the pill as a side effect of a repair that
+   * was never about it — and `computeOverallStatus` derives from the whole
+   * component set, so any component this read did not carry would be inferred
+   * rather than known. Caught by the fixture run: a stamp repair on a card
+   * reading Approved proposed `status="In Progress"`. */
+  if (movedComponent) {
+    const overall = computeOverallStatus(clone);
+    if (_calNormStatus(card.status || '') !== overall) patch.status = overall;
+  }
+  return patch;
+}
+
+/* Re-run the FULL decision against a freshly read card, immediately before
+ * writing. Between loadWorld() and the POST a client or a colleague can move
+ * the card, and the snapshot-derived patch would then apply to a state nobody
+ * checked: a change request could reopen a component approved a minute ago, or
+ * a stamp could land on work just sent back for tweaks — the exact moved-on
+ * cases this job promises never to overwrite.
+ *
+ * This re-runs `detect` rather than re-checking a few fields by hand, so the
+ * revalidation cannot drift from the rules above.
+ *
+ * HONEST LIMIT: this NARROWS the window to one round-trip, it does not close
+ * it. A true fix needs a compare-and-set on the write, and the Calendar status
+ * lane carries none — payloads have neither `expected_status` nor
+ * `expected_updated_at`, and `production-write` requires them on the
+ * `production` surface only (OPEN_REPAIRS 189, finding 2). Closing it properly
+ * is Edge Function work, deliberately not smuggled in here. Repairs are rare
+ * and this job is dispatched, so the residual risk is a few seconds per row. */
+async function revalidate(world, finding) {
+  /* The card is re-read, and so is the SOURCE row. A request can be resolved or
+   * deleted between `loadWorld` and the write — which is precisely the two-leg
+   * window this job exists for — and reusing the original snapshot would append
+   * it as open, or finish a status leg no longer owed, and strip a sign-off on
+   * the strength of stale lifecycle state. Round 7 answered the half of this
+   * that the CARD can see; this is the half only the source knows. */
+  /* And the TRANSITIONS. A component reopened after `loadWorld` and returned to
+   * Approved before the write passes `stampSurvives` on the fresh card while the
+   * reopen is missing from the snapshot, so the obsolete approval is restored.
+   * The card cannot see that; only the outbox can. Scoped to the one
+   * deliverable, so it is a single keyed read per repair. */
+  /* And the DELIVERABLE. `move-card-client.js` rewrites `deliverables.client_slug`
+   * and `calendar_posts.client` as two separate PATCHes; a revalidation landing
+   * between them would otherwise resolve through the stale mapping and stamp a
+   * card that is mid-move. Re-read it, so the composite mapping checked here is
+   * the one that exists now. */
+  let deliverables = world.deliverables;
+  if (finding.deliverable_id) {
+    const rows = await restRows('deliverables',
+      'select=id,card_id,kind,team,origin,client_slug,status,status_at'
+      + `&id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    deliverables = world.deliverables
+      .filter(d => String(d && d.id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
+
+  let outbox = world.outbox;
+  if (finding.deliverable_id) {
+    const rows = await restRows('mirror_outbox',
+      'select=entity_id,operation,status,entity,payload,source_edited_at,processed_at,created_at,'
+      + 'role,client_slug,test_only'
+      + `&operation=eq.status&entity=eq.deliverable`
+      + `&entity_id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    outbox = world.outbox
+      .filter(r => String(r && r.entity_id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
+
+  /* AND THE CLIENT REQUESTS ON THIS DELIVERABLE. A committed client request is a
+   * supersession clock now, so it is a source detection reads — and the rule
+   * this doc leads with is that revalidation refreshes EVERY source detection
+   * used, or it is validating against a partial snapshot. A request committing
+   * between `loadWorld` and the write, whose own status leg then fails, leaves
+   * the fresh card reading Approved with no reopen in the refreshed outbox: the
+   * stamp would be restored over a change the client had just asked for.
+   * Scoped to the one deliverable, so it is a single keyed read per repair. */
+  let comments = world.comments;
+  if (finding.deliverable_id) {
+    const rows = await restRows('production_comments',
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&role=eq.client&is_tweak=is.true`
+      + `&deliverable_id=eq.${encodeURIComponent(finding.deliverable_id)}`, 'id');
+    comments = comments
+      .filter(c => String(c && c.deliverable_id) !== String(finding.deliverable_id))
+      .concat(rows);
+  }
+  if (finding.comment) {
+    const row = await restRows('production_comments',
+      'select=id,native_comment_id,deliverable_id,client_slug,component,body,author_name,role,is_tweak,'
+      + 'round,audience,created_at,updated_at,deleted_at,resolved_at,resolved_by_name'
+      + `&id=eq.${encodeURIComponent(finding.comment.id)}`, 'id');
+    /* Gone entirely means gone: drop it rather than fall back to the snapshot. */
+    comments = world.comments
+      .filter(c => String(c.id) !== String(finding.comment.id))
+      .concat(row);
+  }
+  const fresh = await restRows('calendar_posts',
+    'select=id,client,name,status,video_status,graphic_status,caption_status,'
+    + 'title_status,video_tweaks,graphic_tweaks,caption_tweaks,title_tweaks,updated_at,'
+    + 'client_video_approved_at,client_graphic_approved_at,client_caption_approved_at,'
+    + 'client_title_approved_at,kasper_approved_at,'
+    + 'video_deliverable_id,graphic_deliverable_id'
+    + `&id=eq.${encodeURIComponent(finding.card.id)}`
+    + `&client=eq.${encodeURIComponent(finding.card.client)}`, 'id');
+  if (!fresh.length) return null;
+  const again = detect({ outbox, comments, deliverables, cards: fresh });
+  const match = again.findings.find(f =>
+    f.kind === finding.kind
+    && f.component === finding.component
+    && String(f.card.id) === String(finding.card.id)
+    && cardKey(f.card.client, f.card.id) === cardKey(finding.card.client, finding.card.id)
+    && (!f.comment || String(f.comment.id) === String(finding.comment.id)));
+  return match || null;
+}
+
+async function writePatch(card, patch, kind) {
+  /* THE GUARD. Placed at the write rather than at detection, so no future edit
+   * to the detection path can make a delivery writable by accident. */
+  if (!WRITABLE_KINDS.has(String(kind || ''))) {
+    throw new Error(`refusing to write a ${kind} repair: this job writes stamps only`);
+  }
+  if (!SYNCVIEW_STAFF_KEY) throw new Error('SYNCVIEW_STAFF_KEY is required for calendar-upsert writes');
+  const res = await fetch(UPSERT_EF_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Syncview-Source': 'client-signoff-reconcile',
+      'X-Syncview-Key': SYNCVIEW_STAFF_KEY,
+    },
+    body: JSON.stringify({ client: card.client, post: patch }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.ok === false) {
+    throw new Error(`calendar-upsert: HTTP ${res.status} ${JSON.stringify(body).slice(0, 160)}`);
+  }
+  return body;
+}
+
+/* The failure line, as a pure function, for the same reason the summary is one:
+ * it is written on an APPLY run against a live backend, so nothing offline
+ * reaches it. Extracted so the suite can assert what it says instead of trusting
+ * it — the alternative was a rule with no control, which this PR treats as a
+ * broken test. */
+function failureLine(finding, message) {
+  return `  ! card ${finding.card.id} (${finding.card.client}) `
+    + `[${finding.component}]: ${message}`;
+}
+
+/* The run summary, as a pure function, because the COUNTS are a rule too: the
+ * workflow tells the operator to read these lines, so a row that needs a person
+ * being filed under "left alone" is a defect, not a cosmetic one. Extracted so
+ * the suite can assert the bucketing instead of trusting it.
+ *
+ * Reasons that are WORK, not "a card that moved on": an ambiguous repeat is a
+ * delivery decision the job cannot make, and a carrier failure is a client
+ * approval that reached neither leg. Both land in `skipped` only because nothing
+ * here can be written for them. */
+const NEEDS_A_PERSON = new Set(['ambiguous_repeat_of_completed_request', 'carrier_did_not_write']);
+/* Refusals raised AFTER resolve() located the card. Each carries the card it
+ * found, so none of them may be counted or printed as a card that is missing. */
+const CARD_KNOWN_REFUSALS = new Set(['card_does_not_link_back', 'unknown_team', 'kind_and_team_disagree']);
+/* THE TEAM-MAPPING REASONS ALONE. `CARD_KNOWN_REFUSALS` answers "was the card
+ * found", which `card_does_not_link_back` also answers yes to — so counting the
+ * team bucket off that set double-counted every stale-link row as a team
+ * problem too, and a one-row run printed both terms as 1. The buckets in the
+ * headline must partition the rows, not overlap. */
+const TEAM_MAPPING_REFUSALS = new Set(['unknown_team', 'kind_and_team_disagree']);
+/* Reasons that mean "this job could not tell", on a card that is still live.
+ * Neither is a card that moved on, so neither belongs in `left alone`. */
+const UNDECIDABLE = new Set(['unmapped_component', 'card_cell_unparseable']);
+/* Returns the BUCKETS as well as the lines. Returning only the lines is what
+ * left `main()` referencing bucket names that no longer existed there — the
+ * whole run died with a ReferenceError before any write, and 83 offline checks
+ * did not notice because none of them ran the entry point. Every consumer of
+ * these groupings now gets them from one place. */
+function classify({ findings, skipped }) {
+  const writable = findings.filter(f => WRITABLE_KINDS.has(f.kind));
+  const reportOnly = findings.filter(f => !WRITABLE_KINDS.has(f.kind));
+  const ambiguous = skipped.filter(row => row.reason === 'ambiguous_repeat_of_completed_request');
+  /* A carrier failure that could not even resolve a card is MORE urgent than one
+   * that could, not less: both delivery legs failed AND the crosswalk is stale,
+   * so nothing else in the system names that approval. Keyed on the carrier
+   * status the row carries rather than on the reason, so a future refusal reason
+   * cannot quietly fall out of this bucket the way this one did. */
+  const carrierFailed = skipped.filter(row => row.kind === 'stamp'
+    && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write')));
+  /* The carrier WROTE; the crosswalk is broken. Separate from a carrier failure
+   * because the operator looks in a different place, and separate from "left
+   * alone" because there is something to do. */
+  const crosswalkBroken = skipped.filter(row => row.crosswalk_broken && !row.carrier_status);
+  /* SPLIT AGAIN, for the same reason the carrier terms were split: these two
+   * are different work. A missing card is a broken crosswalk; a contradicting
+   * component is an ambiguity between two KNOWN reviews on a card that is
+   * right there. Counting the second as "whose card is missing" is a false
+   * headline over a correct detail line. */
+  const componentAmbiguous = crosswalkBroken.filter(row => row.reason === 'named_component_contradicts_link');
+  /* A STALE REVERSE LINK IS NOT A MISSING CARD. The card was located; only the
+   * link back failed, and the row now carries it. Counting and printing it as
+   * "cannot be found" sends an operator after a card that is sitting there. */
+  const linkStale = crosswalkBroken.filter(row => row.reason === 'card_does_not_link_back');
+  /* THE CARD IS KNOWN FOR THESE TOO. A deliverable whose team names no review,
+   * or whose kind and team name different ones, is a mapping problem on a card
+   * that was found. Counting either as "missing" is the same false headline
+   * over the same correct detail line. */
+  const teamUnknown = crosswalkBroken.filter(row => row.reason === 'unknown_team');
+  /* SPLIT FROM `unknown_team`, because the two name different work. For a
+   * kind/team disagreement the team DOES name a valid review (graphics maps to
+   * graphic); it is the independently stored `kind` that names a different one.
+   * "Team names no review" is false of that row, and the headline is what the
+   * operator reads first. */
+  const kindTeamDisagree = crosswalkBroken.filter(row => row.reason === 'kind_and_team_disagree');
+  const cardMissing = crosswalkBroken.filter(row =>
+    row.reason !== 'named_component_contradicts_link' && row.reason !== 'card_does_not_link_back'
+    && !TEAM_MAPPING_REFUSALS.has(row.reason));
+  /* SPLIT, because only one of these two knows what happened to the card leg.
+   * A resolved carrier failure was qualified against four tests, so "reached
+   * neither leg" is established. A crosswalk refusal establishes only that the
+   * carrier did not write; the headline must not assert the leg the detail line
+   * explicitly calls UNKNOWN. */
+  const carrierFailedKnown = carrierFailed.filter(row => row.reason === 'carrier_did_not_write');
+  const carrierFailedUnknownCard = carrierFailed.filter(row => row.reason !== 'carrier_did_not_write');
+  /* UNDECIDABLE IS NOT INTENTIONAL. Neither of these says the card moved on:
+   * a cell that will not parse and a component the app's map does not name both
+   * mean the job could not determine whether or where the request was
+   * delivered, on a card that is still live. Filed under "left alone (a card
+   * that moved on is never overwritten)" they read as a deliberate skip and
+   * were invisible in `NEEDS A PERSON`. Live today both are 0 rows — no cell
+   * fails to parse and every named component is mapped — so this changes a
+   * report nobody has seen yet, which is the cheapest time to change it. */
+  const undecidable = skipped.filter(row => UNDECIDABLE.has(row.reason));
+  const leftAlone = skipped.filter(row => !NEEDS_A_PERSON.has(row.reason)
+    && !UNDECIDABLE.has(row.reason)
+    && !row.crosswalk_broken
+    && !(row.kind === 'stamp'
+      && (row.carrier_status || String(row.reason || '').startsWith('carrier_did_not_write'))));
+  const lines = [
+    `REPAIRS (written on --apply): ${writable.length} sign-off stamp(s)`,
+    `NEEDS A PERSON (never written): `
+      + `${reportOnly.length + ambiguous.length + carrierFailed.length + crosswalkBroken.length + undecidable.length}  `
+      + `(change request absent from card ${reportOnly.filter(f => f.kind === 'comment').length}, `
+      + `unfinished status leg ${reportOnly.filter(f => f.kind === 'status_only').length}, `
+      + `caption leg of a whole-post approve ${reportOnly.filter(f => f.kind === 'caption_leg').length}, `
+      + `ambiguous repeat ${ambiguous.length}, `
+      + `client approve that reached neither leg ${carrierFailedKnown.length}, `
+      + `client approve not carried, card leg unknown ${carrierFailedUnknownCard.length}, `
+      + `carried client action whose card is missing ${cardMissing.length}, `
+      + `card found but its link back is stale ${linkStale.length}, `
+      + `request naming a review its deliverable cannot carry ${componentAmbiguous.length}, `
+      + `card found but its deliverable's team names no review ${teamUnknown.length}, `
+      + `card found but its deliverable's kind and team name different reviews ${kindTeamDisagree.length}, `
+      + `undecidable on a live card ${undecidable.length})`,
+    `left alone: ${leftAlone.length} (a card that moved on is never overwritten)`,
+  ];
+  return { writable, reportOnly, ambiguous, carrierFailed, carrierFailedKnown,
+    carrierFailedUnknownCard, crosswalkBroken, cardMissing, linkStale, componentAmbiguous,
+    teamUnknown, kindTeamDisagree, undecidable, leftAlone, lines };
+}
+const summaryLines = (input) => classify(input).lines;
+
+/* ── run ────────────────────────────────────────────────────────────────── */
+async function main() {
+  const world = await loadWorld();
+  const { findings, skipped } = detect(world);
+
+  log(`client-signoff-reconcile — ${APPLY ? 'APPLY' : 'DRY-RUN'}`
+    + `${FIXTURES ? ' (fixtures)' : ''}${ONLY_CLIENT ? ` client=${ONLY_CLIENT}` : ''}`);
+  log(`scanned: ${world.outbox.length} committed client status writes, `
+    + `${world.comments.length} committed client change requests, ${world.cards.length} cards`);
+  const { writable, ambiguous, carrierFailed, crosswalkBroken, undecidable, leftAlone, lines } =
+    classify({ findings, skipped });
+  for (const line of lines) log(line);
+
+  const plan = findings.map(f => ({ finding: f, patch: patchFor(f) }));
+  for (const { finding, patch } of plan) {
+    /* calendar_posts is keyed by (client, id) and 13 live ids are shared across
+     * clients, so a bare card id does not say whose card to open. */
+    log(`  ${WRITABLE_KINDS.has(finding.kind) ? '·' : '»'} card ${finding.card.id} `
+      + `(${finding.card.client}) [${finding.component}] ${finding.detail}`
+      + `${WRITABLE_KINDS.has(finding.kind) ? '' : '  — REPORT ONLY, a person decides'}`);
+    /* A CAPTION LEG HAS NO PATCH TO PREVIEW, and printing an empty "would need"
+     * would read as a repair with nothing in it. What a person needs here is
+     * the field and the question, not a diff this job declines to compute. */
+    if (finding.kind === 'caption_leg') {
+      log('        would need client_caption_approved_at, but only a person can say '
+        + 'whether the client approved the whole post or just this component');
+      continue;
+    }
+    /* The arrow means "this is written"; a report-only row shows what a person
+     * WOULD have to do, and must not read as a pending write. */
+    log(`      ${WRITABLE_KINDS.has(finding.kind) ? '→ writes' : '  would need'} `
+      + `${Object.keys(patch).filter(k => k !== 'id').map(k =>
+        `${k}=${k.endsWith('_tweaks') ? '(+1 request)' : JSON.stringify(patch[k])}`).join(' ')}`);
+  }
+  /* A count with no rows tells the operator that ONE approval needs attention
+   * and nothing about which one. The dispatched workflow passes no --json, so
+   * this loop is the only human-readable output these rows ever get. */
+  for (const row of carrierFailed) {
+    /* calendar_posts is keyed by (client, id) and 13 live ids are shared across
+     * clients, so a card id alone does not say whose approval was lost. */
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''}`
+      + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+      + `${row.component ? ` [${row.component}]` : ''} `
+      + (row.reason === 'carrier_did_not_write'
+        ? `a client APPROVE reached neither leg (carrier ${row.carrier_status}, `
+          + `card reads ${row.card_status || 'unknown'})`
+        : `a client APPROVE was not carried (carrier ${row.carrier_status}) and its card `
+          + `cannot be identified (${row.refusal}) — whether the card leg landed is UNKNOWN`)
+      + ' — REPORT ONLY, a person decides');
+  }
+  for (const row of crosswalkBroken) {
+    /* This row knows its card. Saying "its card cannot be found" would send the
+     * operator after a broken crosswalk when the actual question is which of
+     * two known reviews the client meant. */
+    if (row.reason === 'card_does_not_link_back') {
+      log(`  » card ${row.card} (${row.client})`
+        + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+        + `${row.comment ? ` request ${row.comment}` : ''} `
+        + 'was found, but the card does not name that deliverable back '
+        + '— the link is stale, not the card — REPORT ONLY, a person decides');
+      continue;
+    }
+    if (row.reason === 'named_component_contradicts_link') {
+      log(`  » card ${row.card} (${row.client}) request ${row.comment} names `
+        + `[${row.component}], but its deliverable is linked as [${row.linked_component}] `
+        + '— which review the client meant cannot be decided here '
+        + '— REPORT ONLY, a person decides');
+      continue;
+    }
+    /* THE CARD IS KNOWN FOR THESE TOO, and round 38 made them carry it — but
+     * only the COUNT was taught that. The line still fell through to the
+     * generic branch below and said the card cannot be found, which is the
+     * whole defect round 38 set out to fix, surviving one surface over. A row,
+     * its count and its line are three surfaces. */
+    if (TEAM_MAPPING_REFUSALS.has(row.reason)) {
+      log(`  » card ${row.card} (${row.client})`
+        + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+        + `${row.comment ? ` request ${row.comment}` : ''} `
+        + 'was found, but '
+        + (row.reason === 'unknown_team'
+          ? "that deliverable's team names no review this job can carry"
+          : "that deliverable's kind and team name different reviews")
+        + ' — the mapping is what is broken, not the card '
+        + '— REPORT ONLY, a person decides');
+      continue;
+    }
+    log(`  » deliverable ${row.deliverable}${row.client ? ` (${row.client})` : ''} `
+      + `carried a client ${row.kind === 'comment' ? 'CHANGE REQUEST' : 'APPROVE'}`
+      + `${row.comment ? ` (request ${row.comment})` : ''}`
+      + `, and its card cannot be found (${row.reason}) `
+      + '— the crosswalk is broken — REPORT ONLY, a person decides');
+  }
+  for (const row of ambiguous) {
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} `
+      + `[${row.component}] request ${row.comment} matches only a `
+      + 'COMPLETED entry — cannot tell a repeat from a duplicate; a person decides');
+  }
+  /* COUNTED IS NOT REPORTED. Round 38 moved these rows out of `left alone` and
+   * into the headline, and stopped there: the workflow dispatches without
+   * `--json`, so the log said work exists and named nothing to look at. The
+   * same half-fix as round 25 and round 31, on a bucket added to fix that
+   * exact class of defect. */
+  for (const row of undecidable) {
+    log(`  » card ${row.card}${row.client ? ` (${row.client})` : ''} `
+      + `[${row.component || '?'}]`
+      + `${row.comment ? ` request ${row.comment}` : ''} `
+      + (row.reason === 'card_cell_unparseable'
+        ? 'has a comment cell this job cannot parse, so whether the request was delivered cannot be determined'
+        : 'names a review this job has no mapping for, so where the request belongs cannot be determined')
+      + ' — the card is live — REPORT ONLY, a person decides');
+  }
+  for (const row of leftAlone) {
+    /* Print the deliverable when the card could not be identified, or the line
+     * is `card (unidentified) [] left alone: <reason>` and names nothing the
+     * reader can look up. */
+    log(`  ~ card ${row.card}${row.client ? ` (${row.client})` : ''}`
+      + `${row.deliverable ? ` deliverable ${row.deliverable}` : ''}`
+      + ` [${row.component}] left alone: ${row.reason}`
+      + `${row.comment ? ` (request ${row.comment})` : ''}`
+      + `${row.card_status ? ` (card reads ${row.card_status})` : ''}`);
+  }
+
+  let applied = 0;
+  const failures = [];
+  const writablePlan = plan.filter(row => WRITABLE_KINDS.has(row.finding.kind));
+  if (APPLY && writablePlan.length > CAP) {
+    log(`ABORT: ${writablePlan.length} repairs exceeds cap ${CAP}. Nothing written.`);
+    if (JSON_OUT) console.log(JSON.stringify({ ok: false, aborted: 'cap', findings: writablePlan.length, cap: CAP }));
+    process.exitCode = 2;
+    return;
+  }
+  if (APPLY && !FIXTURES) {
+    for (const { finding } of plan.filter(row => WRITABLE_KINDS.has(row.finding.kind))) {
+      try {
+        const current = await revalidate(world, finding);
+        if (!current) {
+          skipped.push({ kind: finding.kind, reason: 'changed_under_us',
+            card: finding.card.id, client: finding.card.client, component: finding.component });
+          log(`  ~ card ${finding.card.id} (${finding.card.client}) `
+            + `[${finding.component}] left alone: `
+            + 'the card changed between the read and the write');
+          continue;
+        }
+        await writePatch(current.card, patchFor(current), current.kind);
+        applied++;
+      } catch (e) {
+        /* The client belongs in both: card ids are shared across clients, and
+         * this is the record of a repair that was attempted and failed. */
+        failures.push({ card: finding.card.id, client: finding.card.client,
+          component: finding.component, error: e.message });
+        log(failureLine(finding, e.message));
+      }
+    }
+    log(`applied: ${applied}, failed: ${failures.length}`);
+  } else if (APPLY && FIXTURES) {
+    log('fixtures mode: repairs planned, nothing written');
+  }
+
+  if (JSON_OUT) {
+    console.log(JSON.stringify({
+      ok: failures.length === 0,
+      mode: APPLY ? 'apply' : 'dry-run',
+      scanned: { outbox: world.outbox.length, comments: world.comments.length, cards: world.cards.length },
+      findings: plan.map(({ finding, patch }) => ({
+        kind: finding.kind,
+        writable: WRITABLE_KINDS.has(finding.kind),
+        /* --json suppresses every detail line, so this projection is the only
+         * representation a consumer gets. A card id alone does not say whose. */
+        card: finding.card.id, client: finding.card.client,
+        component: finding.component, patch,
+      })),
+      skipped, applied, failures,
+    }, null, 2));
+  }
+  if (failures.length) process.exitCode = 1;
+}
+
+if (require.main === module) {
+  main().catch(e => {
+    console.error('client-signoff-reconcile failed:', e.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { detect, summaryLines, classify, failureLine, patchFor, parseComments, normText, stampSurvives, restRows, writePatch, WRITABLE_KINDS, COMPONENT_FOR_KIND };

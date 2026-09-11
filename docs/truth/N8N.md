@@ -1,6 +1,8 @@
 # n8n — current truth
 
 > Last verified: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
+> scoped 2026-09-10 Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` — created 2026-09-09, DM copy
+> corrected and published 2026-09-10 (see below) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
 > scoped 2026-08-20 live census (99/83), onboarding Slack→Roam correction, provisioning
 > phone fallback + failure alerts, and the Commas payment receiver +
@@ -38,6 +40,23 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 `docs/audits/2026-07-05-n8n.md`.
 
 ## Known state (spot-verify before relying — n8n changes outside git)
+
+- Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` (`SyncView — Urgent Kasper Review → Slack`) is
+  active at version **`fddb0d5a-790b-4e3e-85f7-8c357f7b3969`** (published 2026-09-10). Created
+  2026-09-09 as the twin of `send-urgent-slack`, aimed at Kasper rather than the editor:
+  `POST /webhook/send-urgent-kasper-slack` takes card context ONLY — the recipient is fixed in the
+  workflow and never read from the request, and the review-tab link is rebuilt and accepted only on
+  the SyncView origin, so a forged payload cannot turn a SyncView Bot DM into a link elsewhere.
+  The 2026-09-10 publish changed **one string** in `Parse & Validate` and nothing else (verified by
+  an n8n version diff, not by inspection): the DM used to close "It is in the Urgent section at the
+  top", which the browser cannot guarantee because it sends the DM BEFORE writing the urgent marker.
+  It now closes "Urgent cards sit at the top of your review tab".
+  Public-safe graphs: `n8n-backups/send-urgent-kasper-slack.2026-09-10.published.json` is the ACTIVE
+  one; the `.2026-09-09.created.json` sibling is the ROLLBACK graph (`f442f701-94bb-48bd-9f35-6cc4ff45da63`).
+  **A workflow edit made through the API lands as a DRAFT** — `versionId` moves and `activeVersionId`
+  does not — so the live webhook keeps running the old version until it is published. Check the two
+  fields rather than trusting the update result; this was caught here on 2026-09-10 and would
+  otherwise have shipped a copy fix production was not running.
 
 - Hiring application capture `oi4BPg79dykdet6H` (`Hiring — Application Capture (iClosed)`) is
   active at version `759a33ed-7156-4a86-89ed-bac45497ba55`. It accepts only the dedicated Client

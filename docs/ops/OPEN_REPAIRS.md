@@ -19115,8 +19115,1672 @@ Built so it cannot hurt the tables it watches: the WHEN clauses mean the body ne
 **Three things this turned up that were already wrong.** (a) The extractor's own first row recorded `approve_`, an action production has never held. (b) `docs/truth/SUPABASE.md` described the two event ledgers as "~22k rows / ~473 rows, 100% `source='ui'` to date … inbound/reconcile bypass the ledger" — all three parts false, and the counts off by roughly 80x. Re-measured by grouping on `source`: `calendar_post_events` holds 39,506 rows (32,173 `ui`, plus `calendar-reorder` 4,883, **`reconcile` 2,159**, `linear` 230, `calendar-upsert` 58, `sql` 2, `db` 1) and `sample_review_events` holds 62,173 (62,026 `ui`, `sample-review-reorder` 79, **`reconcile` 68**). Reconcile has written to the ledger continuously since 2026-07-07; it never bypassed it. That matters beyond bookkeeping, because AGENTS.md directs sessions to trust `docs/truth/` before re-auditing, and the doc's Track-B conclusion rested on the false premise. (c) The first draft of the shared extractor hand-rolled a comment stripper, when `test/helpers/strip-comments.js` already existed, is used across the suite, and its header rejects exactly that stateful approach with measurements. It now delegates, and lives in `test/helpers/` rather than an undocumented `test/lib/`, with a `REPO_MAP.md` row.
 
 **The guard that would have caught this.** `docs/ops/LIVE_DIVERGENCE_REGISTER.md` now carries a Verified live capability section: per registered writer, the version, the date it was read, and the event actions the DEPLOYED function was observed to emit. `test/live-divergence-register.js` fails when a repo copy claims an action the register does not record as live, naming it. It cannot reach production from CI and does not pretend to — it compares the repo against a human-verified record and tells you how to refresh it. The failure it removes is believing the repo by default. Verified with a negative control: an invented action added to a repo copy fails the gate by name. Both repo copies now drop the branch entirely and point at the trigger, so repo and live agree again.
+## 196. [2026-09-10, CLOSED] The Kasper ping records itself now, and the DM stopped claiming something it cannot know
 
-## 196. The staff entry gate replaces the shared password (2026-09-10)
+Closes the half-installed state left by 195. The owner ran the four triggers; they read back attached and enabled on both tables.
+
+**Proved through the writers rather than the database, on BOTH surfaces.** A marker write went to the live `calendar-upsert` for one TEST-client card and another to the live `sample-review-upsert` for one TEST-client sample — the exact call the browser makes once Slack succeeds, with the Slack step skipped so nobody was pinged — and each trigger wrote its ledger row on its own, carrying component, actor, both timestamps and `via: trigger`. The Samples half was added after review caught that the first drill was Calendar-only: it is a distinct code path into a distinct table, and since the trigger swallows every exception, a Samples-specific failure would have been invisible while approvals carried on working. "Attached" is not "working", and one surface working is not both. Clearing the test marker afterwards produced no second row, which is the correct behaviour: the triggers fire when a ping appears, never when one is removed. Testing through the database would have proved the trigger and left the interesting half, the writer-to-trigger hand-off, unproven.
+
+**The DM copy.** It ended "It is in the Urgent section at the top." The browser sends the DM BEFORE writing the marker, so that sentence could be read a moment before the card moved, and stays false for good if the write fails. It now reads "Urgent cards sit at the top of your review tab" — a statement about where the section is, which no ordering can falsify. One string in one node; the version diff confirms nothing else moved. **The edit landed as a DRAFT and had to be published separately**; had that not been checked, this entry would have claimed a fix the live webhook was not running. That is the third time today a change looked applied and was not.
+
+**And the reconciler question 195 raised.** `docs/truth/SUPABASE.md` said reconcile bypassed the ledger while 2,227 rows said otherwise. The reconciler writes no events: it sets `X-Syncview-Source: reconcile` and posts through the ordinary writer, which logs the change under the declared source. **Ledger coverage is a property of the ROUTE, not the caller** — `upsertUrlForClient` picks the EF or the legacy n8n lane per `calendar_upsert_ef_clients` (calendar) and `sample_review_ef_clients` (Samples). My first reading of that was too strong, and Codex caught it: I wrote that pre-enrollment reconciler writes were *invisible*, but the retained legacy writer appends `sample_review_events` too, with `source: 'ui'` HARD-CODED. So a reconcile through that lane was recorded and MIS-LABELLED, not lost. 2026-07-07 is therefore when source attribution became truthful, not when coverage began, and some share of the earlier `ui` rows are probably reconciler writes wearing the wrong label — unknowable from the `source` column, since that is the column that was lying. Whether the original claim was ever true is open, not settled. Nothing is broken; the ledger is more complete than advertised. The mechanism and the caveat are both in the truth doc rather than waiting to be re-derived.
+
+## 197. [2026-09-10, BUILT — dry-run until dispatched with `dry_run=false`] The closed-tab case closes: a committed client action is now completable server-side, and two of the three "still open" items were badly mis-sized
+
+**Closes the mechanism behind items 189 and 190.** Item 189 named the real one:
+"the completion of a committed write still depends on one particular browser
+session surviving." `scripts/client-signoff-reconcile.js` +
+`.github/workflows/client-signoff-reconcile.yml` remove that dependency. A
+committed client action whose card never received it is a repairable fact,
+visible without any browser. Full design in
+`docs/ops/CLIENT_SIGNOFF_RECONCILE.md`.
+
+**The two rules it is built on**, both of which the tests attack rather than
+confirm: evidence repairs and never invents (a stamp is the COMMIT TIME of the
+client's approve, never `now()` and never derived from a status), and a card
+that has moved on is never overwritten (staleness is decided by `index.html`'s
+own `_calClearStaleApprovals`, extracted at runtime, so this job and the browser
+cannot drift apart on the definition).
+
+### Measuring first changed two of the three tasks
+
+The ledger's own framing of what remained was wrong in both directions, and only
+querying the live rows showed it.
+
+| item as recorded | as measured | what it actually was |
+|---|---|---|
+| "rows already carrying an approved status with no stamp" | 8,316 rows | **not damage.** Most work is approved by staff or through Linear and no client sign-off is ever claimed. A null stamp is the NORMAL state; only a stamp missing against a *committed client approve* is a defect. |
+| the same, scoped to committed client approvals | 11 | of which 6 sit on cards that have since moved to Tweaks Needed / In Progress and must NOT be stamped. |
+| **repairable today** | **5** | |
+| "the confirmed comment/card split" | 78 of 82 "lost" | **an artifact of the measurement.** The card stores comments as a JSON array, so any request containing a quote or a newline is held escaped and a raw-text search reports a miss. |
+| the same, parsing the cell | 21 | 10 are backfill rows derived FROM the card; most of the rest are the same escaping artifact. |
+| **repairable today** | **1** | one request from 2026-08-24, still at `Client Approval`, that the team has never seen. |
+
+**Item 190's finding 2 was recorded as "confirmed"; it is real but roughly two
+orders of magnitude smaller than the number attached to it.** That is the third
+time in this thread that a count from a text-shaped comparison has been wrong,
+which is why the repair parses the cell and the test pins a body that defeats a
+raw search.
+
+### Proof
+
+| check | result |
+|---|---|
+| `test/client-signoff-reconcile.js` | 19 checks pass, offline, no credentials |
+| negative control: stale-approval gate removed | **fails** (stamp resurrected onto a moved-on card) |
+| negative control: closed-round gate removed | **fails** (settled work reopened) |
+| negative control: body comparison removed | **fails** (duplicate delivered) |
+| negative control: stamp taken as `now()` | **fails** |
+| negative control: stale sweep skipped on delivery | **fails** (sign-off kept on a component asked to change) |
+| `node test/run-all.js` | see the PR; the two pre-existing failures fail identically on `origin/main` |
+
+A bug caught while writing it, worth recording because it would have failed the
+first live run with a confusing error rather than a clear one: the read named an
+`archived` column, which `calendar_posts` does not have. PostgREST errors the
+whole select on an unknown column. Archived is the card's OVERALL status, the
+same test `scripts/linear-sync-reconcile.js` applies.
+
+### Not done here
+
+- **Nothing has been written to any client's card.** The job is dry-run until
+  dispatched with an explicit `dry_run=false`, and the workflow fails closed on
+  a missing or malformed input rather than defaulting to apply.
+- No cadence. The other reconcilers are dispatched by a monitored n8n pager;
+  this one is dispatch-only until the owner decides it has earned a schedule.
+- The browser-side write path is untouched. Item 189 records why patching it was
+  abandoned after seven review findings, and this is the alternative that item
+  named.
+
+### 197a. [2026-09-10] Five review findings on the reconciler, all real, all verified against live rows before being fixed
+
+Codex raised three P1 and two P2 on PR #1380. Every one was checked against the
+database rather than accepted or argued with, and one of them was **narrower
+than proposed** in a way that mattered.
+
+| finding | verdict | evidence |
+|---|---|---|
+| P2 the cap is coerced, not validated | real | `Number('25x')` is `NaN`, every comparison false, mass-repair abort bypassed. Now exits 2 on a non-positive or non-integer cap. |
+| P2 `processed_at` is outbound completion, not the client's write | real | `source_edited_at` precedes it by 2 to 4s typically, more on a retry. The documented contract is the commit time, so the originating clock now wins. |
+| P1 identity misses `native_comment_id` | real | the card stores the native id: **row id matches 4 card entries, native id matches 57**. |
+| P1 body matching swallows a repeated request | real | a client repeating a request in a later round matched the first round's entry. Fixed by CONSUMING each card entry at most once rather than existence-checking. |
+| P1 an approval superseded by a later round can be resurrected | real | the current status alone cannot see approve → reopen → staff re-approve. |
+| P1 no CAS between read and write | real, partially closed | see below. |
+
+**The supersession fix had to be narrower than the finding.** The obvious rule,
+"any later transition supersedes", was measured against the live candidates
+first: **all five would have been discarded.** Their later transitions are
+`posted`, and one is the staff browser at 19:32 projecting the client's own
+decision back, which is item 186's incident, not a supersession. Only a move
+back BELOW `Approved` is a reopen, ranked with the app's own `CAL_PRIORITY`
+after its own native mapper, unmapped counting as a reopen. Under the corrected
+rule all five survive and the finding's scenario is still blocked.
+
+**Round numbers were considered and rejected as the repeat discriminator:** 2 of
+317 live body matches sit on a different round, so a round-equality rule would
+have delivered those as duplicates. Consuming entries one-for-one needs no
+agreement about round numbering between the two systems.
+
+**The CAS finding is honestly half-closed.** Every repair is now revalidated
+against a freshly read row immediately before writing, by re-running the whole
+detection so it cannot drift from the rules. That narrows the window to one
+round-trip; it does not close it. A real fix needs compare-and-set on the write,
+and this lane has none (item 189, finding 2) — Edge Function work, deliberately
+not smuggled into a script PR.
+
+Six new sabotage controls, all confirmed to fail the suite: the reopen gate
+removed, unmapped status treated as safe, the outbound clock preferred, the
+native id dropped, entries no longer consumed one-for-one, the body fallback
+removed. 25 checks.
+
+### 197b. [2026-09-10] A second review round, and the finding that mattered most: a fix that was inert in production
+
+Five more findings on PR #1380, all real. One of them is the most useful thing
+either review round produced.
+
+**THE FIX FROM ROUND 1 NEVER RAN.** Round 1 changed the sign-off stamp to prefer
+`source_edited_at`, the client's own write clock, over `processed_at`. The live
+projection never SELECTED `source_edited_at`, so in production the code fell
+straight through to `created_at` while the fixtures — which set the field —
+proved the new behaviour perfectly. **A green suite and a wrong result, from one
+missing column in a select.** The lesson is not "add the column"; it is that a
+fixture asserting a field the real query never fetches proves nothing about
+production. Fixed, and the doc now says so at the point where the projection is
+built.
+
+**Outbound delivery was being equated with source commit.** The read filtered
+`status=eq.written`, but a row exists in `mirror_outbox` because the NATIVE
+write committed; `status` describes what the Linear carrier did afterwards
+(`pending` in flight, then `written`, `skipped`, `stale`). A reopen whose
+delivery was pending or skipped was therefore invisible to the supersession
+test, which is the one thing that lets a stale approval be restored. Live rows
+show 683 `skipped` and 85 `stale` status rows in the window, and two of the five
+live candidates carry later `skipped:approved` rows that were being dropped.
+
+The two uses are now deliberately **asymmetric**: supersession (leave the card
+alone) reads every row whatever the carrier did; repair (touch the card) still
+requires a `written` client approval. Both directions err toward leaving the
+card alone. All five candidates still repair; zero reopens appear under the
+broader read.
+
+**Identity now claims in two passes.** Ids are exact, so they get first refusal
+across EVERY request before any body fallback runs. Single-pass in date order
+had a real hole: two requests sharing a body where the card holds only the later
+one under its native id let the EARLIER request consume that entry by body, and
+the later one was then delivered again while the older request's identity and
+round vanished.
+
+**The body fallback no longer consumes an entry that cannot be the client's.**
+A staff note, a reply, or a deleted entry carrying the same words is not a
+delivery. Measured before restricting: all 327 live card entries matching a
+client request are client-authored roots, and 18 of them carry `is_tweak:false`
+— so authorship and shape are required and `is_tweak` deliberately is not.
+
+Plus the doc now carries the direct Actions URL rather than a repo path, per
+this repo's own standing rule about handing the owner a link.
+
+30 checks, twelve sabotage controls in total, six added this round: an
+undelivered approval acted on, the fallback consuming a staff note, a reply
+counting as delivery, a deleted entry counting as delivery, staff roles not
+excluded, and the id-claim pass bypassed.
+
+### 197c. [2026-09-10] Round 3: a request names its component, and guessing when the name is unknown is how the wrong review gets mutated
+
+One finding, real and latent rather than live. `production_comments` carries a
+`title` component (YouTube title review), and the component map did not. The
+code then fell back to the DELIVERABLE KIND, normally `video`, so a client's
+title feedback would have been appended to `video_tweaks` and dragged
+`video_status` to Tweaks Needed while `title_tweaks` stayed empty: the wrong
+review, mutated on the strength of a guess, and the right one still missing.
+
+**Latent, not live.** Client tweaks in the last 180 days are video (165),
+graphic (106) and caption (74). **Zero title.** So nothing has been corrupted
+and nothing needed repairing; the hole was waiting for the first YouTube title
+request.
+
+**The fix is the fallback, not the mapping.** Adding `title` closes today's
+case; removing the silent fallback closes the class. A request that NAMES a
+component the job cannot map is now reported (`unmapped_component`) and left
+alone. The deliverable kind stands in only when the request names nothing at
+all. The card read and the pre-write re-read both carry the title fields now.
+
+The overall pill is unaffected either way: `computeOverallStatus` derives from
+`CAL_COMPONENTS`, which is video/graphic/caption; title lives in
+`CAL_REVIEW_COMPONENTS` only. So a title repair moves the title lane and
+nothing else.
+
+33 checks; two more controls (silent fallback restored, title dropped from the
+map) both confirmed to fail the suite.
+
+### 197d. [2026-09-10] Round 4: cards are keyed by (client, id), and this job was keying by id
+
+The most serious finding of the four rounds, caught before a single write.
+
+`calendar_posts` has the composite primary key `(client, id)`. **Card ids are
+not globally unique: 13 live ids are used by more than one client, and 17
+deliverables point at one of them.** This job kept its card map, its comment
+consumption tallies and its pre-write re-read keyed by id alone, so one client's
+card could stand in for another's. On an apply run that means writing a client's
+approval, or their own words, onto **a different client's card**.
+
+Nothing had been written, so nothing leaked. Every lookup, tally and re-read is
+now composite, and a deliverable naming no client resolves to no card rather
+than being guessed. `deliverables.client_slug` and `calendar_posts.client` both
+hold the slug and compare directly (unlike `calState.client` in the browser,
+which holds a display name — the trap PR #1381 hit).
+
+**Two of the four new controls did not fire on the first attempt, and the tests
+were wrong rather than the code.** A tally shared across clients only produces a
+wrong answer when BOTH cards already hold the request; giving only one client
+the entry leaves the other's list empty either way, so the assertion passed
+under both implementations. Same shape for the blank-client case, which the
+composite key refuses on its own unless the fixture's card also has a blank
+client. Both fixtures were rebuilt until removing the rule actually fails.
+
+That is the third time in this thread a check has been found to pass for the
+wrong reason. It is the reason every rule here carries a sabotage control, and
+the reason a control that does not fire is treated as a broken test rather than
+a redundant one.
+
+**AND IT WAS ALREADY IN THE LIVE REPAIR LIST.** This was not a latent risk. Of
+the five stamp repairs the job had been reporting, re-running the detection with
+the composite join returns **four**. The fifth (`p_native_93e7…_1`, graphic) is a
+card id that belongs to TWO clients, and the id-only lookup had selected the one
+that does not own the deliverable. Dispatching an apply run before this round
+would have written one client's approval onto another client's card. The dry-run
+discipline is the only reason it did not.
+
+Also this round: the runbook still published 30 checks after Round 3 raised it
+to 33. Corrected, now 37, with a note to keep it current.
+
+### 197e. [2026-09-10] Round 5: four more, and two of them were ways this job could DESTROY client content rather than merely miss it
+
+Every earlier round found ways to write the wrong thing. Two of these are worse:
+ways to lose what is already there.
+
+**An incomplete comment cell was being read as an empty one.** The parser
+accepted valid JSON that is not an array (returning empty), and accepted arrays
+holding entries with no id. `stringifyComments` and the merge RPC DROP id-less
+entries, so a repair that rebuilt the array over such a cell would have **erased
+real client feedback that simply predates the id field**. The browser's own
+`_calLoadCommentsField` already treats both shapes as an incomplete read and
+says so in its comment; this job did not. Both are now refused as unreadable.
+Refusing costs a missed repair; treating them as empty costs the content.
+
+**A resolved request would have been republished as open work.** `103 of 345`
+live client requests carry a resolution. The writer hard-coded `done: false`, so
+any resolved request that never reached the card would have landed on it as a
+fresh task for the team. The resolution now travels with the request.
+
+**The write side used the wrong identity.** The delivered entry stored
+`production_comments.id`, while the browser's canonical projector and its
+source-repair journal both key on `native_comment_id` (89 of the live rows have
+a native id that differs). If this job completed a closed browser's failed leg
+and that browser later resumed its journal, the atomic merge would have kept
+BOTH copies and the client would see their own request twice. Detection already
+recognised either id; the writer now emits the native one so the two recoveries
+converge.
+
+**Paged reads had no stable order.** PostgREST offset pagination without an
+order is not stable across pages, and the outbox read exceeds one page. A
+skipped row is the dangerous direction: a skipped reopen means the supersession
+test never sees it. `restRows` now refuses to run without a unique order column,
+checked BEFORE the credential because a missing order is a defect in every
+environment while a missing key is environmental.
+
+44 checks, five more controls, all confirmed to fail the suite.
+
+**Five rounds, seventeen findings, all real.** The rate is not falling, which is
+itself the argument for the dry-run posture: this job writes to client-facing
+records unattended, and the review is still finding a way to get that wrong
+every single round.
+
+### 197f. [2026-09-10] Round 6: the round-5 fix was half a fix, and its test looked at the wrong half
+
+Two findings, and the first is a lesson about the test rather than the code.
+
+**A resolved request still reopened the round.** Round 5 carried the resolution
+into `done`, which was the visible half. The status branch stayed
+unconditional, so a resolved request whose component read `Client Approval`
+still flipped it to `Tweaks Needed`, and the stale sweep then stripped the
+client's sign-off on the strength of a request nobody was waiting on. Carrying
+`done` while still moving the status is the worst of both.
+
+**The round-5 test asserted `done` and never looked at the status**, which is
+why it passed a half-applied fix. The replacement asserts the WHOLE patch:
+status absent, overall pill absent, sign-off untouched, entry present and done.
+That is the fourth check in this thread found to pass for the wrong reason, and
+the pattern is now unmistakable: a test written to confirm the change I just
+made will confirm exactly the part I was thinking about.
+
+**A partial repair could never be finished.** `calendar-upsert` merges comments
+and updates scalars as two separate operations (`writeCalendarRow`). If the
+merge commits and the update fails, the request lands on the card with no status
+change — and on the next run the id pass sees it, calls it delivered, and
+suppresses the finding permanently. The round would sit at `Client Approval`
+with an unanswered client request on it, forever.
+
+Closed with a postcondition rather than an atomic write, which this lane cannot
+offer: every delivered entry already carries `recovered_by`, so a claimed entry
+with that marker, for an unresolved request, on a component still at `Client
+Approval`, is reported as an unfinished status leg and repaired with the status
+alone. The marker scopes it to this job's own work, so an ordinary card at
+`Client Approval` can never match. It runs as its own pass AFTER both claim
+passes, because the id pass is precisely the one that recognises the earlier
+delivery — the first attempt sat behind that pass's `continue` and never ran,
+which the test caught immediately.
+
+49 checks, four more controls, all confirmed to fail the suite.
+
+**Six rounds, nineteen findings, all real.**
+
+### 197g. [2026-09-10] Round 7: one tightening taken, one suggestion declined with the number behind it
+
+**Taken.** The unfinished-status-leg pass ignored the card entry's own
+lifecycle. `loadWorld` reads the source comments once and the card is re-read
+later, so `pc.resolved_at` can be stale while the card already shows the entry
+done. In that window the pass would have moved a resolved component back to
+`Tweaks Needed` and the sweep would have stripped its sign-off. It now refuses
+any claimed entry marked `done` or `deleted`: the card was read later, so where
+the two disagree the card is the better evidence.
+
+**Declined, and this is the first suggestion in seven rounds not implemented as
+proposed.** The suggestion was to exempt resolved requests from the closed-round
+refusal, since round 6 made resolved patches status-neutral, so restoring one
+would reopen nothing. The reasoning is sound. The measurement is what decided
+it:
+
+```sql
+-- resolved client requests whose round has closed, and how many are
+-- actually missing from their card
+-- (full query in the round-7 session; the shape is: production_comments
+--  role=client is_tweak, joined to deliverables and calendar_posts on
+--  (client, id), component status not in Client Approval / Tweaks Needed,
+--  and NOT EXISTS a card entry matching by id, native id, or normalised body)
+```
+
+**100 resolved requests sit on closed rounds. Zero are missing from their
+card.** So the change repairs nothing today, while making a class of 100 closed
+cards writable by a job whose matching logic has been wrong in six of the last
+seven rounds. The standing bias is to leave a card alone, and this is exactly
+the case for it.
+
+What was done instead: those rows are now reported under their own reason,
+`review_round_closed_resolved`, so a dry run shows them and the concern behind
+the finding — "the request remains absent forever" — is answered by visibility
+rather than by a write. If that count ever stops being zero the gate is one line
+to relax, and the doc says so.
+
+52 checks, two more controls.
+
+**Seven rounds, twenty-one findings, twenty implemented, one declined on
+measured evidence.**
+
+### 197h. [2026-09-10] Round 8: both findings are holes in earlier fixes, which is now three rounds running
+
+**Both real, both fixed, and the pattern is the finding.**
+
+**1. The body fallback could be satisfied by a COMPLETED entry.** An unresolved
+request whose only body match is a `done` card entry was treated as delivered,
+leaving live client feedback invisible.
+
+The proposed fix — require unresolved requests to match only unresolved entries
+— was measured before being taken, and **it is not safe either**. Of 261 live
+body matches, **108 land on a `done` entry, and 8 of those pair an UNRESOLVED
+source request with a DONE card entry.** Under the proposed rule all 8 become
+findings and get written, appending a duplicate of words already on the card.
+
+Neither answer is right, because body text cannot distinguish:
+
+- the done entry is an OLDER request with the same words, so the live one is
+  genuinely missing (deliver is correct); from
+- the done entry IS this request, resolved on the card while the source row
+  lagged (deliver duplicates the client's own words back at them).
+
+So the job does neither. It **reports** the 8 as
+`ambiguous_repeat_of_completed_request` and a person decides. That is the honest
+option, and it is the clearest evidence yet that request DELIVERY is a guessing
+game in a way stamp repair is not.
+
+**2. Revalidation refreshed the card but not the source row.** Round 7 answered
+the half of this the CARD can see; this is the half only the source knows. A
+request resolved or deleted between `loadWorld` and the write — precisely the
+two-leg window this job exists for — would have been appended as open, or had a
+status leg finished that was no longer owed. Revalidation now re-reads the exact
+`production_comments` row, and a row that has vanished is dropped rather than
+falling back to the snapshot.
+
+55 checks, two more controls.
+
+### THE TREND IS NOW THE MOST IMPORTANT FINDING
+
+| round | findings | origin |
+|---|---|---|
+| 1 to 5 | 17 | defects in the original design |
+| 6 | 2 | a defect in a round-5 fix |
+| 7 | 2 | a defect in a round-6 fix |
+| 8 | 2 | defects in round-5 and round-7 fixes |
+
+Three consecutive rounds where the patch created the next round's bug. **Item
+189 records this exact pattern once already**, on the browser-side attempt at
+the same problem, abandoned after seven findings with the conclusion that each
+patch surfaced another interaction.
+
+Almost every finding since round 2 has landed on **change-request delivery**,
+not on stamp repair. Delivery has to decide identity across two systems that do
+not share ids, reconcile two lifecycle clocks, merge into a cell whose format
+predates ids, and survive a non-atomic two-step write. Stamp repair reads a
+committed approve, checks for a later reopen, and writes one dated field.
+
+**Recommendation to the owner, put on the PR: ship the stamp repair, and demote
+change-request delivery to detection-only.** It fixes 4 of the 6 live rows,
+retires the surface that produced the defects, and turns the remaining 2 into a
+report a person acts on. Not taken unilaterally: it narrows work the owner
+asked for.
+
+### 197i. [2026-09-10, OWNER DECISION] Narrowed to stamp repair; change-request delivery is detection-only
+
+The owner chose to narrow after round 8, on the recommendation in 197h and the
+trend table there. **This job now writes exactly one thing: a missing client
+sign-off stamp.** Change requests that never reached a card are still fully
+detected and reported by card, component and request id, and a person decides.
+
+**Why the split falls where it does.** Nearly every finding since round 2 landed
+on delivery, and the last three rounds were each a defect created by the
+previous round's fix. The two halves are not comparably hard:
+
+- **stamp**: read a committed approve, check for a later reopen, write one dated
+  field. No matching, no merging, no second lifecycle.
+- **delivery**: decide identity across two systems with no shared ids (the row
+  id matches 4 card entries, the native id 57), reconcile two lifecycle clocks,
+  merge into a cell whose format predates ids, and survive a non-atomic two-step
+  write. Round 8 ended at 8 live rows where the data cannot say whether
+  delivering is a repair or a duplicate.
+
+**The guard is at the WRITE, not at detection.** `writePatch` refuses any kind
+outside `WRITABLE_KINDS`, and the apply loop and the safety cap both count only
+writable rows. Detection is left fully wired on purpose: the report is the
+deliverable for the delivery half, and placing the guard at the write means a
+future edit to detection cannot make delivery writable by accident. Asserted
+three ways and controlled both directions (guard removed, and delivery added
+back to the writable set).
+
+**Live effect:** 4 stamp repairs written on an apply run; 1 change request and
+the ambiguous rows reported for a person. The dry run labels them distinctly —
+`→ writes` versus `would need … REPORT ONLY, a person decides` — so nobody reads
+a report line as a pending write.
+
+58 checks, thirty-three controls.
+
+### 197j. [2026-09-10] Round 9: two P1s on the STAMP path, which the round-8 argument had called the settled half
+
+Worth recording plainly, because it qualifies the reasoning behind 197i. The
+narrowing was argued on the grounds that stamp repair is simple and its rules
+had been stable since round 2. The very next review found **two P1s on the stamp
+path**. The narrowing is still right — the delivery half produced far more, and
+the ambiguity it ended at is undecidable rather than merely hard — but "settled"
+was too strong, and it was my word, not the evidence's.
+
+**1. An approval was not bound to the client it was made for.**
+`scripts/move-card-client.js` moves a card between clients by rewriting
+`calendar_posts.client` and `deliverables.client_slug`, and historical
+`mirror_outbox` rows keep the ORIGINAL client. Resolving purely through the
+deliverable's CURRENT client would stamp the new client's card with the previous
+client's sign-off. **Zero live rows today, and one card move creates them
+silently.** The event's `client_slug` is always populated, so the check is free:
+a mismatch is now refused as `approval_belongs_to_another_client`.
+
+This is the second cross-client hole in this job (round 4 was the composite key)
+and both were invisible until named. The pattern to carry forward: **identity
+here is never a single column.**
+
+**2. Revalidation refreshed the card and the source row, but not the
+transitions.** A component reopened after `loadWorld` and returned to `Approved`
+before the write passes `stampSurvives` on the fresh card while the reopen is
+absent from the snapshot, so the obsolete approval is restored. The card cannot
+see that; only the outbox can. Revalidation now re-reads all three — card,
+source row, transitions — each scoped to the row being repaired. Rounds 7, 8 and
+9 each added one of those three, which is its own small lesson about
+revalidating against a partial snapshot.
+
+**3. (P2, but it mattered more than that.)** The ambiguous rows were counted as
+"left alone", so the summary could report zero delivery work while eight
+requests waited for a decision, and the per-row line omitted the request id.
+Since reporting is now the entire deliverable for the delivery half, a summary
+that hides the work is a defect in the product, not the log. They are now
+counted under `NEEDS A PERSON` with their request ids.
+
+62 checks, two more controls.
+
+### 197k. [2026-09-10] Round 10: the same hole one table over, which is what a narrow fix earns you
+
+Two P1s, both cross-client identity again, and the pair is more instructive than
+either one.
+
+**Round 9 fixed the outbox client inline. Round 10 found the identical hole in
+`production_comments`.** Both tables keep the client they were written for when
+`move-card-client.js` moves a card, and I had closed exactly one of them where I
+happened to be looking. The reviewer was, in effect, enumerating instances of a
+rule I had already written down and then failed to apply.
+
+So the check is now **structural rather than per-table**: `resolve()` takes the
+row's own client as a REQUIRED argument and throws when a caller omits it, so a
+future source cannot be wired in without answering the question. An absent
+client is absent (legacy rows); a different one is refused. The inline round-9
+check is gone, because two places to get this right is one too many.
+
+An implementation note worth keeping: the required argument is enforced with
+`arguments.length`, not a default value or a sentinel, because a row whose
+client column is empty legitimately passes `undefined` and a default parameter
+fires on `undefined` too. `resolve` became a plain function for that. The first
+two attempts (default sentinel, then `=== undefined`) both failed the suite,
+correctly.
+
+**Second finding: revalidation did not re-read the deliverable.**
+`move-card-client.js` rewrites `deliverables.client_slug` and
+`calendar_posts.client` as two separate PATCHes, so a revalidation landing
+between them resolves through the stale mapping and stamps a card mid-move.
+Revalidation now refreshes four sources: card, source row, deliverable,
+transitions. Rounds 7, 8, 9 and 10 each added one.
+
+Live exposure in both tables today: **zero rows**. Both fields are always
+populated, so both checks are free.
+
+64 checks, two more controls.
+
+**Ten rounds, 28 findings.** Rounds 9 and 10 were both on the stamp path, which
+the round-8 narrowing had called the settled half.
+
+### 197l. Round 11: a card id is a one-way pointer, and following it alone is not a link
+
+`deliverables.card_id` is plain text with **no foreign key**
+(`migrations/2026-07-06-b1-linear-data-model.sql`), written by one side only.
+The reconciler followed it forward and stopped there, so a stale pointer left by
+a re-link, or a Samples deliverable whose `card_id` happens to name a real
+same-client calendar card, would have produced a **writable stamp** on a card
+that never had anything to do with that approval.
+
+The product already had the rule and the reasoning. `_prodCrosswalkMismatchFields`
+in `index.html` accepts a deliverable as describing a card only when origin,
+team, `client_slug` and `card_id` all agree, and it treats unknown as
+not-linked, because acting on a half-link destroys real comment history. F42
+recorded the live evidence behind that gate. The reconciler was not applying its
+own product's rule.
+
+The link now has to close both ways, checked in `resolve()` beside the client
+rule: the deliverable must carry `origin='calendar'`, and the card's own slot
+for that deliverable's component (`video_deliverable_id` /
+`graphic_deliverable_id`) must name it back. A `kind` this job maps to no
+component (`other`, live today) still has to be named by one slot or the other;
+what is never enough is neither.
+
+Measured live before writing the rule: of the calendar-origin deliverables
+carrying a card id, **1,394 of 1,394 reverse-link correctly** and none are
+mismatched; all **56** Samples-origin card ids resolve to no same-client
+calendar card at all, and none of them collides with a calendar card id under
+any client. **Zero rows affected today.** One re-link creates one silently, and
+it would be a write.
+
+71 checks. Three controls, all confirmed to fire: the reverse-link refusal
+removed, the origin refusal removed, and `origin` dropped from the projection —
+that last one is the **round-1 lesson as a test**, since a fixture sets whatever
+field it likes and a rule can pass every case here while being inert in
+production because the real query never fetches the column. The suite now
+asserts the projections themselves.
+
+**Eleven rounds, 29 findings.** Rounds 9, 10 and 11 were all the same shape:
+identity taken from one side. The round-8 narrowing called the stamp path the
+settled half, and three consecutive rounds have landed on it.
+
+### 197m. Round 12: the reverse link does not subsume the team
+
+197l claimed the card's reverse-link slot covered the `team` half of the
+crosswalk. It did not. `kind` and `team` are independently constrained columns
+on `deliverables`, and the slot was derived from `kind` — so a row carrying
+`kind='video'` with `team='graphics'` passed on a matching `video_deliverable_id`
+and would have written a client **video** stamp on graphics work. The canonical
+predicate checks `team` as its own field, which is exactly why it is its own
+field.
+
+The slot is now chosen by `team`, using the app's own component→team map
+inverted, and a `kind` that maps to a different component is refused as
+`kind_and_team_disagree`. That also gives kind `other` (live, `team='graphics'`)
+a defensible slot, replacing 197l's weaker "either slot will do" rule.
+
+Measured: across the deliverables carrying a card id, `kind` and `team` agree on
+every row today, and the full-crosswalk figure is the same 1,394 of 1,394. The
+figure survived — but 197l asserted it against the narrower predicate, so it was
+an unchecked claim when it was published, and that is the correction worth
+recording rather than the number.
+
+74 checks. Two controls that fire independently: the kind/team agreement removed,
+and `team` dropped from the projection. A third — deriving the slot from `kind`
+again — **does not fail the suite on its own**, because the only rows where the
+two choices differ are the ones the agreement rule already refuses. Removing both
+does fail. So it is one rule with two expressions, and it is recorded as one
+rather than counted twice.
+
+**Twelve rounds, 30 findings.** Rounds 9 through 12 were all identity taken from
+one side, and 12 was a defect in 11's fix.
+
+### 197n. Round 13: a component derived twice, and an approval that vanished
+
+197m gave `kind='other'` a defensible component through its `team`. The stamp
+path then derived the component from `kind` anyway, got nothing, and `continue`d
+— so a committed client approval on such a card produced **neither a repair nor
+a line in the report**. That is worse than a wrong repair: the report is what a
+person acts on, and a silent drop tells them the row does not exist.
+
+The validated component now travels with the resolution, from the same team that
+chose the reverse-link slot, and every refusal writes a line into `skipped`. The
+same one-place argument as 197j–197m: a value derived twice gets derived
+inconsistently.
+
+Live: 147 `other` deliverables, **zero** committed client approvals on any of
+them, so this writes nothing today.
+
+Also fixed, and the more embarrassing half: the runbook still published **64
+checks** one round after the suite reached 74 — under a line telling the reader
+to keep that number current. It is now **asserted by the suite itself**, so it
+cannot go stale again. A runbook that publishes a stale count is evidence a
+later session plans against.
+
+77 checks. Both controls fire: deriving the component from `kind` at the call
+site, and restoring the silent `continue`.
+
+A note on the controls themselves, since this PR has now found five tests that
+passed for the wrong reason: the second control looked like it did not fire,
+because the grep used to check it matched only `AssertionError` and the sabotage
+produced a `TypeError`. The instrument was wrong, not the control. Read the
+suite's exit status, not a pattern chosen in advance.
+
+**Thirteen rounds, 32 findings.** Round 13 was a defect in 12's fix, which was a
+defect in 11's fix.
+
+### 197o. Round 14: the report contract did not reach the write filter
+
+197n established that every refused approval appears in the report. It did not
+reach the narrow write filter, which exits before any reporting: a committed
+client approval whose carrier status is `pending`, `skipped`, `stale` or a
+failure produced neither a stamp nor a line. That is the exact case an operator
+is hunting when BOTH legs failed — the outbound never landed and the browser
+never wrote the card — and silence there reads as "nothing to investigate".
+
+The write policy is unchanged; only the report grew. Reported as
+`carrier_did_not_write`, and only when the stamp is genuinely absent: of the
+**5** such rows in the window, **4 are already stamped** and would be noise, and
+**1 is a lost client approval this job named nowhere**. A report nobody can act
+on is worse than a shorter one.
+
+79 checks, two controls, both confirmed by the suite's **exit status** rather
+than by grepping its output — the correction from 197n.
+
+**Fourteen rounds, 33 findings.** Rounds 11, 12, 13 and 14 were each a defect or
+an incompleteness in the previous round's fix, all on the stamp path that the
+round-8 narrowing called settled.
+
+**A note for whoever picks this up.** Every one of those fixes is small,
+measured and zero- or one-row in live exposure, and none of them is wrong. But
+the shape is no longer "review finds bugs" — it is a patch sequence generating
+its own next finding, which is what item 189 records about the browser-side
+attempt before it was abandoned. The structural question, which is bigger than
+this PR and is the owner's to decide: should this job reconstruct card identity
+out of `deliverables`, `calendar_posts` and `mirror_outbox` at all, or should
+the crosswalk live behind ONE shared helper that `index.html`,
+`scripts/f42-card-comment-import.js` and this job all call? Four consecutive
+rounds have been that question arriving in pieces.
+
+### 197p. Round 15: a true reason, reported at the wrong moment and filed in the wrong bucket
+
+Two defects in 197o's own addition.
+
+**It reported before the supersession tests.** A sign-off can be absent *on
+purpose* — the work was reopened after the client approved, or the component has
+since moved below Approved. Reporting at the carrier filter skipped both checks,
+so those produced an actionable-looking "lost client approval". A false lead in
+a report is the same class of harm as a false repair: someone spends their
+afternoon on it. Unwritten candidates are now collected and run through the same
+two tests as written ones, and a written approve for the same review supersedes
+the unwritten row entirely.
+
+**The summary buried it.** `carrier_did_not_write` was counted under "left alone
+(a card that moved on is never overwritten)", so a run whose only result was the
+one genuinely lost approval printed `NEEDS A PERSON: 0`. The workflow tells the
+operator to read that line. A reason nobody is pointed at is barely better than
+no reason. The summary is now a pure exported `summaryLines()` and the suite
+asserts the bucketing, because the counts are a rule too.
+
+83 checks, three controls, all confirmed by exit status.
+
+**Fifteen rounds, 35 findings.** Rounds 11 through 15 were each a defect in the
+previous round's fix. Round 14 was added *after* the session had told the owner
+it would stop and escalate, on the argument that it completed 197n's contract
+rather than starting something new — and it promptly produced two more findings.
+That argument was wrong, and this entry is the evidence. The structural question
+in 197o stands and is the owner's to answer.
+
+### 197q. Round 16: eighty-three green checks over a program that would not start
+
+Three findings, and the first is the worst defect in this PR.
+
+**The job crashed on every run.** Extracting `summaryLines()` in 197p left
+`main()` referring to `ambiguous` and `leftAlone`, which now existed only inside
+that function. Every invocation — dry-run and apply alike — died with
+`ReferenceError: ambiguous is not defined` after printing the summary and before
+the write loop. **All 83 offline checks passed and all three CI jobs were green**,
+because not one check ran the entry point. A suite that never executes the
+program cannot tell you the program runs.
+
+The suite now drives the real CLI in a real process over fixtures, twice: once
+asserting the run reports what it found, once asserting a dry run reaches no
+write. `classify()` returns the buckets as well as the lines, so no caller can
+name a grouping that is not there.
+
+**The suppression compared presence, not time.** The key names a
+(card, component), not a review. An older written approve, then a reopen, then a
+newer client approve whose carrier failed: the old one is rejected by the reopen
+test and its mere presence suppressed the new one, so the current loss was
+reported nowhere. It now compares the clocks.
+
+**The count had no rows.** `carrier_did_not_write` was excluded from the
+`leftAlone` detail loop and had none of its own, so the operator learned that one
+approval needed attention and nothing about which card, component or carrier
+status. The dispatched workflow passes no `--json`, so that loop is the only
+human-readable output these rows ever get.
+
+86 checks, three controls, all confirmed by exit status.
+
+**Sixteen rounds, 38 findings.** The lesson worth keeping is not any of the three
+fixes: it is that a green suite and green CI were both satisfied by a program
+that could not start. Coverage of rules is not coverage of the run.
+
+### 197r. Round 17: the delivery half was already holding the evidence
+
+Two P1s and a P2, and the first one is the falsest positive this job could
+produce.
+
+**A later client change request supersedes an approval.** A tweak commits its
+comment leg and its status leg separately; when the status leg fails there is no
+transition for the reopen test to find, and the component still reads
+`Approved`. An apply run would have restored the older sign-off stamp — claiming
+the client approved work they had since asked to change — while the SAME run
+reported their request as `review_round_closed`. The two halves of one
+contradiction, in one report. The evidence was already loaded in
+`world.comments` for the delivery half; the stamp half simply never looked at
+it. Committed client requests are now a supersession clock for both paths.
+
+Measured: **none of the four repair candidates has a later client request**, so
+no repair changes. Checked because of what it would mean if it ever did.
+
+**A lost approval that cannot resolve a card vanished.** The unwritten branch
+accepted only resolved rows and then continued, so an approval that failed both
+delivery legs AND has a stale crosswalk appeared in neither `findings` nor
+`skipped` — precisely the rows where nothing else in the system names the
+approval either. The written path had reported these all along; the asymmetry
+was the bug.
+
+**The carrier row named a card but not a client.** `calendar_posts` is keyed by
+`(client, id)` and 13 live ids are shared across clients, so the row did not say
+whose approval was lost. This is the fourth finding in this PR that traces to
+"an id is not an identity here".
+
+90 checks, four controls, all confirmed by exit status.
+
+**Seventeen rounds, 41 findings.**
+
+### 197s. Round 18: the fifth source, and the bucket that lost its urgent case
+
+**Revalidation refreshed four sources while detection read five.** 197r made
+committed client requests a supersession clock; revalidation kept refreshing the
+card, the source row, the deliverable and the transitions. A request committing
+between `loadWorld` and the write, whose own status leg then fails, leaves the
+freshly read card at `Approved` with no reopen in the refreshed outbox — and the
+stamp goes back on over a change the client had just asked for. The rule "detection
+reads N sources, so revalidation refreshes all N" is written at the top of that
+doc section. This is the **fifth** time in this PR that a rule already recorded
+here was not applied one place over.
+
+Keyed to the DELIVERABLE, not to a comment id: the stamp path carries no
+`finding.comment`, which is exactly how the source was missed. Asserted against
+the source text rather than through fixtures — the failure mode is a read that
+never happens, and no fixture can show you a query the code does not make.
+
+**The crosswalk-refusal rows were filed under "left alone".** A carrier failure
+that could not even resolve a card is *more* urgent than one that could: both
+delivery legs failed AND the crosswalk is stale, so nothing else in the system
+names that approval. The summary reduced it to
+`card (unlinked) [] left alone: ...` with the deliverable and carrier status
+dropped. It now counts as carrier-failure work and prints the deliverable.
+Bucketed on the carrier status the row carries rather than on the reason string,
+so a future refusal reason cannot quietly fall out the way this one did.
+
+92 checks, two controls, both confirmed by exit status.
+
+**Eighteen rounds, 43 findings.**
+
+### 197t. Round 19: reporting a conclusion that could not be checked
+
+The crosswalk-refusal row added in 197s told the operator that an approval
+"reached neither leg". It could not know that. All four qualifying tests — stamp
+already present, a later reopen, a later client request, current status — need a
+card, and a refusal row has none. So a half-linked card that already carried the
+stamp would still be reported as a lost approval, sending someone after nothing.
+
+The row is kept — nothing else in the system names that approval — but its claim
+is now narrowed to what is known: the carrier did not write, the card cannot be
+identified, and **whether the card leg landed is unknown**
+(`carrier_did_not_write_and_card_unknown`, with the refusal carried alongside).
+
+Considered and rejected, recorded so the next session meets the decision rather
+than rediscovering it: following the half-link anyway to read the stamp. That is
+the exact trust the crosswalk gate exists to refuse, and using it to SUPPRESS a
+report would let a mis-linked card hide a real loss. Reporting an uncertain row
+costs an operator a lookup; suppressing a real one costs a client their sign-off.
+
+94 checks, two controls, both confirmed by exit status.
+
+**Nineteen rounds, 44 findings.** This one is a different shape from 11–18: not a
+rule left unapplied, but a claim stated more confidently than the evidence
+supported. Worth naming separately, because the fix for the first kind is
+discipline and the fix for this kind is saying less.
+
+### 197u. Round 20: one return value meaning two opposite things
+
+**`null` from `resolve()` meant both "deliberately out of scope" and "the
+crosswalk is structurally broken".** Archived cards and out-of-scope clients are
+decisions and should be silent. A deliverable that is missing, carries no card
+id or no client, or names a card that is not there is a **lost client approval
+nobody will hear about**. Both returned `null` and both vanished. From here
+`null` means only the first; every structural failure names itself
+(`deliverable_unknown`, `deliverable_names_no_card`, `deliverable_names_no_client`,
+`card_not_found`) and is reported on the written and unwritten paths alike.
+
+Measured: **0** unwritten approvals hit these today; **2 written ones name a card
+that is not there**, and they were invisible before this. One archived card stays
+correctly silent — controlled, so making archived reportable also fails the
+suite. An over-correction here would fill the report with rows nobody intends to
+act on, and the real ones would drown.
+
+**The `--client` scope was applied after the refusals were produced**, so a run
+advertised as limited to one client still reported and counted other clients'
+rows. Scoped now before any refusal, on the row's own client, then re-checked
+against the card's client for rows that resolve. Driven through the CLI in the
+suite, since the scope is read from the environment at module load.
+
+97 checks, three controls, all confirmed by exit status.
+
+**Twenty rounds, 46 findings.**
+
+### 197v. Round 21: surfaced, then filed where nobody looks
+
+**The structural failures 197u surfaced landed in "left alone".** They carried
+neither the deliverable nor the client, so the run printed
+`card (unlinked) [] left alone: card_not_found` — indistinguishable lines naming
+nothing an operator can look up. Round 20 made these rows visible and round 21
+found they were still unusable, which is the same lesson as 197p: a reason
+nobody is pointed at is barely better than no reason.
+
+They are their own kind of work: the carrier **wrote**, so this is not a carrier
+failure, and the card cannot be found, so it is not a card that moved on. Own
+term in NEEDS A PERSON, own detail loop, deliverable and client printed. A
+cross-client approval is deliberately NOT in this bucket — there the card exists
+and belongs to someone else — and a control covers that over-correction.
+
+**The `--client` scope preferred the deliverable's client over the row's own**,
+while the comment beside it said the opposite. After `move-card-client.js` runs,
+historical rows carry the previous client and the deliverable carries the new
+one, so `--client=B` reported A's historical rows and `--client=A` hid them. The
+row's own client now wins, with the deliverable as the legacy fallback.
+
+Also: the "left alone" lines now print the deliverable when no card was
+identified, for the same reason.
+
+100 checks, three controls, all confirmed by exit status.
+
+**Twenty-one rounds, 48 findings.**
+
+### 197w. Round 22: the two "lost approvals" were Samples rows, and the ledger said otherwise
+
+`resolve()` looked up the Calendar card **before** testing the deliverable's
+surface, so a Samples deliverable found no `calendar_posts` row and 197u's new
+`card_not_found` escalated it to NEEDS A PERSON as a carried approval whose card
+is missing. Its card is not missing. It lives on the Samples surface, which this
+job does not read.
+
+**This corrects 197u.** That entry reported "2 written approvals name a card that
+is not there, and they were invisible until now" as a real find. Measured
+properly, of the 227 committed client approvals in the window, **225 are
+calendar-origin and 0 of those have a missing card**; the 2 are Samples. So the
+number was real and the conclusion was wrong — they are not lost, and they are
+not this job's surface. The claim reached the owner before the correction did.
+
+The surface test now runs before the card lookup and is a **silent** skip rather
+than a refusal, matching 197u's own rule that `null` means deliberately out of
+scope. False alerts bury real ones, which is the whole argument for keeping this
+report short.
+
+101 checks, two controls: the gate moved back after the lookup, and the gate
+reporting a refusal instead of skipping.
+
+**Twenty-two rounds, 49 findings.** Worth noting what this round was: not a
+defect in the code's behaviour toward client data, but a **wrong measurement
+published as a finding**. The fix for that is not more rules — it is checking
+which surface a row belongs to before calling it lost.
+
+### 197x. Round 23: the identity and the headline, for rows four rounds spent making actionable
+
+Two consistency failures, both in rows that 197o–197w had been steadily
+promoting into operator work.
+
+**The unresolved row discarded the event's client.** The renderer already
+printed `row.client`; the constructor never set it. After `move-card-client.js`
+runs, the deliverable's client and the approval's differ — so the line named a
+deliverable and an unidentified card and never said **whose approval failed**,
+which is the one thing an operator needs to act. The event's client is retained
+now, not the deliverable's.
+
+**The headline asserted a card leg the detail line calls unknown.** 197t
+narrowed the per-row claim to what is known; the summary still counted every
+carrier failure under "reached neither leg". Split: a resolved carrier failure
+was qualified against four tests and keeps that wording; a crosswalk refusal is
+counted as "client approve not carried, card leg unknown". A summary that
+contradicts its own detail is 197t's defect one level up, and it went unnoticed
+because 197t only looked at the line it was fixing.
+
+103 checks, two controls, both confirmed by exit status.
+
+**Twenty-three rounds, 51 findings.**
+
+### 197y. Round 24: an obsolete stamp time, and a suggestion that would have discarded the founding repair
+
+**A written approve followed by a newer committed approve whose carrier did not
+write.** The repair used the older time, so an apply run would have stamped an
+obsolete moment while the same run reported the newer approval as a loss —
+contradicting the rule that the latest approval is operative.
+
+**The suggested fix was to suppress the older repair. Measuring refused it.** All
+three live pairs are a client re-clicking about **two seconds** later after the
+`operation_forbidden` error — item 189's own incident — and one of them is the
+card this job was written for. Suppressing would have discarded that repair. It
+is the same event, not a new decision, so the CLOCK moves and the repair stands.
+That is the third time in this PR a review suggestion was right about the defect
+and wrong about the remedy, and each time the live rows were what said so.
+
+The asymmetry from round 1 is preserved exactly: **every supersession test runs
+against the WRITTEN approve's time**, and only the value written to the card
+comes from the broader set. An unwritten approve corrects the clock; it can never
+rescue a stamp a reopen has refused. Controlled in both directions.
+
+**The ambiguity gate matched bodies without the client-root test** that the
+fallback one line below applies. A staff note, reply or deleted entry sharing the
+wording cannot be a delivery of the client's request, so calling it an ambiguous
+repeat told the operator duplication was possible when the request was simply
+absent — two answers from the same facts, a line apart.
+
+107 checks, four controls, all confirmed by exit status.
+
+**Twenty-four rounds, 53 findings.**
+
+### 197z. Round 25: the same two fixes, one function further down
+
+Both of these are 197v and 197x applied to the **comment** path, which had been
+left exactly as the stamp path was two rounds ago.
+
+**A committed client REQUEST whose card cannot be found was filed under "left
+alone"**, with no deliverable, client or request id. Reporting lost requests is
+the delivery half's entire result — the owner's round-8 decision made that the
+deliverable for that half — so burying one under "a card that moved on is never
+overwritten" removes the only thing an operator could act on. It is carrier-
+failure-adjacent work now, with its own identity, and claims nothing about a
+card leg it could not look at.
+
+**The finding lines printed a card id with no client.** 13 live ids are shared
+across clients; a bare id does not say whose card to open. Fixed on the repair
+lines, the report-only lines and the ambiguous-request lines together, rather
+than one at a time — which is what produced this round in the first place.
+
+109 checks, three controls, all confirmed by exit status, including one against
+the over-correction of counting a cross-client request as a broken crosswalk.
+
+**Twenty-five rounds, 55 findings.** The shape here is worth naming: rounds 21
+and 23 fixed these on the stamp path and I did not look one function down. That
+is the same failure as 197j–197n — a rule applied where I was looking — and it
+is now the most durable pattern in this PR.
+
+### 197aa. Round 26: the identity contract stops being remembered and starts being enforced
+
+Three findings, and the third is answered structurally because it had already
+been answered twice.
+
+**An archived card with a stale reverse link was escalated as a broken
+crosswalk.** Archived is deliberately out of scope and the report promises to
+suppress it, but the refusal was produced before the archived test ran. Same
+ordering lesson as 197w's surface fix: decide whether a row is in scope **at
+all** before producing a refusal about it. Order is now archived, then surface,
+then crosswalk.
+
+**A named component that contradicts the validated link was trusted.**
+`production_comments.component` has no constraint tying it to the deliverable's
+team, so a malformed or imported row naming `video` on graphic work was reported
+as absent from `video_tweaks` — the wrong review, and one the request could never
+have been delivered to. Refused and reported as
+`named_component_contradicts_link` rather than resolved by picking a side.
+
+**A third round of "this skip row prints a card id with no client".** 197v fixed
+it on the left-alone lines, 197z on the finding lines, and this round found the
+supersession rows. Fixing the row in front of me is what produced all three. It
+is a contract now: `skip()` **throws** when a row names a card and no client, so
+a future push site cannot omit it quietly.
+
+113 checks, three controls, all confirmed by exit status. The archived control
+had to be rebuilt — the first version moved the check somewhere that still
+passed, which would have shipped a control that proves nothing, the same failure
+this PR has now found six times.
+
+**Twenty-six rounds, 58 findings.**
+
+### 197ab. Round 27: one deliverable is several reviews
+
+**The supersession clock was keyed by deliverable.** One deliverable carries the
+video work *and* the caption and title reviews, so a caption request suppressed a
+video sign-off it had nothing to do with — and after 197aa, a request the same
+run refuses as unplaceable suppressed a repair while being reported as unusable.
+Keyed by **(deliverable, component)** now: a request supersedes the review it
+belongs to, and no other.
+
+**The 197aa contradiction refusal was filed under "left alone".** The card has
+not moved on; the report simply cannot say which review the client meant, which
+is a person's decision. It is operator work now. That is the fourth reason in
+three rounds to land in the wrong bucket on first writing, which is what the
+`skip()` contract addresses for identity but not for classification.
+
+**`changed_under_us` printed a bare card id.** It is logged directly on an apply
+run, after the summary and detail loops, so it never passed through the line
+that gained the client. The fifth "this line has no client" in four rounds, and
+the one place the contract could not catch, since it is not a detect-time row.
+
+**A rule was added and then removed in the same round.** Excluding contradicting
+requests from the supersession clock has no case once the clock is keyed by
+component: the deliverable resolves to the other component, so such a request
+already lands on a key no approval from it can occupy. Its control would not
+fire. This PR treats a control that does not fire as a broken test rather than a
+redundant one, so the rule came back out rather than shipping as decoration.
+
+117 checks, three controls, all confirmed by exit status.
+
+**Twenty-seven rounds, 61 findings.**
+
+### 197ac. Round 28: a rule expressed in the wrong vocabulary
+
+**The 197aa contradiction rule fired only when both components had a reverse
+link**, so a `caption` or `title` request on graphics-linked work slipped
+through — and it never could have caught them, because caption and title have no
+reverse link at all. The rule was written in the vocabulary of the crosswalk
+(`REVERSE_LINK_FIELD`) when the fact it needed belongs to the importer:
+`scripts/f42-card-comment-import.js` states "graphic -> Graphics; every
+video/caption/title thread shares the Video deliverable". Now expressed as that
+contract, so caption/title on VIDEO work stays normal (74 of 347 live tweaks)
+and on graphics work is refused. Live malformed rows: **0** — all 347 conform.
+
+**The contradiction row was rendered as a missing card.** It knows its card,
+client and both components; the shared renderer said "its card cannot be found",
+sending an operator after a broken crosswalk instead of the real question, which
+of two known reviews the client meant. Rendered on its own terms now.
+
+**The failed-write record and line omitted the client.** 197ab added it to
+`changed_under_us` and not to the row beside it. That line runs only on an APPLY
+run against a live backend, so nothing offline reached it — it is now a pure
+`failureLine()` the suite asserts, because the alternative was a rule with no
+control, which this PR treats as a broken test. Its control did not fire until
+that extraction, which is exactly the point.
+
+122 checks, four controls, all confirmed by exit status, including one against
+the over-correction of barring caption and title from video-linked work.
+
+**Twenty-eight rounds, 64 findings.**
+
+### 197ad. Round 29: the clock deciding what the report refuses to decide
+
+**A request naming an unmapped component (`sizzle-reel`) fell back to the
+deliverable's linked component in the supersession clock.** The request path
+reports that same row as `unmapped_component` and explicitly refuses to say
+which review it belongs to — so one half of the run declined the question while
+the other half answered it, and suppressed a valid missing approval on the
+strength of that answer. The fallback is now reserved for an EMPTY name, the one
+case with nothing to contradict. Controlled in both directions, since removing
+the fallback entirely would break the normal unnamed-request case.
+
+**The `--json` projection discarded the card's client.** `--json` suppresses
+every detail line, so that projection is the whole output for a consumer. Seventh
+instance of the identity defect, and the last surface that had it.
+
+**The headline counted a contradicting component as "a carried approve whose
+card is missing".** Its card is right there; the question is which of two known
+reviews the client meant. Split, for the same reason the carrier terms were split
+in 197x: a false headline over a correct detail line is worse than either alone.
+
+126 checks, four controls, all confirmed by exit status.
+
+**Twenty-nine rounds, 67 findings.**
+
+### 197ae. Round 30: an entry nobody can see, and a card thrown away after it was found
+
+**A `hidden` entry could claim a client's request.** `_calCommentsForView`
+filters `hidden` out for every audience, so such an entry is invisible to
+everyone — and `index.html` names the case it exists for: "legacy cross-client
+feedback that bled onto the wrong client's row". Claiming one declares a request
+delivered while the client cannot see it, most readily on precisely the
+cross-client mess the flag was created to bury. Refused on both claim passes.
+Live: **4 cells** carry a hidden entry.
+
+The first draft of that fix also refused **deleted** entries and broke the
+round-6 rule: a deleted entry claimed by id is still a claim, because the client
+withdrew their own request and re-delivering it would reopen a component over
+something they took back. The existing check caught it immediately, which is the
+argument for keeping old checks that look redundant. Withdrawn is not unseen, and
+there is now a control against collapsing them again.
+
+**A refusal threw away a card it had already found.** `resolve()` locates the
+exact (client, id) row and only then discovers the reverse link is stale — but
+returned a bare string, so the row printed "its card cannot be found" about a
+card sitting right there, sending an operator after a missing-card problem that
+does not exist. The refusal now carries the card it found, on both paths.
+
+130 checks, four controls, all confirmed by exit status.
+
+**Thirty rounds, 69 findings.**
+
+### 197af. Round 31: both halves of the previous round, finished
+
+**`hidden` was tested for `=== true` while the app tests for truth.**
+`_calCommentsForView` filters on `!c.hidden`, and these cells hold schema-less
+JSON, so a legacy or imported entry carrying `hidden: 1` or `hidden: "true"` is
+invisible in the app and would still have claimed a request — recreating exactly
+the false "delivered" result 197ae was written to prevent. Matched to the
+renderer's rule, with a control against the over-correction of treating a falsy
+`hidden` key as hidden.
+
+**A stale reverse link was still counted and printed as a missing card.** 197ae
+put the located card on the row and stopped there: `classify()` still filed it
+under `cardMissing` and the renderer still said "its card cannot be found". Own
+term and own line now — "card found but its link back is stale".
+
+That is the same failure as 197z and 197aa: the fix applied to the row in front
+of me, not to the two places downstream that read it. The row, the count and the
+line are three surfaces, and this PR has now needed a separate round for the
+second and third of them **twice**.
+
+**A control passed while sabotaged, and the check was rebuilt.** The falsy-hidden
+case matched by BODY as well as by id, so the body fallback answered it and the
+id pass — where the truthiness test actually lives — was never exercised. Given a
+different body, the control fails as it should. Seventh instance in this PR of a
+check that proved nothing until it was aimed properly.
+
+133 checks, three controls, all confirmed by exit status.
+
+**Thirty-one rounds, 71 findings.**
+
+### 197ag. Round 32: a blacklist of the roles I happened to know
+
+`couldBeClientTweak` listed six staff roles and refused those. That is wrong by
+construction twice over: it admits **every role nobody thought to add** —
+`creative` is one the product already preserves — and it never looked at
+`audience` at all, so a client-authored note explicitly marked internal counted
+as the delivery of a client's request.
+
+It now mirrors `index.html`'s own derivation: an explicit `client`/`internal`
+wins, otherwise role `client` means client and everything else means internal.
+An internal entry is never shown to the client, so it cannot be the delivery of
+their request — the same argument as `hidden`, one field over.
+
+The direction matters and is controlled: this is **not** "staff cannot deliver".
+**779 live root entries carry role `smm` with audience `client`**, and the app
+shows those to the client, so they can and do. A role-only allowlist would have
+discarded all 779; that over-correction fails the suite.
+
+What it changes live: 4 root entries carry role `client` with audience
+`internal`, and 2 carry neither field (the app calls both internal). Both were
+eligible before and are not now.
+
+135 checks, two controls, both confirmed by exit status.
+
+**Thirty-two rounds, 72 findings.** This is the fourth rule in this PR that was
+written as "the cases I can think of" and had to become "the rule the app
+already applies" — after the crosswalk, the component/team map, and the
+video/caption/title contract.
+
+### 197ah. Round 33: the right instinct, the wrong copy of the rule
+
+**197ag replaced a staff-role blacklist with the wrong audience rule.** These
+cells are rendered by `_calCommentsForView`, which calls `_calMsgAudience` —
+and Calendar defaults only `kasper` and `smm` to internal. I took the
+**Production surface's** normalization instead, which defaults every non-client
+role to internal, so a `creative` note or an entry with no role at all would
+have been called invisible when Calendar shows it to the client, and their
+requests reported as never delivered.
+
+The fix is not a more careful copy. `_calMsgAudience` is now **extracted from
+`index.html`** like `_calNormStatus` and `_calClearStaleApprovals` already are,
+which is the technique that makes those three incapable of drifting. 197ag's own
+entry said "a rule restated is a rule that drifts" and then restated one; this
+is that sentence being paid for one round later.
+
+**The exact-id pass claimed entries the client cannot see.** An id match is the
+strongest evidence this job has, and it is still not evidence of DELIVERY: an
+internal root is hidden from the client exactly as a `hidden` one is. Gated by
+the same predicate, with the round-30 rule preserved and controlled — a DELETED
+client entry claimed by id is still a claim, because withdrawn is not unseen.
+
+138 checks, two controls, both confirmed by exit status.
+
+**Thirty-three rounds, 74 findings.**
+
+### 197ai. Round 34: extracting one function is not mirroring the caller
+
+197ah fixed "restated instead of called" by extracting `_calMsgAudience`. But
+`_calCommentsForView` applies **three** rules, and that function is one:
+
+1. drop tombstoned and `hidden` entries,
+2. drop every `role: 'kasper'` message outright — "never expose Kasper
+   authorship", a hard exclusion that **overrides** an explicit
+   `audience: 'client'`,
+3. keep only threads whose ROOT is client-addressed, replies inheriting it.
+
+A mis-tagged Kasper root could therefore claim a committed client request by id
+or by body, and a reply was judged by its own audience while the app judges it
+by its root's. Both are now mirrored, the reply case by resolving the root out of
+the same cell the renderer uses.
+
+The correction to 197ah's lesson: **calling the right function is not the same as
+mirroring the caller.** The question is never "which function computes this" but
+"what does the code path that actually renders this to the client do", and that
+path had two more rules wrapped around the one I extracted.
+
+140 checks, three controls, all confirmed by exit status.
+
+**Thirty-four rounds, 75 findings.**
+
+### 197aj. Round 35: mirroring the caller's rules, but not its order
+
+197ai mirrored all three of `_calCommentsForView`'s rules and still got the
+**order** wrong. The renderer drops tombstoned and hidden entries FIRST and only
+then indexes by id, so a hidden root is absent from its map and a surviving
+reply falls back to its own audience. Indexing the raw cell resurrected the
+hidden root: a hidden client-addressed root with an internal reply read as
+visible, and the reply could claim a committed request.
+
+Fixed by building the root map from the same prefiltered list. One deliberate
+divergence remains and is documented rather than accidental: a **deleted** entry
+claimed by id is still a claim, because withdrawn is not unseen — it is excluded
+from the root map exactly as the renderer excludes it, but not from being
+claimed.
+
+142 checks, two controls, both confirmed by exit status, including one against
+the over-correction of emptying the root map (which would silently undo 197ai's
+reply rule).
+
+**Thirty-five rounds, 76 findings.** Four consecutive rounds on one predicate:
+a role blacklist, then the wrong surface's function, then the right function
+without its caller's other rules, and now those rules in the wrong order. The
+progression is worth keeping: each step was closer and each was still not the
+thing itself.
+
+### 197ak. Round 36: the fifth round on the same predicate, and the first with no live victim
+
+`couldBeClientTweak` refused `entry.deleted === true`. `_calCommentsForView`
+filters on `(!c.deleted || c.canonical)`, which is two differences, not one: any
+TRUTHY tombstone hides an entry (`deleted: 1`, `deleted: "true"` from an older
+import), and a `canonical` entry survives being tombstoned. So the predicate
+refused less than the app hides in one direction and more in the other, and in
+the first direction a hidden entry sharing the wording could be consumed as a
+delivery, suppressing the missing-request report.
+
+Measured live before fixing, as every round here has been: across 8,902 card
+comment entries, **every** `deleted` value is boolean (5,370 true, 3,511 absent)
+and `canonical: true` appears only alongside `deleted: false` (15 entries). **No
+live row moves either way.** This is the first finding in this PR with no live
+victim at all, and it was still worth taking: the value of mirroring is that the
+predicate cannot drift from the one it mirrors, and four consecutive rounds
+(197ah to 197aj) were paid for exactly that drift.
+
+The deliberate exception is unchanged and still deliberate: an entry claimed by
+its **id** is still a claim when deleted, because withdrawn is not unseen. That
+pass does not call this function.
+
+144 checks, two controls confirmed by exit status: one restoring `=== true`
+(the truthy tombstone is consumed again), one dropping the canonical exemption
+(a visible entry stops counting as delivery).
+
+**Thirty-six rounds, 77 findings.** Five rounds on one predicate. The shape of
+the last one is the useful part: by the fifth round the finding is no longer a
+bug anyone would hit, only a place where the copy and the original could still
+part company. That is the point at which mirroring should have been structural
+instead — the question 197o records and this PR still does not answer.
+
+### 197al. Round 37: the sixth round on one predicate, and the end of mirroring it
+
+`couldBeClientTweak` normalized the role (`String(role).trim().toLowerCase()`)
+while `_calCommentsForView` compares `c.role === 'kasper'` exactly — and so does
+`_calMsgAudience`. A `role: "Kasper"` entry with no explicit audience is
+therefore **client-visible in the app** and was being refused here, which would
+report a delivered request as absent and send an operator to duplicate a request
+the client can already read. The copy had become STRICTER than the original,
+the opposite direction from 197ak one round earlier.
+
+The telling part is not the finding, it is that this file's two claim passes
+disagreed with **each other**: the id pass compared the role exactly, the body
+pass normalized it. Six rounds (197ah to here) were each one rule of one
+renderer restated in one more place.
+
+Measured live first, as always: all 8,902 card comment entries carry an exact
+lowercase role (`client` 3,456, `smm` 3,149, `kasper` 2,285, `designer` 9,
+`admin` 1, absent 2). **Zero variants, so no live row moves** — the second
+consecutive finding with no live victim, which is itself the signal.
+
+So this round does not mirror anything. The renderer's rules are written **once**
+in this file, as `rendererDrops` plus `clientCanSee`, and both passes call them:
+
+- `isVisibleOnCard` is now `clientCanSee` outright, keeping the deliberate
+  round-6 exception (a **deleted** entry claimed by id is still a claim, because
+  withdrawn is not unseen) by simply not applying the tombstone rule to the
+  claimed entry — the rule still governs the root map, as the renderer applies it.
+- `couldBeClientTweak` is `rendererDrops` + no reply + `clientCanSee`.
+
+147 checks. Two controls confirmed by exit status: re-normalizing the role, and
+giving the body pass its own copy of the rules again. Plus a **structural**
+check that neither the Kasper exclusion nor the audience rule appears more than
+once in the file's code — the first check here that would fail on a future
+session recreating the copy rather than on a wrong answer.
+
+**Thirty-seven rounds, 78 findings.** The remaining scope of 197o is unchanged
+and now better evidenced: within this file the rules are written once, but
+`index.html`, `scripts/f42-card-comment-import.js` and this job still hold three
+separate understandings of the same crosswalk. Six rounds is what one such
+duplication cost, measured.
+
+### 197am. Round 37's own check broke a rule this repo already wrote down
+
+`unit` went red on `cc4b425`. The cause was the structural check added in 197al:
+to count implementations rather than prose it stripped comments with
+
+    src.replace(/\/\*[\s\S]*?\*\//g, '')
+
+which is precisely the raw regex OPEN_REPAIRS 145 banned and
+`test/comment-strip-is-honest.js` gates against. That gate caught it on the
+first CI run and named the file.
+
+The irony is the point, and it is worth recording rather than quietly fixing: a
+check written to stop this file's rules being restated instead of called was
+itself a restatement of a rule that already had a shared helper
+(`test/helpers/strip-comments.js`). **The lesson generalizes past the crosswalk:
+this repo has a habit of rewriting rules it has already centralized, and the
+gates that catch it are the ones that check for the COPY, not for the wrong
+answer.** 145's gate did here exactly what 197al's new gate is meant to do
+later.
+
+Fixed by calling `stripComments`. Local: 3 of 427 suites fail, of which the two
+known (`ef-deploy-provenance`, `truth-sync`) fail identically on `origin/main`;
+`comment-strip-is-honest` is the one this fixes and it is green again.
+
+**One process note.** The offline reconcile suite, the identity gate and the
+browser gate were all run before pushing 197al, and all three passed. None of
+them runs the rest of `test/`, so this reached CI. The full runner takes several
+minutes, which is why it was skipped — that trade cost a red CI and a cycle.
+
+### 197an. Round 38: two more reporting surfaces, and a fixture asserting a belief the code contradicted
+
+Two findings, both in the family this PR has hit most often: **a row, its count
+and its line are three surfaces.**
+
+**1. Undecidable was filed as intentional.** `unmapped_component` and
+`card_cell_unparseable` carried neither a carrier status nor `crosswalk_broken`,
+so `classify()` put them in `leftAlone` under the headline "a card that moved on
+is never overwritten" and `NEEDS A PERSON` read 0. Neither is a card moving on:
+both mean the job could not determine whether or where a request was delivered,
+on a card that is still live. Now their own bucket, counted and printed.
+
+**2. A team-mapping refusal knows its card.** `unknown_team` and
+`kind_and_team_disagree` were returned as bare strings, so the callers replaced
+the card with `(unidentified)` and counted the row as an action whose card is
+missing. `resolve()` looks the card up BEFORE the team mapping, so both always
+knew it — this is round 30's defect exactly, three lines up in the same
+function, one round after its neighbour was fixed. Both now return
+`{ refused, card }`, and a new `teamUnusable` term counts them apart from a card
+that really is missing.
+
+**The fixture that had it backwards.** Fixing (2) failed a round-19 check
+asserting `unknown_team` prints `(unidentified)` "because it genuinely
+identifies no card". That was never true: the lookup precedes the team check.
+The check had encoded a belief the code order contradicted and had been passing
+on it since. Repointed at `card_not_found`, which is the case that actually
+identifies no card. **A green check is not evidence its premise is true.**
+
+Also split `carrier_did_not_write_and_card_unknown`: the branch reached by a
+structured refusal always carries a card, so that name contradicted the row it
+printed. It is now `carrier_did_not_write_and_crosswalk_refused`. Both stay in
+the same bucket, because what is unknown there is the card LEG, and that is
+still what forbids claiming "reached neither leg".
+
+Measured live first, as always: **0 unparseable cells** of 5,198 non-empty, and
+every named component on `production_comments` is `video` (683), `graphic` (331)
+or `caption` (103), all mapped. Both new buckets are 0 rows today. Third
+consecutive round with no live victim — the reports being fixed are ones nobody
+has read yet, which is the cheapest time to fix them.
+
+150 checks, three controls by exit status: undecidable back in `leftAlone`,
+`unknown_team` bare again, and team refusals counted as missing cards. Full
+runner before pushing this time (197am): 2 of 427, both failing identically on
+`origin/main`.
+
+### 197ao. Round 39: four findings, all of them mine from one round
+
+Every finding in this round was created by 197an's fix, one round earlier. That
+is worth recording plainly rather than as four line items.
+
+**1. The new bucket was counted and never printed.** `classify()` moved
+`unmapped_component` and `card_cell_unparseable` out of `leftAlone` and into the
+headline; `main()` neither destructured `undecidable` nor rendered it. The
+dispatch workflow runs the CLI **without `--json`**, so the log said work exists
+and named no card, client, component or request to look at. This is the third
+time in this PR a fix reached the row and the count but not the line — and this
+time on a bucket added specifically to fix that class of defect.
+
+**2. The rendering half of 197an's own fix was missed too.** `unknown_team` and
+`kind_and_team_disagree` were taught to carry their card, and the count was
+taught to respect it, but the LINE still fell through to the generic branch and
+said "its card cannot be found". The exact sentence 197an existed to delete,
+surviving one surface over.
+
+**3. The buckets overlapped.** `teamUnusable` was keyed off `CARD_KNOWN_REFUSALS`,
+which also contains `card_does_not_link_back` — so every stale-link row was
+counted twice and a one-row run printed `NEEDS A PERSON: 1` above a breakdown
+claiming one stale link AND one team problem. Keyed off a team-only set now, and
+a new check asserts **the breakdown sums to the headline**, which is the general
+form of the bug rather than this instance of it.
+
+**4. The term was inaccurate.** For `kind_and_team_disagree` the team DOES name
+a valid review (`graphics` maps to `graphic`); the independently stored `kind`
+names a different one. Counting it under "team names no review" misstates the
+actionable problem. Split into its own term.
+
+**The pattern, stated once.** Every one of these is the same shape: a rule
+changed in one place and left unchanged in the two places that display it. Four
+rounds in this PR (25, 31, 38, 39) have now been that shape. The check added
+here for #3 is the first that tests the INVARIANT (the parts sum to the whole)
+rather than a particular row, and that is the kind that would have caught #1 and
+#2 as well.
+
+Fixture note: the first draft of the new CLI check used `component: 'thumbnail'`
+as an unmapped component. It is mapped — to `graphic` — so the check exercised
+the contradiction path instead and would have passed while proving nothing about
+the bucket under test. Same instrument error as rounds 26 and 31.
+
+152 checks, four controls by exit status: undecidable rows unprinted, team
+refusals rendered as missing cards, the overlapping bucket key, and the folded
+term. Full runner before pushing: 2 of 427, both failing identically on
+`origin/main`.
+
+### 197ap. Round 40: the supersession clock answered for every client at once, and a measurement in this PR was wrong
+
+The clock that decides whether a later client CHANGE REQUEST supersedes an
+approval was keyed by `(deliverable, component)` with no client in it. A
+deliverable and its card can move between clients, and historical
+`production_comments` keep the `client_slug` they were written with — so a newer
+request belonging to ANOTHER client could suppress this client's missing stamp,
+while the request path refused that same row as another client's **in the same
+run**. One row, two answers, which is the shape this PR has hit most often.
+
+This one matters more than the last three rounds: it suppresses a REPAIR rather
+than mis-labelling a report.
+
+**The fix keeps the deliberate asymmetry.** Supersession is the broad side on
+purpose — refusing to write leaves the card alone, while narrowing it risks
+stamping an approval the client had already superseded. So a request naming NO
+client still supersedes; only a client that is **known and different** is
+excluded, which is exactly the set the request path refuses. Both directions are
+controlled.
+
+**And a measurement in this PR was wrong.** An earlier note recorded "0
+mismatched" cross-client rows. Measured again here: of **349** committed client
+requests, **one** carries a client that differs from its deliverable's, and none
+carries no client at all. That row names a deliverable with **no card and no
+client approval**, so it can suppress nothing today and no repair moves — but it
+is one, not zero, and it is the whole reason this key needs the client in it.
+Recorded as a correction rather than quietly restated: this is the second
+measurement in this PR to be published before it was checked (197 round 22 was
+the first, retracted two rounds later).
+
+156 checks. Two controls by exit status: dropping the client from the key, and
+narrowing the anonymous case. A third check pins the arity guard and asserts one
+definition with two call sites, both passing the client. Its first draft failed
+because the pattern contained a bare apostrophe the source escapes — an
+instrument error caught by the check failing, not by the code being wrong.
+
+Full runner before pushing: 2 of 427, both failing identically on `origin/main`.
+
+### 197aq. Round 41: the smallest finding yet, and the one that says the most about the last four rounds
+
+A committed request whose card cell will not parse produced a skip row without
+`comment: pc.id`. The renderer prints a request only when the row carries one,
+so several requests targeting the same cell all printed the identical line and
+an operator could not tell which `production_comments` records to open.
+
+One field. The sibling `unmapped_component` skip has carried it all along, which
+is exactly what made the omission invisible: the two rows were written together,
+one round apart in the same block, and only one was complete.
+
+Fixed, with the CLI check tightened to require the request id in that line rather
+than just the card and the phrase — the assertion it should have made when the
+line was first added in 197ao. **A check that asserts part of a line will pass
+over the missing part of it forever.**
+
+156 checks (no new check; the existing CLI one is now strict enough to fail
+without the field, confirmed by exit status). Full runner: 2 of 427, baseline.
+
+**Where this leaves the PR.** Rounds 36 through 41 have all been report-surface
+or identity-scoping work, and the last four were each created by the fix before
+them. The findings are getting smaller, which is the signal to stop iterating and
+merge rather than to keep going: the write path itself has been unchanged since
+round 40's clock fix, and the report is now internally consistent.
+
+### 197ar. Round 42: the write path breaking this job's own one-sentence promise
+
+The first write-correctness finding since 197ap, and the most direct
+contradiction in this PR: the workflow and the runbook both promise a repair
+writes the missing sign-off **and nothing else**, and the patch builder could
+clear a DIFFERENT component's stamp.
+
+`_calClearStaleApprovals` reads the whole card and clears a stale sign-off on
+every component. That is correct in the app, where it runs on a save that just
+moved one. Here its entire output was copied into the patch — so a stamp repair,
+which moves nothing, wrote `client_<other>_approved_at = ''` on the strength of
+a status this job never touched.
+
+Fixed: the sweep's component output is accepted only for the repair's OWN
+component, either because the repair moved it (the app's rule, and this repair's
+consequence) or, on a stamp repair, as a self-check on the very field being
+written.
+
+**Why the existing test could not see it.** `a stamp repair touches the stamp
+and nothing else` has asserted the exact patch keys since round 3 — but its
+fixture has no stale sibling stamp, and the defect lives entirely in the state
+that fixture omits. An exact-match assertion is only as complete as the world it
+runs against.
+
+Measured live: **0 of 10,839 cards** carry a sign-off on a component below
+Client Approval, so no repair today writes a different field either way. The
+reason the state is empty is that the app runs this sweep on every save — which
+is also why a card in that state would have to come from outside the app, which
+is exactly what this job is.
+
+**Two rules were removed during the fix for having no effect**, which matters
+more than the fix:
+- A `movedComponents` SET, so the sweep could be accepted per moved component.
+  Every repair acts on exactly one component — its own — so the set's extra
+  branch could never differ from the simple condition, and its sabotage could
+  not be made to fail.
+- A `movedComponent` guard on `kasper_approved_at`. The app clears that only
+  when NO component is left above, and a stamp repair requires its own component
+  to BE above, so the sweep cannot clear it on one. The guard's second half is
+  unreachable.
+
+Both were caught by controls that passed while sabotaged, not by review. This PR
+has now removed three rules for this reason (197u, and these two), and the test
+of a rule is the same every time: **if no sabotage of it can fail the suite, it
+is decoration.**
+
+159 checks. Controls by exit status: copying the whole sweep again, and dropping
+the kasper clear on a repair that does move a component. Full runner: 2 of 427,
+baseline.
+
+### 197as. Renumbered from 196 to 197, for the second time in one PR
+
+Main merged PR #1384 while this branch was in review and took **196** for the
+Kasper ping entry, exactly as it took **195** earlier (`543c8d2`). This block and
+all 44 of its sub-entries are now **197, 197a–197as**, and the 65 cross-references
+inside them were renumbered with them, along with the references in
+`scripts/client-signoff-reconcile.js`, `test/client-signoff-reconcile.js`,
+`docs/ops/CLIENT_SIGNOFF_RECONCILE.md` and the workflow.
+
+**The renumber is the cheap part; the references are where this rots.** A block
+renumbered while its own "see 197u" pointers still say 196 reads as a citation of
+a different, real entry — main's. So the pattern was anchored to avoid the
+numbers that merely look similar (`1,196 clean`, `7de1962`), and the result
+checked for duplicate `## N.` headers, per this file's own standing instruction.
+Six duplicate top-level numbers exist in this file; all six are present
+identically on `origin/main` and none is mine.
+
+**Twice in one PR is the finding.** CLAUDE.md already warns that concurrent
+branches routinely claim the same ledger number, and the cost each time is a
+conflicted merge plus a cross-reference sweep. A ledger numbered by hand cannot
+be appended to concurrently without this; the durable fix is for entries to
+claim their number at merge time rather than at write time, which is a change to
+the ledger convention and not something this PR should make on its own.
+
+### 197at. Round 43: the repair was INCOMPLETE, not mislabelled, and it has a live victim
+
+A P1, and the first finding in many rounds to say the repair itself falls short
+rather than that a report line is wrong.
+
+`_calClientApprove` (index.html) is the client link's only approve action, and it
+stamps **video, graphic AND caption** in one save. Caption is the one of the
+three with no work item and no deliverable of its own, so it has no
+`mirror_outbox` row and a deliverable-driven repair can never reach it. The run
+would complete two thirds of a client's action and leave the third reading
+approved-but-unsigned forever.
+
+**Measured, and it is not hypothetical.** Of 230 committed calendar-origin
+client approvals, 171 carry a caption stamp and 9 sit approved without one. Of
+the rows THIS JOB REPAIRS, **one** is in that state — a card still reading
+Approved whose caption would have stayed unsigned after an apply run. That is
+the first round since 197x to name a live victim.
+
+**Reported, never written, and the reason is the founding rule.** The outbox row
+proves the client approved that DELIVERABLE; it does not prove which surface
+they used, and a component-level approve from the production review stamps only
+its own component. A caption reading Approved could equally have been set by
+staff. Writing the caption stamp would infer the client's action from the card's
+state, which is the one thing this job refuses to do. `WRITABLE_KINDS` refuses
+the new kind at the write, so a later edit to detection cannot make it writable
+by accident — the same placement argued in 197.
+
+**Round 16, again, and the CLI check earned its keep.** `patchFor` had no branch
+for the new kind, so it fell through to the delivery branch and dereferenced
+`finding.comment.native_comment_id`. **Every offline check was green**; the whole
+run died at the entry point. The plan loop builds patches for all findings before
+the renderer can skip anything, so the crash could only be seen by running the
+program. It is now an explicit early return.
+
+**And the default fixture was itself in the split state**, so every stamp test
+began raising the new report. The fixture now carries a caption stamp, which is
+both the live-majority shape (171 of 230) and a card that is internally
+consistent; the split is set deliberately where it is under test. A fixture that
+quietly contains the condition under test makes the new rule invisible in noise.
+
+163 checks. Four controls by exit status: detection removed, the kind made
+writable, the `patchFor` crash restored, and the headline term removed. Full
+runner: 2 of 427, baseline.
+
+### 197au. Round 44: one field cannot be missing twice
+
+The caption-leg report added in 197at was emitted once per REPAIRED DELIVERABLE.
+A card whose video and graphic stamps are both repaired would therefore report
+the same missing `client_caption_approved_at` twice and print two operator tasks
+for one decision.
+
+The rule comes from the field, not from the row count: `client_caption_approved_at`
+is one field on one card. Now reported once per card, keyed composite like every
+other card key here, because 13 live ids are shared across clients and keying by
+bare id would silence the second client's card entirely. Both directions are
+controlled — the duplicate, and the over-narrow key.
+
+Live: **0** cards have both stamps missing today, so nothing doubles yet. Worth
+noting how this one arrived: the previous round added the report and measured
+whether it fires (one live row), but not whether it can fire TWICE on one card.
+**A new report needs its cardinality measured, not just its trigger.**
+
+165 checks, two controls by exit status. Full runner: 2 of 427, baseline.
+
+## 198. The staff entry gate replaces the shared password (2026-09-10)
 
 **What was there.** Two doors, and the wrong one was load-bearing. The outer
 one asked for a single password shared by everyone, hardcoded in `index.html`

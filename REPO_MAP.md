@@ -242,3 +242,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - test/helpers/priority-recovery-package-fixture.js: shared offline synthetic parent package fixture.
 
 - docs/independence/LINEAR_EXIT_PRIORITY_LOCAL_STORAGE_20260911.json: application recovery through stored/reopened pair.
+
+- docs/ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md: proposed snapshot-relative sequence safety and separate cutover boundary.
+
+- test/linear-exit-sequence-consistency-postgres.js: isolated sequence/cached allocation counterexamples.
+- docs/independence/LINEAR_EXIT_SEQUENCE_CONSISTENCY_20260911.json: seven-check sequence semantics evidence.

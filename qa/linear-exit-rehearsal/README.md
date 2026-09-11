@@ -248,3 +248,5 @@ closed. Inspect the destination after publicationMayExist errors; retries never
 overwrite. Authentication is not encryption. Windows ACLs, directory/power-loss
 durability and off-device custody are not proven. The application recovery lane
 stores/reopens its real synthetic capture before reconstruction.
+
+Use -Lane sequence-consistency with PG17 for isolated sequence/snapshot semantics, safe monotonic allocation and reset/manual-ID collision counterexamples. It does not prove the application sequence inventory or authorize a writer pause.

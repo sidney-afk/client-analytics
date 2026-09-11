@@ -1044,3 +1044,22 @@ backup. HMAC authentication is not encryption. Trusted private directory custody
 is required; actual private packages are not GitHub artifacts. Source sequence
 fencing and hosted recovery remain open. No merge/deploy/production/n8n write;
 installation remains HOLD.
+
+## Sequence safety: narrower preparation contract
+
+The sequence-consistency PG17 lane passed seven isolated checks in receipt
+`linear-exit-sequence-consistency-4a7304fbfc0645eca747ad36c4a636cd`, exit0 and
+server stopped. Exported snapshot rows stayed fixed while cached sequence state
+advanced; rollback did not reclaim an allocated value. A later monotonic
+high-water value restored safely for the frozen rows. Backward reset and explicit
+manual IDs each produced real duplicate-key collisions.
+
+See docs/ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md for the proposed bound:
+positive noncycling definition, complete consumer mapping and authenticated
+snapshot maxima below the next in-range restored allocation. Ordinary nextval
+need not require a blanket backup pause if that bound is proven. This is not yet
+implemented for the full application sequence inventory. Final cutover still
+needs a separate source-write/delta boundary; snapshot-relative noncollision
+cannot preserve business writes made after capture. The earlier global fence
+flags remain false; this evidence does not close them. No runtime or live writer
+changes. Installation remains HOLD.

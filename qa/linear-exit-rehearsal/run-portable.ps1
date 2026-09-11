@@ -1,6 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [switch]$RecoveryPostgres17,
  [string]$OutputRoot
@@ -19,7 +19,7 @@ $pgVersion=(& (Join-Path $pgPath 'postgres.exe') --version) -join ''
 if ($LASTEXITCODE -ne 0 -or $pgVersion -notmatch '\b(16|17)\.') { throw 'Preinstalled PostgreSQL 16 or 17 required.' }
 $pgMajor=$Matches[1]
 if ($RecoveryPostgres17 -and $Lane -ne 'recovery-upstream-ledger') { throw 'RecoveryPostgres17 is restricted to recovery-upstream-ledger.' }
-$expectedMajor=if ($Lane -in @('f27','priority-observed-baseline','priority-application-recovery') -or $RecoveryPostgres17) { '17' } else { '16' }
+$expectedMajor=if ($Lane -in @('f27','priority-observed-baseline','priority-application-recovery','sequence-consistency') -or $RecoveryPostgres17) { '17' } else { '16' }
 if ($pgMajor -ne $expectedMajor) { throw "Lane $Lane requires PostgreSQL $expectedMajor binaries." }
 $node=(Get-Command node -CommandType Application -ErrorAction Stop).Source
 $nodeVersion=(& $node --version) -join ''
@@ -112,6 +112,7 @@ try {
   if (!(Test-Path -LiteralPath (Join-Path $pgPath 'pg_dump.exe') -PathType Leaf)) { throw 'Application recovery requires pg_dump.' }
   $entry=Join-Path $repoRoot 'test\linear-exit-priority-application-recovery.js'
  }
+ if ($Lane -eq 'sequence-consistency') { $entry=Join-Path $repoRoot 'test\linear-exit-sequence-consistency-postgres.js' }
  if ($Lane -eq 'priority-companion') { $entry=Join-Path $repoRoot 'test\linear-exit-priority-companion-postgres.js' }
  if ($Lane -eq 'view-provenance') { $entry=Join-Path $repoRoot 'test\linear-exit-view-provenance.js' }
  if ($Lane -eq 'preflight-installed') { $entry=Join-Path $repoRoot 'test\linear-exit-deploy-preflight-ordered.js' }
@@ -149,8 +150,8 @@ try {
   if ($Lane -eq 'recovery-upstream-ledger' -and $recoveryReport.upstream_ledger_verified -ne $true) { throw 'Required restored upstream ledger proof missing.' }
   if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
  }
- if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery')) {
-  $marker=if ($Lane -eq 'priority-application-recovery') { 'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK' } elseif ($Lane -eq 'priority-observed-baseline') { 'LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_OK' } elseif ($Lane -in @('priority-application-schema','priority-application-supplement')) { 'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK' } elseif ($Lane -eq 'priority-restore') { 'LINEAR_EXIT_PRIORITY_RESTORE_OK' } elseif ($Lane -eq 'priority-snapshot') { 'LINEAR_EXIT_PRIORITY_SNAPSHOT_OK' } elseif ($Lane -eq 'priority-companion') { 'LINEAR_EXIT_PRIORITY_COMPANION_POSTGRES_OK' } elseif ($Lane -eq 'view-provenance') { 'LINEAR_EXIT_VIEW_PROVENANCE_OK' } elseif ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
+ if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency')) {
+  $marker=if ($Lane -eq 'sequence-consistency') { 'LINEAR_EXIT_SEQUENCE_CONSISTENCY_OK' } elseif ($Lane -eq 'priority-application-recovery') { 'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK' } elseif ($Lane -eq 'priority-observed-baseline') { 'LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_OK' } elseif ($Lane -in @('priority-application-schema','priority-application-supplement')) { 'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK' } elseif ($Lane -eq 'priority-restore') { 'LINEAR_EXIT_PRIORITY_RESTORE_OK' } elseif ($Lane -eq 'priority-snapshot') { 'LINEAR_EXIT_PRIORITY_SNAPSHOT_OK' } elseif ($Lane -eq 'priority-companion') { 'LINEAR_EXIT_PRIORITY_COMPANION_POSTGRES_OK' } elseif ($Lane -eq 'view-provenance') { 'LINEAR_EXIT_VIEW_PROVENANCE_OK' } elseif ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
  }
  if ($result -eq 0 -and $Lane -eq 'deferred-defaults') {

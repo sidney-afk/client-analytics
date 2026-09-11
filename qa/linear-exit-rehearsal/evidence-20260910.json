@@ -1322,5 +1322,17 @@
     "power_loss_durability_proven": false,
     "off_device_custody_proven": false,
     "installation_ready": false
+  },
+  "sequence_consistency": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "checks_passed": 7,
+    "receipt": "linear-exit-sequence-consistency-4a7304fbfc0645eca747ad36c4a636cd",
+    "exit": 0,
+    "server_stopped": true,
+    "application_writer_contract_proven": false,
+    "global_sequence_fence_proven": false,
+    "installation_ready": false
   }
 }

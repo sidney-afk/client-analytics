@@ -64,6 +64,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Command / trigger | What runs | Notes |
 |---|---|---|
+| `node qa/workload-consistency/run.js` | `qa/workload-consistency/` — finite synthetic comparator and extracted Workload source helpers; eligibility replay qualifies missing-work totals; `--contracts` preserves failing native-independent product checks | Offline only; counts and hashes, no raw snapshot output. `REPORT.md` in that folder separates source, static serving capture, and unproven live population/persistence. |
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |
 | `npm run test:e2e` | `qa/run-probes.js` → probes in `qa/probes/nightly-manifest.txt` | **Live backend**, test client only. Nightly (`calendar-e2e-nightly.yml`). |
 | `npm run test:master` | `qa/master.js` — all master-registered lanes (unit, boot, parity, probes, scenarios, temporal, visual); feature-scoped PTO runs separately | Samples nightly runs a lane subset (`samples-e2e-nightly.yml`). |

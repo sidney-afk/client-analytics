@@ -24,6 +24,14 @@
 
 ## State restated 2026-08-22 — no new proof, just honest arithmetic
 
+Scoped Workload update, 2026-09-05: [Task 3 handoff](../../qa/workload-consistency/REPORT.md)
+adds finite **OFFLINE_TEST** evidence and five failing native-independent product
+contracts at `706359752e861969e6c68898daa26e29a2eb6edb`. One static HTML
+**LIVE_READ** matched that source; deployed Edge revisions and live cross-view
+population remain **UNPROVEN**. Workload stays Tier 2; its July 20 live proof is
+47 days old and expired. This does not replace its last-proven date or refresh
+any unrelated surface.
+
 **Nothing here was re-proven on this date.** Every "Last proven" cell and every
 method is untouched; only the State column was recomputed against the rules
 below, and the header stamp above still names the last real cycle, 2026-07-20.

@@ -1387,5 +1387,37 @@
       "current_module_dependencies_used": true,
       "sql_executed": false
     }
+  },
+  "native_identifier_recovery": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "receipt": "linear-exit-priority-application-recovery-4cbc39bc836340698d838073006a6c6b",
+    "exit": 0,
+    "server_stopped": true,
+    "native_identifier_acceptance": {
+      "marker": "LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_OK",
+      "populated_cursor_grants_and_deliverables_exact": true,
+      "restored_collision_skips": 2,
+      "cursor_advance": 3,
+      "restored_and_new_grant_overwrite_refused_in_both_modes": true,
+      "reseed_refused_cursor_unchanged": true,
+      "fresh_connection_rollback_images_exact": true,
+      "hosted_allocator_proven": false
+    },
+    "sequence_checks": 6,
+    "restored_behavior_checks": 9,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "supersedes_initial_pass": "linear-exit-priority-application-recovery-88a7c30425504115b97b049d9769e6d0",
+    "source_hash_scope": "Executed working-tree bytes; Git checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "test/helpers/linear-exit-native-identifier-recovery.js": "4b9ee68fffdba04219347e75ec29fa6d3ff56e49104b5fd7ba6e0e48535eea40",
+      "test/linear-exit-priority-application-recovery.js": "0735cf079760959165047b98b910f782e8604b56394b401f4c2a4092c3bc9bdb",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "634e1fae303d3565eac9d439d6b3e16d05f22dc34f8793a2afe59cd596457ce4"
+    },
+    "hosted_restore_proven": false,
+    "source_cutover_proven": false,
+    "installation_ready": false
   }
 }

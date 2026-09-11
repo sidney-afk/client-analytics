@@ -852,3 +852,27 @@ allocation contract for scope and invocation. Older readers do not enforce the
 optional assurance. External/manual consumers, source resets, populated native
 identifier cursor recovery and final cutover remain separate open gates.
 No merge, deployment, hosted or n8n writes occurred. Installation HOLD.
+
+
+## Populated native identifier recovery
+
+The opt-in PG17 application recovery lane with `-SequenceBounds -NativeIdentifiers`
+PASSed in `linear-exit-priority-application-recovery-4cbc39bc836340698d838073006a6c6b`,
+exit0 and server stopped. It restores exact populated cursor, grants, native-mode
+flag and synthetic deliverables. The actual trigger skips an orphan reservation
+and an existing identifier, advances the cursor by three, protects both restored
+and newly allocated names from provider overwrites in either mode, and refuses
+reseed without moving the cursor. A fresh connection confirms original row images
+after rollback. Six sequence and nine selected behavior checks also pass.
+
+The initial 88a7c30425504115b97b049d9769e6d0 pass is superseded by the stronger
+original-grant, reseed and fresh-rollback assertions. Default empty-state recovery
+assertions remain unchanged. This is isolated synthetic acceptance, not hosted
+allocation or final source cutover proof. See
+LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_20260911.json.
+
+Next preservation group: the three credential/history/revision tables, with an
+unimplemented source-backed contract at
+docs/ops/LINEAR_EXIT_CREDENTIAL_RECOVERY_CONTRACT.md. All 25 outside-priority
+tables still need explicit custody decisions; no exclusion is authorized.
+No merge/deployment/production/n8n changes. Installation HOLD.

@@ -8,6 +8,7 @@ const backup=require('../scripts/track-b-backup');const recovery=require('../scr
 if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_POSTGRES_REQUIRED');
 const cluster=new Cluster();assert.ok(['127.0.0.1','localhost','::1'].includes(cluster.host));
 const sequenceBounds=process.argv.includes('--sequence-bounds');
+const nativeIdentifiers=process.argv.includes('--native-identifiers');
 let stage='install',targetDb;
 async function main(){try{
  const proof=install({},()=>null);const extra=supplement.apply(cluster);const baseline=observed.apply(cluster);
@@ -21,6 +22,7 @@ async function main(){try{
  insert into public.production_comment_read_budget(actor_key,window_start,requests) values('synthetic-priority',to_timestamp(floor(extract(epoch from clock_timestamp())/300)*300),119);
  insert into public.linear_archive_asset_rescue_config(config_key,destination_provider,approved_folder_id,rescue_capability_sha256,active) values('active','google_drive_private','synthetic_folder_000000',repeat('0',64),false);
  insert into public.workload_issues(id) values('synthetic-priority');`);
+ const nativeSnapshot=nativeIdentifiers?require('./helpers/linear-exit-native-identifier-recovery').seed(cluster):null;
  const role='priority_app_capture_'+process.pid;const restoreRole='priority_app_restore_'+process.pid;
  cluster.exec(`create role ${role} login nosuperuser nocreatedb nocreaterole bypassrls password 'synthetic-capture-only';grant usage on schema public,extensions to ${role};grant select on all tables in schema public to ${role};grant select on all sequences in schema public to ${role};`);
  const key=Buffer.alloc(32,21).toString('base64');const env={...process.env,PGHOST:cluster.host,PGPORT:String(cluster.port),PGDATABASE:cluster.db,PGUSER:role,PGPASSWORD:'synthetic-capture-only',PGOPTIONS:''};
@@ -67,6 +69,7 @@ async function main(){try{
  stage='restored-runtime-behavior';
  const execute=(user,password,sql)=>cp.spawnSync(cluster.psql,['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-U',user,'-d',targetDb,'-v','ON_ERROR_STOP=1','-f','-'],{input:sql,env:{...process.env,PGPASSWORD:password},encoding:'utf8',windowsHide:true});
  const behavior=require('./helpers/linear-exit-priority-restored-behavior').verify({owner:sql=>execute(restoreRole,'synthetic-restore-only',sql),asRole:(role,sql)=>execute(cluster.user,process.env.PGPASSWORD,`begin;set local role ${role};${sql}rollback;`)});
+ if(nativeIdentifiers){const nativeResult=require('./helpers/linear-exit-native-identifier-recovery').verify(sql=>execute(restoreRole,'synthetic-restore-only',sql),nativeSnapshot);console.log(JSON.stringify({marker:'LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_OK',...nativeResult}));}
  if(sequenceBounds){
   stage='manual-high-id-refusal';
   cluster.exec("insert into public.production_comment_read_audit(id,actor_key,auth_kind,decision,reason) values(9007199254740993,'synthetic-manual-high','staff','allow','synthetic')");

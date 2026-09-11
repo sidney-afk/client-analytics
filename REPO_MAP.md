@@ -254,3 +254,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - scripts/linear-exit-sequence-bounds.js: opt-in authenticated snapshot bounds and target verification.
 - test/linear-exit-sequence-bounds.js: numeric, coverage and direct allocator validation controls.
 - docs/independence/LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json: isolated bounded capture and restore evidence.
+
+- docs/ops/LINEAR_EXIT_CREDENTIAL_RECOVERY_CONTRACT.md: proposed private three-table credential/history preservation acceptance.
+
+- test/helpers/linear-exit-native-identifier-recovery.js: populated native cursor/grant restore and allocation acceptance.
+- docs/independence/LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_20260911.json: isolated populated native identifier recovery evidence.

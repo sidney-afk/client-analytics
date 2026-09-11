@@ -77,8 +77,8 @@ explicitly asserts empty `production_native_identifier_mint` and
 `production_native_identifier_grants` tables. Exact row checks on that fixture
 therefore do not prove populated allocator continuity.
 
-The next distinct acceptance case must seed the synthetic team through the real
-seed function, create work through the real identifier trigger, and retain a
+The optional populated acceptance case seeds the synthetic team through the real
+seed function, creates work through the real identifier trigger, and retains a
 grant whose deliverable is absent. After authenticated capture and isolated
 restore, compare cursor, grant and deliverable rows exactly; allocate new work
 and prove that existing identifiers and reserved identifiers are skipped, and
@@ -87,9 +87,11 @@ empty-state assertions and perform all allocations on disposable databases.
 
 Source review found no concrete allocator defect: allocation advances a locked
 team cursor and checks both deliverables and grants before reserving a name
-(`2026-09-07-native-identifier-mint.sql`, allocator function). This is a missing
-populated recovery test, not evidence that production allocation is broken.
-This acceptance remains unexecuted and does not replace final cutover controls.
+(`2026-09-07-native-identifier-mint.sql`, allocator function). The optional populated acceptance now passes in the receipt
+LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_20260911.json. It does not replace final
+cutover controls or prove hosted allocation. The default empty-state test remains
+unchanged. Use the application recovery runner with `-NativeIdentifiers`; it can
+be combined with `-SequenceBounds`.
 
 
 ## Opt-in proof-bearing capture and reconstruction

@@ -907,3 +907,22 @@ ignore optional requirements and are unsupported for complete triple recovery.
 The other22 tables still need explicit preservation contracts; no exclusion
 of the credential group or other tables is authorized. Installation HOLD.
 No merge/deployment/production/n8n changes.
+
+
+## Complete local triple storage
+
+The separate three-component container passed14 filesystem/authentication checks,
+including two-process publication with one winner and fresh-process reopen. The
+existing pair storage retained12 passing checks. Actual PG17 credential recovery
+now reopens all3 stored components before reconstruction and PASSed in
+`linear-exit-credential-recovery-ffd30c061c334e8281ec1edc71670d1f`, exit0 and
+server stopped. All prior credential snapshot, row-fault rollback, access and
+quarantine assertions remain. Source and public report:
+LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json.
+
+Storage is plaintext, restricted to a trusted private directory, and refuses
+overwrite. This proves complete local component retention for the fixture, not
+Windows ACLs, power-loss durability, encryption or off-device recovery. Private
+packages are not GitHub artifacts. Next encrypted-wrapper/key-custody design is
+recorded in the credential contract and remains unimplemented. Installation HOLD;
+no merge/deployment/production/n8n changes.

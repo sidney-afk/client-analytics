@@ -9,7 +9,10 @@ deployed by this work.
 Isolated PostgreSQL evidence now covers the 52-table parent plus the nine-table
 authenticated companion, using application source owners and an explicitly
 observed backup-table baseline. Authenticated local pair storage and selected
-restored budget, audit, thumbnail and access-control behavior also pass. These
+restored budget, audit, thumbnail and access-control behavior also pass. A
+separate three-table credential companion now has stored/reopened triple recovery
+evidence at LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json; encryption and off-device
+custody remain unproven. These
 are synthetic local recovery results, not hosted recovery or full workflow proof.
 An opt-in proof-bearing capture and restore now passes six sequence checks
 for 15 catalog-mapped sequences, with populated audit/conflict consumers and

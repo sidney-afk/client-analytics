@@ -1,7 +1,7 @@
 # Credential recovery preparation contract
 
-Status: prepared in-memory authenticated triple with isolated PostgreSQL acceptance.
-Durable three-part storage, encryption, handler behavior and hosted recovery remain open.
+Status: prepared authenticated triple with stored/reopened local PostgreSQL acceptance.
+Encryption/off-device custody, handler behavior and hosted recovery remain open.
 No live credential rows were read. Installation remains HOLD.
 
 The next coherent custody group among the 25 remaining tables is
@@ -78,9 +78,35 @@ The source schema and populated acceptance reports are
 LINEAR_EXIT_CREDENTIAL_SCHEMA_20260911.json and
 LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json. Run the portable PG17
 `credential-schema` and `credential-recovery` lanes to reproduce scoped checks.
-The existing pair storage format does not store a credential triple. Do not
-present a saved two-part container as the complete new backup.
+The separate credential triple storage module now retains all3 components; the
+existing pair format remains unchanged. Use `writeTriple` and `readTriple` and
+verify the reopened components before recovery. See
+LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json. Do not present a saved two-part
+container as a complete credential backup. Local storage is not encrypted.
 
-Next: explicit versioned three-part durable storage and private encryption/custody,
-then isolated handler behavior. Preserve the source revision publication intent
+Next: private encryption/key custody and isolated handler behavior. Preserve the source revision publication intent
 while keeping recovery quarantine inert. This does not authorize hosted use.
+
+
+## Next encryption boundary (unimplemented)
+
+The bounded source review found authentication and file-publication helpers,
+but no reusable recovery encryption envelope. Prepare a separately versioned
+encrypted wrapper around the complete triple; retain inner component verification.
+Use the built-in Node crypto AES-256-GCM interface, a separate random32-byte
+key, a fresh12-byte nonce and fixed16-byte authentication tag. Authenticate the
+format, key identifier and declared lengths as associated data. Verify the tag
+before parsing or exposing any decrypted component to recovery. Node documents
+that failed authentication is rejected by
+[decipher.final()](https://nodejs.org/api/crypto.html#decipherfinaloutputencoding).
+
+Acceptance must cover wrong keys, altered headers/ciphertext/tags, truncation,
+size limits, component mixing and ciphertext-only final file publication. Keys
+and plaintext values must never enter public receipts. HMAC keys must not be
+silently reused as encryption keys. Do not store a decryption key beside its
+ciphertext and call that independent recovery custody.
+
+Local cryptographic tests do not establish private Windows ACLs, capture-time
+plaintext staging safety, key provisioning/rotation and independent recovery,
+power-loss behavior, or off-device encrypted-object retrieval. Those remain
+separate gates before hosted use; this design authorizes no hosted operation.

@@ -270,3 +270,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json: exact pinned source row contract.
 - docs/independence/LINEAR_EXIT_CREDENTIAL_SCHEMA_20260911.json: source schema/ACL evidence.
 - docs/independence/LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json: isolated triple recovery evidence.
+
+- scripts/linear-exit-credential-triple-storage.js: bounded complete triple frame and exclusive local publication.
+- test/linear-exit-credential-triple-storage.js: three-part filesystem, fault and cross-process acceptance.
+- docs/independence/LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json: stored/reopened triple PostgreSQL recovery evidence.

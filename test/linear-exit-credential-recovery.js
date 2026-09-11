@@ -38,7 +38,13 @@ async function main(){try{
  const env={...process.env,PGHOST:cluster.host,PGPORT:String(cluster.port),PGDATABASE:cluster.db,PGUSER:role,PGPASSWORD:'synthetic-capture-only',PGOPTIONS:''};
  stage='capture-triple';let interveningWrite=false;
  const triple=await require('../scripts/linear-exit-credential-capture').captureTriple({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`,hooks:{afterDumps:()=>{cluster.exec("update public.client_credentials set password='SYNTHETIC_LATER' where id='00000000-0000-4000-8000-000000000001';insert into public.client_credential_events(client_slug,action) values('synthetic-credential','reveal');update public.client_credentials_rev set rev=8 where client_slug='synthetic-credential';");interveningWrite=true;}}});
- const args={...triple,hmacInput:key};const verified=credential.verifyTriple(args);
+ stage='triple-storage';
+ assert.ok(process.env.PROOF_OUTPUT_ROOT,'PRIVATE_OUTPUT_REQUIRED');
+ const storage=require('../scripts/linear-exit-credential-triple-storage');
+ const stored=storage.writeTriple({directory:process.env.PROOF_OUTPUT_ROOT,name:'credential-triple.private',...triple,hmacInput:key});
+ const reopened=storage.readTriple(stored.path,key);
+ for(const name of ['parentBytes','priorityBytes','credentialBytes'])assert.deepEqual(reopened[name],triple[name]);
+ const args={...reopened,hmacInput:key};const verified=credential.verifyTriple(args);
  assert.deepEqual(Object.fromEntries(Object.entries(verified.credential.tables).map(([n,t])=>[n,t.rows.length])),{client_credential_events:3,client_credentials:3,client_credentials_rev:1});
  assert.equal(interveningWrite,true);
  const credentialTable=verified.credential.tables.client_credentials;const passwordAt=credentialTable.columns.findIndex(c=>c.name==='password');const idAt=credentialTable.columns.findIndex(c=>c.name==='id');
@@ -76,7 +82,7 @@ async function main(){try{
   assert.equal(r.status,0,r.stderr);
  }
  const uniqueness=owner(`begin;do $unique$ begin begin insert into public.client_credentials(client_slug,client_name,platform,label) values('synthetic-credential','Synthetic','SYNTHETIC','MAIN');raise exception 'CREDENTIAL_DUPLICATE_ACCEPTED';exception when unique_violation then null;end;end $unique$;rollback;`);assert.equal(uniqueness.status,0,uniqueness.stderr);
- console.log(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK',classification:'ISOLATED_POSTGRES_SYNTHETIC_TRIPLE',inventory_sha256:inventory.inventory_sha256,source,parent_tables:52,populated_priority_tables:9,populated_credential_tables:3,credential_rows:3,event_rows:3,revision_rows:1,legacy_renderers_refused:true,late_row_fault_rollbacks:2,protected_role_denials:denied,revision_role_reads:2,partial_unique_constraint_enforced:true,shared_snapshot_capture:true,concurrent_three_table_write_kept_out_of_snapshot:true,complete_storage_proven:false,encryption_proven:false,handler_behavior_proven:false,realtime_quarantine_preserved:true,hosted_restore_proven:false}));
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK',classification:'ISOLATED_POSTGRES_SYNTHETIC_TRIPLE',inventory_sha256:inventory.inventory_sha256,source,parent_tables:52,populated_priority_tables:9,populated_credential_tables:3,credential_rows:3,event_rows:3,revision_rows:1,legacy_renderers_refused:true,late_row_fault_rollbacks:2,protected_role_denials:denied,revision_role_reads:2,partial_unique_constraint_enforced:true,shared_snapshot_capture:true,concurrent_three_table_write_kept_out_of_snapshot:true,local_storage:{all_three_reopened_before_restore:true,container_sha256:stored.container_sha256,atomic_no_overwrite:stored.atomic_no_overwrite,power_loss_durability_proven:false,off_device_custody_proven:false},encryption_proven:false,handler_behavior_proven:false,realtime_quarantine_preserved:true,hosted_restore_proven:false}));
 }catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'credential-recovery.private-error.log'),String(e.stack||e));console.error(JSON.stringify({marker:'LINEAR_EXIT_CREDENTIAL_RECOVERY_FAILED',stage}));process.exitCode=1;}
 finally{if(targetDb)cluster.run('','postgres',{sql:`drop database if exists ${targetDb}`});cluster.stop();}}
 main();

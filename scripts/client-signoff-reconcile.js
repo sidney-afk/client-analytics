@@ -709,6 +709,8 @@ function detect(world) {
   const latestApprove = new Map();
   const unwrittenApprove = new Map();
   const repairedKeys = new Set();
+  /* One caption-leg report per CARD: see the guard at its push site. */
+  const captionLegReported = new Set();
   for (const row of world.outbox) {
     if (row && row.test_only === true) continue;
     if (String((row && row.role) || '').toLowerCase() !== 'client') continue;
@@ -920,9 +922,18 @@ function detect(world) {
      * Live: of 230 committed calendar-origin client approvals, 171 carry a
      * caption stamp and 9 sit approved without one; of the rows this job
      * repairs, ONE is in that state. So this reports a real row today. */
+    /* ONCE PER CARD, NOT ONCE PER REPAIRED DELIVERABLE. `client_caption_approved_at`
+     * is ONE field on ONE card, so a card whose video AND graphic stamps are both
+     * repaired would otherwise report the same missing caption leg twice and
+     * print two operator tasks for one decision. Keyed composite, like every
+     * other card key here: 13 live ids are shared across clients. Live today no
+     * card has both stamps missing, so nothing doubles yet — but the count comes
+     * from the field, and a field cannot be missing twice. */
     if (comp !== 'caption'
         && _calNormStatus(card.caption_status || '') === 'Approved'
-        && !String(card.client_caption_approved_at || '').trim()) {
+        && !String(card.client_caption_approved_at || '').trim()
+        && !captionLegReported.has(cardKey(card.client, card.id))) {
+      captionLegReported.add(cardKey(card.client, card.id));
       findings.push({ kind: 'caption_leg', writable: false, card, component: 'caption',
         stamp_at: at, deliverable_id: deliverableId,
         detail: 'caption reads Approved with no client sign-off, on a card whose '

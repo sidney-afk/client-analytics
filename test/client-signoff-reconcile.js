@@ -2501,6 +2501,44 @@ checkAsync('the caption leg prints a row an operator can act on', async () => {
    approve stamps only its own component. Writing caption would infer the
    client's action from the card's state, which is the one thing this job
    refuses to do. */
+/* ROUND 44. `client_caption_approved_at` is ONE field on ONE card, so a card
+   whose video AND graphic stamps are both repaired must not report the missing
+   caption leg twice — two operator tasks for one decision. Live no card has
+   both stamps missing today, so nothing doubles yet; the rule comes from the
+   field, not from the row count. */
+check('one caption leg per card, however many stamps it repairs', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE(), APPROVE({ entity_id: 'del-2' })],
+    deliverables: [DEL(), DEL({ id: 'del-2', team: 'graphics', kind: 'graphic' })],
+    cards: [CARD({
+      caption_status: 'Approved', client_caption_approved_at: null,
+      graphic_deliverable_id: 'del-2',
+    })],
+  }));
+  assert.equal(findings.filter(f => f.kind === 'stamp').length, 2,
+    'both stamps are still repaired');
+  assert.equal(findings.filter(f => f.kind === 'caption_leg').length, 1,
+    'but one field can only be missing once');
+});
+
+/* AND THE KEY IS COMPOSITE, like every other card key here: 13 live ids are
+   shared across clients, so two clients' cards sharing an id must each report
+   their own caption leg. */
+check('two clients sharing a card id each report their own caption leg', () => {
+  const { findings } = detect(world({
+    outbox: [APPROVE(), APPROVE({ entity_id: 'del-2', client_slug: 'other' })],
+    deliverables: [DEL(), DEL({ id: 'del-2', client_slug: 'other' })],
+    cards: [
+      CARD({ caption_status: 'Approved', client_caption_approved_at: null }),
+      CARD({ client: 'other', caption_status: 'Approved',
+        client_caption_approved_at: null, video_deliverable_id: 'del-2' }),
+    ],
+  }));
+  const legs = findings.filter(f => f.kind === 'caption_leg');
+  assert.equal(legs.length, 2, 'same card id, different clients, two cards');
+  assert.deepEqual(legs.map(f => f.card.client).sort(), ['other', 'testclient']);
+});
+
 checkAsync('the caption leg is never writable', async () => {
   const { findings } = detect(world({
     outbox: [APPROVE()],

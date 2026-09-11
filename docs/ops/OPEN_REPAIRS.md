@@ -20759,3 +20759,23 @@ quietly contains the condition under test makes the new rule invisible in noise.
 163 checks. Four controls by exit status: detection removed, the kind made
 writable, the `patchFor` crash restored, and the headline term removed. Full
 runner: 2 of 427, baseline.
+
+### 197au. Round 44: one field cannot be missing twice
+
+The caption-leg report added in 197at was emitted once per REPAIRED DELIVERABLE.
+A card whose video and graphic stamps are both repaired would therefore report
+the same missing `client_caption_approved_at` twice and print two operator tasks
+for one decision.
+
+The rule comes from the field, not from the row count: `client_caption_approved_at`
+is one field on one card. Now reported once per card, keyed composite like every
+other card key here, because 13 live ids are shared across clients and keying by
+bare id would silence the second client's card entirely. Both directions are
+controlled — the duplicate, and the over-narrow key.
+
+Live: **0** cards have both stamps missing today, so nothing doubles yet. Worth
+noting how this one arrived: the previous round added the report and measured
+whether it fires (one live row), but not whether it can fire TWICE on one card.
+**A new report needs its cardinality measured, not just its trigger.**
+
+165 checks, two controls by exit status. Full runner: 2 of 427, baseline.

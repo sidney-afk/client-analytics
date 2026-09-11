@@ -1230,5 +1230,18 @@
     "sequence_custody_proven": false,
     "hosted_restore_proven": false,
     "installation_ready": false
+  },
+  "priority_application_schema": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_GAP_PROBE",
+    "status": "FAIL",
+    "exact_tables": 5,
+    "missing_tables": 4,
+    "mismatched_tables": 0,
+    "receipt": "linear-exit-priority-application-schema-38ce8a9bcd1e42548a9d670eb550a95e",
+    "exit": 1,
+    "server_stopped": true,
+    "application_rows_read": false,
+    "additional_application_owners_applied": false,
+    "installation_ready": false
   }
 }

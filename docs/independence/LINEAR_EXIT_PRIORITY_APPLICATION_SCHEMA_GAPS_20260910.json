@@ -1,0 +1,205 @@
+{
+  "marker": "LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_REPORT",
+  "classification": "ISOLATED_POSTGRES_CATALOG_GAP_PROBE",
+  "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+  "row_schema_sha256": "40c039d6a12ffb2c43cc6d178bd8dd278f2e44d4d5ba12e22521f57a364dc310",
+  "expected_tables": 9,
+  "exact_tables": 5,
+  "tables": [
+    {
+      "table": "batches_parent_claim_backup_20260824",
+      "status": "missing",
+      "present": false,
+      "exact": false,
+      "missing_columns": [
+        "id",
+        "linear_parent_ids",
+        "backed_up_at"
+      ],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": false,
+      "primary_key_matches": true,
+      "source_declarations": []
+    },
+    {
+      "table": "content_samples",
+      "status": "missing",
+      "present": false,
+      "exact": false,
+      "missing_columns": [
+        "client",
+        "id",
+        "kind",
+        "order_index",
+        "label",
+        "media_url",
+        "creative_direction",
+        "hide_creative_direction",
+        "comments",
+        "status",
+        "approval",
+        "kasper_approved_at",
+        "kasper_approved_by",
+        "client_approved_at",
+        "client_approved_by",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": false,
+      "primary_key_matches": false,
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/samples-supabase-migration.sql"
+      ]
+    },
+    {
+      "table": "filming_plans",
+      "status": "missing",
+      "present": false,
+      "exact": false,
+      "missing_columns": [
+        "client_slug",
+        "client_name",
+        "doc_url",
+        "doc_id",
+        "notes",
+        "plan_months",
+        "created_at",
+        "updated_at",
+        "updated_by"
+      ],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": false,
+      "primary_key_matches": false,
+      "source_declarations": [
+        "migrations/2026-07-09-filming-plans-source.sql"
+      ]
+    },
+    {
+      "table": "linear_archive_asset_rescue_config",
+      "status": "exact",
+      "present": true,
+      "exact": true,
+      "missing_columns": [],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": true,
+      "primary_key_matches": true,
+      "source_declarations": [
+        "migrations/2026-07-23-f34-f53-production-attachments.sql"
+      ]
+    },
+    {
+      "table": "production_comment_import_conflicts",
+      "status": "exact",
+      "present": true,
+      "exact": true,
+      "missing_columns": [],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": true,
+      "primary_key_matches": true,
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "production_comment_read_audit",
+      "status": "exact",
+      "present": true,
+      "exact": true,
+      "missing_columns": [],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": true,
+      "primary_key_matches": true,
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "production_comment_read_budget",
+      "status": "exact",
+      "present": true,
+      "exact": true,
+      "missing_columns": [],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": true,
+      "primary_key_matches": true,
+      "source_declarations": [
+        "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      ]
+    },
+    {
+      "table": "thumbnail_media_revisions",
+      "status": "missing",
+      "present": false,
+      "exact": false,
+      "missing_columns": [
+        "id",
+        "surface",
+        "client",
+        "source_id",
+        "component",
+        "status",
+        "reason",
+        "thumbnail_url",
+        "drive_file_id",
+        "drive_file_name",
+        "drive_mime_type",
+        "baseline_revision_id",
+        "baseline_md5",
+        "baseline_modified_time",
+        "baseline_storage_path",
+        "baseline_bytes",
+        "latest_revision_id",
+        "latest_md5",
+        "latest_modified_time",
+        "latest_storage_path",
+        "latest_bytes",
+        "requested_at",
+        "requested_by",
+        "request_role",
+        "changed_at",
+        "detected_at",
+        "last_checked_at",
+        "skip_reason",
+        "error",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": false,
+      "primary_key_matches": false,
+      "source_declarations": [
+        "migrations/2026-07-09-thumbnail-media-revisions.sql"
+      ]
+    },
+    {
+      "table": "workload_issues",
+      "status": "exact",
+      "present": true,
+      "exact": true,
+      "missing_columns": [],
+      "extra_columns": [],
+      "changed_columns": [],
+      "column_order_matches": true,
+      "primary_key_matches": true,
+      "source_declarations": [
+        "migrations/live-schema-baseline-2026-07-03.sql",
+        "migrations/workload-issues-supabase-migration.sql"
+      ]
+    }
+  ],
+  "additional_application_owners_applied": false,
+  "full_application_schema_proven": false,
+  "application_rows_read": false,
+  "receipt": "linear-exit-priority-application-schema-38ce8a9bcd1e42548a9d670eb550a95e",
+  "overall_status": "FAIL"
+}

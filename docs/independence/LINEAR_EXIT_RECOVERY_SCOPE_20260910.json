@@ -325,7 +325,7 @@
       "disposition": "RETAIN_IMPORT_EVIDENCE",
       "safe_to_exclude": false,
       "priority": "PRIORITY_PRESERVATION_DECISION",
-      "reason": "Preserve unresolved comment import identity and coverage evidence.",
+      "reason": "Preserve complete comment import conflict history and its identity and coverage evidence.",
       "review_references": [
         "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
       ],

@@ -214,3 +214,10 @@ loads the companion before post-data constraints/triggers, and verifies covered
 rows plus remaining omitted-table emptiness before the single commit. It does
 not execute SQL itself or authorize a hosted target. Run-specific results and
 remaining application-schema/custody limits are recorded in RESULTS.md.
+
+Use `-Lane priority-application-schema` to compare the nine-table observed row
+contract with the actual published installation order. This lane adds no missing
+owners or synthetic priority tables. It emits a sanitized catalog gap report and
+exits nonzero unless all nine exact row/key shapes match. Missing/mismatched
+results remain failures; they do not invalidate the separately scoped synthetic
+round-trip tests or establish a complete application backup.

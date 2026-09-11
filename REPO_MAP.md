@@ -212,3 +212,9 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - scripts/linear-exit-priority-reconstruct.js: authenticated companion SQL sections for atomic pair restore.
 - test/linear-exit-priority-restore-postgres.js: combined restricted-target synthetic pair reconstruction.
+
+- test/linear-exit-priority-application-schema.js: actual ordered application row-schema gap probe.
+
+- docs/ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md: missing owner integration and application proof requirements.
+
+- docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_GAPS_20260910.json: retained actual application schema gap report.

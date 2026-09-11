@@ -884,3 +884,20 @@ This closes synthetic combined reconstruction only. Real application triggers,
 foreign keys, full schema composition, source sequence fencing, referenced object
 custody, hosted restore and durable pair publication remain unproven. No merge,
 deployment, production or n8n write occurred. Installation remains HOLD.
+
+## Actual application-schema gap result
+
+The PG16 priority-application-schema lane failed as required: five exact row/key
+contracts, four missing tables, zero mismatches. Receipt
+`linear-exit-priority-application-schema-38ce8a9bcd1e42548a9d670eb550a95e`, exit1;
+owned server stopped. Missing: content_samples, filming_plans,
+thumbnail_media_revisions and batches_parent_claim_backup_20260824. Exact:
+workload_issues, rescue configuration and the three comment evidence/budget
+tables. No additional owners or priority fixtures were added; no application
+rows were read. This does not close application recovery composition.
+
+The sanitized report is LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_GAPS_20260910.json.
+The owner/dependency and acceptance plan is in
+`docs/ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md`. Preserve this failing
+probe while preparing explicitly scoped missing owners; the untraced backup
+still requires provenance/full-schema evidence. Installation remains HOLD.

@@ -24,7 +24,7 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 | `pto_members` | Whether their Time Off request form works at all | Admin sets it in SyncView's own Time Off panel, see §6. Not every hire gets this benefit, that is an owner call |
 | SyncView Google Sheet, "Social Media Managers" tab | Keyed by client, not by person, one row per client assignment | Not a general onboarding step, only touched when an SMM is actually assigned a client, see §7 |
 | Slack workspace | The client creative channel automation reads the assigned SMM's row in the Sheet above, not anything on `team_members` | Seat invite is manual; the rest happens at client assignment time |
-| SyncView Google Sheet, "Video Editors" tab | For an editor only: who the `send-urgent-slack` n8n workflow can resolve to a Slack DM for "URGENT TWEAKS NEEDED" pings on their work | Manual row (name, email only, no Slack column on the sheet itself), plus a separate n8n edit, see §5 |
+| SyncView Google Sheet, "Video Editors" tab | For an editor only: who the `send-urgent-slack` n8n workflow can resolve and tag in its `#video-editing` channel post for "URGENT TWEAKS NEEDED" pings on their work | Manual row (name, email only, no Slack column on the sheet itself), plus a separate n8n edit, see §5 |
 | Company email | Identity anchor for the above | Owner's call. Some existing staff use a personal address instead, and that is fine |
 
 ## 1. Quick checklist
@@ -117,8 +117,10 @@ onboarding beyond the workspace invite, the rest happens at client assignment ti
 
 **If this hire is an editor**, there is a second, separate Slack mechanism, general to
 them rather than tied to any one client: the "URGENT TWEAKS NEEDED" ping
-(`index.html`, `URGENT_SLACK_URL`, the `send-urgent-slack` n8n workflow) resolves who to
-DM by looking them up in the SyncView Google Sheet's "Video Editors" tab (name and email
+(`index.html`, `URGENT_SLACK_URL`, the `send-urgent-slack` n8n workflow) posts to the
+`#video-editing` channel and tags them there, it is not a DM, `URGENT_PING_KINDS.editor`
+in `index.html` confirms `sentWhere: 'Posted to #video-editing'`. It resolves who to tag
+by looking them up in the SyncView Google Sheet's "Video Editors" tab (name and email
 only, `docs/truth/SHEETS.md`). That sheet has no Slack column at all, the actual Slack
 identity comes from a second, hardcoded fallback map inside the n8n workflow itself. So a
 new editor needs a row in that sheet tab, and separately needs that n8n map updated to
@@ -143,13 +145,18 @@ runs through the `pto_set_member_start_v1` database function rather than a plain
 balances and history stay consistent from day one. A raw insert against `pto_members`
 skips that and is not the supported path.
 
-## 7. Assigning their first client
+## 7. Assigning a client
 
-Not a general onboarding step, and it works differently than the rest of this doc might
-suggest: the "Social Media Managers" Sheet tab is keyed by client, one row per assignment,
-not one row per person (`NEW_CLIENT_ONBOARDING.md` §5, "Social Media Managers" row, not
-§6e, which is a different, automated write-enrollment step). Columns: `client_name |
-social_media_manager | linear_api_key | slack_profile_url`. For a new client assignment:
+Not a general onboarding step; skip this section entirely for a hire with no client yet,
+there is no "blank" roster entry to create for them in advance. What to do next also
+depends on whether the client is brand new or already has a different SMM, the two are
+not interchangeable and following the wrong one either creates a duplicate resource or
+silently does nothing.
+
+**The Sheet row, either way.** The "Social Media Managers" Sheet tab is keyed by client,
+one row per assignment, not one row per person (`NEW_CLIENT_ONBOARDING.md` §5, "Social
+Media Managers" row, not §6e, which is a different, automated write-enrollment step).
+Columns: `client_name | social_media_manager | linear_api_key | slack_profile_url`.
 
 - `client_name`: the client this row is for, this is the row's key
 - `social_media_manager`: their first name
@@ -158,9 +165,18 @@ social_media_manager | linear_api_key | slack_profile_url`. For a new client ass
 - `slack_profile_url`: their Slack user ID from §5, needed for the creative channel
   automation to run at all
 
-Then follow `docs/ops/NEW_CLIENT_ONBOARDING.md` §6c (Slack), §5 (this roster), and §6g
-(Linear project) for the rest of that client's setup. There is no "blank" roster entry to
-create for a hire before they have a client; skip this section entirely until they do.
+**A brand new client, no SMM assigned before now.** Follow
+`docs/ops/NEW_CLIENT_ONBOARDING.md` §6c (Slack), §5 (this roster, above), and §6g
+(Linear project) as written, all three create their resource from scratch.
+
+**An existing client changing SMM.** Do not follow §6c or §6g as written, both assume
+nothing exists yet. §6c's Slack finalizer only fires when the client's `creative_channel_id`
+is not already set, so once a channel exists it silently does nothing on a re-run. §6g's
+steps create a brand new Linear project, which would duplicate the one already there
+rather than reassign it. Instead, directly: in Linear, change the existing project's lead
+to the new hire; in Slack, invite them to the existing `{client}-creative` channel. Both
+are ordinary manual actions in their respective tools, this doc's automation was built for
+a client's first SMM, not a handoff between two.
 
 ## What's automatic, and what is not
 

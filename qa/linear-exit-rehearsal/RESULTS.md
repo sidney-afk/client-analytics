@@ -696,3 +696,29 @@ Private raw receipt SHA256s (catalog/details/publication respectively):
 43802a40886df4fb839a686717d1ca9411eb3934178db2bbbb6e566cbd2ba60b;
 3f86c130a0b8485e141e660e4e75e5aa8e07dc95d89373c99ec33b4a15c4d1b5.
 No merge, deployment, production write or n8n action occurred.
+
+## Observed backup baseline on PG17
+
+A single read-only statement at 2026-09-11T00:22:58.695432Z captured the backup
+table's selected current catalog, including full grant objects and comments.
+Public artifact LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json is byte-pinned
+(49a591e45484ff69e6034cca1e441743ea939924bb3fe18e6d4d31e724b1f0a6).
+Private receipt SHA256:13ec1d7ec6d418682dccacdb7f25ee86c96ca60c8730b4abef211fff26ebf458.
+No application rows were read. This supersedes the earlier separate observations
+for selected catalog reconstruction, not historical provenance or full closure.
+
+The explicit priority-observed-baseline lane passes on PG17.11: nine exact row
+schemas, selected backup catalog equality and all 32 grant objects, including
+MAINTAIN. Comparison runs before commit and on a fresh read; existing-table
+reapplication refuses. Receipt:
+`linear-exit-priority-observed-baseline-060d2319f101497e96edbba4a86de24b`, exit0,
+owned server stopped. Earlier pre-replay-check pass42e0bdc822f54f2ab4e8ee501782b695
+is superseded. Observed hosted patch170006 and local170011 are distinct.
+
+The source baseline is explicitly reconstructed from current metadata, not
+represented as a recovered historical migration. Default five-of-nine and
+three-owner eight-of-nine failing lanes remain unchanged. The known-owner
+supplement and observed backup baseline stay separate from the published63
+inventory. Populated application capture/restore, restored behavior, sequence
+fencing, object custody and durable publication remain open. No merge,
+deployment, production data write or n8n activity; installation remains HOLD.

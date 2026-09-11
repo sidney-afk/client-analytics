@@ -223,3 +223,9 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SUPPLEMENT_20260910.json: retained eight-exact/one-missing composition evidence.
 
 - docs/independence/LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json: current catalog-only backup table evidence and PG17 ACL requirement.
+
+- docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json: coherent single-statement current catalog contract.
+- scripts/linear-exit-backup-catalog.sql: read-only targeted catalog query with no row reads.
+- scripts/linear-exit-backup-observed-baseline.js: PG17-only selected-catalog reconstruction for isolated preparation.
+
+- docs/independence/LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_RESULT_20260911.json: PG17 nine-table selected catalog comparison evidence.

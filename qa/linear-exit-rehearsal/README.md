@@ -223,3 +223,10 @@ results remain failures; they do not invalidate the separately scoped synthetic
 round-trip tests or establish a complete application backup.
 
 Use -Lane priority-application-supplement for the explicit four-source supplement before the same strict nine-table comparison. It stays separate from the published inventory and fails while any table is missing.
+
+Use `-Lane priority-observed-baseline` with PostgreSQL 17 binaries for the explicit
+current-catalog backup baseline plus known-owner supplement. It requires the
+backup table to be absent and uses the captured standard owner/ACL, including
+MAINTAIN. Selected catalog fields are verified transactionally and with a fresh
+read before the nine-table match can pass. This is a local observed baseline,
+not a historical migration or full hosted/platform recovery proof.

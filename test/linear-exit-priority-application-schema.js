@@ -13,6 +13,9 @@ const cluster=new Cluster();assert.ok(['127.0.0.1','localhost','::1'].includes(c
 try{
  const source={};const proof=install(source,()=>null);assert.equal(source.name,cluster.db);
  const supplement=process.argv.includes('--supplement-three')?require('../scripts/linear-exit-priority-schema-supplement').apply(cluster):null;
+ if(process.argv.includes('--observed-backup')&&!supplement)throw Error('OBSERVED_BASELINE_REQUIRES_EXPLICIT_SUPPLEMENT');
+ const observed=process.argv.includes('--observed-backup')?require('../scripts/linear-exit-backup-observed-baseline').apply(cluster):null;
+ if(observed)assert.throws(()=>require('../scripts/linear-exit-backup-observed-baseline').apply(cluster),/OBSERVED_BASELINE_ABSENT_POSTGRES_OWNER_REQUIRED/);
  const tables=companion.schema().tables.map(t=>{
   const actual=JSON.parse(scalar(cluster,`select json_build_object('present',to_regclass('public.${t.name}') is not null,'columns',coalesce((select jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'not_null',a.attnotnull,'identity',a.attidentity,'generated',a.attgenerated) order by a.attnum) from pg_attribute a where a.attrelid=to_regclass('public.${t.name}') and a.attnum>0 and not a.attisdropped),'[]'::jsonb),'primary_key',coalesce((select jsonb_agg(a.attname order by k.ord) from pg_constraint p cross join lateral unnest(p.conkey) with ordinality k(attnum,ord) join pg_attribute a on a.attrelid=p.conrelid and a.attnum=k.attnum where p.conrelid=to_regclass('public.${t.name}') and p.contype='p'),'[]'::jsonb))`));
   const missing=t.columns.filter(c=>!actual.columns.some(a=>a.name===c.name)).map(c=>c.name);
@@ -24,8 +27,8 @@ try{
   return {table:t.name,status:!actual.present?'missing':exact?'exact':'mismatch',present:actual.present,exact,missing_columns:missing,extra_columns:extra,changed_columns:changed,column_order_matches:columnOrder,primary_key_matches:primaryKey,source_declarations:(scope.tables.find(s=>s.table===t.name)||{}).source_declarations||[]};
  });
  const exact=tables.filter(t=>t.exact).length;
- console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_REPORT',classification:'ISOLATED_POSTGRES_CATALOG_GAP_PROBE',inventory_sha256:proof.inventory_sha256,row_schema_sha256:companion.SCHEMA_SHA256,expected_tables:9,exact_tables:exact,tables,additional_application_owners_applied:!!supplement,supplement,full_application_schema_proven:false,application_rows_read:false}));
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_REPORT',classification:'ISOLATED_POSTGRES_CATALOG_GAP_PROBE',inventory_sha256:proof.inventory_sha256,row_schema_sha256:companion.SCHEMA_SHA256,expected_tables:9,exact_tables:exact,tables,additional_application_owners_applied:!!supplement,supplement,observed_backup_baseline:observed,full_application_schema_proven:false,application_rows_read:false}));
  if(exact!==9){console.error('LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_INCOMPLETE');process.exitCode=1;}
- else console.log('LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK');
+ else console.log(observed?'LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_OK':'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK');
 }catch(error){console.error('LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_EXECUTION_FAILED');process.exitCode=1;}
 finally{cluster.stop();}

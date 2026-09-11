@@ -195,9 +195,17 @@ function expect(condition, message) {
       .slice(0, 2));
     expect(ids.length >= 2, 'fixture requires two attribution-resolved live Production rows');
 
+    // The signed-out comments state is still a real state, but the entry gate
+    // changed how a harness gets into it: the suite must sign in to boot at all,
+    // so it drops the VERIFICATION here instead. That is the same state the app
+    // reaches when a sibling tab signs out or the verifier goes away mid-session.
+    // _syncviewInvalidateStaffVerification() clears the verified flag and bumps
+    // the epoch only; it does not purge state or re-raise the gate, so the rows
+    // read above survive and the assertion below still means what it meant.
+    await page.evaluate(() => _syncviewInvalidateStaffVerification());
     await page.evaluate(id => _prodOpenDeliverable(id), ids[0]);
     await page.waitForSelector('[data-prod-comments-state="signin"]', { timeout: 5000 });
-    expect(commentReads === 0, 'signed-out detail must not request comment bodies');
+    expect(commentReads === 0, 'an unverified detail must not request comment bodies');
 
     await page.evaluate(id => {
       _syncviewStaffIdentitySave({ key: 'browser-test-role-key', role: 'admin', member: { id: 'browser-test-member', name: 'Browser Test' } });

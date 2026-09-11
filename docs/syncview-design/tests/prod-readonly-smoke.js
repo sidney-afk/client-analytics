@@ -168,6 +168,18 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (errorText) throw new Error('Production preview rendered an error card');
     if (await page.locator('#navProd').count() !== 1) throw new Error('Production nav item was not mounted');
 
+    // This suite proves the preview's UNVERIFIED posture: gated affordances, an
+    // authentication hint on the composer, no comment bodies fetched. It used to
+    // reach that state by simply not having an identity, which the shared
+    // password allowed. The entry gate ended that: nothing boots until a key
+    // verifies, so the suite now signs in to get through the door and drops the
+    // VERIFICATION immediately after, which is the same state the app reaches
+    // when a sibling tab signs out or the verifier goes away mid-session.
+    // _syncviewInvalidateStaffVerification() only clears the verified flag and
+    // bumps the epoch; it does not purge state or re-raise the gate (that is
+    // _syncviewStaffIdentityClear), so the rows already loaded stay put.
+    await page.evaluate(() => { _syncviewInvalidateStaffVerification(); _prodRender(); });
+
     stage('list_rows');
     const rows = await page.locator('.prod-row').count();
     if (rows < 1) throw new Error('Production preview rendered no migrated rows');

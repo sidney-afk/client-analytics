@@ -20832,9 +20832,15 @@ access model must never meet this gate: `?c=` client share links, `?intake=1`,
 the onboarding funnels, `onboarding_view`, and the SMM weekly entry. All four
 are asserted. About 40 harnesses used the retired password to get in; they now
 seed a stub identity and fulfil `key-verify` locally via the new
-`qa/staff-gate-seed.js`, which grants exactly what the password granted (the
-shell) and nothing more — the stub key still reaches the real backend and is
-still rejected, so no probe can write with it.
+`qa/staff-gate-seed.js`. **Be precise about what that grants**, because the
+first version of this entry was not: it said "the shell and nothing more", the
+way the password did. Codex caught that reviewing the PR and was right. A
+fulfilled `key-verify` makes the identity VALID, so `_syncviewStaffCan()` opens
+every browser-side capability of the seeded role, and the seed is an admin by
+default: credentials, review links, intake, onboarding, hiring, PTO admin. What
+it cannot do is the part that protects real data: the stub key still reaches the
+real backend on every staff call and is still rejected, so no harness writes
+anything and no server-gated read returns.
 
 **The second P1, and why painting a cover is not a gate.** Codex's re-review of
 the fixed branch found that the fail-closed path only *painted*:

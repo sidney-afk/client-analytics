@@ -7,12 +7,23 @@
 // once the key-verify Edge Function confirms it.
 //
 // A public repo cannot carry a real role key, so harnesses seed a stub
-// identity and fulfil key-verify locally. This grants exactly what the shared
-// password granted before — the app shell — and nothing more: every outbound
-// staff call still carries this stub key to the REAL backend, which rejects
-// it, so no probe can write with it. Probes that need verified state keep
-// doing what they already did (seed their own identity, then call
-// _syncviewAcceptStaffVerification() in-page).
+// identity and fulfil key-verify locally.
+//
+// BE PRECISE ABOUT WHAT THAT GRANTS. An earlier version of this comment said
+// it grants "the app shell and nothing more", the way the shared password did.
+// That was wrong, and Codex caught it reviewing #1385. A fulfilled key-verify
+// makes _syncviewStaffIdentityValid() true, so _syncviewStaffCan() opens every
+// BROWSER-side capability of the seeded role: client credentials, review
+// links, intake, onboarding, hiring, PTO administration. This seed is an admin
+// by default, so a suite using it sees all of them.
+//
+// What it cannot do is the part that protects real data: every outbound staff
+// call carries this stub key to the REAL backend, which rejects it, so no
+// harness can write anything, and no server-gated read returns. Seed a
+// narrower role than admin when a suite does not need one.
+//
+// Probes that need verified state keep doing what they already did (seed their
+// own identity, then call _syncviewAcceptStaffVerification() in-page).
 const STAFF_GATE_MEMBER = { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null };
 const STAFF_GATE_KEY = 'qa-staff-gate-key';
 

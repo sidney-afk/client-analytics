@@ -85,11 +85,16 @@ Use the shared seed rather than hand-rolling either half:
 const { seedStaffGate } = require('../staff-gate-seed.js');   // path from your suite
 
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-await seedStaffGate(ctx);   // stored identity + an in-page key-verify answer
+await seedStaffGate(ctx);   // stored identity + a key-verify route stub
 ```
-It grants exactly what the old password granted — the app shell — and nothing more:
-the stub key still goes to the REAL backend on every staff call and is still
-rejected, so no harness can write with it.
+**Know what that grants.** A fulfilled `key-verify` makes the identity VALID, so
+`_syncviewStaffCan()` opens every browser-side capability of the seeded role, and
+this seed is an admin by default: credentials, review links, intake, onboarding,
+hiring, PTO admin. It is NOT the old password's "shell and nothing more". What it
+cannot do is the part that protects real data: the stub key still goes to the REAL
+backend on every staff call and is still rejected, so no harness writes anything
+and no server-gated read returns. Seed a narrower role when your suite does not
+need an admin.
 
 **If your suite already mocks `key-verify`**, use `seedStaffIdentity(ctx, member)`
 instead. `seedStaffGate` answers the verifier by patching `window.fetch`, which

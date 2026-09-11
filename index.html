@@ -23268,6 +23268,14 @@
         if (_syncviewStaffBootPromise) return _syncviewStaffBootPromise;
         _syncviewStaffBootPromise = (async () => {
             if (!_syncviewStaffEligible()) { _syncviewStaffRefreshChrome(); return null; }
+            // The entry card just verified this identity and lifted the gate,
+            // which starts init(), which lands here. A second POST for the same
+            // key can only lose: a rate-limit or a transient 5xx would now bounce
+            // someone back to the gate moments after they signed in successfully.
+            if (_syncviewStaffIdentityValid()) {
+                _syncviewStaffRefreshChrome();
+                return _syncviewStaffIdentityLoad();
+            }
             const current = _syncviewStaffIdentityLoad();
             if (!current || !current.key || !current.member || !current.member.id) {
                 if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
@@ -63981,10 +63989,24 @@
         try{
             const _clientEntryStillCurrent=()=>!_isClientLink||_syncviewClientEntryRunCurrent(clientEntryRun);
             if(!_clientEntryStillCurrent())return;
-            // B4 staff identity is cosmetic while auth_enforcement stays
-            // permissive. Validate an existing key before restoring routes;
-            // a missing key prompts after first paint and never blocks boot.
-            if (!_isClientLink) await _syncviewStaffIdentityBoot();
+            // The staff identity IS the door (2026-09-10), so this both
+            // verifies and gates. Painting the cover is not enough: Codex
+            // caught that on #1385. init() used to run on past this await, so
+            // a forged stored identity plus a blocked verifier still reached
+            // fetchAll() and pulled the anon-readable staff datasets in behind
+            // the cover, where the responses are visible in devtools and the
+            // overlay is one node removal away. Nothing loads until the server
+            // has confirmed who this is.
+            if (!_isClientLink) {
+                const verifiedIdentity = await _syncviewStaffIdentityBoot();
+                if (!verifiedIdentity && _syncviewStaffGateRequired()) {
+                    // Release the boot latch so a successful sign-in on the
+                    // gate can start the app that this return abandoned.
+                    _syncviewAppBooted = false;
+                    return;
+                }
+            }
+            _syncviewAppBooted = true;
             const _ptoFlagReady = _isClientLink ? Promise.resolve(null) : _ptoPrimeFlag();
             // Resume any calendar-card write job a previous session left
             // unfinished (tab closed during the post-submit write window).

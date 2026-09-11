@@ -20836,11 +20836,53 @@ seed a stub identity and fulfil `key-verify` locally via the new
 shell) and nothing more — the stub key still reaches the real backend and is
 still rejected, so no probe can write with it.
 
+**The second P1, and why painting a cover is not a gate.** Codex's re-review of
+the fixed branch found that the fail-closed path only *painted*:
+`_syncviewStaffIdentityBoot()` resolved `null`, but `init()` ran straight on past
+its unchecked `await` into `fetchAll()`, so a forged identity plus a blocked
+verifier still pulled the anon-readable staff datasets in behind the cover —
+where the responses sit in devtools and the overlay is one node removal away.
+`init()` now returns at that await on a gated surface and releases its boot latch
+so a later successful sign-in starts the app it abandoned. The guard asserts the
+absence directly (no Supabase/Sheet/n8n read on either failure path) and, so the
+negative cannot pass vacuously, asserts that a *verified* boot does read.
+Feature-flag rows (`syncview_runtime_flags`) are excluded and the exclusion is
+argued in the file: they are a key and a boolean, readable with the publishable
+key from any browser regardless of this gate.
+
+**One more from the same review: the app verified the same key twice.** A fresh
+sign-in verified, lifted the gate, started `init()`, and `init()` immediately
+re-POSTed `key-verify` for the identity just accepted. Harmless before, but
+against a fail-closed door a rate-limit or transient 5xx on that redundant call
+would bounce someone back to the gate seconds after a successful sign-in. Boot
+verification now short-circuits when the in-memory identity is already verified.
+
+**How harnesses get in, and the two defects that mechanism produced.** The first
+cut of `qa/staff-gate-seed.js` answered `key-verify` by patching `window.fetch`
+in the page. That shadows a Playwright route for the same URL: the request never
+reaches the network layer, so `pto-ui-polish`'s own verifier mock never fired and
+its fixture wait timed out. It was also an in-page mutation every suite would
+have to reason about. The seed now answers with a ROUTE and touches nothing but
+`localStorage` — with two ordering rules written into the file, since Playwright
+tries the most recent route first: register it BEFORE a specific mock that should
+win, and AFTER any catch-all `route('**/*')` that would swallow it (four
+harnesses were reordered for that). Making the POST visible to the network layer
+then exposed the second defect: `isWriteLikeRequest` counts any non-GET to
+`functions/v1` as a mutation, so the act of signing in failed "this surface
+mutated nothing" in three Production lanes. `key-verify` writes nothing — it
+reads a roster row and answers — so it is excluded there, narrowly: every other
+POST to `functions/v1` still counts.
+
 **Two suites encoded the old design and were updated, not silenced.**
 `b4-staff-login.js` asserted that sign-out leaves a calm signed-out app with no
 prompt; that posture no longer exists on a staff surface. `prod-write-gateway-browser.js`
 signs out mid-run to prove sensitive state is purged, then keeps clicking — it
-now signs back in, because the gate is over the app. Verified: `staff-entry-gate`,
+now signs back in, because the gate is over the app. The guard lives in `qa/boot/`, not `test/`: `test/run-all.js` auto-discovers every
+`test/*.js` and that lane is dependency-free by contract, so a Playwright suite
+there fails the `unit` job on a runner that never installs a browser. It runs in
+the `Client entry visible boot` workflow, which already triggers on `index.html`.
+
+Verified: `staff-entry-gate`,
 `boot-gate-parity`, `prod-write-gateway-browser`, `prod-boot-budget`,
 `kasper-cal-cache-bounded`, and all 23 `client-entry-sequence` scenarios pass.
 `b4-staff-login` reaches a failure that reproduces identically on `origin/main`

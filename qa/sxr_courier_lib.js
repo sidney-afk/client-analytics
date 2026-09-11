@@ -393,7 +393,6 @@ async function _ctx(browser, opts) {
   const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
-  await seedStaffGate(ctx);
   await ctx.addInitScript((theme) => {
     // These scenarios exercise Samples/Calendar behavior, not the optional
     // global staff sign-in invitation. Keep that auto-prompt from obscuring the
@@ -514,6 +513,9 @@ async function _ctx(browser, opts) {
     }
     return route.continue(staffHeaders ? { headers: staffHeaders } : undefined);
   });
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   return ctx;
 }
 async function open(browser, urlPath, opts) {

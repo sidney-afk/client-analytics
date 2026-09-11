@@ -16,15 +16,10 @@
 const STAFF_GATE_MEMBER = { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null };
 const STAFF_GATE_KEY = 'qa-staff-gate-key';
 
-// WHICH HELPER: `seedStaffGate` patches `window.fetch` to answer key-verify
-// in-page, which SHADOWS a Playwright route for the same URL — the request
-// never reaches the network layer, so a suite's own key-verify mock never
-// fires and a suite that counts hits on it hangs (this is what broke
-// `pto-ui-polish` on #1385). A suite that already mocks key-verify wants
-// `seedStaffIdentity` instead: it seeds the stored identity only, and lets
-// that suite's own mock answer the boot verification with its own member.
-// Suites that manage their own identity outright (`b4-staff-login`, the PTO
-// harnesses) need neither.
+// WHICH HELPER: a suite that already mocks key-verify wants `seedStaffIdentity`
+// instead — it seeds the stored identity only and lets that suite's own mock
+// answer the boot verification with its own member. Suites that manage their
+// own identity outright (`b4-staff-login`, the PTO harnesses) need neither.
 
 // Serialized so it can also be dropped into a storageState fixture.
 function staffGateIdentityJson() {
@@ -40,21 +35,8 @@ function staffGateIdentityJson() {
 // gate is asserted to boot clean with no console error.
 function staffGateInit(payload) {
   try {
-    localStorage.setItem('syncview_staff_identity_v1', payload.identity);
+    localStorage.setItem('syncview_staff_identity_v1', payload);
     localStorage.removeItem('syncview_auth_v1');
-    if (window.__syncviewStaffGateStub) return;
-    window.__syncviewStaffGateStub = true;
-    const real = window.fetch;
-    window.fetch = function (input, init) {
-      let url = '';
-      try { url = String((input && input.url) || input || ''); } catch (e) {}
-      if (url.indexOf('/functions/v1/key-verify') !== -1) {
-        return Promise.resolve(new Response(payload.body, {
-          status: 200, headers: { 'Content-Type': 'application/json' }
-        }));
-      }
-      return real.apply(this, arguments);
-    };
   } catch (e) {}
 }
 
@@ -77,11 +59,22 @@ async function seedStaffIdentity(target, member, key) {
 }
 
 // `target` is a Playwright BrowserContext or Page.
+//
+// The verifier is answered with a ROUTE, not by patching window.fetch in the
+// page. An in-page patch shadows a Playwright route for the same URL (it broke
+// `pto-ui-polish`, whose own key-verify mock then never fired), and it is a
+// mutation of the page under test that every suite would have to reason about.
+// Two consequences of using a route, both about ORDER: Playwright tries the
+// most recently registered route first, so call this BEFORE a specific
+// key-verify mock you want to win, and AFTER any catch-all `route('**/*')`
+// that would otherwise swallow it.
 async function seedStaffGate(target) {
-  await target.addInitScript(staffGateInit, {
-    identity: staffGateIdentityJson(),
+  await target.addInitScript(staffGateInit, staffGateIdentityJson());
+  await target.route('**/functions/v1/key-verify', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
     body: JSON.stringify({ ok: true, role: STAFF_GATE_MEMBER.role, member: STAFF_GATE_MEMBER })
-  });
+  }));
 }
 
 module.exports = { seedStaffGate, seedStaffIdentity, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

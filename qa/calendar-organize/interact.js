@@ -44,8 +44,10 @@ const ok = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else { fai
   await new Promise(r => server.listen(PORT, r));
   const browser = await PW.chromium.launch({ args: ['--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
-  await seedStaffGate(ctx);
   await ctx.route('**/*', r => r.request().url().startsWith(ORIGIN) ? r.continue() : r.abort());
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   await ctx.addInitScript(() => {
     try { localStorage.setItem('syncview_theme', 'dark'); } catch (e) {}
   });

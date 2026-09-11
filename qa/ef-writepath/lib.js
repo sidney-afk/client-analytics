@@ -276,7 +276,6 @@ function makeRecorder() {
 async function makeCtx(browser, opts = {}) {
   const rec = makeRecorder();
   const ctx = await browser.newContext({ viewport: { width: 1480, height: 950 }, ignoreHTTPSErrors: true });
-  await seedStaffGate(ctx);
   await ctx.addInitScript((kasper) => {
     if (kasper) { try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {} }
   }, !!opts.kasper);
@@ -341,6 +340,9 @@ async function makeCtx(browser, opts = {}) {
     const r = _courierFetch(method, url, req.headers(), bodyStr); entry.status = r.status;
     return route.fulfill({ status: r.status, contentType: r.ctype, headers: CORS, body: r.body });
   });
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   return { ctx, rec };
 }
 

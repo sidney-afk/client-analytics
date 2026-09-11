@@ -41,6 +41,12 @@ function isWriteLikeRequest(req) {
   const method = typeof req.method === 'function' ? req.method() : req.method;
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
   const url = typeof req.url === 'function' ? req.url() : req.url;
+  // The staff entry gate verifies a role key on every boot with a POST that
+  // writes nothing — it reads the roster row for that key and answers. It is
+  // authentication, not a mutation, and counting it here would make "this
+  // surface mutated nothing" fail on the act of signing in. Narrow on purpose:
+  // every other POST to functions/v1 still counts.
+  if (/\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(url || '')) return false;
   return /supabase|n8n|webhook|syncview|rest\/v1|functions\/v1/i.test(url || '');
 }
 

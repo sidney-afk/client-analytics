@@ -8,13 +8,17 @@
 // the key-verify Edge Function agreeing. Everything below drives the real page
 // in a real browser with the backend stubbed.
 //
-// Run: node test/staff-entry-gate.js
+// It lives here rather than in test/ because test/run-all.js auto-discovers
+// every test/*.js and that lane is dependency-free by contract: a Playwright
+// suite there fails the `unit` job on a runner that never installs a browser.
+//
+// Run: node qa/boot/staff-entry-gate.js
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const MEMBER = { id: 'm_admin', name: 'Gate Admin', role: 'admin', team: 'graphics' };
 const ROSTER = [MEMBER, { id: 'm_smm', name: 'Gate Smm', role: 'smm', team: null }];
 
@@ -61,8 +65,31 @@ async function openPage(browser, origin, { identity, keyVerify }) {
     });
   });
   const page = await context.newPage();
+  // Every outbound URL, so a gated case can prove the app did not go and load
+  // anything behind the cover.
+  const requests = [];
+  page.on('request', request => requests.push(request.url()));
   await page.goto(origin + '/index.html', { waitUntil: 'domcontentloaded' });
-  return { context, page };
+  return { context, page, requests };
+}
+
+// Reads the gate is allowed to make before anyone is verified:
+//   - `key-verify`, which is the door itself;
+//   - `team_members`, the roster that fills the name picker;
+//   - `syncview_runtime_flags`, which module-level primers read outside init().
+//     Those rows are feature switches — a key and a boolean — with no client or
+//     staff content in them, and the publishable key can read them from any
+//     browser regardless of this gate, so they are configuration, not the
+//     "anon-readable staff datasets" this case exists to keep out.
+// Everything else reaching Supabase, the Sheet, or n8n is data a signed-out
+// visitor must not have caused.
+function staffDataReads(requests) {
+  return requests.filter(url => {
+    if (url.indexOf('/functions/v1/key-verify') !== -1) return false;
+    if (url.indexOf('/rest/v1/team_members') !== -1) return false;
+    if (url.indexOf('/rest/v1/syncview_runtime_flags') !== -1) return false;
+    return /\/rest\/v1\/|\/functions\/v1\/|docs\.google\.com|gviz|n8n\.cloud/.test(url);
+  });
 }
 
 const state = page => page.evaluate(() => ({
@@ -86,7 +113,7 @@ function identity(verifiedAt) {
   try {
     // 1. No identity at all: the gate is the whole page and cannot be dismissed.
     {
-      const { context, page } = await openPage(browser, origin, { identity: null, keyVerify: 'ok' });
+      const { context, page, requests } = await openPage(browser, origin, { identity: null, keyVerify: 'ok' });
       await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
       const before = await state(page);
       ok(before.cover && before.card, 'a signed-out visit lands on the sign-in gate');
@@ -106,13 +133,20 @@ function identity(verifiedAt) {
       const signedIn = await state(page);
       ok(!signedIn.cover && signedIn.verified === true, 'a verified role key opens the app');
       ok(signedIn.headerVisible, 'and the app chrome is actually there behind it');
+      // Keeps the two negatives below honest: if a verified boot stopped
+      // reading anything, "no staff data behind the cover" would pass for the
+      // wrong reason.
+      await page.waitForTimeout(1500);
+      ok(staffDataReads(requests).length > 0,
+        'a verified boot does go and read staff data, so the gated cases below are '
+        + 'a real absence rather than a vacuous one');
       await context.close();
     }
 
     // 2. THE LOAD-BEARING NEGATIVE: a hand-written identity is not a key.
     //    This is what anyone can do in devtools; the verifier is what decides.
     {
-      const { context, page } = await openPage(browser, origin, {
+      const { context, page, requests } = await openPage(browser, origin, {
         identity: identity(new Date().toISOString()), keyVerify: 401
       });
       await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
@@ -120,6 +154,16 @@ function identity(verifiedAt) {
       ok(forged.cover && forged.card, 'a stored identity the verifier rejects gets the gate, not the app');
       ok(!forged.stored, 'and the rejected identity is cleared rather than left to try again');
       ok(forged.verified === false, 'nothing is treated as verified on that path');
+      // Codex's second P1 on #1385: painting the cover is not the same as not
+      // booting. init() used to run on past the failed verification into
+      // fetchAll(), so the staff datasets arrived behind the overlay -- visible
+      // in devtools, and the overlay is one node removal away.
+      await page.waitForTimeout(1500);
+      const leaked = staffDataReads(requests);
+      ok(leaked.length === 0,
+        'THE LOAD-BEARING NEGATIVE: a rejected identity loads NO staff data behind the '
+        + 'cover -- boot aborts, it does not merely paint over a running app'
+        + (leaked.length ? ' (leaked: ' + leaked.length + ')' : ''));
       await context.close();
     }
 
@@ -130,7 +174,7 @@ function identity(verifiedAt) {
     //    attacker writes, and blocking only the verifier request is something
     //    any visitor can do, so the "outage" was manufacturable on demand.
     {
-      const { context, page } = await openPage(browser, origin, {
+      const { context, page, requests } = await openPage(browser, origin, {
         identity: identity(new Date().toISOString()), keyVerify: 'down'
       });
       await page.waitForSelector('#staffIdentityForm', { timeout: 15000 });
@@ -139,6 +183,10 @@ function identity(verifiedAt) {
         'a fresh `verified_at` plus a blocked verifier does NOT open the shell: '
         + 'the door fails closed on every verification failure, not just a 401');
       ok(down.verified === false, 'and nothing on that path is treated as verified');
+      await page.waitForTimeout(1500);
+      const leakedDown = staffDataReads(requests);
+      ok(leakedDown.length === 0, 'and a blocked verifier loads no staff data either'
+        + (leakedDown.length ? ' (leaked: ' + leakedDown.length + ')' : ''));
       await context.close();
     }
 

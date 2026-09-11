@@ -30,7 +30,6 @@ async function run() {
   const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
   const browser = await lib.launch();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await seedStaffGate(ctx);
   // Tunnel backend so fetchEssentials succeeds and the app fully boots.
   await ctx.route('**/*', async (route) => {
     const req = route.request(); const url = req.url();
@@ -43,6 +42,9 @@ async function run() {
       body: response.body,
     });
   });
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   // Deterministically reproduce the user's exact console error: a FULL quota
   // where writing NAV_KEY ('syncview_nav') throws QuotaExceededError. Headless
   // Chromium's real quota is too large to fill reliably, so we intercept

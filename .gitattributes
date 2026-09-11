@@ -21,3 +21,6 @@ docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json text eol=lf
 
 # Exact-byte observed catalog contract for the isolated PG17 baseline.
 docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json text eol=lf
+
+# Exact-byte credential row contract for the isolated companion.
+docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json text eol=lf

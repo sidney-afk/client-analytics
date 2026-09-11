@@ -1159,3 +1159,34 @@ unimplemented source-backed contract at
 docs/ops/LINEAR_EXIT_CREDENTIAL_RECOVERY_CONTRACT.md. All 25 outside-priority
 tables still need explicit custody decisions; no exclusion is authorized.
 No merge/deployment/production/n8n changes. Installation HOLD.
+
+
+## Credential triple preparation
+
+PG17 credential recovery PASS in `linear-exit-credential-recovery-bddda9722ed1471ab5ac51f8f8cdeae8`,
+exit0 and server stopped. The three source tables were absent from the ordered
+baseline; a separate pinned schema supplement adds35 columns. The fixed
+credential-three-v1 envelope binds actual parent and priority companion bytes.
+Its authenticated parent requirement makes current incomplete renderers refuse.
+The existing parent52/priority9 formats and default capture remain unchanged.
+
+All12 supplement tables are populated in the fixture. Credentials3, events3 and
+revision1 restore exactly, including archived replacement/history/null fields.
+An intervening committed write changes all3 source tables; capture retains the
+earlier password/events/revision while newer source events/revision are visible.
+Two injected late row faults fail and leave an empty target. Four actual role
+reads of protected tables are denied; two revision reads succeed. Partial live
+uniqueness and empty restored publication membership are checked.
+
+Existing sequence/native-ID recovery also PASSed in `linear-exit-priority-application-recovery-75de42cc72ef47dc928da2e28245e141`.
+Offline checks: credential12, parent18, priority17, sequence11. The initial
+credential run0d05eba92728470b94b3c1c7b94fb447 is superseded by the concurrent-write
+case. See LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json for scoped evidence.
+
+This is a complete in-memory triple for the scoped fixture, not a durable full
+build. Three-part storage, encryption/off-device custody, handler behavior,
+hosted schema/recovery and final cutover remain unproven. Older readers may
+ignore optional requirements and are unsupported for complete triple recovery.
+The other22 tables still need explicit preservation contracts; no exclusion
+of the credential group or other tables is authorized. Installation HOLD.
+No merge/deployment/production/n8n changes.

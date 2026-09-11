@@ -1419,5 +1419,63 @@
     "hosted_restore_proven": false,
     "source_cutover_proven": false,
     "installation_ready": false
+  },
+  "credential_recovery": {
+    "marker": "LINEAR_EXIT_CREDENTIAL_RECOVERY_OK",
+    "classification": "ISOLATED_POSTGRES_SYNTHETIC_TRIPLE",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source": {
+      "source": "migrations/client-credentials-migration.sql",
+      "source_sha256": "eb1c5ac2dc4fa2900225ca916b284367c0223d577e0b631fd74851ead7ad973c",
+      "separate_from_published_inventory": true,
+      "application_seed_rows_executed": false,
+      "hosted_schema_equivalence_proven": false
+    },
+    "parent_tables": 52,
+    "populated_priority_tables": 9,
+    "populated_credential_tables": 3,
+    "credential_rows": 3,
+    "event_rows": 3,
+    "revision_rows": 1,
+    "legacy_renderers_refused": true,
+    "late_row_fault_rollbacks": 2,
+    "protected_role_denials": 4,
+    "revision_role_reads": 2,
+    "partial_unique_constraint_enforced": true,
+    "shared_snapshot_capture": true,
+    "concurrent_three_table_write_kept_out_of_snapshot": true,
+    "complete_storage_proven": false,
+    "encryption_proven": false,
+    "handler_behavior_proven": false,
+    "realtime_quarantine_preserved": true,
+    "hosted_restore_proven": false,
+    "receipt": "linear-exit-credential-recovery-bddda9722ed1471ab5ac51f8f8cdeae8",
+    "exit": 0,
+    "server_stopped": true,
+    "installation_ready": false,
+    "supersedes_initial_pass": "linear-exit-credential-recovery-0d05eba92728470b94b3c1c7b94fb447",
+    "existing_pair_regression": {
+      "receipt": "linear-exit-priority-application-recovery-75de42cc72ef47dc928da2e28245e141",
+      "exit": 0,
+      "server_stopped": true,
+      "sequence_checks": 6,
+      "selected_behavior_checks": 9,
+      "native_identifier_acceptance": true
+    },
+    "offline_checks": {
+      "credential": 12,
+      "parent_recovery": 18,
+      "priority_envelope": 17,
+      "sequence_bounds": 11
+    },
+    "source_hash_scope": "Executed working-tree bytes; checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "scripts/linear-exit-credential-companion.js": "b7e0b06045796e385dd9f8315ea7f3b8cab5d5e02fa3cb5982cd56198bff8f75",
+      "scripts/linear-exit-credential-capture.js": "b0c3bcfd69136e3a18d24dd4e35270f3c36e3bca092bf0e5116ab3970fe13700",
+      "scripts/linear-exit-credential-reconstruct.js": "7e6512528b6cf80f8a3a773ee93f091d59df529fcf5427615d292fbc0d9ce96d",
+      "scripts/track-b-recovery-package.js": "4d9950c8aa33cebca28c280d73a62431c579383d3fc4b6ef45dbc6ea35efc7aa",
+      "scripts/linear-exit-priority-reconstruct.js": "40bcfc1714662e469598a567944436028f21774a7308c040df5e6fe0e9da875e",
+      "test/linear-exit-credential-recovery.js": "6eba0502d3bc609a04a8e1ecc5e65c440cc5c5eaafcde298a5b203c9077a6e26"
+    }
   }
 }

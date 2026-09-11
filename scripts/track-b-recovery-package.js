@@ -906,6 +906,7 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
   const deferred = verifyDeferredDefaults([...pre.statements, ...post.statements], manifest, parsed);
   const callable = verifyCallableContract(deferred.statements, manifest);
   if (Object.hasOwn(manifest, 'sequence_bounds_v1')) require('./linear-exit-sequence-bounds').validate(manifest.sequence_bounds_v1, manifest.sequences);
+  if (Object.hasOwn(manifest, 'credential_companion_v1')) require('./linear-exit-credential-companion').validateRequirement(manifest.credential_companion_v1);
   return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable, deferred };
 }
 
@@ -1031,12 +1032,14 @@ function inTransactionVerificationSql(manifest) {
 }
 
 function reconstructSql(pkg) {
+  if (Object.hasOwn(pkg.manifest, 'credential_companion_v1')) throw new Error('CREDENTIAL_TRIPLE_RENDERER_REQUIRED');
   if (Object.hasOwn(pkg.manifest, 'sequence_bounds_v1')) throw new Error('SEQUENCE_BOUNDS_PAIR_RENDERER_REQUIRED');
   return renderReconstruction(pkg, null);
 }
 
 function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
   const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
+  if (Object.hasOwn(pair.parent.manifest, 'credential_companion_v1')) throw new Error('CREDENTIAL_TRIPLE_RENDERER_REQUIRED');
   if (Object.hasOwn(pair.parent.manifest, 'sequence_bounds_v1')) throw new Error('SEQUENCE_BOUNDS_PAIR_RENDERER_REQUIRED');
   const supplement = require('./linear-exit-priority-reconstruct').sections(pair.companion, pair.parent.manifest);
   return renderReconstruction(pair.parent, supplement);
@@ -1044,6 +1047,7 @@ function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
 
 function reconstructPairSqlWithSequenceBounds(companionBytes, parentBytes, hmacInput) {
   const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
+  if (Object.hasOwn(pair.parent.manifest, 'credential_companion_v1')) throw new Error('CREDENTIAL_TRIPLE_RENDERER_REQUIRED');
   const supplement = require('./linear-exit-priority-reconstruct').sections(pair.companion, pair.parent.manifest);
   supplement.verify += '\n' + require('./linear-exit-sequence-bounds').targetSql(pair.parent.manifest.sequence_bounds_v1, pair.parent.manifest.sequences);
   return renderReconstruction(pair.parent, supplement);
@@ -1070,6 +1074,15 @@ function renderReconstruction(pkg, supplement) {
     'commit;',
     '',
   ].join('\n');
+}
+
+function reconstructTripleSql({ credentialBytes, priorityBytes, parentBytes, hmacInput }) {
+  const triple = require('./linear-exit-credential-companion').verifyTriple({credentialBytes, priorityBytes, parentBytes, hmacInput});
+  const priority = require('./linear-exit-priority-reconstruct').sections(triple.companion, triple.parent.manifest, true);
+  const credential = require('./linear-exit-credential-reconstruct').sections(triple.credential, triple.parent.manifest);
+  const supplement = { beforePost: priority.beforePost + '\n' + credential.beforePost, verify: priority.verify + '\n' + credential.verify };
+  if (Object.hasOwn(triple.parent.manifest, 'sequence_bounds_v1')) supplement.verify += '\n' + require('./linear-exit-sequence-bounds').targetSql(triple.parent.manifest.sequence_bounds_v1, triple.parent.manifest.sequences);
+  return renderReconstruction(triple.parent, supplement);
 }
 
 // Post-commit verification (fresh session): the same facts, independently.
@@ -1254,7 +1267,8 @@ function resolveCallableContract(query, seedTokens, edges, requiredExtensionName
   return references;
 }
 
-async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {}, captureSequenceBounds = false }) {
+async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {}, captureSequenceBounds = false, requireCredentialCompanion = false }) {
+  if (requireCredentialCompanion !== false && (requireCredentialCompanion !== true || corpusName !== 'history-v11' || typeof hooks.captureSnapshot !== 'function')) throw new Error('CREDENTIAL_COMPANION_CAPTURE_REQUIRED');
   if (captureSequenceBounds !== false && (captureSequenceBounds !== true || corpusName !== 'history-v11' || typeof hooks.captureSnapshot !== 'function')) throw new Error('SEQUENCE_BOUNDS_COMPANION_CAPTURE_REQUIRED');
   const corpus = backup.resolveCorpus(corpusName);
   const key = backup.parseHmacKey(hmacInput);
@@ -1351,6 +1365,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     omitted_data_tables: omitted,
     sequences,
     ...(captureSequenceBounds ? { sequence_bounds_v1: sequenceBounds } : {}),
+    ...(requireCredentialCompanion ? { credential_companion_v1: require('./linear-exit-credential-companion').requirement() } : {}),
     callable_references: strippedReferences,
     deferred_defaults: deferredContract,
     prerequisites: {
@@ -1463,6 +1478,7 @@ module.exports = {
   readRecoveryPackage,
   reconstructSql,
   reconstructPairSql,
+  reconstructTripleSql,
   reconstructPairSqlWithSequenceBounds,
   recoveryName,
   requiredExtensions,

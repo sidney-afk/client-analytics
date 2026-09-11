@@ -259,3 +259,14 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 - test/helpers/linear-exit-native-identifier-recovery.js: populated native cursor/grant restore and allocation acceptance.
 - docs/independence/LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_20260911.json: isolated populated native identifier recovery evidence.
+
+- scripts/linear-exit-credential-schema-supplement.js: pinned isolated credential schema owner.
+- scripts/linear-exit-credential-companion.js: authenticated fixed three-table envelope and triple binding.
+- scripts/linear-exit-credential-capture.js: shared-snapshot in-memory triple capture.
+- scripts/linear-exit-credential-reconstruct.js: exact credential row reconstruction checks.
+- test/linear-exit-credential-schema.js: source catalog/key/ACL probe.
+- test/linear-exit-credential-recovery.js: populated triple capture, rollback and access acceptance.
+- test/linear-exit-credential-companion.js: offline authenticated credential envelope controls.
+- docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json: exact pinned source row contract.
+- docs/independence/LINEAR_EXIT_CREDENTIAL_SCHEMA_20260911.json: source schema/ACL evidence.
+- docs/independence/LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json: isolated triple recovery evidence.

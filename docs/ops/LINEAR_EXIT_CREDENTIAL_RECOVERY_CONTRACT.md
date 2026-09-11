@@ -1,6 +1,7 @@
 # Credential recovery preparation contract
 
-Status: source-backed acceptance plan; not implemented or hosted recovery proof.
+Status: prepared in-memory authenticated triple with isolated PostgreSQL acceptance.
+Durable three-part storage, encryption, handler behavior and hosted recovery remain open.
 No live credential rows were read. Installation remains HOLD.
 
 The next coherent custody group among the 25 remaining tables is
@@ -62,3 +63,24 @@ human weekly reports, hiring event/invitation history, and authored templates an
 caption prompts. Preserve pending-job identities without re-executing invitations.
 These are source-based priorities, not findings of actual loss or authorization
 for live migration, retirement or deletion.
+
+
+## Prepared API and evidence
+
+Use `captureTriple(options)` from the credential capture module, and object
+arguments `{parentBytes, priorityBytes, credentialBytes, hmacInput}` for
+`verifyTriple` and `reconstructTripleSql`. The credential envelope authenticates
+both preceding component hashes and a pinned35-column schema. The parent carries
+an authenticated requirement for the credential component; current incomplete
+renderers refuse it. Older readers are unsupported for complete triple recovery.
+
+The source schema and populated acceptance reports are
+LINEAR_EXIT_CREDENTIAL_SCHEMA_20260911.json and
+LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json. Run the portable PG17
+`credential-schema` and `credential-recovery` lanes to reproduce scoped checks.
+The existing pair storage format does not store a credential triple. Do not
+present a saved two-part container as the complete new backup.
+
+Next: explicit versioned three-part durable storage and private encryption/custody,
+then isolated handler behavior. Preserve the source revision publication intent
+while keeping recovery quarantine inert. This does not authorize hosted use.

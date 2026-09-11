@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private current-site observation configuration (never commit filled values)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "test", "surfaces"],
+  "properties": {
+    "version": { "const": 1 },
+    "test": {
+      "type": "object", "additionalProperties": false, "required": ["slug", "token"],
+      "properties": { "slug": { "type": "string", "minLength": 1 }, "token": { "type": "string", "minLength": 1 } }
+    },
+    "surfaces": {
+      "type": "array", "minItems": 6, "maxItems": 6,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["surface", "url"],
+        "properties": {
+          "surface": { "enum": ["client-calendar", "client-samples", "smm-calendar", "kasper-review", "production", "workload"] },
+          "url": { "type": "string", "format": "uri" },
+          "storageState": { "type": "string", "description": "Existing authorized Playwright state outside the repository; never fabricate identity or copy retry debt blindly." },
+          "authorizedPersona": { "const": true }
+        },
+        "dependentRequired": { "storageState": ["authorizedPersona"] }
+      }
+    }
+  }
+}

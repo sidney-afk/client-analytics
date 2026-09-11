@@ -24,6 +24,7 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 | `pto_members` | Whether their Time Off request form works at all | Admin sets it in SyncView's own Time Off panel, see §6. Not every hire gets this benefit, that is an owner call |
 | SyncView Google Sheet, "Social Media Managers" tab | Keyed by client, not by person, one row per client assignment | Not a general onboarding step, only touched when an SMM is actually assigned a client, see §7 |
 | Slack workspace | The client creative channel automation reads the assigned SMM's row in the Sheet above, not anything on `team_members` | Seat invite is manual; the rest happens at client assignment time |
+| SyncView Google Sheet, "Video Editors" tab | For an editor only: who the `send-urgent-slack` n8n workflow can resolve to a Slack DM for "URGENT TWEAKS NEEDED" pings on their work | Manual row (name, email only, no Slack column on the sheet itself), plus a separate n8n edit, see §5 |
 | Company email | Identity anchor for the above | Owner's call. Some existing staff use a personal address instead, and that is fine |
 
 ## 1. Quick checklist
@@ -32,7 +33,7 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 - [ ] Insert their `team_members` row (see §2)
 - [ ] Hand them the existing shared role key for their tier, through a channel you would already trust with a secret. Never in this repo, never in a public Slack channel
 - [ ] Invite them to the Linear workspace. For an editor or designer, look up their Linear user ID once they have joined and set `team_members.linear_user_id` by hand, nothing does this for you (see §4)
-- [ ] Invite them to Slack (§5)
+- [ ] Invite them to Slack (§5). If they are an editor, also register them for urgent tweak pings (§5), this is a separate step
 - [ ] If this hire gets the Time Off benefit, set them up in SyncView's Time Off admin panel (§6), otherwise their request form will not work
 - [ ] If assigning a client right away, that is a separate, per client step, follow §7 and `NEW_CLIENT_ONBOARDING.md`
 - [ ] Confirm they can actually log in: SyncView, Staff sign in, their name should now be in the dropdown, then their tier's role key. For an editor or designer, also confirm they appear in the Create Post assignee picker for their team
@@ -114,6 +115,19 @@ Google Sheet's Social Media Managers tab, not anything on `team_members`
 `waiting` rather than failing loudly. So there is nothing Slack specific to do at general
 onboarding beyond the workspace invite, the rest happens at client assignment time (§7).
 
+**If this hire is an editor**, there is a second, separate Slack mechanism, general to
+them rather than tied to any one client: the "URGENT TWEAKS NEEDED" ping
+(`index.html`, `URGENT_SLACK_URL`, the `send-urgent-slack` n8n workflow) resolves who to
+DM by looking them up in the SyncView Google Sheet's "Video Editors" tab (name and email
+only, `docs/truth/SHEETS.md`). That sheet has no Slack column at all, the actual Slack
+identity comes from a second, hardcoded fallback map inside the n8n workflow itself. So a
+new editor needs a row in that sheet tab, and separately needs that n8n map updated to
+include them, or an urgent ping on their work resolves to nobody. Editing an n8n workflow
+needs the owner's explicit go-ahead in the same request (`client-analytics/CLAUDE.md`
+standing constraint), this is not something to do unilaterally even for a small addition.
+Confirming with an actual urgent ping on a TEST card is worth doing once both are in
+place, no automated check covers this path.
+
 ## 6. Time Off (if this hire gets the benefit)
 
 Not every hire does, that is an owner decision, not a technical one, and nothing below
@@ -133,16 +147,18 @@ skips that and is not the supported path.
 
 Not a general onboarding step, and it works differently than the rest of this doc might
 suggest: the "Social Media Managers" Sheet tab is keyed by client, one row per assignment,
-not one row per person (`NEW_CLIENT_ONBOARDING.md` §6e). Columns: `client_name |
+not one row per person (`NEW_CLIENT_ONBOARDING.md` §5, "Social Media Managers" row, not
+§6e, which is a different, automated write-enrollment step). Columns: `client_name |
 social_media_manager | linear_api_key | slack_profile_url`. For a new client assignment:
 
+- `client_name`: the client this row is for, this is the row's key
 - `social_media_manager`: their first name
 - `linear_api_key`: copied from any of their existing rows if they already cover another
   client, otherwise their own personal key from §4
 - `slack_profile_url`: their Slack user ID from §5, needed for the creative channel
   automation to run at all
 
-Then follow `docs/ops/NEW_CLIENT_ONBOARDING.md` §6c (Slack), §6e (this roster), and §6g
+Then follow `docs/ops/NEW_CLIENT_ONBOARDING.md` §6c (Slack), §5 (this roster), and §6g
 (Linear project) for the rest of that client's setup. There is no "blank" roster entry to
 create for a hire before they have a client; skip this section entirely until they do.
 
@@ -206,6 +222,7 @@ create for a hire before they have a client; skip this section entirely until th
 | `linear_user_id` reconciliation logic (not reached by the scheduled run, see §4) | `scripts/b1-linear-backfill.js`, `.github/workflows/b1-linear-incremental-refresh.yml` |
 | Time Off gating and admin setup action | `supabase/functions/pto/index.ts` (`requestTimeOff`, `setStartDate`), `index.html` (`ptoAdminMember` / `ptoAdminStart` / `ptoAdminEnabled`) |
 | SMM roster, client assignment, Linear key, Slack ID | SyncView Google Sheet, "Social Media Managers" tab, synced into Supabase `public.social_media_managers`; keyed by client, see §7 |
+| Editor urgent-tweak Slack resolution | `index.html` (`URGENT_SLACK_URL`), n8n `send-urgent-slack` workflow, SyncView Google Sheet "Video Editors" tab (`docs/truth/SHEETS.md`); see §5 |
 | Role and auth scaffold migration | `migrations/2026-07-05-b0-linear-auth-scaffold.sql` |
 | Historical one time seed script, not a live path | `scripts/b0-seed-auth-scaffold.js` |
 | Client onboarding, for assigning a client afterward | `docs/ops/NEW_CLIENT_ONBOARDING.md` |

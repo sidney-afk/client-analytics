@@ -20882,3 +20882,44 @@ importer's derivation narrowed to `raw.id`, and its trim dropped. Plus a
 structural check that the reconciler contains no `createHash`, no `'pc_card_'`
 literal, and does require the importer — so a future session cannot quietly
 rebuild the copy. Full runner: 2 of 427, baseline.
+
+### 198b. Round 3: half an identity shared is still a copy, and the third check to pass for the wrong reason
+
+Two findings, and the second is the more serious one.
+
+**1. The card id was left behind.** 198a moved the native-id derivation into the
+importer but not the CARD id: `planSurface` reads `clean(row.id)`, while the
+shared helper hashed whatever the caller handed it. A reconciler passing a raw
+`calendar_posts.id` with whitespace would resolve the card, then compute a
+different fingerprint and report the false positive anyway. Sharing one of the
+four inputs is not sharing the identity. **Every input is normalized inside
+`cardEntryProductionId` now**, so the two callers cannot hash different strings.
+
+**2. TWO OF THE THREE NEW FIXTURES NEVER REACHED THE CODE THEY TESTED.**
+`parseComments` refuses the WHOLE cell when any entry lacks `id`, and that
+refusal is load-bearing: a rebuilt array drops id-less entries, so accepting
+such a cell would erase legacy client words. The `comment_id` and
+`native_comment_id` fixtures therefore died at the parse and were reported as
+`card_cell_unparseable` — while the checks passed, because they asserted
+`findings` and the `ambiguous_repeat` subset rather than **all** of `skipped`.
+
+So the importer's fallbacks are UNREACHABLE from the reconciler, and 198a's
+claim that three derivations were covered was wrong. The checks now assert what
+actually happens: the whitespace case is recognised with `skipped` deep-equal to
+`[]`, and an id-less cell is asserted to be REPORTED as an incomplete read
+rather than claimed. A nicer sentence would have been a false one.
+
+**That is the third check in this PR to pass for the wrong reason, and all three
+were the same mistake in different clothes:** asserting a subset of the output.
+Round 2 asserted only `findings`; its fix asserted `findings` plus one skip
+reason; round 3 shows the answer is to assert the whole shape and let anything
+unexpected fail. `assert.deepEqual(skipped, [])` cannot be satisfied by a row
+quietly moving to another bucket.
+
+Live: 10,978 cards and 9,005 card entries, none with whitespace in an id, none
+missing `id`. No live row moves. Everything here is about two copies being
+unable to disagree.
+
+172 checks. Three controls by exit status: the card id no longer normalized, the
+native id trim dropped, recognition removed entirely. Full runner: 2 of 427,
+baseline.

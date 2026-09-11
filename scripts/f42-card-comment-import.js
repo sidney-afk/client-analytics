@@ -129,7 +129,14 @@ function cardEntryNativeId(raw) {
 
 function cardEntryProductionId(surface, cardId, component, raw) {
   const nativeId = cardEntryNativeId(raw);
-  return nativeId ? productionId(surface, cardId, component, nativeId) : '';
+  if (!nativeId) return '';
+  /* EVERY INPUT NORMALIZED HERE, not just the native id. `planSurface` reads its
+   * card id as `clean(row.id)`, so a caller passing a raw `calendar_posts.id`
+   * with surrounding whitespace would hash a different string and miss its own
+   * row. Moving the helper without moving that normalization left exactly half
+   * the identity shared — which is the same defect one level up from the one
+   * this helper exists to fix. The whole fingerprint is derived here now. */
+  return productionId(clean(surface), clean(cardId), clean(component), nativeId);
 }
 
 function safeAttachments(value) {

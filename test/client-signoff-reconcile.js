@@ -2633,37 +2633,74 @@ check('a backfill id cannot claim a hidden entry', () => {
   assert.equal(findings.length, 1, 'hidden is not delivered, whatever the id says');
 });
 
-/* ROUND 2 of the backfill PR. The importer TRIMS the id and falls back to
-   `comment_id` then `native_comment_id`. The first version of this fix hashed a
-   raw `entry.id`, so for any entry in those shapes it produced a different
-   fingerprint than the row actually carries, and the false positive survived
-   exactly where it was supposed to die. Live today all 9,005 card entries carry
-   a clean `id`, so no live row moves — the point is that the copy could not
-   drift, because there is no longer a copy. */
-check('an entry the importer would have named differently is still recognised', () => {
+/* ROUND 2 and 3 of the backfill PR, together, because round 3 showed round 2's
+   check was measuring the wrong thing.
+
+   Round 2: the importer TRIMS its ids and falls back to `comment_id` then
+   `native_comment_id`, and the first version of this fix hashed a raw
+   `entry.id`, so the two disagreed. Round 3: the importer also trims the CARD
+   id (`planSurface` reads `clean(row.id)`), which moving the helper had left
+   behind — half an identity shared is still a copy.
+
+   AND the honest scope, which round 3 also caught: an entry carrying only
+   `comment_id` or `native_comment_id` never reaches this fingerprint at all,
+   because `parseComments` refuses the WHOLE cell when any entry lacks `id`.
+   That refusal is deliberate and load-bearing (a rebuilt array would drop
+   id-less legacy entries and erase real client words), so the reconciler sees
+   `card_cell_unparseable` instead. The importer's fallbacks are therefore
+   unreachable from here, and the previous draft of this check claimed
+   otherwise while asserting too narrow a set of buckets to notice.
+
+   Live: 10,978 cards and 9,005 card entries, none with whitespace in an id and
+   none missing `id`. Nothing moves either way; the point is that the two sides
+   cannot disagree. */
+check('whitespace anywhere in the identity still recognises the entry', () => {
+  const entry = { id: '  c_native_1  ', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, done: true };
+  /* Named by the INDEPENDENT hash of the values the importer would have
+     derived: trimmed surface, card, component and native id. */
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 0, 'the entry IS the row');
+  /* EVERY bucket, not a chosen subset. Round 3 found the previous draft passing
+     under two sabotages because the rows it should have caught were landing in
+     a skip reason it did not look at. */
+  assert.deepEqual(skipped, [], 'and nothing is left for a person: ' + JSON.stringify(skipped));
+});
+
+/* THE CARD ID IS PART OF THE FINGERPRINT, so a raw card id with whitespace must
+   hash the same as the trimmed one the importer used. */
+check('a card id with whitespace hashes as the importer hashed it', () => {
+  const { cardEntryProductionId } = require('../scripts/f42-card-comment-import.js');
+  assert.equal(
+    cardEntryProductionId(' calendar ', '  card-1  ', ' video ', { id: '  c_native_1  ' }),
+    backfillId('card-1', 'video', 'c_native_1'),
+    'every input is normalized inside the shared helper');
+});
+
+/* THE UNREACHABLE SHAPES, ASSERTED AS WHAT ACTUALLY HAPPENS. An id-less entry
+   makes the whole cell an incomplete read, which this job reports rather than
+   touches. Claiming these are "recognised" would be a nicer sentence and a
+   false one. */
+check('a cell holding an id-less entry is reported, not claimed', () => {
   for (const [label, entryFields] of [
-    ['whitespace around the id', { id: '  c_native_1  ' }],
-    ['no id, but a comment_id', { comment_id: 'c_native_1' }],
-    ['no id, but a native_comment_id', { native_comment_id: 'c_native_1' }],
+    ['only a comment_id', { comment_id: 'c_native_1' }],
+    ['only a native_comment_id', { native_comment_id: 'c_native_1' }],
   ]) {
     const entry = Object.assign({ body: 'Please fix the intro', role: 'client',
       is_tweak: true, done: true }, entryFields);
-    /* Named by the INDEPENDENT hash of the id the importer would have derived
-       (trimmed, with its fallbacks), so this fails if the reconciler stops
-       following that derivation. */
     const pcId = backfillId('card-1', 'video', 'c_native_1');
     const { findings, skipped } = detect(world({
       comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
       cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
     }));
-    /* BOTH BUCKETS. When the fingerprint fails to match, the row does not
-       become a finding — it lands in `skipped` as an ambiguous repeat, which is
-       the original false positive wearing a different hat. A first draft of
-       this check asserted only `findings` and therefore passed under two
-       sabotages of the derivation it exists to pin. */
-    assert.equal(findings.length, 0, `${label}: the entry IS the row`);
-    assert.equal(skipped.filter(r => r.reason === 'ambiguous_repeat_of_completed_request').length, 0,
-      `${label}: and it is not an ambiguity for a person either`);
+    assert.equal(findings.length, 0, `${label}: nothing is written`);
+    assert.equal(skipped.length, 1, `${label}: exactly one row for a person`);
+    assert.equal(skipped[0].reason, 'card_cell_unparseable',
+      `${label}: the cell is an incomplete read, and the job says so`);
   }
 });
 

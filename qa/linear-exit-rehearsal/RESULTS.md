@@ -959,3 +959,8 @@ The actual captured Calendar v49 handler, using the SQL adapter with asserted se
 ## Calendar response/event boundary (2026-09-11)
 
 The optional calendar-freeze -DeferredEvents rehearsal passes with actual captured v49 source: HTTP success and persisted status precede a deliberately paused semantic-event SQL submission; releasing it persists the event under the held outbox lock. Evidence: docs/independence/LINEAR_EXIT_CALENDAR_DEFERRED_20260911.json. This rules out treating HTTP completion as full write completion. It does not implement admission/drain, perform final export, or prove hosted behavior. Installation HOLD.
+
+
+## Native sign-off verifier prepared
+
+The read-only service-role verifier now has isolated PG17 evidence in docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json. Actual native client approvals verify; forged/mismatched bindings and protected ledger reads are refused. Historical epochs remain valid evidence. It is a separate source supplement, not an installed release or integrated reconciler. Next: preserve exact receipt IDs and consume fresh verification during detection and pre-write revalidation. Installation HOLD.

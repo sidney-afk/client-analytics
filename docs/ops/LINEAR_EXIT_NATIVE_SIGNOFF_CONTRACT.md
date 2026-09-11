@@ -1,6 +1,6 @@
 # Native sign-off reconciler compatibility contract
 
-Preparation specification; unbuilt. Installation HOLD. No merge, deployment,
+Database verifier prepared and isolated-tested; reconciler integration unbuilt. Installation HOLD. No merge, deployment,
 workflow execution, live repair or frozen-writer change is authorized here.
 The upstream 165-check suite covers the carried reconciler, not this extension.
 
@@ -82,3 +82,15 @@ The verifier does not make the final Calendar write atomic with its preceding
 reads. That existing race and the admitted-request drain remain separate HOLD
 gates in LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md. Do not present this extension
 as proof of hosted installation, whole-application freeze or retirement readiness.
+
+## Prepared database component
+
+2026-09-11-native-signoff-verifier.sql implements
+production_native_signoff_verify(text[]): 1-200 distinct canonical positive bigint
+IDs as strings, one ordered result per ID. Invalid evidence returns false with
+null bindings; valid evidence returns entity_id, client_slug and source_edited_at.
+It grants only service-role execution and leaves admission SELECT revoked.
+See ../independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json for actual
+native-write, protected-access, invalid-binding and historical-epoch evidence.
+The migration is an explicit isolated supplement; release inventory integration,
+initial reconciler reads, planning and pre-write revalidation remain unbuilt.

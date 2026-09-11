@@ -1269,3 +1269,8 @@ truth/register and n8n snapshot changes were not imported or verified.
 ## Native sign-off implementation contract
 
 The next build change is specified in [native sign-off contract](../ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md): a bounded service-only read-only verifier binds actual native receipts to the protected admission ledger, then initial detection and pre-write revalidation consume fresh verified identities. The ledger stays private and generic skipped receipts stay ineligible. This extension is unbuilt; the existing 165 checks do not prove it.
+
+
+## Native sign-off verifier prepared
+
+The read-only service-role verifier now has isolated PG17 evidence in docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json. Actual native client approvals verify; forged/mismatched bindings and protected ledger reads are refused. Historical epochs remain valid evidence. It is a separate source supplement, not an installed release or integrated reconciler. Next: preserve exact receipt IDs and consume fresh verification during detection and pre-write revalidation. Installation HOLD.

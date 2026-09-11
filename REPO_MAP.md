@@ -295,3 +295,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_UPSTREAM_SIGNOFF_20260911.json: exact selective upstream carry-forward evidence.
 
 - docs/ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md: protected ledger verification and reconciler integration requirements, unbuilt.
+
+- migrations/2026-09-11-native-signoff-verifier.sql: service-only read-only native approval admission verification.
+- test/linear-exit-native-signoff-postgres.js: actual native write, permission and ledger-binding controls.
+- docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json: isolated verifier evidence; reconciler integration open.

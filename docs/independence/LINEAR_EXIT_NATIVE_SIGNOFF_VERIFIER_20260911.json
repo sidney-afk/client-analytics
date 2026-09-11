@@ -1,0 +1,25 @@
+{
+  "marker": "LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK",
+  "checks": 43,
+  "scope": "ISOLATED_POSTGRES",
+  "actual_native_client_write": true,
+  "protected_ledger_select_denied": true,
+  "lookup_and_negative_probes_left_rows_unchanged": true,
+  "historical_epoch_valid": true,
+  "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+  "reconciler_integration": false,
+  "installation": "HOLD",
+  "result": "PASS",
+  "receipt_directory": "linear-exit-native-signoff-237180d2326e4361a3db992181ceb21b",
+  "server_stopped": true,
+  "unit_log_sha256": "c533dffa2e6fea3d5edc15e3bb6ed4951d09e2e2d1af8aca373b7d7bf9b4485f",
+  "migration_working_file_sha256": "a71a63140c35f034c7e1e7bd5597b9e207f3e0f2244447f857781ca2cb43f562",
+  "test_working_file_sha256": "cd946f4631020814bc68d9440a39d5b4a0787742325ff19bf9c7d1b729c6fd99",
+  "earlier_pass": "7b3a816d244840df89c6a3717b534ddd: 38 checks, superseded by timestamp and additional binding controls.",
+  "source_inventory_note": "Verifier applied separately after pinned inventory; not added to composed release inventory yet.",
+  "limits": [
+    "Database verifier only; reconciler reader/planner/pre-write integration is unbuilt.",
+    "No hosted calls, deployment, native sign-off repair or freeze authorization.",
+    "Negative corruption uses isolated superuser savepoint rollback, not a supported mutation path."
+  ]
+}

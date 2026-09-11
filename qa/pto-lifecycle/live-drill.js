@@ -231,6 +231,7 @@ async function productionContext(browser, config, identity, state, admin) {
   });
   const key = admin ? config.adminKey : config.staffKey;
   await context.addInitScript(({ member, roleKey }) => {
+    localStorage.setItem('syncview_auth_v1', 'ok');
     localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({
       key: roleKey,
       role: member.role,

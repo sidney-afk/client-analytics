@@ -16,6 +16,16 @@
 const STAFF_GATE_MEMBER = { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null };
 const STAFF_GATE_KEY = 'qa-staff-gate-key';
 
+// WHICH HELPER: `seedStaffGate` patches `window.fetch` to answer key-verify
+// in-page, which SHADOWS a Playwright route for the same URL — the request
+// never reaches the network layer, so a suite's own key-verify mock never
+// fires and a suite that counts hits on it hangs (this is what broke
+// `pto-ui-polish` on #1385). A suite that already mocks key-verify wants
+// `seedStaffIdentity` instead: it seeds the stored identity only, and lets
+// that suite's own mock answer the boot verification with its own member.
+// Suites that manage their own identity outright (`b4-staff-login`, the PTO
+// harnesses) need neither.
+
 // Serialized so it can also be dropped into a storageState fixture.
 function staffGateIdentityJson() {
   return JSON.stringify({
@@ -48,6 +58,24 @@ function staffGateInit(payload) {
   } catch (e) {}
 }
 
+// For suites that already mock key-verify: seed ONLY the stored identity, so
+// their own mock answers the boot verification. `member` defaults to the stub
+// above; pass the member that suite's mock returns so the two agree.
+async function seedStaffIdentity(target, member, key) {
+  const row = member || STAFF_GATE_MEMBER;
+  await target.addInitScript(payload => {
+    try {
+      localStorage.setItem('syncview_staff_identity_v1', payload);
+      localStorage.removeItem('syncview_auth_v1');
+    } catch (e) {}
+  }, JSON.stringify({
+    key: key || STAFF_GATE_KEY,
+    role: row.role,
+    member: row,
+    verified_at: new Date().toISOString()
+  }));
+}
+
 // `target` is a Playwright BrowserContext or Page.
 async function seedStaffGate(target) {
   await target.addInitScript(staffGateInit, {
@@ -56,4 +84,4 @@ async function seedStaffGate(target) {
   });
 }
 
-module.exports = { seedStaffGate, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, seedStaffIdentity, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

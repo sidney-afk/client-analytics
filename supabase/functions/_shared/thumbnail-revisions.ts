@@ -281,6 +281,20 @@ async function authedFetch(url: string, init: RequestInit = {}): Promise<Respons
   return fetch(url, { ...init, headers });
 }
 
+type DriveStatusError = Error & { driveStatus?: number };
+
+function driveError(message: string, status: number): DriveStatusError {
+  const err = new Error(message) as DriveStatusError;
+  err.driveStatus = status;
+  return err;
+}
+
+function driveStatusOf(e: unknown): number {
+  if (!e || typeof e !== "object") return 0;
+  const status = Number((e as DriveStatusError).driveStatus);
+  return Number.isFinite(status) ? status : 0;
+}
+
 async function driveMetadata(fileId: string): Promise<DriveMeta> {
   const fields = "id,name,mimeType,modifiedTime,md5Checksum,headRevisionId,size";
   const url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId)
@@ -290,7 +304,11 @@ async function driveMetadata(fileId: string): Promise<DriveMeta> {
   const body = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     const msg = clean((body && (body.error as JsonMap)?.message) || body.error_description) || ("Drive HTTP " + resp.status);
-    throw new Error(msg);
+    // Carry the STATUS, not the prose. The caller has to tell a deleted or
+    // unshared file (404, permanent) from a Drive outage (5xx, transient), and
+    // matching on Google's message text would make that distinction depend on
+    // wording nobody here controls.
+    throw driveError(msg, resp.status);
   }
   return body as DriveMeta;
 }
@@ -750,7 +768,7 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data as JsonMap[] : [];
-  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, items: [] as JsonMap[] };
+  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, missing_source: 0, items: [] as JsonMap[] };
   const activeClients = new Map<string, boolean>();
 
   for (const originalRow of rows) {
@@ -860,12 +878,21 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
       out.changed++;
       out.items.push({ id, status: "changed", thumb_rev: thumbRev });
     } catch (e) {
-      out.failed++;
       const msg = e instanceof Error ? e.message : "scan failed";
+      // A Drive 404 means the source file was deleted or unshared. That is
+      // permanent: retrying it cannot succeed, and it is not evidence that the
+      // scanner, Drive or Storage is unhealthy. Count it separately so the
+      // scheduled lane stops going red on where the round-robin cursor landed.
+      // The row stays `pending` on purpose -- syncview_thumbnail_revision_backfill
+      // re-enrols any active, non-archived source with no pending row, so
+      // moving it to a terminal status would re-create it on the next run and
+      // grow the table instead of settling it. The `error` column still records
+      // exactly what happened, per row, for anyone querying the table.
+      if (driveStatusOf(e) === 404) out.missing_source++; else out.failed++;
       await input.supabase.from("thumbnail_media_revisions")
         .update({ error: msg.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", id);
-      out.items.push({ id, status: "failed", error: msg });
+      out.items.push({ id, status: driveStatusOf(e) === 404 ? "missing_source" : "failed", error: msg });
     }
   }
 

@@ -21248,3 +21248,90 @@ answer might differ from a historical one, and they hold four rows between them.
 The value of the entry is that the next reader does not have to decide whether
 635 is an emergency: it is eleven mappings, 92% of the weight is one of them,
 and no active client is waiting on any of it.
+
+---
+
+## 203. [2026-09-12, ROOT-CAUSED and FIXED IN REPO — the Edge Function is NOT deployed] The thumbnail revision scan has been red about half the time for days, and it is three deleted Drive files plus a round-robin cursor
+
+**The symptom.** `Thumbnail revision scan` (cron `*/10`) has been flapping with
+no owner and no diagnosis. Its last eight scheduled runs, newest first:
+FAIL, FAIL, FAIL, pass, FAIL, pass, FAIL, pass. Five of eight, in no pattern,
+on an unchanged `main`.
+
+**What the red actually says.** The whole of the failing log is:
+
+```
+thumbnail revision scan completed with failed items
+{"ok":true,"checked":300,"changed":0,"unchanged":299,"failed":1,"skipped":0}
+```
+
+One item in three hundred. The caller prints aggregates only, on purpose
+(`scripts/thumbnail-revision-scan.js` header: source URLs, post ids, storage
+paths and per-item errors must never reach an Actions log), so the red says
+nothing about which row or why. That is the right privacy call and it is also
+why this sat undiagnosed.
+
+**The row-level error is persisted, though, and that is where the answer was.**
+`thumbnail_media_revisions.error`, live:
+
+| rows | error | status |
+|---|---|---|
+| 3 | `File not found: <drive file id>.` | `pending` |
+| 1 | `thumbnail revision capture failed` | `error` |
+
+Three `pending` rows point at Google Drive files that no longer resolve. Their
+rows were created 2026-07-30 and 2026-08-06 and have been retried ever since.
+
+**Why it alternates.** `scanPendingThumbnailRevisions` selects
+`status = 'pending'` ordered by `last_checked_at` ascending — a round-robin over
+the pending set. There are **579** pending rows and a run covers 300
+(`limit` 25 x `batches` 12), so every row comes round about every second run.
+Three permanently-failing rows scattered through that ordering produce exactly
+the observed five-in-eight. Nothing is intermittent; the cursor is.
+
+**Why it was never going to settle itself.** The catch writes the error and
+leaves `status` at `pending` (`thumbnail-revisions.ts`, scan loop), so the row
+re-enters the rotation forever. And retiring it does not work either:
+`syncview_thumbnail_revision_backfill`
+(`migrations/2026-07-14-thumbnail-revision-v2.sql:327`) inserts a fresh pending
+row for any active, non-archived source with a Drive file id and **no pending
+row** — so a terminal status would simply be re-created on the next run, and the
+table would grow instead of settling. That is why the 116 rows sitting quietly
+in `skipped` do not flap: their sources dropped out of the backfill's candidate
+set. These three did not.
+
+**The fix, in repo and NOT deployed.** A Drive 404 is a deleted or unshared
+file. It is permanent, no scan can clear it, and it is not evidence that the
+scanner, Drive or Storage is unhealthy — which is the only thing the red was
+ever meant to catch (the caller says so in its own comment: "so silent Drive or
+Storage outages cannot leave every viewer stale behind a green schedule").
+So it gets its own counter:
+
+- `driveMetadata` now throws an error carrying the HTTP **status**, so the
+  caller classifies on 404 rather than on Google's message prose, which nobody
+  here controls.
+- The scan loop counts a 404 as `missing_source` instead of `failed`. Every
+  other error is untouched and still a failure.
+- The row stays `pending` — see the backfill above. Its `error` column still
+  records exactly what happened, per row, for anyone querying the table.
+- The Edge Function returns `missing_source`; the caller aggregates it across
+  pages, prints it every run, and does **not** exit 1 on it.
+
+**Ordering is safe in both directions**, which matters because the caller merges
+on `main` and the function deploys separately. `missing_source` is OPTIONAL on
+the wire and reads 0 when absent, so the old four-way conservation check still
+balances against today's deployed function; a present-but-malformed value is
+still a hard failure. Merge first and the lane keeps flapping until the deploy;
+deploy first and the counter simply moves to its own bucket early. Neither order
+breaks.
+
+**Still to do — the owner's call, not this PR's.** The function half needs
+`deploy-thumbnail-edge-functions.yml`. That lane takes no fingerprint or bundle
+inputs, so it is a plain dispatch. Until it runs, the lane keeps flapping and
+the diagnosis above is the thing to read when it does.
+
+**Not addressed here, deliberately.** The three sources still carry a
+`thumbnail_url` pointing at a Drive file that is gone, so the cards themselves
+show a broken thumbnail to whoever opens them. That is a content question for
+the owner — re-upload or clear the link — and not something a monitor should
+decide. The scan counting them correctly does not make them right.

@@ -28,6 +28,10 @@ const CALLER = fs.readFileSync(
   path.join(ROOT, 'scripts', 'thumbnail-revision-scan.js'),
   'utf8',
 );
+const SCANNER = fs.readFileSync(
+  path.join(ROOT, 'supabase', 'functions', '_shared', 'thumbnail-revisions.ts'),
+  'utf8',
+);
 
 function response(payload, status = 200) {
   return {
@@ -112,6 +116,9 @@ async function rejectsMessage(work, pattern) {
     unchanged: 1,
     failed: 1,
     skipped: 1,
+    // Absent on the wire -- the deployed function predates the counter -- and
+    // the old four-way conservation must still balance exactly.
+    missing_source: 0,
   });
 
   let batchCalls = 0;
@@ -139,6 +146,7 @@ async function rejectsMessage(work, pattern) {
     unchanged: 4,
     failed: 0,
     skipped: 0,
+    missing_source: 0,
   });
   const logged = JSON.stringify(summary);
   for (const value of Object.values(sensitive)) {
@@ -148,6 +156,82 @@ async function rejectsMessage(work, pattern) {
     'scheduled caller must fail the job when any scanned item failed');
   assert.match(CALLER, /JSON\.stringify\(summary\)/,
     'scheduled caller must print the aggregate summary before failing');
+
+  /* A Drive 404 is a deleted or unshared source file. It is permanent, no scan
+   * can clear it, and the row cannot be retired either -- the backfill re-enrols
+   * any active non-archived source that has no pending row. Three such rows made
+   * this lane red on 5 of its last 8 scheduled runs purely by where the
+   * round-robin cursor landed (OPEN_REPAIRS 203). It gets its own counter, it is
+   * reported every run, and it does NOT turn Actions red; a real Drive or
+   * Storage outage still lands in `failed` and still does. */
+  const missingOnly = await runScan({
+    env: { THUMBNAIL_REVISION_SCAN_KEY: 'scheduler-secret', THUMBNAIL_REVISION_SCAN_BATCHES: '1' },
+    fetchImpl: async () => response({
+      ok: true, checked: 3, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: 1,
+    }),
+  });
+  assert.deepStrictEqual(missingOnly, {
+    ok: true, checked: 3, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: 1,
+  });
+  assert.doesNotMatch(CALLER, /summary\.missing_source > 0[\s\S]{0,200}?process\.exitCode = 1/,
+    'a missing Drive source must never fail the scheduled job on its own');
+
+  /* Behavioural, not a source match: these two pages balance ONLY if the
+   * per-page aggregate loop carries missing_source, and the total is right only
+   * if it SUMS rather than taking the last page. Drop the field from either and
+   * this rejects as an invalid aggregate response. */
+  let missingPages = 0;
+  const missingAcrossPages = await runScan({
+    env: {
+      THUMBNAIL_REVISION_SCAN_KEY: 'scheduler-secret',
+      THUMBNAIL_REVISION_SCAN_LIMIT: '4',
+      THUMBNAIL_REVISION_SCAN_BATCHES: '3',
+    },
+    fetchImpl: async () => {
+      missingPages++;
+      return missingPages === 1
+        ? response({ ok: true, checked: 4, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: 2 })
+        : response({ ok: true, checked: 1, changed: 0, unchanged: 0, failed: 0, skipped: 0, missing_source: 1 });
+    },
+  });
+  assert.strictEqual(missingPages, 2, 'a short page must still end the cycle');
+  assert.deepStrictEqual(missingAcrossPages, {
+    ok: true, checked: 5, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: 3,
+  });
+
+  assert.throws(
+    () => sanitizeSummary({
+      ok: true, checked: 3, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: 0,
+    }),
+    /invalid aggregate response/,
+    'conservation must account for missing_source, so an unbalanced page still fails closed',
+  );
+  assert.throws(
+    () => sanitizeSummary({
+      ok: true, checked: 3, changed: 0, unchanged: 2, failed: 0, skipped: 0, missing_source: '1',
+    }),
+    /invalid aggregate response/,
+    'a PRESENT but malformed missing_source is still a hard failure, unlike an absent one',
+  );
+
+  assert.match(EDGE_FUNCTION, /missing_source:\s*Number\(result\.missing_source \|\| 0\)/,
+    'the Edge Function must surface the missing-source counter to the caller');
+  assert.match(SCANNER, /driveError\(msg, resp\.status\)/,
+    'driveMetadata must carry the HTTP status, not leave the caller matching on Google prose');
+  assert.match(SCANNER, /driveStatusOf\(e\) === 404\) out\.missing_source\+\+; else out\.failed\+\+/,
+    'only a Drive 404 may be reclassified; every other error stays a failure');
+  assert.match(SCANNER, /\.update\(\{ error: msg\.slice\(0, 500\)/,
+    'the per-row error text must still be recorded even when it is not a failure');
+  /* The row must stay `pending`. syncview_thumbnail_revision_backfill re-enrols
+   * any active non-archived source that has no pending row, so writing a
+   * terminal status here would re-create the row on the very next run and grow
+   * the table instead of settling it. Assert the catch block's update carries no
+   * `status` at all rather than asserting the absence of one spelling of it. */
+  const scanCatch = SCANNER.slice(SCANNER.indexOf('if (driveStatusOf(e) === 404)'));
+  const catchUpdate = scanCatch.slice(scanCatch.indexOf('.update({'), scanCatch.indexOf('.eq("id", id)'));
+  assert(catchUpdate.includes('error: msg.slice(0, 500)'), 'the catch update must still record the error text');
+  assert(!catchUpdate.includes('status'),
+    'the catch must not move the row out of pending -- the backfill would re-create it');
 
   assert.throws(
     () => sanitizeSummary({ ok: true, checked: 2, changed: 1, unchanged: 0, failed: 0, skipped: 0 }),

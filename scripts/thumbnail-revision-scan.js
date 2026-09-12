@@ -77,6 +77,17 @@ function aggregateCount(payload, field) {
   return value;
 }
 
+/* `missing_source` is OPTIONAL on the wire, and 0 when the field is absent.
+ * The deployed Edge Function predates this counter, so a response without it
+ * must still balance exactly as it did before -- otherwise merging this caller
+ * ahead of the function deploy would turn every scan into a fail-closed
+ * "invalid aggregate response" instead of the flap it is meant to end. A
+ * PRESENT-but-malformed value is still a hard failure. */
+function optionalAggregateCount(payload, field) {
+  if (payload[field] === undefined) return 0;
+  return aggregateCount(payload, field);
+}
+
 function sanitizeSummary(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.ok !== true) {
     throw new Error('thumbnail revision scan returned an invalid aggregate response');
@@ -89,8 +100,11 @@ function sanitizeSummary(payload) {
     unchanged: aggregateCount(payload, 'unchanged'),
     failed: aggregateCount(payload, 'failed'),
     skipped: aggregateCount(payload, 'skipped'),
+    missing_source: optionalAggregateCount(payload, 'missing_source'),
   };
-  if (summary.checked !== summary.changed + summary.unchanged + summary.failed + summary.skipped) {
+  const accounted = summary.changed + summary.unchanged + summary.failed
+    + summary.skipped + summary.missing_source;
+  if (summary.checked !== accounted) {
     throw new Error('thumbnail revision scan returned an invalid aggregate response');
   }
   return Object.freeze(summary);
@@ -109,7 +123,7 @@ async function runScan(options = {}) {
     // at or after it, so later batches cannot wrap around to the first page
     // when the eligible count is an exact multiple of the page size.
     const checkedBefore = new Date().toISOString();
-    const total = { ok: true, checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0 };
+    const total = { ok: true, checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, missing_source: 0 };
     for (let batch = 0; batch < config.batches; batch++) {
       let response;
       try {
@@ -141,7 +155,7 @@ async function runScan(options = {}) {
         throw new Error('thumbnail revision scan returned an invalid aggregate response');
       }
       const summary = sanitizeSummary(payload);
-      for (const field of ['checked', 'changed', 'unchanged', 'failed', 'skipped']) {
+      for (const field of ['checked', 'changed', 'unchanged', 'failed', 'skipped', 'missing_source']) {
         const next = total[field] + summary[field];
         if (!Number.isSafeInteger(next)) {
           throw new Error('thumbnail revision scan returned an invalid aggregate response');
@@ -164,6 +178,17 @@ async function main() {
   // A transport-level 200 is not a healthy scan when any row failed. Keep the
   // only logged detail aggregate-only, but make Actions red so silent Drive or
   // Storage outages cannot leave every viewer stale behind a green schedule.
+  //
+  // `missing_source` is deliberately NOT part of that condition. It counts rows
+  // whose Drive file answers 404 -- the file was deleted or unshared, which is
+  // permanent, not an outage, and no scan will ever clear it. Those rows stay
+  // `pending` because the backfill re-enrolls any active non-archived source
+  // that has no pending row, so a terminal status would simply be re-created on
+  // the next run. Left in `failed`, three such rows made this lane red on 5 of
+  // its last 8 scheduled runs purely by where the round-robin cursor happened
+  // to be (OPEN_REPAIRS 203) -- which is the alarm-fatigue mode the counter
+  // above exists to avoid. It is still REPORTED on every run, and a genuine
+  // Drive or Storage outage still lands in `failed` and still goes red.
   if (summary.failed > 0) {
     process.stderr.write('thumbnail revision scan completed with failed items\n');
     process.exitCode = 1;

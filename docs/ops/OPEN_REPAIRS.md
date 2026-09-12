@@ -21194,3 +21194,57 @@ duplicate `## N.` headers. The six pre-existing duplicate numbers (13, 14, 22,
 and which references mean it; none were renumbered, because 175 and 176 are
 cited from a dozen places in `index.html` and the tests and the same hazard
 applies to the rest.
+
+---
+
+## 202. [2026-09-12, MEASURED — 635 rows are 11 decisions, and one of them is 92% of the population] The `unmapped_project` bucket is historical projects, not a live attribution gap
+
+`PRE_FLIP_HEALTH_CHECK.md`'s attribution entry says to "flag anything landing in
+`unmapped_project` — that bucket is a decision somebody owes, not a repair."
+Tonight it reads **635**, every row live, and the health check's own gating
+column — an ACTIVE client is waiting — reads **0**. A number that large against
+a waiting count of zero is unreadable without decomposing it, so here is the
+decomposition.
+
+`attribution-stuck-check.js --json`, `buckets.unmapped_project`, grouped by
+`project_id`:
+
+| rows | Linear project (uuid) | project status | project created |
+|---|---|---|---|
+| 585 | `2c6bf693-b689-4748-99eb-2162e50e8ca4` | Backlog | 2023-01 |
+| 22 | `cb21f363-1646-42cc-89e4-a9ed33db5f2d` | Completed 2025-09 | 2023-09 |
+| 8 | `95b04203-85a2-41b1-bd2b-3b174c475eab` | Completed 2024-01 | 2023-05 |
+| 6 | `4a972b36-7796-42fc-9990-acf52760b832` | Completed 2026-01 | 2024-04 |
+| 4 | `f80e0fea-cd20-4a0e-9f05-3c94c2e5e7a1` | Completed 2024-01 | 2023-07 |
+| 3 | `5984daba-3636-4ca7-9a62-605a73bb9eb9` | In Progress | 2023-10 |
+| 3 | `a0ecb524-ed37-4836-8d81-93ae8f1d65ec` | Completed 2024-06 | 2024-03 |
+| 1 | `a8312b32-8e74-409d-b30b-1cea1324d1f0` | In Progress | 2024-10 |
+| 1 | `2a8d3dd5-3b59-40fe-9925-25548f0cbd91` | Backlog | 2024-10 |
+| 1 | `dfb58bb0-2280-4a91-9b3f-c1b63b65b42a` | Backlog | 2024-10 |
+| 1 | `ecf471a7-daf1-4667-a19e-9bbdeccceed0` | Backlog | 2024-12 |
+
+**Eleven projects, and one holds 585 of the 635.** Nine of the eleven are named
+for people who are not on the live roster; two are internal projects from 2023.
+None was created later than 2024-12. Names are deliberately not written here —
+public repo, F64 — and resolve from the uuid for anyone with the workspace.
+
+**Every single row is `backlog`.** Not one is in a working or approval status,
+on either team. That is why the waiting column is 0 and stays 0: a row with no
+`client_slug` appears in no client view, and a backlog row appears on nobody's
+board either, so the absent attribution costs nothing today.
+
+**`days_stuck` is 7 or 14 across the whole bucket** — the rows were last touched
+in two sweeps, not continuously, which is consistent with a bulk import rather
+than anything anyone is doing now.
+
+**So the decision is smaller than the number.** It is not 635 rows needing
+attribution; it is eleven projects needing one ruling each, and the ruling for
+at least nine of them is presumably the one the owner already gave for former
+clients elsewhere (the f200 graph includes inactive roster mappings). Two —
+`a8312b32` and `5984daba`, both In Progress — are the only ones where a live
+answer might differ from a historical one, and they hold four rows between them.
+
+**Not done, and not a repair.** Nothing is proposed here and nothing is mutated.
+The value of the entry is that the next reader does not have to decide whether
+635 is an emergency: it is eleven mappings, 92% of the weight is one of them,
+and no active client is waiting on any of it.

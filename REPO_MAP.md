@@ -318,6 +318,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ### September 12 atomic admission preparation
 
+- `docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md`: pinned code checkpoint, evidence index, persistent owner boundaries and remaining work for continuation.
 - `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md`: source and isolated handler/worker evidence, retained failures and remaining build gaps.
 - `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` and `scripts/linear-exit-admission-release-extension.js`: separately pinned four-owner extension; not an installer or hosted baseline.
 - `docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json` and `scripts/linear-exit-admission-preflight.js`: exact admission catalog expectations and read-only comparison.

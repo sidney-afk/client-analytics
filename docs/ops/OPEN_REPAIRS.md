@@ -21335,3 +21335,73 @@ the diagnosis above is the thing to read when it does.
 show a broken thumbnail to whoever opens them. That is a content question for
 the owner — re-upload or clear the link — and not something a monitor should
 decide. The scan counting them correctly does not make them right.
+
+---
+
+## 204. [2026-09-12, MEASURED — three scheduled lanes have been red for weeks and the twice-daily health check has been reporting ALL CLEAR over the top of them] Nothing was watching the watchers
+
+Found while chasing the thumbnail scan flap (item 203): if one unowned lane had
+been quietly red for days, it was worth asking what else was. One query over the
+heartbeats the lanes already write answers it for all of them.
+
+```sql
+select payload->>'lane' as lane,
+       count(*) filter (where payload->>'ok' = 'false') as red,
+       count(*) as runs,
+       max(ts) filter (where payload->>'ok' = 'true') as last_green
+  from public.deliverable_events
+ where action = 'monitoring_heartbeat'
+   and ts > now() - interval '21 days'
+ group by 1 order by red desc;
+```
+
+| lane | red / runs | last green |
+|---|---|---|
+| `production_shadow_audit` | 21 / 21 | never — red since 2026-07-24 |
+| `samples_e2e_nightly` | 19 / 21 | 2026-09-04 |
+| `calendar_e2e_nightly` | 18 / 21 | **2026-08-25** |
+| `assurance_ledger` | 11 / 20 | 2026-08-31 |
+| `reconciler_pager` | 10 / 288 | green now |
+| `b1_incremental_refresh` | 5 / 1277 | green now |
+| `monitoring_watchdog` | 0 / 601 | green now |
+| `production_write_drill` | 0 / 21 | green now |
+
+`production_shadow_audit` is the one everybody knows about — it has its own
+CONTEXT entry and an owner ruling. The other three are not.
+
+**`calendar_e2e_nightly` has failed every single night since 2026-08-26.** Its
+most recent run: `19 of 70 probe(s) FAILED after 3 attempts`, across features
+with nothing in common — Linear sync, set-all, tweak rounds, Kasper handoff,
+cross-client isolation, link validation, the capstone. Nineteen unrelated probes
+failing together is the shape of one broken precondition, not nineteen
+regressions; but that is a hypothesis, and the 2026-08-26 run's log no longer
+retains the probe list to compare against, so what actually broke that night is
+NOT established here.
+
+**Every one of those nights also posted a Slack alert** reading "❌ Calendar E2E
+nightly FAILED on main — the practice robot found real trouble or needs care."
+Seventeen identical alerts in a row is the alarm-fatigue mode the 2026-08-04
+Slack work was undone by, and this file's own CONTEXT section exists because of
+it. Either the probes found something real weeks ago and nobody looked, or the
+harness is broken and the alert is worthless. Both are bad, and they need
+different work.
+
+**Why the twice-daily health check never said so.** `PRE_FLIP_HEALTH_CHECK.md`
+item 8 gates on three reconcilers BY NAME. Every lane outside that list is
+invisible to the check, so it can report ALL CLEAR — truthfully, by its own
+spec — while three lanes fail nightly. That gap is now closed on the reporting
+side: the query above is added to the CONTEXT section as a standing report, with
+the rule that it is reported and never gated, because a red E2E lane is
+something to go and look at and not a reason to roll anything back.
+
+**One more gap the same query exposes.** A lane with no heartbeat does not appear
+at all. `thumbnail-revision-scan.yml` writes none, which is exactly why item 203
+could flap for days unnoticed — it is not in the watchdog's registry either.
+Absence from this result is not evidence of health, and giving that lane a
+heartbeat is a candidate repair this entry does not make.
+
+**Not done here, deliberately.** No E2E harness change and no probe triage. The
+probes run against the live app with credentials this session does not hold, and
+19 failures is an investigation, not a night's tidy-up. What this entry buys is
+that the failure is now counted, dated, and visible to every future run of the
+check instead of living in a Slack channel nobody reads any more.

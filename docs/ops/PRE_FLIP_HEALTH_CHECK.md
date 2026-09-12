@@ -526,6 +526,44 @@ trains everyone to skim the report, which is the exact failure mode the
     lost. That is a conversation, not a repair — and a stranded row is never
     auto-healed, because SyncView owns graphics and the Linear value is not
     automatically the truth. Flag GROWTH in the stranded number.
+- **Scheduled lanes that are chronically red** (added 2026-09-12, OPEN_REPAIRS
+  item 204). **Report every lane whose recent runs are mostly red, and the date
+  it was last green. Never gate on it.** Item 8 gates on three reconcilers by
+  name, so a lane outside that list can fail every night for weeks while this
+  check reports ALL CLEAR — which is exactly what happened: `calendar_e2e_nightly`
+  went red on 2026-08-26 and was still red seventeen nights later, posting the
+  same Slack alert every one of them, and no run of this check ever mentioned it.
+  One query answers it for every lane at once, from the heartbeats the lanes
+  already write:
+
+  ```sql
+  select payload->>'lane' as lane,
+         count(*) filter (where payload->>'ok' = 'false') as red,
+         count(*) as runs,
+         max(ts) filter (where payload->>'ok' = 'true') as last_green
+    from public.deliverable_events
+   where action = 'monitoring_heartbeat'
+     and ts > now() - interval '21 days'
+   group by 1 order by red desc;
+  ```
+
+  Measured 2026-09-12 (21-day window): `production_shadow_audit` 21/21 red (known,
+  its own CONTEXT entry above); `samples_e2e_nightly` 19/21, last green 09-04;
+  `calendar_e2e_nightly` 18/21, last green 08-25; `assurance_ledger` 11/20, last
+  green 08-31; `reconciler_pager` 10/288 and `b1_incremental_refresh` 5/1277,
+  both green now; `monitoring_watchdog` and `production_write_drill` 0 red.
+  - **Report the date it was last green, not just the ratio.** A lane at 18/21
+    that went red three weeks ago and a lane at 18/21 that started failing
+    yesterday are different situations, and the ratio alone cannot tell them
+    apart.
+  - **A lane with no heartbeat is invisible to this query and to the watchdog.**
+    `thumbnail-revision-scan.yml` writes none, which is why it flapped red for
+    days with nobody noticing (OPEN_REPAIRS item 203). Absence from the result
+    is not evidence of health.
+  - This is CONTEXT and must stay CONTEXT. A red E2E lane is a thing to go and
+    look at, not a reason to roll anything back, and gating on it would produce
+    exactly the guaranteed daily FAIL this document exists to prevent.
+
 - **`repair_list_size`**, with its by-team split. **23 as of 2026-08-12, all
   known-cause:** the TEST client's graphics project is unregistered in the
   f200 mapping, plus accumulated drill fixtures. Flag ONLY if it moves by more

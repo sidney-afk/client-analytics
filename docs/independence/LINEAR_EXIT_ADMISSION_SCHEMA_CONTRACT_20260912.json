@@ -1,0 +1,2126 @@
+{
+  "classification": "ISOLATED_POSTGRES_SCHEMA_ONLY",
+  "sources": [
+    {
+      "file": "20260912174907_card_atomic_admission_preparation.sql",
+      "sha256": "1699ab4a661558460eeb94b2c4b85244265bb9b890589efbc4876c6266107cea"
+    },
+    {
+      "file": "20260912183653_application_dml_admission_preparation.sql",
+      "sha256": "c3d1e93127156b316ae7baf2176baf7892d5523248c3bbe4ef32c19676a0998e"
+    },
+    {
+      "file": "20260912184931_card_followup_outcome_proof.sql",
+      "sha256": "e9691f160a7bbac302067156f4a7c8eb6682e5a214a6126b88776eaa1541a46a"
+    },
+    {
+      "file": "20260912190717_provider_debt_disposition_preparation.sql",
+      "sha256": "2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f"
+    }
+  ],
+  "tables": [
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=r/postgres}",
+      "rls": true,
+      "name": "card_write_admission_v1",
+      "owner": "postgres",
+      "columns": [
+        {
+          "name": "singleton",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "epoch",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "mode",
+          "type": "text",
+          "default": "'open'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "sealed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "control_history",
+          "type": "jsonb",
+          "default": "'[]'::jsonb",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "card_write_admission_v1_control_history_check",
+          "definition": "CHECK ((jsonb_typeof(control_history) = 'array'::text))"
+        },
+        {
+          "name": "card_write_admission_v1_mode_check",
+          "definition": "CHECK ((mode = ANY (ARRAY['open'::text, 'closed'::text, 'sealed'::text])))"
+        },
+        {
+          "name": "card_write_admission_v1_pkey",
+          "definition": "PRIMARY KEY (singleton)"
+        },
+        {
+          "name": "card_write_admission_v1_singleton_check",
+          "definition": "CHECK (singleton)"
+        }
+      ]
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=r/postgres}",
+      "rls": true,
+      "name": "card_write_followups_v1",
+      "owner": "postgres",
+      "columns": [
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "default": "'pending'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "lease_token",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "outcome",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "history",
+          "type": "jsonb",
+          "default": "'[]'::jsonb",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "card_write_followups_v1_attempt_check",
+          "definition": "CHECK ((attempt >= 0))"
+        },
+        {
+          "name": "card_write_followups_v1_history_check",
+          "definition": "CHECK ((jsonb_typeof(history) = 'array'::text))"
+        },
+        {
+          "name": "card_write_followups_v1_kind_check",
+          "definition": "CHECK ((kind = ANY (ARRAY['graphic_baseline'::text, 'graphic_resolution'::text])))"
+        },
+        {
+          "name": "card_write_followups_v1_operation_id_fkey",
+          "definition": "FOREIGN KEY (operation_id) REFERENCES card_write_operations_v1(operation_id)"
+        },
+        {
+          "name": "card_write_followups_v1_payload_check",
+          "definition": "CHECK ((jsonb_typeof(payload) = 'object'::text))"
+        },
+        {
+          "name": "card_write_followups_v1_pkey",
+          "definition": "PRIMARY KEY (operation_id, kind)"
+        },
+        {
+          "name": "card_write_followups_v1_state_check",
+          "definition": "CHECK ((state = ANY (ARRAY['pending'::text, 'running'::text, 'failed'::text, 'unknown'::text, 'dispositioned'::text, 'completed'::text])))"
+        }
+      ]
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=r/postgres}",
+      "rls": true,
+      "name": "card_write_operations_v1",
+      "owner": "postgres",
+      "columns": [
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "epoch",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "request",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "request_sha256",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "result",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "committed_at",
+          "type": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "card_write_operations_v1_pkey",
+          "definition": "PRIMARY KEY (operation_id)"
+        },
+        {
+          "name": "card_write_operations_v1_request_check",
+          "definition": "CHECK ((jsonb_typeof(request) = 'object'::text))"
+        },
+        {
+          "name": "card_write_operations_v1_request_sha256_check",
+          "definition": "CHECK ((request_sha256 ~ '^[a-f0-9]{64}$'::text))"
+        }
+      ]
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres}",
+      "rls": true,
+      "name": "card_write_transaction_context_v1",
+      "owner": "postgres",
+      "columns": [
+        {
+          "name": "transaction_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "backend_pid",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "epoch",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "task_kind",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "lease_token",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "scope",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "effect_count",
+          "type": "integer",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "effect_hashes",
+          "type": "jsonb",
+          "default": "'[]'::jsonb",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "owner_prestate",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "card_context_must_be_consumed",
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "card_write_transaction_context_v1_kind_check",
+          "definition": "CHECK ((kind = ANY (ARRAY['flag_control'::text, 'followup'::text, 'provider_disposition'::text])))"
+        },
+        {
+          "name": "card_write_transaction_context_v1_pkey",
+          "definition": "PRIMARY KEY (transaction_id)"
+        }
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "ai_client_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.ai_client_onboarding FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "ai_client_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.ai_client_onboarding FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "batches",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.batches FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "batches",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.batches FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "batches_parent_claim_backup_20260824",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.batches_parent_claim_backup_20260824 FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "batches_parent_claim_backup_20260824",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.batches_parent_claim_backup_20260824 FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_feedback_materializations",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.calendar_feedback_materializations FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_feedback_materializations",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.calendar_feedback_materializations FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_post_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.calendar_post_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_post_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.calendar_post_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_posts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.calendar_posts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_posts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.calendar_posts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "caption_prompts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.caption_prompts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "caption_prompts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.caption_prompts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "card_change_journal",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.card_change_journal FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "card_change_journal",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.card_change_journal FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "card_context_must_be_consumed",
+      "table": "card_write_transaction_context_v1",
+      "enabled": "O",
+      "deferrable": true,
+      "definition": "CREATE CONSTRAINT TRIGGER card_context_must_be_consumed AFTER INSERT OR UPDATE ON public.card_write_transaction_context_v1 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION production_card_context_consumed_v1()",
+      "initially_deferred": true
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_access",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_access FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_access",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_access FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_access_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_access_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_access_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_access_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credential_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_credential_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credential_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_credential_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credentials",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_credentials FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credentials",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_credentials FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credentials_rev",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_credentials_rev FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credentials_rev",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_credentials_rev FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.client_onboarding FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.client_onboarding FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "clients",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.clients FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "clients",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.clients FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "content_samples",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.content_samples FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "content_samples",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.content_samples FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "deliverable_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.deliverable_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "deliverable_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.deliverable_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "deliverables",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.deliverables FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "deliverables",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.deliverables FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "description_images",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.description_images FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "description_images",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.description_images FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "filming_plans",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.filming_plans FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "filming_plans",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.filming_plans FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "flag_flips",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.flag_flips FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "flag_flips",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.flag_flips FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_application_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.hiring_application_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_application_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.hiring_application_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_applications",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.hiring_applications FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_applications",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.hiring_applications FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_invite_jobs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.hiring_invite_jobs FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_invite_jobs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.hiring_invite_jobs FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_campaign_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.kasper_ad_campaign_daily FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_campaign_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.kasper_ad_campaign_daily FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_leads",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.kasper_ad_leads FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_leads",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.kasper_ad_leads FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_performance_by_ad_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.kasper_ad_performance_by_ad_daily FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_performance_by_ad_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.kasper_ad_performance_by_ad_daily FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_performance_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.kasper_ad_performance_daily FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_performance_daily",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.kasper_ad_performance_daily FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_unfinished_leads",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.kasper_ad_unfinished_leads FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_unfinished_leads",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.kasper_ad_unfinished_leads FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "legacy_intake_native_triage",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.legacy_intake_native_triage FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "legacy_intake_native_triage",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.legacy_intake_native_triage FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "legacy_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.legacy_onboarding FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "legacy_onboarding",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.legacy_onboarding FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_archive FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_archive FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive_asset_refs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_archive_asset_refs FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive_asset_refs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_archive_asset_refs FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive_asset_rescue_config",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_archive_asset_rescue_config FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive_asset_rescue_config",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_archive_asset_rescue_config FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_intake_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_intake_receipts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_intake_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_intake_receipts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_outbound_cutoff_control",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_outbound_cutoff_control FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_outbound_cutoff_control",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_outbound_cutoff_control FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_project_ids_shape_migration_20260728",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.linear_project_ids_shape_migration_20260728 FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_project_ids_shape_migration_20260728",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.linear_project_ids_shape_migration_20260728 FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.mirror_outbox FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.mirror_outbox FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "native_brief_media_occurrences",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.native_brief_media_occurrences FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "native_brief_media_occurrences",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.native_brief_media_occurrences FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "onboarding_fallback",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.onboarding_fallback FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "onboarding_fallback",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.onboarding_fallback FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_asset_access_checks",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_asset_access_checks FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_asset_access_checks",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_asset_access_checks FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_materialization_ingress",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_card_materialization_ingress FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_materialization_ingress",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_card_materialization_ingress FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_materialization_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_card_materialization_receipts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_materialization_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_card_materialization_receipts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_provenance",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_card_provenance FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_provenance",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_card_provenance FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_card_links",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comment_card_links FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_card_links",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comment_card_links FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_import_conflicts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comment_import_conflicts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_import_conflicts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comment_import_conflicts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_mutation_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comment_mutation_receipts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_mutation_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comment_mutation_receipts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_read_audit",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comment_read_audit FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_read_audit",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comment_read_audit FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_read_budget",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comment_read_budget FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_read_budget",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comment_read_budget FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comments",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_comments FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comments",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_comments FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_intake_manifests",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_intake_manifests FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_intake_manifests",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_intake_manifests FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_label_catalog_versions FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_label_catalog_versions FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_client_provisions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_native_client_provisions FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_client_provisions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_native_client_provisions FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_identifier_grants",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_native_identifier_grants FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_identifier_grants",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_native_identifier_grants FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_identifier_mint",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_native_identifier_mint FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_identifier_mint",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_native_identifier_mint FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_ordinary_receipt_admissions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_native_ordinary_receipt_admissions FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_ordinary_receipt_admissions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_native_ordinary_receipt_admissions FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_config",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_notification_config FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_config",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_notification_config FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_delivery_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_notification_delivery_receipts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_delivery_receipts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_notification_delivery_receipts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_intents",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_notification_intents FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_intents",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_notification_intents FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_reconciliations",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.production_notification_reconciliations FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_reconciliations",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.production_notification_reconciliations FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_adjustments",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.pto_adjustments FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_adjustments",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.pto_adjustments FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_members",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.pto_members FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_members",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.pto_members FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_requests",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.pto_requests FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_requests",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.pto_requests FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "public_intake_log",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.public_intake_log FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "public_intake_log",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.public_intake_log FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "quiz_intake_log",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.quiz_intake_log FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "quiz_intake_log",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.quiz_intake_log FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "quiz_responses",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.quiz_responses FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "quiz_responses",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.quiz_responses FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sales_intakes",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.sales_intakes FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sales_intakes",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.sales_intakes FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sample_review_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.sample_review_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sample_review_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.sample_review_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sample_reviews",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.sample_reviews FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sample_reviews",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.sample_reviews FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "settings_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.settings_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "settings_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.settings_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "smm_weekly_reports",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.smm_weekly_reports FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "smm_weekly_reports",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.smm_weekly_reports FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "social_media_managers",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.social_media_managers FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "social_media_managers",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.social_media_managers FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_auth_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.syncview_auth_events FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_auth_events",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.syncview_auth_events FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_retirement_admission",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.syncview_retirement_admission FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_retirement_admission",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.syncview_retirement_admission FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_runtime_flags",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.syncview_runtime_flags FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_runtime_flags",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.syncview_runtime_flags FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "team_members",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.team_members FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "team_members",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.team_members FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "templates",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.templates FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "templates",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.templates FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "thumbnail_media_revisions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.thumbnail_media_revisions FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "thumbnail_media_revisions",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.thumbnail_media_revisions FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_accounts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.tiktok_accounts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_accounts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.tiktok_accounts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_oauth_state",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.tiktok_oauth_state FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_oauth_state",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.tiktok_oauth_state FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_pilot_posts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.tiktok_pilot_posts FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_pilot_posts",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.tiktok_pilot_posts FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_f27_team_fences",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.track_b_f27_team_fences FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_f27_team_fences",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.track_b_f27_team_fences FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_team_rollback_intents",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.track_b_team_rollback_intents FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_team_rollback_intents",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.track_b_team_rollback_intents FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_team_rollbacks",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.track_b_team_rollbacks FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_team_rollbacks",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.track_b_team_rollbacks FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "workload_issues",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.workload_issues FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "workload_issues",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.workload_issues FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "workload_plan",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.workload_plan FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "workload_plan",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.workload_plan FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    }
+  ],
+  "functions": [
+    {
+      "name": "card_followup_client_key_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "result": "text",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "i",
+      "body_lf_md5": "4624086458ed76a328f4bb8d8c35e012",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": false,
+      "identity_arguments": "v text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "card_followup_drive_id_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "result": "text",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "i",
+      "body_lf_md5": "d2b350f7f3be9878014f5ae0f9d06db0",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": false,
+      "identity_arguments": "v text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "card_followup_feature_enabled_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "580a9bd87db3b3ccb2e2ed855187e0ff",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "identity_arguments": "p_client text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_application_dml_guard_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "d84f34d44cb09b8348a7135d34db3b10",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "identity_arguments": "",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_admission_close_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "4c1f819fca4ffc445b384941dba755ec",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_reason text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_admission_flag_control_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "71074e8bc3ea479abaefd1293d2468cd",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_key text, p_expected jsonb, p_value jsonb, p_actor text, p_reason text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_admission_reopen_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "9a4ef7b09d693b4af55a45e2062592e7",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_actor text, p_reason text, p_confirmation text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_admission_seal_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "3ee3a5dd9a868d9096b02068a9b1cada",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_atomic_write_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "b551fdf3cc192d456c1d887d741994aa",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_operation_id uuid, p_request jsonb",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_context_consumed_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "5b897bdace6e9b5ec1d82a19420ae878",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "identity_arguments": "",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_begin_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "98fa3b6371fe096cd720cef1c7232e03",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_claim_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "SETOF card_write_followups_v1",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "b8cd90b8c0c81c69c1290a3902aae62d",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_limit integer",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_complete_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "11771d06ca11103bbd16e17dd2e920a2",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid, p_outcome jsonb",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_dispose_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "void",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "ec8fd361a26a16489df748e908281495",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_operation_id uuid, p_kind text, p_request_sha256 text, p_evidence_sha256 text, p_actor text, p_reason text, p_confirmation text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_fail_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "void",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "90e5e31265ef937c92ba8ed974028cbe",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease_token uuid, p_reason text",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_card_followup_verify_outcome_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "void",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "43ab355affe919e822a3f52581e36669",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "identity_arguments": "p_context card_write_transaction_context_v1, p_task card_write_followups_v1, p_outcome jsonb",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_provider_debt_disposition_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "3d678cd7210dd332867521f9829e99b3",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_rollback_id uuid, p_outbox_id bigint, p_expected_outbox jsonb, p_expected_intent jsonb, p_classification text, p_actor text, p_reason text",
+      "authenticated_execute": false
+    }
+  ]
+}

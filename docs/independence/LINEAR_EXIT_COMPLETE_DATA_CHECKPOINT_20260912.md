@@ -42,9 +42,43 @@ retry passed all 86 comparisons with 60 populated tables. Artifact SHA-256:
 `a97df7614fcfbfb86be33dadaac219d6ac01d7c506956f32666f8a9e4c9169bb`.
 The run exited zero and its disposable server stopped.
 
-The remaining 26 empty owners are recorded privately and remain a population
-coverage gap. Standalone routing-variable refusal and final inventory-drift
-verification are now included. No hosted behavior follows from this evidence.
+The subsequent full-population receipt
+`linear-exit-complete-application-recovery-d2373f9c4c0b487a85756aa9dc2d29f4`
+passed with **86 of 86 tables populated**, every row multiset independently
+compared, the late corruption refusal, an empty target after rollback, and a
+successful clean retry. Artifact SHA-256:
+`71be394e2359f14c9466a54078b3f72b680b5c6befbde97012872bf5560693e1`.
+The private empty-table list is empty and the server stopped successfully.
+Additional fixtures use actual native lifecycle/identifier/notification RPCs
+and constrained synthetic historical rows; none represents hosted activity.
+Standalone routing-variable refusal and final inventory-drift verification are
+included. No hosted behavior follows from this evidence.
+
+## Final admission-schema successor
+
+Explicit `complete-application-data-v2` adds the four private admission/operation/
+follow-up/context tables without changing V1's inventory, bytes or default.
+V2 requires the transaction context table to be empty, while retaining accepted
+operations, pending tasks and control history. It does not erase work to make a
+backup fit an older contract.
+
+Final four-owner PG17 receipt:
+`linear-exit-complete-application-recovery-f56c618f50dd4103bf3c7813f8167820`.
+All 90 table multisets and the complete schema fingerprint match; 89 tables
+contain synthetic rows and only transaction context is empty. A late corrupted
+operation row refuses restoration, leaves an empty target, and a clean retry
+passes. The actual resulting artifact is encrypted and reopened byte-for-byte.
+Artifact SHA-256:
+`b27584fcfa1bfc22c42043382131b58d14b4e9add3dc44ebddbf36bad2334734`.
+The disposable server stopped and its stderr was empty. The ephemeral encryption
+key used by this test is not operational key custody.
+
+The first V2 runs stayed red on a schema fingerprint mismatch. Private comparison
+isolated a Windows input-transport issue: 13 carriage returns inside the captured
+Calendar function body were removed on reconstruction. The repair escapes only
+carriage-return-bearing function bodies for SQL transport. It preserves their
+stored bytes, the immutable serving capture and the existing strict fingerprint;
+it does not normalize away a mismatch. V1 decoding and offline regressions pass.
 
 ## Retained earlier failures
 
@@ -56,8 +90,18 @@ Both runs stopped and their private failure logs remain available.
 
 ## Scope still missing
 
-This format authenticates but does not encrypt private data. Object bytes,
-off-device retrieval, independent key custody, hosted restore/access checks,
-and final admission/drain are not proved. A streaming object-byte package is
-being prepared separately. No production backup, configuration, data or function
-was changed. Installation HOLD continues.
+This relational format authenticates but does not itself encrypt private data.
+An encrypted streaming wrapper now passes local round trips, wrong-key and
+corruption controls. The populated 86-table artifact above was encrypted and
+reopened byte-for-byte in private receipt
+`complete-encrypted-reopen-d4a149c3-b999-487b-a5d6-9a6331cbc9f5`.
+That rehearsal used an ephemeral key; it is not operational key custody.
+
+Object export now has an adapter-driven paginated inventory and verified-byte
+path into that encrypted wrapper. Synthetic tests cover missing, extra,
+duplicate, changed and corrupt objects, changed bucket metadata and cursor
+loops. There is no live export adapter or atomic hosted inventory proof yet.
+
+Off-device retrieval, independent key custody, hosted restore/access checks,
+and final admission/drain remain unproved. No production backup, configuration,
+data or function was changed. Installation HOLD continues.

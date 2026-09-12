@@ -1,0 +1,31 @@
+'use strict';
+// Offline package negatives; populated source-owner proof is a separate PG lane.
+const assert=require('node:assert/strict'),crypto=require('crypto');
+const complete=require('../scripts/linear-exit-complete-application-data');
+const recovery=require('../scripts/track-b-recovery-package'),backup=require('../scripts/track-b-backup');
+const {fixtureDump}=require('./track-b-backup-corpus');
+const key=crypto.randomBytes(32).toString('base64'),corpus='history-v11';
+const names=complete.expectedNames(),config=backup.resolveCorpus(corpus),data=fixtureDump(corpus).toString();
+const parsed=backup.parseStrictPgDump(data,corpus),parentNames=config.tables.map(t=>t.name);
+const columns=Object.fromEntries(names.map(name=>[name,(parsed.tables[name]?.columns||['synthetic_value']).map(name=>({name,type:'text',not_null:false,identity:'',generated:''}))]));
+const preData=names.map(name=>`CREATE TABLE public.${name} (${columns[name].map(c=>`${c.name} text`).join(', ')});`).join('\n');
+const pre=recovery.validateSchemaSection(preData),post=recovery.validateSchemaSection('');
+const tables=backup.inspectPlainDump(data,corpus);for(const t of Object.values(tables))t.digest_sha256='a'.repeat(64);
+const manifest={format:recovery.RECOVERY_FORMAT,recovery_version:recovery.RECOVERY_VERSION,corpus,corpus_version:config.version,source_project_ref:backup.PRODUCTION_REF,generated_at:'2026-09-12T00:00:00.000Z',completed_at:'2026-09-12T00:01:00.000Z',schema:{fingerprint:'b'.repeat(32),pre_data:{statements:pre.statements.length,skipped_platform_statements:pre.skipped},post_data:{statements:0,skipped_platform_statements:post.skipped}},data:{table_count:52,tables},omitted_data_tables:names.filter(n=>!parentNames.includes(n)),sequences:[],callable_references:{},prerequisites:{roles:['anon','authenticated','service_role'],required_extensions:[]}};
+const parent=recovery.packRecoveryPackage({preData,postData:'',data,manifest},key).bytes;
+const rows=Object.fromEntries(names.map(name=>[name,{name,columns:columns[name],primary_key:[],rows:[columns[name].map(()=>null)]}]));
+const duplicate=manifest.omitted_data_tables[0];rows[duplicate].rows=[['synthetic\tline\n\\N'],['synthetic\tline\n\\N']];
+const bounds={version:1,consumer_closure_proven:false,sequences:[]};
+const encode=r=>complete.encode(parent,r,key,bounds,[]);
+const bytes=encode(rows),read=complete.read(bytes,key);
+const fs=require('fs'),os=require('os'),path=require('path'),custody=require('../scripts/linear-exit-complete-application-custody'),encrypted=require('../scripts/linear-exit-object-custody-encrypted');
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'application-custody-test-'));
+try{const sourceFile=path.join(temp,'source.bin');fs.writeFileSync(sourceFile,bytes);const encryptionKey=crypto.randomBytes(32),keyId=crypto.randomBytes(16).toString('hex'),target=path.join(temp,'package'),opts={sourceFile,target,hmacInput:key,encryptionKey,keyId};
+ custody.pack(opts);const restored=path.join(temp,'restored.bin');custody.restore({...opts,packageDirectory:target,target:restored});assert.deepEqual(fs.readFileSync(restored),bytes);assert.equal(Object.keys(complete.read(fs.readFileSync(restored),key).payload.tables).length,86);
+ assert.throws(()=>custody.restore({...opts,packageDirectory:target,target:restored}),/EEXIST/);assert.deepEqual(fs.readFileSync(restored),bytes);
+ const invalid=path.join(temp,'invalid.bin');fs.writeFileSync(invalid,'invalid');assert.throws(()=>custody.pack({...opts,sourceFile:invalid,target:path.join(temp,'invalid-package')}));assert(!fs.existsSync(path.join(temp,'invalid-package')));
+ const wrong=path.join(temp,'wrong-layout');encrypted.packEncrypted({...opts,target:wrong,buckets:[{id:'application',public:false,file_size_limit:null,allowed_mime_types:null}],objects:[{bucket:'application',path:'wrong.bin',source:sourceFile}]});assert.throws(()=>custody.restore({...opts,packageDirectory:wrong,target:path.join(temp,'wrong-output')}),/LAYOUT/);assert(!fs.existsSync(path.join(temp,'wrong-output')));
+ const bad=path.join(temp,'bad-content');encrypted.packEncrypted({...opts,target:bad,buckets:[{id:'application',public:false,file_size_limit:null,allowed_mime_types:null}],objects:[{bucket:'application',path:'complete-application.bin',source:invalid}]});assert.throws(()=>custody.restore({...opts,packageDirectory:bad,target:path.join(temp,'bad-output')}));assert(!fs.existsSync(path.join(temp,'bad-output')));
+ assert(!fs.readdirSync(temp).some(n=>n.startsWith('.application-custody-')||n.startsWith('.object-private-stage-')));
+ console.log('COMPLETE_APPLICATION_CUSTODY_PASS synthetic86 exactbytes, invalid source, invalid restored content, wronglayout, nooverwrite, cleanup; live/offdevice UNPROVEN');
+}finally{const resolved=path.resolve(temp);if(path.dirname(resolved)!==path.resolve(os.tmpdir())||!path.basename(resolved).startsWith('application-custody-test-'))throw Error('TEMP_BOUNDARY');fs.rmSync(resolved,{recursive:true,force:true});}

@@ -1,0 +1,116 @@
+{
+  "format": "admission-release-extension-v1",
+  "scope": "additive reviewed source extension; not complete hosted baseline",
+  "base_install_inventory": {
+    "path": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+    "sha256": "6c57462d97876157322b8ecffbc6d46b0b40d9cfc669c14be61df871c5e43122"
+  },
+  "application_inventories": [
+    {
+      "path": "docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json",
+      "sha256": "fb24bcc7fce59194e92fa1b10e41909d46a9e87e305948273fd216f985d7a10f"
+    },
+    {
+      "path": "docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json",
+      "sha256": "4436b3f6f663a974c5d02d67d81653e0cd14981b6ed0a860b47e32f3f81a10ac"
+    }
+  ],
+  "prerequisites": [
+    {
+      "path": "migrations/2026-06-18-atomic-comment-merge.sql",
+      "sha256": "c354f499112921e8c6056f5ac9018cfd480d46e173c036e29cfe8165f7769927"
+    },
+    {
+      "path": "qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql",
+      "sha256": "31663a6b62bbc96efe85a8cdc8485c42f07f9455b5c043e2112ff07e36bba429"
+    },
+    {
+      "path": "qa/linear-exit-rehearsal/serving/functions/calendar-upsert/index.ts",
+      "sha256": "5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada"
+    },
+    {
+      "path": "qa/linear-exit-rehearsal/serving/functions/_shared/thumbnail-revisions.ts",
+      "sha256": "fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9"
+    },
+    {
+      "path": "qa/linear-exit-rehearsal/serving/samples-v50/functions/sample-review-upsert/index.ts",
+      "sha256": "edef156c8a0c067a2ef512f8070ac8e8072c8e6b337bbe553dab0ca854c04953"
+    },
+    {
+      "path": "qa/linear-exit-rehearsal/serving/samples-v50/functions/_shared/thumbnail-revisions.ts",
+      "sha256": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51"
+    }
+  ],
+  "sql_owners": [
+    {
+      "path": "supabase/migrations/20260912174907_card_atomic_admission_preparation.sql",
+      "sha256": "1699ab4a661558460eeb94b2c4b85244265bb9b890589efbc4876c6266107cea",
+      "order": 1
+    },
+    {
+      "path": "supabase/migrations/20260912183653_application_dml_admission_preparation.sql",
+      "sha256": "c3d1e93127156b316ae7baf2176baf7892d5523248c3bbe4ef32c19676a0998e",
+      "order": 2
+    },
+    {
+      "path": "supabase/migrations/20260912184931_card_followup_outcome_proof.sql",
+      "sha256": "e9691f160a7bbac302067156f4a7c8eb6682e5a214a6126b88776eaa1541a46a",
+      "order": 3
+    },
+    {
+      "path": "supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql",
+      "sha256": "2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f",
+      "order": 4
+    }
+  ],
+  "admission_preflight_contract": {
+    "path": "docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json",
+    "sha256": "7521ab5169fa272a7add4d7d45dc62c82ca22f75c69d2ea8371b22c1c5107a79"
+  },
+  "writer_sources": [
+    {
+      "path": "scripts/linear-exit-atomic-writer-compose.js",
+      "sha256": "fcc6fbf8092831fafe2817ecc6e07a9aa2ce3f84faa67475c3b503b9a5fb558c"
+    },
+    {
+      "path": "scripts/linear-exit-atomic-writer-bundle.js",
+      "sha256": "54ec61bd61a34eb61a874a2ab19984197c164811d71d1d3c8aa7e062e00071bd"
+    }
+  ],
+  "worker_sources": [
+    {
+      "path": "scripts/linear-exit-followup-compose.mjs",
+      "sha256": "2fd3a19f1acef52932dbbc6c96df9f015a5e15296e27c3782a8f2dab6989af77"
+    },
+    {
+      "path": "scripts/linear-exit-followup-bundle.mjs",
+      "sha256": "4159502f849a6a1e72c83755a45ef419173fb34b7080312b2c5b6d206cce2515"
+    },
+    {
+      "path": "scripts/linear-exit-followup-endpoint.mjs",
+      "sha256": "0c6359e12dae7e9af8b5cb2f082e8324e3c83d57835a4545fdbeaa5d6f7c75bf"
+    },
+    {
+      "path": "scripts/linear-exit-followup-postgres.mjs",
+      "sha256": "b3c568994769bef370f4beb7748bccf65aaaa895d4886cbabb7508f91720397e"
+    },
+    {
+      "path": "scripts/linear-exit-followup-transaction.mjs",
+      "sha256": "6a47d8eb06ffbb75f125dc9d5f4a9ec78436708dc24d63375618d336fb9afe5e"
+    },
+    {
+      "path": "scripts/linear-exit-followup-worker.mjs",
+      "sha256": "e4c8cf0af2305adb3c55cee63331eb0661924ac189860bf336dd9bb1c0367102"
+    }
+  ],
+  "hosted_prestate_classification": "PENDING",
+  "hosted_prerequisite_classification": "PENDING",
+  "hosted_configuration": "PENDING",
+  "hosted_baseline_observed_proven": false,
+  "complete_hosted_closure_proven": false,
+  "runtime_worker_enabled": false,
+  "final_activation": "REFUSING",
+  "installation_authorized": false,
+  "deployment_authorized": false,
+  "merge_authorized": false
+}

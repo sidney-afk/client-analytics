@@ -3,7 +3,9 @@
 Owner request: finish the preparation build and strategy economically, then
 provide a handoff for a fresh review before installation. No merge, deployment,
 workflow dispatch, production writes or n8n execution/edit in this session.
-Frozen tokenless writers remain unchanged.
+Existing tokenless links, URLs and payload compatibility remain unchanged.
+The owner approved narrow writer-internal preparation on September 12; original
+serving captures remain immutable controls. No installation is authorized.
 
 ## Execution order and stopping criteria
 

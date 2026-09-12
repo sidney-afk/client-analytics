@@ -1,19 +1,20 @@
 # Linear exit release matrix - 2026-09-12
 
 Preparation remains in draft PR #1382. Neither installation nor retirement is
-authorized by this document. A final handoff must pin the application revision
-after the ongoing main-branch integration and acceptance checks.
+authorized by this document. The September 12 continuation handoff identifies
+the reviewed checkpoint and remaining build gaps; it is not installation sign-off.
 
 | Requirement | Prepared evidence | Remaining work before release |
 | --- | --- | --- |
-| Native approval completion | Actual SQL verification, planning and fresh revalidation passed; updated importer recognition is being integrated | Recheck the changed reconciler against actual SQL, then verify hosted REST serialization and grants during an authorized installation window |
-| Ordered database installation | 64-entry source inventory; 150-object isolated preflight passed | Match hosted pre-state to exact source owners, classify absent/exact/divergent entries and capture recoverable pre-state before applying anything |
-| Application integration | Existing native/editor build in draft; newer staff-entry changes being integrated | Affected boot, entry, identity, approval and client-save checks on the final revision |
-| Relational recovery | 52-table corpus recovery passed; priority and credential companions have separate historical evidence | Complete authenticated application-data coverage, including unclassified tables, and a populated restore test; hosted prerequisite compatibility remains an installation-window check |
-| Asset recovery | Database references and earlier coverage tools exist | Retained object bytes, authenticated object manifest, restore and accessibility checks; database metadata alone is insufficient |
+| Native approval completion | Actual SQL verification, planning and fresh revalidation passed after importer recognition integration;172 reconciler and39 native offline checks pass | Verify hosted REST serialization and grants during an authorized installation window |
+| Ordered database installation | Existing 64-entry inventory plus a separately pinned four-owner admission release extension; isolated admission preflight covers 17 functions, four tables and 173 triggers | Integrate extension ordering/resume with the installer; classify hosted baseline and prerequisites as absent/exact/divergent and capture recoverable pre-state |
+| Application integration | New staff entry and importer recognition integrated; affected boot/entry/cache/sign-off tests pass; captured Calendar public journey24 checkpoints pass | Final review of the pinned revision and target hosted compatibility; retain repository401 negative control |
+| Relational recovery | V1 preserves 86-table compatibility; final four-owner V2 restores 90 tables, with 89 populated and the transaction context correctly empty; exact rows/schema, corruption rollback and encrypted reopen pass | Match hosted schema/prerequisites, capture real data under the approved boundary and prove independent custody/restore; see complete-data checkpoint |
+| Asset recovery | Encrypted-v3 custody and adapter-based object export pass synthetic complete-census, version/hash, corruption and restore controls | Build the live source adapter; prove source inventory, durable off-device storage, independent key retrieval and hosted restore/access |
 | Notifications | Native outbox and isolated source checks exist | Verify destination configuration, ownership, delivery and recovery handover before enabling senders |
-| Frozen client saves | Captured Calendar positive contract and repository 401 negative control retained | Preserve tokenless Calendar/Samples handlers; verify actual hosted serving fingerprints before installation |
-| Final switch away from Linear | Ordinary native receipts and retirement census are prepared | Admission and drain mechanism, complete caller inventory, final classification and safe activation remain build/design gaps; a lock on outbox is disproved as a global freeze |
+| Client saves | Owner-approved atomic Calendar/Samples preparation preserves tokenless serving captures; actual isolated handlers prove atomic save/tasks, rollback, conflict 409 and maintenance 503, retaining both repository 401 controls | Review candidate bundles and hosted compatibility; current request identifiers prove RPC replay, not cross-request exactly-once behavior |
+| Background work | Private disabled worker bundle, actual helper/SQL graphic capture and resolution, stale-worker refusal and durable failure tests pass | Finish failed/unknown recovery, remaining helper outcomes, cadence and monitoring; prove hosted configuration separately |
+| Final switch away from Linear | Retained verified receipts approved; 86-table DML admission guards, protected follow-up transactions and exact existing F27 discard/quarantine rehearsed | Finish external worker fencing/replay, closed-gate snapshot creation and coverage beyond table DML; final activation still refuses |
 | WR-101 refusal diagnostics | Planned only | Separate Edge Function implementation/release if required by the approved release scope; do not describe it as installed or built |
 
 ## Order of decisions
@@ -47,6 +48,9 @@ restore stale business data over accepted new saves. A full-data restoration
 requires the reviewed admission boundary and an explicit disposition for every
 accepted mutation after its snapshot.
 
-This matrix records outstanding requirements; it does not waive them. In
-particular, typed native outbox completions do not silently redefine B5's literal
-zero-new-row condition as zero provider debt.
+This matrix records outstanding requirements; it does not waive them. On
+2026-09-12 the owner explicitly approved retaining verified native receipts with
+zero provider-bound work/debt, and narrow atomic writer preparation preserving
+links and tokenless access. Canonical B5 records the changed criterion; every
+checkbox remains uncompleted until its evidence passes. See the final-switch
+decision document for the approved scope.

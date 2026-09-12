@@ -1061,6 +1061,15 @@ function reconstructPairSqlWithSequenceBounds(companionBytes, parentBytes, hmacI
   return renderReconstruction(pair.parent, supplement);
 }
 
+// Windows psql stdin folds literal CRLF even inside dollar-quoted function
+// bodies. Escape only CR-bearing bodies; PostgreSQL reconstructs the original
+// bytes, keeping existing exact pg_get_functiondef fingerprints meaningful.
+function preserveFunctionBodyTransport(text) {
+  if (!/^CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b/i.test(text)) return text;
+  return sqlTokens(text).map(token => token.kind === 'dollar' && token.value.includes('\r')
+    ? "E'" + token.value.replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/\r/g, '\\r').replace(/\n/g, '\\n') + "'"
+    : token.raw).join('');
+}
 function renderReconstruction(pkg, supplement) {
   const { manifest, corpus, data, schema } = pkg;
   const deferred = verifyDeferredDefaults([...schema.pre.statements, ...schema.post.statements], manifest, backup.parseStrictPgDump(data, corpus));
@@ -1071,12 +1080,12 @@ function renderReconstruction(pkg, supplement) {
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '30min';",
     targetPrerequisiteSql(manifest),
-    ...before.statements.map(text => `${text};`),
+    ...before.statements.map(text => `${preserveFunctionBodyTransport(text)};`),
     backup.renderSafeCopySections(data, corpus).trimEnd(),
     ...(supplement ? [supplement.beforePost] : []),
     ...sequenceValueSql(manifest),
     ...deferred.defaults.map(item => `ALTER TABLE public.${item.table} ALTER COLUMN ${item.column} SET DEFAULT ${item.expression};`),
-    ...schema.post.statements.map(text => `${text};`),
+    ...schema.post.statements.map(text => `${preserveFunctionBodyTransport(text)};`),
     inTransactionVerificationSql(manifest),
     ...(supplement ? [supplement.verify] : []),
     'commit;',

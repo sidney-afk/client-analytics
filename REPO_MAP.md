@@ -305,6 +305,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json: pinned 86-table successor coverage inventory.
 - test/linear-exit-complete-application-data.js and test/linear-exit-complete-application-recovery.js: offline package refusal controls and isolated database reconstruction, with source-owned synthetic fixtures in test/helpers/remaining-application-fixture.js and test/helpers/complete-application-priority-seed.js.
 - scripts/linear-exit-object-custody.js and test/linear-exit-object-custody.js: authenticated object-byte preservation and private restore checks; source completeness and hosted custody remain separate gates.
+- test/helpers/native-owner-recovery-fixture.js and test/helpers/complete-application-history-seed.js: native RPC and constrained historical fixtures for the populated 86-table recovery rehearsal.
+- scripts/linear-exit-object-custody-encrypted.js: distinct encrypted streaming directory format with authenticated encrypted manifest and object chunks; private plaintext staging is explicitly scoped.
 - docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md: owner-approved preparation scope for narrow writer internals and retained native receipts; installation remains unauthorized.
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json: isolated verifier evidence; reconciler integration open.
 
@@ -313,3 +315,22 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_20260911.json: scoped integration evidence and remaining SQL rehearsal.
 
 - docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md: owner-requested budget stop, exact code revision and Claude next steps.
+
+### September 12 atomic admission preparation
+
+- `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md`: source and isolated handler/worker evidence, retained failures and remaining build gaps.
+- `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` and `scripts/linear-exit-admission-release-extension.js`: separately pinned four-owner extension; not an installer or hosted baseline.
+- `docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json` and `scripts/linear-exit-admission-preflight.js`: exact admission catalog expectations and read-only comparison.
+- `docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json`: 90-table recovery including retained admission history and empty transaction context; V1 remains compatible.
+- `supabase/migrations/`: four ordered preparation owners for atomic admission, application DML guards, SQL-derived follow-up outcomes and bounded existing F27 disposition.
+- `scripts/linear-exit-atomic-writer-compose.js` and `scripts/linear-exit-atomic-writer-bundle.js`: source-pinned tokenless writer candidates and reproducible preparation bundles.
+- `qa/linear-exit-rehearsal/serving/samples-v50/` and `qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql`: immutable serving prerequisites; preserve original bytes.
+- `qa/linear-exit-rehearsal/harness/load-atomic-calendar.mjs` and `qa/linear-exit-rehearsal/harness/load-captured-samples.mjs`: isolated handler loaders.
+- `scripts/linear-exit-followup-compose.mjs`, `scripts/linear-exit-followup-transaction.mjs` and `scripts/linear-exit-followup-worker.mjs`: source-derived helper, scoped transactional effects and durable completion.
+- `scripts/linear-exit-followup-postgres.mjs`, `scripts/linear-exit-followup-endpoint.mjs` and `scripts/linear-exit-followup-bundle.mjs`: bounded driver, disabled private endpoint and portable bundle; `qa/linear-exit-rehearsal/followup-deno.lock` pins dependencies.
+- `scripts/linear-exit-complete-application-custody.js` and `scripts/linear-exit-object-export.js`: encrypted application custody and adapter-based complete object export; live adapter and independent custody remain open.
+- `test/linear-exit-card-atomic-admission.js`, `test/linear-exit-card-atomic-handlers.js` and `test/linear-exit-application-dml-admission.js`: actual isolated save, failure, permission and closure controls.
+- `test/linear-exit-followup-outcome-proof.js`, `test/linear-exit-followup-worker-postgres.js`, `test/helpers/followup-worker-deno.mjs` and `test/linear-exit-provider-debt-disposition.js`: actual SQL-derived worker outcomes and bounded provider-debt refusal proof.
+- `test/linear-exit-admission-preflight.js`, `test/linear-exit-admission-preflight-postgres.js` and `test/linear-exit-admission-release-extension.js`: metadata corruption and source/order drift checks.
+- `test/linear-exit-atomic-writer-bundle.js`, `test/linear-exit-followup-bundle.mjs`, `test/linear-exit-followup-endpoint.mjs`, `test/linear-exit-followup-transaction.mjs` and `test/linear-exit-followup-worker.mjs`: portable bundles and offline worker refusal controls.
+- `test/linear-exit-complete-application-custody.js` and `test/linear-exit-object-export.js`: authenticated custody/export round trips and refusal controls.

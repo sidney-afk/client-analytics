@@ -24,3 +24,11 @@ docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json text eol=lf
 
 # Exact-byte credential row contract for the isolated companion.
 docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json text eol=lf
+
+# Serving captures are byte-pinned evidence, including original CR/LF bytes.
+qa/linear-exit-rehearsal/serving/samples-v50/** -text
+qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json text eol=lf
+docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json text eol=lf
+qa/linear-exit-rehearsal/followup-deno.lock text eol=lf
+docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json text eol=lf

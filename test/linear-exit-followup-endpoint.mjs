@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {createFollowupEndpoint} from '../scripts/linear-exit-followup-endpoint.mjs';
+const config={LINEAR_EXIT_FOLLOWUP_RUNNER_KEY:'k'.repeat(32),SUPABASE_DB_URL:'synthetic',SUPABASE_URL:'synthetic',SUPABASE_SERVICE_ROLE_KEY:'synthetic'};
+let connections=0,closed=0,claims=0,health=0,status='completed';
+const handler=createFollowupEndpoint({env:k=>config[k],openDatabase:()=>{connections++;return {query:async sql=>{if(sql.includes('filter(')){health++;return [{pending:3,pending_stale:1,unresolved:1}];}claims++;return [{task:{operation_id:'synthetic'}}];},close:async()=>{closed++;}};},runTask:async()=>({status}),createHelpers:()=>({}),storageFactory:()=>({}),fetch:()=>{throw Error('network');}});
+const req=(body={},key=config.LINEAR_EXIT_FOLLOWUP_RUNNER_KEY)=>new Request('https://fixture.invalid/worker',{method:'POST',headers:{'x-followup-runner-key':key},body:typeof body==='string'?body:JSON.stringify(body)});
+assert.equal((await handler(req({},'bad'))).status,401);assert.equal(connections,0);
+assert.equal((await handler(req())).status,503);assert.equal(connections,0,'disabled cannot connect/claim');
+assert.equal((await handler(req({action:'health'}))).status,503);assert.equal(health,1);assert.equal(claims,0);
+config.LINEAR_EXIT_FOLLOWUP_ENABLED='true';
+assert.equal((await handler(req({operation_id:'forged'}))).status,400);assert.equal(claims,0);
+assert.equal((await handler(req(' '.repeat(1025)))).status,413);
+assert.equal((await handler(req())).status,200);assert.equal(claims,1);
+status='unknown';const unknown=await handler(req());assert.equal(unknown.status,503);assert.deepEqual(await unknown.json(),{ok:false,processed:1,status:'unknown'});assert.equal(claims,2,'no automatic retry');assert.equal(closed,connections);
+console.log('FOLLOWUP_ENDPOINT_OFFLINE_PASS private authorization, default disabled, bounded body, read-only health, one claim, unknown staysred');

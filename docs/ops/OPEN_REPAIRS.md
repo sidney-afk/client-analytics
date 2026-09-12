@@ -553,6 +553,8 @@ latch on failure, reset on recovery — across four lanes. Closed.
 
 ## 13. [closed] Seven terminal mis-filed rows — verified healed 2026-08-11, no SQL needed
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `13`. **This one is the seven terminal mis-filed rows (promoted 2026-08-10, verified healed 2026-08-11).** The other `13` is the TEST-client ghost calendar cards (2026-08-14), and that is the one meant by every `OPEN_REPAIRS 13` reference in `index.html` (the "MAKE THE RELOAD ADVICE TRUE" block), `test/write-ui-failure-messages.js` and `EXECUTION_LOG.md`.
+
 Surfaced by #1051's review, promoted here 2026-08-10 so it stops living only in
 a PR description. Three batch-title collisions (same mechanism as item 5's GRA
 family: two same-named parent cards collapsing to one batch id) mis-filed rows
@@ -590,6 +592,8 @@ the EXECUTION_LOG 2026-08-10 repair) and the next audit shows no parent
 mismatches for these families.
 
 ## 14. [repair] The #1051 parent map can never FORGET a stale entry
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `14`. **This one is the #1051 parent-map stale entry** and is the one meant by `.github/workflows/b1-linear-incremental-refresh.yml` and by the `outbound_parent_mismatch` rule in `PRE_FLIP_HEALTH_CHECK.md` (POST-FLIP item 5). The other `14` is the `artifact_not_resolvable` wrong-dialog fix (2026-08-16, closed 2026-08-22), which is what `test/write-ui-failure-messages.js` means.
 
 #1051 deliberately made the incremental importer merge-not-replace the
 per-team parent map — clearing by omission was the bug. Consequence, flagged
@@ -853,6 +857,8 @@ the Linear gateway — but must close before any video flip.
 
 ## 13. [closed] TEST-client ghost calendar cards — swept, and the loop closed
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `13`. **This one is the TEST-client ghost calendar cards (2026-08-14)** and is the one meant by every `OPEN_REPAIRS 13` reference in `index.html` (the "MAKE THE RELOAD ADVICE TRUE" block), `test/write-ui-failure-messages.js` and `EXECUTION_LOG.md`. The other `13` is the seven terminal mis-filed rows (2026-08-10).
+
 Found 2026-08-14 while drilling the comment front door. The TEST client's
 calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
 longer exist, so every status/notes save against one is refused by
@@ -915,6 +921,8 @@ render check the row's live existence. With zero instances in the data that
 would be speculative work, and the eviction closes the loop that made it hurt.
 
 ## 14. [closed] `artifact_not_resolvable` shows the wrong dialog — closed 2026-08-22
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `14`. **This one is the `artifact_not_resolvable` wrong-dialog fix (found 2026-08-16, closed 2026-08-22)** and is the one meant by `test/write-ui-failure-messages.js`. The other `14` is the #1051 parent-map stale entry, which is what `.github/workflows/b1-linear-incremental-refresh.yml` and the `outbound_parent_mismatch` rule in `PRE_FLIP_HEALTH_CHECK.md` mean.
 
 Found 2026-08-16 during post-flip live testing. Moving a graphics card to
 **For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
@@ -1418,6 +1426,8 @@ sealed capture, its upload, and the dispatch remain.
 
 ## 22. [repair] Linear test-issue debris across two projects
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `22`. **This one is the Linear test/drill issue debris across two projects (flip week).** The other `22` is "Nothing reconciles `deliverables` against Linear" (2026-08-20). No reference outside this file cites either by number; cite them by number AND subject.
+
 ~354 test/drill issues accumulated across two Linear projects during the flip
 week. They inflate `repair_list_size`, the shadow audit's entity counts and the
 F40 counter, which makes every one of those numbers harder to read as a signal.
@@ -1512,6 +1522,8 @@ still the owner's hands. What changed is that it is now a counter-hygiene job
 rather than something two editors see every day.
 
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `23`. **This one is archiving no longer parking its sub-issues (2026-08-20)** and is the one meant by `index.html` ("11 archives since the feature shipped, 0 parks") and `test/calendar-archive-parks-sub-issues.js`. The other `23` is the `GRA-7112` attribution row, which is what the foreign-write-strand entry in `PRE_FLIP_HEALTH_CHECK.md` means.
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
 archived 16 seconds after creation; both its Linear sub-issues were still sitting
@@ -1672,6 +1684,8 @@ an inert EF change into it would make that claim untrue. Recorded here instead.
 
 ## 22. [repair] Nothing reconciles `deliverables` against Linear
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `22`. **This one is "nothing reconciles `deliverables` against Linear" (2026-08-20).** The other `22` is the Linear test/drill issue debris across two projects. No reference outside this file cites either by number; cite them by number AND subject.
+
 Found 2026-08-20 while chasing a designer's report that her Workload and her
 Production tab disagreed. That report was a red herring (her "Show sub-issues"
 was off), but measuring it surfaced a real gap.
@@ -1749,6 +1763,8 @@ alarm. Still open: whether the reconciler may repair on its own, and an alarm on
 the engine's own count for the video flip.
 
 ## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified, SQL ready
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `23`. **This one is the `GRA-7112` attribution row** and is the one meant by the foreign-write-strand entry in `PRE_FLIP_HEALTH_CHECK.md`. The other `23` is archiving no longer parking its sub-issues (2026-08-20), which is what `index.html` and `test/calendar-archive-parks-sub-issues.js` mean.
 
 Surfaced by the same census. Its status drift is cosmetic; the real defect is
 that it carries no client mapping, so it appears in no client's view and its

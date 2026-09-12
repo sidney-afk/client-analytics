@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p29 — KASPER REVIEW ACTIONS → WRITE ROUTING (no real Linear, no real gateway).
 //
 // WHAT CHANGED ON 2026-09-08. This probe waited for `linear-add-comment` and
@@ -23,7 +24,7 @@ const APP_VID = NW.nativeDeliverableId(APP, 'video');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   const retired = await NW.captureRetiredWebhooks(ctx);
   const gateway = await NW.stubNativeGateway(ctx);
   await NW.stubNativeWorkItems(ctx, [

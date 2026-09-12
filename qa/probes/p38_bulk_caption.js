@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p38 — §4.4 bulk "Generate all" (_calBulkGenerateCaptions): concurrency cap + partial failure.
 //   - 3 eligible cards selected → all generate, but at most CAL_CAPJOB_CONCURRENCY in flight at once
 //   - one card's backend returns an error → the others still succeed (batch isn't all-or-nothing)
@@ -12,7 +13,7 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};
   await ctx.route('**/webhook/generate-caption', async (r) => {

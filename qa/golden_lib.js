@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('./staff-gate-seed.js');
 const REROUTE_FIXTURE = require('./write_ui_reroute_fixture.js');
 // Shared harness for the golden-path interaction probes.
 //
@@ -67,7 +68,7 @@ function capture(page) {
 }
 async function _ctx(browser) {
   const c = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(c);
   // write_ui_reroute_clients → the PRODUCTION roster, which has the TEST
   // client enrolled like every other active client. This used to serve `[]`
   // and call that faithful because "real clients run legacy"; they do not,

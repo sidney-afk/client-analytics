@@ -8,6 +8,7 @@
  * change. Project-card mutations remain on the older read-only preview guard.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -97,8 +98,8 @@ async function txt(page, sel) {
     childActivityLogged: 'deferred-B3: child activity log assertion depends on applying a status mutation',
   };
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
+  await seedStaffGate(page);
   await page.addInitScript(() => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

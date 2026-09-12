@@ -44,6 +44,7 @@ const ROUTINES = Object.freeze([
   ['production_native_identifier_guard()', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_guard', 'pg_catalog, public'],
   ['production_native_client_provision(text,text,text)', 'migrations/2026-09-09-native-client-provisioning.sql', 'production_native_client_provision', 'pg_catalog, public, extensions, pg_temp'],
   ['production_native_client_provisions_immutable()', 'migrations/2026-09-09-native-client-provisioning.sql', 'production_native_client_provisions_immutable', 'pg_catalog, public, pg_temp', false],
+  ['production_native_signoff_verify(text[])', 'migrations/2026-09-11-native-signoff-verifier.sql', 'production_native_signoff_verify', 'pg_catalog, public'],
   ['production_native_ordinary_capability(text)', 'migrations/2026-09-09-native-ordinary-receipts.sql', 'production_native_ordinary_capability', 'public'],
   ['production_native_ordinary_event(jsonb,jsonb)', 'migrations/2026-09-12-native-ordinary-envelope-repair.sql', 'production_native_ordinary_event', 'public'],
   ['production_native_ordinary_receipt_guard()', 'migrations/2026-09-09-native-ordinary-receipts.sql', 'production_native_ordinary_receipt_guard', 'public'],
@@ -253,6 +254,8 @@ routine_rows as (
   select e.object_key,(p.oid is not null) as present,
     coalesce(md5(p.prosrc)=e.body_md5
       and p.prosecdef=e.security_definer
+      and (e.signature<>'public.production_native_signoff_verify(text[])' or (p.provolatile='s' and p.proretset
+        and pg_get_function_result(p.oid)='TABLE(receipt_id text, verified boolean, entity_id text, client_slug text, source_edited_at timestamp with time zone)'))
       and p.proconfig=array['search_path='||e.search_path]::text[]
       and has_function_privilege('service_role',p.oid,'EXECUTE')=e.service_execute
       and not has_function_privilege('anon',p.oid,'EXECUTE')

@@ -1,12 +1,13 @@
 param(
  [Parameter(Mandatory=$true)][string]$PgBin,
- [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff')][string]$Lane='journey',
+ [ValidateSet('unit','f27','journey','optional','composition','notifications','recovery','deferred-defaults','upstream-ledger','recovery-upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff','complete-application-recovery')][string]$Lane='journey',
  [ValidateSet('repository-negative','captured-positive')][string]$ServingMode,
  [switch]$RecoveryPostgres17,
  [switch]$SequenceBounds,
  [switch]$NativeIdentifiers,
  [switch]$EncryptedCredentials,
  [switch]$DeferredEvents,
+ [switch]$ReconcilerIntegration,
  [string]$OutputRoot
 )
 # Windows, preinstalled PG16/17 + Node22+ + Git Bash only. No installation or
@@ -14,6 +15,7 @@ param(
 $ErrorActionPreference='Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'This runner requires Windows.' }
 if ($Lane -eq 'journey' -and !$ServingMode) { throw 'Journey requires explicit -ServingMode.' }
+if ($ReconcilerIntegration -and $Lane -ne 'native-signoff') { throw 'ReconcilerIntegration is restricted to native-signoff.' }
 if ($DeferredEvents -and $Lane -ne 'calendar-freeze') { throw 'DeferredEvents is restricted to calendar-freeze.' }
 if ($EncryptedCredentials -and $Lane -ne 'credential-recovery') { throw 'EncryptedCredentials is restricted to credential-recovery.' }
 if ($NativeIdentifiers -and $Lane -ne 'priority-application-recovery') { throw 'NativeIdentifiers is restricted to priority-application-recovery.' }
@@ -27,7 +29,7 @@ $pgVersion=(& (Join-Path $pgPath 'postgres.exe') --version) -join ''
 if ($LASTEXITCODE -ne 0 -or $pgVersion -notmatch '\b(16|17)\.') { throw 'Preinstalled PostgreSQL 16 or 17 required.' }
 $pgMajor=$Matches[1]
 if ($RecoveryPostgres17 -and $Lane -ne 'recovery-upstream-ledger') { throw 'RecoveryPostgres17 is restricted to recovery-upstream-ledger.' }
-$expectedMajor=if ($Lane -in @('f27','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff') -or $RecoveryPostgres17) { '17' } else { '16' }
+$expectedMajor=if ($Lane -in @('f27','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff','complete-application-recovery') -or $RecoveryPostgres17) { '17' } else { '16' }
 if ($pgMajor -ne $expectedMajor) { throw "Lane $Lane requires PostgreSQL $expectedMajor binaries." }
 $node=(Get-Command node -CommandType Application -ErrorAction Stop).Source
 $nodeVersion=(& $node --version) -join ''
@@ -122,6 +124,7 @@ try {
  }
  if ($Lane -eq 'retirement-freeze') { $entry=Join-Path $repoRoot 'test\linear-exit-retirement-freeze-postgres.js' }
  if ($Lane -eq 'calendar-freeze') { $entry=Join-Path $repoRoot 'test\linear-exit-calendar-freeze-postgres.js' }
+ if ($Lane -eq 'complete-application-recovery') { $entry=Join-Path $repoRoot 'test\linear-exit-complete-application-recovery.js' }
  if ($Lane -eq 'native-signoff') { $entry=Join-Path $repoRoot 'test\linear-exit-native-signoff-postgres.js' }
  if ($Lane -eq 'credential-recovery') { $entry=Join-Path $repoRoot 'test\linear-exit-credential-recovery.js' }
  if ($Lane -eq 'credential-schema') { $entry=Join-Path $repoRoot 'test\linear-exit-credential-schema.js' }
@@ -158,10 +161,14 @@ try {
  if ($NativeIdentifiers) { $arguments+= '--native-identifiers' }
  if ($EncryptedCredentials) { $arguments+= '--encrypted' }
  if ($DeferredEvents) { $arguments+= '--deferred-events' }
+ if ($ReconcilerIntegration) { $arguments+= '--reconciler-integration' }
  if ($Lane -in @('priority-application-supplement','priority-observed-baseline')) { $arguments+= '--supplement-three' }
  if ($Lane -eq 'priority-observed-baseline') { $arguments+= '--observed-backup' }
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
+ if ($result -eq 0 -and $ReconcilerIntegration) {
+  if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_OK' -Quiet)) { throw 'Required SQL reconciler integration marker missing.' }
+ }
  if ($result -eq 0 -and $DeferredEvents) {
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_CALENDAR_DEFERRED_GAP_PROVEN' -Quiet)) { throw 'Required deferred Calendar marker missing.' }
  }
@@ -182,8 +189,8 @@ try {
   if ($Lane -eq 'recovery-upstream-ledger' -and $recoveryReport.upstream_ledger_verified -ne $true) { throw 'Required restored upstream ledger proof missing.' }
   if ($recoveryReport.status -ne 'PASS' -or $recoveryReport.corpus -ne 'history-v11' -or $recoveryReport.table_count -ne 52) { throw 'Required versioned recovery proof report missing or incompatible.' }
  }
- if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff')) {
-  $marker=if ($Lane -eq 'native-signoff') { 'LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK' } elseif ($Lane -eq 'calendar-freeze') { 'LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN' } elseif ($Lane -eq 'retirement-freeze') { 'LINEAR_EXIT_GLOBAL_FREEZE_UNPROVEN' } elseif ($Lane -eq 'credential-recovery') { 'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK' } elseif ($Lane -eq 'credential-schema') { 'LINEAR_EXIT_CREDENTIAL_SCHEMA_OK' } elseif ($Lane -eq 'sequence-application') { 'LINEAR_EXIT_SEQUENCE_APPLICATION_OK' } elseif ($Lane -eq 'sequence-consistency') { 'LINEAR_EXIT_SEQUENCE_CONSISTENCY_OK' } elseif ($Lane -eq 'priority-application-recovery') { 'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK' } elseif ($Lane -eq 'priority-observed-baseline') { 'LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_OK' } elseif ($Lane -in @('priority-application-schema','priority-application-supplement')) { 'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK' } elseif ($Lane -eq 'priority-restore') { 'LINEAR_EXIT_PRIORITY_RESTORE_OK' } elseif ($Lane -eq 'priority-snapshot') { 'LINEAR_EXIT_PRIORITY_SNAPSHOT_OK' } elseif ($Lane -eq 'priority-companion') { 'LINEAR_EXIT_PRIORITY_COMPANION_POSTGRES_OK' } elseif ($Lane -eq 'view-provenance') { 'LINEAR_EXIT_VIEW_PROVENANCE_OK' } elseif ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
+ if ($result -eq 0 -and $Lane -in @('composition','f27','notifications','upstream-ledger','installation-order','installation-resume','installation-interruption','preflight','preflight-installed','view-provenance','priority-companion','priority-snapshot','priority-restore','priority-application-schema','priority-application-supplement','priority-observed-baseline','priority-application-recovery','sequence-consistency','sequence-application','credential-schema','credential-recovery','retirement-freeze','calendar-freeze','native-signoff','complete-application-recovery')) {
+  $marker=if ($Lane -eq 'complete-application-recovery') { 'LINEAR_EXIT_COMPLETE_APPLICATION_RECOVERY_OK' } elseif ($Lane -eq 'native-signoff') { 'LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK' } elseif ($Lane -eq 'calendar-freeze') { 'LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN' } elseif ($Lane -eq 'retirement-freeze') { 'LINEAR_EXIT_GLOBAL_FREEZE_UNPROVEN' } elseif ($Lane -eq 'credential-recovery') { 'LINEAR_EXIT_CREDENTIAL_RECOVERY_OK' } elseif ($Lane -eq 'credential-schema') { 'LINEAR_EXIT_CREDENTIAL_SCHEMA_OK' } elseif ($Lane -eq 'sequence-application') { 'LINEAR_EXIT_SEQUENCE_APPLICATION_OK' } elseif ($Lane -eq 'sequence-consistency') { 'LINEAR_EXIT_SEQUENCE_CONSISTENCY_OK' } elseif ($Lane -eq 'priority-application-recovery') { 'LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK' } elseif ($Lane -eq 'priority-observed-baseline') { 'LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_OK' } elseif ($Lane -in @('priority-application-schema','priority-application-supplement')) { 'LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_OK' } elseif ($Lane -eq 'priority-restore') { 'LINEAR_EXIT_PRIORITY_RESTORE_OK' } elseif ($Lane -eq 'priority-snapshot') { 'LINEAR_EXIT_PRIORITY_SNAPSHOT_OK' } elseif ($Lane -eq 'priority-companion') { 'LINEAR_EXIT_PRIORITY_COMPANION_POSTGRES_OK' } elseif ($Lane -eq 'view-provenance') { 'LINEAR_EXIT_VIEW_PROVENANCE_OK' } elseif ($Lane -eq 'preflight-installed') { 'LINEAR_EXIT_PREFLIGHT_ORDERED_OK' } elseif ($Lane -eq 'preflight') { 'LINEAR_EXIT_PREFLIGHT_POSTGRES_OK' } elseif ($Lane -eq 'installation-interruption') { 'LINEAR_EXIT_INSTALL_INTERRUPTION_OK' } elseif ($Lane -eq 'installation-resume') { 'LINEAR_EXIT_INSTALL_RESUME_OK' } elseif ($Lane -eq 'installation-order') { 'LINEAR_EXIT_INSTALL_ORDER_OK' } elseif ($Lane -eq 'upstream-ledger') { 'LINEAR_EXIT_UPSTREAM_LEDGER_OK' } elseif ($Lane -eq 'composition') { 'LINEAR_EXIT_OWNER_COMPOSITION_OK' } elseif ($Lane -eq 'notifications') { 'ok native notifications PostgreSQL proof' } else { 'F27_PROOF_OK' }
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch $marker -Quiet)) { throw 'Required proof completion marker missing; zero exit alone is insufficient.' }
  }
  if ($result -eq 0 -and $Lane -eq 'deferred-defaults') {

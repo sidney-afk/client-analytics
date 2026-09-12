@@ -297,7 +297,14 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md: protected ledger verification and reconciler integration requirements, unbuilt.
 
 - migrations/2026-09-11-native-signoff-verifier.sql: service-only read-only native approval admission verification.
-- test/linear-exit-native-signoff-postgres.js: actual native write, permission and ledger-binding controls.
+- test/linear-exit-native-signoff-postgres.js: actual native write, permission and ledger-binding controls; optional SQL-backed reconciler integration through test/helpers/native-signoff-sql-reader.js.
+- qa/boot/staff-entry-gate.js and qa/staff-gate-seed.js: isolated staff-admission checks and reusable admission fixture; the seed does not isolate transport.
+- docs/independence/LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md: resumed preparation plan; composition and complete-data checkpoint documents record bounded evidence.
+- docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md: installation, activation, recovery and final retirement requirements.
+- scripts/linear-exit-complete-application-data.js and scripts/linear-exit-complete-sequence-bounds.js: separately versioned authenticated application-row coverage and direct sequence-consumer checks.
+- docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json: pinned 86-table successor coverage inventory.
+- test/linear-exit-complete-application-data.js and test/linear-exit-complete-application-recovery.js: offline package refusal controls and isolated database reconstruction, with source-owned synthetic fixtures in test/helpers/remaining-application-fixture.js and test/helpers/complete-application-priority-seed.js.
+- scripts/linear-exit-object-custody.js and test/linear-exit-object-custody.js: authenticated object-byte preservation and private restore checks; source completeness and hosted custody remain separate gates.
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json: isolated verifier evidence; reconciler integration open.
 
 - scripts/client-signoff-native-verification.js: private snapshot-bound native verification evidence.

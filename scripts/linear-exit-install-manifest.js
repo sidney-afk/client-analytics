@@ -32,7 +32,7 @@ const CANDIDATE=[
  '2026-09-09-native-attribution-browser-projection.sql','2026-09-09-editors-event-assignee.sql',
  '2026-09-09-native-ordinary-receipts.sql','2026-09-09-syncview-retirement-admission.sql',
  '2026-09-10-syncview-retirement-native-ordinary-recognizer.sql','2026-09-11-native-ordinary-receipt-repair.sql',
- '2026-09-12-native-ordinary-envelope-repair.sql','2026-09-09-native-notification-outbox.sql',
+ '2026-09-12-native-ordinary-envelope-repair.sql','2026-09-11-native-signoff-verifier.sql','2026-09-09-native-notification-outbox.sql',
  '2026-09-05-description-images.sql','2026-09-09-kasper-urgent-pings.sql','2026-09-10-kasper-urgent-ping-ledger.sql',
 ];
 const ATOMIC='atomic-native-intake';
@@ -57,6 +57,7 @@ const DEPENDENCIES={
  '2026-09-10-syncview-retirement-native-ordinary-recognizer.sql':['2026-09-09-syncview-retirement-admission.sql','2026-09-09-native-ordinary-receipts.sql'],
  '2026-09-11-native-ordinary-receipt-repair.sql':['2026-09-09-native-ordinary-receipts.sql'],
  '2026-09-12-native-ordinary-envelope-repair.sql':['2026-09-11-native-ordinary-receipt-repair.sql'],
+ '2026-09-11-native-signoff-verifier.sql':['2026-09-12-native-ordinary-envelope-repair.sql'],
  '2026-09-09-native-notification-outbox.sql':['2026-07-05-b0-linear-auth-scaffold.sql','2026-07-06-b1-linear-data-model.sql','2026-07-12-production-comments.sql','2026-09-09-editors-event-assignee.sql','2026-09-12-native-ordinary-envelope-repair.sql'],
  '2026-09-05-calendar-feedback-recovery.sql':['2026-09-05-card-change-journal.sql'],
  '2026-09-10-kasper-urgent-ping-ledger.sql':['2026-07-03-a1-calendar-upsert.sql','2026-09-09-kasper-urgent-pings.sql','sample-reviews-migration.sql'],

@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p87 — Kasper "Finish reviewing" survives a STALE auto-refresh (browser-driven).
 //
 // Drives the REAL app in headless Chromium (the real _kasperDismiss /
@@ -100,7 +101,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
   });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   // Scripted backend: SMM sheet (empty), upsert (echo, no live write), calendar read (our rows).
   await ctx.route('**docs.google.com/spreadsheets/**', route =>
     route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })

@@ -15,6 +15,7 @@
  * aborted and recorded, which is also how the webhook assertion is made.
  */
 const http = require('http');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const fs = require('fs');
 const path = require('path');
 const PORT = Number(process.env.SV_QA_PORT || 8000);
@@ -65,7 +66,7 @@ const okLoud = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else {
     blocked.push(r.request().method() + ' ' + u);
     return r.abort();
   });
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
 
   const page = await ctx.newPage();
   const errs = [];

@@ -7,9 +7,9 @@ if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_POSTGRES_REQUI
 const c=new Cluster();assert.equal(c.host,'127.0.0.1');
 const lit=v=>"'"+String(v).replaceAll("'","''")+"'";
 let checks=0;const check=(a,b)=>{assert.deepEqual(a,b);checks++;};
-try{
+async function main(){try{
  const inventory=install({},()=>null);
- c.runFile(path.join(__dirname,'../migrations/2026-09-11-native-signoff-verifier.sql'));
+ assert.equal(c.scalarJson("select to_jsonb(to_regprocedure('public.production_native_signoff_verify(text[])') is not null)"),true);
  c.exec(`insert into clients(slug,display_name,active,kind) values('synthetic-signoff','Synthetic',true,'client');
  insert into batches(id,client_slug,team,name,status) values('synthetic-signoff-b','synthetic-signoff','video','Synthetic','active');
  insert into deliverables(id,batch_id,client_slug,team,kind,title,status,origin) values('synthetic-signoff-d','synthetic-signoff-b','synthetic-signoff','video','video','Synthetic','in_progress','manual');
@@ -60,5 +60,7 @@ try{
  check(snap(),before);
  c.exec(`update syncview_runtime_flags set value=jsonb_set(value,'{video,epoch}','"signoff-v2"') where key='production_native_ordinary_receipts'`);
  check(read(),first);check(snap(),before);
- console.log(JSON.stringify({marker:'LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK',checks,scope:'ISOLATED_POSTGRES',actual_native_client_write:true,protected_ledger_select_denied:true,lookup_and_negative_probes_left_rows_unchanged:true,historical_epoch_valid:true,inventory_sha256:inventory.inventory_sha256,reconciler_integration:false,installation:'HOLD'}));
-}catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'native-signoff.private-error.log'),String(e.stack||e));console.error('LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_FAILED');process.exitCode=1;}finally{c.stop();}
+ if(process.argv.includes('--reconciler-integration'))await require('./helpers/native-signoff-sql-reader')(c);
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK',checks,scope:'ISOLATED_POSTGRES',actual_native_client_write:true,protected_ledger_select_denied:true,lookup_and_negative_probes_left_rows_unchanged:true,historical_epoch_valid:true,inventory_sha256:inventory.inventory_sha256,reconciler_integration:process.argv.includes('--reconciler-integration'),installation:'HOLD'}));
+}catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'native-signoff.private-error.log'),String(e.stack||e));console.error('LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_FAILED');process.exitCode=1;}finally{c.stop();}}
+main();

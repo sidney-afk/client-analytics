@@ -1,8 +1,11 @@
 # Native sign-off reconciler compatibility contract
 
-Database verifier isolated-tested; reconciler integration offline-tested. Installation HOLD. No merge, deployment,
+Database verifier and reconciler integration isolated SQL-tested. Installation HOLD. No merge, deployment,
 workflow execution, live repair or frozen-writer change is authorized here.
-The upstream 165-check suite covers the carried reconciler, not this extension.
+The carried reconciler now passes 172 offline checks after importer recognition
+integration. The native helper has 39 separate offline checks. The actual SQL
+rehearsal and historical evidence limits are recorded in
+`../independence/LINEAR_EXIT_COMPOSITION_CHECKPOINT_20260912.md`.
 
 ## Problem and selected approach
 

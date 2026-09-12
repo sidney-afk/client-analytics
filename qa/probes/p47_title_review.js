@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p47 — Title (YouTube) review lifecycle across surfaces + the title-specific invariants:
 //   • title is a 4th review component on a YouTube card (when engaged), routed Kasper→SMM→client
 //     exactly like the others, on its own title_tweaks thread.
@@ -18,7 +19,7 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   // Kasper context with BOTH lanes intercepted so we can prove title never pushes on either.
   const kctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(kctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await kctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(kctx);
   // Through the shared helper rather than a hand-rolled route: one place owns the retired
   // webhook URLs, and it only supports COUNTING them, which is the only thing a probe on the
   // production roster may do with them (test/probes-assert-native-write-lane.js).

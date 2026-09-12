@@ -9,6 +9,7 @@
  * Typography differences are intentionally excluded per the owner exception.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -291,8 +292,8 @@ async function runTheme(port, browser, theme) {
     if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
   }, theme);
+  await seedStaffGate(wired);
   await wired.addInitScript(mode => {
-    localStorage.setItem('syncview_auth_v1', 'ok');
     if (mode === 'dark') localStorage.setItem('syncview_theme', 'dark');
     else localStorage.removeItem('syncview_theme');
     try {

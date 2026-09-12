@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p31 — caption-generation entry guards + settle (intercepted; no real AI / Frame.io).
 // generate-caption's synchronous fast-path settles from the response, so we drive the whole
 // thing by controlling that response per-card.
@@ -18,7 +19,7 @@ const seed = (id, caption) => Q.up({ id, name: 'CG ' + id.slice(-6), platforms: 
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   // per-pid generate response control
   let genPosts = [];
   const respFor = {};   // pid → {ok, caption} | {error}

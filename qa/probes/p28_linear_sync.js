@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p28 — WRITE ROUTING FOR A STATUS CHANGE AND A NOTE (the user's top priority).
 //
 // WHAT THIS PROBE USED TO ASSERT, AND WHY IT WAS WRONG. Until 2026-09-08 it
@@ -38,7 +39,7 @@ const GID = NW.nativeDeliverableId(PID, 'graphic');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   const retired = await NW.captureRetiredWebhooks(ctx);
   const gateway = await NW.stubNativeGateway(ctx);
   await NW.stubNativeWorkItems(ctx, [{ id: PID, components: ['video', 'graphic'] }]);

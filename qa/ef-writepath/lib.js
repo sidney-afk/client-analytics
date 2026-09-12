@@ -27,6 +27,7 @@ const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
 // ============================================================================
 'use strict';
 const { spawnSync } = require('child_process');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
@@ -277,7 +278,6 @@ async function makeCtx(browser, opts = {}) {
   const rec = makeRecorder();
   const ctx = await browser.newContext({ viewport: { width: 1480, height: 950 }, ignoreHTTPSErrors: true });
   await ctx.addInitScript((kasper) => {
-    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     if (kasper) { try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {} }
   }, !!opts.kasper);
   await ctx.route('**/*', async (route) => {
@@ -353,6 +353,9 @@ async function makeCtx(browser, opts = {}) {
     const r = _courierFetch(method, url, req.headers(), bodyStr); entry.status = r.status;
     return route.fulfill({ status: r.status, contentType: r.ctype, headers: CORS, body: r.body });
   });
+  // After the catch-all: Playwright tries the most recent route first, so a
+  // catch-all registered later would swallow the key-verify stub this needs.
+  await seedStaffGate(ctx);
   return { ctx, rec };
 }
 

@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p36 — CAPSTONE: a video component driven through the full review lifecycle by all three
 // actors, asserting at EVERY step that the status is consistent across:
 //   (a) the database (Supabase row), (b) the Kasper queue, (c) the client surface,
@@ -29,7 +30,7 @@ const retiredCaptures = [];
 async function mkPage(browser) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   retiredCaptures.push(await NW.captureRetiredWebhooks(ctx));
   await NW.stubNativeGateway(ctx, { onCall: payload => gateway.push(payload) });
   await NW.stubNativeWorkItems(ctx, [{ id: PID, components: ['video'] }]);

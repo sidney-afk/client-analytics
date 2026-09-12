@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p68 — Linear link CLEAR sentinel, end-to-end. The upsert's link-preservation guard carries a
 // stored link forward over a bare '' (so a stale echo can't wipe a link). To intentionally CLEAR
 // a link, the frontend sends CAL_CLEAR_LINK_SENTINEL ('__CLEAR_LINK__') instead of ''. Verify:
@@ -14,7 +15,7 @@ const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
   // intercept BOTH write lanes defensively (link writes shouldn't push, but be safe)
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   // Through the shared helper rather than a hand-rolled route: one place owns the retired
   // webhook URLs, and it only supports COUNTING them (test/probes-assert-native-write-lane.js).
   const retired = await NW.captureRetiredWebhooks(ctx);

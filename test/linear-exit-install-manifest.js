@@ -4,6 +4,7 @@ const m=require('../scripts/linear-exit-install-manifest');
 const manifest=m.build();
 assert.equal(manifest.executable,false);assert.equal(manifest.installation_complete,false);assert.equal(manifest.dependency_closure_complete,false);
 assert.equal(m.verify(manifest),true);
+assert.ok(manifest.entries.find(e=>e.id==='2026-09-11-native-signoff-verifier.sql').dependencies.includes('2026-09-12-native-ordinary-envelope-repair.sql'));
 const atomic=manifest.entries.find(e=>e.id==='atomic-native-intake');
 assert.equal(atomic.transaction.classification,'single_explicit_transaction');assert.equal(atomic.inputs.length,2);
 assert.ok(!manifest.entries.some(e=>/native-only-intake.sql|native-intake-named-append.sql/.test(e.path||'')));

@@ -1037,6 +1037,14 @@ function reconstructSql(pkg) {
   return renderReconstruction(pkg, null);
 }
 
+// Explicit successor entry: authenticate its complete inventory before rendering.
+// The existing history-v11 and companion entry points retain their old scope.
+function reconstructCompleteApplicationSql(bytes, hmacInput) {
+  const complete = require('./linear-exit-complete-application-data');
+  const verified = complete.read(bytes, hmacInput);
+  return renderReconstruction(verified.parent, complete.sections(verified.payload, verified.parent));
+}
+
 function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
   const pair = require('./linear-exit-priority-companion').verifyPair(companionBytes, parentBytes, hmacInput);
   if (Object.hasOwn(pair.parent.manifest, 'credential_companion_v1')) throw new Error('CREDENTIAL_TRIPLE_RENDERER_REQUIRED');
@@ -1477,6 +1485,7 @@ module.exports = {
   prerequisitesSql,
   readRecoveryPackage,
   reconstructSql,
+  reconstructCompleteApplicationSql,
   reconstructPairSql,
   reconstructTripleSql,
   reconstructPairSqlWithSequenceBounds,

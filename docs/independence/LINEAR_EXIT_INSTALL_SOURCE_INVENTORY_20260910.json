@@ -1545,6 +1545,36 @@
       "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
     },
     {
+      "id": "2026-09-11-native-signoff-verifier.sql",
+      "path": "migrations/2026-09-11-native-signoff-verifier.sql",
+      "sha256": "a71a63140c35f034c7e1e7bd5597b9e207f3e0f2244447f857781ca2cb43f562",
+      "bytes": 3186,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-12-native-ordinary-envelope-repair.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 3,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 59,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
       "id": "2026-09-09-native-notification-outbox.sql",
       "path": "migrations/2026-09-09-native-notification-outbox.sql",
       "sha256": "5b5d16cc2ca3a0b300402560af6d8220962b62dca0954831f9d07c99f2c9fb96",
@@ -1743,6 +1773,7 @@
     "2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
     "2026-09-11-native-ordinary-receipt-repair.sql",
     "2026-09-12-native-ordinary-envelope-repair.sql",
+    "2026-09-11-native-signoff-verifier.sql",
     "2026-09-09-native-notification-outbox.sql",
     "2026-09-05-description-images.sql",
     "2026-09-09-kasper-urgent-pings.sql",

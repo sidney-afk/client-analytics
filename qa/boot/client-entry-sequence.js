@@ -1,6 +1,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { staffGateIdentityJson } = require('../staff-gate-seed.js');
+// Staff fixtures boot past the entry gate the way a signed-in browser does:
+// a stored identity. Verification still happens against the backend these
+// cases stub, so this seeds admission only.
+const STAFF_GATE_IDENTITY = staffGateIdentityJson();
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -372,7 +377,9 @@ function installBootObserver(config) {
       extrasState: extrasState ? extrasState.getAttribute('data-client-extras-state') : '',
       headerVisible: visible(document.querySelector('header.header')),
       pageTopVisible: visible(document.getElementById('pageTop')),
-      passwordVisible: visible(document.getElementById('passwordOverlay')),
+      // The shared-password overlay was retired 2026-09-10; the staff entry
+      // gate replaced it, and a client-owned document must never show it either.
+      passwordVisible: visible(document.getElementById('staffGateOverlay')),
       analyticsFlash: Boolean(
         firstVisible('.boot-skeleton-analytics')
         || firstVisible('.analytics-overview-skeleton')
@@ -679,6 +686,17 @@ function installBfcacheSyntheticNetwork(config) {
           return jsonResponse([{ value: { video: 'linear', graphics: 'linear' } }]);
         }
         return jsonResponse([]);
+      }
+      // The staff entry gate re-verifies the stored identity at boot, so this
+      // in-page mock answers the verifier too; without it the BFCache scenario
+      // would record real outbound traffic and fail on "remains synthetic".
+      if (url.pathname === '/functions/v1/key-verify') {
+        state.supportReads.push({ at, kind: 'key_verify', url: url.href });
+        return jsonResponse({
+          ok: true,
+          role: 'admin',
+          member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null },
+        });
       }
       if (url.pathname === '/rest/v1/team_members') {
         state.supportReads.push({ at, kind: 'team_members', url: url.href });
@@ -1211,6 +1229,18 @@ async function installSyntheticNetwork(context, origin, config = {}) {
         await fulfillJson(route, []);
         return;
       }
+      // Staff fixtures boot with a stored identity, and the entry gate makes
+      // the app re-verify it at boot (a stored blob is never a credential), so
+      // this offline harness answers the verifier the way the backend would
+      // for the synthetic operator it already serves from team_members.
+      if (url.pathname === '/functions/v1/key-verify') {
+        await fulfillJson(route, {
+          ok: true,
+          role: 'admin',
+          member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null },
+        });
+        return;
+      }
       if (url.pathname === '/rest/v1/team_members') {
         await fulfillJson(route, [{
           id: 'synthetic-staff-1',
@@ -1574,7 +1604,7 @@ async function runStaffHistoryScenario(browser, server, view) {
   const staticSurface = view === 'calendar' ? 'static:calendar' : 'static:client-brief';
   const run = await openCase(browser, server, {
     storage: {
-      local: { syncview_auth_v1: 'ok' },
+      local: { syncview_staff_identity_v1: STAFF_GATE_IDENTITY },
       session: { syncview_staff_identity_prompted_v1: '1' },
     },
     historyState: { nav: 'home', client: CLIENT_A, clientTab: view },
@@ -2876,7 +2906,7 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
   const staffRun = await openCase(browser, server, {
     storage: {
       local: {
-        syncview_auth_v1: 'ok',
+        syncview_staff_identity_v1: STAFF_GATE_IDENTITY,
         syncview_nav: 'calendar',
         syncview_calendar_pins: JSON.stringify([CLIENT_A, CLIENT_B]),
         syncview_calendar_prefs: JSON.stringify({ client: CLIENT_A, view: 'organizer', zoom: 'default' }),
@@ -3374,7 +3404,7 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
   const label = 'staff Calendar owned Linear tail and BFCache recovery';
   const staffStorage = {
     local: {
-      syncview_auth_v1: 'ok',
+      syncview_staff_identity_v1: STAFF_GATE_IDENTITY,
       syncview_nav: 'calendar',
       syncview_calendar_pins: JSON.stringify([CLIENT_A, CLIENT_B]),
       syncview_calendar_prefs: JSON.stringify({ client: CLIENT_A, view: 'organizer', zoom: 'default' }),

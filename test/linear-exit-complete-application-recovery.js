@@ -1,0 +1,78 @@
+'use strict';
+// Source-owned schema and synthetic data only, on an explicitly disposable server.
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
+const {Cluster}=require('../scripts/f42-apply-rehearsal');
+const {install}=require('../scripts/linear-exit-composition/recovery-ordered');
+const backup=require('../scripts/track-b-backup');
+if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_POSTGRES_REQUIRED');
+for(const name of ['PGHOSTADDR','PGSERVICE','PGSERVICEFILE'])if(process.env[name])throw Error('INHERITED_DATABASE_ROUTING_REFUSED:'+name);
+const cluster=new Cluster();
+assert.ok(['127.0.0.1','localhost','::1'].includes(cluster.host));
+let stage='install',targetDb;
+async function main(){try{
+ const inventory=install({},()=>null);
+ require('../scripts/linear-exit-priority-schema-supplement').apply(cluster);
+ require('../scripts/linear-exit-backup-observed-baseline').apply(cluster);
+ require('../scripts/linear-exit-credential-schema-supplement').apply(cluster);
+ require('./helpers/complete-application-priority-seed')(cluster);
+ const query=sql=>cluster.run('',null,{sql,tuplesOnly:true});
+ stage='remaining-source-owners';
+ const remaining=await require('./helpers/remaining-application-fixture').installAndPopulate({query});
+ stage='native-source-seed';
+ cluster.exec(`update public.syncview_runtime_flags set value='{"video":{"enabled":true,"epoch":"integrated-video"},"graphics":{"enabled":true,"epoch":"integrated-graphics"}}' where key='native_intake_epochs';
+ set role service_role;select public.production_native_client_provision('schema-v10-native-client','schema-v10-native-client','Schema V10 Native Client');reset role;
+ insert into public.description_images(id,storage_path,public_url,mime_type,byte_length,width,height,actor_key,actor_name,actor_role,client_slug) values ('00000000-0000-4000-8000-000000000910','schema-v10-image.png','https://storage.invalid/schema-v10-image.png','image/png',1,1,1,'schema-v10-actor','Schema V10 Actor','admin','schema-v10-native-client');
+ insert into public.production_notification_config(key,value) values ('urgent_video_destination','{}'::jsonb);`);
+ const phase=require('../scripts/track-b-recovery-rehearsal').phase;
+ const cfg={output:process.env.PROOF_OUTPUT_ROOT,host:cluster.host,port:cluster.port,user:cluster.user,password:process.env.PGPASSWORD,psql:cluster.psql};
+ const sourceDb={name:cluster.db,config:{user:cluster.user}};
+ const native=phase(cfg,sourceDb,'seed','','complete-native-source',7);
+ const continuity=phase(cfg,sourceDb,'seed','','complete-continuity-source',9);
+ assert.equal(native.value.cases.length,4);assert.equal(native.value.provider_attempts,0);
+ const complete=require('../scripts/linear-exit-complete-application-data');
+ const role='complete_capture_'+process.pid,restoreRole='complete_restore_'+process.pid;
+ cluster.exec(`create role ${role} login nosuperuser nocreatedb nocreaterole bypassrls password 'synthetic-capture-only';grant usage on schema public,extensions to ${role};grant select on all tables in schema public to ${role};grant select on all sequences in schema public to ${role};`);
+ const key=Buffer.alloc(32,47).toString('base64');
+ const env={...process.env,PGHOST:cluster.host,PGPORT:String(cluster.port),PGDATABASE:cluster.db,PGUSER:role,PGPASSWORD:'synthetic-capture-only',PGOPTIONS:''};
+ stage='capture';
+ assert.ok(process.env.PROOF_OUTPUT_ROOT,'PRIVATE_OUTPUT_REQUIRED');
+ const artifact=await complete.capture({env,corpusName:'history-v11',hmacInput:key,psql:cluster.psql,pgDump:path.join(path.dirname(cluster.psql),'pg_dump.exe'),sourceUrl:`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`});
+ const artifactPath=path.join(process.env.PROOF_OUTPUT_ROOT,'complete-application.private');
+ fs.writeFileSync(artifactPath,artifact.bytes,{flag:'wx'});
+ const reopened=fs.readFileSync(artifactPath);
+ assert.deepEqual(reopened,artifact.bytes);
+ complete.read(reopened,key);
+ const corrupt=Buffer.from(reopened);corrupt[corrupt.length-1]^=1;
+ assert.throws(()=>complete.read(corrupt,key));
+ stage='target';targetDb='complete_target_'+process.pid;
+ cluster.run('','postgres',{sql:`create database ${targetDb}`});
+ cluster.exec(`create role ${restoreRole} login nosuperuser nocreatedb nocreaterole nobypassrls password 'synthetic-restore-only';create schema extensions;create extension pgcrypto with schema extensions;create publication supabase_realtime;`,targetDb);
+ const base=['-X','-q','-h',cluster.host,'-p',String(cluster.port),'-d',targetDb,'-v','ON_ERROR_STOP=1'];
+ const grant=cp.spawnSync(cluster.psql,[...base,'-U',cluster.user,'-v','mode=target','-v','existing_role='+restoreRole,'-v','confirmation=EMPTY_SCRATCH_TARGET_ONLY','-v','scratch_project_ref=abcdefghijklmnopqrst','-f',path.resolve(__dirname,'../scripts/track-b-recovery-prerequisites.sql')],{encoding:'utf8',windowsHide:true});
+ assert.equal(grant.status,0,grant.stderr);
+ stage='restore';
+ const sql=complete.reconstruct(reopened,key);
+ const lateAt=sql.lastIndexOf('do $complete_shape$');assert.ok(lateAt>sql.indexOf('COPY public.'));
+ const faultSql=sql.slice(0,lateAt)+'insert into public.batches_parent_claim_backup_20260824 select * from public.batches_parent_claim_backup_20260824 limit 1;\n'+sql.slice(lateAt);
+ const fault=cp.spawnSync(cluster.psql,[...base,'-U',restoreRole,'-f','-'],{input:faultSql,env:{...env,PGPASSWORD:'synthetic-restore-only'},encoding:'utf8',maxBuffer:16*1024*1024,windowsHide:true});
+ assert.notEqual(fault.status,0,'late omitted-row corruption must fail');
+ assert.match(fault.stderr,/COMPLETE_APPLICATION_MULTISET_MISMATCH/);
+ assert.equal(cluster.run('',targetDb,{sql:"select count(*) from pg_class where relnamespace='public'::regnamespace and relkind in ('r','p');",tuplesOnly:true}).trim(),'0','late refusal rolls back complete schema and rows');
+ const restored=cp.spawnSync(cluster.psql,[...base,'-U',restoreRole,'-f','-'],{input:sql,env:{...env,PGPASSWORD:'synthetic-restore-only'},encoding:'utf8',maxBuffer:16*1024*1024,windowsHide:true});
+ assert.equal(restored.status,0,restored.stderr);
+ stage='independent-row-comparison';
+ let populated=0;const emptyTables=[];
+ for(const table of complete.expectedNames()){
+  assert.match(table,/^[a-z][a-z0-9_]*$/);
+  const snapshot=`select coalesce(json_agg(r order by r::text),'[]'::json)::text from (select to_jsonb(t) r from public."${table}" t) q;`;
+  const source=cluster.run('',null,{sql:snapshot,tuplesOnly:true}).trim(),target=cluster.run('',targetDb,{sql:snapshot,tuplesOnly:true}).trim();
+  assert.equal(target,source,'restored row multiset: '+table);
+  if(source!=='[]')populated++;else emptyTables.push(table);
+ }
+ fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'complete-empty-tables.private.json'),JSON.stringify(emptyTables,null,2),{flag:'wx'});
+ const inventoryNow=require('./helpers/linear-exit-install-step').plan();assert.equal(inventoryNow.digest,inventory.inventory_sha256,'source inventory drift during recovery');
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_COMPLETE_APPLICATION_RECOVERY_OK',classification:'ISOLATED_POSTGRES',inventory_sha256:inventory.inventory_sha256,covered_tables:complete.expectedNames().length,populated_tables:populated,remaining,artifact_sha256:require('node:crypto').createHash('sha256').update(reopened).digest('hex'),authenticated_tamper_refusal:true,late_omitted_row_corruption_refused:true,failed_restore_transaction_empty:true,independent_row_multiset_comparison:true,object_bytes_proven:false,hosted_restore_proven:false,off_device_custody_proven:false}));
+}catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'complete-application.private-error.log'),String(e.stack||e));console.error(JSON.stringify({marker:'LINEAR_EXIT_COMPLETE_APPLICATION_RECOVERY_FAILED',stage}));process.exitCode=1;}
+finally{try{if(targetDb)cluster.run('','postgres',{sql:`drop database if exists ${targetDb}`});}finally{cluster.stop();}}}
+main();

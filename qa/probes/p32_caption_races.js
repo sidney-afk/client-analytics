@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p32 — caption-generation RACE tests (audit-flagged), via DELAYED interception so the job is
 // "running" while we act mid-flight.
 //   F. edit-during-generation → the user's typed caption is PRESERVED (not clobbered)   [audit#2]
@@ -15,7 +16,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(ctx);
   const respFor = {};
   const cancelledJobs = new Set();   // jobIds the user requested cancel on (production-accurate: backend then returns cancelled)
   await ctx.route('**/webhook/generate-caption', async (r) => {

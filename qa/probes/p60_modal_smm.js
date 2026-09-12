@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p60 — Comments/Notes MODAL (openCalComments) — SMM side. The "clicks on Notes" entry point
 // distinct from the Review tab. SMM posts:
 //   • an INTERNAL note (Kasper/team) on caption → client does NOT see it
@@ -42,7 +43,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   // SMM context with Linear interception
   const sctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(sctx);  // route the TEST client the way production routes a real one (see lib.js)
-  await sctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await seedStaffGate(sctx);
   // Both contexts are watched, not just the acting one: the client tab below is a separate
   // context, and a capture installed only on the SMM side would let a client-side push slip
   // past the zero-assertion AND out to the live TEST backend. Same finding as p47.

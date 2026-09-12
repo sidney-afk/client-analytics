@@ -80,9 +80,18 @@ check("client-link ownership trigger mirrored (?c key, including empty c)",
   GATE.includes("q.has('c')") && APP.includes("_clientEntryParams.has('c')"));
 
 // 2. Storage keys/values the gate reads must match the app's constants.
-check("auth key: gate reads 'syncview_auth_v1'==='ok', app defines _AUTH_KEY",
-  GATE.includes("localStorage.getItem('syncview_auth_v1') === 'ok'")
-  && APP.includes("_AUTH_KEY='syncview_auth_v1'"));
+check("staff entry key: gate reads the staff identity, app defines the same key",
+  GATE.includes("localStorage.getItem('syncview_staff_identity_v1')")
+  && APP.includes("SYNCVIEW_STAFF_IDENTITY_KEY = 'syncview_staff_identity_v1'"));
+check("THE LOAD-BEARING NEGATIVE: the retired shared password is gone from both "
+  + "the gate and the app (entry is the verified role key, not one shared secret)",
+  !GATE.includes("syncview_auth_v1 === 'ok'")
+  && !APP.includes("synchrosocial2026")
+  && !APP.includes("function submitPassword"));
+check("the gate's admission is only a paint hint: the app still gates every "
+  + "capability on SERVER verification, not on the presence of the stored blob",
+  APP.includes("_syncviewStaffIdentityVerified && identity")
+  && APP.includes("_syncviewStaffIdentityForHeaders()"));
 check("nav key: gate reads 'syncview_nav', app defines NAV_KEY",
   GATE.includes("localStorage.getItem('syncview_nav')")
   && APP.includes("const NAV_KEY = 'syncview_nav'"));
@@ -151,8 +160,11 @@ check("init()'s catch lifts data-boot-nav",
   count(APP, "documentElement.removeAttribute('data-boot-nav')") >= 3);
 check("init()'s catch lifts data-boot-subtab",
   count(APP, "documentElement.removeAttribute('data-boot-subtab')") >= 3);
-check('submitPassword() lifts boot-password',
-  /function submitPassword\(\)\{[\s\S]{0,900}documentElement\.classList\.remove\('boot-password'\)/.test(APP));
+check('_syncviewLiftStaffGate() lifts boot-gate and boots the app exactly once',
+  /function _syncviewLiftStaffGate\(\) \{[\s\S]{0,1200}documentElement\.classList\.remove\('boot-gate'\)/.test(APP)
+  && /_syncviewLiftStaffGate\(\) \{[\s\S]{0,1200}_syncviewAppBooted/.test(APP));
+check('a failed boot verification puts the gate BACK over a running app',
+  /status === 401[\s\S]{0,400}_syncviewOpenStaffGate\(\)/.test(APP));
 check('?c client ownership remains locked for the whole document',
   !APP.includes("classList.remove('boot-client')")
   && APP.includes('_syncviewStartClientEntry(false)')
@@ -164,7 +176,7 @@ for (const rule of [
   'html.boot-onboarding .header { display: none !important; }',
   'html.boot-intake .header { display: none !important; }',
   'html.boot-client .header { display: none !important; }',
-  'html.boot-password #passwordOverlay { display: flex !important; }',
+  'html.boot-gate #staffGateOverlay { display: flex !important; }',
   'html[data-boot-nav] #pageTop { display: none; }',
   'html[data-boot-nav="filming-plans"] .boot-skeleton-filming',
   'html[data-boot-nav="kasper"][data-boot-subtab="sales-intake"] .boot-skeleton-sales-intake { display: block; }',

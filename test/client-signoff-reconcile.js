@@ -2570,6 +2570,154 @@ check('a caption that is not split raises nothing', () => {
   }
 });
 
+/* ROUND 46 (first live run). `f42-card-comment-import.js` backfilled
+   production_comments FROM card entries, naming each row by hashing the entry
+   it copied. Those rows carry their OWN id in native_comment_id, so neither
+   half of the id pass matched, every one fell to the body fallback, found its
+   own source entry marked done, and was reported as an "ambiguous repeat".
+   Seven of the nine rows on the first live run were this, and all seven were
+   noise: a row cannot be missing from the card it was copied out of. */
+/* AN INDEPENDENT HASH, DELIBERATELY NOT THE IMPORTER'S FUNCTION.
+   The first draft of these checks built the fixture's row id by calling
+   `cardEntryProductionId`, the very thing under test — so narrowing the
+   importer's derivation moved BOTH sides together and the sabotage control
+   passed while broken. A check that computes its expectation with the code it
+   is checking asserts only that the code agrees with itself. This spells the
+   fingerprint out once, here, as the fixed point both sides must meet. */
+const backfillId = (cardId, component, nativeId) =>
+  'pc_card_' + require('node:crypto').createHash('sha256')
+    .update(['calendar', cardId, component, nativeId].join(':')).digest('hex');
+
+check('a row backfilled FROM a card entry is claimed by that entry', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, done: true, done_at: '2026-09-06T00:00:00.000Z' };
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 0, 'the entry IS the row; nothing is missing');
+  assert.equal(skipped.filter(r => r.reason === 'ambiguous_repeat_of_completed_request').length, 0,
+    'and it is not an ambiguity for a person to resolve either');
+});
+
+/* THE HASH IS PROOF, NOT A PREFIX GUESS. A `pc_card_` row whose entry is NOT on
+   this card must still be reported: that one really is absent. Asserted three
+   ways, because each is a different way the hash could be wrong. */
+check('a backfill id only claims the entry that actually produced it', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client', is_tweak: true };
+  for (const [label, pcId] of [
+    ['another card', backfillId('card-OTHER', 'video', 'c_native_1')],
+    ['another component', backfillId('card-1', 'caption', 'c_native_1')],
+    ['another entry', backfillId('card-1', 'video', 'c_native_OTHER')],
+  ]) {
+    const { findings } = detect(world({
+      comments: [TWEAK({ id: pcId, native_comment_id: pcId, body: 'Something else entirely' })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 1,
+      `a hash from ${label} must not claim this entry`);
+  }
+});
+
+/* AND IT IS STILL JUDGED BY WHAT THE CLIENT CAN SEE. A hidden entry does not
+   become visible just because a row was hashed from it. */
+check('a backfill id cannot claim a hidden entry', () => {
+  const entry = { id: 'c_native_1', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, hidden: true };
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 1, 'hidden is not delivered, whatever the id says');
+});
+
+/* ROUND 2 and 3 of the backfill PR, together, because round 3 showed round 2's
+   check was measuring the wrong thing.
+
+   Round 2: the importer TRIMS its ids and falls back to `comment_id` then
+   `native_comment_id`, and the first version of this fix hashed a raw
+   `entry.id`, so the two disagreed. Round 3: the importer also trims the CARD
+   id (`planSurface` reads `clean(row.id)`), which moving the helper had left
+   behind — half an identity shared is still a copy.
+
+   AND the honest scope, which round 3 also caught: an entry carrying only
+   `comment_id` or `native_comment_id` never reaches this fingerprint at all,
+   because `parseComments` refuses the WHOLE cell when any entry lacks `id`.
+   That refusal is deliberate and load-bearing (a rebuilt array would drop
+   id-less legacy entries and erase real client words), so the reconciler sees
+   `card_cell_unparseable` instead. The importer's fallbacks are therefore
+   unreachable from here, and the previous draft of this check claimed
+   otherwise while asserting too narrow a set of buckets to notice.
+
+   Live: 10,978 cards and 9,005 card entries, none with whitespace in an id and
+   none missing `id`. Nothing moves either way; the point is that the two sides
+   cannot disagree. */
+check('whitespace anywhere in the identity still recognises the entry', () => {
+  const entry = { id: '  c_native_1  ', body: 'Please fix the intro', role: 'client',
+    is_tweak: true, done: true };
+  /* Named by the INDEPENDENT hash of the values the importer would have
+     derived: trimmed surface, card, component and native id. */
+  const pcId = backfillId('card-1', 'video', 'c_native_1');
+  const { findings, skipped } = detect(world({
+    comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+    cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+  }));
+  assert.equal(findings.length, 0, 'the entry IS the row');
+  /* EVERY bucket, not a chosen subset. Round 3 found the previous draft passing
+     under two sabotages because the rows it should have caught were landing in
+     a skip reason it did not look at. */
+  assert.deepEqual(skipped, [], 'and nothing is left for a person: ' + JSON.stringify(skipped));
+});
+
+/* THE CARD ID IS PART OF THE FINGERPRINT, so a raw card id with whitespace must
+   hash the same as the trimmed one the importer used. */
+check('a card id with whitespace hashes as the importer hashed it', () => {
+  const { cardEntryProductionId } = require('../scripts/f42-card-comment-import.js');
+  assert.equal(
+    cardEntryProductionId(' calendar ', '  card-1  ', ' video ', { id: '  c_native_1  ' }),
+    backfillId('card-1', 'video', 'c_native_1'),
+    'every input is normalized inside the shared helper');
+});
+
+/* THE UNREACHABLE SHAPES, ASSERTED AS WHAT ACTUALLY HAPPENS. An id-less entry
+   makes the whole cell an incomplete read, which this job reports rather than
+   touches. Claiming these are "recognised" would be a nicer sentence and a
+   false one. */
+check('a cell holding an id-less entry is reported, not claimed', () => {
+  for (const [label, entryFields] of [
+    ['only a comment_id', { comment_id: 'c_native_1' }],
+    ['only a native_comment_id', { native_comment_id: 'c_native_1' }],
+  ]) {
+    const entry = Object.assign({ body: 'Please fix the intro', role: 'client',
+      is_tweak: true, done: true }, entryFields);
+    const pcId = backfillId('card-1', 'video', 'c_native_1');
+    const { findings, skipped } = detect(world({
+      comments: [TWEAK({ id: pcId, native_comment_id: pcId })],
+      cards: [CARD({ video_status: 'Client Approval', video_tweaks: JSON.stringify([entry]) })],
+    }));
+    assert.equal(findings.length, 0, `${label}: nothing is written`);
+    assert.equal(skipped.length, 1, `${label}: exactly one row for a person`);
+    assert.equal(skipped[0].reason, 'card_cell_unparseable',
+      `${label}: the cell is an incomplete read, and the job says so`);
+  }
+});
+
+/* AND THE FINGERPRINT IS NOT REBUILT HERE. A future session recomputing the
+   hash in this file would reintroduce exactly the drift round 2 found, so the
+   source is asserted to call the importer rather than to own a copy. */
+check('the reconciler calls the importer for this identity, it does not rebuild it', () => {
+  const src = stripComments(require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '../scripts/client-signoff-reconcile.js'), 'utf8'));
+  assert.match(src, /require\('\.\/f42-card-comment-import\.js'\)/,
+    'the importer owns this identity');
+  assert.doesNotMatch(src, /createHash\('sha256'\)/,
+    'no local re-implementation of the fingerprint');
+  assert.doesNotMatch(src, /'pc_card_'/,
+    'not even the prefix is spelled out twice');
+});
+
 check('body comparison ignores only whitespace shape', () => {
   assert.equal(normText('  a   b \n c '), 'a b c');
   assert.notEqual(normText('fix the intro'), normText('fix the outro'));

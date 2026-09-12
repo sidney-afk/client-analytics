@@ -17,6 +17,7 @@
  * Optional: set SYNCVIEW_PROD_SCREENSHOT_DIR to save screenshots.
  */
 const fs = require('fs');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
@@ -120,7 +121,12 @@ async function assertNoWriteRequests(requests) {
     if (Object.keys(body).sort().join(',') !== keys) return false;
     return body.action === action && body.surface === 'production';
   };
+  // The staff entry gate verifies a role key on every boot with a POST that
+  // writes nothing; it is authentication, not a mutation. Same exemption as
+  // isWriteLikeRequest in prod-test-utils.js.
+  const isEntryGateVerify = r => /\/functions\/v1\/key-verify(?:[/?#]|$)/i.test(r.url || '');
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
+    && !isEntryGateVerify(r)
     && !isCommentRead(r)
     && !isProtectedRead(r, 'asset_access_read', 'action,client_slug,id,surface')
     && !isProtectedRead(r, 'batch_files_read', 'action,batch_id,client_slug,surface'));
@@ -135,7 +141,10 @@ async function newAuthedPage(browser, viewport, errors, requests) {
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  // The gate needs a verified key to let the app boot; this suite needs the app
+  // UNVERIFIED, which is the posture every assertion in it was written against.
+  // See dropVerificationAfterBoot in qa/staff-gate-seed.js.
+  await seedStaffGate(page, { dropVerificationAfterBoot: true });
   return page;
 }
 

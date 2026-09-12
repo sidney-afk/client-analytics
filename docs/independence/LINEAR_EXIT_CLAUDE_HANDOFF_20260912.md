@@ -1,122 +1,97 @@
-# Linear exit continuation handoff — September 12
-
-Historical checkpoint: read `LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` for the later seven-owner preparation and remaining gaps.
-
-Further preparation continued after this handoff. Read
-`LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md` for the later six-owner
-retry/snapshot, complete recovery and Storage export results. The pinned four-owner
-code revision below is historical. The active build goal is not complete.
-
-## Start here
+# Linear exit: Claude continuation handoff
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-The code checkpoint is `2de445389b578d2307c05ece7f0a540734d29725`,
-tree `d2cab6b04de2729e656169d6f372fa76bf316ef8`.
-This handoff is a subsequent documentation-only commit. Verify the remote head
-and that this code checkpoint is its ancestor before continuing. Do not substitute
-the old September 10 repair bundle or the September 11 handoff as current code.
+Reviewed code checkpoint: `2421a7384ed2e0a1aad821c76616712c1f7a02cd`.
+Tree: `3c16d05660427e27c3f1495cffcfb87dd815912f`.
+This handoff is a later documentation-only commit. Verify the remote head and that
+this code checkpoint is its ancestor. Do not assume an old local scratch directory
+or the September 10 repair bundle represents the current preparation.
 
-The build has advanced substantially, but it is incomplete. Installation and
-retirement remain HOLD. No merge, installation, deployment, production write,
-workflow dispatch or n8n execution/edit was performed for this checkpoint.
+## Plain-English status
 
-## Owner decisions
+The replacement system has working pieces for saving cards safely, tracking
+unfinished follow-up work, retrying interrupted work, and restoring the application
+database in isolation. The local checks described in the consolidated checkpoint
+pass. It is not yet the complete installation build. The main remaining work is to
+match the real starting database, prove installation can recover if interrupted,
+and finish the shutdown, asset recovery and notification handover procedures.
 
-Prepare and publish reviewed code, strategy and sanitized evidence on this draft
-branch. Do not merge, including locally; do not deploy, install, dispatch workflows,
-write production data or run/edit n8n. Keep current client URLs, payload compatibility,
-review links and tokenless access.
+Nothing has been merged, installed, deployed or switched off. Installation and
+Linear retirement remain HOLD. Do not treat local green tests as hosted proof.
 
-The owner explicitly approved narrow atomic-persistence preparation inside Calendar
-and Samples. Keep the original serving captures and repository 401 controls. The
-owner also approved retaining verified native save/completion receipts while
-requiring zero work destined for Linear and zero unresolved provider debt. Unknown
-or malformed records still block shutdown. These approvals do not authorize switching.
-See canonical B5 and the September 12 final-switch decision; do not ask again.
+## Persistent owner decisions
 
-## What is prepared
+- Prepare and publish reviewed code, strategy and sanitized evidence on this draft
+  branch. No merge, including local merge; no deployment, installation, workflow
+  dispatch, production writes, or n8n execution/edit.
+- Narrow atomic-persistence preparation inside Calendar and Samples is explicitly
+  approved. Preserve existing URLs, payload compatibility, review links and
+  tokenless access. Keep original serving captures and repository 401 controls.
+- Keep verified native save/completion receipts. Require zero work still destined
+  for Linear and zero unresolved provider debt. Unknown or malformed records and
+  unresolved failures still block shutdown. Do not ask for these approvals again.
+- Avoid secrets, client display names and share tokens in public content.
+- Work economically in bounded steps. Do not restart the broad audit or chase
+  unrelated new main changes. The owner requested this wrap-up and handoff; do not
+  interpret it as permission to claim the full build is complete.
 
-- Atomic Calendar/Samples candidates save the card, comments, event and two pending
-  follow-up tasks in one database transaction. Both tokenless captured handlers and
-  both repository authentication refusals were rehearsed. Conflict, maintenance and
-  actual SQL fault rollback controls pass. Operation replay is an RPC guarantee,
-  not an exactly-once guarantee across separate browser requests.
-- Four new SQL owners add admission history, guards across 86 original tables,
-  protected worker transactions, SQL-derived completion proof and narrowly scoped
-  discard/quarantine for an existing real F27 rollback.
-- A disabled private worker bundle runs the source-derived graphic helper in one
-  transaction. Actual Deno/SQL capture and resolution, stale attempts and durable
-  failure tests pass; external graphic transports were synthetic. Immutable image
-  paths prevent overwrite. No worker or schedule was installed.
-- V1 recovery remains compatible. V2 restores all 90 tables, with 89 populated and
-  the private transaction context correctly empty. Exact schema/row comparison,
-  corruption rollback, clean retry and encrypted reopening pass. A Windows function
-  body transport defect was fixed without weakening exact schema fingerprints.
-- Object export and encrypted custody have passing synthetic adapter tests. The
-  live source adapter and independent off-device/key custody are still missing.
-- A separate four-owner release extension pins source bytes and order. Its SHA-256
-  is `5bfa474d9623cfc68b52a4ccc6d4f125967a7c0245f5ffe6be9861c26f121c63`.
-  It supplements the old 64-entry inventory; it is not the completed installer.
+## Read these first
 
-Read these focused documents instead of restarting the audit:
+1. `docs/independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md`: latest evidence,
+   exact source hashes, historical failures and remaining gaps.
+2. `docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`: preparation versus installation,
+   activation, restoration and final retirement requirements.
+3. `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json`: current seven
+   SQL owners, writer/worker/supervisor source pins and prerequisite contracts.
+4. `AGENTS.md`, `docs/FIND_ANYTHING.md`, `docs/truth/BRIEFING.md`, and canonical B5.
 
-1. `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md`
-2. `docs/independence/LINEAR_EXIT_COMPLETE_DATA_CHECKPOINT_20260912.md`
-3. `docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`
-4. `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json`
+The earlier September 12 atomic and recovery/export checkpoints remain useful
+historical evidence. Their old hashes and counts are not the current build.
 
-## Evidence index and limits
+## First bounded task
 
-| Lane | Final receipt | Classification |
-| --- | --- | --- |
-| Both atomic handlers | `f4588674c3bd44aaacb8095f98dcfe79` | Isolated handler/SDK-to-PG17; not hosted REST |
-| Application DML admission | `f5951f9e254443288fdcf9067d555f0f` | Isolated PG17; not a global platform fence |
-| Follow-up outcome proof | `992c36c9a47d45e591132635e50efff2` | Ten SQL-derived cases and ten forged-outcome refusals |
-| Actual helper/worker | `e182b29247d14f7e84f00a855b73e832` | Actual Deno/PG17, synthetic external bytes |
-| Provider disposition | `0fa74b00f6714360857352138ca0661f` | Two dispositions and eleven refusal controls |
-| Admission preflight | `1f9a1fdd85a74ac99bee193de162f7cf` | 17 functions, four tables, 173 triggers; five catalog mutation refusals |
-| Complete V2 recovery | `f56c618f50dd4103bf3c7813f8167820` | Isolated PG17, exact 90-table restore and encrypted reopen |
+Reconcile exact starting-schema routines and catalog metadata using authorized
+read-only hosted retrieval. Source-only preparation matches the observed 67 table
+names but has 86 functions versus 115 observed live. Counts do not identify the
+missing/alternate routine owners. Map definitions and provenance; do not invent
+DDL, use synthetic application fixtures as installation owners, or blindly replay
+all 64 inventory entries. The existing description-images owner is explicitly
+preexisting in the tested stage transition.
 
-Raw local receipts remain in the sibling `2026-09-12-fast-finish-evidence` directory.
-They are not all uploaded and must not be assumed to exist on another machine.
-The public repository contains source, harnesses, sanitized summaries and exact
-source contracts, not private database artifacts or credentials. No secret keys
-belong in GitHub. Preserved failed runs remain failed; later passing runs supersede
-only their documented defects.
+Then follow the ordered remaining work in the consolidated checkpoint: actual
+installation/resume and internal-commit failure recovery; external Linear worker
+fencing and safe replay/disposition; accepted old work reconciliation; verified SQL
+asset-reference coverage and independent encrypted recovery/key custody;
+notification ownership/configuration/delivery recovery; final refusing-activation
+protocol and separately scoped WR-101. A quick review cannot waive these gaps.
 
-Final offline checks pass for release extension, writer bundle, transaction,
-worker, private endpoint, worker bundle, admission preflight (28 corruption cases),
-V1/V2 data, application custody, object export, object custody (21 groups), recovery
-package (18 groups), and repository map. Staged Git blob hashes were checked against
-the release extension after correcting two script line endings. Production writer
-candidate bytes did not change. Captured SQL CR bytes remain deliberately preserved.
+## Reproduce without production access
 
-## Next bounded work, in order
+Repository source and sanitized evidence are published. Private receipts and
+prepared bundles are not uploaded or implied to be GitHub attachments. Locally,
+receipts live under `D:/Sidney/Codex/2026-09-12-fast-finish-evidence`; do not assume
+that folder exists on a different machine. Recreate evidence from committed sources
+when private originals are unavailable.
 
-1. Finish recovery of failed/unknown follow-up tasks, preserving evidence and proving
-   effects before any retry. Claimed tasks cannot currently be cleared by merely
-   declaring them disposed. Cover remaining helper outcomes; do not invent success.
-2. Complete the prepared installer/resume ordering for the four-owner extension and
-   worker/writer bundles. Preserve refusing activation. Test interrupted installation
-   and exact installed-prefix classification in isolation.
-3. Resolve external Linear worker fencing/replay and creation of a final F27 snapshot
-   after closure. The existing disposition owner covers only an existing rollback.
-   Reconcile accepted work predating durable admission. Direct sequence operations,
-   DDL, new tables, Auth and Storage are outside the 86-table DML guard proof.
-4. Prepare worker cadence/monitor ownership, the live object export adapter and
-   notification/recovery handover. WR-101 refusal diagnostics remains unbuilt and
-   requires its own separately reviewed Edge Function release.
-5. Obtain a focused review of the completed preparation revision. Hosted baseline,
-   serving/configuration, real recovery custody/restore and delivery checks belong
-   to a separately authorized owner window. Do not erase these requirements to
-   describe the build as finished.
+Use `qa/linear-exit-rehearsal/run-portable.ps1` and its exact named lanes. Portable
+PG17 is available locally under
+`D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`.
+Docker is not required. The harness refuses inherited production credentials;
+clear them only in the child process, never print values or mutate hosted state.
 
-Use the existing portable PostgreSQL runner; Docker is not required. PG17 lanes
-include `card-atomic-handlers`, `followup-worker`, `followup-outcome-proof`,
-`provider-debt-disposition`, `admission-preflight` and `complete-application-recovery`
-(the latter with `-ApplicationDataV2`). Start with affected tests, not another broad
-audit. The runner refuses inherited production credentials: clear those variables
-only in the child test process and never print them. Keep all transports isolated.
-There is no justified final completion date until the remaining recovery/fencing
-design is resolved; report small verifiable milestones instead of a guessed ETA.
+The final affected lanes are `source-phases`, `source-baseline`,
+`followup-outcome-matrix`, `admission-preflight`, and
+`complete-application-recovery -ApplicationDataV2`. Follow the runner's parameters
+and use a new private output directory. Do not rerun every historical lane solely
+because this handoff is new. Exact pin and offline bundle/cadence/export tests are
+listed in the checkpoint and repository map.
+
+Generate worker and writer bundles with their committed bundle scripts into new
+absolute directories. The generated worker passes Deno checking from its own
+function directory with `--no-config --node-modules-dir=none --no-remote --frozen
+--lock=deno.lock`. No endpoint, schedule or independent observer is installed.
+
+Completion must mean a reviewed full preparation build with all remaining work
+honestly resolved or separately categorized as an authorized hosted acceptance
+step. Installation requires fresh, separate owner authorization afterward.

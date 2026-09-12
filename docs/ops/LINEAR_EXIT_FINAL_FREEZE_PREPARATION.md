@@ -49,10 +49,11 @@ inventory composition, explicit test supplements and hosted schema.
    admitted. A database table lock can serialize individual transactions but
    cannot establish completion of a multi-request handler by itself. Do not
    freeze event writes between an accepted business write and its deferred event.
-3. Choose a server-enforced admission boundary compatible with frozen handlers.
-   Its mechanism is unresolved: do not quietly add browser auth, modify a frozen
-   handler or claim a UI maintenance banner establishes server admission.
-   Any infrastructure mechanism needs proof that every caller traverses it.
+3. Implement the owner-approved atomic persistence/admission boundary while
+   preserving tokenless access and existing client links. Keep the original
+   serving captures immutable. Do not add browser auth or claim a UI maintenance
+   banner establishes server admission. Complete caller coverage remains to be
+   proved; the bounded Calendar/Samples RPC alone is insufficient.
 4. Prove completion of admitted requests and deferred work, including failures
    and retries. Repeated equal counts or a fixed quiet-time sleep cannot prove
    absence of delayed work. If the current serving contract cannot expose a
@@ -85,9 +86,14 @@ external transport; mocks alone cannot establish SQL/trigger or hosted behavior.
 Do not weaken an assertion to force a green result when a split request exposes
 partial state. Preserve the failure as evidence for the unresolved protocol.
 
-The canonical B5 literal zero-outbox-row requirement also remains unresolved
-against retained typed native completions. This document does not ratify the
-proposed zero-provider-debt interpretation. See SYNCVIEW_RETIREMENT_RUNBOOK.md.
+On 2026-09-12 the owner approved retaining verified native receipts while
+requiring zero provider-bound work/debt. Canonical B5 now records that criterion.
+The owner also approved preparing narrow atomic persistence internals for the
+writers while preserving tokenless access, links and payload compatibility.
+The protocol is being implemented separately; the original captured handlers
+and failed controls remain unchanged evidence. See
+LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md. No installation or activation
+is authorized, and the complete admission/drain proof remains open.
 
 ## Isolated counterexample now proved
 

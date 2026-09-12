@@ -61,16 +61,15 @@ delta handover. A human request to stop typing is insufficient.
 
 ## Reconcile B5 acceptance before activation
 
-The B5 checklist currently says a retired TEST mutation creates zero outbox rows.
-The prepared architecture intentionally retains typed terminal native receipts
-in that table. These are different criteria. Do not mark the literal zero-row
-box complete merely because provider debt is zero.
-
-Proposed release-plan criterion: zero new provider-bound work and zero unresolved
-provider debt, with only validated immutable native completions and the distinct
-F27 contract permitted. The owner must ratify the final criterion in the later
-implementation plan, or the implementation must meet the existing literal gate.
-This preparation document does not silently change the approved checkbox.
+On 2026-09-12 the owner explicitly approved retaining SyncView's verified save
+receipts while requiring zero work still destined for Linear. The canonical B5
+checklist now requires zero new provider-bound work and zero unresolved provider
+debt, with only validated immutable native completions and the distinct F27
+contract excluded. Unknown or malformed records remain blockers. This changes
+the criterion; it does not make the still-unproven activation or freeze complete.
+The owner separately allowed preparation of narrow atomic Calendar/Samples
+internals while preserving links and tokenless access. No merge, installation,
+deployment or activation was authorized.
 
 ## Future owner-run release prerequisites
 

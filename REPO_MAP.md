@@ -305,6 +305,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json: pinned 86-table successor coverage inventory.
 - test/linear-exit-complete-application-data.js and test/linear-exit-complete-application-recovery.js: offline package refusal controls and isolated database reconstruction, with source-owned synthetic fixtures in test/helpers/remaining-application-fixture.js and test/helpers/complete-application-priority-seed.js.
 - scripts/linear-exit-object-custody.js and test/linear-exit-object-custody.js: authenticated object-byte preservation and private restore checks; source completeness and hosted custody remain separate gates.
+- docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md: owner-approved preparation scope for narrow writer internals and retained native receipts; installation remains unauthorized.
 - docs/independence/LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_20260911.json: isolated verifier evidence; reconciler integration open.
 
 - scripts/client-signoff-native-verification.js: private snapshot-bound native verification evidence.

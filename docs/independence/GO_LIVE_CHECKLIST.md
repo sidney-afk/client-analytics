@@ -996,10 +996,14 @@ implemented ordinary receipt recognition, the still-refusing activation RPC,
 and unproven whole-application freeze coverage. The description RPC participates
 through the shared authority lock despite making no outbox insert; its attempted
 counterexample timed out. Frozen Calendar/Samples boundaries remain unproven.
-The prepared architecture retains typed terminal
-receipts; that does **not** satisfy the literal zero-outbox-row checkbox below.
-Resolve that criterion in the later owner-approved release plan. No checkbox or
-activation authorization changes here.
+Owner decision, 2026-09-12: retain verified native completion receipts and require
+zero work still destined for Linear. The former literal zero-new-outbox-row
+criterion is replaced below by zero new provider-bound work and zero unresolved
+provider debt. Only verified native completions and the explicitly typed F27
+drill exception may be excluded; unknown or malformed records remain blockers.
+The owner also permitted preparation of narrow atomic persistence changes to
+Calendar/Samples while preserving existing links and tokenless access. Neither
+decision authorizes installation, deployment, activation or a completed checkbox.
 
 
 Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md §13** (D-22's roughly one-week dual-ready fallback,
@@ -1013,17 +1017,19 @@ complete issue/history paging, historical-roster behavior, cache, and failure UX
 totals alone is not a retirement gate. Verify the already-inactive `MJbMZ789B5ExZz9x` topology from
 live readback; do not list “deactivate it” as newly completed teardown work.
 - [ ] **Linear-free retired epoch built but not prematurely activated (F32/F61):** an isolated
-      service-only TEST override removes Linear validation, eligibility, IDs, and new outbox
+      service-only TEST override removes Linear validation, eligibility, IDs, and new provider-bound
       enqueues transactionally; full TEST mutations pass with Linear unavailable and create zero
-      intents. Keep the real retired-epoch flag disabled throughout the dual-ready grace.
+      provider-bound intents. Verified native completions may remain. Keep the real retired-epoch
+      flag disabled throughout the dual-ready grace.
 - [ ] **End-of-grace activation order proven (F58/F61/F92):** freeze human/app/service writes;
       set/read F4
       parity false; classify/replay/disposition final intents and prove both teams zero; set/read F2
       normal outbound off; run only a dry-run/detect-only final reconcile. Any diff/would-enqueue
       aborts and returns under the freeze to F2 live plus classify/drain/disposition and a fresh
       per-team zero proof. Only a final dry-run zero may proceed to archive/export and atomic
-      retired-mode activation/readback. Prove a private TEST mutation creates zero outbox rows before
-      teardown/resume.
+      retired-mode activation/readback. Prove a private TEST mutation creates zero provider-bound
+      work, leaves zero unresolved provider debt, and preserves any verified native completion
+      receipt before teardown/resume. Unclassified records abort the gate.
 - [ ] **The end-of-grace freeze is server-enforced** (F61): a team-scoped maintenance/cutoff state
       or atomic high-water protocol rejects every browser, stale-tab, retry, service, and automation
       mutation with explicit UX while the final zero/export/epoch transaction runs. TEST races prove

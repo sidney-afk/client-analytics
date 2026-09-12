@@ -21405,3 +21405,36 @@ probes run against the live app with credentials this session does not hold, and
 19 failures is an investigation, not a night's tidy-up. What this entry buys is
 that the failure is now counted, dated, and visible to every future run of the
 check instead of living in a Slack channel nobody reads any more.
+
+### 204a. The assurance-ledger lane was right, and it is green again — restated, not re-proven
+
+The third chronically-red lane turned out to be the cheapest and the most
+honest. `scripts/assurance-ledger-freshness.js --gate` is fully offline — it
+reads `docs/testing/ASSURANCE_LEDGER.md` and does arithmetic — and it was
+failing because four Tier-3 rows still read `FRESH` while their proof date
+(2026-07-17) had aged to 57 days against a 90-day window. Past half the window
+is `NEAR` by the ledger's own rule.
+
+**Why the unit suite stayed green while the scheduled lane went red, which is
+the interesting half.** `test/assurance-ledger-freshness.js` judges every claim
+against the **State column's own stamp** (`State (2026-08-22)`), deliberately —
+the comment in the script explains that anchoring to the refresh stamp instead
+is what let a restatement sail through in the first place. The scheduled lane
+passes `--gate`, which judges against **today**. So the offline suite cannot go
+red as the calendar advances, and the lane can. Both are behaving correctly;
+they are answering different questions.
+
+Restated the four cells to `NEAR`, with each cell now carrying its own as-of
+date and saying in so many words that **nothing was re-proven** — the arithmetic
+moved, not the evidence. The State column stamp is left at 2026-08-22 on
+purpose: bumping it would re-anchor every OTHER row in the table against today
+in one unreviewed edit, and the four that needed restating are the four the gate
+named. The word `FRESH` is kept out of the new text because `claimedState`
+returns the first state word it finds, so a cell reading "NEAR … was FRESH" is
+read as a FRESH claim.
+
+Lane green as of this commit. It will correctly go red again when those rows
+reach 90 days on about 2026-10-15, and at that point the honest answer is to
+re-prove the surfaces rather than to restate them again — three of the four are
+deploy workflows, monitors and admin tooling, and each needs live access this
+session does not have.

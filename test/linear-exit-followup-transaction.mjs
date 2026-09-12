@@ -10,6 +10,12 @@ assert.match(queries[0].sql,/where t\."id" = \$2 and t\."surface" = \$3 and t\."
 assert(!queries[0].sql.includes('OR true'));assert.equal(queries[0].params[1],"revision' OR true --");
 assert.deepEqual(client.effectSummary(),[{table:'thumbnail_media_revisions',operation:'update',rows:1}]);
 const builder=client.from('calendar_posts').select('id').eq('id','fixture-card');await builder;await builder;assert.equal(queries.length,2,'one builder is not executed twice');
+await client.from('thumbnail_media_revisions').select('id').not('baseline_storage_path','is',null);
+assert.match(queries.at(-1).sql,/t\."baseline_storage_path" is not null/);
+assert.match(queries.at(-1).sql,/t\."surface" = \$1 and t\."client" = \$2 and t\."source_id" = \$3/);
+assert.deepEqual(queries.at(-1).params,[scope.surface,scope.client,scope.sourceId]);
+assert.throws(()=>client.from('thumbnail_media_revisions').not('baseline_storage_path','eq',null),/NOT_FILTER/);
+assert.throws(()=>client.from('thumbnail_media_revisions').not('baseline_storage_path','is',false),/NOT_FILTER/);
 await assert.rejects(()=>client.from('sample_reviews').select('*').execute(),/SOURCE_TABLE/);
 await assert.rejects(()=>client.from('clients').update({active:false}).execute(),/WRITE_TABLE/);
 await assert.rejects(()=>client.from('thumbnail_media_revisions').insert({surface:'calendar',client:'other',source_id:'fixture-card'}).execute(),/ROW_SCOPE/);

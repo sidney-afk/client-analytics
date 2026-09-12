@@ -71,11 +71,16 @@
       "path": "supabase/migrations/20260912193957_provider_closed_snapshot_preparation.sql",
       "sha256": "cdfbd974375381a273f314e0089790780a60423eaac39473c683845ff177768f",
       "order": 6
+    },
+    {
+      "path": "supabase/migrations/20260912200637_thumbnail_parser_contract_alignment.sql",
+      "sha256": "ae372bbb1b62df37d273c4539a6efe255bf4a7ed415149fbbb73b423dba63f4e",
+      "order": 7
     }
   ],
   "admission_preflight_contract": {
     "path": "docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json",
-    "sha256": "55e1a20a12cf357f29ef23768326c27efa09983d2292d50cebc99a0e0cbd74bc"
+    "sha256": "8980fc5124f9d86064536e55f65f02eedb68cc200e53a266a2a2cd96a9c412f7"
   },
   "writer_sources": [
     {
@@ -106,11 +111,15 @@
     },
     {
       "path": "scripts/linear-exit-followup-transaction.mjs",
-      "sha256": "6a47d8eb06ffbb75f125dc9d5f4a9ec78436708dc24d63375618d336fb9afe5e"
+      "sha256": "a8875b27a8814347b193dcf982204bbe604f79b2f21a04ca7b842aef0a9ea525"
     },
     {
       "path": "scripts/linear-exit-followup-worker.mjs",
       "sha256": "e4c8cf0af2305adb3c55cee63331eb0661924ac189860bf336dd9bb1c0367102"
+    },
+    {
+      "path": "scripts/linear-exit-followup-supervisor.mjs",
+      "sha256": "9029fd9517e124cc8d71e02f6f91e211aeb4657df71900b3e4cf4623faa5aa93"
     }
   ],
   "hosted_prestate_classification": "PENDING",

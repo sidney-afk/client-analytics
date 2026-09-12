@@ -33,3 +33,12 @@ docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json text eol=l
 qa/linear-exit-rehearsal/followup-deno.lock text eol=lf
 docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json text eol=lf
 docs/independence/LINEAR_EXIT_BASELINE_REQUIREMENTS_V1.json text eol=lf
+
+docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json text eol=lf
+
+docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json text eol=lf
+
+# Preserve exact tested bytes for source-inventory/catalog dependencies.
+migrations/2026-09-11-native-signoff-verifier.sql -text whitespace=cr-at-eol
+scripts/linear-exit-source-baseline-catalog.sql -text whitespace=cr-at-eol
+test/helpers/remaining-application-fixture.js -text whitespace=cr-at-eol

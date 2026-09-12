@@ -4,6 +4,7 @@
 const crypto=require('crypto');
 const {canonicalJson}=require('./track-b-backup');
 const {readInventory,signInventory}=require('./linear-exit-object-export');
+const capability=require('./linear-exit-storage-version-capability');
 const fail=code=>{throw Error('STORAGE_EXPORT_'+code);};
 const digest=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const identity=o=>canonicalJson([o.bucket,o.path]);
@@ -37,6 +38,7 @@ function createStorageExportAdapter(options){
  const inventory=readInventory(options.inventoryBytes,options.hmacInput),expected=new Map(inventory.objects.map(o=>[identity(o),o])),reader=createReader(options);
  return {
   listBuckets:()=>reader.buckets(),
+  async versionCapability(){return capability.observe(options.readOnlyCapabilityQuery);},
   async listObjectMetadata(){const rows=[];for(const item of inventory.objects){const found=await reader.info(item,true);if(!same(metadataOnly(found),metadataOnly(item)))fail('INVENTORY_DRIFT');rows.push({bucket:found.bucket,path:found.path,version:found.version,metadata:found.object_metadata});}return rows;},
   async listPage(cursor){if(cursor!==null)fail('CURSOR');const observed=await reader.census();return {objects:observed.objects.map(item=>{const want=expected.get(identity(item));if(!want||!same(metadataOnly(want),item))fail('INVENTORY_DRIFT');return {...item,sha256:want.sha256};}),nextCursor:null};},
   download:item=>reader.download(item),
@@ -44,10 +46,11 @@ function createStorageExportAdapter(options){
  };
 }
 async function captureStorageInventory(options){
- const reader=createReader(options),before=await reader.census(),objects=[],object_metadata=[];
+ const capabilityBefore=await capability.observe(options.readOnlyCapabilityQuery);const reader=createReader(options),before=await reader.census(),objects=[],object_metadata=[];if(capabilityBefore.bucket_count!==before.buckets.length||capabilityBefore.object_count!==before.objects.length)fail('CAPABILITY_COUNT_MISMATCH');
  for(const item of before.objects){const metadataBefore=await reader.info(item,true);const response=await reader.download(item),hash=crypto.createHash('sha256');let size=0;for await(const bytes of response.body){size+=bytes.length;hash.update(bytes);}if(size!==item.size||!same(await reader.info(item),item))fail('CAPTURE_CHANGED');if(!same(metadataBefore,await reader.info(item,true)))fail('METADATA_CHANGED');object_metadata.push({bucket:item.bucket,path:item.path,version:item.version,metadata:metadataBefore.object_metadata});objects.push({...item,sha256:hash.digest('hex')});}
  const after=await reader.census();if(!same(before,after))fail('CENSUS_CHANGED');for(const expected of object_metadata){const actual=await reader.info(expected,true);if(!same(expected.metadata,actual.object_metadata)||expected.version!==actual.version)fail('METADATA_CHANGED');}
- const inventoryBytes=signInventory({format:'reviewed-object-inventory-v1',buckets:before.buckets,objects,object_metadata},options.hmacInput);
+ const capabilityAfter=await capability.observe(options.readOnlyCapabilityQuery);if(!same(capabilityBefore,capabilityAfter))fail('CAPABILITY_CHANGED');
+ const inventoryBytes=signInventory({format:'reviewed-object-inventory-v1',buckets:before.buckets,objects,object_metadata,storage_version_capability:capabilityAfter},options.hmacInput);
  return {inventoryBytes,inventory_sha256:digest(inventoryBytes),objects:objects.length,atomic_source_snapshot_proven:false,off_device_custody_proven:false};
 }
 module.exports={createStorageExportAdapter,captureStorageInventory};

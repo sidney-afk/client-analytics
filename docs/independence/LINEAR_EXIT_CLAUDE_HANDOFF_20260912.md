@@ -1,5 +1,7 @@
 # Linear exit continuation handoff — September 12
 
+Historical checkpoint: read `LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` for the later seven-owner preparation and remaining gaps.
+
 Further preparation continued after this handoff. Read
 `LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md` for the later six-owner
 retry/snapshot, complete recovery and Storage export results. The pinned four-owner

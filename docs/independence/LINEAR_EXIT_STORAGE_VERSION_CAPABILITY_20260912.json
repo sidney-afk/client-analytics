@@ -1,0 +1,19 @@
+{
+  "classification": "LIVE_READ_POINT_IN_TIME",
+  "observed_date": "2026-09-12",
+  "observation_source": "Parent session read-only Supabase SQL result; no object bytes downloaded",
+  "bucket_count": 2,
+  "disabled_buckets": 2,
+  "object_count": 1038,
+  "archived_objects": 0,
+  "delete_markers": 0,
+  "versioned_objects": 0,
+  "null_flags": 0,
+  "version_listing_migrations": 0,
+  "versioning_columns_present": true,
+  "recheck_required": true,
+  "atomic_history_closure_proven": false,
+  "database_api_project_binding_proven": false,
+  "full_storage_restore_proven": false,
+  "scope": "Both observed buckets DISABLED; no historical/versioned/delete-marker objects observed at this point. Fresh observations and matching complete API inventory counts are required during capture and export."
+}

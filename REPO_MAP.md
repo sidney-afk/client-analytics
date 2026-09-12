@@ -325,10 +325,10 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-followup-retry.js` and `test/linear-exit-provider-closed-snapshot.js`: actual database retry races and protected closed-gate F27 snapshot proof.
 - `docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md`: pinned code checkpoint, evidence index, persistent owner boundaries and remaining work for continuation.
 - `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md`: source and isolated handler/worker evidence, retained failures and remaining build gaps.
-- `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` and `scripts/linear-exit-admission-release-extension.js`: separately pinned four-owner extension; not an installer or hosted baseline.
+- `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` and `scripts/linear-exit-admission-release-extension.js`: separately pinned seven-owner extension; not an installer or hosted baseline.
 - `docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json` and `scripts/linear-exit-admission-preflight.js`: exact admission catalog expectations and read-only comparison.
 - `docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json`: 90-table recovery including retained admission history and empty transaction context; V1 remains compatible.
-- `supabase/migrations/`: four ordered preparation owners for atomic admission, application DML guards, SQL-derived follow-up outcomes and bounded existing F27 disposition.
+- `supabase/migrations/`: seven ordered preparation owners for admission, DML guards, outcomes, provider disposition, transactional retry, closed snapshots and parser alignment.
 - `scripts/linear-exit-atomic-writer-compose.js` and `scripts/linear-exit-atomic-writer-bundle.js`: source-pinned tokenless writer candidates and reproducible preparation bundles.
 - `qa/linear-exit-rehearsal/serving/samples-v50/` and `qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql`: immutable serving prerequisites; preserve original bytes.
 - `qa/linear-exit-rehearsal/harness/load-atomic-calendar.mjs` and `qa/linear-exit-rehearsal/harness/load-captured-samples.mjs`: isolated handler loaders.
@@ -340,3 +340,12 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-admission-preflight.js`, `test/linear-exit-admission-preflight-postgres.js` and `test/linear-exit-admission-release-extension.js`: metadata corruption and source/order drift checks.
 - `test/linear-exit-atomic-writer-bundle.js`, `test/linear-exit-followup-bundle.mjs`, `test/linear-exit-followup-endpoint.mjs`, `test/linear-exit-followup-transaction.mjs` and `test/linear-exit-followup-worker.mjs`: portable bundles and offline worker refusal controls.
 - `test/linear-exit-complete-application-custody.js` and `test/linear-exit-object-export.js`: authenticated custody/export round trips and refusal controls.
+
+### September 12 consolidated preparation
+
+- `scripts/linear-exit-source-baseline-catalog.js`, `scripts/linear-exit-source-baseline-catalog.sql`, `docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json`, `test/linear-exit-source-baseline-catalog.js` and `test/linear-exit-source-baseline-catalog-postgres.js`: exact post-candidate catalog checkpoint, raw semantic hashes and drift refusal; not hosted baseline equivalence.
+- `test/linear-exit-source-phases-postgres.js`: source-only 67-to-86 table transition with explicit preexisting-owner classification and private catalog receipts.
+- `scripts/linear-exit-storage-version-capability.js` and `docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json`: read-only history capability guard and point-in-time sanitized observation.
+- `scripts/linear-exit-followup-supervisor.mjs`, `test/linear-exit-followup-supervisor.mjs` and `docs/ops/LINEAR_EXIT_FOLLOWUP_SUPERVISOR.md`: disabled portable cadence, bounded requests and independent observer requirements.
+- `test/linear-exit-followup-outcome-matrix.js` and `test/helpers/followup-outcome-matrix-deno.mjs`: actual frozen-helper/SQL path matrix and URL/config compatibility checks.
+- `docs/independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md`: seven-owner preparation evidence and unresolved installation gates.

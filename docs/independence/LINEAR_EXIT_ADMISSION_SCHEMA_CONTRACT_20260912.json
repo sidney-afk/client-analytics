@@ -24,6 +24,10 @@
     {
       "file": "20260912193957_provider_closed_snapshot_preparation.sql",
       "sha256": "cdfbd974375381a273f314e0089790780a60423eaac39473c683845ff177768f"
+    },
+    {
+      "sha256": "ae372bbb1b62df37d273c4539a6efe255bf4a7ed415149fbbb73b423dba63f4e",
+      "file": "20260912200637_thumbnail_parser_contract_alignment.sql"
     }
   ],
   "tables": [
@@ -1821,8 +1825,10 @@
       "volatility": "i",
       "body_lf_md5": "4624086458ed76a328f4bb8d8c35e012",
       "anon_execute": false,
+      "body_raw_md5": "4624086458ed76a328f4bb8d8c35e012",
       "service_execute": false,
       "security_definer": false,
+      "definition_raw_md5": "8d9ac1a4d901c3d8be02b7a8565cd159",
       "identity_arguments": "v text",
       "authenticated_execute": false
     },
@@ -1838,10 +1844,12 @@
       "parallel": "u",
       "leakproof": false,
       "volatility": "i",
-      "body_lf_md5": "d2b350f7f3be9878014f5ae0f9d06db0",
+      "body_lf_md5": "dd4bbf55bb88232839c2fdf8f2b8bd2c",
       "anon_execute": false,
+      "body_raw_md5": "dd4bbf55bb88232839c2fdf8f2b8bd2c",
       "service_execute": false,
       "security_definer": false,
+      "definition_raw_md5": "a7d89c022b392e95689bd2b37ba14ef3",
       "identity_arguments": "v text",
       "authenticated_execute": false
     },
@@ -1859,8 +1867,10 @@
       "volatility": "v",
       "body_lf_md5": "580a9bd87db3b3ccb2e2ed855187e0ff",
       "anon_execute": false,
+      "body_raw_md5": "580a9bd87db3b3ccb2e2ed855187e0ff",
       "service_execute": false,
       "security_definer": true,
+      "definition_raw_md5": "41767be14a0e3cdb07133a54197ac34f",
       "identity_arguments": "p_client text",
       "authenticated_execute": false
     },
@@ -1878,8 +1888,10 @@
       "volatility": "v",
       "body_lf_md5": "8120e797d39ee38d27ce3d70c5e5abe0",
       "anon_execute": false,
+      "body_raw_md5": "8120e797d39ee38d27ce3d70c5e5abe0",
       "service_execute": false,
       "security_definer": true,
+      "definition_raw_md5": "1d8f51f060b5eb4a20f7e357df4296f9",
       "identity_arguments": "",
       "authenticated_execute": false
     },
@@ -1897,8 +1909,10 @@
       "volatility": "v",
       "body_lf_md5": "4c1f819fca4ffc445b384941dba755ec",
       "anon_execute": false,
+      "body_raw_md5": "4c1f819fca4ffc445b384941dba755ec",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "3f0d053f5abc27cad3f4b248bcf9d261",
       "identity_arguments": "p_epoch uuid, p_reason text",
       "authenticated_execute": false
     },
@@ -1916,8 +1930,10 @@
       "volatility": "v",
       "body_lf_md5": "71074e8bc3ea479abaefd1293d2468cd",
       "anon_execute": false,
+      "body_raw_md5": "71074e8bc3ea479abaefd1293d2468cd",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "8a5556704563a2625181eed9823c96ea",
       "identity_arguments": "p_epoch uuid, p_key text, p_expected jsonb, p_value jsonb, p_actor text, p_reason text",
       "authenticated_execute": false
     },
@@ -1935,8 +1951,10 @@
       "volatility": "v",
       "body_lf_md5": "9a4ef7b09d693b4af55a45e2062592e7",
       "anon_execute": false,
+      "body_raw_md5": "9a4ef7b09d693b4af55a45e2062592e7",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "099f9218020f1203c60818bfb6083cb9",
       "identity_arguments": "p_epoch uuid, p_actor text, p_reason text, p_confirmation text",
       "authenticated_execute": false
     },
@@ -1954,8 +1972,10 @@
       "volatility": "v",
       "body_lf_md5": "3ee3a5dd9a868d9096b02068a9b1cada",
       "anon_execute": false,
+      "body_raw_md5": "3ee3a5dd9a868d9096b02068a9b1cada",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "2f89fdebbcd9dc3dde2ac1b569b5d1be",
       "identity_arguments": "p_epoch uuid",
       "authenticated_execute": false
     },
@@ -1973,8 +1993,10 @@
       "volatility": "v",
       "body_lf_md5": "b551fdf3cc192d456c1d887d741994aa",
       "anon_execute": false,
+      "body_raw_md5": "b551fdf3cc192d456c1d887d741994aa",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "7fc013c8b5405d758b63bc7a347f353a",
       "identity_arguments": "p_operation_id uuid, p_request jsonb",
       "authenticated_execute": false
     },
@@ -1992,8 +2014,10 @@
       "volatility": "v",
       "body_lf_md5": "5b897bdace6e9b5ec1d82a19420ae878",
       "anon_execute": false,
+      "body_raw_md5": "5b897bdace6e9b5ec1d82a19420ae878",
       "service_execute": false,
       "security_definer": true,
+      "definition_raw_md5": "fc1d0738d598d0dedb8cf3b98a4b6af3",
       "identity_arguments": "",
       "authenticated_execute": false
     },
@@ -2011,8 +2035,10 @@
       "volatility": "v",
       "body_lf_md5": "98fa3b6371fe096cd720cef1c7232e03",
       "anon_execute": false,
+      "body_raw_md5": "98fa3b6371fe096cd720cef1c7232e03",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "26fe5877a513d9ef40782a155eaeffeb",
       "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid",
       "authenticated_execute": false
     },
@@ -2030,8 +2056,10 @@
       "volatility": "v",
       "body_lf_md5": "9ac7480c4ed4fe7615bd7b50b2f7d2e9",
       "anon_execute": false,
+      "body_raw_md5": "9ac7480c4ed4fe7615bd7b50b2f7d2e9",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "4b5fdb6a8221388dbdca3d8fbae626af",
       "identity_arguments": "p_limit integer",
       "authenticated_execute": false
     },
@@ -2049,8 +2077,10 @@
       "volatility": "v",
       "body_lf_md5": "b8cd90b8c0c81c69c1290a3902aae62d",
       "anon_execute": false,
+      "body_raw_md5": "b8cd90b8c0c81c69c1290a3902aae62d",
       "service_execute": false,
       "security_definer": true,
+      "definition_raw_md5": "b417b6a4a7d7832b3478c6ce7f6f22b7",
       "identity_arguments": "p_limit integer",
       "authenticated_execute": false
     },
@@ -2068,8 +2098,10 @@
       "volatility": "v",
       "body_lf_md5": "11771d06ca11103bbd16e17dd2e920a2",
       "anon_execute": false,
+      "body_raw_md5": "11771d06ca11103bbd16e17dd2e920a2",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "a16ffaf9e64c167127f1694a394473ae",
       "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid, p_outcome jsonb",
       "authenticated_execute": false
     },
@@ -2087,8 +2119,10 @@
       "volatility": "v",
       "body_lf_md5": "ec8fd361a26a16489df748e908281495",
       "anon_execute": false,
+      "body_raw_md5": "ec8fd361a26a16489df748e908281495",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "8fbef8092ce47afe1cf295e2c29726d8",
       "identity_arguments": "p_operation_id uuid, p_kind text, p_request_sha256 text, p_evidence_sha256 text, p_actor text, p_reason text, p_confirmation text",
       "authenticated_execute": false
     },
@@ -2106,8 +2140,10 @@
       "volatility": "v",
       "body_lf_md5": "90e5e31265ef937c92ba8ed974028cbe",
       "anon_execute": false,
+      "body_raw_md5": "90e5e31265ef937c92ba8ed974028cbe",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "e68fe11c69349693103b9149c93586d0",
       "identity_arguments": "p_operation_id uuid, p_kind text, p_attempt integer, p_lease_token uuid, p_reason text",
       "authenticated_execute": false
     },
@@ -2126,8 +2162,10 @@
       "volatility": "v",
       "body_lf_md5": "309a402f9a9956d6f8d7135bd7333dc8",
       "anon_execute": false,
+      "body_raw_md5": "309a402f9a9956d6f8d7135bd7333dc8",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "9a0f6cf0637bb0fa1f56da0cc8697e9e",
       "identity_arguments": "p_epoch uuid, p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid",
       "authenticated_execute": false
     },
@@ -2145,8 +2183,10 @@
       "volatility": "v",
       "body_lf_md5": "43ab355affe919e822a3f52581e36669",
       "anon_execute": false,
+      "body_raw_md5": "43ab355affe919e822a3f52581e36669",
       "service_execute": false,
       "security_definer": true,
+      "definition_raw_md5": "e359a6df73a01149de8a68074c35aebf",
       "identity_arguments": "p_context card_write_transaction_context_v1, p_task card_write_followups_v1, p_outcome jsonb",
       "authenticated_execute": false
     },
@@ -2165,8 +2205,10 @@
       "volatility": "v",
       "body_lf_md5": "31835585ef28279c103ed6f04e2e427e",
       "anon_execute": false,
+      "body_raw_md5": "31835585ef28279c103ed6f04e2e427e",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "9fc4b1aff12bad1afb7fed0dfe7d2379",
       "identity_arguments": "p_epoch uuid, p_team text, p_expected_authority jsonb, p_expected_rows jsonb, p_actor text, p_reason text",
       "authenticated_execute": false
     },
@@ -2184,10 +2226,54 @@
       "volatility": "v",
       "body_lf_md5": "3d678cd7210dd332867521f9829e99b3",
       "anon_execute": false,
+      "body_raw_md5": "3d678cd7210dd332867521f9829e99b3",
       "service_execute": true,
       "security_definer": true,
+      "definition_raw_md5": "e74164958855ab6c7af0a9d05a3888d6",
       "identity_arguments": "p_epoch uuid, p_rollback_id uuid, p_outbox_id bigint, p_expected_outbox jsonb, p_expected_intent jsonb, p_classification text, p_actor text, p_reason text",
       "authenticated_execute": false
+    },
+    {
+      "name": "syncview_thumbnail_drive_file_id",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "result": "text",
+      "strict": true,
+      "language": "plpgsql",
+      "parallel": "s",
+      "leakproof": false,
+      "volatility": "i",
+      "body_lf_md5": "310d0b2f2d2f43d5fa84b0c5b838ac15",
+      "anon_execute": true,
+      "body_raw_md5": "310d0b2f2d2f43d5fa84b0c5b838ac15",
+      "service_execute": true,
+      "security_definer": false,
+      "definition_raw_md5": "b279e693be10164f2b658caca0b7349d",
+      "identity_arguments": "p_url text",
+      "authenticated_execute": true
+    },
+    {
+      "name": "syncview_thumbnail_revision_v2_enabled",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "s",
+      "body_lf_md5": "99d04697d8c34d5625762178d0e3e947",
+      "anon_execute": true,
+      "body_raw_md5": "99d04697d8c34d5625762178d0e3e947",
+      "service_execute": true,
+      "security_definer": false,
+      "definition_raw_md5": "c45c2a0aab7bef66e5109702d2dc196b",
+      "identity_arguments": "p_client text",
+      "authenticated_execute": true
     }
   ]
 }

@@ -27,6 +27,7 @@ export function createTransactionClient({ query, scope, storage, alive = () => t
     eq(col,value) { this.filters.push([col,'=',value]); return this; }
     neq(col,value) { this.filters.push([col,'<>',value]); return this; }
     lte(col,value) { this.filters.push([col,'<=',value]); return this; }
+    not(col,operator,value) { if(operator!=='is'||value!==null)fail('NOT_FILTER'); this.filters.push([col,'is not',null]); return this; }
     is(col,value) { if(value!==null)fail('IS_FILTER'); this.filters.push([col,'is',null]); return this; }
     order(col,options={}) { this.orders.push([col,options]); return this; }
     limit(n) { if(!Number.isInteger(n)||n<1||n>50)fail('LIMIT'); this.limitN=n; return this; }
@@ -44,7 +45,7 @@ export function createTransactionClient({ query, scope, storage, alive = () => t
         if(this.table!==(scope.surface==='calendar'?'calendar_posts':'sample_reviews'))fail('SOURCE_TABLE');
         filters.push(['client','=',scope.client],['id','=',scope.sourceId]);
       }
-      const where=()=>filters.length?' where '+filters.map(([col,op,value])=>'t.'+ident(col)+(value===null?(op==='is'||op==='='?' is null':fail('NULL_FILTER')):' '+op+' '+param(value))).join(' and '):'';
+      const where=()=>filters.length?' where '+filters.map(([col,op,value])=>'t.'+ident(col)+(value===null?(op==='is'||op==='='?' is null':op==='is not'?' is not null':fail('NULL_FILTER')):' '+op+' '+param(value))).join(' and '):'';
       let sql;
       if(this.op==='select') {
         sql='select '+cols+' from '+table+' t'+where();

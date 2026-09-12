@@ -1,5 +1,7 @@
 # Recovery and export preparation checkpoint
 
+Historical checkpoint: read `LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` for the later seven-owner preparation and remaining gaps.
+
 This advances the earlier atomic-save checkpoint. It does not complete the build
 or authorize installation. The original owner boundaries and tokenless serving
 contracts remain unchanged. No hosted saves, installation, merge or n8n execution.

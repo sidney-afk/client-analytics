@@ -54,3 +54,5 @@ zero provider-bound work/debt, and narrow atomic writer preparation preserving
 links and tokenless access. Canonical B5 records the changed criterion; every
 checkbox remains uncompleted until its evidence passes. See the final-switch
 decision document for the approved scope.
+
+Latest preparation evidence: `../independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` records seven-owner preflight/recovery, source-only stages, disabled supervisor and Storage capability guards. The starting live routine mismatch remains unresolved; the mixed-path parser counterexample was repaired and rehearsed. All installation and retirement gates remain in force.

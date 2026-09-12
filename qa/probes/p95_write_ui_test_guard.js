@@ -50,11 +50,17 @@ const now = () => new Date().toISOString();
       return c;
     });
     if (!flagClients.includes('sidneylaruel')) {
-      console.log('  · reroute allowlist no longer contains the TEST client (' + JSON.stringify(flagClients) + ') — guard scenario not active, skipping green');
+      console.log('  · reroute allowlist no longer contains the TEST client (' + flagClients.length + ' slug(s) on it) — guard scenario not active, skipping green');
       console.log('\nP95 write-UI test-client guard: pass=0 fail=0 (skipped)');
       process.exit(0);
     }
-    ok(true, 'live reroute flag loaded with the TEST client (' + JSON.stringify(flagClients) + ')');
+    // COUNT, never the list. This repo is public and so is its Actions log, and
+    // the live reroute allowlist is the whole client roster -- printing it here
+    // published 43 client slugs on every nightly run. The gate that exists to
+    // stop exactly this (scripts/repo-identity-exposure-check.js) scans the tree
+    // and PR diffs, and cannot see it: the slugs are not IN this file, they are
+    // fetched at run time and interpolated into a log line.
+    ok(true, 'live reroute flag loaded with the TEST client (' + flagClients.length + ' slug(s) on it)');
 
     await smm.evaluate((a) => { openSxrComments(a.pid); _sxrToggleCommentDone(a.tw); }, { pid: PID, tw: TW });
     const chooser = await smm.evaluate(() => { const ov = document.getElementById('resolveDestOverlay'); return !!(ov && ov.classList.contains('active')); });
@@ -66,7 +72,14 @@ const now = () => new Date().toISOString();
       const p = sxrState.posts.find(x => x.id === pid);
       return { saveError: p ? (p._saveError || null) : 'POST NOT FOUND' };
     }, PID);
-    ok(state.saveError === 'native_link_required', `save fails closed with native_link_required (got ${JSON.stringify(state.saveError)})`);
+    // The CODE, not the whole string. `_saveError` used to be the bare code and
+    // is now the reader-facing sentence that carries it -- a deliberate copy
+    // change (the "MAKE THE RELOAD ADVICE TRUE" work), not a regression. Exact
+    // equality made this probe red every night for a change the app meant to
+    // make, while still proving nothing extra: what matters is that the save
+    // failed closed with THIS code, which `includes` states directly.
+    ok(String(state.saveError || '').includes('native_link_required'),
+      `save fails closed with native_link_required (got ${JSON.stringify(state.saveError)})`);
     ok(upserts.length === 0, `no sample-review-upsert POST left the page (got ${upserts.length})`);
     const row = lib.supa(`id=eq.${PID}&select=video_status`);
     ok(row && row[0] && row[0].video_status === 'Tweaks Needed', `backend row untouched (got ${row && row[0] && row[0].video_status})`);

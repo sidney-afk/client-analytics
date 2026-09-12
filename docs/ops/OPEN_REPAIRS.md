@@ -21438,3 +21438,97 @@ reach 90 days on about 2026-10-15, and at that point the honest answer is to
 re-prove the surfaces rather than to restate them again — three of the four are
 deploy workflows, monitors and admin tooling, and each needs live access this
 session does not have.
+
+### 204b. First triage of the 19 failing calendar E2E probes — clusters, not one broken precondition
+
+Recorded so the next person starts from evidence instead of from the run link.
+This is a TRIAGE of one night's log (run `34600106702`, 2026-09-11). It is not a
+diagnosis, and only five of the nineteen were read in detail.
+
+My first guess was that nineteen unrelated probes failing together had to be one
+broken precondition. **The log does not support that.** They fall into at least
+four groups with nothing in common:
+
+- **A probe credential, not the app.** `p96_description_image_upload` fails 8 of
+  its 12 assertions on `401 invalid_staff_key`. Its first four PASS — the
+  function answers preflight, is deployed, and its runtime flag is on — so the
+  probe reaches the live function and is refused at the key. The app is not
+  implicated by any of those eight.
+- **A stale assertion after a deliberate copy change.** `p95_write_ui_test_guard`
+  asserted `state.saveError === 'native_link_required'` — exact equality against
+  a bare code — while `_saveError` now carries the reader-facing sentence that
+  ENDS in `(code: native_link_required)`. The app change was intentional (the
+  "MAKE THE RELOAD ADVICE TRUE" work). **Fixed in this commit**: assert the code
+  is present rather than that the string equals it, which proves the same thing
+  and survives the next copy edit.
+- **The link-move conflict dialog, twice.** `p81_link_move_conflict` fails 3 of 4
+  and `p86_hidden_owner_warns` fails 1 of 5, and both failures are the same
+  sentence: the "already linked — Move it here?" conflict does not surface. Two
+  probes, one feature, almost certainly one cause. NOT investigated here.
+- **Route chooser and the urgent badge.** `p87_resolve_on_route` fails 2 of 19
+  (`B: routing sends caption → Kasper Approval`, `B: the TICKED change-request is
+  resolved`) and `p92_sxr_resolve_pill_inplace` fails 1 of 10 (`URGENT badge does
+  not linger after leaving Tweaks Needed`). The urgent-marker surface changed
+  recently, so this one has a plausible neighbour; that is a lead, not a finding.
+
+The remaining twelve — `p28`, `p34`, `p41`, `p53`, `p54`, `p55`, `p71`, `p56`,
+`p57`, `p62`, `p77`, `p78`, `p79` — were not read. Their names are recorded so
+the next run's log can be diffed against this list rather than re-derived.
+
+**What this changes about the lane.** Some of the nineteen are the probes being
+wrong, some look like the app being wrong, and telling them apart one at a time
+is the actual work. Until that happens the nightly Slack alert is worth nothing,
+because it has said the same thing every night since 2026-08-26 and at least two
+of its nineteen reasons are the harness.
+
+---
+
+## 205. [2026-09-12, FIXED] Two nightly probes printed live client slugs into a PUBLIC Actions log, and the gate that exists to stop that could not see them
+
+Found while triaging item 204b, in the raw text of the calendar E2E log.
+
+`qa/probes/p95_write_ui_test_guard.js` read the LIVE `write_ui_reroute_clients`
+flag and printed it:
+
+```js
+ok(true, 'live reroute flag loaded with the TEST client (' + JSON.stringify(flagClients) + ')');
+```
+
+That flag is the full roster. The line ran on every successful nightly run and
+published **43 client slugs** into a log that, on a public repository, anybody
+can read. A second copy sat on the skip path three lines above.
+
+`qa/probes/p56_cross_client_isolation.js` printed
+`JSON.stringify(perClient.clients)` in the message of its isolation assertion.
+On the pass path that is only the TEST client. **On the FAIL path — the only
+path where the line matters — it would print the very slugs that leaked.** That
+probe is currently in the failing set.
+
+**Why the exposure gate never caught either.** `scripts/repo-identity-exposure-check.js`
+scans the repository tree and, in CI, the lines a pull request ADDS. Neither
+probe contains a client slug: they fetch the roster at run time and interpolate
+it into a log line. The string that leaks never exists in the repository, so the
+tree scan and the diff scan are both structurally blind to it. This is a third
+surface — **what a job PRINTS** — and nothing was watching it.
+
+**Fixed here.** Both lines now report counts: the number of slugs on the
+allowlist, and for the isolation check the number of distinct clients plus how
+many of them were not the TEST client. Every assertion keeps exactly the same
+strength — a failing isolation check still fails, and still says how badly —
+and the slugs stay one query away for anyone entitled to see them. Same rule the
+exposure checker already follows for itself: report the count, never the match.
+
+**Checked and NOT leaking, so nobody re-checks it.** The 10-minute reconciler
+prints `plan.summary` and its markdown, and both are aggregate-only: the
+`linkage_sample`, `repair_sample` and `tolerated_sample` arrays that DO carry
+`client_slug` sit at the top level of the `deliverable_events` payload and are
+never in what the job prints. `repo-identity-exposure-check.js` prints file
+counts only, by design. No other probe log line was found interpolating live
+roster data — the many `client` matches in `qa/probes/` are the app's client
+ROLE, not a slug.
+
+**Not done.** Nothing here removes the slugs already in the retained logs of
+past runs; Actions log retention and whether it is worth purging is the owner's
+call, and the same judgement as `GIT_HISTORY_PII_PURGE_2026-07-14.md`. And no
+gate now watches job OUTPUT — a checker for that is a real repair and is not
+attempted here.

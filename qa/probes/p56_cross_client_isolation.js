@@ -25,7 +25,16 @@ const PID = 'p_iso_' + Math.floor(Date.now() / 1000);
       const clients = [...new Set(rows.map(r => String(r.client || '')))];
       return { count: rows.length, clients, hasMine: rows.some(r => r.id === pid) };
     }, PID);
-    S.ok(perClient.clients.length === 1 && perClient.clients[0] === 'sidneylaruel', 'per-client read returns ONLY sidneylaruel rows (clients=' + JSON.stringify(perClient.clients) + ')');
+    // Never print the slugs this read returned. On the PASS path they are just
+    // the TEST client, but this line only matters on the FAIL path -- and on the
+    // fail path it would publish the very client slugs that leaked, into a
+    // public Actions log. The count plus "something other than the TEST client"
+    // says everything the reader needs; the slugs are one query away for anyone
+    // who is allowed to see them.
+    const foreignClients = perClient.clients.filter(c => c !== 'sidneylaruel').length;
+    S.ok(perClient.clients.length === 1 && perClient.clients[0] === 'sidneylaruel',
+      'per-client read returns ONLY sidneylaruel rows (' + perClient.clients.length
+      + ' distinct client(s), ' + foreignClients + ' of them not the TEST client)');
     S.ok(perClient.hasMine === true, 'per-client read contains the seeded Sidney card');
 
     // 2) full-table paginated read groups the seeded card under sidneylaruel and NO other bucket

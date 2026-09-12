@@ -21075,3 +21075,122 @@ Checked after the merge, per this file's own standing instruction: no duplicate
 `## N.` headers introduced, and no duplicate `### 199x.` sub-headers. The six
 duplicate top-level numbers in this file are all present identically on
 `origin/main`.
+
+---
+
+## 200. [2026-09-12, MEASURED — the growth is one bucket on one team; the mechanism is NOT established] The shadow-audit residue rose 94 → 122 in eleven days, and 19 of the 28 are `outbound_archive_mismatch`
+
+The `production_shadow_audit` lane has been red continuously since 2026-07-24
+and is CONTEXT with a growth gate (`PRE_FLIP_HEALTH_CHECK.md`), so the only
+question it ever asks is whether the residue is growing for a reason nobody
+recorded. Four consecutive scheduled checks reported the rise and did not
+decompose it, which is how "no explanatory repair" became the standing note.
+This is the decomposition. It is a measurement, not a diagnosis, and it names
+no cause.
+
+`unexpected_divergences` per daily run, from `deliverable_events` (no run
+recorded on 09-03):
+
+| run date | total | `outbound_archive_mismatch` | video | graphics |
+|---|---|---|---|---|
+| 2026-09-01 | 94 | 18 | 22 | 72 |
+| 2026-09-02 | 104 | 17 | 32 | 72 |
+| 2026-09-04 | 101 | 17 | 31 | 70 |
+| 2026-09-05 | 103 | 20 | 32 | 71 |
+| 2026-09-06 | 114 | 31 | 43 | 71 |
+| 2026-09-07 | 114 | 31 | 43 | 71 |
+| 2026-09-08 | 116 | 32 | 43 | 73 |
+| 2026-09-09 | 119 | 37 | 44 | 75 |
+| 2026-09-10 | 122 | 37 | 47 | 75 |
+| 2026-09-11 | 122 | 37 | 47 | 75 |
+
+**One bucket.** Every other reason is flat or near-flat across the window:
+`outbound_parent_mismatch` 10 throughout, `outbound_priority_mismatch` 6,
+`outbound_batch_title_mismatch` 12, `outbound_comment_missing_in_linear` 8,
+`outbound_due_date_mismatch` 15 → 17, `outbound_assignee_mismatch` 8 → 9,
+`outbound_state_mismatch` 7 → 13. The deltas sum to the headline +28 and
+`outbound_archive_mismatch` supplies 19 of them.
+
+**One team.** Video went 22 → 47 and graphics 72 → 75. Video supplied 25 of the
+28.
+
+**Two steps, not a drift.** +11 between the 09-05 and 09-06 runs (both ~09:40Z)
+and +5 between 09-08 and 09-09, flat on every other day. A daily lane that jumps
+twice and sits still otherwise is recording two events, not an accumulating
+leak — which is the difference between a repair and a conversation.
+
+**What the bucket means.** `linear-deliverables-reconcile-lib.js:606-617`: the
+native row's archived-or-deleted state disagrees with the Linear issue's, and
+the disagreement is not one `historicalWriteDisposition` tolerates — that
+function tolerates `restore` and `parent` on historical entities and never
+tolerates `archive`.
+
+**A proxy that does NOT answer this, recorded so nobody spends the query
+twice.** Joining `deliverables` to `workload_issues` and comparing
+`status = 'archived'` against `workload_issues.active` returns 0 in the
+native-archived/Linear-active direction on both teams and 599 graphics + 641
+video in the other. Neither number is the audited population.
+`deliverableArchivedOrDeleted` (`:157-162`) reads `linear_raw` — webhook delete
+markers, `issue.archivedAt`, `issue.canceledAt` — not the mirror's `active`
+flag, so the mirror is the wrong side of the comparison entirely.
+
+**One arithmetic note, so a future reader does not chase it.** The
+`unexpected_divergences_by_reason` map sums to exactly 10 fewer than the
+headline `unexpected_divergences` on EVERY run in the window, 09-01 included.
+It is a constant offset, so it changes nothing about the growth attribution
+above; it does mean the map is not a complete partition of the total, and the
+missing 10 have not been identified.
+
+**Not done, and deliberately not repaired here.** What would answer it: the
+lane's own `unexpected_divergence_sample` for the 09-06 and 09-09 runs
+restricted to `outbound_archive_mismatch`, set against whatever was archived in
+SyncView on 09-05 and 09-08. The sample in the stored event payload is too
+small to carry it.
+
+---
+
+## 201. [2026-09-12, MEASURED — one bulk edit, not 98 drifts] Foreign-write STRANDED reads 98 against a baseline of 2, and 97 of the 98 land inside two minutes
+
+`foreign-write-strand-check.js` is CONTEXT with a growth gate, and the number it
+gates on is STRANDED — Linear moved, the native row never caught up — measured
+at **2** on 2026-08-22. Tonight's run over the trailing 14 days reads **98**.
+Read as a growth signal that is a 49x rise. Read as events it is one action plus
+one ordinary case.
+
+Grouping the 98 by the minute of the Linear edit:
+
+| Linear edit | rows |
+|---|---|
+| 2026-09-06T23:04Z | 64 |
+| 2026-09-06T23:05Z | 33 |
+| 2026-09-09T16:33Z | 1 |
+
+95 of the 98 are video and 3 are graphics. 86 of the 98 have the native row in
+`backlog` while Linear reads `Todo` (62) or `For SMM approval` (24).
+
+**What it costs, post-F1.** Both teams are SyncView-authoritative, so a Linear
+edit on these rows records `foreign_write_detected` and is deliberately not
+applied. Nothing is lost and nothing needs healing: SyncView owns the answer and
+the native value stands. What it costs is that whatever was done in Linear in
+those two minutes has no effect. The rows roll out of the 14-day window around
+2026-09-20 and the number falls back on its own, with no repair and no ledger
+close.
+
+**The one row that is not part of the burst** is `VID-13334`: Linear says Posted
+as of 2026-09-09T16:33Z, SyncView says `smm_approval`, last touched
+2026-09-05T20:53Z. That is the ordinary shape this check exists to find, and in
+fourteen days it is the only one.
+
+**The question is for a human and it is not a repair.** A 97-row edit inside two
+minutes is not a person working; it is a bulk action or an automation. Which one
+it was, and whether those rows were meant to move, is the part worth knowing —
+and nothing on this side of the system can answer it. The same entry's standing
+note applies: a stranded row is never auto-healed, because SyncView owns both
+teams and the Linear value is not automatically the truth.
+
+Checked after appending, per this file's own standing instruction: no new
+duplicate `## N.` headers. The six pre-existing duplicate numbers (13, 14, 22,
+23, 175, 176) now each carry a disambiguation block naming which entry is which
+and which references mean it; none were renumbered, because 175 and 176 are
+cited from a dozen places in `index.html` and the tests and the same hazard
+applies to the rest.

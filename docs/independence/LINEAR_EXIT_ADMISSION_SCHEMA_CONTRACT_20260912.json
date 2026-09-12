@@ -16,6 +16,14 @@
     {
       "file": "20260912190717_provider_debt_disposition_preparation.sql",
       "sha256": "2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f"
+    },
+    {
+      "file": "20260912193102_followup_transactional_retry_preparation.sql",
+      "sha256": "95804e6978f98fa251fad73bfa9c009d4ec46e70d42b77f30cb965cc577cf33e"
+    },
+    {
+      "file": "20260912193957_provider_closed_snapshot_preparation.sql",
+      "sha256": "cdfbd974375381a273f314e0089790780a60423eaac39473c683845ff177768f"
     }
   ],
   "tables": [
@@ -403,7 +411,7 @@
         },
         {
           "name": "card_write_transaction_context_v1_kind_check",
-          "definition": "CHECK ((kind = ANY (ARRAY['flag_control'::text, 'followup'::text, 'provider_disposition'::text])))"
+          "definition": "CHECK ((kind = ANY (ARRAY['flag_control'::text, 'followup'::text, 'provider_disposition'::text, 'provider_snapshot'::text])))"
         },
         {
           "name": "card_write_transaction_context_v1_pkey",
@@ -1868,7 +1876,7 @@
       "parallel": "u",
       "leakproof": false,
       "volatility": "v",
-      "body_lf_md5": "d84f34d44cb09b8348a7135d34db3b10",
+      "body_lf_md5": "8120e797d39ee38d27ce3d70c5e5abe0",
       "anon_execute": false,
       "service_execute": false,
       "security_definer": true,
@@ -2009,6 +2017,25 @@
       "authenticated_execute": false
     },
     {
+      "name": "production_card_followup_claim_transactional_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "SETOF card_write_followups_v1",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "9ac7480c4ed4fe7615bd7b50b2f7d2e9",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_limit integer",
+      "authenticated_execute": false
+    },
+    {
       "name": "production_card_followup_claim_v1",
       "owner": "postgres",
       "config": [
@@ -2022,7 +2049,7 @@
       "volatility": "v",
       "body_lf_md5": "b8cd90b8c0c81c69c1290a3902aae62d",
       "anon_execute": false,
-      "service_execute": true,
+      "service_execute": false,
       "security_definer": true,
       "identity_arguments": "p_limit integer",
       "authenticated_execute": false
@@ -2085,6 +2112,26 @@
       "authenticated_execute": false
     },
     {
+      "name": "production_card_followup_recover_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog",
+        "lock_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "309a402f9a9956d6f8d7135bd7333dc8",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_operation_id uuid, p_kind text, p_attempt integer, p_lease uuid",
+      "authenticated_execute": false
+    },
+    {
       "name": "production_card_followup_verify_outcome_v1",
       "owner": "postgres",
       "config": [
@@ -2101,6 +2148,26 @@
       "service_execute": false,
       "security_definer": true,
       "identity_arguments": "p_context card_write_transaction_context_v1, p_task card_write_followups_v1, p_outcome jsonb",
+      "authenticated_execute": false
+    },
+    {
+      "name": "production_provider_closed_snapshot_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog",
+        "lock_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "31835585ef28279c103ed6f04e2e427e",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "identity_arguments": "p_epoch uuid, p_team text, p_expected_authority jsonb, p_expected_rows jsonb, p_actor text, p_reason text",
       "authenticated_execute": false
     },
     {

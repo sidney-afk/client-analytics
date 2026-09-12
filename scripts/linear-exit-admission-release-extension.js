@@ -2,10 +2,10 @@
 // Reviewed additive source extension, not a complete hosted baseline or installer.
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const ROOT=path.resolve(__dirname,'..'),ARTIFACT='docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json';
-const PIN='5bfa474d9623cfc68b52a4ccc6d4f125967a7c0245f5ffe6be9861c26f121c63';
+const PIN='984a5b08f3081154a845ee0af35f4074660993f7188caa661fff58af441e835c';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const canonical=require('./track-b-backup').canonicalJson;
-const OWNERS=['20260912174907_card_atomic_admission_preparation.sql','20260912183653_application_dml_admission_preparation.sql','20260912184931_card_followup_outcome_proof.sql','20260912190717_provider_debt_disposition_preparation.sql'];
+const OWNERS=['20260912174907_card_atomic_admission_preparation.sql','20260912183653_application_dml_admission_preparation.sql','20260912184931_card_followup_outcome_proof.sql','20260912190717_provider_debt_disposition_preparation.sql','20260912193102_followup_transactional_retry_preparation.sql','20260912193957_provider_closed_snapshot_preparation.sql'];
 function generate({readFile=fs.readFileSync}={}){const pin=p=>({path:p,sha256:sha(readFile(path.join(ROOT,p)))});return {
  format:'admission-release-extension-v1',scope:'additive reviewed source extension; not complete hosted baseline',
  base_install_inventory:pin('docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json'),

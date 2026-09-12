@@ -61,11 +61,21 @@
       "path": "supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql",
       "sha256": "2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f",
       "order": 4
+    },
+    {
+      "path": "supabase/migrations/20260912193102_followup_transactional_retry_preparation.sql",
+      "sha256": "95804e6978f98fa251fad73bfa9c009d4ec46e70d42b77f30cb965cc577cf33e",
+      "order": 5
+    },
+    {
+      "path": "supabase/migrations/20260912193957_provider_closed_snapshot_preparation.sql",
+      "sha256": "cdfbd974375381a273f314e0089790780a60423eaac39473c683845ff177768f",
+      "order": 6
     }
   ],
   "admission_preflight_contract": {
     "path": "docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json",
-    "sha256": "7521ab5169fa272a7add4d7d45dc62c82ca22f75c69d2ea8371b22c1c5107a79"
+    "sha256": "55e1a20a12cf357f29ef23768326c27efa09983d2292d50cebc99a0e0cbd74bc"
   },
   "writer_sources": [
     {
@@ -88,7 +98,7 @@
     },
     {
       "path": "scripts/linear-exit-followup-endpoint.mjs",
-      "sha256": "0c6359e12dae7e9af8b5cb2f082e8324e3c83d57835a4545fdbeaa5d6f7c75bf"
+      "sha256": "d8c8f25d673ccc48ad2a313b49484e728e1262c15e9aac6df8b5c2564ee9ff41"
     },
     {
       "path": "scripts/linear-exit-followup-postgres.mjs",

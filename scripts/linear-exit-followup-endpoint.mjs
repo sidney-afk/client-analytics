@@ -32,7 +32,7 @@ export function createFollowupEndpoint({env,openDatabase,runTask,createHelpers,s
         return json({ok,enabled,...rows[0]},ok?200:503);
       }
       // One claim per invocation keeps its lease behind the bounded work deadline.
-      const rows=await database.query('select to_jsonb(t) as task from public.production_card_followup_claim_v1(1) t',[]);
+      const rows=await database.query('select to_jsonb(t) as task from public.production_card_followup_claim_transactional_v1(1) t',[]);
       if(!Array.isArray(rows)||rows.length>1)throw Error('CLAIM');
       if(!rows.length)return json({ok:true,processed:0});
       const result=await runTask({database,task:rows[0].task,createHelpers,storageFactory,fetch:transport});

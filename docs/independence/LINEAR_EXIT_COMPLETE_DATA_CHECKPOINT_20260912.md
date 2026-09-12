@@ -1,5 +1,10 @@
 # Complete application-data rehearsal checkpoint
 
+The later six-owner composition, including retained retry history, passes receipt
+`6f4816c89028413697b2b481bf58d0e9`. See
+`LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md` for that evidence; older
+four/five-owner results below are retained history.
+
 Status: bounded isolated evidence, not installation approval or final acceptance.
 
 The separately versioned `complete-application-data-v1` package reconstructs the

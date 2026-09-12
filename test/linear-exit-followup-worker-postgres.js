@@ -4,8 +4,8 @@ const {Cluster}=require('../scripts/f42-apply-rehearsal');
 if(process.env.F63_REQUIRE_POSTGRES!=='1')throw Error('DISPOSABLE_REQUIRED');
 for(const k of ['PGHOSTADDR','PGSERVICE','PGSERVICEFILE'])if(process.env[k])throw Error('INHERITED_ROUTING');
 const c=new Cluster();assert.equal(c.host,'127.0.0.1');const q=v=>"'"+String(v).replaceAll("'","''")+"'";
-const sqlOwners=['supabase/migrations/20260912174907_card_atomic_admission_preparation.sql','supabase/migrations/20260912183653_application_dml_admission_preparation.sql','supabase/migrations/20260912184931_card_followup_outcome_proof.sql','supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql'];const sourceHashes=()=>sqlOwners.map(path=>({path,sha256:require('crypto').createHash('sha256').update(fs.readFileSync(path)).digest('hex')}));const sqlHashes=sourceHashes();
-const runtimeSources=['scripts/linear-exit-followup-postgres.mjs','scripts/linear-exit-followup-worker.mjs','scripts/linear-exit-followup-transaction.mjs','scripts/linear-exit-followup-compose.mjs','test/helpers/followup-worker-deno.mjs','test/linear-exit-followup-worker-postgres.js','qa/linear-exit-rehearsal/followup-deno.lock','qa/linear-exit-rehearsal/serving/samples-v50/functions/_shared/thumbnail-revisions.ts'];
+const sqlOwners=['supabase/migrations/20260912174907_card_atomic_admission_preparation.sql','supabase/migrations/20260912183653_application_dml_admission_preparation.sql','supabase/migrations/20260912184931_card_followup_outcome_proof.sql','supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql','supabase/migrations/20260912193102_followup_transactional_retry_preparation.sql','supabase/migrations/20260912193957_provider_closed_snapshot_preparation.sql'];const sourceHashes=()=>sqlOwners.map(path=>({path,sha256:require('crypto').createHash('sha256').update(fs.readFileSync(path)).digest('hex')}));const sqlHashes=sourceHashes();
+const runtimeSources=['scripts/linear-exit-followup-endpoint.mjs','scripts/linear-exit-followup-postgres.mjs','scripts/linear-exit-followup-worker.mjs','scripts/linear-exit-followup-transaction.mjs','scripts/linear-exit-followup-compose.mjs','test/helpers/followup-worker-deno.mjs','test/linear-exit-followup-worker-postgres.js','qa/linear-exit-rehearsal/followup-deno.lock','qa/linear-exit-rehearsal/serving/samples-v50/functions/_shared/thumbnail-revisions.ts'];
 const runtimeHashes=()=>runtimeSources.map(path=>({path,sha256:require('crypto').createHash('sha256').update(fs.readFileSync(path)).digest('hex')}));const initialRuntimeHashes=runtimeHashes();
 let stage='install';
 async function main(){try{
@@ -30,7 +30,7 @@ async function main(){try{
  }
  c.exec("create function synthetic_worker_fault() returns trigger language plpgsql as $$begin if new.source_id='fault-worker' and new.reason='graphic_tweaks_needed' then raise exception 'synthetic_worker_insert_fault';end if;return new;end$$;create trigger synthetic_worker_fault before insert on thumbnail_media_revisions for each row execute function synthetic_worker_fault();");
  c.exec("select production_card_admission_close_v1((select epoch from card_write_admission_v1),'worker proof')");
- const tasks=c.scalarJson('select jsonb_agg(t) from production_card_followup_claim_v1(10) t');assert.equal(tasks.length,7);
+ const tasks=c.scalarJson('select jsonb_agg(t) from production_card_followup_claim_transactional_v1(10) t');assert.equal(tasks.length,7);
  fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'worker-tasks.private.json'),JSON.stringify(tasks));
  assert.equal(c.scalarJson('select to_jsonb(mode) from card_write_admission_v1'),'closed');
  const faultBefore=c.scalarJson("select coalesce(jsonb_agg(to_jsonb(t) order by id),'[]'::jsonb) from thumbnail_media_revisions t where source_id='fault-worker'");

@@ -42,12 +42,22 @@ async function main(){try{
    ['supabase/migrations/20260912174907_card_atomic_admission_preparation.sql','1699ab4a661558460eeb94b2c4b85244265bb9b890589efbc4876c6266107cea'],
    ['supabase/migrations/20260912183653_application_dml_admission_preparation.sql','c3d1e93127156b316ae7baf2176baf7892d5523248c3bbe4ef32c19676a0998e'],
    ['supabase/migrations/20260912184931_card_followup_outcome_proof.sql','e9691f160a7bbac302067156f4a7c8eb6682e5a214a6126b88776eaa1541a46a'],
-   ['supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql','2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f']]){assert.equal(require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex'),sha256);cluster.runFile(file);admissionSources.push({file,sha256});}
+   ['supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql','2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f'],
+   ['supabase/migrations/20260912193102_followup_transactional_retry_preparation.sql','95804e6978f98fa251fad73bfa9c009d4ec46e70d42b77f30cb965cc577cf33e'],
+   ['supabase/migrations/20260912193957_provider_closed_snapshot_preparation.sql','cdfbd974375381a273f314e0089790780a60423eaac39473c683845ff177768f']]){assert.equal(require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex'),sha256);cluster.runFile(file);admissionSources.push({file,sha256});}
   cluster.exec(`set role service_role;
    select public.production_card_atomic_write_v1('00000000-0000-4000-8000-000000009090',jsonb_build_object('surface','calendar','client','schema-v10-native-client','id','synthetic-custody-atomic','row',jsonb_build_object('client','schema-v10-native-client','id','synthetic-custody-atomic','status','Draft'),'expected_existing',null,'events','[]'::jsonb,'followups',jsonb_build_array(jsonb_build_object('kind','graphic_baseline','payload',jsonb_build_object('surface','calendar','client','schema-v10-native-client','sourceId','synthetic-custody-atomic')))));
    select public.production_card_admission_close_v1((select epoch from public.card_write_admission_v1),'synthetic capture close');
    select public.production_card_admission_flag_control_v1((select epoch from public.card_write_admission_v1),'linear_outbound_enabled',(select value from public.syncview_runtime_flags where key='linear_outbound_enabled'),'{"mode":"off"}'::jsonb,'synthetic-capture','preserve control history');reset role;`);
   assert.equal(query('select count(*) from public.card_write_operations_v1').trim(),'1');assert.equal(query('select count(*) from public.card_write_followups_v1').trim(),'1');assert.equal(query('select count(*) from public.card_write_transaction_context_v1').trim(),'0');assert.equal(query('select jsonb_array_length(control_history) from public.card_write_admission_v1').trim(),'1');
+  cluster.exec(`set role service_role;do $fixture$ declare t public.card_write_followups_v1%rowtype; recovered jsonb;begin
+   select * into strict t from public.production_card_followup_claim_transactional_v1(1);
+   perform public.production_card_followup_fail_v1(t.operation_id,t.kind,t.attempt,t.lease_token,'synthetic first failure');
+   recovered:=public.production_card_followup_recover_v1((select epoch from public.card_write_admission_v1),t.operation_id,t.kind,t.attempt,t.lease_token);
+   select * into strict t from public.card_write_followups_v1 where operation_id=t.operation_id and kind=t.kind;
+   perform public.production_card_followup_fail_v1(t.operation_id,t.kind,t.attempt,t.lease_token,'synthetic retained retry failure');
+  end $fixture$;reset role;`);
+  assert.equal(query("select count(*) from public.card_write_followups_v1 where attempt=2 and state='failed' and history @> '[{\"event\":\"recovered_transactional_attempt\"}]'::jsonb").trim(),'1');
  }
  const complete=require('../scripts/linear-exit-complete-application-data');
  const role='complete_capture_'+process.pid,restoreRole='complete_restore_'+process.pid;

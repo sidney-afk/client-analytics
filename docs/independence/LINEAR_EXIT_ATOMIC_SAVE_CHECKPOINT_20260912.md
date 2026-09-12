@@ -1,5 +1,9 @@
 # Atomic save and cutoff preparation checkpoint
 
+Later six-owner retry, closed snapshot, final recovery and Storage export evidence
+is recorded in `LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md`. The
+four-owner receipts below remain historical; do not treat them as the latest build.
+
 Preparation only. Nothing merged, deployed, installed or activated. The owner
 approved internal persistence changes preserving client URLs, links, payloads
 and tokenless access, plus retained verified receipts with zero Linear work.

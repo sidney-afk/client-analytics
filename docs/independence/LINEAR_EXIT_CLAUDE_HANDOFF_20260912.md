@@ -1,5 +1,10 @@
 # Linear exit continuation handoff — September 12
 
+Further preparation continued after this handoff. Read
+`LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md` for the later six-owner
+retry/snapshot, complete recovery and Storage export results. The pinned four-owner
+code revision below is historical. The active build goal is not complete.
+
 ## Start here
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),

@@ -318,6 +318,11 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ### September 12 atomic admission preparation
 
+- `docs/independence/LINEAR_EXIT_BASELINE_REQUIREMENTS_V1.json`, `scripts/linear-exit-baseline-requirements.js` and `test/linear-exit-baseline-requirements.js`: source ownership and selected prerequisite metadata; missing full catalog expectations remain explicit.
+- `docs/independence/LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md`: six-owner retry/snapshot, final worker/preflight/90-table recovery and Storage transport evidence.
+- `scripts/linear-exit-storage-export-adapter.js` and `test/linear-exit-storage-export-adapter.js`: read-only current-object capture/export, encrypted metadata preservation and loopback HTTP proof.
+- `scripts/linear-exit-integrated-release-plan.js` and `test/linear-exit-integrated-release-plan.js`: ordered source plan and authenticated observed-prefix refusal classifier; no SQL executor.
+- `test/linear-exit-followup-retry.js` and `test/linear-exit-provider-closed-snapshot.js`: actual database retry races and protected closed-gate F27 snapshot proof.
 - `docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md`: pinned code checkpoint, evidence index, persistent owner boundaries and remaining work for continuation.
 - `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md`: source and isolated handler/worker evidence, retained failures and remaining build gaps.
 - `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` and `scripts/linear-exit-admission-release-extension.js`: separately pinned four-owner extension; not an installer or hosted baseline.

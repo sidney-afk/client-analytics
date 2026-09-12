@@ -42,3 +42,15 @@ docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json text eol=
 migrations/2026-09-11-native-signoff-verifier.sql -text whitespace=cr-at-eol
 scripts/linear-exit-source-baseline-catalog.sql -text whitespace=cr-at-eol
 test/helpers/remaining-application-fixture.js -text whitespace=cr-at-eol
+
+docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json text eol=lf
+
+# Exact observed function definitions include semantically significant CR bytes.
+qa/linear-exit-rehearsal/observed-baseline/routines-64.sql -text whitespace=cr-at-eol
+qa/linear-exit-rehearsal/observed-baseline/routines-contract.json text eol=lf
+
+# Source-stage bootstrap is byte-pinned by observed routine reconstruction.
+test/linear-exit-source-phases-postgres.js -text whitespace=cr-at-eol
+scripts/linear-exit-observed-routines.js -text whitespace=cr-at-eol
+test/linear-exit-observed-routines-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-observed-routines.js -text whitespace=cr-at-eol

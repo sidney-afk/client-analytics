@@ -1,5 +1,7 @@
 # Consolidated Linear-exit preparation checkpoint
 
+Later preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` for the exact observed starting catalog, routine reconstruction and durable installation journal. The pinned checkpoint below remains historical.
+
 This is a preparation checkpoint, not a finished installation build. It advances
 `LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md`; earlier receipts remain
 historical. No merge, deployment, installation, production write, workflow dispatch

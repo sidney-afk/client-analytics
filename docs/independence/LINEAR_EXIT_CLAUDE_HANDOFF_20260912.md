@@ -1,5 +1,7 @@
 # Linear exit: Claude continuation handoff
 
+Later preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` for the exact observed starting catalog, routine reconstruction and durable installation journal. The pinned checkpoint below remains historical.
+
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
 Reviewed code checkpoint: `2421a7384ed2e0a1aad821c76616712c1f7a02cd`.
@@ -51,13 +53,21 @@ historical evidence. Their old hashes and counts are not the current build.
 
 ## First bounded task
 
-Reconcile exact starting-schema routines and catalog metadata using authorized
-read-only hosted retrieval. Source-only preparation matches the observed 67 table
-names but has 86 functions versus 115 observed live. Counts do not identify the
-missing/alternate routine owners. Map definitions and provenance; do not invent
-DDL, use synthetic application fixtures as installation owners, or blindly replay
-all 64 inventory entries. The existing description-images owner is explicitly
-preexisting in the tested stage transition.
+Finish exact starting-schema reconstruction, starting with
+`LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`. Read-only observation and
+routine provenance mapping are complete: the portable `observed-routines` lane
+now matches all 115 complete function records, including raw bodies and grants.
+Do not redo that audit. Full table/object equality remains unfinished; selected
+nonroutine reconstruction is a private partial proof, not a complete baseline.
+Recover the private prototype if available, otherwise use authorized read-only
+schema captures. Never publish unreviewed raw captures or infer application DDL.
+
+Classify every candidate owner against the observed stage before assembling the
+pending installation plan. The 31 source-phase entries are rehearsal entries,
+not a proved list of pending hosted migrations. Some candidate routines already
+exist live. Do not blindly replay the 64-entry inventory. The new `install-journal`
+lane proves 17 actual crash/resume and refusal cases, but journal bootstrap,
+pending-owner plan integration and accepted-write exclusion remain unfinished.
 
 Then follow the ordered remaining work in the consolidated checkpoint: actual
 installation/resume and internal-commit failure recovery; external Linear worker
@@ -80,7 +90,8 @@ PG17 is available locally under
 Docker is not required. The harness refuses inherited production credentials;
 clear them only in the child process, never print values or mutate hosted state.
 
-The final affected lanes are `source-phases`, `source-baseline`,
+The latest added lanes are `observed-routines` and `install-journal`.
+The preceding affected lanes are `source-phases`, `source-baseline`,
 `followup-outcome-matrix`, `admission-preflight`, and
 `complete-application-recovery -ApplicationDataV2`. Follow the runner's parameters
 and use a new private output directory. Do not rerun every historical lane solely

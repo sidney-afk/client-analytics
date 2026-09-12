@@ -1457,6 +1457,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  preserveFunctionBodyTransport,
   BODY_WRITE_KEYWORDS,
   DANGEROUS_CATALOG_FUNCTIONS,
   DANGEROUS_ROLE_MEMBERSHIPS,

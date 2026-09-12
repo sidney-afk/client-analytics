@@ -349,3 +349,12 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `scripts/linear-exit-followup-supervisor.mjs`, `test/linear-exit-followup-supervisor.mjs` and `docs/ops/LINEAR_EXIT_FOLLOWUP_SUPERVISOR.md`: disabled portable cadence, bounded requests and independent observer requirements.
 - `test/linear-exit-followup-outcome-matrix.js` and `test/helpers/followup-outcome-matrix-deno.mjs`: actual frozen-helper/SQL path matrix and URL/config compatibility checks.
 - `docs/independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md`: seven-owner preparation evidence and unresolved installation gates.
+
+### Observed starting catalog and durable installation progress
+
+- `scripts/linear-exit-observed-public-catalog.js`, `test/linear-exit-observed-public-catalog.js` and `docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json`: pinned read-only public-catalog observation and exact digest comparator; connection identity and installation authorization remain separate.
+- `scripts/linear-exit-install-journal.js`, `test/linear-exit-install-journal.js`, `test/linear-exit-install-journal-postgres.js` and `test/helpers/install-journal-worker.mjs`: transaction-chunk progress and actual fresh-process interruption proof; explicit reviewed stage and private journal prerequisites required.
+
+- `scripts/linear-exit-install-journal-catalog.js`: exact private journal prerequisite catalog and source verification before installer effects.
+- `scripts/linear-exit-observed-routines.js`, `test/linear-exit-observed-routines.js`, `test/linear-exit-observed-routines-postgres.js` and `qa/linear-exit-rehearsal/observed-baseline/`: exact observed PRE67 routine reconstruction and restricted ACL replay, never baseline installation.
+- `docs/independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`: read-only starting-state evidence, routine reconstruction, durable journal proof and remaining integration.

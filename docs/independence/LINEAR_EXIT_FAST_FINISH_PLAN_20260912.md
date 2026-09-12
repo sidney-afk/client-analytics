@@ -1,5 +1,7 @@
 # Fast completion plan ? 2026-09-12
 
+Current continuation follows `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`: use exact read-only observed source for missing starting-state definitions, then integrate the reviewed pending-owner plan and durable journal. Historical source reconstruction is rehearsal scaffolding, never an instruction to replay baseline owners on the hosted database.
+
 Owner request: finish the preparation build and strategy economically, then
 provide a handoff for a fresh review before installation. No merge, deployment,
 workflow dispatch, production writes or n8n execution/edit in this session.

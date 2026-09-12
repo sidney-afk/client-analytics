@@ -1,0 +1,94 @@
+{
+  "format": "linear-exit-observed-public-catalog-v1",
+  "classification": "LIVE_READ_SCHEMA_ONLY_POINT_IN_TIME",
+  "project_ref": "uzltbbrjidmjwwfakwve",
+  "observed_date": "2026-09-12",
+  "query": {
+    "path": "scripts/linear-exit-source-baseline-catalog.sql",
+    "sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8"
+  },
+  "catalog_sha256": "809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd",
+  "sections": [
+    {
+      "name": "default_acls",
+      "count": 6,
+      "sha256": "91df0c128bddd74cb59379a5527bd8adc3b226de6b6150053f16bbc3226e3903"
+    },
+    {
+      "name": "dependencies",
+      "count": 1336,
+      "sha256": "f35d131f3edf912cde9069bb27a8a0944019c4aa2952b553620c1c075f6a1c5b"
+    },
+    {
+      "name": "functions",
+      "count": 115,
+      "sha256": "11f375c9efcdfe4927fa820a3e752f330ead0d27e03fec87deb1c3d7b9b48612"
+    },
+    {
+      "name": "indexes",
+      "count": 177,
+      "sha256": "dd580f8a55fbd749c89451c7ddeb5b2fba908d3285f5e3d80777be4866e0c257"
+    },
+    {
+      "name": "internal_constraint_triggers",
+      "count": 120,
+      "sha256": "41e0f4818ec8a62b582d2804036a0673c6ee61cad6049b507ca8fc8122cbe9ac"
+    },
+    {
+      "name": "policies",
+      "count": 31,
+      "sha256": "acceb6c96263cf4d03acb1466b88476b8e5aba55ceb26e4d4ba325850b583342"
+    },
+    {
+      "name": "publications",
+      "count": 1,
+      "sha256": "c60699c826fab3996ceaa77ef428af5d11f6a71a6e68fba28c8c6a3aac76e182"
+    },
+    {
+      "name": "rules",
+      "count": 5,
+      "sha256": "fa1f9a6f1a685d5f39275ec91c73ed354d0ea2a5a37a416724b0b7a825228cb9"
+    },
+    {
+      "name": "schema",
+      "count": null,
+      "sha256": "c91069038c90fad6352cf43431351624bd97601f93cafa0d62a11fbc295a404e"
+    },
+    {
+      "name": "sequences",
+      "count": 14,
+      "sha256": "52a5069240442913d3e49161ea79043d137531a30ba4aad06711c67d62a39083"
+    },
+    {
+      "name": "server_major",
+      "count": null,
+      "sha256": "4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3"
+    },
+    {
+      "name": "tables",
+      "count": 67,
+      "sha256": "311046772f85951e33b7f844d4f7b862043fa3f90a27d806b15fb6117bb8c203"
+    },
+    {
+      "name": "triggers",
+      "count": 28,
+      "sha256": "77c19c1a02276403e37c4c7fa7a994958bfe9293e42b9caaa461523a8da091e7"
+    },
+    {
+      "name": "types",
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "name": "views",
+      "count": 5,
+      "sha256": "aea9d547855042b848ba97e412b52d57c0503eefdca6defd79fdc0f3e3a0db0b"
+    }
+  ],
+  "scope": "public schema metadata and catalog dependencies; no application rows",
+  "source_rehearsal_equivalence_proven": false,
+  "connection_identity_verified_by_comparator": false,
+  "external_platform_configuration_proven": false,
+  "installation_authorized": false,
+  "fresh_read_required": true
+}

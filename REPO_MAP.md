@@ -365,6 +365,9 @@ Installation maintenance preparation: `scripts/linear-exit-install-maintenance.j
 
 Installation finalization preparation: `scripts/linear-exit-install-finalize.js`, `test/linear-exit-install-finalize-postgres.js`, `test/helpers/install-finalize-worker.mjs`.
 
+Notification health response coverage: `test/native-notification-health-handler.js` exercises the actual handler with synthetic SQL results and no external transport.
+
+
 Observed-schema reconstruction preparation: `scripts/linear-exit-observed-schema.js`, `test/linear-exit-observed-schema.js`.
 
 Observed installation target: `docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`.

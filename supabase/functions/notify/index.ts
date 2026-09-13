@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: "notification_monitor_unavailable" }, 503);
     }
     const counts = Object.fromEntries(keys.map(key => [key, Number(data[key])]));
-    const debt = counts.pending_stale + counts.sending_stale + counts.blocked + counts.unknown;
+    const debt = counts.pending_stale + counts.sending_stale + counts.blocked + counts.unknown + counts.retryable_overdue;
     return json({ ok: debt === 0, ...counts }, debt ? 503 : 200);
   }
   const slackToken = clean(Deno.env.get("SLACK_BOT_TOKEN"));

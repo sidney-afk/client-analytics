@@ -8,9 +8,27 @@ Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-an
 branch `integration/linear-exit-current-main-20260910`.
 Reviewed code checkpoint: `4dd2d98d1bae7cb54357f230c2971425b4d831fd`.
 Tree: `a9ff75d06c218b801785b29fa39cb717b30cdc6a`.
-This handoff is a later documentation-only commit. Verify the remote head and that
-this code checkpoint is its ancestor. Do not assume an old local scratch directory
+Later commits contain the handoff and the bounded follow-up below. Verify the
+remote head and that this code checkpoint is its ancestor. Do not assume an old local scratch directory
 or the September 10 repair bundle represents the current preparation.
+
+### Latest bounded follow-up
+
+The later notification health preparation adds overdue retry debt to unhealthy
+status, using the existing SQL threshold. Nine actual-handler cases pass with
+injected SQL results and zero external calls; the notification source checks also
+pass. This is separate from the installation target above and is not deployed.
+
+Two recovery drafts remain local and are deliberately excluded from publication:
+`scripts/linear-exit-control-companion.js` and the provider checkpoint recovery
+helper, SQL owner, test and runner edits. Neither is accepted recovery evidence.
+The companion still needs the actual private schema contract, mandatory
+authenticated marker, dependency-ordered renderer and encrypted restore proof.
+Provider recovery must bind the original admitted work item, including its
+identity and payload, before marking it complete. A fresh caller-supplied row
+comparison and unchanged lock are insufficient. Preserve this finding even if
+the earlier synthetic checkpoint tests passed. Start from the published branch
+when continuing elsewhere; these local drafts are not required prerequisites.
 
 ## Plain-English status
 

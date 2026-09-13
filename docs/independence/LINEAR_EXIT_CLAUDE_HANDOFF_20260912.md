@@ -7,6 +7,21 @@ Tree: `5009d68b6295862f0eb74c189ec7ff6b4ea77827`.
 Verify remote HEAD and ancestry before continuing. Later documentation commits
 do not expand the evidence scope of this checkpoint.
 
+Reviewed follow-up `01b8a60158cfb72a7adefcdedac7e385cedd7e24` adds authenticated
+original/rescued byte-equality evidence (11 isolated tests plus coverage checks)
+and notification health refusal for malformed/inconsistent counts (nine existing
+plus twelve added handler cases). Read
+`../ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` for the prepared
+operator acceptance sequence. No hosted asset or notification acceptance is implied.
+
+The subsequent deterministic read-observation recovery is documented in
+`../ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md`: 11 isolated PG17
+checks and eight offline transport checks pass. Matching exact reads can recover
+a lost acknowledgment without fabricating one; absence/conflict remains unresolved.
+The expanded observed installation plan is still under calibration and is not
+yet accepted as a new combined target. Recorded batch/non-F203 creates and other
+uncertain operations still require preparation.
+
 ## Plain-English status
 
 The replacement has tested pieces for saving safely, keeping unfinished work

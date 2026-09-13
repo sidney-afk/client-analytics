@@ -409,3 +409,9 @@ Guarded retirement switch preparation: `docs/ops/LINEAR_EXIT_RETIREMENT_SWITCH_P
 - docs/independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json - Exact 94-table encrypted retirement-profile recovery receipt and bounded restore policy.
 
 External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md`. Operator inventory, stop/readback, provider and followup reconciliation, custody and separate activation; no hosted execution or inventory-closure claim.
+
+- `supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql` - Preparation-only recorded issue/attachment read reconciliation; exact immutable request/intent, raw observation custody, scoped completion and typed terminal receipt eligibility.
+- `scripts/linear-exit-provider-issue-observation.mjs` - Fixed read-query transport and source-owned attachment canonical projection; no mutation resend.
+- `test/linear-exit-provider-issue-observation.js` - Isolated PG17 operation/negative matrix against actual source receipt construction.
+- `test/linear-exit-provider-issue-observation-transport.mjs` - Offline transport and actual URL canonicalization controls.
+- `docs/ops/LINEAR_EXIT_PROVIDER_ISSUE_OBSERVATION_PREPARATION.md` - Component evidence, source pins and explicit service-observation trust boundary.

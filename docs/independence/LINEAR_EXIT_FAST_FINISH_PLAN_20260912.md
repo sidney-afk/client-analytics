@@ -11,7 +11,21 @@ serving captures remain immutable controls. No installation is authorized.
 
 ## Execution order and stopping criteria
 
-Current critical path after the published 42-source calibration:
+Current critical path after the published 42-source calibration (September 13 update):
+
+Recorded create and comment recovery are published. The final issue/attachment
+observer is frozen and independently reviewed, with 56 isolated PG17 checks and
+10 offline transport checks passing; publication is pending. Guarded retirement
+and separate native reopening have a published 29-check component proof. The
+retirement recovery profile has an encrypted 94-table proof (`cfbf66455be44f98ad49e42fce2a4cb0`),
+which predates the final issue observer. External-worker and notification handover
+procedures are prepared. These component results do not replace final integration.
+
+Remaining execution: publish the reviewed observer, refresh exact switch and
+recovery metadata, run the expanded post-reopen business matrix, then calibrate
+and replay the complete packaged installation in a fresh database. Consolidate
+the actual final evidence and release matrix into the reviewer handoff. Retain
+all separately authorized hosted acceptance gates.
 
 1. Finish the recorded batch/non-F203 recovery review and replay regression. Reuse
    immutable V2 context, exact source receipts and narrow linkage; do not resend or

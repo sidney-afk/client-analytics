@@ -56,11 +56,22 @@ including string `123` versus numeric `123`, while rewritten autolinks still pas
 The earlier six-check pass predates this correction. The historical F203 owner is
 only an isolated fixture prerequisite, not an instruction to replay it on hosted SQL.
 
-Remaining implementation: legacy/batch/nonplanned issue creates and operation-specific evidence
-for lost/uncertain provider responses. Unresolved sends still block drain and seal.
-New ledgers do not prove older accepted work retrospectively. Full observed-plan
-composition, updated target/preflight evidence, private-record recovery and
-external-worker fencing remain separate integration/acceptance requirements.
+Recorded batch and non-F203 create linkage recovery is now prepared: receipt
+`6b9ae18a114e44a1a512ab00bab182cd`, 27 isolated PG17 checks, exit zero and server
+stopped. It preserves later native edits and verifies exact linkage/audit replay.
+Deterministic create read-observation recovery also passed, receipt
+`022e0a15fb6041c19a4705b11c008db6`, 11 isolated PG17 checks, exit zero and server
+stopped. Its read evidence is separate from a mutation acknowledgment.
+
+Remaining implementation includes operation-specific evidence for other
+lost/uncertain provider responses, including comments, and unsupported historical
+receipt variants. Unresolved sends still block drain and seal. New ledgers do not
+prove older accepted work retrospectively. The historical classifier's 31-check
+component proof is described in
+`../ops/LINEAR_EXIT_PROVIDER_TERMINAL_HISTORY_PREPARATION.md`; it does not prove
+that every hosted historical row is eligible. Full final-owner installation,
+updated target/preflight evidence, private-record recovery and external-worker
+fencing remain separate integration/acceptance requirements.
 
 Reproduce the components with portable PG17 lanes `provider-checkpoint-recovery`,
 `provider-ack-recovery`, `provider-comment-recovery` and `provider-create-recovery`. Their scripts use synthetic

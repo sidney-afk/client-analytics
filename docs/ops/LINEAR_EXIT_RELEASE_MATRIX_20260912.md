@@ -58,9 +58,15 @@ decision document for the approved scope.
 Latest preparation evidence: `../independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`
 records exact observed public-schema reconstruction, pending-owner classification,
 journal/bootstrap/maintenance/finalizer components and external-send accounting.
-The older 35-source installation pipeline passed; later provider and diagnostics
-owners need a new combined plan and target. Private-ledger recovery passed its
-94-table profile; final newer public-owner coverage remains unfinished.
+The older 35-source installation pipeline passed. The later 42-source calibration
+passed, but it is not a fresh replay of the final build. The published current-public
+recovery extension now proves encrypted capture/reopen/restore of 94 tables and
+15 selected routine records, including comment, create, observation and recorded-create
+recovery owners (receipt `308a5b7e3b034abc96d4133bd3233e30`). See
+`../independence/LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_PROOF_20260913.json`.
+The in-progress retirement switch and terminal-history classifier are not covered
+by that receipt. Their final installation ordering, private trigger profile and
+combined recovery/replay remain required.
 The preceding consolidated checkpoint records seven-owner admission
 preflight/recovery, disabled supervisor and Storage capability guards. All
 installation and retirement gates remain in force.

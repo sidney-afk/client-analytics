@@ -2,10 +2,10 @@
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-Reviewed recovery code checkpoint: `2394ca3d9dcde62e9fd9b23fe99c40bde5a3d704`.
-Tree: `5536c58d6eefdcb970868ab41f68dc3ef4a98108`.
-Verify remote HEAD and ancestry before continuing. Later documentation or bounded
-create-recovery commits do not expand the evidence scope of this checkpoint.
+Reviewed preparation code checkpoint: `4e78529ac2e0268fdd84791182dc06d4a1b57a97`.
+Tree: `5009d68b6295862f0eb74c189ec7ff6b4ea77827`.
+Verify remote HEAD and ancestry before continuing. Later documentation commits
+do not expand the evidence scope of this checkpoint.
 
 ## Plain-English status
 
@@ -43,6 +43,7 @@ This is a continuation handoff, not approval to install.
 | Original admission/checkpoint recovery | 14 PG checks, `ea7cd892b03a46928467ec4d85aa525c` | Legacy attempts without original proof refuse |
 | Acknowledged issue update recovery | 8 PG checks, `7832d19ef4e9492aa65d1a8bd6930eef` | Lost/uncertain provider responses remain unresolved |
 | Acknowledged comment recovery | 10 PG checks, `93a10d02de15462b985096dad85bae3a` | Delete requires immutable pre-send evidence; absence alone is insufficient |
+| Deterministic issue-create recovery | 9 PG checks plus six parser comparisons, `406bda5591b54ab5bd1078edd0f46cdc` | Legacy/batch/nonplanned creates and uncertain observations remain open |
 | WR-101 refusal diagnostics | 13 PG checks, `28dd7d7f6a844554b46896c51cdd4021`, including composed gateway and real SQL conflict | Separate prepared release; no hosted full-browser proof, cadence or activation |
 | Asset references | Authenticated package/inventory plus actual synthetic file-byte checks; reused historical scanner passes 30 tests | External copies, full estate coverage and independent custody remain open |
 | Notification health | Nine actual-handler cases with injected SQL results; overdue retries now count as unhealthy | No hosted delivery or handover acceptance |
@@ -110,6 +111,7 @@ Docker is not required. The harness refuses inherited production credentials;
 never print them or point these tests at a hosted database.
 
 Added lanes include `control-recovery`, `provider-checkpoint-recovery`,
-`provider-ack-recovery`, `provider-comment-recovery` and `write-diagnostics`.
+`provider-ack-recovery`, `provider-comment-recovery`, `provider-create-recovery`
+and `write-diagnostics`.
 Consult the runner for exact parameters. Reuse component receipts and test only
 changed boundaries; do not repeat every historical suite merely for a new handoff.

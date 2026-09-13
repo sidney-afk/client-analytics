@@ -1,21 +1,21 @@
 # Linear exit release matrix - 2026-09-12
 
 Preparation remains in draft PR #1382. Neither installation nor retirement is
-authorized by this document. The September 12 continuation handoff identifies
-the reviewed checkpoint and remaining build gaps; it is not installation sign-off.
+authorized by this document. The reviewer handoff identifies the prepared
+revision and remaining owner-window gates; it is not installation sign-off.
 
 | Requirement | Prepared evidence | Remaining work before release |
 | --- | --- | --- |
 | Native approval completion | Actual SQL verification, planning and fresh revalidation passed after importer recognition integration;172 reconciler and39 native offline checks pass | Verify hosted REST serialization and grants during an authorized installation window |
-| Ordered database installation | Existing 64-entry inventory plus a separately pinned seven-owner admission release extension; isolated admission preflight covers 22 functions, four tables and 173 triggers | Integrate extension ordering/resume with the installer; classify hosted baseline and prerequisites as absent/exact/divergent and capture recoverable pre-state |
+| Ordered database installation | Final observed plan includes 48 source entries with explicit dependencies and preserves raw routine bodies. Earlier targets remain historical | Calibration and fresh replay with actual final-owner interruption/resume pass (`e0b065b2a07b470681bab971ed8fca64`); hosted baseline/prerequisites must separately be classified absent/exact/divergent with recoverable pre-state |
 | Application integration | New staff entry and importer recognition integrated; affected boot/entry/cache/sign-off tests pass; captured Calendar public journey24 checkpoints pass | Final review of the pinned revision and target hosted compatibility; retain repository401 negative control |
-| Relational recovery | V1 preserves 86-table compatibility; final seven-owner V2 restores 90 tables, with 89 populated and the transaction context correctly empty; exact rows/schema, corruption rollback and encrypted reopen pass | Match hosted schema/prerequisites, capture real data under the approved boundary and prove independent custody/restore; see complete-data checkpoint |
+| Relational recovery | Final private retirement profile restores 94 tables and 32 selected public routines, including the final recovery/switch owners; encrypted reopen, exact rows/schema, corruption rollback, closed admission and provider fence pass (`b353532767364586a6a6f997c8eb3bbc`) | Match hosted schema/prerequisites, capture real data under the approved boundary and prove independent custody/restore; no automatic activation or journal resume on a restored database |
 | Asset recovery | Encrypted-v3 custody and read-only Storage transport pass 102-object loopback export/restore, including version/hash and metadata drift controls | Fresh read-only capability classification and matching export census are prepared; reconcile required SQL asset references; prove source closure, off-device storage, independent key retrieval and hosted restore/access |
 | Notifications | Native outbox, adapter/SQL tests and actual health handler checks exist; malformed counts refuse. `NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` defines the acceptance/recovery sequence | Verify private destinations, source/configuration bindings, operator ownership, delivery receipts and independent outage observation before enabling senders |
 | Client saves | Owner-approved atomic Calendar/Samples preparation preserves tokenless serving captures; actual isolated handlers prove atomic save/tasks, rollback, conflict 409 and maintenance 503, retaining both repository 401 controls | Review candidate bundles and hosted compatibility; current request identifiers prove RPC replay, not cross-request exactly-once behavior |
-| Background work | Private disabled worker bundle, actual helper/SQL graphic capture and resolution, stale-worker refusal and durable failure tests pass | Transactional failed/unknown recovery passes actual commit/rollback races; 14 actual helper cases and disabled cadence pass; finish independent monitoring and prove hosted configuration separately |
-| Final switch away from Linear | Guarded activation and separate native reopen pass 29 isolated checks; permanent provider-send refusal and exact terminal receipt recognition are prepared. External-worker handover procedure includes provider and follow-up debt closure | Incorporate the final issue observer into exact routine metadata; pass expanded post-reopen business and final combined installation/recovery tests. Actual external-worker inventory, stopping and activation remain separately authorized |
-| WR-101 refusal diagnostics | Separate preparation implemented; 13 isolated PG17 checks and 94-table private-profile encrypted recovery pass | Final combined installation-owner coverage and separate SQL/function/browser deployment acceptance remain pending. See `WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` |
+| Background work | Private disabled worker bundle, actual helper/SQL graphic capture and resolution, stale-worker refusal and durable failure tests pass | Transactional failed/unknown recovery passes actual commit/rollback races; 14 actual helper cases and disabled cadence pass; accept the prepared independent monitoring handover and prove hosted configuration separately |
+| Final switch away from Linear | Final issue observer and exact routine metadata are integrated; 46 isolated checks pass, including ordinary mutations, comment lifecycle, intake, assignment and labels after native reopening. Permanent provider-send refusal is tested | Final packaged installation/interruption replay passes. Actual external-worker inventory, stopping, debt closure and activation remain separately authorized |
+| WR-101 refusal diagnostics | Separate preparation implemented; 13 isolated PG17 checks and 94-table private-profile encrypted recovery pass | Final combined installation-owner coverage passes; separate SQL/function/browser deployment acceptance remains pending. See `WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` |
 
 ## Order of decisions
 
@@ -70,10 +70,14 @@ terminal-history and comment-observation owners. It restores admission closed
 and preserves the permanent provider fence; activation is not proven by restore.
 See `../independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json`.
 The final issue/attachment observer subsequently passed 56 isolated checks
-(`c11222c47c3642328380235cb39eca4d`) and independent review, but is not covered
-by that recovery receipt. Final metadata, combined recovery and a fresh complete
-packaged installation replay remain required; neither earlier calibration is
-final acceptance.
+(`c11222c47c3642328380235cb39eca4d`) and independent review. The latest combined
+recovery receipt `b353532767364586a6a6f997c8eb3bbc` includes that observer and
+the final switch metadata, with 94 tables and 32 selected public routines.
+The final 48-source calibration `332df4aeaf7b48218006e705b9128ff7` and fresh
+interruption/resume replay `e0b065b2a07b470681bab971ed8fca64` now pass: 55 chunks,
+39 exact public routine bodies, exact target comparison and finalization. See
+`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_PREPARATION.md`. Earlier calibrations and
+failed fixture runs remain historical evidence.
 The preceding consolidated checkpoint records seven-owner admission
 preflight/recovery, disabled supervisor and Storage capability guards. All
 installation and retirement gates remain in force.

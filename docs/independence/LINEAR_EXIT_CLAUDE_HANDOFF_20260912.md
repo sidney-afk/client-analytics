@@ -1,155 +1,98 @@
-﻿# Linear exit: Claude continuation handoff
+# Linear exit preparation: reviewer handoff
 
-Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
-branch `integration/linear-exit-current-main-20260910`.
-Latest published preparation revision: `76c017f34fbf606e5d47b1cf2288283ba63312bc`.
-Tree: `861f3167db11607c76104dafbf94ca2eb635dc83`.
-This is still an incomplete preparation build, not the requested final review handoff.
-Since the older checkpoints below, published work includes recorded-create recovery
-(27 PG checks), current-public encrypted recovery (94 tables/15 routine records),
-historical receipt eligibility (31 PG checks), uncertain-comment recovery
-(20 PG plus 10 transport checks), and the guarded switch with comment recovery
-installed (29 PG checks, receipt `f03ea6ab9b9c42208a77f93ca896ea0e`).
-Read `../ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md` for the
-separately authorized worker stop/reconciliation and custody sequence.
-See the corresponding preparation documents in `docs/ops` and the current-public
-recovery proof in this directory. Every result retains its component scope.
+Draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382), branch
+`integration/linear-exit-current-main-20260910`.
 
-The retirement recovery profile is now published: receipt
-`cfbf66455be44f98ad49e42fce2a4cb0` restores 94 tables and 29 selected routines,
-with application admission closed and the private provider fence active.
-Unpublished work remains: uncertain issue/attachment recovery,
-the final ordered installation target/replay, and broader
-post-switch business checks. Do not treat working files as reviewed or installation-ready.
+**The preparation build and strategy are ready for a fresh review.** The complete
+installation and interruption/resume rehearsal passed. Installation and actual
+Linear retirement remain HOLD until their separately authorized acceptance gates.
 
-Historical preparation code checkpoint: `4e78529ac2e0268fdd84791182dc06d4a1b57a97`.
-Tree: `5009d68b6295862f0eb74c189ec7ff6b4ea77827`.
-Verify remote HEAD and ancestry before continuing. Later documentation commits
-do not expand the evidence scope of this checkpoint.
+Published preparation code revision:
+`75f3c2bfc4f5ff9f9b2df259b57834b9b4b88d09`.
+Tree: `03b8eac7b5b3574c42df355f3ca411ea7283b602`.
+Later documentation commits do not expand the tested source scope. Verify the
+revision and evidence pins; do not substitute a different branch snapshot.
 
-Reviewed follow-up `01b8a60158cfb72a7adefcdedac7e385cedd7e24` adds authenticated
-original/rescued byte-equality evidence (11 isolated tests plus coverage checks)
-and notification health refusal for malformed/inconsistent counts (nine existing
-plus twelve added handler cases). Read
-`../ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` for the prepared
-operator acceptance sequence. No hosted asset or notification acceptance is implied.
+## What the next review must establish
 
-The subsequent deterministic read-observation recovery is documented in
-`../ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md`: 11 isolated PG17
-checks and eight offline transport checks pass. Matching exact reads can recover
-a lost acknowledgment without fabricating one; absence/conflict remains unresolved.
-The expanded 42-source observed plan passed calibration: 49 journal chunks,
-90 public tables and 17 exact new routine bodies. See
-`LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md`. Its portable entry has nine
-plan/target checks and eight isolation checks; fresh target replay is still owed.
-Calibration is not acceptance of a new combined target. Recorded batch/non-F203 creates and other
-uncertain operations still require preparation.
+Review the final preparation revision against the release matrix, its exact
+installation target and evidence. Do not restart the historical audit. The
+September 10 repair bundle and older 35/42-source targets are historical; they
+are not substitutes for the final build. Current-main integration is pinned to
+`14fb430afd82471ba6f875ccd460ca304fa0721f`.
 
-## Plain-English status
+| Area | Latest evidence | Boundary |
+| --- | --- | --- |
+| Complete installation | Calibration `332df4aeaf7b48218006e705b9128ff7`; fresh replay `e0b065b2a07b470681bab971ed8fca64`: 48 sources, 55 chunks, 39 exact public bodies, actual interruption/54-chunk rollback prefix/fresh resume, target comparison and finalizer pass; servers stopped | Selected final-owner interruption; no hosted baseline or installation authorization |
+| Final switch and ordinary work | `870e686ac23d4b029daf9322dd999066`: 46 PG17 checks, server stopped | Actual isolated native reopen, ordinary mutations/comments/intake/assignment/labels; no hosted activation |
+| Complete relational/control recovery | `b353532767364586a6a6f997c8eb3bbc`: encrypted recovery of 94 tables and 32 selected public routines; 27 source-pin entries verified | Restores admission closed, retains unresolved work and permanent provider fence; no automatic resume/activation |
+| Uncertain issue/attachment recovery | `c11222c47c3642328380235cb39eca4d`: 56 PG17 checks; 10 offline transport controls | No mutation resend or fabricated acknowledgment; unknown reads and unsupported historical dispositions remain unresolved |
+| Other provider recovery | Recorded create 27, comment observation 20, terminal history 31 PG checks; earlier checkpoint/ACK/create proofs retained | Requires original recorded intent/context; old unrecorded attempts cannot acquire invented evidence |
+| Client saves and public intake | Existing isolated atomic Calendar/Samples handler proofs; captured public journey 24 checkpoints | Preserve tokenless captures and repository 401 negative controls; no hosted acceptance or cross-request exactly-once claim |
+| Native approval completion | 172 reconciler and 39 native offline checks, with isolated SQL verification/revalidation | Hosted REST serialization and grants remain owner-window checks |
+| Asset custody | 102-object loopback Storage custody/restore; 11 original/copy byte-equality checks and historical coverage scanner | Not proof of all real assets, external provider access or independent custody |
+| Notifications and background work | SQL/adapter/actual health-handler checks, disabled worker and transactional recovery proofs | Delivery, destinations, configuration and independent outage observer require acceptance |
+| WR-101 diagnostics | 13 isolated PG17 checks; separate prepared function release | SQL installation alone does not deploy or activate diagnostics |
 
-The replacement has tested pieces for saving safely, keeping unfinished work
-visible, recovering several interrupted sends, and backing up and restoring the
-application together with its private control records. The newest pieces are not
-yet assembled into one fully tested installation package. The full preparation
-build remains incomplete. Installation and Linear retirement remain HOLD.
+Evidence is isolated/offline unless explicitly stated otherwise. The provider V2
+composed handler retains the same 12 Deno diagnostics as baseline: both remain
+red, with no additional diagnostics. Do not report a clean typecheck.
 
-Nothing has been merged, deployed, installed, activated or switched off.
-This is a continuation handoff, not approval to install.
+## Read in this order
 
-## Persistent owner decisions
+1. `../ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`: release decisions and remaining gates.
+2. `LINEAR_EXIT_CONTROL_RECOVERY_20260912.md` and
+   `LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json`: final recovery profile and exact pins.
+3. `../ops/LINEAR_EXIT_RETIREMENT_SWITCH_PREPARATION.md` and
+   `../ops/LINEAR_EXIT_PROVIDER_ISSUE_OBSERVATION_PREPARATION.md`: final switch/recovery evidence and trust boundaries.
+4. `../ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md` and
+   `../ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md`: inventory, stop/readback, debt reconciliation, delivery and recovery.
+5. `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` and
+   `../ops/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_PREPARATION.md`: final target,
+   source pins, interruption scope and retained failed runs. Also read
+   `LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md` for custody boundaries.
+6. `../ops/LINEAR_EXIT_ATOMIC_WRITER_INSTALLATION_BINDING.md`: exact observed
+   catalog input, final-plan binding and unchanged generated writer files.
 
-- Publish reviewed code, strategy and sanitized evidence only to branches/draft PRs.
-  No merge, including local merge; no deployment, installation, workflow dispatch,
-  production writes, or n8n execution/edit.
-- Narrow atomic Calendar/Samples internal preparation is approved. Preserve URLs,
-  payload compatibility, review links and tokenless access. Original serving
-  captures and repository 401 controls remain immutable evidence.
-- Keep verified SyncView save/completion receipts. Require zero work destined for
-  Linear and zero unresolved provider debt. Unknown, malformed or failed work
-  still blocks shutdown. Do not ask for these approvals again.
-- No secrets, client display names or share tokens in public content.
-- Work economically. Reuse exact evidence; do not restart the audit or chase
-  unrelated main changes. Main integration is pinned to
-  `14fb430afd82471ba6f875ccd460ca304fa0721f`.
+## Separately authorized installation and retirement window
 
-## What is proved, and what is not
+Capture and classify the actual hosted baseline before selecting the pending
+installation prefix. Never replay historical prerequisite owners merely because
+a generated writer bundle lists them. Bind writer/worker artifacts to the final
+observed installation plan; a partial prerequisite list is not an install plan.
 
-| Component | Evidence | Important limit |
-|---|---|---|
-| Observed starting schema and older installation plan | Exact captured public catalog reconstructed; 35 sources, 42 journal chunks, maintenance refusal and finalization passed | New recovery/diagnostics owners are outside that target |
-| Private control recovery | PG17 receipt `c4b4eef93262422aa27b4235dbb9d11c`: 94 tables captured, encrypted, reopened and restored; server stopped | Includes provider owners through ACK context plus diagnostics; later public comment/create owners need combined coverage |
-| Original admission/checkpoint recovery | 14 PG checks, `ea7cd892b03a46928467ec4d85aa525c` | Legacy attempts without original proof refuse |
-| Acknowledged issue update recovery | 8 PG checks, `7832d19ef4e9492aa65d1a8bd6930eef` | Lost/uncertain provider responses remain unresolved |
-| Acknowledged comment recovery | 10 PG checks, `93a10d02de15462b985096dad85bae3a` | Delete requires immutable pre-send evidence; absence alone is insufficient |
-| Deterministic issue-create recovery | 9 PG checks plus six parser comparisons, `406bda5591b54ab5bd1078edd0f46cdc` | Legacy/batch/nonplanned creates and uncertain observations remain open |
-| WR-101 refusal diagnostics | 13 PG checks, `28dd7d7f6a844554b46896c51cdd4021`, including composed gateway and real SQL conflict | Separate prepared release; no hosted full-browser proof, cadence or activation |
-| Asset references | Authenticated package/inventory plus actual synthetic file-byte checks; reused historical scanner passes 30 tests | External copies, full estate coverage and independent custody remain open |
-| Notification health | Nine actual-handler cases with injected SQL results; overdue retries now count as unhealthy | No hosted delivery or handover acceptance |
+Prove real data and asset census closure, readable originals/copies, independent
+key retrieval, off-device custody and restore/access. Unsupported external access
+flows, including some Drive assets, can require an additional reviewed adapter
+if the actual census includes them. Storage tests do not waive that requirement.
 
-The provider V2 composed handler retains the same 12 Deno diagnostics as baseline.
-Both checks remain red; there are no new diagnostics, but no clean typecheck.
-Tests above are isolated/offline evidence, never production acceptance.
+Inventory and stop all actual external workers under separate authorization,
+reconcile in-flight provider and follow-up work, and keep ambiguous outcomes
+blocking. Verify hosted configuration, destinations, delivery receipts and an
+independent outage observer before enabling senders. Installation, native
+capability acceptance, Linear retirement, retention and deletion are separate
+decisions. Local green tests authorize none of them.
 
-## Read these first
+## Owner boundaries
 
-1. `LINEAR_EXIT_CONTROL_RECOVERY_20260912.md` and
-   `LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json`: exact private profile,
-   source pins, restoration behavior and evidence limits.
-2. `LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md`: original intent binding,
-   acknowledged recovery, retained review findings and remaining operations.
-3. `../ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` and
-   `LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md`.
-4. `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`,
-   `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` and
-   `../ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`.
-5. `AGENTS.md`, `docs/FIND_ANYTHING.md`, `docs/truth/BRIEFING.md` and canonical B5.
+- Publish reviewed code and sanitized evidence to draft branches/PRs only.
+- No merge, including local merge; deployment, installation, workflow dispatch,
+  production writes, or n8n execution/edit in this preparation.
+- Narrow internal atomic Calendar/Samples preparation is approved. Preserve URLs,
+  compatible payloads, existing review links and tokenless access.
+- Keep verified native/save/completion receipts. Require zero Linear-bound work
+  and unresolved provider/follow-up debt; unknown or malformed work still blocks.
+- No secrets, client display names or share tokens in public artifacts.
 
-Earlier checkpoints are historical. Their hashes/counts must not be presented as
-coverage of subsequently added owners. The September 10 bundle is not this build.
+## Reproduction
 
-## Remaining preparation, in order
+Private receipts/captures remain under
+`D:/Sidney/Codex/2026-09-12-fast-finish-evidence`; they are not GitHub attachments.
+On another machine, reproduce from committed sources or transfer required private
+inputs securely. Do not assume scratch directories survive.
 
-1. Finish provider recovery coverage: legacy/batch/nonplanned issue creation and
-   operation-specific read evidence for uncertain sends. Do not resend blindly,
-   fabricate successful mutation responses, or use a caller boolean as proof.
-   Preserve newer native edits and exact linkage/audit effects. Reconcile accepted
-   older work; new ledgers cannot retrospectively prove it.
-2. Add reviewed new owners to the exact observed pending installation plan. Create
-   a new target and full table/trigger preflight; never append owners while reusing
-   the old 35-source target hash. Preserve already-present historical owners.
-   The F203 historical owner used by component fixtures is a test prerequisite,
-   not permission to replay it on the observed database.
-3. Run one combined installation/interruption/resume/recovery rehearsal using the
-   packaged observed-schema entry point and final source inventory. Include all
-   new public recovery functions and private profiles. Restored systems must stay
-   closed to writes/sends until separately verified; source journal identity is
-   retained and does not authorize automatic resume on another database.
-4. Finish external asset/reference verification, original-versus-copy byte proof,
-   recovery custody interfaces, notification handover and external-worker fencing.
-   Define exact refusing activation checks and operator recovery steps.
-5. Publish a reviewed full preparation build and evidence index. Separate fresh
-   hosted configuration/data checks, independent key retrieval, delivery drills
-   and installation/activation into an owner-authorized acceptance window.
-
-There is no reliable completion-time estimate until the unresolved provider
-cases and combined rehearsal pass. Do not trade missing proof for a deadline.
-
-## Reproduction and private evidence
-
-Repository source and sanitized evidence are published; raw receipts, database
-captures and keys are not GitHub attachments. Local private evidence is under
-`D:/Sidney/Codex/2026-09-12-fast-finish-evidence`. On another machine, reproduce
-from committed sources or obtain private artifacts securely; do not assume old
-scratch directories survive.
-
-Use `qa/linear-exit-rehearsal/run-portable.ps1` with its named lanes and a fresh
-private output directory. Portable PG17 is available locally at
+Use `qa/linear-exit-rehearsal/run-portable.ps1` and its explicit named lanes.
+Portable PG17 is available locally at
 `D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`.
-Docker is not required. The harness refuses inherited production credentials;
-never print them or point these tests at a hosted database.
-
-Added lanes include `control-recovery`, `provider-checkpoint-recovery`,
-`provider-ack-recovery`, `provider-comment-recovery`, `provider-create-recovery`
-and `write-diagnostics`.
-Consult the runner for exact parameters. Reuse component receipts and test only
-changed boundaries; do not repeat every historical suite merely for a new handoff.
+Docker is unnecessary. The harness refuses hosted routing/credentials. Reuse
+existing receipts and rerun only changed or unverified boundaries.

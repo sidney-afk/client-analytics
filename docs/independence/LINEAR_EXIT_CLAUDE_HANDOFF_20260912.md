@@ -1,11 +1,13 @@
 # Linear exit: Claude continuation handoff
 
-Later preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` for the exact observed starting catalog, routine reconstruction and durable installation journal. The pinned checkpoint below remains historical.
+Latest preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`
+for the exact observed starting catalog, routine reconstruction and durable
+installation journal.
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-Reviewed code checkpoint: `2421a7384ed2e0a1aad821c76616712c1f7a02cd`.
-Tree: `3c16d05660427e27c3f1495cffcfb87dd815912f`.
+Reviewed code checkpoint: `01535b09a562b8be19b1952effb4a6f9ae4034e2`.
+Tree: `27f4731cc509b54b8ecaf73bdc8b5ff554835fb5`.
 This handoff is a later documentation-only commit. Verify the remote head and that
 this code checkpoint is its ancestor. Do not assume an old local scratch directory
 or the September 10 repair bundle represents the current preparation.
@@ -40,8 +42,10 @@ Linear retirement remain HOLD. Do not treat local green tests as hosted proof.
 
 ## Read these first
 
-1. `docs/independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md`: latest evidence,
-   exact source hashes, historical failures and remaining gaps.
+1. `docs/independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`:
+   latest evidence and remaining starting-schema/journal integration gaps. Then
+   `LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` for the preceding seven-owner
+   build, exact source hashes and retained historical failures.
 2. `docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`: preparation versus installation,
    activation, restoration and final retirement requirements.
 3. `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json`: current seven

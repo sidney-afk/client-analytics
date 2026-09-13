@@ -68,6 +68,28 @@ schema/table/sequence grants, column positions, default privileges, dependencies
 and publication metadata. This selected-object proof is not full schema equality.
 The complete observed-schema prototype and its raw captures remain private.
 
+Final private full-schema attempt `482c9706833f4b59823390184e3e4eb5` stopped with
+a failure before final catalog comparison. It reached permission restoration after
+creating tables at captured positions, 14 identities, the generated column,
+routines, defaults, constraints, indexes, views, triggers, policies and table state.
+Its ACL adapter accepts only `[a-z_]` role names and refused the captured
+`graphics_f2_*` roles because their names contain a digit. This is an uncorrected
+private adapter limitation, not a passed full-schema test. The server stopped.
+Next: support the explicitly observed role names without relaxing catalog equality,
+then run the full comparison. Do not infer role membership or login privileges.
+
+Private local continuation files under
+`D:/Sidney/Codex/2026-09-12-fast-finish-evidence`:
+`observed-schema-restore.private.cjs`, `observed-schema-portable.private.ps1`,
+`live-full-catalog-20260912.private.json`,
+`live-routine-definitions-20260912.private.json`,
+`live-structural-definitions-20260912.private.json`, and
+`live-sequence-ownership-20260912.private.json`. These are not GitHub attachments
+and raw structural definitions have not passed publication review. The prototype
+uses isolated external dependency shells; their equivalence to hosted roles,
+Auth and Storage is explicitly unproved. No business data or sequence last-values
+are covered by the schema observation.
+
 Raw captures stay private until their particular publication review passes.
 The selected routine definitions passed credential-pattern and 49-name fresh
 roster scans with zero matches. Those scans do not authorize unrelated captures.

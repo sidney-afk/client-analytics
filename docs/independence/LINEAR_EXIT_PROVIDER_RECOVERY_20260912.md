@@ -43,12 +43,25 @@ Independent review also found a nullable deletion-proof comparison. The final
 owner uses a null-safe comparison; absent and JSON-null mutation fields both
 refuse in actual SQL tests. The earlier eight-check pass predates this repair.
 
-Remaining implementation: issue-create linkage and operation-specific evidence
+Deterministic F203 issue-create recovery also passed after independent review:
+9 actual PG17 checks plus six source-parser comparisons, receipt
+`406bda5591b54ab5bd1078edd0f46cdc`, exit zero and server stopped.
+Owner `20260913051511_provider_create_recovery_preparation.sql` SHA-256:
+`196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a`.
+It verifies the immutable planned UUID and intent, calls the existing linkage
+owner, preserves later native edits and pending work, and avoids duplicate audit
+effects. The actual source GraphQL query includes `labelIds`. Review found a JSON
+description coercion discrepancy; the final SQL rejects numeric/object descriptions,
+including string `123` versus numeric `123`, while rewritten autolinks still pass.
+The earlier six-check pass predates this correction. The historical F203 owner is
+only an isolated fixture prerequisite, not an instruction to replay it on hosted SQL.
+
+Remaining implementation: legacy/batch/nonplanned issue creates and operation-specific evidence
 for lost/uncertain provider responses. Unresolved sends still block drain and seal.
 New ledgers do not prove older accepted work retrospectively. Full observed-plan
 composition, updated target/preflight evidence, private-record recovery and
 external-worker fencing remain separate integration/acceptance requirements.
 
 Reproduce the components with portable PG17 lanes `provider-checkpoint-recovery`,
-`provider-ack-recovery` and `provider-comment-recovery`. Their scripts use synthetic
+`provider-ack-recovery`, `provider-comment-recovery` and `provider-create-recovery`. Their scripts use synthetic
 data and isolated database connections; never point them at a hosted database.

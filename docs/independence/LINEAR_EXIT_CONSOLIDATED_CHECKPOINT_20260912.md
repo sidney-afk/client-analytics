@@ -1,6 +1,6 @@
 # Consolidated Linear-exit preparation checkpoint
 
-Later preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` for the exact observed starting catalog, routine reconstruction and durable installation journal. The pinned checkpoint below remains historical.
+Latest preparation: read `LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md` for the current code pin, private-control recovery, provider recovery and WR-101 evidence and remaining work. `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` retains the exact observed starting catalog and older 35-source installation proof. The pinned checkpoint below remains historical.
 
 This is a preparation checkpoint, not a finished installation build. It advances
 `LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md`; earlier receipts remain

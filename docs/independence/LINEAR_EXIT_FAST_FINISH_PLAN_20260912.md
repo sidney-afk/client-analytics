@@ -1,6 +1,6 @@
 # Fast completion plan ? 2026-09-12
 
-Current continuation follows `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`: use exact read-only observed source for missing starting-state definitions, then integrate the reviewed pending-owner plan and durable journal. Historical source reconstruction is rehearsal scaffolding, never an instruction to replay baseline owners on the hosted database.
+Latest continuation: read `LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md` first. The private-control recovery profile now passes an integrated encrypted capture/reopen/restore of 94 tables. Checkpoint, acknowledged update/comment recovery and the separate WR-101 preparation have isolated SQL proof. These newer owners still need composition into the exact observed installation plan; the older 35-source target does not cover them. Historical source reconstruction is rehearsal scaffolding, never an instruction to replay baseline owners on the hosted database.
 
 Owner request: finish the preparation build and strategy economically, then
 provide a handoff for a fresh review before installation. No merge, deployment,

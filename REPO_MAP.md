@@ -379,3 +379,5 @@ Authenticated asset-reference coverage: `scripts/linear-exit-asset-reference-cov
 Observed-schema reconstruction preparation: `scripts/linear-exit-observed-schema.js`, `test/linear-exit-observed-schema.js`.
 
 Observed installation target: `docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`.
+
+Deterministic issue-create recovery preparation: `scripts/linear-exit-provider-create-recovery.mjs`, `supabase/migrations/20260913051511_provider_create_recovery_preparation.sql`, `test/linear-exit-provider-create-recovery.js`. Exact original intent and acknowledged provider identity are required; legacy and uncertain sends remain unresolved.

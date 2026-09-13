@@ -1,131 +1,115 @@
-# Linear exit: Claude continuation handoff
-
-Latest preparation: see `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`
-for the exact observed starting catalog, routine reconstruction and durable
-installation journal.
+﻿# Linear exit: Claude continuation handoff
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-Reviewed code checkpoint: `4dd2d98d1bae7cb54357f230c2971425b4d831fd`.
-Tree: `a9ff75d06c218b801785b29fa39cb717b30cdc6a`.
-Later commits contain the handoff and the bounded follow-up below. Verify the
-remote head and that this code checkpoint is its ancestor. Do not assume an old local scratch directory
-or the September 10 repair bundle represents the current preparation.
-
-### Latest bounded follow-up
-
-The later notification health preparation adds overdue retry debt to unhealthy
-status, using the existing SQL threshold. Nine actual-handler cases pass with
-injected SQL results and zero external calls; the notification source checks also
-pass. This is separate from the installation target above and is not deployed.
-
-Two recovery drafts remain local and are deliberately excluded from publication:
-`scripts/linear-exit-control-companion.js` and the provider checkpoint recovery
-helper, SQL owner, test and runner edits. Neither is accepted recovery evidence.
-The companion still needs the actual private schema contract, mandatory
-authenticated marker, dependency-ordered renderer and encrypted restore proof.
-Provider recovery must bind the original admitted work item, including its
-identity and payload, before marking it complete. A fresh caller-supplied row
-comparison and unchanged lock are insufficient. Preserve this finding even if
-the earlier synthetic checkpoint tests passed. Start from the published branch
-when continuing elsewhere; these local drafts are not required prerequisites.
+Reviewed recovery code checkpoint: `2394ca3d9dcde62e9fd9b23fe99c40bde5a3d704`.
+Tree: `5536c58d6eefdcb970868ab41f68dc3ef4a98108`.
+Verify remote HEAD and ancestry before continuing. Later documentation or bounded
+create-recovery commits do not expand the evidence scope of this checkpoint.
 
 ## Plain-English status
 
-The replacement system has working pieces for saving cards safely, tracking
-unfinished follow-up work, retrying interrupted work, and restoring the application
-database in isolation. The exact observed public schema now reconstructs locally.
-The 35-source installation plan passes through journal, bootstrap, maintenance
-guards and finalization: 42 chunks and the final public catalog are verified.
-It is not yet the complete installation build. Private-ledger recovery, provider
-reconciliation/fencing, assets, notification handover and WR-101 remain unfinished.
+The replacement has tested pieces for saving safely, keeping unfinished work
+visible, recovering several interrupted sends, and backing up and restoring the
+application together with its private control records. The newest pieces are not
+yet assembled into one fully tested installation package. The full preparation
+build remains incomplete. Installation and Linear retirement remain HOLD.
 
-Nothing has been merged, installed, deployed or switched off. Installation and
-Linear retirement remain HOLD. Do not treat local green tests as hosted proof.
+Nothing has been merged, deployed, installed, activated or switched off.
+This is a continuation handoff, not approval to install.
 
 ## Persistent owner decisions
 
-- Prepare and publish reviewed code, strategy and sanitized evidence on this draft
-  branch. No merge, including local merge; no deployment, installation, workflow
-  dispatch, production writes, or n8n execution/edit.
-- Narrow atomic-persistence preparation inside Calendar and Samples is explicitly
-  approved. Preserve existing URLs, payload compatibility, review links and
-  tokenless access. Keep original serving captures and repository 401 controls.
-- Keep verified native save/completion receipts. Require zero work still destined
-  for Linear and zero unresolved provider debt. Unknown or malformed records and
-  unresolved failures still block shutdown. Do not ask for these approvals again.
-- Avoid secrets, client display names and share tokens in public content.
-- Work economically in bounded steps. Do not restart the broad audit or chase
-  unrelated new main changes. The owner requested this wrap-up and handoff; do not
-  interpret it as permission to claim the full build is complete.
+- Publish reviewed code, strategy and sanitized evidence only to branches/draft PRs.
+  No merge, including local merge; no deployment, installation, workflow dispatch,
+  production writes, or n8n execution/edit.
+- Narrow atomic Calendar/Samples internal preparation is approved. Preserve URLs,
+  payload compatibility, review links and tokenless access. Original serving
+  captures and repository 401 controls remain immutable evidence.
+- Keep verified SyncView save/completion receipts. Require zero work destined for
+  Linear and zero unresolved provider debt. Unknown, malformed or failed work
+  still blocks shutdown. Do not ask for these approvals again.
+- No secrets, client display names or share tokens in public content.
+- Work economically. Reuse exact evidence; do not restart the audit or chase
+  unrelated main changes. Main integration is pinned to
+  `14fb430afd82471ba6f875ccd460ca304fa0721f`.
+
+## What is proved, and what is not
+
+| Component | Evidence | Important limit |
+|---|---|---|
+| Observed starting schema and older installation plan | Exact captured public catalog reconstructed; 35 sources, 42 journal chunks, maintenance refusal and finalization passed | New recovery/diagnostics owners are outside that target |
+| Private control recovery | PG17 receipt `c4b4eef93262422aa27b4235dbb9d11c`: 94 tables captured, encrypted, reopened and restored; server stopped | Includes provider owners through ACK context plus diagnostics; later public comment/create owners need combined coverage |
+| Original admission/checkpoint recovery | 14 PG checks, `ea7cd892b03a46928467ec4d85aa525c` | Legacy attempts without original proof refuse |
+| Acknowledged issue update recovery | 8 PG checks, `7832d19ef4e9492aa65d1a8bd6930eef` | Lost/uncertain provider responses remain unresolved |
+| Acknowledged comment recovery | 10 PG checks, `93a10d02de15462b985096dad85bae3a` | Delete requires immutable pre-send evidence; absence alone is insufficient |
+| WR-101 refusal diagnostics | 13 PG checks, `28dd7d7f6a844554b46896c51cdd4021`, including composed gateway and real SQL conflict | Separate prepared release; no hosted full-browser proof, cadence or activation |
+| Asset references | Authenticated package/inventory plus actual synthetic file-byte checks; reused historical scanner passes 30 tests | External copies, full estate coverage and independent custody remain open |
+| Notification health | Nine actual-handler cases with injected SQL results; overdue retries now count as unhealthy | No hosted delivery or handover acceptance |
+
+The provider V2 composed handler retains the same 12 Deno diagnostics as baseline.
+Both checks remain red; there are no new diagnostics, but no clean typecheck.
+Tests above are isolated/offline evidence, never production acceptance.
 
 ## Read these first
 
-1. `docs/independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`:
-   latest evidence and remaining starting-schema/journal integration gaps. Then
-   `LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` for the preceding seven-owner
-   build, exact source hashes and retained historical failures.
-2. `docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`: preparation versus installation,
-   activation, restoration and final retirement requirements.
-3. `docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json`: current seven
-   SQL owners, writer/worker/supervisor source pins and prerequisite contracts.
-4. `AGENTS.md`, `docs/FIND_ANYTHING.md`, `docs/truth/BRIEFING.md`, and canonical B5.
+1. `LINEAR_EXIT_CONTROL_RECOVERY_20260912.md` and
+   `LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json`: exact private profile,
+   source pins, restoration behavior and evidence limits.
+2. `LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md`: original intent binding,
+   acknowledged recovery, retained review findings and remaining operations.
+3. `../ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` and
+   `LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md`.
+4. `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`,
+   `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` and
+   `../ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md`.
+5. `AGENTS.md`, `docs/FIND_ANYTHING.md`, `docs/truth/BRIEFING.md` and canonical B5.
 
-The earlier September 12 atomic and recovery/export checkpoints remain useful
-historical evidence. Their old hashes and counts are not the current build.
+Earlier checkpoints are historical. Their hashes/counts must not be presented as
+coverage of subsequently added owners. The September 10 bundle is not this build.
 
-## First bounded task
+## Remaining preparation, in order
 
-Read `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` and
-`LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` first. Do not repeat starting-schema
-discovery: full captured public-catalog equality and the 35-source pipeline passed.
-The plan preserves 32 historical setup owners and four already-present owners;
-later Workload corrections still apply. Never replay the full 64-entry inventory.
+1. Finish provider recovery coverage: legacy/batch/nonplanned issue creation and
+   operation-specific read evidence for uncertain sends. Do not resend blindly,
+   fabricate successful mutation responses, or use a caller boolean as proof.
+   Preserve newer native edits and exact linkage/audit effects. Reconcile accepted
+   older work; new ledgers cannot retrospectively prove it.
+2. Add reviewed new owners to the exact observed pending installation plan. Create
+   a new target and full table/trigger preflight; never append owners while reusing
+   the old 35-source target hash. Preserve already-present historical owners.
+   The F203 historical owner used by component fixtures is a test prerequisite,
+   not permission to replay it on the observed database.
+3. Run one combined installation/interruption/resume/recovery rehearsal using the
+   packaged observed-schema entry point and final source inventory. Include all
+   new public recovery functions and private profiles. Restored systems must stay
+   closed to writes/sends until separately verified; source journal identity is
+   retained and does not authorize automatic resume on another database.
+4. Finish external asset/reference verification, original-versus-copy byte proof,
+   recovery custody interfaces, notification handover and external-worker fencing.
+   Define exact refusing activation checks and operator recovery steps.
+5. Publish a reviewed full preparation build and evidence index. Separate fresh
+   hosted configuration/data checks, independent key retrieval, delivery drills
+   and installation/activation into an owner-authorized acceptance window.
 
-Next integrate the new private journal/maintenance/provider ledger into recovery
-custody, then complete provider reconciliation and the closed-gate local completion
-path. The provider-send release is separate from the tested 35-source plan; it
-must not be silently appended while reusing the old target hash. Finish remaining
-asset-reference/custody, notification and WR-101 preparation. For the next necessary
-full rehearsal, use the repository observed-schema entry point with explicit
-private capture/output directories; its added guards have offline coverage, while
-the full pipeline used the equivalent earlier private reconstruction API.
+There is no reliable completion-time estimate until the unresolved provider
+cases and combined rehearsal pass. Do not trade missing proof for a deadline.
 
-Then follow the ordered remaining work in the consolidated checkpoint: actual
-installation/resume and internal-commit failure recovery; external Linear worker
-fencing and safe replay/disposition; accepted old work reconciliation; verified SQL
-asset-reference coverage and independent encrypted recovery/key custody;
-notification ownership/configuration/delivery recovery; final refusing-activation
-protocol and separately scoped WR-101. A quick review cannot waive these gaps.
+## Reproduction and private evidence
 
-## Reproduce without production access
+Repository source and sanitized evidence are published; raw receipts, database
+captures and keys are not GitHub attachments. Local private evidence is under
+`D:/Sidney/Codex/2026-09-12-fast-finish-evidence`. On another machine, reproduce
+from committed sources or obtain private artifacts securely; do not assume old
+scratch directories survive.
 
-Repository source and sanitized evidence are published. Private receipts and
-prepared bundles are not uploaded or implied to be GitHub attachments. Locally,
-receipts live under `D:/Sidney/Codex/2026-09-12-fast-finish-evidence`; do not assume
-that folder exists on a different machine. Recreate evidence from committed sources
-when private originals are unavailable.
-
-Use `qa/linear-exit-rehearsal/run-portable.ps1` and its exact named lanes. Portable
-PG17 is available locally under
+Use `qa/linear-exit-rehearsal/run-portable.ps1` with its named lanes and a fresh
+private output directory. Portable PG17 is available locally at
 `D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`.
 Docker is not required. The harness refuses inherited production credentials;
-clear them only in the child process, never print values or mutate hosted state.
+never print them or point these tests at a hosted database.
 
-The latest added lanes are `observed-routines`, `install-journal`,
-`install-bootstrap`, `install-maintenance`, `install-finalize`, and `provider-send`.
-The preceding affected lanes are `source-phases`, `source-baseline`,
-`followup-outcome-matrix`, `admission-preflight`, and
-`complete-application-recovery -ApplicationDataV2`. Follow the runner's parameters
-and use a new private output directory. Do not rerun every historical lane solely
-because this handoff is new. Exact pin and offline bundle/cadence/export tests are
-listed in the checkpoint and repository map.
-
-Generate worker and writer bundles with their committed bundle scripts into new
-absolute directories. The generated worker passes Deno checking from its own
-function directory with `--no-config --node-modules-dir=none --no-remote --frozen
---lock=deno.lock`. No endpoint, schedule or independent observer is installed.
-
-Completion must mean a reviewed full preparation build with all remaining work
-honestly resolved or separately categorized as an authorized hosted acceptance
-step. Installation requires fresh, separate owner authorization afterward.
+Added lanes include `control-recovery`, `provider-checkpoint-recovery`,
+`provider-ack-recovery`, `provider-comment-recovery` and `write-diagnostics`.
+Consult the runner for exact parameters. Reuse component receipts and test only
+changed boundaries; do not repeat every historical suite merely for a new handoff.

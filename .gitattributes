@@ -81,3 +81,5 @@ test/linear-exit-provider-comment-recovery.js -text whitespace=cr-at-eol
 docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json text eol=lf
 docs/independence/LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json text eol=lf
 docs/independence/LINEAR_EXIT_CONTROL_SCHEMA_V1.json text eol=lf
+supabase/migrations/20260913051511_provider_create_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-create-recovery.js -text whitespace=cr-at-eol

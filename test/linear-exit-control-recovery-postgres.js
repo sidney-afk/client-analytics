@@ -7,6 +7,6 @@ const file=path.join(__dirname,'linear-exit-complete-application-recovery.js'),s
 const marker=" const complete=require('../scripts/linear-exit-complete-application-data');";
 assert.equal(source.split(marker).length,2);
 const prefix=source.slice(0,source.indexOf(marker));
-const suffix=` await require('./helpers/control-recovery-proof').run(cluster);
+const suffix=` await require('./helpers/control-recovery-proof').run(cluster,{currentPublic:process.argv.includes('--current-public')});
 }catch(e){fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'control-recovery-error.private.log'),String(e.stack||e));console.error('LINEAR_EXIT_CONTROL_RECOVERY_FAILED');process.exitCode=1;}finally{cluster.stop();}}main();`;
 const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(prefix+suffix,file);

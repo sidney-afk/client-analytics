@@ -9,6 +9,7 @@ param(
  [switch]$DeferredEvents,
  [switch]$ReconcilerIntegration,
  [switch]$ApplicationDataV2,
+ [switch]$CurrentPublicOwners,
  [switch]$CalibrateTarget,
  [string]$ObservedInputDirectory,
  [string]$ExpectedTarget,
@@ -18,11 +19,15 @@ param(
 # Windows, preinstalled PG16/17 + Node22+ + Git Bash only. No installation or
 # hosted calls. Evidence uses a disposable local cluster, not production proof.
 $ErrorActionPreference='Stop'
+if ($CurrentPublicOwners -and $Lane -ne 'control-recovery') { throw 'CurrentPublicOwners restricted to control-recovery.' }
 if ($Lane -eq 'observed-full-install') {
  if (!$ObservedInputDirectory) { throw 'ObservedInputDirectory required.' }
  $ObservedInputDirectory=(Resolve-Path -LiteralPath $ObservedInputDirectory).Path
  if ($CalibrateTarget) { if ($ExpectedTarget -or $ExpectedTargetSha256) { throw 'Calibration cannot accept a target.' } }
  else { if (!$ExpectedTarget -or $ExpectedTargetSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Explicit target and SHA required.' }; $ExpectedTarget=(Resolve-Path -LiteralPath $ExpectedTarget).Path }
+} elseif ($CurrentPublicOwners) {
+ if (!$ObservedInputDirectory -or $CalibrateTarget -or $ExpectedTarget -or $ExpectedTargetSha256) { throw 'CurrentPublicOwners requires only ObservedInputDirectory.' }
+ $ObservedInputDirectory=(Resolve-Path -LiteralPath $ObservedInputDirectory).Path
 } elseif ($CalibrateTarget -or $ObservedInputDirectory -or $ExpectedTarget -or $ExpectedTargetSha256) { throw 'Target parameters restricted to observed-full-install.' }
 if ($env:OS -ne 'Windows_NT') { throw 'This runner requires Windows.' }
 if ($Lane -eq 'journey' -and !$ServingMode) { throw 'Journey requires explicit -ServingMode.' }
@@ -120,7 +125,7 @@ try {
   PROOF_REPO_ROOT=$repoRoot;PROOF_OUTPUT_ROOT=$runRoot;PROOF_HARNESS_ROOT=(Join-Path $PSScriptRoot 'harness')
  }
  foreach ($key in $settings.Keys) { Set-ProofEnvironment $key $settings[$key] }
- if ($Lane -eq 'observed-full-install') { Set-ProofEnvironment 'OBSERVED_INPUT_DIRECTORY' $ObservedInputDirectory }
+ if ($Lane -eq 'observed-full-install' -or $CurrentPublicOwners) { Set-ProofEnvironment 'OBSERVED_INPUT_DIRECTORY' $ObservedInputDirectory }
  if ($ServingMode) { Set-ProofEnvironment 'PROOF_SERVING_MODE' $ServingMode }
  if ($ApplicationDataV2) { Set-ProofEnvironment 'PROOF_APPLICATION_DATA_VERSION' 'v2' }
  Set-Location -LiteralPath $repoRoot
@@ -200,6 +205,7 @@ try {
  $arguments=@($entry)
  if ($Lane -eq 'observed-full-install') { if ($CalibrateTarget) { $arguments+='--calibrate' } else { $arguments+=@('--verify',$ExpectedTarget,$ExpectedTargetSha256) } }
  if ($Lane -in @('calendar-freeze','card-atomic-handlers')) { $arguments=@('--experimental-strip-types',$entry) }
+ if ($CurrentPublicOwners) { $arguments+='--current-public' }
  if ($SequenceBounds) { $arguments+= '--sequence-bounds' }
  if ($NativeIdentifiers) { $arguments+= '--native-identifiers' }
  if ($EncryptedCredentials) { $arguments+= '--encrypted' }
@@ -209,6 +215,7 @@ try {
  if ($Lane -eq 'priority-observed-baseline') { $arguments+= '--observed-backup' }
  if ($Lane -eq 'f27') { $program=Join-Path $pgPath 'psql.exe';$arguments=@('-X','-v','ON_ERROR_STOP=1','-f',(Join-Path $repoRoot 'scripts\f27-team-rollback-proof.sql')) }
  $result=Invoke-Hidden $program $arguments 'unit'
+ if ($result -eq 0 -and $CurrentPublicOwners) { if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_OK' -Quiet)) { throw 'Current public recovery marker missing.' } }
  if ($result -eq 0 -and $ReconcilerIntegration) {
   if (!(Select-String -LiteralPath (Join-Path $runRoot 'unit.log') -SimpleMatch 'LINEAR_EXIT_NATIVE_SIGNOFF_INTEGRATION_OK' -Quiet)) { throw 'Required SQL reconciler integration marker missing.' }
  }

@@ -1,13 +1,22 @@
 'use strict';
 const fs=require('fs'),path=require('path'),assert=require('assert/strict'),cp=require('child_process'),crypto=require('crypto');
 const control=require('../../scripts/linear-exit-control-companion').forProfile('core+diagnostics'),complete=require('../../scripts/linear-exit-complete-application-data'),recovery=require('../../scripts/track-b-recovery-package');
-exports.run=async function(c){
+exports.run=async function(c,{currentPublic=false}={}){
+ const publicOwners=currentPublic?require('./control-current-public-owners'):null;
  const out=process.env.PROOF_OUTPUT_ROOT,key=Buffer.alloc(32,47).toString('base64'),target='control_target_'+process.pid,role='control_capture_'+process.pid,restore='control_restore_'+process.pid;
  const write=(name,value)=>fs.writeFileSync(path.join(out,name),JSON.stringify(value,null,2));
  const sourceFiles=['scripts/linear-exit-control-companion.js','scripts/linear-exit-control-custody.js','scripts/track-b-recovery-package.js','scripts/linear-exit-complete-application-data.js','test/linear-exit-control-recovery-postgres.js','test/helpers/control-recovery-proof.js',...control.OWNERS.map(x=>x[0])];const pins=()=>sourceFiles.map(file=>({file,sha256:crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')})),sourcePins=pins();
- let stage='private-owners';
+ if(publicOwners){for(const file of ['test/helpers/control-current-public-owners.js','scripts/linear-exit-observed-routines.js','qa/linear-exit-rehearsal/observed-baseline/routines-contract.json','qa/linear-exit-rehearsal/observed-baseline/routines-64.sql',...publicOwners.OWNERS.map(x=>x[0])])sourceFiles.push(file);sourcePins.splice(0,sourcePins.length,...pins());}
+ let stage='private-owners';let publicRecords=null;
  try{
   for(const [file,pin] of control.OWNERS){assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),pin);c.runFile(file);}
+  if(publicOwners){
+   stage='current-public-owners';publicRecords=publicOwners.apply(c);write('control-current-public-source.private.json',publicRecords);
+   const snapshot=cp.spawnSync(c.psql,['-X','-q','-t','-A','-v','ON_ERROR_STOP=1','-h',c.host,'-p',String(c.port),'-U',c.user,'-d',c.db,'-f','-'],{input:require('../../scripts/linear-exit-source-baseline-catalog').query(),encoding:'utf8',windowsHide:true,maxBuffer:16*1024*1024});
+   fs.writeFileSync(path.join(out,'control-current-catalog-error.private.log'),snapshot.stderr||'');assert.equal(snapshot.status,0,'current catalog capture refused');
+   const publicCatalog=JSON.parse(snapshot.stdout),privateCatalog=c.scalarJson('set search_path=pg_catalog,public;'+control.catalogSql());
+   write('control-current-full-catalog.private.json',{classification:'SOURCE_COMPOSED_SYNTHETIC_90_WITH_OBSERVED_F203_NOT_OBSERVED_FULL_TARGET',public_catalog:publicCatalog,private_catalog:privateCatalog,installation_authorized:false});
+  }
   c.exec(`insert into linear_exit_install.journal_v1 values(true,repeat('a',64),'synthetic-source-stage',jsonb_build_object('database',current_database(),'system_identifier',(select system_identifier::text from pg_control_system())),repeat('b',64),'[]',repeat('c',64));
   insert into linear_exit_maintenance.gate_v1(singleton,original_plan_sha256,derived_plan_sha256,guarded_initial_sha256,database_identity,owner_sha256,installer_pid,installer_backend_start) values(true,repeat('a',64),repeat('b',64),repeat('c',64),'{"database":"synthetic-source"}',repeat('d',64),123,'2026-09-12T00:00:00Z');
   insert into linear_exit_provider.send_attempts_v1(attempt_id,epoch,outbox_id,team,lock_token,request,request_sha256,state,provider_response,admission_preimage_v1) values('00000000-0000-4000-8000-000000000193','00000000-0000-4000-8000-000000000194',193,'synthetic','synthetic-lock','{}',repeat('e',64),'acknowledged','{"data":{"synthetic":true}}','{"synthetic_preimage":true}');`);
@@ -38,6 +47,7 @@ exports.run=async function(c){
   assert.equal(c.scalarJson("select count(*)::int from pg_trigger where tgname='linear_exit_maintenance_dml_v1' and tgenabled='A'",target),90);
   stage='quarantine';assert.equal(c.scalarJson('select to_jsonb(installer_pid is null and installer_backend_start is null) from linear_exit_maintenance.gate_v1',target),true);r=cp.spawnSync(c.psql,[...base,'-U',restore,'-c','update public.card_write_operations_v1 set result=result where false'],{env:{...env,PGPASSWORD:'synthetic-restore'},encoding:'utf8',windowsHide:true});assert.notEqual(r.status,0);assert.match(r.stderr,/installation_maintenance_write_closed/);
   assert.equal(c.scalarJson("select to_jsonb(database_identity->>'database') from linear_exit_install.journal_v1",target),c.db);
+  if(publicOwners){publicOwners.verify(c,target,publicRecords);write('control-current-public-proof.private.json',{marker:'LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_OK',owners:publicOwners.OWNERS,prerequisite:publicOwners.PREREQUISITE,functions:publicRecords.length,installation_authorized:false});console.log('LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_OK');}
   assert.deepEqual(pins(),sourcePins);
   write('control-proof.private.json',{marker:'LINEAR_EXIT_CONTROL_RECOVERY_OK',table_count:94,profile:'core+diagnostics',source_pins:sourcePins,default_capture_refused:true,wrong_database_snapshot_refused:true,disabled_private_trigger_refused:true,shared_snapshot_private_rows_proven:true,late_typed_restore_rollback:true,all_public_guards_always:true,authenticated_tamper_refusal:true,stripped_companion_refused:true,encrypted_reopen:true,restored_maintenance_closed:true,source_journal_identity_retained:true,installation_authorized:false,provider_dispatch_proven:false});console.log('LINEAR_EXIT_CONTROL_RECOVERY_OK');
  }catch(e){write('control-failure.private.json',{stage,message:e.message});throw e;}finally{try{c.run('','postgres',{sql:`drop database if exists ${target}`});}catch{}}

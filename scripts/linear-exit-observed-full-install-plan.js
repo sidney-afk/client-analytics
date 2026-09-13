@@ -11,7 +11,8 @@ const OWNERS=[
  ['20260913044939_provider_ack_receipt_recovery_preparation.sql','7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2'],
  ['20260913045704_provider_comment_recovery_preparation.sql','7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99'],
  ['20260913051511_provider_create_recovery_preparation.sql','196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a'],
- ['20260913054339_provider_create_observation_recovery_preparation.sql','f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5']
+ ['20260913054339_provider_create_observation_recovery_preparation.sql','f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5'],
+ ['20260913055621_provider_recorded_create_linkage_recovery_preparation.sql','f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e']
 ].map(([file,sha256])=>Object.freeze({path:'supabase/migrations/'+file,sha256}));
 Object.freeze(OWNERS);
 function build(catalog){

@@ -18,8 +18,11 @@ The subsequent deterministic read-observation recovery is documented in
 `../ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md`: 11 isolated PG17
 checks and eight offline transport checks pass. Matching exact reads can recover
 a lost acknowledgment without fabricating one; absence/conflict remains unresolved.
-The expanded observed installation plan is still under calibration and is not
-yet accepted as a new combined target. Recorded batch/non-F203 creates and other
+The expanded 42-source observed plan passed calibration: 49 journal chunks,
+90 public tables and 17 exact new routine bodies. See
+`LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md`. Its portable entry has nine
+plan/target checks and eight isolation checks; fresh target replay is still owed.
+Calibration is not acceptance of a new combined target. Recorded batch/non-F203 creates and other
 uncertain operations still require preparation.
 
 ## Plain-English status

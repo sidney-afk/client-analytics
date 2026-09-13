@@ -367,6 +367,8 @@ Installation finalization preparation: `scripts/linear-exit-install-finalize.js`
 
 Notification health response coverage: `test/native-notification-health-handler.js` exercises the actual handler with synthetic SQL results and no external transport.
 
+Authenticated asset-reference coverage: `scripts/linear-exit-asset-reference-coverage.js`, `test/linear-exit-asset-reference-coverage.js`, `docs/independence/LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md`. Historical extraction reused in `scripts/linear-history-coverage/scan.js`, `scripts/linear-history-coverage/reader-helpers.js`, `scripts/linear-history-coverage/test.js`, `scripts/linear-history-coverage/fixtures/synthetic.js`, `scripts/linear-history-coverage/README.md`; local restored bytes and unknown references remain separate from hosted retrieval.
+
 
 Observed-schema reconstruction preparation: `scripts/linear-exit-observed-schema.js`, `test/linear-exit-observed-schema.js`.
 

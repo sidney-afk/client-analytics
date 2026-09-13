@@ -17,3 +17,13 @@ The current source additionally pins the terminal predicate from owner 181213 an
 ## Remaining boundaries
 
 The fixture is source-composed application schema, not an assertion of exact current hosted schema. Full final installation and recovery must include the new private fence through an explicitly versioned control profile. External worker coverage, historical ambiguous attempts, final snapshot and object custody, deployed configuration, and the owner-approved activation window remain separate requirements. No provider request, hosted write, deployment, or operational retirement occurred in this proof.
+
+## Expanded final source composition
+
+Receipt `870e686ac23d4b029daf9322dd999066` passed 46 isolated PostgreSQL checks, exited zero, and stopped the server. It installs 62741, 181213, 183021, then 62149. Final switch SHA-256: `27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587`. The preceding component receipts remain historical.
+
+After the real native reopen, this run exercised the original eight scalar operations, artifact mutation/replay, comment add/edit/resolve/unresolve/delete with replay/conflict assertions, and source-shaped native intake parent/child, assignment, and nonempty attested label selection with exact replay. It used real service-role SQL and real guards. These are selected SQL acceptance paths, not a complete browser/gateway matrix. A failed fixture run `f6f4df48b0a649089c9bc3e53b623752` is retained: the assignment guard correctly refused an incorrectly shaped dedup key; the successful fixture uses the source-required operation prefix.
+
+### Fixture provenance after the 46-check run
+
+The current switch test additionally lists and installs owner 190840, which explicitly revokes service EXECUTE from two private terminal helpers. This fixture addition was not rerun as part of receipt `870e686ac23d4b029daf9322dd999066`. Removing exactly those two added references reconstructs the tested file SHA-256 `68af6182f24d68e9ea63f8cb4968738bcdd97270ba5063f1144e1d347bd679d4`; the other seven recorded source pins remain exact. No business assertion changed. The final observed pipeline receipt `e0b065b2a07b470681bab971ed8fca64` separately proves the explicit ACL owner in the complete installation composition.

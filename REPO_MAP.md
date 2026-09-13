@@ -415,3 +415,15 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 - `test/linear-exit-provider-issue-observation.js` - Isolated PG17 operation/negative matrix against actual source receipt construction.
 - `test/linear-exit-provider-issue-observation-transport.mjs` - Offline transport and actual URL canonicalization controls.
 - `docs/ops/LINEAR_EXIT_PROVIDER_ISSUE_OBSERVATION_PREPARATION.md` - Component evidence, source pins and explicit service-observation trust boundary.
+
+- `test/helpers/native-ordinary-business-assertions.js`, `test/native-ordinary-business-extraction.js`: original selected ordinary SQL assertions reused after actual native reopen; source extraction check.
+- `test/helpers/native-capability-post-reopen.js`: selected real intake, assignment and label RPC/replay checks after native reopen.
+- `test/linear-exit-observed-full-plan-transport.js`: raw CR routine body preservation through journal statement parsing.
+
+- `scripts/linear-exit-atomic-writer-bound-bundle.js` - Preparation wrapper binding unchanged writer files to the exact observed 48-source installation plan.
+- `test/linear-exit-atomic-writer-bound-bundle.js` - Offline explicit-catalog binding, refusal and unchanged-handler-byte proof.
+- `docs/ops/LINEAR_EXIT_ATOMIC_WRITER_INSTALLATION_BINDING.md` - Package usage and historical-prerequisite no-replay boundary.
+
+- `supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql`: explicit private terminal-helper EXECUTE revocation for observed default privileges; ordered after62741.
+
+- `docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json`, `docs/ops/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_PREPARATION.md`: final48-source/55-chunk calibrated target, interrupted final-owner resume and finalized exact replay evidence; preparation only.

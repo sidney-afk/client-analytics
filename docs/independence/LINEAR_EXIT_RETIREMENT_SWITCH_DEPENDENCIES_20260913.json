@@ -588,7 +588,7 @@
       "leakproof": false,
       "volatility": "s",
       "anon_execute": false,
-      "body_raw_md5": "40a18d3ebc461e7cb1a06e5e2040692b",
+      "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
       "service_execute": true,
       "security_definer": true,
       "authenticated_execute": false
@@ -2485,7 +2485,7 @@
         "leakproof": false,
         "volatility": "s",
         "anon_execute": false,
-        "body_raw_md5": "40a18d3ebc461e7cb1a06e5e2040692b",
+        "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
         "service_execute": true,
         "security_definer": true,
         "authenticated_execute": false
@@ -2535,7 +2535,13 @@
   "terminal_observation_override": {
     "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
     "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b",
-    "body_raw_md5": "40a18d3ebc461e7cb1a06e5e2040692b",
+    "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
     "metadata_basis": "Same signature, return type, language, volatility, security definer, search_path and preserved ACL as terminal history owner; actual full comparison required by switch test."
+  },
+  "terminal_issue_observation_override": {
+    "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+    "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2",
+    "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
+    "metadata_basis": "Same full routine metadata except exact source body; runtime checker compares all fields."
   }
 }

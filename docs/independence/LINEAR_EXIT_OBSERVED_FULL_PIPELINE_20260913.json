@@ -1,0 +1,292 @@
+{
+  "format": "linear-exit-observed-full-pipeline-proof-v1",
+  "classification": "ISOLATED_POSTGRES",
+  "date": "2026-09-13",
+  "status": "PASS",
+  "sources": 48,
+  "chunks": 55,
+  "public_tables": 90,
+  "exact_final_public_owner_bodies": 39,
+  "plan_sha256": "3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb",
+  "target_sha256": "f3db4b7cd0649800e4811d1c4b32cf3f37e5c2bf951d4b12d22009faf08aa28f",
+  "final_catalog_sha256": "7e363b4b2fa0160d55bb4612a682a4bbc944b799c9c60b4398c8691b22f04f9d",
+  "calibration": {
+    "receipt": "332df4aeaf7b48218006e705b9128ff7",
+    "status": "PASS",
+    "server_stopped": true,
+    "classification": "TARGET_CALIBRATION_ONLY"
+  },
+  "fresh_replay": {
+    "receipt": "e0b065b2a07b470681bab971ed8fca64",
+    "status": "PASS",
+    "server_stopped": true,
+    "classification": "FRESH_TARGET_REPLAY",
+    "comparison": "MATCHED_SOURCE_DERIVED_TARGET",
+    "finalization": "PREPARED_MAINTENANCE_FINALIZED",
+    "guards_removed": 90,
+    "retirement_contract_after_finalization": true
+  },
+  "interruption": {
+    "classification": "ISOLATED_POSTGRES",
+    "backend_terminated": true,
+    "backend_absent": true,
+    "before_final_owner_commit": true,
+    "exact_prefix": true,
+    "completed_chunks": 54,
+    "final_owner_effects_absent": true,
+    "maintenance_refused": true,
+    "current_catalog_matches_prefix": true,
+    "same_database_identity": true,
+    "fresh_same_identity_resume": true,
+    "final_completed_chunks": 55
+  },
+  "source_pins": [
+    {
+      "file": "test/linear-exit-observed-full-pipeline.js",
+      "sha256": "fb03bf3b0fee4cb66bf7b5caba9d0ab87ffd0c2c7488c34c3df4639ef8b17926"
+    },
+    {
+      "file": "test/helpers/observed-full-pipeline-worker.mjs",
+      "sha256": "48d84a3305f6e4eacb5aa33184f0312374849559ad243e21e650ea423247da8b"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-install-plan.js",
+      "sha256": "1312cdf339c1f71db0cead3619975b2eb9e199192a5dc800de5dd79c04406b63"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-target.js",
+      "sha256": "c4d7051e0e3b90f31c4e82b29b00d231e4de5c98d81c78f2136417a54bf01e07"
+    },
+    {
+      "file": "scripts/linear-exit-observed-schema.js",
+      "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
+    }
+  ],
+  "calibration_source_pins": [
+    {
+      "file": "test/linear-exit-observed-full-pipeline.js",
+      "sha256": "23f4b4d810980e10ef7723580488b4f75f5e288543aa531ce0ff7927ce108774"
+    },
+    {
+      "file": "test/helpers/observed-full-pipeline-worker.mjs",
+      "sha256": "039f80b2c37d14a1ca2e7728805ea02cf0b4b5f69b61e6010ac7de052071db2b"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-install-plan.js",
+      "sha256": "1312cdf339c1f71db0cead3619975b2eb9e199192a5dc800de5dd79c04406b63"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-target.js",
+      "sha256": "c4d7051e0e3b90f31c4e82b29b00d231e4de5c98d81c78f2136417a54bf01e07"
+    },
+    {
+      "file": "scripts/linear-exit-observed-schema.js",
+      "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
+    }
+  ],
+  "retained_failures": [
+    {
+      "receipt": "07de46a38cb14900befc5921b8ba22f3",
+      "status": "FAIL",
+      "cause": "Observed default privileges exposed two private terminal helpers to service_role; additive190840 fixes explicit privileges."
+    },
+    {
+      "receipt": "ab43aefdf2ba48d4a7cbecf2e12d45cf",
+      "status": "FAIL",
+      "cause": "Test ran retirement checker with temporary maintenance guards; moved unchanged checker into bare-target transaction and repeated after committed finalization."
+    },
+    {
+      "receipt": "732fc5fc5775469ebd35bdf82ca6ec9f",
+      "status": "FAIL",
+      "cause": "Killed backend cleanup hit driver error; confirmed termination now exits the fault child before cleanup."
+    },
+    {
+      "receipt": "6338103f941749a187e09daf8fef483d",
+      "status": "FAIL",
+      "cause": "After actual termination and exact prefix, parent full-catalog read exceeded default1MiB; explicit16MiB read preserves exact comparison."
+    }
+  ],
+  "limits": {
+    "activation_executed": false,
+    "installation_authorized": false,
+    "hosted_target_verified": false,
+    "external_worker_fence_proven": false,
+    "nontransactional_external_rollback_proven": false,
+    "current_hosted_baseline_rechecked": false,
+    "full_data_or_object_custody_proven_by_this_lane": false
+  },
+  "notes": [
+    "Exact observed67-table reconstruction followed by48 pinned source entries; external foundation scope remains separately declared.",
+    "Raw CR-bearing function bodies are preserved before journal parsing; no catalog fingerprint normalization.",
+    "Only final62149 pre-COMMIT boundary injected here; earlier standalone journal/maintenance tests remain separate evidence.",
+    "No retirement activation or provider network request occurred; separate switch46 and recovery receipts cover their declared business behavior."
+  ]
+}

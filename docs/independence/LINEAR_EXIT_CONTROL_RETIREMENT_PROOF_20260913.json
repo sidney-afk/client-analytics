@@ -1,6 +1,6 @@
 {
   "classification": "ISOLATED_POSTGRES_AND_ENCRYPTED_LOCAL_CUSTODY",
-  "receipt": "cfbf66455be44f98ad49e42fce2a4cb0",
+  "receipt": "b353532767364586a6a6f997c8eb3bbc",
   "exit_code": 0,
   "server_stopped": true,
   "profile": "core+diagnostics+retirement",
@@ -8,7 +8,7 @@
   "source_pins": [
     {
       "file": "scripts/linear-exit-control-companion.js",
-      "sha256": "7af1cf9340e9446872629c5b9347878a9c1b9ffa3979f083ccf330ab50c142a7"
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
     },
     {
       "file": "scripts/linear-exit-control-source-phases.js",
@@ -60,7 +60,7 @@
     },
     {
       "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
-      "sha256": "4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14"
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
     },
     {
       "file": "test/helpers/control-current-public-owners.js",
@@ -96,7 +96,7 @@
     },
     {
       "file": "test/helpers/control-retirement-public-owners.js",
-      "sha256": "3f75bea9160f4b8a4e24353447afba6984f8f49b7c84fb2c9d6eb6809c84767e"
+      "sha256": "7e6e0f36d767ebe4af076b22da2bc3d50e17ee121b88836f5af0a79310d2a71c"
     },
     {
       "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
@@ -105,6 +105,14 @@
     {
       "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
       "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
     }
   ],
   "schema_contract": {
@@ -146,11 +154,15 @@
         "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
       ],
       [
+        "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+        "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+      ],
+      [
         "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
-        "4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14"
+        "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
       ]
     ],
-    "public_functions": 29,
+    "public_functions": 32,
     "source_fixture": {
       "classification": "PRIVILEGED_SYNTHETIC_RETIRED_OPEN_RESTORE_STATE_ONLY",
       "debts_preserved": {
@@ -164,7 +176,7 @@
     "provider_fence_always_and_refused": true,
     "activation_proven": false
   },
-  "artifact_sha256": "60afc32ee3716c7ac20ed513f4c8b447810bca97e58657da02af988e4b596d23",
+  "artifact_sha256": "2c61975d6afd4683c174f6cf19007ef856d0ae13045f8b55ab95951d9c0a47da",
   "restore_policy": {
     "source_bytes_unchanged": true,
     "maintenance_installer_pid_and_start": null,
@@ -178,5 +190,44 @@
     "Privileged retired/open fixture retains unresolved debts; does not prove activation authorization",
     "Historical receipt eligibility is bounded source-derived evidence, not fresh provider readback or a production census",
     "No hosted installation, dispatch, external fence, off-device custody, independent key retrieval or automatic restored-system authorization"
-  ]
+  ],
+  "previous_recovery": {
+    "receipt": "cfbf66455be44f98ad49e42fce2a4cb0",
+    "exit_code": 0,
+    "server_stopped": true,
+    "public_functions": 29,
+    "public_owners": [
+      [
+        "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+        "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+      ],
+      [
+        "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+        "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+      ],
+      [
+        "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+        "4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14"
+      ]
+    ],
+    "artifact_sha256": "60afc32ee3716c7ac20ed513f4c8b447810bca97e58657da02af988e4b596d23",
+    "scope": "Historical pre-issue-observation profile proof; retained, not final current owner coverage"
+  },
+  "source_pin_verification": {
+    "working_tree": "All recorded source pins matched tested bytes immediately after completion. The retirement public-owner helper was subsequently extended with the separately listed ACL-only owner; its new bytes were not executed in this receipt.",
+    "index": "At review, only control companion, retirement public helper and final62149 owner differed; these are pending source updates, not line-ending-only differences. All other recorded pins matched raw index bytes.",
+    "staging_performed": false
+  },
+  "subsequent_acl_owner": {
+    "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+    "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942",
+    "classification": "SOURCE_ONLY_ADDITIVE_FIXTURE_NO_OP",
+    "included_in_receipt": false,
+    "observed_prior_service_execute": {
+      "production_provider_terminal_clean_v1": false,
+      "production_provider_legacy_written_shape_v1": false
+    },
+    "effect": "Explicitly revokes privileges already absent in this captured and restored fixture; required by observed default-ACL installation composition",
+    "recovery_fixture_inclusion": "After62741 before181213; added after the recorded recovery run"
+  }
 }

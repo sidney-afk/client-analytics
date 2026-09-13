@@ -71,11 +71,13 @@ fencing, key retrieval from an independent location, off-device custody, or safe
 activation of the restored system. Those limits remain explicit.
 
 The separate `core+diagnostics+retirement` profile passed the supported PG17
-recovery lane in receipt `cfbf66455be44f98ad49e42fce2a4cb0`, exit zero, server
+recovery lane in final receipt `b353532767364586a6a6f997c8eb3bbc`, exit zero, server
 stopped. `LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json` records exact pins.
-It installs terminal-history 62741, comment observation 181213, then retirement
+It installs terminal-history 62741, comment observation 181213, issue observation 183021, then retirement
 switch 62149 after the prior current-public owners. All 94 tables passed encrypted
-reopening and actual restore; 29 selected public routine records matched exactly.
+reopening and actual restore; 32 selected public routine records matched exactly.
+Earlier receipt `cfbf66455be44f98ad49e42fce2a4cb0` remains historical evidence for
+29 routines before issue observation; its owner pins and artifact digest remain in the manifest.
 The new private schema contract is separately pinned at `a26fb62cd7cf332aa1db56c164bd6da2d4f3ad4510a01457fa1bcc351a9af803`.
 Its difference from the diagnostics contract is exactly the private retirement
 fence function and its ALWAYS trigger. Existing profile contracts stay unchanged.
@@ -110,5 +112,18 @@ closed, sealed and malformed/multirow inputs; they are separate from SQL evidenc
 Reproduce with `-Lane control-recovery -CurrentPublicOwners -RetirementProfile`,
 the same explicit observed input directory, and supplied portable PG17/output paths.
 All three control, current-public and retirement completion markers are required.
-The newer issue-observation owner is outside this receipt. This profile proof does
+The final issue-observation owner is included. This profile proof does
 not replace the independent actual-switch proof or authorize a restored system.
+
+Final receipt source pins matched every tested working-tree byte. At review, the
+index still contained the older companion, retirement helper and switch owner;
+those are pending source changes, not line-ending-only differences. Every other
+recorded source pin matched raw index bytes. No staging was performed by this review.
+
+A subsequent ACL-only owner, `20260913190840_provider_terminal_private_acl_preparation.sql`
+(SHA `439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942`),
+is now included after 62741 in the recovery fixture. It revokes service EXECUTE
+from two helpers whose captured and restored privileges were already false.
+This source-only fixture change was not executed in receipt `b353532767364586a6a6f997c8eb3bbc`;
+the receipt pins remain historical exact bytes. The owner is needed when composing
+against observed default ACLs and requires the separate installation proof.

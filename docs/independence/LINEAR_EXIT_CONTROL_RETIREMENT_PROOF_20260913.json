@@ -1,0 +1,182 @@
+{
+  "classification": "ISOLATED_POSTGRES_AND_ENCRYPTED_LOCAL_CUSTODY",
+  "receipt": "cfbf66455be44f98ad49e42fce2a4cb0",
+  "exit_code": 0,
+  "server_stopped": true,
+  "profile": "core+diagnostics+retirement",
+  "table_count": 94,
+  "source_pins": [
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "7af1cf9340e9446872629c5b9347878a9c1b9ffa3979f083ccf330ab50c142a7"
+    },
+    {
+      "file": "scripts/linear-exit-control-source-phases.js",
+      "sha256": "0900f523458ab7f7121d6a86712c32a44910368e76126733d29a1f43a4818d6e"
+    },
+    {
+      "file": "scripts/linear-exit-control-custody.js",
+      "sha256": "29cf2f1bf9097ea134ec17cc0de46b199aafe8189aea36f7b7ddac7a52cc6492"
+    },
+    {
+      "file": "scripts/track-b-recovery-package.js",
+      "sha256": "c13dba50600e3e7214272dcc1233652a457993d79e7f55717ea0b1ab9067a1e6"
+    },
+    {
+      "file": "scripts/linear-exit-complete-application-data.js",
+      "sha256": "d746a8e30a733f4c68c156fe4b6e401b44b22eff0ee000c0d2ee669a6bad6a57"
+    },
+    {
+      "file": "test/linear-exit-control-recovery-postgres.js",
+      "sha256": "a78c761ed5186f3b5c35aca912183505c2f0df2f7fe0ff0472fb1d331545fdc0"
+    },
+    {
+      "file": "test/helpers/control-recovery-proof.js",
+      "sha256": "e7e4089a58d79bf0fa65bf4a393279efc71a8b09f499f10bfdd7008d409daf49"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14"
+    },
+    {
+      "file": "test/helpers/control-current-public-owners.js",
+      "sha256": "fcf0c23959c36d33c6e74ec4a6a065ef87442c1715d4dcca2ddd2145eb4d8327"
+    },
+    {
+      "file": "scripts/linear-exit-observed-routines.js",
+      "sha256": "1922826c466199a32ed12475be63c6c7eee48a423a46ec6864fa85bca50c6271"
+    },
+    {
+      "file": "qa/linear-exit-rehearsal/observed-baseline/routines-contract.json",
+      "sha256": "1406d4c0e068aedf1824f09a30b1221f9a29f65ee781544a2b23362a8cf58bb8"
+    },
+    {
+      "file": "qa/linear-exit-rehearsal/observed-baseline/routines-64.sql",
+      "sha256": "79f1903193f684c0ac3e0560f07ad3bd371f6a87c1d07443280ee5f9a74b7bde"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "test/helpers/control-retirement-public-owners.js",
+      "sha256": "3f75bea9160f4b8a4e24353447afba6984f8f49b7c84fb2c9d6eb6809c84767e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    }
+  ],
+  "schema_contract": {
+    "file": "docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json",
+    "sha256": "a26fb62cd7cf332aa1db56c164bd6da2d4f3ad4510a01457fa1bcc351a9af803",
+    "calibration_receipt": "6093bcfb72424964a1606e0e13938fa5",
+    "previous_calibration": {
+      "receipt": "960033b347784e8bb5d623e392277ae3",
+      "exit_code": 0,
+      "source_exact_accepted": false,
+      "finding": "Windows stdin removed function-body carriage returns"
+    }
+  },
+  "assertions": {
+    "default_capture_refused": true,
+    "wrong_database_snapshot_refused": true,
+    "disabled_private_trigger_refused": true,
+    "shared_snapshot_private_rows_proven": true,
+    "late_typed_restore_rollback": true,
+    "all_public_guards_always": true,
+    "authenticated_tamper_refusal": true,
+    "stripped_companion_refused": true,
+    "encrypted_reopen": true,
+    "restored_maintenance_closed": true,
+    "source_journal_identity_retained": true,
+    "installation_authorized": false,
+    "provider_dispatch_proven": false
+  },
+  "retirement": {
+    "marker": "LINEAR_EXIT_CONTROL_RETIREMENT_OK",
+    "profile": "core+diagnostics+retirement",
+    "public_owners": [
+      [
+        "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+        "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+      ],
+      [
+        "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+        "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+      ],
+      [
+        "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+        "4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14"
+      ]
+    ],
+    "public_functions": 29,
+    "source_fixture": {
+      "classification": "PRIVILEGED_SYNTHETIC_RETIRED_OPEN_RESTORE_STATE_ONLY",
+      "debts_preserved": {
+        "outbox": 16,
+        "attempts": 1,
+        "followups": 1
+      },
+      "activation_proven": false
+    },
+    "admission_restored_closed": true,
+    "provider_fence_always_and_refused": true,
+    "activation_proven": false
+  },
+  "artifact_sha256": "60afc32ee3716c7ac20ed513f4c8b447810bca97e58657da02af988e4b596d23",
+  "restore_policy": {
+    "source_bytes_unchanged": true,
+    "maintenance_installer_pid_and_start": null,
+    "admission_mode": "closed",
+    "admission_epoch_history_timestamps_reason": "preserved",
+    "private_retirement_fence": "ENABLE ALWAYS after archival private inserts",
+    "source_journal_identity": "preserved; no restoration authorization"
+  },
+  "limits": [
+    "Synthetic composition with exact observed F203 prerequisite; not the observed full-installation target",
+    "Privileged retired/open fixture retains unresolved debts; does not prove activation authorization",
+    "Historical receipt eligibility is bounded source-derived evidence, not fresh provider readback or a production census",
+    "No hosted installation, dispatch, external fence, off-device custody, independent key retrieval or automatic restored-system authorization"
+  ]
+}

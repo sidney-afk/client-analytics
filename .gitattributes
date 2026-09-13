@@ -98,3 +98,5 @@ test/linear-exit-provider-comment-observation-transport.mjs -text whitespace=cr-
 supabase/migrations/20260913062149_retirement_switch_preparation.sql -text whitespace=cr-at-eol
 docs/independence/LINEAR_EXIT_RETIREMENT_SWITCH_DEPENDENCIES_20260913.json -text whitespace=cr-at-eol
 test/linear-exit-retirement-switch-postgres.js -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json text eol=lf

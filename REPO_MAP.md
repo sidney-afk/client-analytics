@@ -396,6 +396,14 @@ Recorded batch/non-F203 create recovery preparation: `docs/ops/LINEAR_EXIT_RECOR
 
 Historical provider terminal receipt eligibility preparation: `docs/ops/LINEAR_EXIT_PROVIDER_TERMINAL_HISTORY_PREPARATION.md`, `supabase/migrations/20260913062741_provider_terminal_history_preparation.sql`, `test/linear-exit-provider-terminal-history.js`. Exact closed-epoch historical row capture, source receipt consistency, completed ledger and verified discard routes; quarantine and unknown history remain unresolved.
 
+- scripts/linear-exit-control-source-phases.js - Fixed pinned control SQL phases and mode-only admission quarantine.
+- test/linear-exit-control-source-phases.js - Offline private-phase ordering/refusal checks and established profile SQL byte preservation.
+
 Recorded uncertain comment read-observation recovery: `docs/ops/LINEAR_EXIT_PROVIDER_COMMENT_OBSERVATION_PREPARATION.md`, `supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql`, `scripts/linear-exit-provider-comment-observation.mjs`, `test/linear-exit-provider-comment-observation.js`, `test/linear-exit-provider-comment-observation-transport.mjs`. Original attempt, source marker/read decisions and destructive pre-send proof are required; no resend or fabricated ACK.
 
 Guarded retirement switch preparation: `docs/ops/LINEAR_EXIT_RETIREMENT_SWITCH_PREPARATION.md`, `supabase/migrations/20260913062149_retirement_switch_preparation.sql`, `docs/independence/LINEAR_EXIT_RETIREMENT_SWITCH_DEPENDENCIES_20260913.json`, `test/linear-exit-retirement-switch-postgres.js`. Separate closed activation and native reopen; isolated component proof only, final recovery and hosted acceptance remain required.
+
+- docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json - Source-derived private retirement fence catalog; distinct control profile.
+- test/helpers/control-retirement-public-owners.js - Fixed public-owner ordering and explicitly privileged retired/open recovery fixture.
+
+- docs/independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json - Exact 94-table encrypted retirement-profile recovery receipt and bounded restore policy.

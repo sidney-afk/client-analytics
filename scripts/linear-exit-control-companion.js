@@ -16,28 +16,24 @@ const sha=x=>crypto.createHash('sha256').update(x).digest('hex'),canon=backup.ca
 const fail=x=>{throw Error('CONTROL_COMPANION_'+x);},q=x=>'"'+x.replaceAll('"','""')+'"',lit=x=>`convert_from(decode('${Buffer.from(x).toString('hex')}','hex'),'UTF8')`;
 const qualified=x=>x.split('.').map(q).join('.');
 function exact(x,keys){if(!x||Array.isArray(x)||typeof x!=='object'||canon(Object.keys(x).sort())!==canon(keys.slice().sort()))fail('SHAPE');}
+// Only complete, pinned profiles enter this registry. A new dependency phase
+// does not make an unfinished schema profile capturable or restorable.
+const PROFILES={
+ core:{names:BASE_NAMES,owners:BASE_OWNERS,contract:BASE_CONTRACT,sha256:BASE_CONTRACT_SHA},
+ 'core+diagnostics':{names:[...BASE_NAMES,'write_refusal_diagnostics.receipts_v1'],owners:[...BASE_OWNERS,['supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql','4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705']],contract:'docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json',sha256:'04fbafedfeb911e0932a0fe4ea8a0e9866d2bd2970201d082841b089d05bc376'},
+ 'core+diagnostics+retirement':{names:[...BASE_NAMES,'write_refusal_diagnostics.receipts_v1'],owners:[...BASE_OWNERS,['supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql','4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705'],['supabase/migrations/20260913062149_retirement_switch_preparation.sql','4714999649049ea845d5e94c53b50a13d6f1739d82d2c52ba498fbf42176cc14']],contract:'docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json',sha256:'a26fb62cd7cf332aa1db56c164bd6da2d4f3ad4510a01457fa1bcc351a9af803'}
+};
 function forProfile(profileName='core'){
- if(!['core','core+diagnostics'].includes(profileName))fail('PROFILE');
- const extra=profileName==='core+diagnostics';
- const NAMES=extra?[...BASE_NAMES,'write_refusal_diagnostics.receipts_v1']:BASE_NAMES;
- const OWNERS=extra?[...BASE_OWNERS,['supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql','4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705']]:BASE_OWNERS;
- const CONTRACT=extra?'docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json':BASE_CONTRACT;
- const CONTRACT_SHA=extra?'04fbafedfeb911e0932a0fe4ea8a0e9866d2bd2970201d082841b089d05bc376':BASE_CONTRACT_SHA;
+ if(!Object.hasOwn(PROFILES,profileName))fail('PROFILE');
+ const {names:NAMES,owners:OWNERS,contract:CONTRACT,sha256:CONTRACT_SHA}=PROFILES[profileName];
 function isFixedPublicTrigger(text){
  if(/^CREATE TRIGGER linear_exit_maintenance_dml_v1 BEFORE /i.test(text)){const m=/^CREATE TRIGGER linear_exit_maintenance_dml_v1 BEFORE (.+) ON public\.([a-z_0-9]+) FOR EACH STATEMENT EXECUTE FUNCTION linear_exit_maintenance\.reject_other_writer_v1\(\)$/i.exec(text.trim());return !!m&&canon(m[1].toUpperCase().split(' OR ').sort())===canon(['DELETE','INSERT','TRUNCATE','UPDATE'])&&complete.expectedNames('v2').includes(m[2]);}
  return /^CREATE TRIGGER provider_send_unresolved_seal_v1 BEFORE UPDATE ON public\.card_write_admission_v1 FOR EACH ROW EXECUTE FUNCTION linear_exit_provider\.refuse_unresolved_seal_v1\(\)$/i.test(text.trim());
 }
 function requirement(requested=profileName){if(requested!==profileName)return forProfile(requested).requirement();return {version:1,format:FORMAT,profile:profileName,tables:NAMES,schema_sha256:CONTRACT_SHA};}
-function validateRequirement(x){if(!x||!['core','core+diagnostics'].includes(x.profile))fail('REQUIREMENT');if(x.profile!==profileName)return forProfile(x.profile).validateRequirement(x);if(canon(x)!==canon(requirement()))fail('REQUIREMENT');}
-function sourceSql(){return OWNERS.flatMap(([file,pin])=>{
- const bytes=fs.readFileSync(path.join(ROOT,file));if(sha(bytes)!==pin)fail('SOURCE_DRIFT');
- return require('./track-b-recovery-package').splitSqlStatements(bytes.toString('utf8')).filter(s=>{
-  if(s.kind!=='statement')return false;
-  if(/^create index receipts_v1_recorded_at on write_refusal_diagnostics\.receipts_v1\b/i.test(s.text))return true;
-  if(/^create trigger\b/i.test(s.text))return /\bon linear_exit_provider\.send_attempts_v1\b/i.test(s.text);
-  return /^(?:create schema|create table|alter table|create (?:or replace )?function|revoke all on (?:schema |function |table )?)\s*(?:linear_exit_install|linear_exit_maintenance|linear_exit_provider|write_refusal_diagnostics)\b/i.test(s.text);
- }).map(s=>s.text+';');
-}).join('\n');}
+function validateRequirement(x){if(!x||!Object.hasOwn(PROFILES,x.profile))fail('REQUIREMENT');if(x.profile!==profileName)return forProfile(x.profile).validateRequirement(x);if(canon(x)!==canon(requirement()))fail('REQUIREMENT');}
+function sourcePhases(){return require('./linear-exit-control-source-phases').sourcePhases(OWNERS);}
+function sourceSql(){const phases=sourcePhases();return phases.beforePublic+(phases.afterPrivateRows?'\n'+phases.afterPrivateRows:'');}
 function catalogSql(){const base=require('./linear-exit-install-journal-catalog').query.replace('jsonb_agg(pg_get_triggerdef(t.oid) order by t.tgname)',"jsonb_agg(jsonb_build_object('definition',pg_get_triggerdef(t.oid),'enabled',t.tgenabled,'internal',t.tgisinternal) order by t.tgname)");return 'select jsonb_build_object('+NAMES.map(name=>{const [schema,table]=name.split('.');let sql=base.replaceAll('linear_exit_install',schema).replaceAll('journal_v1',table).replace(/^select /,'').replace(/ as journal_catalog;$/,'');sql+=` || jsonb_build_object('relations',(select jsonb_agg(jsonb_build_array(c.relname,c.relkind) order by c.relname) from pg_class c where c.relnamespace=to_regnamespace('${schema}')),'functions',(select jsonb_agg(jsonb_build_object('name',p.proname,'arguments',pg_get_function_identity_arguments(p.oid),'definition_md5',md5(pg_get_functiondef(p.oid)),'body_md5',md5(p.prosrc),'owner',pg_get_userbyid(p.proowner),'acl',p.proacl::text,'security_definer',p.prosecdef,'config',p.proconfig,'strict',p.proisstrict,'kind',p.prokind,'result',pg_get_function_result(p.oid),'parallel',p.proparallel,'leakproof',p.proleakproof,'volatility',p.provolatile,'language',(select lanname from pg_language where oid=p.prolang)) order by p.proname) from pg_proc p where p.pronamespace=to_regnamespace('${schema}')))`;return `'${name}',(${sql})`;}).join(',')+')';}
 function contract(){const b=fs.readFileSync(path.join(ROOT,CONTRACT));if(sha(b)!==CONTRACT_SHA)fail('CONTRACT_DRIFT');return JSON.parse(b).catalog;}
 function capturePrivate(query){if(profileName==='core'&&JSON.parse(query("select to_jsonb(to_regnamespace('write_refusal_diagnostics') is not null)")))fail('UNCLASSIFIED_DIAGNOSTICS');const run=s=>query("set local search_path=pg_catalog,public;set local timezone='UTC';set local datestyle='ISO,YMD';"+s);const catalog=JSON.parse(run(catalogSql()));if(canon(catalog)!==canon(contract()))fail('CATALOG_DRIFT');return Object.fromEntries(NAMES.map(name=>{const cols=catalog[name].table.columns;return [name,JSON.parse(run(`select coalesce(jsonb_agg(jsonb_build_array(${cols.map(c=>q(c.name)+'::text').join(',')})),'[]'::jsonb) from ${qualified(name)}`))];}));}
@@ -68,9 +64,10 @@ const inserts=NAMES.map(name=>{const cols=schema[name].table.columns;return rows
 const bags=NAMES.map(name=>{const cols=schema[name].table.columns,actual=`select jsonb_build_array(${cols.map(c=>q(c.name)+'::text').join(',')}) row from ${qualified(name)}`,expected=lit(JSON.stringify(rows[name]));return `do $control_bag$ begin if exists(select row from (${actual}) a except all select value from jsonb_array_elements(${expected}::jsonb)) or exists(select value from jsonb_array_elements(${expected}::jsonb) except all select row from (${actual}) a) then raise exception 'CONTROL_COMPANION_MULTISET';end if;end $control_bag$;`;}).join('\n');
 const shape=`do $control_shape$ declare expected jsonb:=${lit(JSON.stringify(schema))}::jsonb; actual jsonb;begin ${ownerRelativeSql(schema)}select (${catalogSql()}) into actual;if actual is distinct from expected then raise exception 'CONTROL_COMPANION_TARGET_CATALOG';end if;end $control_shape$;`;
 const guards=`do $control_quarantine$ declare t record; g record;begin for t in select oid,relname from pg_class where relnamespace='public'::regnamespace and relkind='r' loop select * into g from pg_trigger where tgrelid=t.oid and tgname='linear_exit_maintenance_dml_v1';if found then if g.tgtype<>62 or g.tgfoid<>'linear_exit_maintenance.reject_other_writer_v1()'::regprocedure or g.tgnargs<>0 or g.tgqual is not null or g.tgconstraint<>0 then raise exception 'CONTROL_COMPANION_GUARD_SHAPE';end if;else execute format('create trigger linear_exit_maintenance_dml_v1 before insert or update or delete or truncate on public.%I for each statement execute function linear_exit_maintenance.reject_other_writer_v1()',t.relname);end if;execute format('alter table public.%I enable always trigger linear_exit_maintenance_dml_v1',t.relname);end loop;end $control_quarantine$;`;
-return {beforePublic:sourceSql(),beforePost:inserts,verify:shape+'\n'+bags+'\n'+guards};}
+const phases=sourcePhases();return {beforePublic:phases.beforePublic,beforePost:inserts+(phases.afterPrivateRows?'\n'+phases.afterPrivateRows:''),verify:shape+'\n'+bags+'\n'+guards};}
+function applicationForRestore(verified){if(verified.payload.requirement.profile!==profileName)return forProfile(verified.payload.requirement.profile).applicationForRestore(verified);return profileName==='core+diagnostics+retirement'?require('./linear-exit-control-source-phases').quarantineAdmission(verified.application.payload,verified.application.parent):verified.application.payload;}
 function reconstruct(bytes,key){return require('./track-b-recovery-package').reconstructControlApplicationSql(bytes,key);}
-return {isFixedPublicTrigger,requirement,validateRequirement,sourceSql,catalogSql,capturePrivate,encode,read,capture,sections,reconstruct,OWNERS,NAMES};
+return {isFixedPublicTrigger,requirement,validateRequirement,sourceSql,catalogSql,capturePrivate,applicationForRestore,encode,read,capture,sections,reconstruct,OWNERS,NAMES};
 
 }
 module.exports={...forProfile(),forProfile};

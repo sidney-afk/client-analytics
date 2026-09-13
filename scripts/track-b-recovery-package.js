@@ -1052,7 +1052,7 @@ function reconstructCompleteApplicationSql(bytes, hmacInput) {
 function reconstructControlApplicationSql(bytes, hmacInput) {
   const control = require('./linear-exit-control-companion');
   const verified = control.read(bytes, hmacInput);
-  const base = require('./linear-exit-complete-application-data').sections(verified.application.payload, verified.application.parent);
+  const base = require('./linear-exit-complete-application-data').sections(control.applicationForRestore(verified), verified.application.parent);
   const extra = control.sections(verified);
   return renderReconstruction(verified.application.parent, {controlVerified:true,beforePublic:extra.beforePublic,beforePost:base.beforePost+'\n'+extra.beforePost,verify:base.verify+'\n'+extra.verify});
 }

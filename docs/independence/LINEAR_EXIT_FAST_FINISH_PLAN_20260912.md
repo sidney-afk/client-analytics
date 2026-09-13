@@ -11,23 +11,26 @@ serving captures remain immutable controls. No installation is authorized.
 
 ## Execution order and stopping criteria
 
-Current critical path after checkpoint `46434e8843e9c6e490a8b96d54eb8d25a283b75e`:
+Current critical path after the published 42-source calibration:
 
-1. Reuse the passed exact-schema and 35-source installation pipeline. It preserves
-   32 historical setup owners and four existing owners, verifies 42 journal chunks,
-   blocks ordinary writes during maintenance and finalizes against an exact target.
-   Do not repeat its earlier discovery or failed read-adapter iterations.
-2. Extend recovery custody to the new private installation and provider ledgers,
-   preserving shared snapshot consistency. Use the packaged observed-schema entry
-   point on the next necessary integrated rehearsal, and complete full table/trigger
-   preflight evidence alongside any new release owners.
-3. Finish external send accounting and its recovery: admitted provider sends must
-   remain visible until exact terminal receipts exist. Unknown responses block
-   drain/seal. Then connect this private ledger to complete recovery custody.
-4. Close asset-reference coverage, custody and notification handover interfaces,
-   the separately scoped WR-101 preparation, and final-switch implementation.
-   Existing component tests are reused; test only changed integration boundaries.
-5. Publish one reviewed preparation revision and update the handoff. Fresh hosted
+1. Finish the recorded batch/non-F203 recovery review and replay regression. Reuse
+   immutable V2 context, exact source receipts and narrow linkage; do not resend or
+   invent unrecorded history. Finish operation-specific recovery for other recorded
+   uncertain responses; ambiguous inputs must remain unresolved rather than be waived.
+2. Reuse existing ordinary native receipt owners and the repaired retirement
+   recognizer. Implement guarded retirement and a separately guarded native reopen;
+   the existing reopen refuses retired state. Prove permanent provider-send refusal
+   and actual ordinary writes after reopening. Reuse the existing business fixtures
+   instead of duplicating their tests. External evidence bindings are not proof of truth.
+3. Run current-public recovery with the reviewed new owners and exact observed F203
+   prerequisite. The existing 94-table encrypted recovery profile remains evidence;
+   newer public routine coverage is an additional integration requirement.
+4. After final owners freeze, calibrate their target once and replay it in a fresh
+   database through the packaged entry, including full preflight and interruption/
+   recovery boundaries. The earlier 42-source/49-chunk calibration is not final
+   acceptance. Avoid rerunning an expensive final replay before pending owners land.
+5. Finish remaining asset/access/custody and notification handover preparation,
+   then publish one reviewed full preparation revision and update the handoff. Fresh hosted
    observations, external-worker coverage, independent key retrieval and actual
    installation/activation remain separately authorized acceptance steps.
 

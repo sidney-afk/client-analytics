@@ -87,3 +87,5 @@ supabase/migrations/20260913054339_provider_create_observation_recovery_preparat
 test/linear-exit-provider-create-observation.js -text whitespace=cr-at-eol
 test/linear-exit-provider-create-observation-transport.mjs -text whitespace=cr-at-eol
 test/helpers/observed-full-pipeline-worker.mjs -text whitespace=cr-at-eol
+supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-recorded-create-recovery.js -text whitespace=cr-at-eol

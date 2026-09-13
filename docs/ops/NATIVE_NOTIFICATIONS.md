@@ -58,6 +58,12 @@ test `test/native-notification-health-handler.js` passes nine cases with injecte
 SQL results and zero external calls. This verifies response handling, not hosted
 SQL execution, delivery, schedule activation or alert coverage.
 
+The follow-up health check also refuses nonnumeric, missing, fractional, unsafe
+or inconsistent counts instead of coercing them into a healthy zero. Twelve
+additional actual-handler cases pass with zero external calls. The SQL returns
+JSON numeric counts; unresolved categories are disjoint subsets of total open
+work, so overflow or debt exceeding that total is unavailable evidence, not health.
+
 `node test/native-notifications.js` checks the source contract. Slack escaping
 follows [chat.postMessage](https://docs.slack.dev/reference/methods/chat.postMessage)
 and [Slack formatting](https://docs.slack.dev/messaging/formatting-message-text):

@@ -11,11 +11,11 @@ the reviewed checkpoint and remaining build gaps; it is not installation sign-of
 | Application integration | New staff entry and importer recognition integrated; affected boot/entry/cache/sign-off tests pass; captured Calendar public journey24 checkpoints pass | Final review of the pinned revision and target hosted compatibility; retain repository401 negative control |
 | Relational recovery | V1 preserves 86-table compatibility; final seven-owner V2 restores 90 tables, with 89 populated and the transaction context correctly empty; exact rows/schema, corruption rollback and encrypted reopen pass | Match hosted schema/prerequisites, capture real data under the approved boundary and prove independent custody/restore; see complete-data checkpoint |
 | Asset recovery | Encrypted-v3 custody and read-only Storage transport pass 102-object loopback export/restore, including version/hash and metadata drift controls | Fresh read-only capability classification and matching export census are prepared; reconcile required SQL asset references; prove source closure, off-device storage, independent key retrieval and hosted restore/access |
-| Notifications | Native outbox and isolated source checks exist | Verify destination configuration, ownership, delivery and recovery handover before enabling senders |
+| Notifications | Native outbox, adapter/SQL tests and actual health handler checks exist; malformed counts refuse. `NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` defines the acceptance/recovery sequence | Verify private destinations, source/configuration bindings, operator ownership, delivery receipts and independent outage observation before enabling senders |
 | Client saves | Owner-approved atomic Calendar/Samples preparation preserves tokenless serving captures; actual isolated handlers prove atomic save/tasks, rollback, conflict 409 and maintenance 503, retaining both repository 401 controls | Review candidate bundles and hosted compatibility; current request identifiers prove RPC replay, not cross-request exactly-once behavior |
 | Background work | Private disabled worker bundle, actual helper/SQL graphic capture and resolution, stale-worker refusal and durable failure tests pass | Transactional failed/unknown recovery passes actual commit/rollback races; 14 actual helper cases and disabled cadence pass; finish independent monitoring and prove hosted configuration separately |
 | Final switch away from Linear | Retained verified receipts approved; 86-table DML admission guards, protected follow-up transactions and exact closed-gate F27 snapshot and discard/quarantine rehearsed | Finish external worker fencing/replay and coverage beyond table DML; final activation still refuses |
-| WR-101 refusal diagnostics | Separate preparation implemented; 13 isolated PG17 checks pass | Reviewed SQL, composed gateway/browser and new Edge Function release still required; recovery-profile integration and hosted acceptance remain pending. See `WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` |
+| WR-101 refusal diagnostics | Separate preparation implemented; 13 isolated PG17 checks and 94-table private-profile encrypted recovery pass | Final combined installation-owner coverage and separate SQL/function/browser deployment acceptance remain pending. See `WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` |
 
 ## Order of decisions
 
@@ -58,7 +58,9 @@ decision document for the approved scope.
 Latest preparation evidence: `../independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`
 records exact observed public-schema reconstruction, pending-owner classification,
 journal/bootstrap/maintenance/finalizer components and external-send accounting.
-The full installation integration and private-ledger recovery coverage remain
-unfinished. The preceding consolidated checkpoint records seven-owner admission
+The older 35-source installation pipeline passed; later provider and diagnostics
+owners need a new combined plan and target. Private-ledger recovery passed its
+94-table profile; final newer public-owner coverage remains unfinished.
+The preceding consolidated checkpoint records seven-owner admission
 preflight/recovery, disabled supervisor and Storage capability guards. All
 installation and retirement gates remain in force.

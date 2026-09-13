@@ -381,3 +381,7 @@ Observed-schema reconstruction preparation: `scripts/linear-exit-observed-schema
 Observed installation target: `docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`.
 
 Deterministic issue-create recovery preparation: `scripts/linear-exit-provider-create-recovery.mjs`, `supabase/migrations/20260913051511_provider_create_recovery_preparation.sql`, `test/linear-exit-provider-create-recovery.js`. Exact original intent and acknowledged provider identity are required; legacy and uncertain sends remain unresolved.
+
+Native notification handover preparation: `docs/ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` records source closure, private destination/receipt acceptance, ambiguous-send decisions and independent observer limits. It authorizes no activation or provider call.
+
+Original/rescued asset byte equality preparation: `scripts/linear-exit-asset-equality.js`, `test/linear-exit-asset-equality.js`. Authenticated actual streamed-byte observations feed the existing coverage adapter; remote historical authenticity and atomic capture remain unproven.

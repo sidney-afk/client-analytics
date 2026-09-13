@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('node:assert/strict'),crypto=require('node:crypto'),api=require('../scripts/linear-exit-asset-equality'),objects=require('../scripts/linear-exit-object-export');
+const key=crypto.randomBytes(32).toString('base64'),sha=b=>crypto.createHash('sha256').update(b).digest('hex'),bytes=Buffer.alloc(34*1024*1024,79);
+const ref={original_url:'https://original.invalid/file?token=synthetic-private',rescued_url:'https://rescued.invalid/file',bucket:'assets',path:'video.bin'};
+const item={bucket:ref.bucket,path:ref.path,version:'version-1',size:bytes.length,sha256:sha(bytes)};
+const inventoryBytes=objects.signInventory({format:'reviewed-object-inventory-v1',buckets:[{id:'assets',public:false,file_size_limit:null,allowed_mime_types:null}],objects:[item]},key);
+const adapter=(data=bytes)=>({stat:async()=>({version:'opaque-v1',size:data.length}),async *open(){for(let i=0;i<data.length;i+=1024*1024)yield data.subarray(i,i+1024*1024);}});
+let checks=0;
+(async()=>{
+ const opts={inventoryBytes,hmacInput:key,references:[ref],originalAdapter:adapter(),rescuedAdapter:adapter()};
+ const evidenceBytes=await api.observe(opts),evidence=api.read(evidenceBytes,inventoryBytes,key);assert(api.matches(evidence,ref.original_url,ref.rescued_url,item));assert(!api.matches(evidence,ref.original_url+'x',ref.rescued_url,item));assert(!evidenceBytes.includes(Buffer.from('synthetic-private')));checks++;
+ const bad=Buffer.from(evidenceBytes);bad[0]^=1;assert.throws(()=>api.read(bad,inventoryBytes,key));checks++;
+ await assert.rejects(()=>api.observe({...opts,references:[ref,ref]}));checks++;
+ await assert.rejects(()=>api.observe({...opts,originalAdapter:adapter(Buffer.from('wrong'))}));checks++;
+ await assert.rejects(()=>api.observe({...opts,originalAdapter:{...adapter(),async *open(){yield bytes.subarray(0,100);}}}));checks++;
+ let stats=0;await assert.rejects(()=>api.observe({...opts,originalAdapter:{...adapter(),stat:async()=>({size:bytes.length,version:++stats===1?'a':'b'})}}));checks++;
+ const alternate=objects.signInventory({format:'reviewed-object-inventory-v1',buckets:[],objects:[]},key);assert.throws(()=>api.read(evidenceBytes,alternate,key));checks++;
+ let methods=[];const http=api.httpsAdapter({hosts:['original.invalid'],headers:{authorization:'synthetic-secret'},fetchImpl:async(_url,o)=>{methods.push(o.method);assert.equal(o.redirect,'error');return new Response(o.method==='HEAD'?null:Buffer.from('abc'),{headers:{etag:'"v1"','content-length':'3'}});}});
+ assert.deepEqual(await http.stat(ref.original_url),{version:'"v1"',size:3});let got=[];for await(const b of http.open(ref.original_url,{version:'"v1"',size:3}))got.push(b);assert.equal(Buffer.concat(got).toString(),'abc');assert.deepEqual(methods,['HEAD','GET']);checks++;
+ await assert.rejects(()=>http.stat('https://unapproved.invalid/x'));checks++;
+ const encoded=api.httpsAdapter({hosts:['original.invalid'],fetchImpl:async()=>new Response(null,{headers:{etag:'x','content-length':'3','content-encoding':'gzip'}})});await assert.rejects(()=>encoded.stat(ref.original_url));checks++;
+ const redirected=api.httpsAdapter({hosts:['original.invalid'],fetchImpl:async()=>{const r=new Response(null,{headers:{etag:'x','content-length':'3'}});Object.defineProperty(r,'redirected',{value:true});return r;}});await assert.rejects(()=>redirected.stat(ref.original_url));checks++;
+ console.log(JSON.stringify({marker:'ASSET_EQUALITY_OK',checks,large_object_bytes:bytes.length,external_calls:0,live_source_proven:false}));
+})().catch(e=>{console.error(e);process.exitCode=1;});

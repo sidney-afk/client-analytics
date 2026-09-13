@@ -57,11 +57,14 @@ Deno.serve(async (req: Request) => {
     const data = health.data as JsonMap | null;
     const keys = ["pending_stale", "sending_stale", "blocked", "unknown", "retryable_overdue", "total_open"];
     if (health.error || !data || typeof data !== "object" || Array.isArray(data)
-        || keys.some(key => !Number.isSafeInteger(Number(data[key])) || Number(data[key]) < 0)) {
+        || keys.some(key => typeof data[key] !== "number" || !Number.isSafeInteger(data[key]) || Number(data[key]) < 0)) {
       return json({ ok: false, error: "notification_monitor_unavailable" }, 503);
     }
     const counts = Object.fromEntries(keys.map(key => [key, Number(data[key])]));
     const debt = counts.pending_stale + counts.sending_stale + counts.blocked + counts.unknown + counts.retryable_overdue;
+    if (!Number.isSafeInteger(debt) || debt > counts.total_open) {
+      return json({ ok: false, error: "notification_monitor_unavailable" }, 503);
+    }
     return json({ ok: debt === 0, ...counts }, debt ? 503 : 200);
   }
   const slackToken = clean(Deno.env.get("SLACK_BOT_TOKEN"));

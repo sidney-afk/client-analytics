@@ -41,9 +41,11 @@ function readback(root,item){
  try{for(;;){const n=fs.readSync(fd,buf,0,buf.length,null);if(!n)break;total+=n;digest.update(buf.subarray(0,n));}}finally{fs.closeSync(fd);}
  if(total!==item.size||digest.digest('hex')!==item.sha256)fail();
 }
-async function verify({applicationBytes,inventoryBytes,hmacInput,restoredDirectory}){
+async function verify({applicationBytes,inventoryBytes,hmacInput,restoredDirectory,equalityEvidenceBytes}){
  try{
   const {parent,payload}=complete.read(applicationBytes,hmacInput),inventory=objects.readInventory(inventoryBytes,hmacInput);
+  const equality=require('./linear-exit-asset-equality');
+  const equalityEvidence=equalityEvidenceBytes===undefined?null:equality.read(equalityEvidenceBytes,inventoryBytes,hmacInput);
   const projectRef=parent.manifest.source_project_ref;if(!/^[a-z]{20}$/.test(projectRef))fail();
   if(!path.isAbsolute(restoredDirectory)||fs.realpathSync(restoredDirectory)!==path.resolve(restoredDirectory))fail();
   const root=path.resolve(restoredDirectory),found=new Map(),portableNames=new Set();
@@ -55,17 +57,18 @@ async function verify({applicationBytes,inventoryBytes,hmacInput,restoredDirecto
   }
   let references=[];
   const report=await history.scan({contract:history.CONTRACT,metadata:{source:{kind:'private_snapshot',description:'Authenticated complete application package',artifact_sha256:sha(applicationBytes)},captured_at:parent.manifest.completed_at,known_omissions:[],tables},data,mappings:[],observations:[]},{inspectReferences:r=>{references=r;}});
-  const counts={direct_bytes_verified:0,mapped_copy_bytes_verified:0,missing_object:0,unresolved:0,unsupported:0};
+  const counts={direct_bytes_verified:0,mapped_copy_bytes_verified:0,mapped_original_bytes_verified:0,missing_object:0,unresolved:0,unsupported:0};
   for(const ref of references){
    if(ref.unsupported){counts.unsupported++;continue;}
-   let target=ref.category==='thumbnail_storage'?{bucket:'syncview-thumbnail-revisions',path:ref.value}:locator(ref.value,projectRef),mapped=false;
+   let target=ref.category==='thumbnail_storage'?{bucket:'syncview-thumbnail-revisions',path:ref.value}:locator(ref.value,projectRef),mapped=false,rescuedUrl;
    if(!target){
     const alternatives=data.linear_archive_asset_refs.filter(r=>r.original_url===ref.value&&typeof r.rescued_url==='string');
-    if(alternatives.length===1){target=locator(alternatives[0].rescued_url,projectRef);mapped=true;}
+    if(alternatives.length===1){rescuedUrl=alternatives[0].rescued_url;target=locator(rescuedUrl,projectRef);mapped=true;}
    }
    if(!target){counts.unresolved++;continue;}
    if(!found.has(id(target))){counts.missing_object++;continue;}
-   counts[mapped?'mapped_copy_bytes_verified':'direct_bytes_verified']++;
+   const matched=mapped&&equalityEvidence&&equality.matches(equalityEvidence,ref.value,rescuedUrl,found.get(id(target)));
+   counts[mapped?(matched?'mapped_original_bytes_verified':'mapped_copy_bytes_verified'):'direct_bytes_verified']++;
   }
   // All other tables remain visible if they contain unclassified URL-bearing data.
   let otherReferenceCells=0;
@@ -73,7 +76,7 @@ async function verify({applicationBytes,inventoryBytes,hmacInput,restoredDirecto
    for(const row of t.rows)for(const cell of row)if(typeof cell==='string'&&/https?:\/\/|\b(?:data|blob|ftp):/i.test(cell))otherReferenceCells++;
   return {format:'linear-exit-asset-reference-coverage-v1',application_sha256:sha(applicationBytes),inventory_sha256:sha(inventoryBytes),authenticated_inputs:true,inventory_object_bytes_verified:inventory.objects.length,reference_counts:counts,unclassified_other_table_cells:otherReferenceCells,history_report:report,
    reference_byte_coverage_complete:report.status!=='incomplete'&&!otherReferenceCells&&!counts.missing_object&&!counts.unresolved&&!counts.unsupported&&!counts.mapped_copy_bytes_verified,
-   source_snapshot_authenticity_proven:false,sql_storage_atomic_snapshot_proven:false,original_to_rescued_byte_equality_proven:false,hosted_accessibility_proven:false,off_device_custody_proven:false};
+   source_snapshot_authenticity_proven:false,sql_storage_atomic_snapshot_proven:false,original_to_rescued_byte_equality_proven:report.status!=='incomplete'&&!otherReferenceCells&&counts.mapped_original_bytes_verified>0&&!counts.mapped_copy_bytes_verified&&!counts.unresolved&&!counts.unsupported&&!counts.missing_object,hosted_accessibility_proven:false,off_device_custody_proven:false};
  }catch{fail();}
 }
 module.exports={verify,locator};

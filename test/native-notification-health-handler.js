@@ -20,7 +20,14 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  assert.equal((await health({...counts,total_open:1})).status,200,'future retry/young pending is not overdue');
  for(const field of ['pending_stale','sending_stale','blocked','unknown'])assert.equal((await health({...counts,[field]:1,total_open:1})).status,503);
  assert.equal((await health({...counts,retryable_overdue:-1})).body.error,'notification_monitor_unavailable');
+ let malformedChecks=0;
+ for(const invalid of [null,false,true,'', '0', [], {}, 0.5, Number.MAX_SAFE_INTEGER+1]){
+  const r=await health({...counts,retryable_overdue:invalid});assert.equal(r.status,503);assert.equal(r.body.error,'notification_monitor_unavailable');malformedChecks++;
+ }
+ const missing={...counts};delete missing.unknown;assert.equal((await health(missing)).body.error,'notification_monitor_unavailable');malformedChecks++;
+ assert.equal((await health({...counts,blocked:1,total_open:0})).body.error,'notification_monitor_unavailable');malformedChecks++;
+ assert.equal((await health({...counts,blocked:Number.MAX_SAFE_INTEGER,unknown:1,total_open:Number.MAX_SAFE_INTEGER})).body.error,'notification_monitor_unavailable');malformedChecks++;
  assert.equal((await health(counts,'wrong')).status,401);assert.deepEqual(calls,[]);assert.equal(external,0);
- console.log('NATIVE_NOTIFICATION_HEALTH_HANDLER_OK 9 cases; external calls 0');
+ console.log('NATIVE_NOTIFICATION_HEALTH_HANDLER_OK 9 existing cases + '+malformedChecks+' malformed/inconsistent cases; external calls 0');
  }finally{globalThis.Deno=originalDeno;globalThis.fetch=originalFetch;delete globalThis.__notifyHealthDb;assert(fs.realpathSync(tmp).startsWith(fs.realpathSync(os.tmpdir())+path.sep));fs.rmSync(tmp,{recursive:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -385,3 +385,5 @@ Deterministic issue-create recovery preparation: `scripts/linear-exit-provider-c
 Native notification handover preparation: `docs/ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` records source closure, private destination/receipt acceptance, ambiguous-send decisions and independent observer limits. It authorizes no activation or provider call.
 
 Original/rescued asset byte equality preparation: `scripts/linear-exit-asset-equality.js`, `test/linear-exit-asset-equality.js`. Authenticated actual streamed-byte observations feed the existing coverage adapter; remote historical authenticity and atomic capture remain unproven.
+
+Provider create read-observation preparation: `docs/ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md`, `scripts/linear-exit-provider-create-observation.mjs`, `supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql`, `test/linear-exit-provider-create-observation.js`, `test/linear-exit-provider-create-observation-transport.mjs`. Lost acknowledgments require exact read evidence; absence/conflict stays unresolved.

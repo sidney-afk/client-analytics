@@ -6,8 +6,8 @@ installation journal.
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-Reviewed code checkpoint: `01535b09a562b8be19b1952effb4a6f9ae4034e2`.
-Tree: `27f4731cc509b54b8ecaf73bdc8b5ff554835fb5`.
+Reviewed code checkpoint: `4dd2d98d1bae7cb54357f230c2971425b4d831fd`.
+Tree: `a9ff75d06c218b801785b29fa39cb717b30cdc6a`.
 This handoff is a later documentation-only commit. Verify the remote head and that
 this code checkpoint is its ancestor. Do not assume an old local scratch directory
 or the September 10 repair bundle represents the current preparation.

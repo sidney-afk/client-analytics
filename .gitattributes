@@ -91,3 +91,7 @@ supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_pre
 test/linear-exit-provider-recorded-create-recovery.js -text whitespace=cr-at-eol
 supabase/migrations/20260913062741_provider_terminal_history_preparation.sql -text whitespace=cr-at-eol
 test/linear-exit-provider-terminal-history.js -text whitespace=cr-at-eol
+supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql -text whitespace=cr-at-eol
+scripts/linear-exit-provider-comment-observation.mjs -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-observation.js -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-observation-transport.mjs -text whitespace=cr-at-eol

@@ -16,10 +16,11 @@ or the September 10 repair bundle represents the current preparation.
 
 The replacement system has working pieces for saving cards safely, tracking
 unfinished follow-up work, retrying interrupted work, and restoring the application
-database in isolation. The local checks described in the consolidated checkpoint
-pass. It is not yet the complete installation build. The main remaining work is to
-match the real starting database, prove installation can recover if interrupted,
-and finish the shutdown, asset recovery and notification handover procedures.
+database in isolation. The exact observed public schema now reconstructs locally.
+The 35-source installation plan passes through journal, bootstrap, maintenance
+guards and finalization: 42 chunks and the final public catalog are verified.
+It is not yet the complete installation build. Private-ledger recovery, provider
+reconciliation/fencing, assets, notification handover and WR-101 remain unfinished.
 
 Nothing has been merged, installed, deployed or switched off. Installation and
 Linear retirement remain HOLD. Do not treat local green tests as hosted proof.
@@ -57,21 +58,20 @@ historical evidence. Their old hashes and counts are not the current build.
 
 ## First bounded task
 
-Finish exact starting-schema reconstruction, starting with
-`LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`. Read-only observation and
-routine provenance mapping are complete: the portable `observed-routines` lane
-now matches all 115 complete function records, including raw bodies and grants.
-Do not redo that audit. Full table/object equality remains unfinished; selected
-nonroutine reconstruction is a private partial proof, not a complete baseline.
-Recover the private prototype if available, otherwise use authorized read-only
-schema captures. Never publish unreviewed raw captures or infer application DDL.
+Read `LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` and
+`LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` first. Do not repeat starting-schema
+discovery: full captured public-catalog equality and the 35-source pipeline passed.
+The plan preserves 32 historical setup owners and four already-present owners;
+later Workload corrections still apply. Never replay the full 64-entry inventory.
 
-Classify every candidate owner against the observed stage before assembling the
-pending installation plan. The 31 source-phase entries are rehearsal entries,
-not a proved list of pending hosted migrations. Some candidate routines already
-exist live. Do not blindly replay the 64-entry inventory. The new `install-journal`
-lane proves 17 actual crash/resume and refusal cases, but journal bootstrap,
-pending-owner plan integration and accepted-write exclusion remain unfinished.
+Next integrate the new private journal/maintenance/provider ledger into recovery
+custody, then complete provider reconciliation and the closed-gate local completion
+path. The provider-send release is separate from the tested 35-source plan; it
+must not be silently appended while reusing the old target hash. Finish remaining
+asset-reference/custody, notification and WR-101 preparation. For the next necessary
+full rehearsal, use the repository observed-schema entry point with explicit
+private capture/output directories; its added guards have offline coverage, while
+the full pipeline used the equivalent earlier private reconstruction API.
 
 Then follow the ordered remaining work in the consolidated checkpoint: actual
 installation/resume and internal-commit failure recovery; external Linear worker
@@ -94,7 +94,8 @@ PG17 is available locally under
 Docker is not required. The harness refuses inherited production credentials;
 clear them only in the child process, never print values or mutate hosted state.
 
-The latest added lanes are `observed-routines` and `install-journal`.
+The latest added lanes are `observed-routines`, `install-journal`,
+`install-bootstrap`, `install-maintenance`, `install-finalize`, and `provider-send`.
 The preceding affected lanes are `source-phases`, `source-baseline`,
 `followup-outcome-matrix`, `admission-preflight`, and
 `complete-application-recovery -ApplicationDataV2`. Follow the runner's parameters

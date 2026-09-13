@@ -4,6 +4,13 @@ This continues the seven-owner preparation checkpoint. The full build remains
 incomplete. Nothing here authorizes installation, deployment, activation, merging,
 production writes or n8n execution/edit.
 
+Current result: exact observed public-schema reconstruction and the complete
+35-source journal/bootstrap/maintenance/finalizer rehearsal pass in isolated PG17.
+The full preparation build remains incomplete: private-ledger recovery and provider
+reconciliation, external fencing, asset custody, notifications and WR-101 remain.
+Earlier failed receipts below are retained as history; they are not replaced by
+the later passing evidence.
+
 ## Exact read-only starting observation
 
 A fresh read-only PG17 catalog query observed 67 public tables, 115 functions,
@@ -58,7 +65,7 @@ loopback-host check before queries. Offline tampered-contract and
 wrong-host/zero-query controls pass.
 SQL SHA-256: `79f1903193f684c0ac3e0560f07ad3bd371f6a87c1d07443280ee5f9a74b7bde`.
 Contract SHA-256: `1406d4c0e068aedf1824f09a30b1221f9a29f65ee781544a2b23362a8cf58bb8`.
-Other schema objects are a separate remaining reconstruction requirement.
+The later full-schema reconstruction below covers the other captured objects.
 
 Private nonroutine receipt `f5204381b62246b7b0816701e784d6ac` reproduced the
 18 missing column fields (ordinal positions excluded), four views, seven indexes,
@@ -68,15 +75,25 @@ schema/table/sequence grants, column positions, default privileges, dependencies
 and publication metadata. This selected-object proof is not full schema equality.
 The complete observed-schema prototype and its raw captures remain private.
 
-Final private full-schema attempt `482c9706833f4b59823390184e3e4eb5` stopped with
+Later strict full-schema receipt `a2346217045e452c8e56b9260a570524` passed every
+captured catalog group, including all 1,336 dependency records. PostgreSQL stopped.
+The ACL parser now accepts digits only within its explicit observed role whitelist.
+The last apparent difference was dependency ordering: exact multisets matched,
+but the portable C locale sorted differently. Fresh read-only hosted metadata
+reported ICU `en-US`; using that locale reproduced literal array equality without
+changing the comparator. This proves the captured public schema, not full hosted
+platform/role equivalence, business rows or sequence last-values. The private
+reusable API is `observed-schema-api.private.cjs` (`applyObservedSchema(cluster)`).
+
+Earlier private full-schema attempt `482c9706833f4b59823390184e3e4eb5` stopped with
 a failure before final catalog comparison. It reached permission restoration after
 creating tables at captured positions, 14 identities, the generated column,
 routines, defaults, constraints, indexes, views, triggers, policies and table state.
 Its ACL adapter accepts only `[a-z_]` role names and refused the captured
 `graphics_f2_*` roles because their names contain a digit. This is an uncorrected
 private adapter limitation, not a passed full-schema test. The server stopped.
-Next: support the explicitly observed role names without relaxing catalog equality,
-then run the full comparison. Do not infer role membership or login privileges.
+That adapter gap is closed by the later passing receipt above. Do not infer role
+membership or login privileges from the isolated dependency shells.
 
 Private local continuation files under
 `D:/Sidney/Codex/2026-09-12-fast-finish-evidence`:
@@ -116,22 +133,134 @@ unsupported transaction/session controls refuse.
   exactly-once chunk application, and resume the actual Workload function owner
   between its function replacement and remaining ACL statements.
 
-This component is not the complete installer. Its private journal bootstrap,
-reviewed pending-owner plan, source-stage integration and application-write
-exclusion still need integration. It makes no claim that sequence/external effects
+The opt-in bootstrap wrapper now passed eight actual PG17 checks in receipt
+`058bf00623af4850a18fb69784cc6689`: wrong identity/stage, partial schema refusal,
+crashes before/after bootstrap COMMIT, wrong resumed plan, successful resume and
+completed replay. The server stopped. Bootstrap and its empty progress record
+commit together under the existing installer mutex; unknown partial schemas refuse.
+
+The pending-plan builder verifies the full observed catalog and source inventory,
+retains 32 historical setup owners and four preexisting owners, and compiles 28
+candidate/new-or-upgrade owners plus seven admission owners. It removes only the
+exact leading psql `ON_ERROR_STOP on` directive from generated atomic SQL; dedicated
+query execution already stops on errors. Historical urgent-event backfill remains
+separate reconciliation. Seven offline transport/refusal checks pass. This is not
+an installation authorization. The later combined transition evidence is below.
+
+Actual transition receipt `01e4079624964303905d3d4ba6bc13a5` verified the exact
+starting catalog and the journal's `pg_catalog,public` search-path rendering, then
+stopped after 15 committed chunks at the minimal external Storage scaffold's
+missing bucket columns. The explicit isolated platform scaffold was supplemented.
+Receipt `579ca7303bd54b568c7f7d941febe56b` then reached 22 chunks and refused the
+CREATE-only Workload membership setup because its four routines already exist.
+The reviewed plan now preserves that owner, including service-only grants, while
+retaining the later label-state and roster correction owners. No migration body
+was changed to hide the conflict. Both failed runs stopped; their journals were
+not rebound to a changed plan. The revised 35-source plan SHA-256 is
+`f0540602c9e36af93eb17b2614eb3117b963bcf169454ad1885088a1a3c48160`.
+
+Subsequent worker execution completed all 42 chunks. Receipt
+`cb3be8af3e5341338ab7e73c038787a6` remains failed because its final psql read exceeded
+the harness output buffer. Its complete JSON output was recovered and parsed:
+exact 90 table names, and all 22 admission functions matched raw body/definition
+hashes and shared contract metadata. Full public-catalog SHA-256:
+`43a623f388e57db6219415dbe968237791354f3a0dd433596a118f46ebb1a612`.
+Independent journal-row readback and the full table/trigger preflight were not
+captured in that run. This is bounded worker/catalog evidence, not a green overall
+receipt. The combined maintenance/finalization rehearsal uses private file output
+for large reads rather than weakening checks or replaying a changed journal plan.
+
+`scripts/linear-exit-observed-schema.js` now packages the reconstruction body for
+repository reuse, with explicit private input/output directories, a pinned
+foundation prefix, certificate validation and empty-schema checks before any DDL.
+Seven offline refusal controls pass with zero DDL. The packaged entry point has not
+yet repeated the full private reconstruction proof; raw captures remain private.
+
+This component is not the complete installer. The later combined rehearsal below
+proves its tested public-schema integration and ordinary DML boundary. It makes no claim that sequence/external effects
 roll back, that application writers have stopped, or that hosted installation ran.
 
 ## Fast remaining dependency order
 
-1. Complete observed baseline reconstruction and classify each candidate owner's
-   current presence or supported upgrade. Table absence alone cannot classify a
-   migration. Keep preexisting owners explicit; never replay the full baseline.
-2. Connect that reviewed pending-owner plan to journal bootstrap and crash recovery,
-   with a proved accepted-write boundary. Run one consolidated affected acceptance
-   pass after these inputs stabilize.
-3. Finish external writer fencing/replay, required-asset reference coverage,
-   independent recovery/key custody interfaces, notification handover and final
-   retirement activation preparation. Implement the separate WR-101 release.
+### Installation maintenance component
+
+The new opt-in maintenance wrapper passed 12 actual PG17 checks in
+`e25dc9fa607b4010a3edadd6c5bafa0c`; the server stopped. It protects public ordinary
+table DML and TRUNCATE using exact backend PID plus backend-start identity, not a
+client-controlled setting or role name. Its initial transaction waits for earlier
+DML before installing guards; new-table guards join each source chunk before its
+COMMIT. Crashes retain the closed boundary. Resume verifies private owner/catalog,
+original and derived plans, database identity, journal prefix and actual catalog
+before rebinding the installer.
+
+Combined full-plan receipt `ebd8adf3fc6d4a5cbb68f615d054be50` subsequently passed
+with exit 0 and stopped PostgreSQL. It ran the 35-source plan through maintenance,
+read back all 42 journal chunks with an exact source prefix, refused a second
+connection's ordinary UPDATE statement, and finalized only after the expected
+full catalog matched. All 90 maintenance guards were removed. Exact 90 table
+names and the 22 admission function contracts matched; eight execution source
+pins remained unchanged. `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` binds this
+isolated result to its source plan, initial/final public digests and source pins.
+This closes the observed-plan/maintenance/finalizer integration gap for the tested
+public schema. It does not prove business-row migration behavior, the complete
+table/trigger preflight, private-ledger backup, external platform configuration or
+external-worker coverage. The separate provider-send release was not included.
+
+The guarded execution plan records its actual initial catalog, including guards;
+no catalog objects are normalized away. The component proof used a bounded
+synthetic plan; the later combined receipt covers the full 35-source transition.
+Non-installer DDL, direct sequence operations,
+Auth, Storage and external effects still need their separate fence. Full
+observed-plan integration is recorded above; the separate finalizer follows.
+
+The subsequent separate finalizer passed nine actual PG17 checks in
+`92e50095f3b14040a2fcc12d75c97dc8`; server stopped. It requires complete journal
+prefix and exact private bindings, then removes only verified maintenance guards
+inside one transaction. The resulting full public catalog must match the supplied
+reviewed final hash before commit. Wrong hashes and pre-COMMIT crashes preserve
+all guards. Post-COMMIT recovery requires the completed journal and exact bare
+catalog. Repetition refuses a changed final hash. Authority and sender flags are
+untouched. This closes finalizer component preparation; its later full-plan
+integration is recorded above.
+
+After the journal's optional before-commit guard hook was added, original journal
+regression `ed81219c574a4ecfa67c0716d821ee65` passed all 17 actual checks and
+bootstrap regression `512c9875b08c47f98bb0c143b48a20b5` passed eight. Both stopped.
+An earlier wrapper receipt remained failed despite a passing journal test because
+the lane-marker selector was wrong; it is retained and the runner was corrected.
+
+### External provider send component
+
+The separately prepared outbound composer leaves the default handler unchanged.
+Its private send ledger passed 18 actual PG17 checks in
+`a06bc172dc6b4334bbaa14ab772a2e0d`; the server stopped, with empty stderr.
+SQL SHA-256: `a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87`.
+Admission binds epoch, outbox lock and exact mutation request before sending.
+Unknown responses remain unresolved; duplicate attempts refuse. Completion checks
+the provider result and exact terminal, unlocked outbox receipt. Unresolved sends
+block both tracked drain and the existing seal transition. Review corrected an
+earlier receipt-binding gap and moved completion after comment binding, create
+linkage and normal final release; placement checks pass.
+
+Generated-handler Deno checks remain red: the original and prepared handler have
+the same 12 diagnostics, with no added errors. This is not a clean typecheck.
+Replay/reconciliation recovery, completion under the full closed gate, private-ledger
+backup inclusion and actual external-worker coverage remain unfinished. Existing
+automation is neither changed nor proved fenced by this preparation.
+
+### Remaining order
+
+1. Extend recovery custody to the private journal, maintenance and provider-send
+   ledgers. Preserve the already passing 90-table path and snapshot consistency;
+   these private records are not covered by that inventory today.
+2. Complete provider reconciliation/replay and local completion under the closed
+   gate, then integrate its separate owner and revise the target/preflight evidence.
+   Reconcile older accepted work without durable intents; new ledgers cannot prove
+   historical coverage retrospectively.
+3. Finish required-asset reference coverage, independent recovery/key custody,
+   notification handover, WR-101 and final retirement preparation. Use the packaged
+   observed-schema entry point on the next necessary full rehearsal, and complete
+   the remaining table/trigger preflight and affected functional acceptance.
 4. Publish the exact reviewed full preparation build and a new reviewer handoff.
    Keep fresh hosted data capture, configuration, custody, delivery and activation
    acceptance in their separately authorized installation window.

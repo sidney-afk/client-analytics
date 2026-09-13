@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('assert/strict'),{pathToFileURL}=require('url'),path=require('path');
+(async()=>{const helper=await import(pathToFileURL(path.resolve('supabase/functions/linear-outbound/provider-send-preparation.mjs'))),{compose}=require('../scripts/linear-exit-provider-send-compose');
+ const source=compose().source;assert(source.indexOf('delete_attempted: true')<source.indexOf('const externalSendAttempt ='));assert(source.indexOf('await checkpointLinearResult(supabase, row, linearResult)')<source.indexOf('await completeProviderSend'));
+ const terminal=source.indexOf('await completeProviderSend'),normalRelease=source.lastIndexOf('await releaseRow(supabase, row, {',terminal);
+ assert(normalRelease>source.indexOf('await bindLinearCommentId(supabase, row, clean(resultMap.id));'));
+ assert(normalRelease>source.indexOf('await applyCreateLinkage(supabase, row, entity, resultIssue);'));
+ assert.match(source.slice(normalRelease,terminal),/status: "written"[\s\S]*linear_result: linearResult[\s\S]*\}\);\s*$/);
+ assert.equal(source.split('await completeProviderSend').length,2);
+ const events=[],db={rpc:async(name)=>{events.push(name);return {data:name.includes('_ack_')?{acknowledged:true,completed:false}:{completed:true}}}},attempt={id:'synthetic',lockToken:'synthetic',request:{}};
+ assert.deepEqual(await helper.sendAdmittedProviderMutation(db,attempt,async()=>{events.push('send');return {data:{success:true}}}),{data:{success:true}});assert.deepEqual(events,['send','production_provider_send_ack_v1']);
+ events.length=0;await assert.rejects(()=>helper.sendAdmittedProviderMutation(db,attempt,async()=>{events.push('send');throw Error('ambiguous');}));assert.deepEqual(events,['send']);
+ await assert.rejects(()=>helper.sendAdmittedProviderMutation({rpc:async()=>({error:{}})},attempt,async()=>({})),/refused/);
+ console.log('LINEAR_EXIT_PROVIDER_SEND_OFFLINE_OK');
+})();

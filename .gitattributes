@@ -54,3 +54,16 @@ test/linear-exit-source-phases-postgres.js -text whitespace=cr-at-eol
 scripts/linear-exit-observed-routines.js -text whitespace=cr-at-eol
 test/linear-exit-observed-routines-postgres.js -text whitespace=cr-at-eol
 test/linear-exit-observed-routines.js -text whitespace=cr-at-eol
+
+scripts/linear-exit-install-bootstrap.js -text whitespace=cr-at-eol
+scripts/linear-exit-install-finalize.js -text whitespace=cr-at-eol
+scripts/linear-exit-install-maintenance.js -text whitespace=cr-at-eol
+supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql -text whitespace=cr-at-eol
+test/helpers/install-bootstrap-worker.mjs -text whitespace=cr-at-eol
+test/helpers/install-finalize-worker.mjs -text whitespace=cr-at-eol
+test/helpers/install-maintenance-worker.mjs -text whitespace=cr-at-eol,-blank-at-eof
+test/linear-exit-install-bootstrap-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-install-finalize-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-install-maintenance-postgres.js -text whitespace=cr-at-eol
+
+docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json text eol=lf

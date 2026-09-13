@@ -55,4 +55,10 @@ links and tokenless access. Canonical B5 records the changed criterion; every
 checkbox remains uncompleted until its evidence passes. See the final-switch
 decision document for the approved scope.
 
-Latest preparation evidence: `../independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` records seven-owner preflight/recovery, source-only stages, disabled supervisor and Storage capability guards. The starting live routine mismatch remains unresolved; the mixed-path parser counterexample was repaired and rehearsed. All installation and retirement gates remain in force.
+Latest preparation evidence: `../independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`
+records exact observed public-schema reconstruction, pending-owner classification,
+journal/bootstrap/maintenance/finalizer components and external-send accounting.
+The full installation integration and private-ledger recovery coverage remain
+unfinished. The preceding consolidated checkpoint records seven-owner admission
+preflight/recovery, disabled supervisor and Storage capability guards. All
+installation and retirement gates remain in force.

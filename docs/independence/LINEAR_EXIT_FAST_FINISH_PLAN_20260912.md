@@ -11,6 +11,29 @@ serving captures remain immutable controls. No installation is authorized.
 
 ## Execution order and stopping criteria
 
+Current critical path after checkpoint `46434e8843e9c6e490a8b96d54eb8d25a283b75e`:
+
+1. Reuse the passed exact-schema and 35-source installation pipeline. It preserves
+   32 historical setup owners and four existing owners, verifies 42 journal chunks,
+   blocks ordinary writes during maintenance and finalizes against an exact target.
+   Do not repeat its earlier discovery or failed read-adapter iterations.
+2. Extend recovery custody to the new private installation and provider ledgers,
+   preserving shared snapshot consistency. Use the packaged observed-schema entry
+   point on the next necessary integrated rehearsal, and complete full table/trigger
+   preflight evidence alongside any new release owners.
+3. Finish external send accounting and its recovery: admitted provider sends must
+   remain visible until exact terminal receipts exist. Unknown responses block
+   drain/seal. Then connect this private ledger to complete recovery custody.
+4. Close asset-reference coverage, custody and notification handover interfaces,
+   the separately scoped WR-101 preparation, and final-switch implementation.
+   Existing component tests are reused; test only changed integration boundaries.
+5. Publish one reviewed preparation revision and update the handoff. Fresh hosted
+   observations, external-worker coverage, independent key retrieval and actual
+   installation/activation remain separately authorized acceptance steps.
+
+The older steps below explain the preparation already consolidated; they are not
+an instruction to restart completed audits or re-run every historical lane.
+
 1. Close native sign-off integration: actual isolated SQL-backed initial reads,
    protected receipt verification, planning and pre-write revalidation. Retain
    provider regression and precise later-reopen/refusal tests.

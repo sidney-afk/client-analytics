@@ -358,3 +358,13 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `scripts/linear-exit-install-journal-catalog.js`: exact private journal prerequisite catalog and source verification before installer effects.
 - `scripts/linear-exit-observed-routines.js`, `test/linear-exit-observed-routines.js`, `test/linear-exit-observed-routines-postgres.js` and `qa/linear-exit-rehearsal/observed-baseline/`: exact observed PRE67 routine reconstruction and restricted ACL replay, never baseline installation.
 - `docs/independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md`: read-only starting-state evidence, routine reconstruction, durable journal proof and remaining integration.
+
+Preparation continuation: `scripts/linear-exit-install-bootstrap.js`, `scripts/linear-exit-observed-install-plan.js`, `test/linear-exit-observed-install-plan.js`, `test/linear-exit-install-bootstrap-postgres.js`, `test/helpers/install-bootstrap-worker.mjs`, `scripts/linear-exit-provider-send-compose.js`, `supabase/functions/linear-outbound/provider-send-preparation.mjs`, `supabase/migrations/20260913034324_provider_send_admission_preparation.sql`, `test/linear-exit-provider-send-postgres.js`, `test/linear-exit-provider-send.js`.
+
+Installation maintenance preparation: `scripts/linear-exit-install-maintenance.js`, `supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql`, `test/linear-exit-install-maintenance-postgres.js`, `test/helpers/install-maintenance-worker.mjs`.
+
+Installation finalization preparation: `scripts/linear-exit-install-finalize.js`, `test/linear-exit-install-finalize-postgres.js`, `test/helpers/install-finalize-worker.mjs`.
+
+Observed-schema reconstruction preparation: `scripts/linear-exit-observed-schema.js`, `test/linear-exit-observed-schema.js`.
+
+Observed installation target: `docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`.

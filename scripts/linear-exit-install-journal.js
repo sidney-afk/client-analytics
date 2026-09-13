@@ -29,7 +29,7 @@ function compile(bytes,expected){
  return {...p,steps,sha256:expected};
 }
 const IDENTITY_SQL="select jsonb_build_object('database',current_database(),'database_oid',(select oid::text from pg_database where datname=current_database()),'system_identifier',(select system_identifier::text from pg_control_system()),'session_user',session_user) as identity";
-async function run({session,planBytes,planSha256,expectedDatabaseIdentity,expectedStageId}){
+async function run({session,planBytes,planSha256,expectedDatabaseIdentity,expectedStageId,beforeChunkCommit}){
  if(sha(fs.readFileSync(path.join(__dirname,'..',journalContract.owner_path)))!==journalContract.owner_sha256)fail('OWNER_SOURCE_DRIFT');
  const plan=compile(planBytes,planSha256);if(plan.stage_id!==expectedStageId)fail('STAGE');if(!session||typeof session.query!=='function')fail('SESSION');
  const query=(s,p=[])=>session.query(s,p);let locked=false,inTransaction=false;
@@ -52,6 +52,7 @@ async function run({session,planBytes,planSha256,expectedDatabaseIdentity,expect
    // Progress joins that transaction; source COMMIT is represented by the
    // final COMMIT below, never an additional owner commit.
    for(const statement of step.statements)await query(statement);
+   if(beforeChunkCommit){if(typeof beforeChunkCommit!=='function')fail('CHUNK_HOOK');await beforeChunkCommit({session,step});}
    const after=await catalog();const next=[...completed,{source_id:step.source_id,source_sha256:step.source_sha256,chunk_index:step.index,chunk_sha256:step.sha256}];
    await query('insert into linear_exit_install.journal_v1(singleton,plan_sha256,stage_id,database_identity,initial_catalog_sha256,completed,after_catalog_sha256) values(true,$1,$2,$3::jsonb,$4,$5::jsonb,$6) on conflict(singleton) do update set completed=excluded.completed,after_catalog_sha256=excluded.after_catalog_sha256',[plan.sha256,plan.stage_id,expectedDatabaseIdentity,plan.initial_catalog_sha256,next,after]);
    await query('commit');inTransaction=false;completed=next;

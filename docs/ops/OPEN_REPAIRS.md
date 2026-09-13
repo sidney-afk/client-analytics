@@ -7235,6 +7235,13 @@ DEPLOY PENDING rather than fixed.
 
 ## 101. [2026-09-02] A refused write exists only inside one browser: fifty rows of `localStorage` that do not name the card, and nothing on any server
 
+**Preparation update, September 12:** a separate diagnostics SQL/function and
+source-pinned gateway/browser composition now have isolated tests, including an
+actual gateway-to-SQL refusal followed by durable telemetry. See
+`WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` for scope and retained limits.
+Nothing is deployed; this finding remains open until the separate release and
+hosted acceptance. The historical account below describes the original finding.
+
 **This is the finding the owner considers the real one**, and items 99, 100 and
 104 are all downstream of it: every one of them was discovered because a client
 said something, not because anything reported it. (Their shared DATA cause is

@@ -534,13 +534,15 @@ function classifySchemaStatement(statement, allowedRoles = PLATFORM_ROLES) {
   return { action: 'reject', kind: `disallowed_${keyword}` };
 }
 
-function validateSchemaSection(text, allowedRoles = PLATFORM_ROLES) {
+function validateSchemaSection(text, allowedRoles = PLATFORM_ROLES, controlRequirement = null) {
+  if (controlRequirement) require('./linear-exit-control-companion').validateRequirement(controlRequirement);
   const statements = splitSqlStatements(String(text));
   const executable = [];
   const inventory = {};
   let skipped = 0; let egress = 0;
   for (const statement of statements) {
-    const verdict = classifySchemaStatement(statement, allowedRoles);
+    const verdict = controlRequirement && require('./linear-exit-control-companion').isFixedPublicTrigger(statement.text)
+      ? {action:'execute',kind:'trigger'} : classifySchemaStatement(statement, allowedRoles);
     if (verdict.action === 'reject') {
       const error = new Error(`Track-B recovery schema section contains a disallowed statement (${verdict.kind}) at line ${statement.line}`);
       error.code = verdict.kind; throw error;
@@ -881,8 +883,8 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
   const postData = readSection(manifest.schema.post_data, postLength);
   const data = readSection(manifest.data, unsigned.length - offset);
   const roles = Array.isArray(manifest.prerequisites && manifest.prerequisites.roles) ? manifest.prerequisites.roles : PLATFORM_ROLES;
-  const pre = validateSchemaSection(preData.toString('utf8'), roles);
-  const post = validateSchemaSection(postData.toString('utf8'), roles);
+  const pre = validateSchemaSection(preData.toString('utf8'), roles, manifest.control_companion_v1);
+  const post = validateSchemaSection(postData.toString('utf8'), roles, manifest.control_companion_v1);
   if (pre.statements.length !== manifest.schema.pre_data.statements || post.statements.length !== manifest.schema.post_data.statements) {
     throw new Error('Track-B recovery schema statement count mismatch');
   }
@@ -906,6 +908,7 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
   const deferred = verifyDeferredDefaults([...pre.statements, ...post.statements], manifest, parsed);
   const callable = verifyCallableContract(deferred.statements, manifest);
   if (Object.hasOwn(manifest, 'sequence_bounds_v1')) require('./linear-exit-sequence-bounds').validate(manifest.sequence_bounds_v1, manifest.sequences);
+  if (Object.hasOwn(manifest, 'control_companion_v1')) require('./linear-exit-control-companion').validateRequirement(manifest.control_companion_v1);
   if (Object.hasOwn(manifest, 'credential_companion_v1')) require('./linear-exit-credential-companion').validateRequirement(manifest.credential_companion_v1);
   return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable, deferred };
 }
@@ -1042,7 +1045,16 @@ function reconstructSql(pkg) {
 function reconstructCompleteApplicationSql(bytes, hmacInput) {
   const complete = require('./linear-exit-complete-application-data');
   const verified = complete.read(bytes, hmacInput);
+  if (Object.hasOwn(verified.parent.manifest, 'control_companion_v1')) throw new Error('CONTROL_COMPANION_RENDERER_REQUIRED');
   return renderReconstruction(verified.parent, complete.sections(verified.payload, verified.parent));
+}
+
+function reconstructControlApplicationSql(bytes, hmacInput) {
+  const control = require('./linear-exit-control-companion');
+  const verified = control.read(bytes, hmacInput);
+  const base = require('./linear-exit-complete-application-data').sections(verified.application.payload, verified.application.parent);
+  const extra = control.sections(verified);
+  return renderReconstruction(verified.application.parent, {controlVerified:true,beforePublic:extra.beforePublic,beforePost:base.beforePost+'\n'+extra.beforePost,verify:base.verify+'\n'+extra.verify});
 }
 
 function reconstructPairSql(companionBytes, parentBytes, hmacInput) {
@@ -1071,6 +1083,7 @@ function preserveFunctionBodyTransport(text) {
     : token.raw).join('');
 }
 function renderReconstruction(pkg, supplement) {
+  if (Object.hasOwn(pkg.manifest, 'control_companion_v1') && supplement?.controlVerified !== true) throw new Error('CONTROL_COMPANION_RENDERER_REQUIRED');
   const { manifest, corpus, data, schema } = pkg;
   const deferred = verifyDeferredDefaults([...schema.pre.statements, ...schema.post.statements], manifest, backup.parseStrictPgDump(data, corpus));
   const before = deferredDefaultPlan(schema.pre.statements, !!manifest.deferred_defaults);
@@ -1080,6 +1093,7 @@ function renderReconstruction(pkg, supplement) {
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '30min';",
     targetPrerequisiteSql(manifest),
+    ...(supplement?.beforePublic ? [supplement.beforePublic] : []),
     ...before.statements.map(text => `${preserveFunctionBodyTransport(text)};`),
     backup.renderSafeCopySections(data, corpus).trimEnd(),
     ...(supplement ? [supplement.beforePost] : []),
@@ -1284,7 +1298,9 @@ function resolveCallableContract(query, seedTokens, edges, requiredExtensionName
   return references;
 }
 
-async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {}, captureSequenceBounds = false, requireCredentialCompanion = false }) {
+async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {}, captureSequenceBounds = false, requireCredentialCompanion = false, requireControlCompanion = false, controlEnv = null, controlProfile = 'core' }) {
+  if (requireControlCompanion !== false && (requireControlCompanion !== true || corpusName !== 'history-v11' || !controlEnv || typeof hooks.captureSnapshot !== 'function')) throw new Error('CONTROL_COMPANION_CAPTURE_REQUIRED');
+  if (!requireControlCompanion && controlEnv) throw new Error('CONTROL_COMPANION_CAPTURE_REQUIRED');
   if (requireCredentialCompanion !== false && (requireCredentialCompanion !== true || corpusName !== 'history-v11' || typeof hooks.captureSnapshot !== 'function')) throw new Error('CREDENTIAL_COMPANION_CAPTURE_REQUIRED');
   if (captureSequenceBounds !== false && (captureSequenceBounds !== true || corpusName !== 'history-v11' || typeof hooks.captureSnapshot !== 'function')) throw new Error('SEQUENCE_BOUNDS_COMPANION_CAPTURE_REQUIRED');
   const corpus = backup.resolveCorpus(corpusName);
@@ -1292,12 +1308,14 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const sourceRef = backup.assertProductionSource(sourceUrl);
   const preflight = runPsql(env, sourcePreflightSql(corpus.name), { psql });
   if (!/source_preflight_ok/.test(preflight)) throw new Error('Track-B recovery source preflight did not confirm');
+  if (!requireControlCompanion && runPsql(env, "select exists(select from pg_catalog.pg_namespace where nspname in ('linear_exit_install','linear_exit_maintenance','linear_exit_provider','write_refusal_diagnostics'))", {psql}) === 't') throw new Error('CONTROL_COMPANION_CAPTURE_REQUIRED');
   const dir = tempDir || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-recovery-'));
   const files = { pre: path.join(dir, 'pre-data.sql'), post: path.join(dir, 'post-data.sql'), data: path.join(dir, 'data.sql') };
   const session = await openSnapshotSession(env, psql);
   let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections; let deferredContract; let sequenceBounds;
   try {
     const query = sql => runPsql(env, sql, { psql, snapshot: session.snapshot });
+    if (!requireControlCompanion && query("select exists(select from pg_catalog.pg_namespace where nspname in ('linear_exit_install','linear_exit_maintenance','linear_exit_provider','write_refusal_diagnostics'))") === 't') throw new Error('CONTROL_COMPANION_CAPTURE_REQUIRED');
     fingerprintBefore = query(fingerprintSql());
     inventory = JSON.parse(query(inventorySql()));
     prerequisites = JSON.parse(query(prerequisitesSql()));
@@ -1316,8 +1334,8 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     // never disagree about which tokens must be classified.
     const roles = prerequisites.roles || [...PLATFORM_ROLES];
     sections = {
-      pre: validateSchemaSection(fs.readFileSync(files.pre).toString('utf8'), roles),
-      post: validateSchemaSection(fs.readFileSync(files.post).toString('utf8'), roles),
+      pre: validateSchemaSection(fs.readFileSync(files.pre).toString('utf8'), roles, requireControlCompanion ? require('./linear-exit-control-companion').requirement(controlProfile) : null),
+      post: validateSchemaSection(fs.readFileSync(files.post).toString('utf8'), roles, requireControlCompanion ? require('./linear-exit-control-companion').requirement(controlProfile) : null),
     };
     const plan = deferredDefaultPlan([...sections.pre.statements, ...sections.post.statements], true);
     const storedColumns = Object.fromEntries(corpus.tables.map(item=>[item.name,plan.storedColumns[item.name]]));
@@ -1342,7 +1360,13 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     if (typeof hooks.afterDumps === 'function') await hooks.afterDumps();
     // Optional prepared companion reads import this still-live exported snapshot.
     // Default capture and scheduled callers do not supply this hook.
-    if (typeof hooks.captureSnapshot === 'function') await hooks.captureSnapshot(query);
+    let controlQuery;
+    if (requireControlCompanion) {
+      controlQuery = sql => runPsql(controlEnv, sql, {psql, snapshot:session.snapshot});
+      const identity = 'select jsonb_build_array(current_database(),(select oid::text from pg_catalog.pg_database where datname=current_database()),inet_server_addr()::text,inet_server_port())';
+      if (query(identity) !== controlQuery(identity)) throw new Error('CONTROL_COMPANION_SOURCE_BINDING');
+    }
+    if (typeof hooks.captureSnapshot === 'function') await hooks.captureSnapshot(query, controlQuery);
     if (captureSequenceBounds) sequenceBounds = require('./linear-exit-sequence-bounds').capture(query, sequences);
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');
@@ -1382,6 +1406,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     omitted_data_tables: omitted,
     sequences,
     ...(captureSequenceBounds ? { sequence_bounds_v1: sequenceBounds } : {}),
+    ...(requireControlCompanion ? { control_companion_v1: require('./linear-exit-control-companion').requirement(controlProfile) } : {}),
     ...(requireCredentialCompanion ? { credential_companion_v1: require('./linear-exit-credential-companion').requirement() } : {}),
     callable_references: strippedReferences,
     deferred_defaults: deferredContract,
@@ -1496,6 +1521,7 @@ module.exports = {
   readRecoveryPackage,
   reconstructSql,
   reconstructCompleteApplicationSql,
+  reconstructControlApplicationSql,
   reconstructPairSql,
   reconstructTripleSql,
   reconstructPairSqlWithSequenceBounds,

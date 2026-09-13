@@ -15,7 +15,7 @@ the reviewed checkpoint and remaining build gaps; it is not installation sign-of
 | Client saves | Owner-approved atomic Calendar/Samples preparation preserves tokenless serving captures; actual isolated handlers prove atomic save/tasks, rollback, conflict 409 and maintenance 503, retaining both repository 401 controls | Review candidate bundles and hosted compatibility; current request identifiers prove RPC replay, not cross-request exactly-once behavior |
 | Background work | Private disabled worker bundle, actual helper/SQL graphic capture and resolution, stale-worker refusal and durable failure tests pass | Transactional failed/unknown recovery passes actual commit/rollback races; 14 actual helper cases and disabled cadence pass; finish independent monitoring and prove hosted configuration separately |
 | Final switch away from Linear | Retained verified receipts approved; 86-table DML admission guards, protected follow-up transactions and exact closed-gate F27 snapshot and discard/quarantine rehearsed | Finish external worker fencing/replay and coverage beyond table DML; final activation still refuses |
-| WR-101 refusal diagnostics | Planned only | Separate Edge Function implementation/release if required by the approved release scope; do not describe it as installed or built |
+| WR-101 refusal diagnostics | Separate preparation implemented; 13 isolated PG17 checks pass | Reviewed SQL, composed gateway/browser and new Edge Function release still required; recovery-profile integration and hosted acceptance remain pending. See `WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` |
 
 ## Order of decisions
 

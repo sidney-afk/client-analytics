@@ -67,3 +67,17 @@ test/linear-exit-install-finalize-postgres.js -text whitespace=cr-at-eol
 test/linear-exit-install-maintenance-postgres.js -text whitespace=cr-at-eol
 
 docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json text eol=lf
+
+# Preserve reviewed recovery source pins and contract bytes.
+scripts/linear-exit-provider-ack-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-checkpoint-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-comment-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-send-v2-compose.js -text whitespace=cr-at-eol
+supabase/functions/linear-outbound/provider-send-v2-preparation.mjs -text whitespace=cr-at-eol
+supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-ack-recovery.js -text whitespace=cr-at-eol
+test/linear-exit-provider-checkpoint-recovery.js -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-recovery.js -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_SCHEMA_V1.json text eol=lf

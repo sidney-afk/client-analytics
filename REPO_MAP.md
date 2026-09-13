@@ -407,3 +407,5 @@ Guarded retirement switch preparation: `docs/ops/LINEAR_EXIT_RETIREMENT_SWITCH_P
 - test/helpers/control-retirement-public-owners.js - Fixed public-owner ordering and explicitly privileged retired/open recovery fixture.
 
 - docs/independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json - Exact 94-table encrypted retirement-profile recovery receipt and bounded restore policy.
+
+External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md`. Operator inventory, stop/readback, provider and followup reconciliation, custody and separate activation; no hosted execution or inventory-closure claim.

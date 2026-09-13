@@ -2,7 +2,27 @@
 
 Continue preparation in draft PR [#1382](https://github.com/sidney-afk/client-analytics/pull/1382),
 branch `integration/linear-exit-current-main-20260910`.
-Reviewed preparation code checkpoint: `4e78529ac2e0268fdd84791182dc06d4a1b57a97`.
+Latest published preparation revision: `76c017f34fbf606e5d47b1cf2288283ba63312bc`.
+Tree: `861f3167db11607c76104dafbf94ca2eb635dc83`.
+This is still an incomplete preparation build, not the requested final review handoff.
+Since the older checkpoints below, published work includes recorded-create recovery
+(27 PG checks), current-public encrypted recovery (94 tables/15 routine records),
+historical receipt eligibility (31 PG checks), uncertain-comment recovery
+(20 PG plus 10 transport checks), and the guarded switch with comment recovery
+installed (29 PG checks, receipt `f03ea6ab9b9c42208a77f93ca896ea0e`).
+Read `../ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md` for the
+separately authorized worker stop/reconciliation and custody sequence.
+See the corresponding preparation documents in `docs/ops` and the current-public
+recovery proof in this directory. Every result retains its component scope.
+
+The retirement recovery profile is now published: receipt
+`cfbf66455be44f98ad49e42fce2a4cb0` restores 94 tables and 29 selected routines,
+with application admission closed and the private provider fence active.
+Unpublished work remains: uncertain issue/attachment recovery,
+the final ordered installation target/replay, and broader
+post-switch business checks. Do not treat working files as reviewed or installation-ready.
+
+Historical preparation code checkpoint: `4e78529ac2e0268fdd84791182dc06d4a1b57a97`.
 Tree: `5009d68b6295862f0eb74c189ec7ff6b4ea77827`.
 Verify remote HEAD and ancestry before continuing. Later documentation commits
 do not expand the evidence scope of this checkpoint.

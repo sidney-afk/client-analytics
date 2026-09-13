@@ -281,6 +281,14 @@ async function authedFetch(url: string, init: RequestInit = {}): Promise<Respons
   return fetch(url, { ...init, headers });
 }
 
+/* Our own marker, written into the row's `error` column the first time a Drive
+ * 404 is seen, so a LATER run can tell "the same dead file coming round again"
+ * from "this source just became unreachable". The status is not persisted
+ * anywhere else, and matching on Google's message prose is what driveError()
+ * exists to avoid. The success path sets `error: null`, so a source that is
+ * re-shared drops the marker on its own. */
+const MISSING_SOURCE_MARKER = "drive_404: ";
+
 type DriveStatusError = Error & { driveStatus?: number };
 
 function driveError(message: string, status: number): DriveStatusError {
@@ -768,7 +776,8 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data as JsonMap[] : [];
-  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, missing_source: 0, items: [] as JsonMap[] };
+  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0,
+    missing_source: 0, missing_source_new: 0, items: [] as JsonMap[] };
   const activeClients = new Map<string, boolean>();
 
   for (const originalRow of rows) {
@@ -879,20 +888,36 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
       out.items.push({ id, status: "changed", thumb_rev: thumbRev });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "scan failed";
-      // A Drive 404 means the source file was deleted or unshared. That is
-      // permanent: retrying it cannot succeed, and it is not evidence that the
-      // scanner, Drive or Storage is unhealthy. Count it separately so the
-      // scheduled lane stops going red on where the round-robin cursor landed.
-      // The row stays `pending` on purpose -- syncview_thumbnail_revision_backfill
-      // re-enrols any active, non-archived source with no pending row, so
-      // moving it to a terminal status would re-create it on the next run and
-      // grow the table instead of settling it. The `error` column still records
-      // exactly what happened, per row, for anyone querying the table.
-      if (driveStatusOf(e) === 404) out.missing_source++; else out.failed++;
+      /* A Drive 404 is a source the scanner cannot read. It is NOT necessarily a
+       * deleted file: Google answers 404 identically for a file that was deleted
+       * and for one that exists but is not shared with the caller, and this
+       * repository already pins that ambiguity (`test/prod-asset-state-guidance.js`).
+       * So a 404 is never silently exempt from failure. It stays inside `failed`
+       * -- which keeps the response's four-way conservation exactly as every
+       * existing caller already requires -- and is reported ALONGSIDE as a
+       * subset, split into rows already known dead and rows newly unreadable.
+       * The caller keeps the lane red for the new ones, because "the service
+       * account just lost a whole folder" and "the same three dead files came
+       * round again" arrive here as the identical status code and must not read
+       * the same.
+       *
+       * The row stays `pending` on purpose: syncview_thumbnail_revision_backfill
+       * re-enrols any active, non-archived source with no pending row, so a
+       * terminal status would be re-created on the next run and grow the table
+       * instead of settling it. The `error` column still records exactly what
+       * happened, per row, for anyone querying the table. */
+      const driveGone = driveStatusOf(e) === 404;
+      const knownMissing = driveGone && clean(row.error).startsWith(MISSING_SOURCE_MARKER);
+      out.failed++;
+      if (driveGone) {
+        out.missing_source++;
+        if (!knownMissing) out.missing_source_new++;
+      }
+      const stored = driveGone ? MISSING_SOURCE_MARKER + msg : msg;
       await input.supabase.from("thumbnail_media_revisions")
-        .update({ error: msg.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ error: stored.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", id);
-      out.items.push({ id, status: driveStatusOf(e) === 404 ? "missing_source" : "failed", error: msg });
+      out.items.push({ id, status: driveGone ? "missing_source" : "failed", error: msg });
     }
   }
 

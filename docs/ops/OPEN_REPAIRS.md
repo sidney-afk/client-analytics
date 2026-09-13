@@ -21300,35 +21300,21 @@ table would grow instead of settling. That is why the 116 rows sitting quietly
 in `skipped` do not flap: their sources dropped out of the backfill's candidate
 set. These three did not.
 
-**The fix, in repo and NOT deployed.** A Drive 404 is a deleted or unshared
-file. It is permanent, no scan can clear it, and it is not evidence that the
-scanner, Drive or Storage is unhealthy — which is the only thing the red was
-ever meant to catch (the caller says so in its own comment: "so silent Drive or
-Storage outages cannot leave every viewer stale behind a green schedule").
-So it gets its own counter:
+~~**The fix, in repo and NOT deployed.** A Drive 404 is a deleted or unshared
+file. It is permanent, no scan can clear it ... The scan loop counts a 404 as
+`missing_source` instead of `failed` ... the caller does **not** exit 1 on it.
+**Ordering is safe in both directions** ... Neither order breaks. **Still to do
+— the owner's call:** the function half needs a plain dispatch of
+`deploy-thumbnail-edge-functions.yml`.~~
 
-- `driveMetadata` now throws an error carrying the HTTP **status**, so the
-  caller classifies on 404 rather than on Google's message prose, which nobody
-  here controls.
-- The scan loop counts a 404 as `missing_source` instead of `failed`. Every
-  other error is untouched and still a failure.
-- The row stays `pending` — see the backfill above. Its `error` column still
-  records exactly what happened, per row, for anyone querying the table.
-- The Edge Function returns `missing_source`; the caller aggregates it across
-  pages, prints it every run, and does **not** exit 1 on it.
+> **SUPERSEDED by 203a, 2026-09-13.** Three of the claims above are wrong, and
+> Codex caught all three on the PR before any of it merged. The 404 is NOT
+> unambiguously a deleted file; the ordering is NOT safe in both directions as
+> originally written; and the function does NOT wait for a manual dispatch. The
+> struck text is kept rather than edited away because a reader who finds it
+> quoted elsewhere needs to see what replaced it. **Read 203a for what actually
+> shipped.**
 
-**Ordering is safe in both directions**, which matters because the caller merges
-on `main` and the function deploys separately. `missing_source` is OPTIONAL on
-the wire and reads 0 when absent, so the old four-way conservation check still
-balances against today's deployed function; a present-but-malformed value is
-still a hard failure. Merge first and the lane keeps flapping until the deploy;
-deploy first and the counter simply moves to its own bucket early. Neither order
-breaks.
-
-**Still to do — the owner's call, not this PR's.** The function half needs
-`deploy-thumbnail-edge-functions.yml`. That lane takes no fingerprint or bundle
-inputs, so it is a plain dispatch. Until it runs, the lane keeps flapping and
-the diagnosis above is the thing to read when it does.
 
 **Not addressed here, deliberately.** The three sources still carry a
 `thumbnail_url` pointing at a Drive file that is gone, so the cards themselves
@@ -21532,3 +21518,69 @@ past runs; Actions log retention and whether it is worth purging is the owner's
 call, and the same judgement as `GIT_HISTORY_PII_PURGE_2026-07-14.md`. And no
 gate now watches job OUTPUT — a checker for that is a real repair and is not
 attempted here.
+
+### 203a. What actually shipped, after review killed three claims in 203
+
+Codex reviewed PR #1390 and filed two P1s and a P2. All three were verified
+against the source and all three were right. None of it had merged.
+
+**P1 — the function was never going to wait for a manual dispatch.**
+`deploy-thumbnail-edge-functions.yml:3-12` triggers on `push` to `main` with
+path filters that include BOTH
+`supabase/functions/thumbnail-revision-scan/**` and
+`supabase/functions/_shared/thumbnail-revisions.ts`, and its deploy step
+publishes both thumbnail functions. This change touches both paths. **Merging
+this PR IS the production rollout** — there is no separate owner dispatch, and
+203 said there was, twice. Nothing in the code needed to change for this one;
+what was wrong was the claim, and it had already been repeated to the owner.
+
+**P1 — a Drive 404 does not mean what 203 said it means.** Google answers 404
+identically for a file that was deleted and for one that exists but is not
+shared with the caller. This repository **already pins that exact ambiguity**
+(`test/prod-asset-state-guidance.js:12-13`: *"Google returns the SAME 404 for a
+Drive file that was deleted and for one that exists but was never shared"*), so
+the original design's premise — that a 404 is permanent and harmless — was
+contradicted by a test already in the tree. Under it, revoking the scanner
+service account's access to a whole folder would have turned every affected row
+into a silently-exempt `missing_source` and left the lane green while nothing
+was being scanned. That is precisely the silent-outage failure the caller's own
+comment exists to prevent, rebuilt by the change meant to respect it.
+
+**P2 — "safe in both orders" was false in one order.** Making `missing_source` a
+sibling bucket meant a response could raise `checked` without raising any bucket
+an older caller knows, so a new function answering an older caller would fail
+its conservation check and throw `invalid aggregate response`. The claim in 203
+was not merely optimistic; it was backwards for the deploy-first direction.
+
+**What replaced it.** One change fixes both code findings:
+
+- **`missing_source` is a reported SUBSET of `failed`, not a bucket beside it.**
+  A 404 still increments `failed`, unconditionally. The four-way conservation
+  `checked = changed + unchanged + failed + skipped` is therefore byte-for-byte
+  what every caller has always applied, and P2 disappears: an old caller against
+  the new function balances and behaves exactly as it does today.
+- **`missing_source_new` is the counter that pages.** The first time a 404 is
+  seen for a row, the scan writes its own marker (`drive_404: `) into that row's
+  `error` column; a later 404 on a row already carrying the marker is "known".
+  New ones keep the lane red. So three long-dead files stop flapping the lane,
+  and a folder-wide access revocation still turns it red immediately — which is
+  the distinction P1 said was missing. The success path already sets
+  `error: null`, so a re-shared source drops the marker by itself.
+- The caller exits 1 when `failed - missing_source > 0` (a real failure) or when
+  `missing_source_new > 0` (something just became unreadable), and fails closed
+  if a response claims a subset larger than its superset rather than subtracting
+  nonsense into a negative and reading it as green.
+
+**Cost, stated plainly:** the three known-dead rows will turn the lane red ONCE
+more after this deploys, because none of them carries the marker yet. Then they
+settle. That is the correct behaviour and not a wart — a row nobody has recorded
+as unreadable should be announced exactly once.
+
+**Guard, and the one that nearly did not hold.** Three sabotage controls, each
+verified by exit status: dropping the new-vs-known split, dropping the subset
+validation, and re-exempting the 404 from `failed`. The third — the exact bug
+Codex found — initially PASSED the suite, because the assertion looked for
+`out.failed++` anywhere in the file and `if (!driveGone) out.failed++;` contains
+it. The guard now requires the increment to be a bare, unguarded statement and
+separately refuses any `driveGone` condition on it. An assertion that a sabotage
+control does not trip is not a test; it is a comment.

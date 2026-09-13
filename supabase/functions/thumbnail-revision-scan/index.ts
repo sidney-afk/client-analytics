@@ -117,6 +117,7 @@ Deno.serve(async (req: Request) => {
       failed: Number(result.failed || 0),
       skipped: Number(result.skipped || 0),
       missing_source: Number(result.missing_source || 0),
+      missing_source_new: Number(result.missing_source_new || 0),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "scan failed";

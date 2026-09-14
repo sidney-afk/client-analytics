@@ -2,6 +2,11 @@
 
 All times are UTC unless noted.
 
+## 2026-09-14 ? Draft installation-day preparation
+
+Prepared isolated frozen-main catch-up, guarded installation adapter, urgent website links and owner/day-of documents. No branch merge, deployment, installation, messages, n8n changes or production writes. Main #1393 was rehearsed in isolated Git objects and its known catalog change reviewed separately. See docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md for exact scope, evidence and pending quiet Storage custody.
+
+
 ## 2026-09-08 — Deployed: workload-plan native snapshot, verified live
 
 **The redeploy that yesterday's outage earned.** `workload-plan` deployed by the

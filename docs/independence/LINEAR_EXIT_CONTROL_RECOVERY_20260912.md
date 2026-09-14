@@ -1,5 +1,7 @@
 # Private control-record recovery
 
+> Current exact-source refresh (2026-09-14): receipt `f80f2315c00c49468ea8b85918c43588` passed the full retirement-profile encrypted recovery: 94 tables, 32 selected public routines, all three required markers, exit 0, empty error log and server stopped. Current retirement JSON source pins match current tested disk, including the final operator runner lane and install-manifest. The earlier `fa971f36` refresh and `db8b0671` and lower receipts remain historical. Closed admission/maintenance and provider fence assertions remain unchanged; no hosted restore or activation occurred.
+
 > Current exact-code retirement-profile refresh, 2026-09-13: PostgreSQL 17.11 receipt `db8b06715a7f41b4ab95ca2d366ff982` passed the 94-table encrypted local recovery with 32 public routine metadata checks, including explicit ACL owner 190840, and stopped its server. [Current machine-readable proof](LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json) binds the unchanged tested checkout and current source pins. Historical receipts below retain their original scope. This proves neither hosted recovery nor switch authorization.
 
 The opt-in control companion now has an integrated isolated PG17 pass:

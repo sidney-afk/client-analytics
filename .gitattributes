@@ -153,3 +153,11 @@ docs/independence/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PG17_20260913.json -text
 docs/independence/LINEAR_EXIT_NATIVE_ONLINE_SEQUENCE_PG17_20260914.json -text
 qa/linear-exit-rehearsal/serving/functions/_shared/thumbnail-revisions.ts -text whitespace=cr-at-eol,-blank-at-eof
 qa/linear-exit-rehearsal/serving/functions/calendar-upsert/index.ts -text whitespace=cr-at-eol,-blank-at-eof
+
+scripts/linear-exit-install-operator.js -text whitespace=cr-at-eol
+
+test/linear-exit-install-operator-postgres.js -text whitespace=cr-at-eol
+
+test/helpers/install-operator-worker.mjs -text whitespace=cr-at-eol
+
+scripts/linear-exit-install-profiles.js -text whitespace=cr-at-eol

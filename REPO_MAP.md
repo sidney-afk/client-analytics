@@ -440,3 +440,22 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 | `test/production-client-schema-compatibility.js` | Exact staged-schema read compatibility for planned native projection additions; same safe view, unchanged filters/pagination and no invented native mapping or authority. |
 | `docs/independence/LINEAR_EXIT_CLAUDE_RESUME_20260914.md` | Current Claude handoff: published review entrypoint, existing approvals, evidence locations, private inputs and remaining execution boundaries. |
 | `docs/syncview-design/tests/prod-schema-compat-audit.js`, `test/production-schema-compat-audit.js` | Owner-approved three-field schema-read recovery classifier; exact response and completed safe fallback, unchanged filters and one-to-one resource-console correlation. Other errors remain failures. |
+
+- `scripts/linear-exit-main-catchup.js` and `test/linear-exit-main-catchup.js`: isolated frozen-main combination, exact supported conflict resolution and overwrite refusals.
+
+- `scripts/linear-exit-install-operator.js` and `test/linear-exit-install-operator.js`: read-only default and separately authorized guarded installation adapter.
+
+- `test/linear-exit-install-operator-postgres.js` and `test/helpers/install-operator-worker.mjs`: actual isolated operator apply/resume and separate main prerequisite rehearsal.
+
+- `scripts/prepare-urgent-editor-website-only.js` and `test/urgent-editor-website-only.js`: offline exact-template preparation; no n8n mutation.
+
+- `supabase/functions/notify/urgent-link.ts` and `test/native-notification-urgent-link.js`: native urgent website deep-link context validation.
+
+- `docs/ops/LINEAR_EXIT_OWNER_BEFORE_AFTER_20260914.md` and `docs/ops/LINEAR_EXIT_INSTALLATION_DAY_20260914.md`: owner-visible behavior and day-of commands/stop rules.
+
+- `docs/ops/LINEAR_EXIT_URGENT_LINK_VERIFICATION.md`: current captured urgent link matrix and offline-only change scope.
+
+- `scripts/linear-exit-install-profiles.js`: finite exact observed catalog profiles; never arbitrary operator-provided baselines.
+- `docs/independence/LINEAR_EXIT_INSTALL_OPERATOR_PG17_20260914.json`: actual guarded adapter execution and source-bound proof limits.
+
+- `docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md`: bounded catch-up rehearsal and remaining day-of work.

@@ -8,6 +8,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { postSlackChannelMessage } from "./slack-api.ts";
+import { urgentWebsiteText } from "./urgent-link.ts";
 
 type Claim = { intent_id: string; attempt: number; destination_channel_id: string; text: string; client_msg_id: string; allow_mentions: boolean };
 type JsonMap = Record<string, unknown>;
@@ -74,7 +75,20 @@ Deno.serve(async (req: Request) => {
 
   const counts = { sent: 0, retryable: 0, blocked: 0, unknown: 0, receipt_failed: 0 };
   for (const row of claim.data as Claim[]) {
-    const result = await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), clean(row.text), clean(row.client_msg_id), row.allow_mentions === true);
+    let text = clean(row.text);
+    let lookupFailed = false;
+    if (row.allow_mentions === true) {
+      try {
+        const intent = await supabase.from("production_notification_intents")
+          .select("id,kind,state,attempt_count,destination_channel_id,deliverable_id,message")
+          .eq("id", row.intent_id).single();
+        if (intent.error) throw new Error("urgent_link_lookup_failed");
+        text = urgentWebsiteText(row, intent.data);
+      } catch { lookupFailed = true; }
+    }
+    const result = lookupFailed
+      ? { kind: "retryable" as const, code: "urgent_link_context_unavailable" }
+      : await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), text, clean(row.client_msg_id), row.allow_mentions === true);
     const args = result.kind === "sent"
       ? { p_intent_id: row.intent_id, p_attempt: row.attempt, p_outcome: "sent", p_provider_message_id: result.messageId, p_failure_code: null }
       : { p_intent_id: row.intent_id, p_attempt: row.attempt, p_outcome: result.kind, p_provider_message_id: null, p_failure_code: result.code };

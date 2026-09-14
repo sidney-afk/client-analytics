@@ -1,5 +1,7 @@
 ﻿# Guarded retirement switch preparation
 
+> Current exact-source refresh (2026-09-14): receipt `c598282f1fc842dea84794f904fff3ce` passed all 46 isolated PG17 checks, exit 0, empty error log, server stopped. The current JSON proof binds current tested disk bytes, including the final isolated operator runner lane and LF install-manifest checkout. The earlier `b12e6429` refresh and `7369ef65` and lower receipts remain historical. No hosted activation or deployment occurred.
+
 > Current exact-code refresh, 2026-09-13: PostgreSQL 17.11 receipt `7369ef65f2454f4fa36967560bf1a970` passed all 46 checks and stopped its server. The current test and ACL owner 190840 were executed together without source edits. [Machine-readable proof](../independence/LINEAR_EXIT_RETIREMENT_SWITCH_PG17_20260913.json) records all nine runtime pins, supporting source pins, and the clean tested checkout. The earlier receipts and post-test-delta discussion below are historical, not a remaining current-code gap. No hosted activation is authorized.
 
 This component is preparation for an operator-controlled retirement window. Installing its SQL does not activate retirement or authorize deployment.

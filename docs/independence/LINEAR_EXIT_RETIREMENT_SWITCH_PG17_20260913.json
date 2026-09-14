@@ -1,9 +1,9 @@
 {
   "format": "linear-exit-retirement-switch-pg17-proof-v1",
-  "date": "2026-09-13",
+  "date": "2026-09-14",
   "status": "PASS",
   "classification": "ISOLATED_POSTGRES",
-  "receipt": "7369ef65f2454f4fa36967560bf1a970",
+  "receipt": "c598282f1fc842dea84794f904fff3ce",
   "exit_code": 0,
   "server_stopped": true,
   "stderr_bytes": 0,
@@ -11,11 +11,11 @@
   "lane": "retirement-switch",
   "checks": 46,
   "source_binding": {
-    "commit": "d4e67e1c1c68253ebbe38453d661fd45fe2dd59c",
-    "git_tree": "3c631715c919866703ed619ba2857f104e4536ef",
-    "tracked_worktree_clean_before": true,
-    "tracked_worktree_clean_after": true,
-    "scope": "Whole tracked checkout identity; explicit runtime and supporting raw byte hashes below. External private prerequisites and PostgreSQL are separately identified."
+    "commit": "3ae2f573037f31b9dfb40880ef0999402863a232",
+    "git_tree": "67af0317519f3f9057589c0b6ba24e7ec131ed70",
+    "tracked_worktree_clean_before": false,
+    "tracked_worktree_clean_after": false,
+    "scope": "Exact per-file runtime and supporting disk hashes below verified unchanged during isolated proof; final operator runner lane was uncommitted at execution. Whole-checkout or then-HEAD exactness is not claimed; verify final published Git blobs against pins."
   },
   "source_pins": [
     {
@@ -58,7 +58,7 @@
   "supporting_source_pins": [
     {
       "file": "qa/linear-exit-rehearsal/run-portable.ps1",
-      "sha256": "bb03b0807758d4730353bcd335297638a96e8288d97159d4e4fadc7897eceeff"
+      "sha256": "58a879ed3f451ad59483df8e7f5eeafdd201d5c6d397f3c0d3f14441cc838992"
     },
     {
       "file": "scripts/f42-apply-rehearsal.js",
@@ -78,7 +78,7 @@
     },
     {
       "file": "scripts/linear-exit-install-manifest.js",
-      "sha256": "b6d4b0f33adef1bdcf6623a98409b00bcd2bb1621ea2d98492bba10b65911eda"
+      "sha256": "9691ea22f3e140ed85a9d60346ad38c2fcfc0f986e46ddbbd9b83ee630f58669"
     },
     {
       "file": "scripts/linear-exit-priority-schema-supplement.js",
@@ -108,7 +108,7 @@
     },
     {
       "file": "unit.log",
-      "sha256": "4db76369d436938758d91c5ec02e5ea35a643282cace958f5c6dcd52a5db6f39"
+      "sha256": "ff96d5754c193a69dbdddcaba86d8483720cbc8a3bceae9ab504ccbaff37ef08"
     },
     {
       "file": "unit-error.log",
@@ -133,5 +133,10 @@
     "deployment_performed": false,
     "complete_browser_gateway_matrix_proven": false
   },
-  "supersedes_current_code_gap_from_receipt": "870e686ac23d4b029daf9322dd999066"
+  "supersedes_current_code_gap_from_receipt": "870e686ac23d4b029daf9322dd999066",
+  "previous_exact_source_proof": {
+    "receipt": "b12e6429e24c4abdb69e266bf08f2bbb",
+    "manifest_sha256": "20d437c5ddbea340f7c1a28fe2c853d26d7c6b955f2596816323b3cc1f79e3e2",
+    "scope": "Historical passing refresh before final isolated operator lane was added to shared runner."
+  }
 }

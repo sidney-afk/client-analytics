@@ -8,6 +8,10 @@ The owner wants a short, efficient installation path after preparation is verifi
 
 The owner additionally said never to send anything to client Slack channels. The designated client roster is read-only input for preparing mappings, not permission to send tests or notifications. Any delivery test must use a separately approved internal TEST destination. The owner-selected recovery record is in iOS Notes, with phone access personally confirmed; do not require a new password manager or second keyholder.
 
+## Latest preparation entrypoint
+
+Read [the 14 September preparation checkpoint](../ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) and its linked installation-day runbook first. They cover the frozen-main rehearsal, the current exact catalog profiles, urgent-link findings and the private asset decision sheet. No quiet Storage window is available during the owner's ongoing edits; tonight still needs explicit confirmation. Historical hashes and checklist items below are not substituted for this checkpoint.
+
 ## Start with these files
 
 1. `../ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md`: repaired review findings, staged-schema browser compatibility, owner decisions and the remaining real-world checklist.

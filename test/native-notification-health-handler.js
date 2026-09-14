@@ -11,6 +11,7 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  let source=fs.readFileSync(path.join(root,'supabase/functions/notify/index.ts'),'utf8');
  const sdk='import { createClient } from "npm:@supabase/supabase-js@2.49.8";';assert.equal(source.split(sdk).length,2);source=source.replace(sdk,'const createClient = () => globalThis.__notifyHealthDb;');
  source=source.replace('"../_shared/staff-role-auth.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/_shared/staff-role-auth.ts')).href)).replace('"./slack-api.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/slack-api.ts')).href));
+ source=source.replace('"./urgent-link.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/urgent-link.ts')).href));
  const file=path.join(tmp,'notify.ts');fs.writeFileSync(file,source,{flag:'wx'});await import(pathToFileURL(file));assert.equal(typeof handler,'function');
  const counts={pending_stale:0,sending_stale:0,blocked:0,unknown:0,retryable_overdue:0,total_open:0};
  async function health(data,key='synthetic-private-key'){response={data,error:null};calls=[];const r=await handler(new Request('http://127.0.0.1/notify',{method:'POST',headers:{'content-type':'application/json','x-notify-runner-key':key},body:JSON.stringify({action:'health'})}));return {status:r.status,body:await r.json()};}

@@ -64606,13 +64606,9 @@
                        stated -- a batch created elsewhere can be up to ten
                        minutes stale in an open tab. Worth having back one day,
                        as its own change with its own design. */
-                    const rows = await _prodRestRows(
-                        'production_deliverables_browser_v1',
+                    const rows = await _prodBrowserProjectionRows(
                         PROD_DELIVERABLE_SELECT,
-                        'updated_at=gte.' + encodeURIComponent(watermark),
-                        1000,
-                        50,
-                        { keysetColumn: 'id' }
+                        'updated_at=gte.' + encodeURIComponent(watermark)
                     );
                     const changedIds = _prodMergeDeliverableRows(rows);
                     if (changedIds.length) {

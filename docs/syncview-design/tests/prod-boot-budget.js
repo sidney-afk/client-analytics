@@ -10,6 +10,7 @@ const {
   installProductionInit,
   openProduction,
   formatFailures,
+  installReadConsoleAudit,
 } = require('./prod-test-utils');
 
 const READY_BUDGET_MS = Number(process.env.PROD_BOOT_READY_BUDGET_MS || 6000);
@@ -36,8 +37,7 @@ const DCL_BUDGET_MS = Number(process.env.PROD_BOOT_DCL_BUDGET_MS || 3500);
   const errors = [];
   const requests = [];
   const failedRequests = [];
-  page.on('pageerror', e => errors.push(e.message));
-  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  const readConsoleAudit = installReadConsoleAudit(page, { schemaOnly: true });
   page.on('request', req => requests.push(req));
   page.on('requestfailed', req => failedRequests.push(req.url()));
   await installProductionInit(page);
@@ -78,6 +78,8 @@ const DCL_BUDGET_MS = Number(process.env.PROD_BOOT_DCL_BUDGET_MS || 3500);
     if (state.analyticsVisible) failures.push('Analytics skeleton was visible while opening ?prod=1');
     if (state.analyticsSkeletonInRoot) failures.push('Analytics skeleton markup leaked into the mounted Production root');
     if (!state.prodVisible) failures.push('Production skeleton/root never became visible');
+    const audit = await readConsoleAudit.settle();
+    if (!audit.ok) errors.push(audit.error);
     const writes = requests.filter(isWriteLikeRequest);
     if (writes.length) failures.push('Write-like requests during boot: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
     if (failedRequests.length) failures.push('Failed requests during boot: ' + failedRequests.slice(0, 5).join(' | '));

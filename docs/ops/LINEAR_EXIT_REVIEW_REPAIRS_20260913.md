@@ -23,7 +23,7 @@ The write-refusal diagnostics browser suite also passed separately using existin
 
 The prepared write-diagnostics function was freshly typechecked with zero diagnostics and added to the existing ratchet baseline; its ratchet unit test passes. This does not clear other functions: the known 12 provider baseline Deno diagnostics remain red, and no claim of a clean whole-project typecheck is made.
 
-The staged-schema read repair passes 15 focused compatibility controls and the absent-native-proof refusal check. The local smoke reaches loaded content/mobile detail and confirms no writes. Its strict console audit remains red for the expected missing-column HTTP responses: the repository currently permits read recovery only at the identical method and URL, whereas the compatibility read removes the uninstalled projection fields. No assertion has been weakened or exception applied. Public-key OpenAPI discovery was checked as an alternative and returned 401 requiring a secret key; no secret may be placed in the browser. A scoped, response-bound exception to this test rule requires owner approval; unrelated failures and unproven fallbacks must remain red.
+The staged-schema read repair passes 15 focused compatibility controls and the absent-native-proof refusal check. The local smoke reaches loaded content/mobile detail and confirms no writes. Its previous strict console audit remained red for expected missing-column responses because it required identical-URL recovery. On 2026-09-14 the owner explicitly approved the narrow, response-bound exception documented at the top of AGENTS.md. Implementation and verification are recorded in PR #1391; unrelated failures and unproven fallbacks remain failures. Public-key OpenAPI discovery returned 401 requiring a secret key; no secret is placed in the browser.
 
 ## Remaining real-world checks
 
@@ -39,6 +39,6 @@ The read-only aggregate evidence is `../independence/LINEAR_EXIT_LIVE_PRECHECK_2
 
 ## Simplest custody arrangement
 
-The owner may be the sole keyholder; a second person is not required. Proposed route: an encrypted backup in the owner's Google Drive, with a separate recovery record in the owner's password manager accessible from another device. The existing codec requires both its encryption and integrity keys plus its non-secret key identifier; keep these together as one recovery record, separate from the encrypted backup. Do not put that record in GitHub, a chat, or beside the backup.
+The owner may be the sole keyholder; a second person is not required. Owner-approved route (2026-09-14): an encrypted backup in the owner's Google Drive, with a separate recovery record in the owner's password manager accessible from another device. The existing codec requires both its encryption and integrity keys plus its non-secret key identifier; keep these together as one recovery record, separate from the encrypted backup. Do not put that record in GitHub, a chat, or beside the backup.
 
 The owner must personally confirm retrieval of the recovery record from another device. Merely choosing Drive or storing a local key is not evidence of off-device recovery. No key was generated, no backup was uploaded, and no access was shared in this preparation.

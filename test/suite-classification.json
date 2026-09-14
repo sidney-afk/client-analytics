@@ -416,6 +416,7 @@
     "production-multiselect-hitbox.js",
     "production-parent-link-hierarchy.js",
     "production-preview-source.js",
+    "production-schema-compat-audit.js",
     "production-shadow-audit.js",
     "production-write-auth-matrix.js",
     "production-write-client-comment-front-door.js",

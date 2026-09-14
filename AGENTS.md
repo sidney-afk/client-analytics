@@ -1,5 +1,19 @@
 # Agent Guide
 
+> **Scoped owner exception, 2026-09-14, browser verification only:** the owner
+> approved recognizing the three expected missing native-field responses when
+> the corresponding safe reduced-select read demonstrably succeeds. This is
+> the sole exception to the identical-URL recovery rule below. Require the exact
+> GET/400/42703 response and field message, configured backend origin, unchanged
+> safe view/filters/pagination, a completed 2xx JSON-array fallback started after
+> the failure within the bounded recovery window, and one-to-one failed-response
+> to resource-console URL/time correlation. The fields are
+> `clients.native_project_ids` and
+> `production_deliverables_browser_v1.raw_attribution_project_id` /
+> `raw_attribution_native_epoch`. Unknown, unrelated, malformed, pending or failed
+> reads remain failures. Page errors and mutation guards remain unchanged.
+> This authorizes no merge, deployment, production write or activation.
+
 > **Scoped owner exception, 2026-09-12, preparation only:** the owner approved
 > preparing narrow atomic-persistence changes inside Calendar/Samples, preserving
 > existing URLs, payload compatibility, review links and tokenless access. Keep

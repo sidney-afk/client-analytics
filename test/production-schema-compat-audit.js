@@ -1,0 +1,45 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {classify}=require('../docs/syncview-design/tests/prod-schema-compat-audit.js');
+const origin='https://synthetic.invalid';
+function fixture(table='clients', missing='native_project_ids') {
+ const optional=table==='clients'?['native_project_ids']:['raw_attribution_project_id','raw_attribution_native_epoch'];
+ const u=new URL('/rest/v1/'+table,origin);u.searchParams.set('select',['id','title',...optional].join(','));u.searchParams.set('id','gt.synthetic');u.searchParams.set('limit','1000');u.searchParams.set('order','id.asc');
+ const f={method:'GET',url:u.href,status:400,at:1000,body:{code:'42703',message:`column ${table}.${missing} does not exist`}};
+ u.searchParams.set('select','id,title');
+ const s={method:'GET',url:u.href,status:200,startedAt:1100,at:1200,finished:true,body:[]};
+ const c={message:'Failed to load resource: the server responded with a status of 400',url:f.url,at:1001};
+ return {f,s,c};
+}
+let n=0;
+function test(name,change,expected=false,table,field){const x=fixture(table,field);change(x);assert.equal(classify([x.f,...(x.s?[x.s]:[])],x.c?[x.c]:[],{origin}).ok,expected,name);n++;}
+test('exact clients',()=>{},true);
+test('equivalent URL encoding',x=>x.s.url=x.s.url.replace('id%2Ctitle','id,title'),true);
+test('exact projection first',()=>{},true,'production_deliverables_browser_v1','raw_attribution_project_id');
+test('exact projection second',()=>{},true,'production_deliverables_browser_v1','raw_attribution_native_epoch');
+test('unrelated 400',x=>x.f.body.message='invalid query');
+test('wrong code',x=>x.f.body.code='PGRST100');
+test('no successful fallback',x=>x.s=null);
+test('failed fallback',x=>x.s.status=400);
+test('missing status',x=>delete x.s.status);
+test('NaN status',x=>x.s.status=NaN);
+test('string status',x=>x.s.status='200');
+test('fractional status',x=>x.s.status=200.5);
+test('missing JSON body',x=>delete x.s.body);
+test('nonarray JSON body',x=>x.s.body={});
+test('malformed JSON body',x=>x.s.body='[');
+test('null JSON body',x=>x.s.body=null);
+test('pending body',x=>x.s.finished=false);
+test('changed filter',x=>x.s.url=x.s.url.replace('gt.synthetic','gt.other'));
+test('changed pagination',x=>x.s.url=x.s.url.replace('1000','999'));
+test('wrong view',x=>x.s.url=x.s.url.replace('/clients?','/production_deliverables?'));
+test('older success',x=>x.s.startedAt=900);
+test('late success',x=>x.s.at=20000);
+test('authorization failure',x=>x.f.status=403);
+test('network failure',x=>x.f.status='network-error');
+test('unrelated console URL',x=>x.c.url=origin+'/other');
+test('uncorrelated time',x=>x.c.at=5000);
+test('nonresource console',x=>x.c.message='application exception');
+test('wrong origin',x=>{x.f.url=x.f.url.replace(origin,'https://other.invalid');x.c.url=x.f.url;});
+const x=fixture();assert.equal(classify([x.f,x.s],[x.c,{...x.c}],{origin}).ok,false,'one failure cannot explain two console errors');n++;
+console.log(n+' schema compatibility controls PASS');

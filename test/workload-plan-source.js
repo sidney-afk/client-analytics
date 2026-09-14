@@ -572,11 +572,12 @@ ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\);
     && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
     && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
 'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
-ok(/day = wlSubWorkingDays\(day, 1\)/.test(capacityPlacement)
-    && /guard < WL_PLACEMENT_WALK_LIMIT && day >= today/.test(capacityPlacement)
-    && !/wlAddWorkingDays|wlNextWorkingDay/.test(capacityPlacement)
+ok(/let day = today;/.test(capacityPlacement)
+    && /day = wlAddWorkingDays\(day, 1\)/.test(capacityPlacement)
+    && /guard < WL_PLACEMENT_WALK_LIMIT && day <= entry\.ideal/.test(capacityPlacement)
+    && !/wlSubWorkingDays|wlPrevWorkingDay/.test(capacityPlacement)
     && /const finalDay = placed \|\| entry\.ideal/.test(capacityPlacement),
-'the walk only ever steps BACKWARD, is double-bounded by the walk limit and the today floor, and falls back to the honest ideal day');
+'the walk starts at today and only ever steps FORWARD, is double-bounded by the walk limit and the ideal-day ceiling, and falls back to the honest ideal day');
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

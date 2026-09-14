@@ -1,21 +1,27 @@
 'use strict';
 
 /*
- * Capacity-aware automatic Workload placement (owner ruling 2026-08-10).
+ * Capacity-aware automatic Workload placement (owner rulings 2026-08-10 and
+ * 2026-09-14).
  *
- * Raha reported editors sitting over capacity on the Workload calendar: a
- * pinned 2×-Workload pair filled Nahuel's Monday and the automatic Doug cards
- * landed on the same day anyway (6/4 · 2 over), and Iaramiraille's 8/4 was
- * seven automatic cards stacking on one day with no pin involved at all.
+ * The capacity pass was born from an overload report: editors sat over
+ * capacity on the Workload calendar, a pinned 2×-Workload pair filled one
+ * editor's Monday and the automatic cards landed on the same day anyway
+ * (6/4 · 2 over), and another 8/4 was seven automatic cards stacking on one
+ * day with no pin involved at all. The 2026-09-14 ruling then flipped the
+ * direction of the walk: work is now scheduled as EARLY as it fits instead of
+ * as late as it fits, so a free day earlier in the week gets the work.
  *
  * The rules this suite pins, extracted straight out of index.html and run
  * hermetically (no DOM, no network, no clock):
  *
  *   1. A manual plan_date is ABSOLUTE — never moved, and its units are
  *      reserved before any automatic item is placed.
- *   2. Automatic items are placed as LATE as they fit, walking BACKWARD in
- *      working days from their ideal day (one working day before the deadline).
- *   3. The walk never goes FORWARD past the ideal day, and never before today.
+ *   2. Automatic items are placed as EARLY as they fit: the walk starts at
+ *      TODAY and steps FORWARD over working days to the first day where that
+ *      editor still has room.
+ *   3. The walk never goes PAST the ideal day (one working day before the
+ *      deadline, floored to today), and never starts before today.
  *   4. A genuinely saturated window keeps the item on its ideal day and leaves
  *      the visible over-capacity badge — the honest "a person must fix this".
  *   5. Placement is deterministic and depends only on the unfiltered snapshot.
@@ -90,8 +96,11 @@ for (const name of [
 ]) vm.runInContext(extract(name), context);
 
 // ── Fixture helpers ─────────────────────────────────────────────────────
-// 2026-08-10 is the Monday from Raha's screenshot; 08-07 is the Friday before.
+// 2026-08-10 is the Monday from the overload report; 08-07 is the Friday
+// before it, 08-11/08-12 the Tuesday and Wednesday after.
 const MON = '2026-08-10';
+const TUE = '2026-08-11';
+const WED_NEXT = '2026-08-12';
 const FRI = '2026-08-07';
 const THU = '2026-08-06';
 const WED = '2026-08-05';
@@ -150,21 +159,21 @@ function maxOverBy(subs) {
 // ── 1. The reported bug: pins hold, automatics yield ─────────────────────
 check('a pinned 2x pair keeps the day and the automatic cards move off it', () => {
   reset();
-  // Nahuel: two pinned Henry videos at 2x Workload = the full 4-unit day.
-  const henryA = sub({ plan: MON, weight: 2, due: '2026-08-11', client: 'Henry Ammar' });
-  const henryB = sub({ plan: MON, weight: 2, due: '2026-08-11', client: 'Henry Ammar' });
-  // Two automatic Doug videos whose ideal day is that same Monday.
-  const dougA = sub({ due: '2026-08-11', client: 'Doug Cartwright' });
-  const dougB = sub({ due: '2026-08-11', client: 'Doug Cartwright' });
-  const subs = [henryA, henryB, dougA, dougB];
+  // Two pinned videos at 2x Workload = the full 4-unit day, on today.
+  const pinA = sub({ plan: MON, weight: 2, due: '2026-08-11' });
+  const pinB = sub({ plan: MON, weight: 2, due: '2026-08-11' });
+  // Two automatic videos that would otherwise start on that same Monday.
+  const autoA = sub({ due: '2026-08-13' });
+  const autoB = sub({ due: '2026-08-13' });
+  const subs = [pinA, pinB, autoA, autoB];
 
-  const dates = place(subs, WED);
-  assert.strictEqual(dates[0], MON, 'pinned Henry A holds its exact day');
-  assert.strictEqual(dates[1], MON, 'pinned Henry B holds its exact day');
-  assert.strictEqual(dates[2], FRI, 'automatic Doug A moved back one working day');
-  assert.strictEqual(dates[3], FRI, 'automatic Doug B moved back one working day');
+  const dates = place(subs, MON);
+  assert.strictEqual(dates[0], MON, 'pinned A holds its exact day');
+  assert.strictEqual(dates[1], MON, 'pinned B holds its exact day');
+  assert.strictEqual(dates[2], TUE, 'automatic A stepped forward one working day');
+  assert.strictEqual(dates[3], TUE, 'automatic B stepped forward one working day');
   assert.strictEqual(maxOverBy(subs), 0, 'no editor/day is over capacity any more');
-  assert.strictEqual(context.wlDayOverCapacity([henryA, henryB]), false,
+  assert.strictEqual(context.wlDayOverCapacity([pinA, pinB]), false,
     'the pinned pair alone is exactly at capacity, not over');
 });
 
@@ -173,34 +182,35 @@ check('pins are never moved even when the pins alone blow the capacity', () => {
   // Six pinned units on one 4-unit day: deliberate human placement wins, and
   // the day stays visibly over — the badge is the point.
   const pinned = [1, 2, 3, 4, 5, 6].map(() => sub({ plan: MON, due: '2026-08-14' }));
-  const auto = sub({ due: '2026-08-11' });          // ideal is MON
+  const auto = sub({ due: '2026-08-13' });          // may sit anywhere MON→WED
   const subs = pinned.concat([auto]);
 
-  const dates = place(subs, WED);
+  const dates = place(subs, MON);
   assert.deepStrictEqual(dates.slice(0, 6), Array(6).fill(MON), 'every pin held');
-  assert.strictEqual(dates[6], FRI, 'the automatic item stepped around the over-full pinned day');
+  assert.strictEqual(dates[6], TUE, 'the automatic item stepped around the over-full pinned day');
   assert.strictEqual(context.wlDayOverCapacity(pinned), true,
     'the pinned overload stays visible');
 });
 
 // ── 2. Automatic-vs-automatic spreading (the 8/4 in the screenshot) ──────
-check('seven automatic cards spread backwards instead of stacking', () => {
+check('seven automatic cards spread forwards instead of stacking', () => {
   reset();
-  const subs = Array.from({ length: 7 }, () => sub({ due: '2026-08-11' })); // ideal MON
-  const dates = place(subs, '2026-08-03');
+  // ideal is WED_NEXT, so the window is MON → TUE → WED_NEXT.
+  const subs = Array.from({ length: 7 }, () => sub({ due: '2026-08-13' }));
+  const dates = place(subs, MON);
   const byDay = dates.reduce((acc, day) => (acc[day] = (acc[day] || 0) + 1, acc), {});
-  assert.deepStrictEqual(byDay, { [MON]: 4, [FRI]: 3 },
-    'four fill the ideal day, the rest fall back to the previous working day');
+  assert.deepStrictEqual(byDay, { [MON]: 4, [TUE]: 3 },
+    'four fill today, the rest spill onto the next working day');
   assert.strictEqual(maxOverBy(subs), 0, 'nothing is left over capacity');
 });
 
-check('a long queue keeps filling earlier working days and skips the weekend', () => {
+check('a long queue keeps filling later working days and skips the weekend', () => {
   reset();
-  const subs = Array.from({ length: 10 }, () => sub({ due: '2026-08-11' }));
-  const dates = place(subs, '2026-08-01');
+  const subs = Array.from({ length: 10 }, () => sub({ due: '2026-08-13' }));
+  const dates = place(subs, FRI);
   const byDay = dates.reduce((acc, day) => (acc[day] = (acc[day] || 0) + 1, acc), {});
-  assert.deepStrictEqual(byDay, { [MON]: 4, [FRI]: 4, [THU]: 2 },
-    'the walk steps Mon → Fri → Thu, never onto Sat/Sun');
+  assert.deepStrictEqual(byDay, { [FRI]: 4, [MON]: 4, [TUE]: 2 },
+    'the walk steps Fri → Mon → Tue, never onto Sat/Sun');
 });
 
 // ── 3. Never forward, never before today ────────────────────────────────
@@ -216,14 +226,18 @@ check('a saturated window keeps the item on its ideal day rather than going late
     'nothing is recorded as moved, so the cards stay plain "auto"');
 });
 
-check('the backward walk stops at today and never lands in the past', () => {
+check('the forward walk stops at the ideal day and never lands past it', () => {
   reset();
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: THU, due: '2026-08-14' }));
-  const auto = sub({ due: FRI });                 // ideal = Thu 06 Aug
-  const subs = pinned.concat([auto]);
-  const dates = place(subs, THU);                 // today IS Thursday
-  assert.strictEqual(context.wlAutoPlanDate(auto, THU), THU, 'its ideal day is today');
-  assert.strictEqual(dates[4], THU, 'it stays on today instead of moving into the past');
+  // Both days of the window are pinned full, so there is nowhere forward to go.
+  const onToday = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
+  const onIdeal = Array.from({ length: 4 }, () => sub({ plan: TUE, due: '2026-08-14' }));
+  const auto = sub({ due: WED_NEXT });            // ideal = Tue 11 Aug
+  const subs = onToday.concat(onIdeal, [auto]);
+  const dates = place(subs, MON);                 // today IS Monday
+  assert.strictEqual(context.wlAutoPlanDate(auto, MON), TUE, 'its ideal day is Tuesday');
+  assert.strictEqual(dates[8], TUE,
+    'it stops on its ideal day instead of walking past the deadline buffer');
+  assert.ok(dates[8] <= TUE, 'nothing is ever pushed later than the ideal day');
 });
 
 check('an overdue deadline floors the ideal day at today, not before it', () => {
@@ -238,48 +252,47 @@ check('a 2x item will not squeeze into a day with only one free unit', () => {
   reset();
   const pinned = [sub({ plan: MON, due: '2026-08-14' }), sub({ plan: MON, due: '2026-08-14' }),
     sub({ plan: MON, due: '2026-08-14' })];       // 3 of 4 units used on Monday
-  const heavy = sub({ due: '2026-08-11', weight: 2 });   // needs 2 units, ideal MON
+  const heavy = sub({ due: WED_NEXT, weight: 2 });      // needs 2 units, ideal TUE
   const subs = pinned.concat([heavy]);
-  const dates = place(subs, WED);
+  const dates = place(subs, MON);
   assert.strictEqual(context.wlWorkloadWeight(heavy), 2, 'the 2x label is read as two units');
-  assert.strictEqual(dates[3], FRI, 'a 2-unit item skips a day with a single free unit');
+  assert.strictEqual(dates[3], TUE, 'a 2-unit item skips a day with a single free unit');
 });
 
-check('the heavier item claims the ideal day before lighter ones fill it in pieces', () => {
+check('the heavier item claims the earliest day before lighter ones fill it in pieces', () => {
   reset();
-  const light = [sub({ due: '2026-08-11' }), sub({ due: '2026-08-11' }),
-    sub({ due: '2026-08-11' })];
-  const heavy = sub({ due: '2026-08-11', weight: 2 });
+  const light = [sub({ due: WED_NEXT }), sub({ due: WED_NEXT }), sub({ due: WED_NEXT })];
+  const heavy = sub({ due: WED_NEXT, weight: 2 });
   const subs = light.concat([heavy]);             // 5 units competing for a 4-unit day
-  const dates = place(subs, WED);
-  assert.strictEqual(dates[3], MON, 'the 2x item takes the ideal day first');
+  const dates = place(subs, MON);
+  assert.strictEqual(dates[3], MON, 'the 2x item takes the earliest day first');
   assert.strictEqual(dates.filter(day => day === MON).length, 3,
     'the 2x item plus two 1x items exactly fill the 4-unit day');
-  assert.strictEqual(dates.filter(day => day === FRI).length, 1, 'the fifth unit moves back a day');
+  assert.strictEqual(dates.filter(day => day === TUE).length, 1, 'the fifth unit moves on a day');
   assert.strictEqual(maxOverBy(subs), 0, 'first-fit-decreasing leaves nothing over capacity');
 });
 
 // ── 5. Scope: per editor, per team, and independent of the filters ──────
 check('one editor filling a day never moves another editor off it', () => {
   reset();
-  const busy = Array.from({ length: 4 }, () => sub({ assignee: 'editor-a', due: '2026-08-11' }));
-  const other = sub({ assignee: 'editor-b', due: '2026-08-11' });
+  const busy = Array.from({ length: 4 }, () => sub({ assignee: 'editor-a', due: WED_NEXT }));
+  const other = sub({ assignee: 'editor-b', due: WED_NEXT });
   const subs = busy.concat([other]);
-  const dates = place(subs, WED);
-  assert.strictEqual(dates[4], MON, 'the second editor keeps the ideal day');
+  const dates = place(subs, MON);
+  assert.strictEqual(dates[4], MON, 'the second editor keeps the earliest day');
 });
 
 check('graphics uses its own 15-item capacity and ignores video workload labels', () => {
   reset();
   const rows = Array.from({ length: 16 }, () => sub({
-    assignee: 'designer', teamKey: 'GRA', teamName: 'Graphics', due: '2026-08-11', weight: 3,
+    assignee: 'designer', teamKey: 'GRA', teamName: 'Graphics', due: WED_NEXT, weight: 3,
   }));
   assert.strictEqual(context.wlEditorCapacity('GRA', 'Graphics'), 15, 'graphics capacity is 15');
   assert.strictEqual(context.wlWorkloadWeight(rows[0]), 1,
     'a workload label on a graphics item still counts as one');
-  const dates = place(rows, '2026-08-03');
+  const dates = place(rows, MON);
   const byDay = dates.reduce((acc, day) => (acc[day] = (acc[day] || 0) + 1, acc), {});
-  assert.deepStrictEqual(byDay, { [MON]: 15, [FRI]: 1 }, 'the 16th item spills to Friday');
+  assert.deepStrictEqual(byDay, { [MON]: 15, [TUE]: 1 }, 'the 16th item spills to Tuesday');
 });
 
 check('placement is deterministic regardless of snapshot order', () => {
@@ -301,46 +314,46 @@ check('placement is deterministic regardless of snapshot order', () => {
 // ── 6. What the board and the labels report ─────────────────────────────
 check('only genuinely moved items report the "shifted" placement mode', () => {
   reset();
-  const pinned = sub({ plan: MON, due: '2026-08-14' });
-  const stayed = sub({ due: '2026-08-11' });
-  const bumped = Array.from({ length: 4 }, () => sub({ due: '2026-08-11' }));
-  const subs = [pinned, stayed].concat(bumped);
-  place(subs, WED);
+  const pinned = sub({ plan: MON, due: '2026-08-14' });          // 1 unit of today
+  const stayed = sub({ due: '2026-08-11' });                     // ideal IS today
+  const later = Array.from({ length: 4 }, () => sub({ due: WED_NEXT })); // ideal TUE
+  const subs = [pinned, stayed].concat(later);
+  place(subs, MON);
 
   assert.strictEqual(context.wlPlacementMode(pinned), 'manual', 'a pin stays "manual"');
   const modes = subs.slice(1).map(row => context.wlPlacementMode(row));
   assert.strictEqual(modes.filter(mode => mode === 'auto').length, 3,
-    'the three that kept their ideal day stay plain "auto"');
+    'the three that landed on their ideal day stay plain "auto"');
   assert.strictEqual(modes.filter(mode => mode === 'shifted').length, 2,
-    'exactly the two that moved report "shifted"');
+    'exactly the two that were pulled earlier report "shifted"');
   for (const row of subs.slice(1)) {
     const mode = context.wlPlacementMode(row);
-    const moved = context.wlDisplayDate(row) !== context.wlAutoPlanDate(row, WED);
+    const moved = context.wlDisplayDate(row) !== context.wlAutoPlanDate(row, MON);
     assert.strictEqual(mode === 'shifted', moved, 'the mode matches whether the day actually changed');
   }
 });
 
 check('the calendar buckets the moved item on its new day, not its ideal day', () => {
   reset();
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
-  const bumped = sub({ due: '2026-08-11' });
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: TUE, due: '2026-08-14' }));
+  const bumped = sub({ due: WED_NEXT });          // ideal TUE, but today is free
   const subs = pinned.concat([bumped]);
-  place(subs, WED);
+  place(subs, MON);
   const buckets = context.wlBucketByDisplayDate(subs);
   // Arrays built inside the VM realm are not deepStrictEqual to host arrays,
   // so compare the ids as a plain string.
   const idsOn = day => (buckets.get(day) || []).map(row => row.id).join(',');
-  assert.strictEqual((buckets.get(MON) || []).length, 4, 'Monday holds only the four pins');
-  assert.strictEqual(idsOn(MON), pinned.map(row => row.id).join(','), 'Monday holds exactly the pins');
-  assert.strictEqual(idsOn(FRI), bumped.id, 'Friday holds the moved card');
+  assert.strictEqual((buckets.get(TUE) || []).length, 4, 'Tuesday holds only the four pins');
+  assert.strictEqual(idsOn(TUE), pinned.map(row => row.id).join(','), 'Tuesday holds exactly the pins');
+  assert.strictEqual(idsOn(MON), bumped.id, 'Monday holds the card pulled earlier');
 });
 
 check('a moved card is never placed later than its own ideal day', () => {
   reset();
-  const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-11' }));
-  place(rows, '2026-08-01');
+  const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-13' }));
+  place(rows, '2026-08-03');
   for (const row of rows) {
-    assert.ok(context.wlDisplayDate(row) <= context.wlAutoPlanDate(row, '2026-08-01'),
+    assert.ok(context.wlDisplayDate(row) <= context.wlAutoPlanDate(row, '2026-08-03'),
       'no card was pushed later than its ideal (deadline − 1 working day, floored to today) placement');
   }
 });
@@ -359,10 +372,10 @@ check('a deadline of today plans ON the due date — the floor outranks the buff
 // ── 7b. A stored move must honour the same today floor as wlAutoPlanDate ──
 check('a capacity move that has gone stale overnight is ignored, not rendered in the past', () => {
   reset();
-  // Friday: Monday is full of pins, so the automatic card walks back to today.
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
-  const bumped = sub({ due: '2026-08-11' });
-  place(pinned.concat([bumped]), FRI);
+  // Friday: the card's ideal day is next Tuesday, but Friday has room, so the
+  // earliest-fit walk stops on today.
+  const bumped = sub({ due: WED_NEXT });
+  place([bumped], FRI);
   assert.strictEqual(context.wlDisplayDate(bumped), FRI, 'on Friday it renders on Friday');
   assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and reports the move');
   assert.ok(context.wlShiftedPlacementTip(bumped).length > 0, 'with an explanation');
@@ -372,7 +385,7 @@ check('a capacity move that has gone stale overnight is ignored, not rendered in
   TODAY = MON;
   assert.strictEqual(context.wlAutoPlacementDate(bumped), '',
     'the stale entry is dropped at read time');
-  assert.strictEqual(context.wlDisplayDate(bumped), MON,
+  assert.strictEqual(context.wlDisplayDate(bumped), TUE,
     'the card falls back to its re-floored ideal day instead of a past Friday');
   assert.strictEqual(context.wlPlacementMode(bumped), 'auto',
     'and stops claiming it was moved');
@@ -382,8 +395,8 @@ check('a capacity move that has gone stale overnight is ignored, not rendered in
 
 check('an automatic card can never render before today, whatever the map holds', () => {
   reset();
-  const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-11' }));
-  place(rows, '2026-08-03');            // spreads back across the previous week
+  const rows = Array.from({ length: 12 }, () => sub({ due: '2026-08-13' }));
+  place(rows, '2026-08-03');            // spreads forward across that week
   assert.ok(wlState.autoPlacementByIssueId.size > 0, 'the fixture really does move cards');
   for (const laterToday of [FRI, MON, '2026-08-11', '2026-09-01']) {
     TODAY = laterToday;
@@ -396,12 +409,12 @@ check('an automatic card can never render before today, whatever the map holds',
 
 check('a move that is still in the future survives the same read-time floor', () => {
   reset();
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
-  const bumped = sub({ due: '2026-08-11' });
-  place(pinned.concat([bumped]), WED);   // placed on FRI, two days out
-  for (const stillEarlier of [WED, THU, FRI]) {
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: WED, due: '2026-08-14' }));
+  const bumped = sub({ due: WED_NEXT }); // today is full, so it lands on THU
+  place(pinned.concat([bumped]), WED);
+  for (const stillEarlier of [WED, THU]) {
     TODAY = stillEarlier;                // the floor is inclusive of today
-    assert.strictEqual(context.wlDisplayDate(bumped), FRI,
+    assert.strictEqual(context.wlDisplayDate(bumped), THU,
       `the move is kept while today is ${stillEarlier}`);
     assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and still reads as shifted');
   }
@@ -426,6 +439,7 @@ check('placement is withheld until the authoritative plan snapshot proves what i
   reset();
   wlState.planHasSnapshot = false;
   wlState.planLoading = true;
+  TODAY = MON;
   const rows = Array.from({ length: 6 }, () => sub({ due: '2026-08-11' }));
   wlState.autoPlacementByIssueId = new Map();
   assert.deepStrictEqual(rows.map(row => context.wlDisplayDate(row)), Array(6).fill(MON),
@@ -434,10 +448,10 @@ check('placement is withheld until the authoritative plan snapshot proves what i
 
 check('a capacity move is derived only — it never becomes a saved plan_date', () => {
   reset();
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
-  const bumped = sub({ due: '2026-08-11' });
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: WED, due: '2026-08-14' }));
+  const bumped = sub({ due: WED_NEXT });
   place(pinned.concat([bumped]), WED);
-  assert.strictEqual(context.wlDisplayDate(bumped), FRI, 'the card renders on the earlier day');
+  assert.strictEqual(context.wlDisplayDate(bumped), THU, 'the card renders on the next free day');
   assert.strictEqual(context.wlPlanDate(bumped), '', 'but no plan_date was invented for it');
   assert.strictEqual(wlState.planByIssueId.size, 4, 'the sidecar still holds only the four real pins');
 });
@@ -450,10 +464,10 @@ check('the sensitive-state purge drops the derived moves with the pins', () => {
     'it is cleared alongside the plan map it is derived from');
 });
 
-check('the backward walk is bounded so a bad date can never hang the render', () => {
+check('the forward walk is bounded so a bad date can never hang the render', () => {
   const compute = extract('wlComputeAutoPlacements');
-  assert.ok(/guard < WL_PLACEMENT_WALK_LIMIT && day >= today/.test(compute),
-    'the loop is bounded by both the walk limit and the today floor');
+  assert.ok(/guard < WL_PLACEMENT_WALK_LIMIT && day <= entry\.ideal/.test(compute),
+    'the loop is bounded by both the walk limit and the ideal-day ceiling');
   assert.ok(walkLimit >= 250, 'the limit still covers about a working year');
 });
 
@@ -475,26 +489,26 @@ for (const name of ['wlPlacementLabel', 'wlPlanOriginHtml',
 
 check('a moved card renders the shifted icon and names the day it came from', () => {
   reset();
-  const pinned = Array.from({ length: 4 }, () => sub({ plan: MON, due: '2026-08-14' }));
-  const bumped = sub({ due: '2026-08-11', identifier: 'VID-9001' });
+  const pinned = Array.from({ length: 4 }, () => sub({ plan: WED, due: '2026-08-14' }));
+  const bumped = sub({ due: WED_NEXT, identifier: 'VID-9001' });
   place(pinned.concat([bumped]), WED);
 
-  const html = context.wlRenderPlanIssueCards([bumped], FRI);
+  const html = context.wlRenderPlanIssueCards([bumped], THU);
   assert.ok(html.includes('wl-plan-origin is-shifted'), 'the card carries the shifted origin icon');
   assert.ok(/aria-label="Moved earlier for capacity"/.test(html), 'and an accessible label saying so');
-  assert.ok(html.includes('7 Aug'), 'the tooltip names where it landed');
-  assert.ok(html.includes('10 Aug'), 'the tooltip names the full day it came from');
+  assert.ok(html.includes('6 Aug'), 'the tooltip names where it landed');
+  assert.ok(html.includes('11 Aug'), 'the tooltip names the latest day it could have sat on');
   assert.ok(/4-unit daily capacity/.test(html), 'and why it could not stay there');
 
-  const stayed = context.wlRenderPlanIssueCards([pinned[0]], MON);
+  const stayed = context.wlRenderPlanIssueCards([pinned[0]], WED);
   assert.ok(stayed.includes('wl-plan-origin is-manual'), 'a pin still renders as manual');
   assert.ok(!stayed.includes('is-shifted'), 'and never picks up the shifted icon');
 });
 
 check('an unmoved automatic card keeps the plain automatic tooltip', () => {
   reset();
-  const auto = sub({ due: '2026-08-11' });
-  place([auto], WED);
+  const auto = sub({ due: '2026-08-11' });        // ideal day IS today
+  place([auto], MON);
   const html = context.wlRenderPlanIssueCards([auto], MON);
   assert.ok(html.includes('wl-plan-origin is-auto'), 'it stays a plain automatic card');
   assert.ok(/follows the authoritative due date/.test(html), 'with the unchanged automatic tooltip');

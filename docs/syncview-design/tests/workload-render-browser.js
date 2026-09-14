@@ -274,8 +274,27 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       issues: [parentRow({}), sub('k1', { due_date: WED })],
       plans: [{ issue_id: 'k1', plan_date: FRI }],
       planListStatus: status,
+      holdMetadata: true,
     });
     try {
+      /* The refusal is knowable the moment the plan read settles, so the fast
+         paint must stand down rather than draw an estimated schedule — and on
+         a warm refresh the private pins still in memory — for as long as the
+         metadata sweep takes to return and trigger the purge. */
+      await h.page.waitForFunction(
+        () => Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length > 0,
+        null, { timeout: 15000 },
+      ).catch(() => {});
+      const held = await h.page.evaluate(() => {
+        const body = document.getElementById('wlBody');
+        return {
+          skeleton: !!(body && body.querySelector('.workload-skeleton-grid')),
+          cards: body ? body.querySelectorAll('[data-wl-issue-id]').length : 0,
+        };
+      });
+      expect(held.cards === 0 && held.skeleton,
+        `a ${status} plan read must not be fast-painted over while the metadata sweep is still open`);
+      h.state.releaseMetadata();
       await waitForPlanSettled(h.page);
       const board = await readBoard(h.page);
       expect(board.cards.every(c => c.mode !== 'manual'), `no pin may be shown after a ${status} plan read`);

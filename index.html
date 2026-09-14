@@ -378,13 +378,14 @@
             --sv-slot-thumb-fg-soft: #5b5be8;
             --sv-slot-thumb-border: #ccceff;
             /* Measured against the pill background, not eyeballed: the label is
-               0.72rem body text, so it needs 4.5:1. #e01a7c reached only
-               3.72:1 on #ffe0ef (the previous pair managed 4.73:1) -- the
-               vibrancy came straight out of the contrast budget. #b21060 is
-               5.47:1 on the pill and 4.69:1 on the HOVER background, which is
-               the darker of the two and the one a label-only check misses. It
-               still reads as the same hot pink. The -soft tone carries
-               icon-only buttons, which need 3:1, on both backgrounds. */
+               0.72rem body text, so it needs 4.5:1. The first vivid pink tried
+               here reached only 3.72:1 (the pre-2026-09-14 pair managed
+               4.73:1) -- the vibrancy came straight out of the contrast
+               budget. The value below is 5.47:1 on the pill and 4.69:1 on the
+               HOVER background, which is the darker of the two and the one a
+               label-only check misses, and still reads as the same hot pink.
+               The -soft tone carries icon-only buttons, which need 3:1, on
+               both backgrounds. */
             --sv-slot-video-fg: #b21060;
             --sv-slot-video-bg: #ffe0ef;
             --sv-slot-video-bg-hover: #ffc9e2;

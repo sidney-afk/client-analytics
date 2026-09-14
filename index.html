@@ -18616,7 +18616,29 @@
         if (!bodyEl) return;
 
         const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
-        if (wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') {
+        /*
+         * THE FAST FIRST PAINT MUST REACH THE SCREEN.
+         *
+         * wlLoadSnapshot fast-paints as soon as issues and the plan list are
+         * back — planLoading=true, wlApplyData, renderWorkloadAll — precisely
+         * so the calendar is on screen BEFORE the live-Linear weight sweep,
+         * which is the slow part of a cold load. planStatus only becomes
+         * 'ready' when wlAdoptPlanRows runs AFTER that sweep, so this gate,
+         * which keyed on planStatus alone, painted the skeleton over the fast
+         * paint for its entire window and no user ever saw it: the cold load
+         * still blocked on the sweep it was built to skip, and the
+         * "Planning…" placement label was unreachable in the UI. The Workload
+         * browser harness measured it (2026-09-14): planLoading true, cards
+         * computed, #wlBody the skeleton with zero cards.
+         *
+         * So the skeleton yields once the fast paint has data. Everything the
+         * gate protected still holds: the cards carry the 'loading' mode and
+         * its Planning… label, wlPlanEditingEnabled() is false until the
+         * snapshot is authoritative, and a foreground load with nothing to
+         * show yet still gets the skeleton.
+         */
+        const fastPaintOnScreen = wlState.planLoading && hasAnyData;
+        if ((wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') && !fastPaintOnScreen) {
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }

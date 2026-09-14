@@ -450,7 +450,12 @@ ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
   && !/Promise\.all|_wlPlanWriteRequest|action:\s*['"]batch['"]/.test(clientGroupMove)
-  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} put back/.test(clientGroupMove),
+  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} not saved/.test(clientGroupMove)
+  /* The body is status-aware since 2026-09-14: after an auth refusal the pins
+     are purged, so the cards do NOT keep their previous work day and the
+     summary must not say they did. */
+  && /pinsPurged[\s\S]*?Saved work days are hidden until you sign in again/.test(clientGroupMove)
+  && /Each failed item kept its previous work day/.test(clientGroupMove),
 'collapsed group drag stays Admin/SMM-gated, tweak-exclusive, sequential, and aggregate-notified through the one-row writer');
 ok(/rollupEl\.setAttribute\('aria-expanded', 'true'\)/.test(INDEX)
   && /anchor\.setAttribute\('aria-expanded', 'false'\)/.test(INDEX)

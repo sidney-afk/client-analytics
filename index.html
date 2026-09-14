@@ -17967,9 +17967,17 @@
             renderWorkloadAll();
         }
         if (moved !== moves.length && typeof showNotify === 'function') {
+            /* "Kept its previous work day" is only true while this browser
+               still holds the saved plans. An auth refusal purges every pin,
+               so those cards fall to their deadline placement instead — the
+               Workload harness measured the summary claiming otherwise. Say
+               which of the two actually happened. */
+            const pinsPurged = !wlState.planHasSnapshot || !wlPlanEditingEnabled();
             showNotify(
-                `Moved ${moved} of ${moves.length} — ${moves.length - moved} put back`,
-                'Each failed item kept its previous work day.'
+                `Moved ${moved} of ${moves.length} — ${moves.length - moved} not saved`,
+                pinsPurged
+                    ? 'Staff sign-in expired. Saved work days are hidden until you sign in again.'
+                    : 'Each failed item kept its previous work day.'
             );
         }
         return moved === moves.length;

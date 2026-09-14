@@ -7026,3 +7026,48 @@ truthful, not when coverage began; whether the original claim was ever true is
 open. Nothing is broken and the ledger is MORE complete than the doc claimed.
 Mechanism and caveat both recorded in the truth doc.
 
+
+## 2026-09-14 — slot colours, auto-assign opt-out, earliest-fit Workload planning
+
+**Calendar slot colours paired.** The Thumbnail and Video fields and the two
+Production buttons beside the thumbnail were coloured independently: blue/pink
+for the fields, teal/magenta for the buttons, so the button that opens the
+thumbnail's sub-issue read as unrelated to the thumbnail field above it. Each
+slot now carries one vibrant accent through both surfaces (blue thumbnail, pink
+video) via new `--sv-slot-*` tokens with dark-mode values, rather than reusing
+the shared `--sv-bg-*`/`--sv-fg-*` tokens that other surfaces also read.
+
+**Automatic video-editor assignment can be opted out of, per roster row.** An
+outsourced editor should not receive work nobody deliberately gave them. The
+flag is DATA, not code: `team_members.auto_assign_opt_out` (additive migration,
+defaults false), so adding or removing a person never needs a deploy — and the
+public repo never learns who it is. `autoAssigneeForIntake` drops flagged rows
+from the automatic video pool only; `assertEligibleAssignee` does not read the
+flag, so an explicit pick still works. A roster where every eligible editor is
+flagged falls back to the full pool rather than turning every submission into a
+409. First draft also ranked flagged editors last in the Create Post picker, on
+the reasoning that the dialog's suggestion must match the gateway's silent pick;
+the owner rejected it — the picker is a deliberate human choice and belongs to
+nobody's automation — and that half was reverted. `PRODUCTION_WRITE_SOURCE_SHA256`
+re-pinned with `ef-fingerprint`; the migration must be applied BEFORE the deploy
+or the select names a column that does not exist.
+
+**Workload automatic planning is earliest-fit, not latest-fit.** The 2026-08-10
+pass placed each automatic card one working day before its deadline and only
+ever moved work EARLIER to relieve a day already OVER capacity. Four videos due
+Friday therefore stacked on Thursday — exactly at the 4-unit cap, so the pass
+considered it fine — while Wednesday sat nearly empty. Owner ruling: automatic
+planning should always be as soon as possible, with capacity as the only brake.
+The walk now starts at today and steps FORWARD to the first day with room,
+stopping at the ideal day so nothing is ever planned late. Pins stay absolute,
+weights and per-team capacity are unchanged, and a saturated window still lands
+on the ideal day with the honest over-capacity badge.
+
+The owner asked what happens at the tight end, which is where a "plan it
+earlier" rule could plausibly lose work. Verified against the extracted
+functions rather than reasoned about: due tomorrow, due today and already
+overdue all land on TODAY (the ideal day is floored to today, so the window
+shrinks to one day and the card sits in it), and six cards due today against a
+4-unit cap all stay on today and turn the day red. Nothing is dropped, hidden or
+pushed past a deadline. The capacity-placement suite was converted check by
+check to the new rule rather than relaxed: 27/27.

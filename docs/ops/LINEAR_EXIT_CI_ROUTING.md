@@ -1,0 +1,13 @@
+# Linear exit CI routing
+
+The existing Calendar unit job still uses its disposable PostgreSQL 16 service; existing F27/F42 workflows are unchanged. Every original main-branch unit test remains classified in the unit lane. The explicit registry additionally includes the new offline preparation tests, including the eight Node `.mjs` suites.
+
+`test/suite-classification.json` assigns every top-level `.js`/`.mjs` test exactly once. `test/run-all.js` runs only the registered unit class. Every separately required PostgreSQL/browser/private-input profile prints `NOT_RUN_BY_UNIT_LANE` with its prerequisites and reproduction command. These tests are not counted as passing and remain required for their release scope. An added, missing, duplicate or unclassified test fails routing before child tests run. Update the registry explicitly when adding tests; never infer exclusions from filename substrings at runtime.
+
+The new `Linear exit isolated preparation` PR workflow runs two representative PG17 profiles: atomic admission and retirement switch. Each matrix job has its own disposable PostgreSQL service. Repository permissions are read-only; checkout credentials are not persisted; no production secrets, deployment commands, manual dispatch or privileged pull-request trigger are configured. The profile dispatcher requires loopback routing, PG17, explicit disposable proof mode and a completion marker. Private-catalog and other expensive release profiles remain listed with their portable reproduction commands; two representative jobs do not claim full installation acceptance.
+
+Local routing evidence: 16 checks pass, including missing/duplicate classification refusal, hosted/routing override refusal and a real unit-orchestrator dispatch test with child execution replaced. That dispatch control proves every registered unit test is selected and every deferred profile is explicitly reported; it is not a run of those child suites. YAML parsing passes. Actual GitHub job results remain to be observed after publishing the conflict-resolved review branch.
+
+A merge-conflicted pull request does not trigger ordinary GitHub pull-request workflows. Resolve the branch conflict and publish normally; do not use `pull_request_target` to bypass that boundary. Draft status is not excluded by these workflows.
+
+Current registry: 538 unit suites and 60 explicitly deferred required profiles. The WR-101 Chromium helper test is classified `isolated_browser`; it requires installed Playwright/Chromium and does not belong in dependency-free unit CI. A separate local run reused existing dependencies and passed with 20 synthetic reports, zero retries, preserved drafts and zero external escapes. It does not prove the full application journey.

@@ -1,0 +1,3 @@
+# Exact captured source bytes, independent of checkout newline conversion.
+functions/calendar-upsert/index.ts -text
+functions/_shared/thumbnail-revisions.ts -text

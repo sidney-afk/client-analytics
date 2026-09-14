@@ -69,7 +69,7 @@ function extractFunction(name) {
 
 const sandbox = { Map, Set, String, Array, Object, JSON, Boolean, RegExp };
 vm.createContext(sandbox);
-for (const name of ['_prodHasOwn', '_prodLinearRaw', '_prodConfiguredProjectIds', '_prodRawProjectId', '_prodRawAttribution', '_prodResolveAttributions']) {
+for (const name of ['_prodHasOwn', '_prodLinearRaw', '_prodConfiguredProjectIds', '_prodNativeProjectIdForTeam', '_prodLinearProjectIdsForTeam', '_prodRawProjectId', '_prodRawAttribution', '_prodResolveAttributions']) {
   vm.runInContext(extractFunction(name), sandbox);
 }
 vm.runInContext('this.resolve = _prodResolveAttributions;', sandbox);

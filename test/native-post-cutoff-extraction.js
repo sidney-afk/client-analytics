@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('fs'),assert=require('assert/strict'),crypto=require('crypto');
+const sha=x=>crypto.createHash('sha256').update(x).digest('hex');
+const helper=fs.readFileSync(require.resolve('./helpers/native-post-cutoff-assertions'),'utf8');
+const body=helper.split('// BEGIN ORIGINAL POST-CUTOFF ASSERTIONS\n')[1].split('// END ORIGINAL POST-CUTOFF ASSERTIONS')[0];
+assert.equal(sha(body),'f98ce850e605929c4fb8efa7a0878e997923dd21bcc815b3a0330eb4fadaf41f','original assertions changed');
+const current=fs.readFileSync(require.resolve('./native-ordinary-receipts-postgres'),'utf8'),call="    await require('./helpers/native-post-cutoff-assertions')({cluster,env,highWater,deliverableWrite,event,assertReceipt,ok,scalar,count,setCapability,rejection,json,psqlAsync});\n\n";
+assert.equal(current.split(call).length,2);
+assert.equal(sha(current.replace(call,()=>body)),'5ec8c204df34ace0cba0fb0519e4162b0c6eb53923a6e9b55d26a77d7bf73aab','default original source must reconstruct exactly');
+console.log('NATIVE_POST_CUTOFF_EXTRACTION_OK 2; source equivalence only');

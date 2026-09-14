@@ -1,0 +1,11 @@
+﻿'use strict';
+const assert=require('assert/strict'),api=require('../scripts/linear-exit-observed-routines');
+const {contract}=api.load(),f=contract.functions[0];
+for(const acl of [null,'{}','{anon=X/unknown}','{unknown=X/postgres}','{anon=X*/postgres}','{anon=X/postgres,anon=X/postgres}','{anon=arwdDxt/postgres}'])assert.throws(()=>api.aclSql({...f,acl}));
+assert.throws(()=>api.aclSql({...f,owner:'unknown'}));assert.throws(()=>api.aclSql({...f,arguments:'text); select 1;--'}));
+const ordered=api.aclSql({...f,acl:'{postgres=X/postgres,service_role=X/postgres,anon=X/postgres,authenticated=X/postgres}'});
+assert(ordered.indexOf('TO service_role;')<ordered.indexOf('TO anon;'));
+assert.throws(()=>api.parseContract(Buffer.from(JSON.stringify(contract))),'contract formatting drift refuses');
+const tampered={...contract,sql_sha256:'0'.repeat(64)};assert.throws(()=>api.parseContract(Buffer.from(JSON.stringify(tampered))));
+let queried=0;assert.throws(()=>api.applyAndCompare({host:'remote.invalid',scalarJson(){queried++;throw Error('queried');},exec(){queried++;}}),/isolated loopback required/);assert.equal(queried,0);
+console.log('LINEAR_EXIT_OBSERVED_ROUTINES_OFFLINE_OK');

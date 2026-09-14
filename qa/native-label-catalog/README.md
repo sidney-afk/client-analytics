@@ -1,0 +1,18 @@
+# Native label proof
+
+2026-09-06 combined UI test correction from PR1326 `dd831df58adba6b7398e17ce49f3a7a6e1665e7b`:
+`node test/production-write-ui-source.js` now has 72 passing source/VM checks,
+including four actual label-writer plus gateway-constructor cases for native and
+provider selections/clears. They assert the complete IDs, native-only catalog
+version, target, CAS, one intent and one authenticated request. The old assertion
+incorrectly required a labels-only literal. In-memory mutations dropping clear
+actions or changing the version fail the corrected suite. No runtime, SQL or
+deployment behavior changes; this proof substitutes transport and identity.
+
+Contract: [native catalog and writes](../../docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). Base8514; original cloud892894 remains preserved.
+
+- node test/native-label-catalog-foundation.js runs44 actual-handler/model controls. All HTTP fetches are substituted/refused. Optional NATIVE_LABEL_HANDLER_REPORT must point to a private receipt. Node22.12 emits expected experimental-TypeScript/module warnings. This is not SQL/SDK/serving proof.
+- node --experimental-strip-types qa/native-label-catalog/write-proof.mjs runs40 actual-handler/disposable-PostgreSQL groups. Set NATIVE_LABEL_WRITE_CONFIRM=LOCAL_DISPOSABLE_ONLY and NATIVE_LABEL_WRITE_CONFIG to a private JSON containing literal host127.0.0.1, numeric owned port1024..65535, userpostgres, password, absolute psql path and private absolute output directory outside the checkout. Use only YOUR disposable cluster. It creates a unique DB, loads the actual combined migration fixture and two label migrations, uses a distinct service-role SCRAM credential, and retains DBs/failures. It never starts/stops servers or cleans data. Inherited PG environment is cleared, targets/authentication and statement bounds are explicit. Local Git objects8514 and892894 are prerequisites; no fetch is performed.
+- qa/native-label-catalog/sql-proof.js is the historical48-check standalone foundation lane, not new-write or current-head evidence. Its original receipt/source hashes remain in the Sept5 audit. Set NATIVE_LABEL_SQL_CONFIRM=LOCAL_DISPOSABLE_ONLY with a private NATIVE_LABEL_PG_CONFIG (host127.0.0.1, owned port, new database native_labels_<unique>, userpostgres/password, absolute psql/createdb paths). Inherited PG variables are cleared and authentication is noninteractive. It creates its own roles and requires a separate fresh cluster. No current rerun is claimed.
+
+The actual40 groups use fictional operator attestations; they do not authenticate a real complete export. Preserved setup-only failures were missing fixture batch, timestamp presentation mismatch and an incoming FK refusing before the intended TRUNCATE guard. The corrected final TRUNCATE test names the existing dependent rollback-intent table with RESTRICT and observes native retention. Production constraints were not weakened. Selected37 remains unchanged. Dedicated actual SQL CI is not added in this slice; normal unit checks run the offline lane only. No live/TEST/n8n/export/deploy/activation/restore proof is claimed.

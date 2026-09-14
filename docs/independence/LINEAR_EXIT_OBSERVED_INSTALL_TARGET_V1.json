@@ -1,0 +1,55 @@
+{
+  "format": "linear-exit-observed-install-target-v1",
+  "classification": "ISOLATED_PG17_PUBLIC_SCHEMA_TARGET",
+  "receipt": "ebd8adf3fc6d4a5cbb68f615d054be50",
+  "initial_public_catalog_sha256": "809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd",
+  "plan_sha256": "f0540602c9e36af93eb17b2614eb3117b963bcf169454ad1885088a1a3c48160",
+  "tested_derived_plan_sha256": "ec37e46b8593da10381bec60bfd428d839e66d7411ea9fa52b01d89ac748fd4e",
+  "final_public_catalog_sha256": "43a623f388e57db6219415dbe968237791354f3a0dd433596a118f46ebb1a612",
+  "source_pins": [
+    {
+      "file": "scripts/linear-exit-observed-install-plan.js",
+      "sha256": "14a27d95350119f1e4d94f27dea30ec8e7252f255f99064f7b7cc47f0850f2b2"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    }
+  ],
+  "source_count": 35,
+  "verified_journal_chunks": 42,
+  "public_tables": 90,
+  "matched_admission_function_contracts": 22,
+  "ordinary_second_connection_statement_refused": true,
+  "maintenance_guards_removed": 90,
+  "full_admission_table_trigger_preflight_proven": false,
+  "business_rows_restored": false,
+  "external_platform_equivalence": false,
+  "external_workers_fenced": false,
+  "provider_send_release_included": false,
+  "installation_authorized": false
+}

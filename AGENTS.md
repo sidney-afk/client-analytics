@@ -1,5 +1,14 @@
 # Agent Guide
 
+> **Scoped owner exception, 2026-09-12, preparation only:** the owner approved
+> preparing narrow atomic-persistence changes inside Calendar/Samples, preserving
+> existing URLs, payload compatibility, review links and tokenless access. Keep
+> the original serving captures and repository 401 controls as immutable evidence.
+> This permits no new authentication gate, merge, deployment, installation,
+> production write or n8n execution. The owner also approved retaining verified
+> native completion receipts while requiring zero work destined for Linear;
+> see `docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md` and canonical B5.
+
 > ## ⛔ FROZEN — client write gate (owner directive, 2026-07-15). READ BEFORE TOUCHING WRITERS.
 > The Edge Functions **`calendar-upsert`** and **`sample-review-upsert`** are **INTENTIONALLY
 > UN-GATED** (open / tokenless) right now, by explicit owner decision, so that clients' existing

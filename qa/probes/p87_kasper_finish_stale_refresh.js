@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p87 — Kasper "Finish reviewing" survives a STALE auto-refresh (browser-driven).
 //
 // Drives the REAL app in headless Chromium (the real _kasperDismiss /
@@ -26,7 +27,6 @@
 //                    stamp (a genuine SMM hand-back) → card MUST return to
 //                    "Waiting". Proves the fix didn't just disable the feature.
 const Q = require('./lib.js');
-const { seedStaffGate } = require('../staff-gate-seed.js');
 const { clientEntrySafeChildEnv } = require('../test-client-entry.js');
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 
@@ -100,7 +100,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
     env: clientEntrySafeChildEnv(),
   });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await seedStaffGate(ctx);
   // Scripted backend: SMM sheet (empty), upsert (echo, no live write), calendar read (our rows).
   await ctx.route('**docs.google.com/spreadsheets/**', route =>

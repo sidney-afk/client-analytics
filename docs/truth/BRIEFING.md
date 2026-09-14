@@ -125,8 +125,15 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
     `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14;
     membership tracks the `*_ef_clients` rosters by equality (41 at the video flip; the count
     moves with onboarding).
-    Its fail direction is unchanged: a missing/unreadable read still fails to the LEGACY lane,
-    the OPPOSITE direction from the Track-A allowlists.
+    **Its fail direction CHANGED on 2026-09-07** (owner decision, LX-C / OPEN_REPAIRS 175), and
+    this bullet said the opposite until 2026-09-08: for ROUTING a live write, a read that failed
+    — or that succeeded and returned no USABLE roster (absent key, empty list, or members that are
+    not strings, so no member normalises to a slug) — now routes NATIVE, not legacy.
+    `_writeUiRerouteUseGatewayFailClosed` is the predicate. The reason is the calendar: after
+    2026-09-15 the legacy lane is a dead URL that accepts a write and drops it, while the native
+    lane can refuse out loud. The allowlist itself still answers FACTUALLY for the outbox drain,
+    which is why the two are tracked separately. This makes it the SAME direction as the Track-A
+    allowlists, not the opposite one.
   - `auth_enforcement` = `{"mode":"permissive"}` — unchanged.
   - `linear_inbound_enabled`, `linear_legacy_parity_enabled`,
     `client_comment_gateway_enabled` — all `{"enabled":true}`.

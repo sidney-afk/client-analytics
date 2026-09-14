@@ -177,7 +177,8 @@ const rows = [
      they are on. PARENT_AWARE excludes batch-parent rows; EXEMPT does not,
      with the reason it does not need to. */
   const PARENT_AWARE = {
-    _calNativeVideoEditorPool: [2, 'freest-editor suggestion — the count read plus the parent-uuid read it excludes with'],
+    _calLegacyVideoEditorPool: [2, 'freest-editor suggestion, PROVIDER lane — the count read plus the parent-uuid read it excludes with. Renamed 2026-09-08 when the native lane moved to the gateway; the body is byte-for-byte what _calNativeVideoEditorPool held'],
+    handleIntakeEditorOptions: [2, 'the same suggestion in the NATIVE lane, computed server-side — the open-work read plus the parent-uuid read it excludes with, symmetric with the browser loader above and with autoAssigneeForIntake below'],
     _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
     autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
   };
@@ -230,7 +231,12 @@ const rows = [
      deleted with the paragraph it built, and indexOf returning -1 quietly
      turned this slice into "everything but the last character" -- green, and
      measuring nothing. */
-  const poolSrc = html.slice(html.indexOf('function _calNativeVideoEditorPool('), html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'));
+  /* Re-pointed 2026-09-08 at the PROVIDER loader: `_calNativeVideoEditorPool`
+     is now the gateway-first wrapper in front of it and holds no deliverable
+     read of its own, so slicing from there ran through BOTH functions and blew
+     the bound. The parent exclusion this asserts lives, unchanged, in the
+     loader that still does the PostgREST reads. */
+  const poolSrc = html.slice(html.indexOf('function _calLegacyVideoEditorPool('), html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'));
   ok(poolSrc.length > 0 && poolSrc.length < 8000, 'the editor-pool slice is bounded (harness is not vacuous)');
   ok(/raw_issue_parent_id/.test(poolSrc) && /parentUuids\.has/.test(poolSrc),
     'the editor pool still excludes parent rows');

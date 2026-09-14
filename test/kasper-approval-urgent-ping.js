@@ -79,7 +79,7 @@ const PRED = [
   grabFunc('_kasperCompReviewable'),
   grabFunc('wlNormalizeClient'),
   grabFunc('calClientSlug'),
-  grabFunc('_calRuntimeFlagClients'),
+  grabFunc('_calRuntimeFlagSlug'), grabFunc('_calRuntimeFlagRawMembers'), grabFunc('_calRuntimeFlagClients'),
   grabFunc('_kasperUrgentPingOn'),
   grabFunc('_calShowKasperUrgent'),
   grabFunc('_calKasperUrgentComp'),
@@ -172,7 +172,7 @@ check('the kill-switch OFF hides the affordance entirely',
   OFF._calShowKasperUrgent(card(), 'video') === false);
 // The roster is what lets a rollout start with one client instead of everybody.
 const GATE_PRED = [grabFunc('wlNormalizeClient'), grabFunc('calClientSlug'),
-  grabFunc('_calRuntimeFlagClients'), grabFunc('_kasperUrgentPingOn')].join('\n\n');
+  grabFunc('_calRuntimeFlagSlug'), grabFunc('_calRuntimeFlagRawMembers'), grabFunc('_calRuntimeFlagClients'), grabFunc('_kasperUrgentPingOn')].join('\n\n');
 const gate = (v, who) => new Function('_kasperUrgentFlagValue',
   GATE_PRED + ';return _kasperUrgentPingOn(' + JSON.stringify(who) + ');')(v);
 check('a roster naming this client opens it', gate({ clients: ['testclient'] }, 'testclient') === true);

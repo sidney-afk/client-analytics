@@ -1,0 +1,43 @@
+name: SyncView retirement admission census
+
+# This monitor is deliberately active while the retirement contract is NOT
+# READY FOR ACTIVATION: active is reported as DORMANT. Once the common native
+# receipt contract exists, it stays scheduled after retirement to prove the SQL
+# high-water remains clean. Do not unschedule main work here; schedule/retire
+# pairs belong to the workflow they actually govern.
+on:
+  schedule:
+    - cron: '19,49 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: syncview-retirement-census
+  cancel-in-progress: false
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require census credentials
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY; refusing to report retirement healthy."
+            exit 1
+          fi
+      - name: Check retirement admission boundary
+        run: node scripts/syncview-retirement-census.js
+      - name: Record retirement census heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=syncview_retirement_census --ok=${{ job.status == 'success' }}

@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('assert/strict'),fs=require('fs'),path=require('path');
+const {compose,fromRepository}=require('../scripts/native-intake-named-append-compose'),{splitSqlStatements}=require('../scripts/track-b-recovery-package');
+const root=path.resolve(__dirname,'..'),native=fs.readFileSync(path.join(root,'migrations/2026-09-05-native-only-intake.sql'),'utf8'),hybrid=fs.readFileSync(path.join(root,'migrations/2026-09-07-native-intake-named-append.sql'),'utf8');
+const strip=s=>s.replaceAll('\r\n','\n');
+const original=strip(native).slice(strip(native).indexOf('create or replace function public.production_intake_append('),strip(native).indexOf('-- Compatibility replacement of 2026-08-31-production-component-fill.sql')).trim();
+const replacement=splitSqlStatements(hybrid).find(s=>s.text.startsWith('create or replace function public.production_intake_append(')).text;
+const oldStart=original.indexOf("          or item->>'title' is distinct from ("),oldEnd=original.indexOf('\n        )\n    ) then',oldStart),newStart=replacement.indexOf('          or not (',replacement.indexOf('v_expected_ordinal := ')),newEnd=replacement.indexOf('\n        )\n    ) then',newStart);
+assert.ok(oldStart>0&&oldEnd>oldStart&&newStart>0&&newEnd>newStart);
+let reversed=replacement.slice(0,newStart)+original.slice(oldStart,oldEnd)+replacement.slice(newEnd);
+reversed=reversed.replaceAll('(?: \u2014 .+)?$','$');
+assert.equal(reversed.trim()+';',original);
+const built=fromRepository();assert.equal(built.manifest.outer_transactions,1);assert.equal(built.manifest.executed,false);
+assert.ok(built.sql.includes(native.slice(0,native.lastIndexOf('commit;'))));
+for(const [a,b] of [[native+'\ncommit;',hybrid],[native.replace(/commit;\s*$/,''),hybrid],[native,hybrid+'\nbegin;'],[native,'\\set ON_ERROR_STOP off\n'+hybrid],[native.replace('begin;','begin;\nstart transaction;'),hybrid]])assert.throws(()=>compose(a,b));
+console.log(JSON.stringify({status:'PASS',groups:7,classification:'OFFLINE_EXACT_SQL_COMPOSITION',first_install_execution:'UNPROVEN_existing_fixture_already_has_native_columns'}));

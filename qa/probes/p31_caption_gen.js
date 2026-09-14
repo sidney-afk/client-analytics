@@ -1,3 +1,4 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p31 — caption-generation entry guards + settle (intercepted; no real AI / Frame.io).
 // generate-caption's synchronous fast-path settles from the response, so we drive the whole
 // thing by controlling that response per-card.
@@ -7,7 +8,6 @@
 //   D. card already has a caption → generation skipped (no POST)
 //   E. client surface → generation blocked (no POST)
 const Q = require('./lib.js');
-const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const DBL = 'p_cg_dbl_' + TS, OK = 'p_cg_ok_' + TS, EMP = 'p_cg_emp_' + TS, HAS = 'p_cg_has_' + TS, CLI = 'p_cg_cli_' + TS;
 const FRAME = 'https://frame.io/test/' + TS;
@@ -18,7 +18,7 @@ const seed = (id, caption) => Q.up({ id, name: 'CG ' + id.slice(-6), platforms: 
   const S = Q.makeOk('P31 caption-gen');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await seedStaffGate(ctx);
   // per-pid generate response control
   let genPosts = [];

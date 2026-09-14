@@ -1,0 +1,74 @@
+{
+  "marker": "LINEAR_EXIT_CONTROL_RECOVERY_OK",
+  "table_count": 94,
+  "profile": "core+diagnostics",
+  "source_pins": [
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "b5e1133863fdce726b078cf75599ee71417ed33213dca46c9da81eb9ee8f285e"
+    },
+    {
+      "file": "scripts/linear-exit-control-custody.js",
+      "sha256": "29cf2f1bf9097ea134ec17cc0de46b199aafe8189aea36f7b7ddac7a52cc6492"
+    },
+    {
+      "file": "scripts/track-b-recovery-package.js",
+      "sha256": "e522fa02688f7aa179acc1a47f3a33feb558190b83a1e8716cbfe3c9ed196ffe"
+    },
+    {
+      "file": "scripts/linear-exit-complete-application-data.js",
+      "sha256": "d746a8e30a733f4c68c156fe4b6e401b44b22eff0ee000c0d2ee669a6bad6a57"
+    },
+    {
+      "file": "test/linear-exit-control-recovery-postgres.js",
+      "sha256": "a2849d20657cb0aafd08abbd704d768fddf8ae2344c7895b0e518558c4ed60f5"
+    },
+    {
+      "file": "test/helpers/control-recovery-proof.js",
+      "sha256": "859998daa1a4b3e2402d4b014a5f0f37f1bfa4039898cd2dc3b5d370911ff1c4"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    }
+  ],
+  "default_capture_refused": true,
+  "wrong_database_snapshot_refused": true,
+  "disabled_private_trigger_refused": true,
+  "shared_snapshot_private_rows_proven": true,
+  "late_typed_restore_rollback": true,
+  "all_public_guards_always": true,
+  "authenticated_tamper_refusal": true,
+  "stripped_companion_refused": true,
+  "encrypted_reopen": true,
+  "restored_maintenance_closed": true,
+  "source_journal_identity_retained": true,
+  "installation_authorized": false,
+  "provider_dispatch_proven": false,
+  "evidence_class": "ISOLATED_POSTGRES",
+  "receipt_id": "c4b4eef93262422aa27b4235dbb9d11c",
+  "server_stopped": true,
+  "off_device_custody_proven": false,
+  "full_observed_installation_integration_proven": false,
+  "comment_create_recovery_owners_included": false
+}

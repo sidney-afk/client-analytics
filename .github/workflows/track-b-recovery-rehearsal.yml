@@ -1,0 +1,83 @@
+name: Track-B schema recovery rehearsal (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PREPARED_SCHEMA_RECOVERY after provisioning the two restricted roles and a fresh empty scratch project'
+        required: true
+        type: string
+      corpus:
+        description: 'Authenticated selected-data corpus to capture with the full public schema'
+        required: true
+        type: choice
+        options:
+          - history-v9
+          - history-v10
+          - history-v11
+
+permissions:
+  contents: read
+
+concurrency:
+  group: track-b-schema-recovery-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    if: inputs.confirm == 'PREPARED_SCHEMA_RECOVERY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_RECOVERY_SOURCE_DATABASE_URL }}
+      TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
+      TRACK_B_BACKUP_CORPUS: ${{ inputs.corpus }}
+      TRACK_B_RECOVERY_TARGET_URL: ${{ secrets.TRACK_B_RECOVERY_TARGET_DATABASE_URL }}
+      TRACK_B_RESTORE_EXPECTED_PROJECT_REF: ${{ vars.TRACK_B_RECOVERY_TARGET_PROJECT_REF }}
+      TRACK_B_RECOVERY_CONFIRM: EMPTY_SCRATCH_ONLY
+      TRACK_B_RECOVERY_DIAGNOSTIC_DIR: ${{ runner.temp }}/track-b-recovery-diagnostics
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          pg_dump --version
+          psql --version
+
+      - name: Require provisioned manual-rehearsal inputs
+        shell: bash
+        run: |
+          missing=0
+          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY TRACK_B_RECOVERY_TARGET_URL TRACK_B_RESTORE_EXPECTED_PROJECT_REF; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Capture authenticated full-schema recovery package locally
+        run: node scripts/track-b-recovery-package.js capture --output="$RUNNER_TEMP/syncview-track-b-recovery.recovery"
+
+      - name: Reconstruct only into the pre-provisioned empty scratch target
+        run: node scripts/track-b-recovery-reconstruct.js "$RUNNER_TEMP/syncview-track-b-recovery.recovery"
+
+      - name: Remove runner-local recovery material
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/syncview-track-b-recovery.recovery" "$TRACK_B_RECOVERY_DIAGNOSTIC_DIR"

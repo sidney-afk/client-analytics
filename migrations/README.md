@@ -8,6 +8,17 @@ executes these files (see `README.md` › Repository layout).
 
 ## How to read this folder
 
+- **`2026-09-09-editors-event-assignee.sql`** is source-only until an
+  owner-authorized manual apply. It adds nullable event-time assignee identity
+  to `deliverable_events`, stamped through the native status-write protocol.
+  Existing/imported/source-timed rows remain explicitly
+  `unknown`; an event observed unassigned is `unassigned`. It never backfills
+  from `deliverables.assignee_id`, which is current state, and it does not add
+  roster names, email snapshots, flags, authority changes, or external writes.
+  The stamp guards normal RPC/application callers; a SQL-capable privileged
+  database role remains independently trusted and is not prevented from setting
+  custom session configuration before a direct ledger insert.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.
@@ -687,6 +698,60 @@ executes these files (see `README.md` › Repository layout).
   `create or replace view` cannot re-apply over an earlier branch build — the
   file's header says to drop it first.
 
+- **`2026-09-05-workload-native-membership.sql`** is the second half of the
+  Workload native source and **must be applied AFTER
+  `2026-09-02-workload-native-view.sql`**, which it reads. It is additive: four
+  new functions, `service_role` execute only, revoked from `public`, `anon` and
+  `authenticated`. No table, column, index, policy, row, grant on an existing
+  object or runtime flag moves.
+
+  - `workload_native_snapshot_v1()` serves ONE complete staff snapshot — native
+    rows, the explicitly-legacy rows for any team still on provider authority,
+    and every `workload_plan` row — under a single statement snapshot, so a
+    concurrent commit cannot make one board mix two eras. It fails closed:
+    `workload_authority_unavailable` on an unreadable `prod_authority`,
+    `workload_population_incomplete` on a duplicate or blank id or over 50,000
+    rows.
+  - `workload_native_plan_target_v1(text)` resolves a native `del_…` OR a
+    retained Linear uuid to the one owning row, and raises
+    `workload_plan_alias_ambiguous` rather than guessing.
+  - `workload_native_plan_set_v1(...)` performs the plan-day write under row
+    locks against BOTH keys. **No stored `workload_plan.issue_id` is ever
+    rewritten** — the row keeps whatever key it has always had, and the RPC
+    returns the native id as `plan.issue_id` alongside `storage_issue_id`. This
+    is the compatibility mapping `docs/ops/WORKLOAD_NATIVE_SOURCE.md` §3b
+    sanctioned; the key migration §5 step 2 asked for is not needed and was not
+    done.
+  - `workload_native_label_state_absent(jsonb)` is the release gate, and it is
+    the ONE thing amended out of the integration candidate rather than lifted
+    verbatim. `production_workload_label_projection` answers `complete:false`
+    for any `linear_raw` without a well-formed `issue.labels` relation, and the
+    native intake paths in `supabase/functions/production-write/index.ts`
+    (`handleIntakeCreate`, `handleComponentFill`) write
+    `linear_raw: { attribution: … }` with no `issue` at all — `linear-outbound`
+    is what adds `issue` on drain. So the moment `linear_outbound_enabled` goes
+    to `off`, EVERY newly created deliverable is stamped incomplete forever, and
+    a reader that treats incomplete as fatal blanks the whole board for
+    everyone on the first post created after the flip. This predicate separates
+    "no provider label state was ever stamped" (answered complete, with an
+    empty label array, so the row weighs 1x) from "a label relation exists but
+    is malformed or paginated" (still refused). The 1x pin is a real accepted
+    cost: `2× Workload` / `3× Workload` are provider labels and nothing native
+    mints one yet.
+
+  Exercised, not asserted: `test/workload-native-postgres.js` applies this file
+  and its prerequisites to a disposable PostgreSQL 16 database and runs the
+  alias, refusal, snapshot-isolation and label-state cases against it (opt-in;
+  `WORKLOAD_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY` plus an absolute
+  `WORKLOAD_TEST_PSQL` and a loopback port).
+
+  **Undo:** `drop function if exists public.workload_native_snapshot_v1();
+  drop function if exists public.workload_native_plan_target_v1(text);
+  drop function if exists public.workload_native_plan_set_v1(text,text,text,date,text,text);
+  drop function if exists public.workload_native_label_state_absent(jsonb);`
+  Safe while the deployed `workload-plan` closure is the one that predates
+  `action:"native_snapshot"`.
+
 - **`2026-09-07-production-intake-append-v8.sql`** replaces the append RPC body
   installed by `2026-08-26-production-intake-append-v7.sql` (applied). It is the
   eighth and current member of the `production_intake_append` chain; a database
@@ -735,3 +800,18 @@ executes these files (see `README.md` › Repository layout).
   cannot read an ordinal out of one, so it would renumber a batch holding a
   named child from the highest BARE title in it. Check such a batch before
   appending to it again.
+
+- **`2026-09-09-syncview-retirement-admission.sql`** is source-only and **not
+  ready for activation**. It seeds an active server-side admission/census
+  contract without retiring SyncView, switching a flag, deploying a function,
+  or altering any schedule. Its activation RPC deliberately refuses because
+  ordinary status/comment/due/title/description/attachment transactions still
+  create provider-shaped receipts. The trigger correctly would reject those
+  rows rather than hide debt, but that would roll their business mutation back.
+  It therefore must not be activated until every ordinary transaction has a
+  server-issued typed native receipt and exact replay proof. It preserves the
+  installed F27 fence and recognizes only independently typed terminal native
+  intake, assignment, and label receipts plus the reserved F27 TEST drill;
+  `skipped` alone is never a native exemption. The runbook holds the practical
+  capability matrix and `scripts/syncview-retirement-census.js` verifies the
+  aggregate result once activation becomes safe.

@@ -1,0 +1,1754 @@
+{
+  "classification": "ISOLATED_WINDOWS_POSTGRES_CHROMIUM_HANDLER",
+  "installation": "HOLD",
+  "application_changes_since_6276251f": false,
+  "results": [
+    {
+      "mode": "captured-positive",
+      "result": "PASS",
+      "checkpoints": 24,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "external_forwards": 0,
+      "blocked_attempts": 1,
+      "checked_after_teardown": true,
+      "finished_at": "2026-09-10T20:53:55.900Z",
+      "private_receipt_sha256": "26be32873e194b7c4cabfa6d888cd6d3153a1637a1eb9df7444206a16a06888d"
+    },
+    {
+      "mode": "repository-negative",
+      "result": "FAIL",
+      "checkpoints": 23,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "external_forwards": 0,
+      "blocked_attempts": 0,
+      "checked_after_teardown": true,
+      "finished_at": "2026-09-10T20:53:53.193Z",
+      "private_receipt_sha256": "962a55510703c9489df02db16cbf6e0ee9af602ffed19dbea2abbe1b34c9b62e"
+    },
+    {
+      "mode": "real-owner-composition",
+      "result": "PASS",
+      "assertions": 41,
+      "source_commit": "02964b12723284cefc395feaa93f221cd22fc095",
+      "private_log_sha256": "0f98eee5490afd2989aab606dc4bdc776adfc1d53f25ae4129142571c8152057"
+    }
+  ],
+  "limitations": [
+    "Synthetic SDK adapter and provider; no hosted JWT/RLS/PostgREST or real Slack",
+    "Composition covers selected real owners, not full schema or crash/Storage recovery",
+    "Negative application failure retained; exit 1 is intentional",
+    "Raw records, paths, databases, screenshots and request traces excluded"
+  ],
+  "latest_repair": {
+    "prepared_source_commit": "93486bb421459255691bb603102f31a80dbfbd17",
+    "execution_note": "Executed the working-tree repair before its commit; recorded Git HEAD in browser receipts is the prior base, not a clean-checkout attestation.",
+    "application_changes_since_6276251f": true,
+    "results": [
+      {
+        "mode": "captured-positive",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "258b1544e8337e05168983ad79d19292a1005a4de86a68b47213b7e69540394f",
+        "checkpoints": 24,
+        "recorded_base_commit": "f8cc9c8bc24706774a38fbc0e2728b130fd9642f",
+        "external_forwards": 0,
+        "checked_after_teardown": true,
+        "private_receipt_sha256": "f79175224675340b7f81a9685c3dd47a54504146d769857751f3ab6c3a181543"
+      },
+      {
+        "mode": "repository-negative",
+        "exit_code": 1,
+        "server_stopped": true,
+        "private_log_sha256": "80d407cebf32d59c725725538976ab9ea2f3e09411cbd9f5a6f3e6c3fca24bb2",
+        "checkpoints": 23,
+        "recorded_base_commit": "f8cc9c8bc24706774a38fbc0e2728b130fd9642f",
+        "external_forwards": 0,
+        "checked_after_teardown": true,
+        "private_receipt_sha256": "8c44630295e9fe7597c21ce540269dcdc169ac4df416927b08797c820a75e5fa"
+      },
+      {
+        "mode": "composition",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "8360b449b768bf585e203e4859d261e76de13dde174e473126c3412114b03772",
+        "assertions": 48
+      },
+      {
+        "mode": "notifications",
+        "exit_code": 0,
+        "server_stopped": true,
+        "private_log_sha256": "fb88aeab606b3f090a9fc5587df95bd6013a1ebce4e97872d3e902e206ecf8a1"
+      }
+    ]
+  },
+  "schema_recovery_preparation": {
+    "execution_base": "6437deddfef2d23614c73665617261eabf1b488e",
+    "execution_note": "Working-tree preparation changes; no application or production migration changes in this step.",
+    "composition": {
+      "status": "PASS",
+      "assertions": 55,
+      "server_stopped": true,
+      "private_log_sha256": "0c126fc41d736229267c5a8e6eda429d3773fdf00afa56be534e3744bf993f2e",
+      "coverage": {
+        "classification": "RECOVERY_COVERAGE_INCOMPLETE",
+        "corpus": "history-v11",
+        "expected_tables": 52,
+        "missing_tables": [
+          "settings_events",
+          "sample_review_events",
+          "pto_members",
+          "pto_requests",
+          "pto_adjustments",
+          "linear_project_ids_shape_migration_20260728",
+          "linear_intake_receipts",
+          "production_card_provenance",
+          "production_card_materialization_receipts",
+          "production_card_materialization_ingress",
+          "linear_outbound_cutoff_control",
+          "legacy_intake_native_triage",
+          "native_brief_media_occurrences",
+          "production_native_identifier_mint",
+          "production_native_identifier_grants",
+          "description_images"
+        ]
+      }
+    },
+    "recovery": {
+      "status": "FAIL",
+      "completed_checks": 5,
+      "corpus": "history-v11",
+      "reason": "volatile review-token default refused before catalog-race check",
+      "server_stopped": true,
+      "private_failure_sha256": "4b20671fe7de417ccd92f01e4825711e48a02225cab860fca8443dc005c13abd",
+      "deferred_default_design": "PROPOSED_UNBUILT"
+    }
+  },
+  "deferred_recovery_preparation": {
+    "execution_base": "8616df2219f289c263a6c367155fafc952aba470",
+    "execution_note": "Working-tree preparation; no application or production migration changes.",
+    "composition": {
+      "status": "PASS",
+      "assertions": 65,
+      "expected_tables": 52,
+      "missing_tables": [],
+      "classification": "RECOVERY_TABLE_PRESENCE_ONLY",
+      "full_restore_proven": false,
+      "server_stopped": true,
+      "private_log_sha256": "45a1757fdaf0c0e9fb36ed7c6e478392b72752ae77400d927ebdb51e7a112506"
+    },
+    "deferred": {
+      "status": "PASS",
+      "scope": "Isolated PostgreSQL raising generators, preserved explicit values/defaults, late rollback; separate from full recovery",
+      "server_stopped": true,
+      "private_log_sha256": "36ce9d27719dcdd9678a89ed4319041a54fd8041ca7ad58615fd74d9aa47c2e7"
+    },
+    "recovery": {
+      "status": "FAIL",
+      "completed_checks": 21,
+      "corpus": "history-v11",
+      "reason": "backup prerequisite references absent id column on production_native_ordinary_receipt_admissions",
+      "full_restore_proven": false,
+      "server_stopped": true,
+      "private_log_sha256": "6c2ce7cd0db4741b6b012477992d4e1ec206d0dbdd7950b9965c077b61d22f57"
+    },
+    "upstream_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
+  },
+  "verified_local_recovery": {
+    "status": "PASS",
+    "classification": "ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY",
+    "checks": 25,
+    "table_count": 52,
+    "corpus": "history-v11",
+    "execution_base": "677a1c4ea15dbbf75db5ea9bca7090380fc9fd66",
+    "execution_note": "Working-tree v11 helper-name repair; not clean-checkout attestation.",
+    "server_stopped": true,
+    "private_log_sha256": "a87227cca02f62e06cb1259e1f7406d7d6db5e37c6496befa46cdebce7dff354",
+    "private_report_sha256": "f616887336dc8301a3d6fbf68bc916e05c893e8a1ca7c6a1a0e443ab4a753e92",
+    "hosted_recovery_proven": false,
+    "storage_custody_proven": false,
+    "upstream_integration_pending": "fcebb856d3f5ea607cf5665ac391c258ad173abb"
+  },
+  "upstream_ledger_compatibility": {
+    "status": "PASS",
+    "classification": "ISOLATED_POSTGRES",
+    "assertions": 77,
+    "baseline_assertions": 65,
+    "upstream_assertions": 12,
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "execution_base": "c67bdbc8f1eb77f744ac37bbafd1a5de52614432",
+    "working_tree_tests": true,
+    "server_stopped": true,
+    "private_log_sha256": "232a7dbb6093629f54786961c5df2cba67c48e5df5557e07acbd210ec5528575",
+    "full_upstream_integration_proven": false,
+    "restored_trigger_behavior": "UNPROVEN"
+  },
+  "upstream_ledger_recovery": {
+    "status": "PASS",
+    "classification": "ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY",
+    "checks": 31,
+    "baseline_checks": 25,
+    "upstream_checks": 6,
+    "table_count": 52,
+    "upstream_ledger_verified": true,
+    "execution_base": "d5d1aa5476ddb6b6944ccc9843387bea80e855b4",
+    "working_tree_tests": true,
+    "server_stopped": true,
+    "private_log_sha256": "03f4d461a8416ba630ad593a1fb95e83223b93d74966bf99ff227e16b3e6fb3a",
+    "private_report_sha256": "d773601b2f025f6b7e07375bdca43ca8ec08e2e88e2e5bf140c89a24730204d9",
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "hosted_recovery_proven": false,
+    "full_upstream_integration_proven": false
+  },
+  "combined_upstream_source": {
+    "upstream_commit": "fcebb856d3f5ea607cf5665ac391c258ad173abb",
+    "execution_base": "19dd9593827a881a20c29242b3b94756de38c6dd",
+    "working_tree_source": true,
+    "focused_tests": "PASS",
+    "negative_control": {
+      "status": "FAIL",
+      "checkpoints": 23,
+      "exit_code": 1,
+      "reason": "PUBLIC_INTAKE_MATERIALIZATION_401",
+      "external_forwards": 0,
+      "server_stopped": true,
+      "private_receipt_sha256": "78755a829076a1e44363ba6a2a52fe89323a16b534d6859d91f53f0dff2065ec"
+    },
+    "hosted_proof": false
+  },
+  "hosted_preflight_observation": {
+    "classification": "LIVE_READ",
+    "source_commit": "d2bb2279e67a39d2aa30d9b7dd6ef36b3d205894",
+    "status": "FAIL",
+    "code": "READ_FAILED_HTTP_400",
+    "sqlstate": "42P01",
+    "absent_relation": "public.production_notification_config",
+    "complete_missing_inventory": false,
+    "hosted_mutation": false
+  },
+  "installation_inventory": {
+    "classification": "SOURCE_ONLY",
+    "entries": 63,
+    "offline_tests": "PASS",
+    "executable": false,
+    "install_ready": false,
+    "dependency_closure_complete": false,
+    "rehearsal_consumers_wired": false,
+    "artifact": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+    "artifact_sha256": "774d5e3b328898c4aa152fbf9dc5bedb788d5c1090dc8d369242fc7d90e29248"
+  },
+  "shared_inventory_binding": {
+    "execution_base": "303350e08f06fd8815de4c3e51a759e0b403bcd1",
+    "working_tree_changes": true,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source_binding": "VERIFIED_PRE_AND_POST",
+    "shared_ordered_execution": false,
+    "composition": {
+      "status": "PASS",
+      "assertions": 65,
+      "server_stopped": true,
+      "private_log_sha256": "2931b811c8a99bc9977f7f1fb6bc67ffa8189983d99f7749d295f7b536e4c0ec"
+    },
+    "recovery": {
+      "status": "PASS",
+      "checks": 31,
+      "table_count": 52,
+      "server_stopped": true,
+      "private_log_sha256": "7fd43d5163826b9d32ef8127eec9a7802541116ede312a9282207eb6bc0d7dba"
+    }
+  },
+  "ordered_installation_attempt": {
+    "status": "PASS",
+    "classification": "ISOLATED_POSTGRES_ORDER_ONLY",
+    "execution_base": "6b3d25206b6f4e9311e3ba484732ec2063018180",
+    "working_tree_changes": true,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "bootstrap_full_source_owners": 20,
+    "partial_dated_baseline": true,
+    "applied_entries": 42,
+    "after_entry_checkpoints": [
+      {
+        "entry": "bootstrap_partial_baseline",
+        "catalog_md5": "11275ed5cdd6c00329cc33e89576be8e",
+        "transaction_classification": "scoped_bootstrap"
+      },
+      {
+        "entry": "2026-07-04-a2-writer-edge-functions.sql",
+        "catalog_md5": "11275ed5cdd6c00329cc33e89576be8e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-04-a4-settings-edge-functions.sql",
+        "catalog_md5": "baa9782257fa61f268f187c1db78a109",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-13-write-ui-reroute-allowlist.sql",
+        "catalog_md5": "baa9782257fa61f268f187c1db78a109",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-08-04-client-access-auto-provision.sql",
+        "catalog_md5": "e038346ac1590404205c0faa8df66456",
+        "transaction_classification": "mixed_or_multiple_transactions"
+      },
+      {
+        "entry": "workload-issues-supabase-migration.sql",
+        "catalog_md5": "33a727e8b300241301945a24477028cf",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-19-workload-plan.sql",
+        "catalog_md5": "6a6860be6285e73d35a09f241921e6fe",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "sample-reviews-migration.sql",
+        "catalog_md5": "2391fa7c863c32354f248b3e69241b85",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-11-b4-write-attribution.sql",
+        "catalog_md5": "31dfd8b22c9808be83f973573224a538",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-14-linear-intake-receipts.sql",
+        "catalog_md5": "848b194b33082b5f7666d74bd672cd49",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-07-15-pto-tracker.sql",
+        "catalog_md5": "08f468c7e3fe97fad2be44c3a476071e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-07-28-linear-project-ids-team-shape.sql",
+        "catalog_md5": "bf18260c6e95b63fa9fea6e4e4aeebc8",
+        "transaction_classification": "mixed_or_multiple_transactions"
+      },
+      {
+        "entry": "2026-09-05-card-change-journal.sql",
+        "catalog_md5": "04c81e8cbb1b56274c359543a52c50c1",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-calendar-feedback-recovery.sql",
+        "catalog_md5": "5f5d42a02b1fa4061a6ab9b0cda1ab4d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-crosswalk-bind-and-import.sql",
+        "catalog_md5": "b5599f48e42d833cfc03153bed67b544",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-05-native-intake-root-manifest.sql",
+        "catalog_md5": "fafe8611905183b12ac5775c7c714b8a",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-native-label-catalog-foundation.sql",
+        "catalog_md5": "47cf915126df04ae8ddb5622bea50a38",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "atomic-native-intake",
+        "catalog_md5": "d6c52f12d59eda8e92ba621985d1f92c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-08-native-intake-receipt-retention.sql",
+        "catalog_md5": "0a681286dea784af5b47887a6c7568e2",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-native-intake-reconcile.sql",
+        "catalog_md5": "74f2f38c990a70c82eac6a7151a6e350",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-card-materialization-boundary.sql",
+        "catalog_md5": "46a3f5fede26ede9bab847ae5e5edf2c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-legacy-intake-native-triage.sql",
+        "catalog_md5": "4a93f12c009b538c7e6acee375663278",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-native-brief-media.sql",
+        "catalog_md5": "42c8f6d24148925f2736346eb7d89472",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-linear-outbound-cutoff.sql",
+        "catalog_md5": "4ca780211e1252c76d877118227fba18",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-existing-assignment.sql",
+        "catalog_md5": "6f601836f91b07a4665320c1d2c47d8e",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-06-native-label-writes.sql",
+        "catalog_md5": "3f939f541b861c57b2e02c66b08b0e80",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-07-native-identifier-mint.sql",
+        "catalog_md5": "8b6d6bfbbe8357edd43a05a8d0bff295",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-client-provisioning.sql",
+        "catalog_md5": "8e482ceef5b570d6ada6953c6991536c",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-02-workload-native-view.sql",
+        "catalog_md5": "9e85681aa238033b3766e52fd00e5302",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-workload-native-membership.sql",
+        "catalog_md5": "c3fc3051d38799fb0b573bd28797445d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-08-workload-native-label-state-shape.sql",
+        "catalog_md5": "3f8a5269ed5025ae76195187d3fb28b5",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-09-workload-native-roster.sql",
+        "catalog_md5": "24a88fa58ac7aea042a00f1805356b1b",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-attribution-browser-projection.sql",
+        "catalog_md5": "f0d2b67682202e59fc7c929dddcc3d65",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-editors-event-assignee.sql",
+        "catalog_md5": "71482ab9549f2ac5ffcb4df07cb3144e",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-ordinary-receipts.sql",
+        "catalog_md5": "97b9450f881bc30b46816118c64f5a46",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-syncview-retirement-admission.sql",
+        "catalog_md5": "3d837ef4f166cec95395e7fa38afb425",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-10-syncview-retirement-native-ordinary-recognizer.sql",
+        "catalog_md5": "852fb308c4492bbdd6fe2c12b07ce0b8",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-11-native-ordinary-receipt-repair.sql",
+        "catalog_md5": "38701bbe56b3d3e2b2c052d17a890b5d",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-12-native-ordinary-envelope-repair.sql",
+        "catalog_md5": "0db27cd7d6f5913b468b98d63fab1bea",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-09-native-notification-outbox.sql",
+        "catalog_md5": "0151d2a3fedc1d3cd2f5a7a27799de0a",
+        "transaction_classification": "single_explicit_transaction"
+      },
+      {
+        "entry": "2026-09-05-description-images.sql",
+        "catalog_md5": "89f2e7b3079195b1cb81d880e42fd07e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-09-kasper-urgent-pings.sql",
+        "catalog_md5": "9acf2bce114fa807dbe9e8867646d52e",
+        "transaction_classification": "autocommit_statements"
+      },
+      {
+        "entry": "2026-09-10-kasper-urgent-ping-ledger.sql",
+        "catalog_md5": "0f8dc0871287538e1d626ec0821b7825",
+        "transaction_classification": "autocommit_statements"
+      }
+    ],
+    "server_stopped": true,
+    "private_log_sha256": "10cb85e8155952085a48f6e086aad429180e49f7adefea816cebf7dc9296aba3",
+    "per_commit_interruption_proven": false,
+    "business_operations_proven": false,
+    "full_hosted_baseline_proven": false
+  },
+  "entry_boundary_resume": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "classification": "ISOLATED_POSTGRES_ENTRY_RESUME",
+    "source_base": "98d93c6b96b9d64123b58ee7545e9128fed675be",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-resume-7c7236f0791b4a20b3e059fdd48e0e08",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "unit_log_sha256": "4f91f1e235c8af5728e02d23e94bc5258f02cdc70e70d5d76bbfdf0083e4a639",
+    "server_stopped": true,
+    "accepted_business_work_preservation_proven": false,
+    "commit_checkpoint_gap_recovery_proven": false,
+    "source_hashes": {
+      "test/linear-exit-install-resume.js": "be5ed3a96635a60ab2b5a7d518e2de0fc6ac6bb69028aed221d4df2fce55999d",
+      "test/helpers/linear-exit-install-step.js": "3c6555bce430a0d540974418945fdd886b5cd8c1811bc7d3aaef224e9e23c786"
+    }
+  },
+  "accepted_native_work_resume": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "accepted_business_work_preservation_proven": true,
+    "accepted_work_later_boundaries": 25,
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "classification": "ISOLATED_POSTGRES_ENTRY_RESUME",
+    "scope": "one native parent/child request across five owner tables",
+    "source_base": "43ed2a9fdec925c9219f2a6502bce2f9f5f690de",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-resume-b29671317bbb447bb33d41bcef256b99",
+    "unit_log_sha256": "20469459a9e35368f95a425842dbcbc308975f867c46d46100794f350dc21b9b",
+    "test_sha256": "f8416863c1187ef57cbd22e9ce3d2f49f5643774df53b22a5d7bc5422e86c302",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "server_stopped": true,
+    "global_provider_debt_zero": true,
+    "card_materialization_proven": false,
+    "all_data_preservation_proven": false,
+    "commit_checkpoint_gap_recovery_proven": false
+  },
+  "selected_internal_interruption": {
+    "marker": "LINEAR_EXIT_INSTALL_INTERRUPTION_OK",
+    "completed_entries": 29,
+    "atomic_connection_rollback": true,
+    "partial_autocommit_refusal": true,
+    "accepted_work_preserved": true,
+    "partial_state_repaired": false,
+    "full_baseline_proven": false,
+    "all_internal_boundaries_proven": false,
+    "classification": "ISOLATED_POSTGRES_SELECTED_CONNECTION_TERMINATION",
+    "source_base": "702ddb6f1cf2e3e862b069559e61f83dc1f9a72c",
+    "working_tree_changes": true,
+    "receipt": "linear-exit-installation-interruption-44e8436cf13b42388797af62a52e8e91",
+    "unit_log_sha256": "d48ecbafdb46c555b1cbee3ef65743c0f54ff46432cd59eb55ddd4d237bdd36a",
+    "prefixes": [
+      {
+        "stage": "interruption_source_prefix",
+        "id": "atomic-native-intake",
+        "source_sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
+        "prefix_sha256": "800c87aa7fe441b6806f548463b26c04447875a22a15166fd7a7e89f8d33da6d",
+        "prefix_bytes": 66657
+      },
+      {
+        "stage": "interruption_source_prefix",
+        "id": "2026-09-08-workload-native-label-state-shape.sql",
+        "source_sha256": "7bdc0dac5793197cc14878f67614eb05cf4408e3d923da53772a5d5f7841faf8",
+        "prefix_sha256": "a781b65c8e0a4fe58569aa96de8912c97cff46d6ce957638a7483147fdd9f68b",
+        "prefix_bytes": 2325
+      }
+    ],
+    "post_run_changes": "wording and false scope markers only; assertions unchanged",
+    "server_stopped": true,
+    "process_kill_recovery_proven": false,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false
+  },
+  "normal_resume_after_interruption_changes": {
+    "marker": "LINEAR_EXIT_INSTALL_RESUME_OK",
+    "accepted_business_work_preservation_proven": true,
+    "accepted_work_later_boundaries": 25,
+    "entries": 42,
+    "fresh_child_processes": 44,
+    "divergence_refusal": true,
+    "forged_prefix_refusal": true,
+    "parent_crash_key_custody_proven": false,
+    "concurrent_worker_safety_proven": false,
+    "full_baseline_proven": false,
+    "process_kill_recovery_proven": false,
+    "per_internal_commit_proven": false,
+    "receipt": "linear-exit-installation-resume-aa5f0c2d771748bb88f69e59f0f70c0e",
+    "unit_log_sha256": "c0d0e17d7021ad225b869770a0e681cd625e9462299455aab79f54ba88a218f8",
+    "source_base": "702ddb6f1cf2e3e862b069559e61f83dc1f9a72c",
+    "working_tree_changes": true,
+    "server_stopped": true,
+    "source_hashes": {
+      "test/linear-exit-install-resume.js": "15836bb82af9293267ed8d09786b0cbb60a0bc5f9ba567c6cc510df44440030e",
+      "test/helpers/linear-exit-install-step.js": "9db3c3384071ca77213b7c3e612208ddb2b29fc256f977cc8a3a370534a19b0c",
+      "test/linear-exit-install-interruption.js": "a03dc1e93ed930529277482e80bfe002e1838e79c4282cdf662c27f46830300c"
+    }
+  },
+  "shared_order_recovery": {
+    "status": "PASS",
+    "passed": 31,
+    "table_count": 52,
+    "install_source_inventory": {
+      "identity": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+      "sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+      "classification": "SOURCE_ONLY",
+      "execution_order": "PUBLISHED_INVENTORY_DEPENDENCY_ORDER"
+    },
+    "classification": "ISOLATED_POSTGRES_ORDERED_SCHEMA_DATA_RECOVERY",
+    "receipt": "linear-exit-recovery-upstream-ledger-bcbc40cfeba64556a43790d7d95f8eee",
+    "source_base": "bcf27d1c426f4b940660c140e89f981d7128340e",
+    "working_tree_changes": true,
+    "unit_log_sha256": "ab4cea7651fc630c64686c0e834b1bfb416ebf17bfc97c54633f80484e012f30",
+    "server_stopped": true,
+    "ordered_entries": 42,
+    "source_hashes": {
+      "scripts/linear-exit-composition/recovery-ordered.js": "973153398920d7d0eb633c2807b08e3ac9d01aba8bdbc78538a752b7afaec325",
+      "scripts/track-b-recovery-rehearsal.js": "a64e57128c9b7102701706e9e7f5ff240dea8759202f107f7667526b61c2a71d"
+    },
+    "prior_failed_attempts": [
+      {
+        "receipt_prefix": "65acf7fcc520418c832772daff2c051f",
+        "reason": "ledger count asserted before backfill owner"
+      },
+      {
+        "receipt_prefix": "b3130070d1ee4f4eb394470e47fa7929",
+        "reason": "native_client_provision_epochs_unavailable; fixture epoch ordering"
+      }
+    ],
+    "full_baseline_proven": false,
+    "filming_plans_covered": false
+  },
+  "preflight_metadata_diagnostics": {
+    "classification": "OFFLINE_TEST_AND_ISOLATED_POSTGRES",
+    "status": "PASS",
+    "offline_checks": 26,
+    "actual_absent_relation_refused": true,
+    "configuration_requests_after_absence": 0,
+    "json_shape_cases": 7,
+    "receipt": "linear-exit-preflight-c7727a2e0b414f45b18013d319a22cdd",
+    "unit_log_sha256": "11c860d96109dce02989a734813974c84ece9ebfbf5d9332f0e742d2ed0835fa",
+    "source_base": "c5219b25c25abe2e1d94f93c18aeb551e63cbfb8",
+    "working_tree_changes": true,
+    "source_hashes": {
+      "scripts/linear-exit-deploy-preflight.js": "dbf6ab5b4ce4ae9e33050000c2b048183bbae9aecd7ceeba84f740f49f7b53f3",
+      "test/linear-exit-deploy-preflight.js": "74ff38f8b3447c119f498492257a0d4b71817e68ac9f1f617cf0e0c9416ec6b3",
+      "test/linear-exit-deploy-preflight-postgres.js": "c473379fc80f3e546122ef940719c4bc94a2f77bb768e96af248f9ea2914669d"
+    },
+    "server_stopped": true,
+    "hosted_verified": false,
+    "atomic_snapshot": false
+  },
+  "installed_candidate_metadata": {
+    "marker": "LINEAR_EXIT_PREFLIGHT_ORDERED_OK",
+    "checked_objects": 149,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "configuration_readiness_proven": false,
+    "hosted_readiness_proven": false,
+    "classification": "ISOLATED_POSTGRES_METADATA",
+    "status": "PASS",
+    "offline_checks": 28,
+    "receipt": "linear-exit-preflight-installed-381350c0af2c4dfc9120f788b8025c72",
+    "unit_log_sha256": "2033d5b7b0f8f9046596cabdbdd35615b38b874226359d27260081dcddc9b5f7",
+    "source_base": "149e9c9c8660c08319900a04e3f6d11accc42ba1",
+    "working_tree_changes": true,
+    "server_stopped": true,
+    "source_hashes": {
+      "scripts/linear-exit-deploy-preflight.js": "decbf5418381fe44bacfd27dd88caff8def3b596598c8664f6367e3ab234fe22",
+      "test/linear-exit-deploy-preflight.js": "ade566cebdee24d7ecd310d0b80bf534a7f17df56f245e806b7d3654fb636eb2",
+      "test/linear-exit-deploy-preflight-ordered.js": "aa6759e822481b1d4c4d677b337a2ce5d4819dbf46694d5494f513cf0a7ecd1c"
+    },
+    "prior_failed_receipt": "linear-exit-preflight-installed-818ee3feb0674e3184a8fdbdb3bcd2e1",
+    "prior_failure": {
+      "compatible": 148,
+      "absent": 1,
+      "key": "routine:production_component_fill(jsonb,jsonb,jsonb)",
+      "code": "CONTRACT_ABSENT"
+    }
+  },
+  "hosted_metadata_observation": {
+    "classification": "LIVE_READ_METADATA_ONLY",
+    "observed_at": "2026-09-10T23:17:02.658Z",
+    "source": "8135e78fc0288330b2612aeb76e1fe8b28e4762d",
+    "request_count": 1,
+    "configuration_read": false,
+    "installation": "HOLD",
+    "checked_objects": 149,
+    "absent": [
+      "column:clients.native_project_ids",
+      "column:production_deliverables_browser_v1.raw_attribution_native_epoch",
+      "column:production_deliverables_browser_v1.raw_attribution_project_id",
+      "column:production_intake_manifests.native_epochs",
+      "column:production_label_catalog_versions.operator_attestation",
+      "column:production_native_client_provisions.client_slug",
+      "column:production_native_client_provisions.created_at",
+      "column:production_native_client_provisions.intent_sha256",
+      "column:production_native_client_provisions.native_project_ids",
+      "column:production_native_client_provisions.request_id",
+      "column:production_native_identifier_grants.identifier",
+      "column:production_native_identifier_mint.next_ordinal",
+      "column:production_native_ordinary_receipt_admissions.actor",
+      "column:production_native_ordinary_receipt_admissions.client_slug",
+      "column:production_native_ordinary_receipt_admissions.dedup_key",
+      "column:production_native_ordinary_receipt_admissions.entity",
+      "column:production_native_ordinary_receipt_admissions.entity_id",
+      "column:production_native_ordinary_receipt_admissions.epoch",
+      "column:production_native_ordinary_receipt_admissions.intent_fingerprint",
+      "column:production_native_ordinary_receipt_admissions.issued_at",
+      "column:production_native_ordinary_receipt_admissions.legacy_parity",
+      "column:production_native_ordinary_receipt_admissions.native_operation",
+      "column:production_native_ordinary_receipt_admissions.owner",
+      "column:production_native_ordinary_receipt_admissions.receipt_id",
+      "column:production_native_ordinary_receipt_admissions.receipt_operation",
+      "column:production_native_ordinary_receipt_admissions.role",
+      "column:production_native_ordinary_receipt_admissions.source_edited_at",
+      "column:production_native_ordinary_receipt_admissions.team",
+      "column:production_native_ordinary_receipt_admissions.test_only",
+      "column:production_native_ordinary_receipt_admissions.token",
+      "column:production_notification_config.key",
+      "column:production_notification_config.updated_at",
+      "column:production_notification_config.value",
+      "column:production_notification_delivery_receipts.attempt",
+      "column:production_notification_delivery_receipts.created_at",
+      "column:production_notification_delivery_receipts.destination_channel_id",
+      "column:production_notification_delivery_receipts.failure_code",
+      "column:production_notification_delivery_receipts.id",
+      "column:production_notification_delivery_receipts.intended_member_id",
+      "column:production_notification_delivery_receipts.intent_id",
+      "column:production_notification_delivery_receipts.outcome",
+      "column:production_notification_delivery_receipts.provider_message_id",
+      "column:production_notification_intents.actor_member_id",
+      "column:production_notification_intents.attempt_count",
+      "column:production_notification_intents.client_slug",
+      "column:production_notification_intents.created_at",
+      "column:production_notification_intents.deliverable_id",
+      "column:production_notification_intents.destination_channel_id",
+      "column:production_notification_intents.destination_kind",
+      "column:production_notification_intents.id",
+      "column:production_notification_intents.intended_member_id",
+      "column:production_notification_intents.intent_key",
+      "column:production_notification_intents.kind",
+      "column:production_notification_intents.last_failure_code",
+      "column:production_notification_intents.lease_expires_at",
+      "column:production_notification_intents.lease_token",
+      "column:production_notification_intents.message",
+      "column:production_notification_intents.next_attempt_at",
+      "column:production_notification_intents.provider_message_id",
+      "column:production_notification_intents.sent_at",
+      "column:production_notification_intents.source_comment_id",
+      "column:production_notification_intents.source_event_id",
+      "column:production_notification_intents.state",
+      "column:production_notification_intents.updated_at",
+      "column:production_notification_reconciliations.action",
+      "column:production_notification_reconciliations.created_at",
+      "column:production_notification_reconciliations.id",
+      "column:production_notification_reconciliations.intent_id",
+      "column:production_notification_reconciliations.provider_message_id",
+      "constraint:clients.clients_native_project_ids_object",
+      "constraint:production_native_ordinary_receipt_admissions.receipt_id_fkey",
+      "index:clients.clients_native_project_ids_graphics_unique",
+      "index:clients.clients_native_project_ids_video_unique",
+      "relation:production_native_client_provisions",
+      "relation:production_native_ordinary_receipt_admissions",
+      "relation:production_notification_config",
+      "relation:production_notification_delivery_receipts",
+      "relation:production_notification_intents",
+      "relation:production_notification_monitor_v1",
+      "relation:production_notification_reconciliations",
+      "routine:production_assignee_write(jsonb,jsonb)",
+      "routine:production_assignment_context(jsonb)",
+      "routine:production_assignment_epoch(text)",
+      "routine:production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)",
+      "routine:production_intake_root_begin(jsonb,jsonb,jsonb)",
+      "routine:production_label_catalog_capability()",
+      "routine:production_label_catalog_read_attested(uuid,text)",
+      "routine:production_label_catalog_read_version(uuid,text)",
+      "routine:production_label_catalog_validate_selection(uuid,text,jsonb,jsonb)",
+      "routine:production_labels_write(jsonb,jsonb)",
+      "routine:production_native_assignment_receipt_guard()",
+      "routine:production_native_assignment_truncate_guard()",
+      "routine:production_native_client_provision(text,text,text)",
+      "routine:production_native_client_provisions_immutable()",
+      "routine:production_native_identifier_allocate(text,text)",
+      "routine:production_native_identifier_capability(text)",
+      "routine:production_native_identifier_guard()",
+      "routine:production_native_identifier_seed(text,bigint)",
+      "routine:production_native_intake_delete_guard()",
+      "routine:production_native_intake_epochs()",
+      "routine:production_native_intake_receipt_guard()",
+      "routine:production_native_intake_truncate_guard()",
+      "routine:production_native_label_receipt_guard()",
+      "routine:production_native_label_truncate_guard()",
+      "routine:production_native_ordinary_capability(text)",
+      "routine:production_native_ordinary_event(jsonb,jsonb)",
+      "routine:production_native_ordinary_receipt_guard()",
+      "routine:production_native_ordinary_receipt_truncate_guard()",
+      "routine:production_notification_actor_valid(uuid,text,text)",
+      "routine:production_notification_claim(integer)",
+      "routine:production_notification_client_comment_event_after()",
+      "routine:production_notification_comment_intent_after()",
+      "routine:production_notification_deliverable_live(text,jsonb)",
+      "routine:production_notification_enqueue_urgent(uuid,text,text,text,text,timestamp with time zone,uuid,uuid)",
+      "routine:production_notification_health_summary()",
+      "routine:production_notification_intent_guard()",
+      "routine:production_notification_plain_text(text,integer)",
+      "routine:production_notification_reconcile(uuid,text,text,text)",
+      "routine:production_notification_record_delivery(uuid,integer,text,text,text)",
+      "routine:production_notification_status_intent_after()",
+      "routine:production_notification_target_live(text)",
+      "routine:production_notification_urgent_status(text,text,timestamp with time zone)",
+      "sequence:production_notification_delivery_receipts_id_seq",
+      "sequence:production_notification_reconciliations_id_seq",
+      "trigger:deliverable_events.production_notification_client_comment_event_after",
+      "trigger:deliverable_events.production_notification_status_intent_after",
+      "trigger:deliverables.zzz_production_native_identifier_mint",
+      "trigger:mirror_outbox.zz_native_intake_delete_guard",
+      "trigger:mirror_outbox.zz_native_intake_receipt_guard",
+      "trigger:mirror_outbox.zz_native_intake_truncate_guard",
+      "trigger:mirror_outbox.zzz_native_assignment_receipt_guard",
+      "trigger:mirror_outbox.zzz_native_assignment_truncate_guard",
+      "trigger:mirror_outbox.zzz_native_label_receipt_guard",
+      "trigger:mirror_outbox.zzz_native_label_truncate_guard",
+      "trigger:mirror_outbox.zzz_native_ordinary_receipt_guard",
+      "trigger:mirror_outbox.zzz_native_ordinary_receipt_truncate_guard",
+      "trigger:production_comments.production_notification_comment_intent_after",
+      "trigger:production_native_client_provisions.production_native_client_provisions_immutable_row",
+      "trigger:production_native_client_provisions.production_native_client_provisions_immutable_truncate",
+      "trigger:production_notification_intents.production_notification_intent_guard_before"
+    ],
+    "incompatible_present": [
+      "relation:production_deliverables_browser_v1",
+      "routine:production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)",
+      "routine:production_comment_write(jsonb,jsonb)",
+      "routine:production_component_fill(text,timestamptz,text,jsonb,jsonb)",
+      "routine:production_deliverable_write(jsonb,jsonb)",
+      "routine:production_intake_append(text,timestamptz,jsonb,jsonb)",
+      "routine:workload_native_snapshot_v1()"
+    ],
+    "compatible": 2,
+    "outcome": "CONTRACT_ABSENT",
+    "private_receipt_sha256": "be53a7aa039dae02efe43d3426f56d8f09b1fbca9e4f6c3c7730de084c8e7a34",
+    "initial_cli_read_also_performed": true,
+    "total_metadata_requests": 2,
+    "configuration_readiness_proven": false,
+    "complete_hosted_baseline_proven": false
+  },
+  "selected_hosted_definition_comparison": {
+    "classification": "LIVE_READ_SELECTED_DEFINITIONS",
+    "observed_at": "2026-09-10T23:19:15.226Z",
+    "source": "b44b311d64a3e88f03d23b950917ba1c2ca564b1",
+    "private_capture_sha256": "feed33cccfcaf37d03ebc09ffeb40e9330a152e551311fc82fd9df7608e658d8",
+    "objects": [
+      {
+        "object_key": "routine:workload_native_snapshot_v1()",
+        "definition_sha256": "a53c843446a616ab60f9d58a55d71a3bba2d2389b674e82b35437333a62ad264",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_intake_append(text,timestamptz,jsonb,jsonb)",
+        "definition_sha256": "8e721a1c76d16a8ea84b9da3e5739d219ed6ccf68235b2842dc96fa47a94e55d",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_component_fill(text,timestamptz,text,jsonb,jsonb)",
+        "definition_sha256": "49b7344d0ff6a11a7bc69bddeec8f2c29abe7985a4428208c2b10c697ff72f77",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_deliverable_write(jsonb,jsonb)",
+        "definition_sha256": "991cd4955e7c2955fcc66ecdadcd5e67f7ce69bb5f6f0972ae82cf1cec7ceb51",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_comment_write(jsonb,jsonb)",
+        "definition_sha256": "52c6a2935fb8a4cd9ffbc81aefcfa9cbc66242cc38ccdea1d2c50a11528498bc",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "routine:production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)",
+        "definition_sha256": "1d21174d5e21e03e8d6d57eea35111a5384db890685e7c52081e32794de7ae08",
+        "matches": {
+          "body": false,
+          "security_definer": true,
+          "search_path": true,
+          "service_execute": true,
+          "anon_execute_denied": true,
+          "authenticated_execute_denied": true
+        },
+        "body_matches_after_crlf_normalization": false
+      },
+      {
+        "object_key": "relation:production_deliverables_browser_v1",
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches": {
+          "view_kind": true,
+          "security_barrier": true,
+          "anon_select": true,
+          "authenticated_select": true,
+          "native_projection_reference": false
+        }
+      }
+    ],
+    "complete_baseline": false,
+    "application_rows_read": false,
+    "hosted_mutation": false,
+    "predecessor_mapping": {
+      "classification": "OFFLINE_CAPTURE_TO_REPOSITORY_BODY_COMPARISON",
+      "objects": [
+        {
+          "object_key": "routine:workload_native_snapshot_v1()",
+          "source_owner": "migrations/2026-09-05-workload-native-membership.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_intake_append(text,timestamptz,jsonb,jsonb)",
+          "source_owner": "migrations/2026-09-07-production-intake-append-v8.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_component_fill(text,timestamptz,text,jsonb,jsonb)",
+          "source_owner": "migrations/2026-08-31-production-component-fill.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_deliverable_write(jsonb,jsonb)",
+          "source_owner": "migrations/2026-07-12-write-ui-outbox-parity.sql",
+          "match": "EXACT_BODY"
+        },
+        {
+          "object_key": "routine:production_comment_write(jsonb,jsonb)",
+          "source_owner": "migrations/2026-07-23-production-comment-thread-lifecycle.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        },
+        {
+          "object_key": "routine:production_comment_lifecycle_write(jsonb,jsonb,integer,timestamp with time zone)",
+          "source_owner": "migrations/2026-07-23-production-comment-thread-lifecycle.sql",
+          "match": "CRLF_NORMALIZED_BODY"
+        }
+      ],
+      "unmatched": [
+        "relation:production_deliverables_browser_v1"
+      ],
+      "normalization": "CRLF to LF only; no other whitespace or semantic normalization",
+      "full_definition_equivalence_proven": false
+    }
+  },
+  "hosted_view_provenance": {
+    "marker": "LINEAR_EXIT_VIEW_PROVENANCE_OK",
+    "observed_definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+    "matches": [
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches_observation": true
+      }
+    ],
+    "proof": "EXACT_OBSERVED_VIEW_DEFINITION_ONLY",
+    "hosted_refresh": false,
+    "acl_options_equivalence_proven": false,
+    "complete_baseline_proven": false,
+    "classification": "ISOLATED_POSTGRES_COMPARE_PRIOR_LIVE_READ_HASH",
+    "receipt": "linear-exit-view-provenance-6e42fac1a0004d939b525583a4476270",
+    "unit_log_sha256": "773f11a8f38b5c21cf8fa1b3baf805e9d1e4d9f8cb0f0f5c92e14e0c81bb3769",
+    "source_base": "ff49f33e037a2bdf7276dbd82485c61d8b4623ca",
+    "working_tree_changes": true,
+    "test_sha256": "c9bf737d7dfa862a61459948575462b1960d759e3f75f21db99f0057058760d1",
+    "server_stopped": true,
+    "rendered_comparisons": [
+      {
+        "path": "migrations/2026-07-23-f34-f53-production-attachments.sql",
+        "source_sha256": "e9d8610da4f7d375dff02e1cae07969f069a127e448ae8bca7de3cf9e6a21f4f",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "74b4a50f6b349a8a3c285de83879563b8bd4da41b478b7b94deee013027b476c",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-23-f34-f53-production-attachments.sql",
+        "source_sha256": "e9d8610da4f7d375dff02e1cae07969f069a127e448ae8bca7de3cf9e6a21f4f",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "f3ba70c5034c86ee4dd2f54f78fc99adc3dfac67d3d082ce5fcd41bbfceb13f2",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-25-slice5-production-read-path.sql",
+        "source_sha256": "8ffa5cfa9eb62f67f6e56bc808d3112f3450f0c330468c07ca3010146d4812b0",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "31e82eaaaceb35b31fe08feccc9bd08d343528ce9ccaf5cd57f4d0fdddf9a0d4",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-07-25-slice5-production-read-path.sql",
+        "source_sha256": "8ffa5cfa9eb62f67f6e56bc808d3112f3450f0c330468c07ca3010146d4812b0",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "73125f80e85655d4193cfd254e65013c0e1c43426cb578092ad15d0c81d0173a",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "697d3905e98b6913a5b151ca129c7cd4285969b2741042fa3dd9348a71611f71",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-08-23-attribution-slug-guard-widening.sql",
+        "source_sha256": "38fca9a08a1be04b407160039223defd78a0ad70e4ea8afc85b34d48d6601802",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "5ce654ae879eb0bfa17345be4066b80de3f75d249f530e9d457feef4c8a71b3b",
+        "matches_observation": true
+      },
+      {
+        "path": "migrations/2026-09-09-native-attribution-browser-projection.sql",
+        "source_sha256": "f84d6520e7d6881e0780036b2af0809b531e05659d1ba7281e4727ec99ca88aa",
+        "pg_get_viewdef_pretty": false,
+        "definition_sha256": "c0bb8a36e44307833c17dcafcc813853e9013743325232a9a9c45ae23f8e3f34",
+        "matches_observation": false
+      },
+      {
+        "path": "migrations/2026-09-09-native-attribution-browser-projection.sql",
+        "source_sha256": "f84d6520e7d6881e0780036b2af0809b531e05659d1ba7281e4727ec99ca88aa",
+        "pg_get_viewdef_pretty": true,
+        "definition_sha256": "aec42039a421b63d50518756617fba780df741aed2e12ddaf1d5fdbf6a60e210",
+        "matches_observation": false
+      }
+    ]
+  },
+  "hosted_recovery_catalog_inspection": {
+    "classification": "LIVE_READ_RECOVERY_CATALOG_INSPECTION",
+    "observed_at": "2026-09-10T23:27:21.129Z",
+    "source": "b86654e1b73c53b097b93396a2110e6d09c39e14",
+    "query_sha256": "a42421bda26035b2365b0a1333dc967bc787a7b8ecc5a7dbeba437a9d3ee583d",
+    "private_capture_sha256": "2a1fb65ed180cbd8df81c243c30caa07175dfea44baea2372d872535951e1ddd",
+    "catalog_fingerprint_md5": "1b4370cc138361dbb32cfb686e9a0f77",
+    "counts": {
+      "tables": 67,
+      "views": 5,
+      "sequences": 14,
+      "functions": 115,
+      "triggers": 28,
+      "disabled_triggers": 0,
+      "policies": 31,
+      "indexes": 177,
+      "constraints": 247,
+      "types": 0,
+      "dependency_edges": 11,
+      "evaluated_expressions": 536
+    },
+    "server_version_num": 170006,
+    "history_v11_corpus": {
+      "expected": 52,
+      "present": 33,
+      "absent": [
+        "card_change_journal",
+        "production_intake_manifests",
+        "production_card_provenance",
+        "calendar_feedback_materializations",
+        "production_card_materialization_receipts",
+        "production_card_materialization_ingress",
+        "production_label_catalog_versions",
+        "linear_outbound_cutoff_control",
+        "legacy_intake_native_triage",
+        "native_brief_media_occurrences",
+        "production_native_client_provisions",
+        "syncview_retirement_admission",
+        "production_native_identifier_mint",
+        "production_native_identifier_grants",
+        "production_native_ordinary_receipt_admissions",
+        "production_notification_config",
+        "production_notification_intents",
+        "production_notification_delivery_receipts",
+        "production_notification_reconciliations"
+      ]
+    },
+    "application_rows_read": false,
+    "sequence_values_read": false,
+    "pg_dump_captured": false,
+    "restorable_backup_proven": false,
+    "full_dependency_closure_proven": false,
+    "hosted_mutation": false,
+    "current_public_tables_outside_history_v11_corpus": 34
+  },
+  "ordered_recovery_postgres17": {
+    "status": "PASS",
+    "passed": 31,
+    "table_count": 52,
+    "install_source_inventory": {
+      "identity": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+      "sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+      "classification": "SOURCE_ONLY",
+      "execution_order": "PUBLISHED_INVENTORY_DEPENDENCY_ORDER"
+    },
+    "classification": "ISOLATED_POSTGRES_ORDERED_SCHEMA_DATA_RECOVERY",
+    "postgres_version": "17.11",
+    "observed_hosted_version": "17.6",
+    "patch_identical": false,
+    "receipt": "linear-exit-recovery-upstream-ledger-d8e97669af914aaa8c1224de618638a1",
+    "unit_log_sha256": "03824d38a69fcdec103f2b3e569a93204f8278bdc41741c218bd9a037d17b861",
+    "source_base": "b86654e1b73c53b097b93396a2110e6d09c39e14",
+    "recovery_source_unchanged": true,
+    "runner_explicit_major_opt_in": true,
+    "server_stopped": true,
+    "hosted_recovery_proven": false
+  },
+  "priority_companion_offline": {
+    "classification": "OFFLINE_TEST",
+    "checks_passed": 17,
+    "tables": 9,
+    "columns": 106,
+    "row_schema_sha256": "40c039d6a12ffb2c43cc6d178bd8dd278f2e44d4d5ba12e22521f57a364dc310",
+    "command": "node test/linear-exit-priority-companion.js",
+    "postgres_capture_restore_proven": false,
+    "parent_package_validation_proven": false,
+    "complete_schema_proven": false,
+    "object_custody_proven": false,
+    "installation_ready": false
+  },
+  "priority_companion_postgres": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 7,
+    "tables": 9,
+    "columns": 106,
+    "receipt": "linear-exit-priority-companion-7258d9870f96441ab456be0905c6e78e",
+    "exit": 0,
+    "server_stopped": true,
+    "typed_synthetic_row_roundtrip": true,
+    "parent_package_validation_proven": false,
+    "full_schema_restore_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_capture_proven": false,
+    "object_custody_proven": false,
+    "report_only_flag_added_after_run": "parent_package_validation_proven:false",
+    "installation_ready": false
+  },
+  "priority_companion_pair": {
+    "classification": "OFFLINE_TEST",
+    "checks_passed": 9,
+    "parent_corpus": "history-v11",
+    "parent_tables": 52,
+    "actual_recovery_reader_used": true,
+    "synthetic_packages_only": true,
+    "same_snapshot_proven": false,
+    "combined_postgres_restore_proven": false,
+    "installation_ready": false
+  },
+  "priority_snapshot": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 7,
+    "receipt": "linear-exit-priority-snapshot-a53a8500038847949f229e6dac7d61df",
+    "exit": 0,
+    "server_stopped": true,
+    "actual_pg_dump": true,
+    "selected_concurrent_write_consistent": true,
+    "synthetic_schema_only": true,
+    "full_restore_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_capture_proven": false,
+    "durable_pair_publication_proven": false,
+    "installation_ready": false,
+    "default_recovery_regression": {
+      "receipt": "linear-exit-recovery-upstream-ledger-74c52cbeebea44d2a3fc77d87b8115c6",
+      "checks_passed": 31,
+      "tables": 52,
+      "upstream_ledger_verified": true,
+      "exit": 0,
+      "server_stopped": true
+    }
+  },
+  "priority_combined_restore": {
+    "classification": "ISOLATED_POSTGRES",
+    "postgres_major": 16,
+    "checks_passed": 11,
+    "receipt": "linear-exit-priority-restore-202b7e706a274650b786cce7c9064855",
+    "exit": 0,
+    "server_stopped": true,
+    "populated_companion_tables": 9,
+    "parent_tables": 52,
+    "actual_pair_reconstruction": true,
+    "late_type_and_duplicate_loss_rollback": true,
+    "retained_failure": "linear-exit-priority-restore-f7cf9109732044568a07644ed484201b",
+    "synthetic_schema_only": true,
+    "complete_application_schema_proven": false,
+    "sequence_custody_proven": false,
+    "hosted_restore_proven": false,
+    "installation_ready": false
+  },
+  "priority_application_schema": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_GAP_PROBE",
+    "status": "FAIL",
+    "exact_tables": 5,
+    "missing_tables": 4,
+    "mismatched_tables": 0,
+    "receipt": "linear-exit-priority-application-schema-38ce8a9bcd1e42548a9d670eb550a95e",
+    "exit": 1,
+    "server_stopped": true,
+    "application_rows_read": false,
+    "additional_application_owners_applied": false,
+    "installation_ready": false
+  },
+  "priority_application_supplement": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_GAP_PROBE",
+    "status": "FAIL",
+    "exact_tables": 8,
+    "missing_tables": 1,
+    "receipt": "linear-exit-priority-application-supplement-a2a72555281941a6b3f3e64ceaf3ff09",
+    "exit": 1,
+    "server_stopped": true,
+    "published_inventory_unchanged": true,
+    "application_seed_rows_executed": false,
+    "installation_ready": false
+  },
+  "backup_table_catalog": {
+    "classification": "LIVE_READ_CATALOG_ONLY",
+    "artifact": "docs/independence/LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json",
+    "application_rows_read": false,
+    "atomic_capture": false,
+    "historical_provenance_proven": false,
+    "exact_acl_requires_postgres_major_at_least": 17,
+    "installation_ready": false
+  },
+  "priority_observed_baseline": {
+    "classification": "ISOLATED_POSTGRES_CATALOG",
+    "status": "PASS",
+    "postgres_version_num": 170011,
+    "exact_tables": 9,
+    "acl_grants_checked": 32,
+    "receipt": "linear-exit-priority-observed-baseline-060d2319f101497e96edbba4a86de24b",
+    "exit": 0,
+    "server_stopped": true,
+    "existing_table_refused": true,
+    "populated_application_recovery_proven": false,
+    "historical_provenance_proven": false,
+    "installation_ready": false
+  },
+  "priority_application_recovery": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "receipt": "linear-exit-priority-application-recovery-096bc812ff0c4b85bd9ba3c7c409acf9",
+    "exit": 0,
+    "server_stopped": true,
+    "actual_application_owners": true,
+    "synthetic_rows_only": true,
+    "owner_relative_reconstruction": true,
+    "hosted_restore_proven": false,
+    "sequence_custody_proven": false,
+    "installation_ready": false
+  },
+  "priority_restored_behavior": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "checks_passed": 9,
+    "protected_role_denials": 6,
+    "receipt": "linear-exit-priority-application-recovery-77a1365b98cc449b87555e9f47cf8d2b",
+    "exit": 0,
+    "server_stopped": true,
+    "provider_calls": false,
+    "source_sequence_fence_proven": false,
+    "installation_ready": false
+  },
+  "priority_local_storage": {
+    "classification": "OFFLINE_FILESYSTEM_AND_ISOLATED_POSTGRES",
+    "filesystem_checks_passed": 12,
+    "pair_checks_passed": 9,
+    "application_receipt": "linear-exit-priority-application-recovery-a1fff484bbab4671a5af8c509f79f979",
+    "status": "PASS",
+    "behavior_checks": 9,
+    "exit": 0,
+    "server_stopped": true,
+    "retained_failure": "linear-exit-priority-application-recovery-b51ee3701bd74e25af834e97ee2229a4",
+    "max_component_bytes": 134217728,
+    "power_loss_durability_proven": false,
+    "off_device_custody_proven": false,
+    "installation_ready": false
+  },
+  "sequence_consistency": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "checks_passed": 7,
+    "receipt": "linear-exit-sequence-consistency-4a7304fbfc0645eca747ad36c4a636cd",
+    "exit": 0,
+    "server_stopped": true,
+    "application_writer_contract_proven": false,
+    "global_sequence_fence_proven": false,
+    "installation_ready": false
+  },
+  "sequence_application": {
+    "classification": "ISOLATED_POSTGRES_CATALOG_DEPENDENCIES_AND_BOUNDS",
+    "status": "PASS_CATALOG_BOUND_ONLY",
+    "sequences": 15,
+    "empty_consumer_tables": 13,
+    "receipt": "linear-exit-sequence-application-d5e42b1b78864e13b98c410e4ae1f402",
+    "exit": 0,
+    "server_stopped": true,
+    "consumer_closure_proven": false,
+    "concurrent_capture_consistency_proven": false,
+    "installation_ready": false
+  },
+  "sequence_bounds": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "receipt": "linear-exit-priority-application-recovery-2b2604a128d8490da1f03407e8820bd4",
+    "exit": 0,
+    "server_stopped": true,
+    "sequence_checks": 6,
+    "sequences": 15,
+    "restored_behavior_checks": 9,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "authenticated_snapshot_maxima": true,
+    "target_mapping_and_maxima_enforced": true,
+    "recorded_parent_sequence_state_used": true,
+    "offline_checks": 11,
+    "supersedes_pre_hardening_pass": "linear-exit-priority-application-recovery-a0d1cfea31854f6eaa77d6e0c180e6db",
+    "consumer_closure_proven": false,
+    "source_writer_reset_exclusion_proven": false,
+    "hosted_restore_proven": false,
+    "installation_ready": false,
+    "source_sha256": {
+      "scripts/linear-exit-sequence-bounds.js": "60ced07378d2ad781277afc205c8f037b55336526dac1f59be440b246acefdb8",
+      "scripts/track-b-recovery-package.js": "83785961d4eebaae8c0625ac6121e532ce7e9783654b7109760326ebd296ca28",
+      "test/linear-exit-sequence-bounds.js": "adadb59a5a1ff47cf69bfc2b1172cb5b688ed9286176cb8ea18af91ba66ef56d",
+      "test/linear-exit-priority-application-recovery.js": "7da394eecfb2e3e392cabe96c260f583da101324887eadf8bcc38b5ac7543772",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "ce606eb99ae281a0583c664b991f21166f9c6e272e959c4f0ded56e789719bd7"
+    },
+    "source_hash_scope": "Executed working-tree bytes; Git checkout line-ending normalization may change byte hashes.",
+    "prior_reader_compatibility": {
+      "marker": "LINEAR_EXIT_PRIOR_READER_COMPATIBILITY_OBSERVED",
+      "classification": "OFFLINE_ACTUAL_PRIOR_MODULE_ACTUAL_CAPTURED_PACKAGE",
+      "prior_ref": "de6543ae",
+      "prior_source_sha256": "d86f9137c6b60de7002d857df45a1ac377ec657b751bf57d9646a444be939d8c",
+      "parent_sha256": "27ca2d452efd389d0600030fcb6cbdaaf95c3e3c6f2380bd13cff5fac7b54e1d",
+      "prior_reader_accepts_optional_proof": true,
+      "prior_plain_renderer_enforces_sequence_bounds": false,
+      "current_module_dependencies_used": true,
+      "sql_executed": false
+    }
+  },
+  "native_identifier_recovery": {
+    "classification": "ISOLATED_POSTGRES",
+    "status": "PASS",
+    "postgres_major": 17,
+    "receipt": "linear-exit-priority-application-recovery-4cbc39bc836340698d838073006a6c6b",
+    "exit": 0,
+    "server_stopped": true,
+    "native_identifier_acceptance": {
+      "marker": "LINEAR_EXIT_NATIVE_IDENTIFIER_RECOVERY_OK",
+      "populated_cursor_grants_and_deliverables_exact": true,
+      "restored_collision_skips": 2,
+      "cursor_advance": 3,
+      "restored_and_new_grant_overwrite_refused_in_both_modes": true,
+      "reseed_refused_cursor_unchanged": true,
+      "fresh_connection_rollback_images_exact": true,
+      "hosted_allocator_proven": false
+    },
+    "sequence_checks": 6,
+    "restored_behavior_checks": 9,
+    "parent_tables": 52,
+    "populated_companion_tables": 9,
+    "supersedes_initial_pass": "linear-exit-priority-application-recovery-88a7c30425504115b97b049d9769e6d0",
+    "source_hash_scope": "Executed working-tree bytes; Git checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "test/helpers/linear-exit-native-identifier-recovery.js": "4b9ee68fffdba04219347e75ec29fa6d3ff56e49104b5fd7ba6e0e48535eea40",
+      "test/linear-exit-priority-application-recovery.js": "0735cf079760959165047b98b910f782e8604b56394b401f4c2a4092c3bc9bdb",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "634e1fae303d3565eac9d439d6b3e16d05f22dc34f8793a2afe59cd596457ce4"
+    },
+    "hosted_restore_proven": false,
+    "source_cutover_proven": false,
+    "installation_ready": false
+  },
+  "credential_recovery": {
+    "marker": "LINEAR_EXIT_CREDENTIAL_RECOVERY_OK",
+    "classification": "ISOLATED_POSTGRES_SYNTHETIC_TRIPLE",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source": {
+      "source": "migrations/client-credentials-migration.sql",
+      "source_sha256": "eb1c5ac2dc4fa2900225ca916b284367c0223d577e0b631fd74851ead7ad973c",
+      "separate_from_published_inventory": true,
+      "application_seed_rows_executed": false,
+      "hosted_schema_equivalence_proven": false
+    },
+    "parent_tables": 52,
+    "populated_priority_tables": 9,
+    "populated_credential_tables": 3,
+    "credential_rows": 3,
+    "event_rows": 3,
+    "revision_rows": 1,
+    "legacy_renderers_refused": true,
+    "late_row_fault_rollbacks": 2,
+    "protected_role_denials": 4,
+    "revision_role_reads": 2,
+    "partial_unique_constraint_enforced": true,
+    "shared_snapshot_capture": true,
+    "concurrent_three_table_write_kept_out_of_snapshot": true,
+    "complete_storage_proven": false,
+    "encryption_proven": false,
+    "handler_behavior_proven": false,
+    "realtime_quarantine_preserved": true,
+    "hosted_restore_proven": false,
+    "receipt": "linear-exit-credential-recovery-bddda9722ed1471ab5ac51f8f8cdeae8",
+    "exit": 0,
+    "server_stopped": true,
+    "installation_ready": false,
+    "supersedes_initial_pass": "linear-exit-credential-recovery-0d05eba92728470b94b3c1c7b94fb447",
+    "existing_pair_regression": {
+      "receipt": "linear-exit-priority-application-recovery-75de42cc72ef47dc928da2e28245e141",
+      "exit": 0,
+      "server_stopped": true,
+      "sequence_checks": 6,
+      "selected_behavior_checks": 9,
+      "native_identifier_acceptance": true
+    },
+    "offline_checks": {
+      "credential": 12,
+      "parent_recovery": 18,
+      "priority_envelope": 17,
+      "sequence_bounds": 11
+    },
+    "source_hash_scope": "Executed working-tree bytes; checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "scripts/linear-exit-credential-companion.js": "b7e0b06045796e385dd9f8315ea7f3b8cab5d5e02fa3cb5982cd56198bff8f75",
+      "scripts/linear-exit-credential-capture.js": "b0c3bcfd69136e3a18d24dd4e35270f3c36e3bca092bf0e5116ab3970fe13700",
+      "scripts/linear-exit-credential-reconstruct.js": "7e6512528b6cf80f8a3a773ee93f091d59df529fcf5427615d292fbc0d9ce96d",
+      "scripts/track-b-recovery-package.js": "4d9950c8aa33cebca28c280d73a62431c579383d3fc4b6ef45dbc6ea35efc7aa",
+      "scripts/linear-exit-priority-reconstruct.js": "40bcfc1714662e469598a567944436028f21774a7308c040df5e6fe0e9da875e",
+      "test/linear-exit-credential-recovery.js": "6eba0502d3bc609a04a8e1ecc5e65c440cc5c5eaafcde298a5b203c9077a6e26"
+    }
+  },
+  "credential_triple_storage": {
+    "marker": "LINEAR_EXIT_CREDENTIAL_RECOVERY_OK",
+    "classification": "ISOLATED_POSTGRES_SYNTHETIC_TRIPLE",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source": {
+      "source": "migrations/client-credentials-migration.sql",
+      "source_sha256": "eb1c5ac2dc4fa2900225ca916b284367c0223d577e0b631fd74851ead7ad973c",
+      "separate_from_published_inventory": true,
+      "application_seed_rows_executed": false,
+      "hosted_schema_equivalence_proven": false
+    },
+    "parent_tables": 52,
+    "populated_priority_tables": 9,
+    "populated_credential_tables": 3,
+    "credential_rows": 3,
+    "event_rows": 3,
+    "revision_rows": 1,
+    "legacy_renderers_refused": true,
+    "late_row_fault_rollbacks": 2,
+    "protected_role_denials": 4,
+    "revision_role_reads": 2,
+    "partial_unique_constraint_enforced": true,
+    "shared_snapshot_capture": true,
+    "concurrent_three_table_write_kept_out_of_snapshot": true,
+    "local_storage": {
+      "all_three_reopened_before_restore": true,
+      "container_sha256": "b01f1dded7989a43f560e426d34d68c2db788955e37148ca7fa2605cb53e94d2",
+      "atomic_no_overwrite": true,
+      "power_loss_durability_proven": false,
+      "off_device_custody_proven": false
+    },
+    "encryption_proven": false,
+    "handler_behavior_proven": false,
+    "realtime_quarantine_preserved": true,
+    "hosted_restore_proven": false,
+    "receipt": "linear-exit-credential-recovery-ffd30c061c334e8281ec1edc71670d1f",
+    "exit": 0,
+    "server_stopped": true,
+    "offline_storage_checks": 14,
+    "existing_pair_storage_checks": 12,
+    "installation_ready": false,
+    "source_hash_scope": "Executed working-tree bytes; checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "scripts/linear-exit-credential-triple-storage.js": "3e91af0eca21a7f69b98f18a6f4a758a7bddd35ffc4b4b3890c35dffce03302e",
+      "test/linear-exit-credential-triple-storage.js": "9441c13770c6b9b17d6d6e58d64318b7f197f0263eaaa2b97c80eea17fdb9659",
+      "test/linear-exit-credential-recovery.js": "c60ff7ecd98dc70d5eee02d2c2bf5aaac69203b287e6209f23f6d003156be5f5"
+    }
+  },
+  "credential_encrypted_storage": {
+    "marker": "LINEAR_EXIT_CREDENTIAL_RECOVERY_OK",
+    "classification": "ISOLATED_POSTGRES_SYNTHETIC_TRIPLE",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "source": {
+      "source": "migrations/client-credentials-migration.sql",
+      "source_sha256": "eb1c5ac2dc4fa2900225ca916b284367c0223d577e0b631fd74851ead7ad973c",
+      "separate_from_published_inventory": true,
+      "application_seed_rows_executed": false,
+      "hosted_schema_equivalence_proven": false
+    },
+    "parent_tables": 52,
+    "populated_priority_tables": 9,
+    "populated_credential_tables": 3,
+    "credential_rows": 3,
+    "event_rows": 3,
+    "revision_rows": 1,
+    "legacy_renderers_refused": true,
+    "late_row_fault_rollbacks": 2,
+    "protected_role_denials": 4,
+    "revision_role_reads": 2,
+    "partial_unique_constraint_enforced": true,
+    "shared_snapshot_capture": true,
+    "concurrent_three_table_write_kept_out_of_snapshot": true,
+    "local_storage": {
+      "all_three_reopened_before_restore": true,
+      "container_sha256": "4a16b69ccbcd0c2ba45f453470ccc57646c891b7de63504fca91c79104ce3e20",
+      "atomic_no_overwrite": true,
+      "power_loss_durability_proven": false,
+      "off_device_custody_proven": false
+    },
+    "encryption_proven": true,
+    "encryption_scope": "final_file_roundtrip_only",
+    "key_custody_proven": false,
+    "handler_behavior_proven": false,
+    "realtime_quarantine_preserved": true,
+    "hosted_restore_proven": false,
+    "receipt": "linear-exit-credential-recovery-38e9ece47e5d480db13e1d8799eebbe8",
+    "exit": 0,
+    "server_stopped": true,
+    "offline_encrypted_storage_checks": 13,
+    "plaintext_triple_regression_checks": 14,
+    "test_key_ephemeral_not_persisted": true,
+    "installation_ready": false,
+    "source_hash_scope": "Executed working-tree bytes; checkout line-ending normalization may change byte hashes.",
+    "source_sha256": {
+      "scripts/linear-exit-credential-encrypted-storage.js": "d1ec197ee9d556841dc1a95169114ee6e2cc3de731da760c28bfb86ea82e3d33",
+      "test/linear-exit-credential-encrypted-storage.js": "17fdff87e98c8f567207d46a969e87b6b4fdd14c949838ef0f93bd39ae87b852",
+      "test/helpers/credential-storage-fixture.js": "dec1749335ebbb94b154f5b789f03980f22a1bd0eb137a6eea6df20061c475cf",
+      "test/linear-exit-credential-recovery.js": "a27292551d407ffb604dd67aa31549fe176914c5611aa4b9f14d68a9080a0433",
+      "qa/linear-exit-rehearsal/run-portable.ps1": "5b39affb4ebb8de3f814a31c5315c3f91e3877aacf73f422b98e509e3e9f7008"
+    },
+    "capture_plaintext_staging_protection_proven": false
+  },
+  "retirement_freeze_preparation": {
+    "marker": "LINEAR_EXIT_GLOBAL_FREEZE_UNPROVEN",
+    "batch_description_lock_coverage_proven": true,
+    "global_freeze_proven": false,
+    "activation_authorized": false,
+    "source_owner": "migrations/2026-09-01-batch-description-cas-timestamptz.sql",
+    "source_sha256": "e276e82b5c2fb7b8a65c62ec92294e8fa749f175f1c180e87916524b6a72dc36",
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "scope": "ISOLATED_POSTGRES",
+    "blocked_write_left_row_and_events_unchanged": true,
+    "released_lock_control_committed": true,
+    "result": "PASS_BOUNDED_LOCK_COVERAGE",
+    "installation": "HOLD",
+    "receipt_directory": "linear-exit-retirement-freeze-3229b64ed0544984ac7dd56cb1167df4",
+    "unit_log_sha256": "100896cb402bb9a9fd80d927eae74a3568c45a1b2e2f90b68f9e4c91b10564ce",
+    "test_working_file_sha256": "dfa07a45ce02a8a752b98acca3afecafbe52602551deadcb3a48c24fced95c31",
+    "server_stopped": true,
+    "earlier_runs": [
+      {
+        "id": "878a39ae996a446190f1f6838a48c026",
+        "result": "FAIL_PROBE_JSON_PARSE"
+      },
+      {
+        "id": "df4385a6a59b4831b19a9e9bbc4509d7",
+        "result": "FAIL_PROBE_SQL_SYNTAX"
+      },
+      {
+        "id": "930a5627ae584700a1b6fa507906dade",
+        "result": "FAIL_COUNTEREXAMPLE_ASSUMPTION",
+        "finding": "Actual authority guard blocked the write; no crossing proven."
+      }
+    ],
+    "limits": [
+      "One batch-description RPC, not complete caller census or global freeze.",
+      "Source owner supplement is separate from the pinned 63-entry inventory.",
+      "No hosted writes, activation, deployment or merge."
+    ]
+  },
+  "calendar_freeze_counterexample": {
+    "marker": "LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN",
+    "calendar_row_and_event_committed_under_outbox_lock": true,
+    "global_freeze_proven": false,
+    "activation_authorized": false,
+    "source_owner": "migrations/2026-06-18-atomic-comment-merge.sql",
+    "source_sha256": "c354f499112921e8c6056f5ac9018cfd480d46e173c036e29cfe8165f7769927",
+    "selective_acl_supplement": {
+      "source": "migrations/live-schema-baseline-2026-07-03.sql",
+      "source_sha256": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+      "statement_count": 7,
+      "statements": [
+        "grant delete on table public.calendar_posts to service_role;",
+        "grant insert on table public.calendar_posts to service_role;",
+        "grant references on table public.calendar_posts to service_role;",
+        "grant select on table public.calendar_posts to service_role;",
+        "grant trigger on table public.calendar_posts to service_role;",
+        "grant truncate on table public.calendar_posts to service_role;",
+        "grant update on table public.calendar_posts to service_role;"
+      ]
+    },
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "capture_hashes": {
+      "functions/calendar-upsert/index.ts": "5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada",
+      "functions/_shared/thumbnail-revisions.ts": "fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9"
+    },
+    "scope": "ISOLATED_CAPTURED_HANDLER_SQL",
+    "sdk_transport": "SQL adapter, not hosted PostgREST",
+    "deferred_callbacks_drained": true,
+    "network_attempts": 0,
+    "handler_database_role": "service_role",
+    "result": "PASS_COUNTEREXAMPLE",
+    "installation": "HOLD",
+    "receipt_directory": "linear-exit-calendar-freeze-5ff2c206413b4fb89ab849e729ae7031",
+    "unit_log_sha256": "f8428ecde06104bad9412d5af9dd62a905cf1a548beeba434bdcd0cfb53df3b9",
+    "server_stopped": true,
+    "earlier_runs": [
+      {
+        "id": "07241de8ddd945eba695cef4d77e53f5",
+        "result": "FAIL",
+        "reason": "Stale batch control in initial test; owner-role run not final proof."
+      },
+      {
+        "id": "d9202c707d6542b58a1d40a35c0f0260",
+        "result": "FAIL",
+        "reason": "Calendar SELECT permission absent from partial baseline; handler refused initial read."
+      }
+    ],
+    "limits": [
+      "Captured Calendar v49 scalar status update only; no hosted save or fresh serving equivalence.",
+      "SQL SDK adapter under asserted service_role; not hosted PostgREST or Deno.",
+      "Comment RPC source installed explicitly but comment-update race not exercised.",
+      "Seven exact dated-source ACL statements supplement partial baseline; original inventory unchanged.",
+      "Deferred callbacks awaited here, not deliberately paused to prove final drain.",
+      "Global fetch refused with zero attempts; no claim of complete transport sandbox.",
+      "No global freeze, Samples race, activation or final snapshot proof."
+    ]
+  },
+  "calendar_deferred_event_gap": {
+    "marker": "LINEAR_EXIT_CALENDAR_FREEZE_GAP_PROVEN",
+    "deferred_event_response_gap_proven": true,
+    "calendar_row_and_event_committed_under_outbox_lock": true,
+    "global_freeze_proven": false,
+    "activation_authorized": false,
+    "source_owner": "migrations/2026-06-18-atomic-comment-merge.sql",
+    "source_sha256": "c354f499112921e8c6056f5ac9018cfd480d46e173c036e29cfe8165f7769927",
+    "selective_acl_supplement": {
+      "source": "migrations/live-schema-baseline-2026-07-03.sql",
+      "source_sha256": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+      "statement_count": 7,
+      "statements": [
+        "grant delete on table public.calendar_posts to service_role;",
+        "grant insert on table public.calendar_posts to service_role;",
+        "grant references on table public.calendar_posts to service_role;",
+        "grant select on table public.calendar_posts to service_role;",
+        "grant trigger on table public.calendar_posts to service_role;",
+        "grant truncate on table public.calendar_posts to service_role;",
+        "grant update on table public.calendar_posts to service_role;"
+      ]
+    },
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "capture_hashes": {
+      "functions/calendar-upsert/index.ts": "5592a10798acabe2670e61867edbab73847c6eda65b0b2253b7f86756851fada",
+      "functions/_shared/thumbnail-revisions.ts": "fb32db55aedb8955a577a8ad67185acd5da68475a3eeccbbb8f593c077e6d4c9"
+    },
+    "scope": "ISOLATED_CAPTURED_HANDLER_SQL",
+    "sdk_transport": "SQL adapter, not hosted PostgREST",
+    "deferred_callbacks_drained": true,
+    "network_attempts": 0,
+    "handler_database_role": "service_role",
+    "deferred_marker": {
+      "marker": "LINEAR_EXIT_CALENDAR_DEFERRED_GAP_PROVEN",
+      "response_and_row_preceded_event": true,
+      "real_event_released_and_persisted": true
+    },
+    "result": "PASS_CONTROLLED_RESPONSE_EVENT_GAP",
+    "installation": "HOLD",
+    "receipt_directory": "linear-exit-calendar-freeze-36494075c6a84067b5cb0e0fa629a4d6",
+    "unit_log_sha256": "6ed20522a262e0b7c8e0d7a3f0a287f106429405a387c0bc8f3bc74d595b0fa3",
+    "server_stopped": true,
+    "limits": [
+      "Actual captured v49 source with controlled SDK event delay and real service-role PostgreSQL; not hosted PostgREST/Deno.",
+      "Only scalar status and its event; comments, Samples, background tweak effects and complete caller closure unproven.",
+      "No final export or restoration performed by this test.",
+      "Completion of this controlled event is not a production drain mechanism.",
+      "Default earlier probe and failed runs remain in LINEAR_EXIT_CALENDAR_FREEZE_20260911.json."
+    ]
+  },
+  "native_signoff_verifier": {
+    "marker": "LINEAR_EXIT_NATIVE_SIGNOFF_VERIFIER_OK",
+    "checks": 43,
+    "scope": "ISOLATED_POSTGRES",
+    "actual_native_client_write": true,
+    "protected_ledger_select_denied": true,
+    "lookup_and_negative_probes_left_rows_unchanged": true,
+    "historical_epoch_valid": true,
+    "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+    "reconciler_integration": false,
+    "installation": "HOLD",
+    "result": "PASS",
+    "receipt_directory": "linear-exit-native-signoff-237180d2326e4361a3db992181ceb21b",
+    "server_stopped": true,
+    "unit_log_sha256": "c533dffa2e6fea3d5edc15e3bb6ed4951d09e2e2d1af8aca373b7d7bf9b4485f",
+    "migration_working_file_sha256": "a71a63140c35f034c7e1e7bd5597b9e207f3e0f2244447f857781ca2cb43f562",
+    "test_working_file_sha256": "cd946f4631020814bc68d9440a39d5b4a0787742325ff19bf9c7d1b729c6fd99",
+    "earlier_pass": "7b3a816d244840df89c6a3717b534ddd: 38 checks, superseded by timestamp and additional binding controls.",
+    "source_inventory_note": "Verifier applied separately after pinned inventory; not added to composed release inventory yet.",
+    "limits": [
+      "Database verifier only; reconciler reader/planner/pre-write integration is unbuilt.",
+      "No hosted calls, deployment, native sign-off repair or freeze authorization.",
+      "Negative corruption uses isolated superuser savepoint rollback, not a supported mutation path."
+    ]
+  }
+}

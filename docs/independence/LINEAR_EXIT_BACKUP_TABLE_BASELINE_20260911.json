@@ -1,0 +1,275 @@
+{
+  "classification": "LIVE_READ_SINGLE_STATEMENT_CATALOG",
+  "application_rows_read": false,
+  "historical_provenance_proven": false,
+  "full_dependency_closure_proven": false,
+  "installation_ready": false,
+  "metadata": {
+    "table": "public.batches_parent_claim_backup_20260824",
+    "grants": [
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "DELETE"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "INSERT"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "MAINTAIN"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "REFERENCES"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "SELECT"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRIGGER"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRUNCATE"
+      },
+      {
+        "role": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "UPDATE"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "DELETE"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "INSERT"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "MAINTAIN"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "REFERENCES"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "SELECT"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRIGGER"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRUNCATE"
+      },
+      {
+        "role": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "UPDATE"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "DELETE"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "INSERT"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "MAINTAIN"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "REFERENCES"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "SELECT"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRIGGER"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRUNCATE"
+      },
+      {
+        "role": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "UPDATE"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "DELETE"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "INSERT"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "MAINTAIN"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "REFERENCES"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "SELECT"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRIGGER"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "TRUNCATE"
+      },
+      {
+        "role": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "UPDATE"
+      }
+    ],
+    "columns": [
+      {
+        "acl": null,
+        "name": "id",
+        "type": "text",
+        "comment": null,
+        "default": null,
+        "options": null,
+        "storage": "x",
+        "identity": "",
+        "not_null": false,
+        "collation": "\"default\"",
+        "generated": "",
+        "compression": "",
+        "fdw_options": null
+      },
+      {
+        "acl": null,
+        "name": "linear_parent_ids",
+        "type": "jsonb",
+        "comment": null,
+        "default": null,
+        "options": null,
+        "storage": "x",
+        "identity": "",
+        "not_null": false,
+        "collation": null,
+        "generated": "",
+        "compression": "",
+        "fdw_options": null
+      },
+      {
+        "acl": null,
+        "name": "backed_up_at",
+        "type": "timestamp with time zone",
+        "comment": null,
+        "default": null,
+        "options": null,
+        "storage": "p",
+        "identity": "",
+        "not_null": false,
+        "collation": null,
+        "generated": "",
+        "compression": "",
+        "fdw_options": null
+      }
+    ],
+    "indexes": [],
+    "policies": [],
+    "relation": {
+      "rls": false,
+      "kind": "r",
+      "owner": "postgres",
+      "comment": null,
+      "options": null,
+      "force_rls": false,
+      "partition": false,
+      "tablespace": "0",
+      "persistence": "p",
+      "access_method": "heap",
+      "replica_identity": "d"
+    },
+    "triggers": [],
+    "constraints": [],
+    "observed_at": "2026-09-11T00:22:58.695432+00:00",
+    "rules_count": 0,
+    "publications": [],
+    "extension_owned": 0,
+    "inheritance_links": 0,
+    "server_version_num": "170006",
+    "referencing_foreign_keys": 0
+  }
+}

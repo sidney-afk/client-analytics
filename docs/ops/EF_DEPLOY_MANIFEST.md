@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 36 |
+| Deployable function slugs | 37 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 7 |
+| Manual-dispatch-only paths | 8 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 3 |
 
@@ -38,12 +38,13 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `linear-inbound` | [deploy-f27-inbound](../../.github/workflows/deploy-f27-linear-inbound.yml) | workflow_dispatch only (pinned SHA guard) | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
 | `linear-outbound` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
+| `notify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `notify/slack-api.ts` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-archive` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | - |
-| `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/policy.mjs` |
-| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
+| `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/feedback.mjs`<br>`production-comments/policy.mjs` |
+| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
@@ -55,7 +56,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-revision-read` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `thumbnail-revision-scan` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `workload-linear` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-linear/policy.mjs` |
-| `workload-plan` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
+| `workload-plan` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-plan/native-snapshot.mjs` |
 
 ## Regeneration
 

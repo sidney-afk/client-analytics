@@ -363,9 +363,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   than the ideal day**, which is not the same as "always before the deadline": the ideal day is
   floored to today, so an item due today, due tomorrow, or already overdue is planned ON today,
   exactly as under the previous rule.
-- Because most automatic cards now sit EARLIER than their ideal day, the `shifted` placement mode is
-  the ordinary outcome rather than a capacity incident, and its label says so ("Planned on the
-  earliest day with room"). It no longer means "this editor's usual day was full".
+- There is ONE automatic placement mode (owner ruling 2026-09-14). A second mode, `shifted`, used to
+  mark an automatic card not sitting on its ideal day; under the late-as-possible rule that meant
+  capacity had pushed it off the day it should have had. Under earliest-fit every automatic card
+  takes the earliest day with room, so the mode only separated "the earliest day with room happened
+  to BE the last possible day" from "it was earlier" — a fact nobody acts on, shown as two different
+  icons. `wlPlacementMode` returns `auto` for every automatic card, and the per-item detail
+  (`wlAutoPlacementTip`) names the day it is on and the latest day it could have sat on. `manual`
+  stays distinct, because a pin does mean something.
 - When first fit fails, a **bounded last-resort reshuffle** runs before the item falls back to its
   ideal day (owner ruling 2026-09-14). It exists because first fit alone can manufacture an overload
   a different order would have avoided — pins of 1/2/2 units on Mon/Tue/Wed, a 2× due Wednesday and
@@ -420,9 +425,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `wlPurgePlanSensitiveState()` with the pins it is derived from. Placement is withheld entirely
   until the authoritative plan snapshot proves which items are pinned, so the fast first paint and a
   plan-read failure both keep the unmoved ideal placement; the bounded settle animation covers the
-  cards that move when the snapshot lands. A moved card reports the `shifted` placement mode with
-  its own icon and a tooltip naming the day it came from, so a day that is not "deadline − 1" is
-  never unexplained.
+  cards that move when the snapshot lands. Every automatic card reports the single `auto` placement
+  mode with one icon (the second mode, `shifted`, retired 2026-09-14 — see above); its per-item
+  tooltip (`wlAutoPlacementTip`) names the day it is on and the latest day it could sit on, so a day
+  that is not "deadline − 1" is never unexplained.
 - Capacity is 4 video workload units / 15 graphics items per editor per day: a hard input to
   automatic placement, and a warning wherever it still cannot be met.
   An exact authoritative `2× Workload` or `3× Workload` label makes that video consume two or three

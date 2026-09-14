@@ -519,7 +519,7 @@ function ok(condition, message) {
         && h.context._wlPlanWriteInFlight.size === 0,
       'partial group failure keeps successes and restores each failed prior plan value');
     ok(h.notifies.length === 1
-        && h.notifies[0][0] === 'Moved 4 of 6 — 2 put back'
+        && h.notifies[0][0] === 'Moved 4 of 6 — 2 not saved'
         && h.renders.length === 2,
       'partial group failure emits one aggregate notification and one settled repaint');
   }

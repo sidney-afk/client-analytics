@@ -450,7 +450,14 @@ ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
   && !/Promise\.all|_wlPlanWriteRequest|action:\s*['"]batch['"]/.test(clientGroupMove)
-  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} put back/.test(clientGroupMove),
+  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} not saved/.test(clientGroupMove)
+  /* The body is status-aware since 2026-09-14: after an auth refusal the pins
+     are purged, so the cards do NOT keep their previous work day — and the
+     category comes from the REFUSAL, not from the purged state, because 401
+     and 403 both purge and need opposite advice. */
+  && /refusal === 401[\s\S]*?sign in again/.test(clientGroupMove)
+  && /refusal === 403[\s\S]*?cannot edit saved work days/.test(clientGroupMove)
+  && /Each failed item kept its previous work day/.test(clientGroupMove),
 'collapsed group drag stays Admin/SMM-gated, tweak-exclusive, sequential, and aggregate-notified through the one-row writer');
 ok(/rollupEl\.setAttribute\('aria-expanded', 'true'\)/.test(INDEX)
   && /anchor\.setAttribute\('aria-expanded', 'false'\)/.test(INDEX)
@@ -618,10 +625,19 @@ ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacity
    accepted — visible until the next refresh, and silent entirely on a group
    drag, which is how a drag appears to "not save". Pinned in source because
    the failure only shows up against a live gateway. */
-const persistPlan = INDEX.slice(INDEX.indexOf('async function _wlPersistPlanDate('),
-  INDEX.indexOf('async function wlSetPlanDate('));
-ok(persistPlan.length > 0 && persistPlan.length < 4000,
-  'the plan-write slice is bounded (harness is not vacuous)');
+/* Brace-matched, not cut at a character count: a fixed window silently stops
+   covering the end of the function as soon as it grows, which is how the
+   auto-assign slice in deliverable-counts-exclude-parents broke on 2026-09-14
+   for a property that had not changed. */
+const persistStart = INDEX.indexOf('async function _wlPersistPlanDate(');
+let persistEnd = -1;
+for (let i = INDEX.indexOf('{', persistStart), depth = 0; i < INDEX.length; i++) {
+  if (INDEX[i] === '{') depth++;
+  else if (INDEX[i] === '}' && --depth === 0) { persistEnd = i + 1; break; }
+}
+const persistPlan = INDEX.slice(persistStart, persistEnd);
+ok(persistStart >= 0 && persistEnd > persistStart && persistPlan.length < 8000,
+  'the plan-write slice covers exactly that function (harness is not vacuous)');
 const restores = (persistPlan.match(/wlApplyPlanLocal\(issue\.id, previousDate\)/g) || []).length;
 ok(restores >= 3
     && /resp\.status === 401\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\);\s*\n\s*_syncviewStaffIdentityClear\(\)/.test(persistPlan)

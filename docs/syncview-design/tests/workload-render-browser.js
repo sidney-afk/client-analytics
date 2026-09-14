@@ -23,7 +23,7 @@ const {
 
 const PHASES = [
   'week_structure', 'capacity_at_cap', 'capacity_over', 'weights',
-  'labels_auto_shifted_manual', 'label_loading', 'label_fallback',
+  'labels_auto_manual', 'label_loading', 'label_fallback',
   'failclosed_401', 'failclosed_403',
   'exclusions', 'filters', 'permissions_readonly', 'permissions_admin',
 ];
@@ -157,7 +157,7 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
   }
 
   // ── 4. Placement modes and their labels. ────────────────────────────────
-  phase('labels_auto_shifted_manual');
+  phase('labels_auto_manual');
   {
     const h = await launchWorkloadHarness({
       issues: [
@@ -175,13 +175,19 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       await waitForPlanSettled(h.page);
       const board = await readBoard(h.page);
       const auto = board.cards.find(c => c.id === 'p_auto');
-      const shifted = board.cards.find(c => c.id === 'p_shift');
+      const earlier = board.cards.find(c => c.id === 'p_shift');
       const pinned = board.cards.find(c => c.id === 'p_pin');
       expect(auto.day === MON && auto.mode === 'auto' && auto.label === 'Automatically planned',
         'a card on its ideal day is automatically planned and says so');
-      expect(shifted.day === MON && shifted.mode === 'shifted'
-        && shifted.label === 'Planned on the earliest day with room',
-        'a card placed before its ideal day must say it took the earliest day with room');
+      /* Owner ruling 2026-09-14: ONE automatic state. A card placed before its
+         ideal day is not a different kind of thing — under earliest-fit that
+         is simply what automatic planning does — so it must carry the same
+         mode and the same label as the card above, not a second icon. */
+      expect(earlier.day === MON && earlier.mode === 'auto'
+        && earlier.label === 'Automatically planned',
+        'a card placed before its ideal day carries the SAME automatic mode and label');
+      expect(board.cards.every(c => c.mode !== 'shifted'),
+        'the retired second automatic mode reaches no card');
       expect(pinned.day === WED && pinned.mode === 'manual' && pinned.label === 'Manually planned',
         'a pinned card is manually planned and holds its exact day');
       expect(board.cards.every(c => c.label !== 'Deadline fallback'),

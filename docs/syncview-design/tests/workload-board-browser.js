@@ -28,6 +28,7 @@ const {
 const PHASES = [
   'boot', 'drag_move', 'pin_frees_room', 'no_churn',
   'refuse_single_401', 'refuse_single_403', 'refuse_single_500',
+  'reported_lost_drag_401', 'reported_lost_drag_403', 'reported_lost_drag_500',
   'refuse_group_401', 'refuse_group_403', 'refuse_group_500',
   'group_drag', 'handle_only', 'use_automatic_plan',
   'drag_outside_week', 'drag_same_day',
@@ -218,6 +219,46 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
     } finally { await h.close(); }
   }
 
+  /* ── 5b. THE REPORTED SYMPTOM, end to end.
+   *
+   * Owner report 2026-09-14: social media managers drag a card, it looks
+   * moved, they refresh, and it is back where it was. Reproduced here as the
+   * exact shape rather than argued about: a refused write (their sign-in had
+   * lapsed) used to leave the optimistic move standing on screen with nothing
+   * saved, so the board lied until the next load told the truth.
+   *
+   * The decisive assertion is what the user SEES before any refresh. If the
+   * dropped day stands while the server holds the old one, the board is
+   * telling them the drag worked. Run against the pre-2026-09-14 page this
+   * phase fails on exactly that line.
+   * ─────────────────────────────────────────────────────────────────────── */
+  for (const status of [401, 403, 500]) {
+    phase(`reported_lost_drag_${status}`);
+    const h = await launchWorkloadHarness({
+      issues: [parentRow({}), sub('s1', { due_date: FRI, client_name: 'Client A' })],
+      plans: [{ issue_id: 's1', plan_date: TUE }],
+    });
+    try {
+      await waitForPlanSettled(h.page);
+      await clearNotices(h.page);
+      h.state.planWriteStatus = status;
+      await dragIssueToDay(h.page, 's1', THU);
+      await waitForWrites(h.state, 1, `the ${status} refusal`);
+      await waitForPlanIdle(h.page);
+
+      const seen = dayOf(await readBoard(h.page), 's1');
+      const stored = h.state.plans.get('s1') || null;
+      expect(stored === TUE,
+        `a ${status} must not change what the server holds (it still holds ${TUE}, saw ${stored})`);
+      expect(seen !== THU,
+        `THE REPORTED BUG: after a ${status} the board showed the card on ${THU} while the server `
+        + `still held ${TUE} — a drag that looks saved and is gone on the next refresh`);
+      const told = await notices(h.page);
+      expect(told.some(n => /Couldn't save the work day/.test(n.title)),
+        `a ${status} must say the save failed rather than leave the user to find out on refresh`);
+    } finally { await h.close(); }
+  }
+
   // ── 6. The quiet path: a refused GROUP drag restores every card too. ────
   for (const status of [401, 403, 500]) {
     phase(`refuse_group_${status}`);
@@ -250,6 +291,31 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       const told = await notices(h.page);
       expect(told.length > 0,
         `a ${status} on the quiet path must still tell the user something went wrong`);
+      /* The summary must describe what actually happened to the cards. After a
+         401/403 the pins are purged, so they do NOT keep their previous work
+         day — they fall to the deadline placement. The summary claimed
+         otherwise until 2026-09-14. */
+      const summary = told.map(n => (n.title || '') + ' ' + (n.body || '')).join(' ');
+      if (status === 500) {
+        expect(/kept its previous work day/.test(summary),
+          'a 500 group refusal did keep every previous day, and may say so');
+      } else {
+        expect(!/kept its previous work day/.test(summary),
+          `a ${status} group refusal must not claim the cards kept their previous work day: the pins were purged`);
+        /* 401 and 403 both purge, so the summary cannot infer the reason from
+           the purged state — and the two need opposite advice. */
+        if (status === 401) {
+          expect(/sign in again/i.test(summary),
+            'a 401 group refusal must tell the user to sign in again');
+          expect(!/cannot edit/i.test(summary),
+            'a 401 is an expired session, not a permission problem');
+        } else {
+          expect(/cannot edit saved work days/i.test(summary),
+            'a 403 group refusal must say the account may not edit work days');
+          expect(!/sign in again/i.test(summary),
+            'a 403 is not fixed by signing in again with the same account, so it must not say so');
+        }
+      }
     } finally { await h.close(); }
   }
 

@@ -1,5 +1,7 @@
 # Native notification outbox
 
+> **Owner scope correction, 2026-09-14: WEBSITE DECOUPLING ONLY; LEAVE LINEAR UNTOUCHED.** Remove the website's dependency on Linear without modifying Linear itself. Do not write/reconcile/drain work into Linear, stop or alter its integrations or external workers, revoke/rotate credentials, delete webhooks/workflows, cancel billing, or delete/archive workspace data as part of this project. Existing n8n and unrelated automations stay untouched. Previous Linear-retirement/shutdown procedures are historical and outside this rollout, not future steps implicitly approved by installation. Do not introduce client communications through Slack, email, invitations, reminders, webhooks or other channels. Internal communications also remain unapproved. The current broad candidate is not an approved website-only release: first identify the exact browser and necessary website-backend changes, their effects on existing integration traffic, and a release path that excludes unrelated functions, senders and provider mutations. A generic request to install does not authorize the broader package. File decisions require an item/type-specific proposal; preserve originals, links and permissions in the meantime.
+
 SOURCE_ONLY, inactive until deliberately installed and configured. Native status
 and comment database triggers write durable notification intents; they do not
 call Slack, n8n, or a scheduler. The `notify` Edge Function is a manual sender

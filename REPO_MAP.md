@@ -459,3 +459,5 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 - `docs/independence/LINEAR_EXIT_INSTALL_OPERATOR_PG17_20260914.json`: actual guarded adapter execution and source-bound proof limits.
 
 - `docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md`: bounded catch-up rehearsal and remaining day-of work.
+
+- `docs/ops/LINEAR_EXIT_RECOVERY_PROCEDURE.md`: owner recovery decision tree, hosted tooling limits and previous-function pin prerequisites.

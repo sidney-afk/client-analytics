@@ -1,5 +1,7 @@
 # Linear exit preparation: living checkpoint
 
+Emergency entrypoint: [database, website and function recovery](LINEAR_EXIT_RECOVERY_PROCEDURE.md). Read this before authorizing the installation window.
+
 This is the single entry point. Keep updating this file; 20260914 in its filename is its creation date, not a promise that every observation is fresh. Historical documents are supporting evidence, not competing checklists.
 
 ## Current branch, PR and published revision
@@ -20,6 +22,8 @@ Before this documentation update GitHub reported CONFLICTING / DIRTY and zero ch
 
 Checkout: `D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes`. Older observed reconstruction inputs: `D:/Sidney/Codex/2026-09-12-fast-finish-evidence`. Isolated catch-up receipt: `D:/Sidney/Codex/2026-09-14-main-catchup-rehearsal-v2/receipt.json`. These local directories are not GitHub attachments; ensure the next operator has them before execution. The checkpoint and runbook supersede the older private handoff narrative if status differs.
 
+Recovery procedure is now written and linked from the runbook failure stops. A read-only check found eight completed managed backups with PITR disabled; restore execution remains untested. Previous-serving browser/function pins and coherent-lane applicability are installation-window inputs, not candidate hashes.
+
 ## What is done
 
 | Preparation | Result and limit |
@@ -35,7 +39,7 @@ Checkout: `D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes`. Older observed 
 
 ## Remaining before installation day
 
-Complete Storage custody in a freshly confirmed quiet window (20-30 minutes capture/readback plus transfer), or make it the first day-of task before freeze. Ensure private evidence and recovery records are available to the operator. Resolve the website dependency closure items below before claiming full independence. Prepare exact hosted recovery routes for database/Pages/functions; isolated restore evidence alone does not supply those routes.
+Complete Storage custody in a freshly confirmed quiet window (20-30 minutes capture/readback plus transfer), or make it the first day-of task before freeze. Ensure private evidence and recovery records are available to the operator. Resolve the website dependency closure items below before claiming full independence. The recovery procedure now documents database/Pages/function routes and limits. Confirm managed restore availability and the previous-version recovery record at the day-of gate; isolated restore evidence alone does not prove live recovery.
 
 ## Remaining on installation day
 

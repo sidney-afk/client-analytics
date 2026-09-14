@@ -15454,8 +15454,11 @@
         _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
         // Derived from the pins, so it is just as sensitive: a retained "moved
-        // earlier" marker would leak that a pin existed on that day.
+        // earlier" marker would leak that a pin existed on that day. The
+        // settled-day record the next pass anchors against is derived from the
+        // same placements, so it goes with them.
         wlState.autoPlacementByIssueId = new Map();
+        wlState.autoPlacementSettled = new Map();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
@@ -16249,6 +16252,8 @@
     // written: `workload_plan` still holds deliberate manual overrides only,
     // and every placement is re-derived from (issues, plans, weights, today).
     const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the forward walk
+    const WL_RESHUFFLE_MAX_CANDIDATES = 6;     // cards on one day the reshuffle will consider
+    const WL_RESHUFFLE_MAX_EVICTIONS = 3;      // how many of them it may move at once
     function wlCapacityKey(sub) {
         return (sub && sub.assigneeId || '?') + '|' + wlTeamBucket(sub && sub.teamKey, sub && sub.teamName);
     }
@@ -16309,6 +16314,14 @@
             const slot = slotOf(sub, day);
             used.set(slot, Math.max(0, (used.get(slot) || 0) - wlWorkloadWeight(sub)));
         };
+        const recordDay = (entry, day) => {
+            const id = String(entry.sub && entry.sub.id || '');
+            placedOn.set(entry, day);
+            // Only a genuine move is recorded: an item on its ideal day stays a
+            // plain "auto" and keeps deriving its day from wlAutoPlanDate.
+            if (day === entry.ideal) placements.delete(id);
+            else placements.set(id, day);
+        };
 
         /*
          * LAST-RESORT RESHUFFLE (owner ruling 2026-09-14, on Codex's finding).
@@ -16336,11 +16349,39 @@
          *   - one level deep: an evicted item re-places by ordinary first fit
          *     and may not evict anyone in turn, which bounds the work and stops
          *     a cascade of knock-on moves;
-         *   - the smallest displacement that works wins (fewest evicted, then
-         *     lightest), so a fit costs one moved card rather than five.
+         *   - the smallest displacement that works wins (fewest cards, then
+         *     least weight), so a fit costs one moved card rather than five.
          * When no such rearrangement exists the item keeps its ideal day and
-         * the honest over-capacity badge, exactly as before.
+         * the honest over-capacity badge.
+         *
+         * SETS, not a greedy sweep. Taking candidates one at a time cheapest
+         * first spends the relocation room the heavier card needed: Monday
+         * holding a 2 and a 1, Tuesday pinned at 2, and the 1 moves into
+         * Tuesday's only hole, so the 2 has nowhere to go and the whole repair
+         * rolls back — although moving just the 2 to Tuesday fits everything.
+         * So each day's candidates are tried as SETS, smallest first, and the
+         * first set that works wins. The search is bounded by
+         * WL_RESHUFFLE_MAX_CANDIDATES and WL_RESHUFFLE_MAX_EVICTIONS.
          */
+        const evictionSets = (candidates) => {
+            const pool = candidates.slice(0, WL_RESHUFFLE_MAX_CANDIDATES);
+            const sets = [];
+            const build = (startAt, chosen) => {
+                if (chosen.length) sets.push(chosen.slice());
+                if (chosen.length >= WL_RESHUFFLE_MAX_EVICTIONS) return;
+                for (let i = startAt; i < pool.length; i++) {
+                    chosen.push(pool[i]);
+                    build(i + 1, chosen);
+                    chosen.pop();
+                }
+            };
+            build(0, []);
+            // Fewest cards moved first, then least total weight: the least
+            // disturbance to a board somebody is already working from.
+            const weightOf = (set) => set.reduce((sum, other) => sum + wlWorkloadWeight(other.sub), 0);
+            sets.sort((a, b) => a.length - b.length || weightOf(a) - weightOf(b));
+            return sets;
+        };
         const reshuffleFor = (entry) => {
             let day = windowStart;
             for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
@@ -16350,46 +16391,81 @@
                     if (wlCapacityKey(other.sub) !== wlCapacityKey(entry.sub)) continue;
                     candidates.push(other);
                 }
-                // Lightest first: freeing the least that still works is what
-                // keeps this from rewriting a settled board.
                 candidates.sort((a, b) => wlWorkloadWeight(a.sub) - wlWorkloadWeight(b.sub)
                     || String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || '')));
-                const evicted = [];
-                for (const other of candidates) {
-                    if (fits(entry.sub, day)) break;
-                    release(other.sub, day);
-                    const moved = firstFit(other.sub, other.ideal, day);
-                    if (!moved) { reserve(other.sub, day); continue; }
-                    reserve(other.sub, moved);
-                    evicted.push({ other, from: day, to: moved });
-                }
-                if (fits(entry.sub, day)) {
-                    for (const move of evicted) {
-                        placedOn.set(move.other, move.to);
-                        if (move.to === move.other.ideal) placements.delete(String(move.other.sub && move.other.sub.id || ''));
-                        else placements.set(String(move.other.sub && move.other.sub.id || ''), move.to);
+                for (const set of evictionSets(candidates)) {
+                    const moves = [];
+                    for (const other of set) release(other.sub, day);
+                    // Heaviest first: the hardest card to re-place claims the
+                    // remaining room before a lighter one can take it.
+                    const ordered = set.slice().sort((a, b) => wlWorkloadWeight(b.sub) - wlWorkloadWeight(a.sub));
+                    let ok = true;
+                    for (const other of ordered) {
+                        const moved = firstFit(other.sub, other.ideal, day);
+                        if (!moved) { ok = false; break; }
+                        reserve(other.sub, moved);
+                        moves.push({ other, to: moved });
                     }
-                    return day;
-                }
-                // This day did not work: put every evicted item back exactly
-                // where it was before trying the next one.
-                for (let i = evicted.length - 1; i >= 0; i--) {
-                    release(evicted[i].other.sub, evicted[i].to);
-                    reserve(evicted[i].other.sub, evicted[i].from);
+                    if (ok && fits(entry.sub, day)) {
+                        for (const move of moves) recordDay(move.other, move.to);
+                        return day;
+                    }
+                    // Undo this set exactly before trying the next one.
+                    for (const move of moves) release(move.other.sub, move.to);
+                    for (const other of set) reserve(other.sub, day);
                 }
                 day = wlAddWorkingDays(day, 1);
             }
             return '';
         };
 
-        for (const entry of automatic) {
+        const settle = (entry) => {
             const finalDay = firstFit(entry.sub, entry.ideal) || reshuffleFor(entry) || entry.ideal;
             reserve(entry.sub, finalDay);
-            placedOn.set(entry, finalDay);
-            // Only a genuine move is recorded: an untouched item stays a plain
-            // "auto" and keeps deriving its day from wlAutoPlanDate.
-            if (finalDay !== entry.ideal) placements.set(String(entry.sub && entry.sub.id || ''), finalDay);
+            recordDay(entry, finalDay);
+        };
+
+        /*
+         * INCUMBENTS FIRST (owner condition, 2026-09-14).
+         *
+         * Every placement is re-derived from scratch on each snapshot, so
+         * "nothing moves unless it clears an overload" is not enough on its
+         * own: a newcomer sorted ahead of settled work rearranges the board
+         * without the reshuffle ever running. Four 1-unit cards sharing Monday
+         * plus one arriving 3-unit card with the same deadline sorts the
+         * newcomer first, which takes Monday and pushes three incumbents to
+         * Tuesday — when the newcomer could simply have taken Tuesday alone.
+         *
+         * So the day an item held in the LAST pass is treated as a soft pin: if
+         * it is still inside that item's window and still fits, it is reserved
+         * before any new item is placed. It is soft — the reshuffle may still
+         * evict it as a last resort, and an anchor that no longer fits (a new
+         * manual pin took the room, the day fell behind today, the deadline
+         * moved) is dropped and that item re-placed like any other. On a first
+         * load there are no anchors and the pass is pure earliest-fit.
+         *
+         * This is in-memory only, derived from the previous pass, and is
+         * cleared with the pins it ultimately derives from: nothing about it is
+         * persisted or read back from a server.
+         */
+        const previous = wlState.autoPlacementSettled instanceof Map ? wlState.autoPlacementSettled : new Map();
+        const unanchored = [];
+        for (const entry of automatic) {
+            const anchor = String(previous.get(String(entry.sub && entry.sub.id || '')) || '');
+            if (!anchor || anchor < windowStart || anchor > entry.ideal || !wlIsWorkingDay(anchor) || !fits(entry.sub, anchor)) {
+                unanchored.push(entry);
+                continue;
+            }
+            reserve(entry.sub, anchor);
+            recordDay(entry, anchor);
         }
+        for (const entry of unanchored) settle(entry);
+
+        // What every automatic item ended up holding, for the next pass to
+        // anchor against. Distinct from `placements`, which carries only the
+        // items that are NOT on their ideal day.
+        wlState.autoPlacementSettled = new Map(
+            [...placedOn].map(([entry, day]) => [String(entry.sub && entry.sub.id || ''), day]));
         return placements;
     }
 

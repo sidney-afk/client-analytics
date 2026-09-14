@@ -151,6 +151,15 @@ const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
   WL_PLACEMENT_WALK_LIMIT: Number(
     (INDEX.match(/const WL_PLACEMENT_WALK_LIMIT\s*=\s*(\d+)/) || [])[1],
   ),
+  WL_RESHUFFLE_MAX_CANDIDATES: Number(
+    (INDEX.match(/const WL_RESHUFFLE_MAX_CANDIDATES\s*=\s*(\d+)/) || [])[1],
+  ),
+  WL_RESHUFFLE_MAX_EVICTIONS: Number(
+    (INDEX.match(/const WL_RESHUFFLE_MAX_EVICTIONS\s*=\s*(\d+)/) || [])[1],
+  ),
+  // The pass now anchors each item to the day it held last time, so it needs
+  // the state that record lives on.
+  wlState,
   wlWorkloadTodayISO: () => '2026-07-15',
   wlCapacityKey,
   wlWorkloadWeight,
@@ -451,9 +460,11 @@ check((wlState.calendarByDate.get(settledDay) || []).length === 4
     && settled.every(row => wlPlacementMode(row) === 'shifted'),
   'four 1x cards settle exactly onto the earliest working day with room, not on their shared ideal day');
 
-// Deliberately named to sort LAST on the identifier tie-break, so it can only
-// win the earliest day through the weight-descending rule — otherwise this
-// check would stay green even if that rule were deleted.
+// A heavy newcomer sorts FIRST (weight-descending within one ideal day), so
+// without the incumbent anchor it would take the settled day and push three
+// cards off it — the churn the owner ruled against on 2026-09-14. Deliberately
+// named to sort LAST on the identifier tie-break, so sort order alone cannot
+// make this pass.
 const heavyNewcomer = issue('To Do', 'zz-newcomer-3x', settledDue);
 wlState.workloadByIssueId.set(heavyNewcomer.id, {
   label: '3× Workload', weight: 3, color: '#EA580C',
@@ -462,13 +473,12 @@ wlApplyData(settled.concat([heavyNewcomer]), '2026-07-15T12:00:00Z');
 const earliestAfter = wlState.calendarByDate.get(settledDay) || [];
 const pushedOn = wlState.calendarByDate.get(laterDay) || [];
 check(wlWorkloadWeight(heavyNewcomer) === 3
-    && earliestAfter.map(row => row.id).includes(heavyNewcomer.id)
-    && wlWorkloadUnits(earliestAfter) === 4 && earliestAfter.length === 2
-    && pushedOn.length === 3
-    && pushedOn.every(row => wlPlacementMode(row) === 'shifted')
+    && earliestAfter.length === 4
+    && settled.every(row => (wlState.calendarByDate.get(settledDay) || []).map(r => r.id).includes(row.id))
+    && pushedOn.length === 1 && pushedOn[0].id === heavyNewcomer.id
     && !wlDayOverCapacity(earliestAfter) && !wlDayOverCapacity(pushedOn)
     && wlState.planned.length === 5,
-  'a heavier newcomer takes the full earliest day and reflows the lighter settled cards one working day later');
+  'a heavier newcomer takes the next day with room instead of rearranging the settled cards');
 check(pushedOn.every(row => wlDisplayDate(row) > settledDay
     && wlDisplayDate(row) <= settledIdeal),
   'the reflowed cards move later only, never past their ideal day and never before today');

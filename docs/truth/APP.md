@@ -376,9 +376,21 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   (same editor, same team) are candidates; a manual pin is never a candidate; an evicted item must
   re-place inside ITS OWN window, so nothing is pushed past its own deadline; it is one level deep,
   so an evicted item re-places by ordinary first fit and may not evict anyone in turn; the smallest
-  displacement that works wins; and a day that does not work is rolled back exactly. When no
-  rearrangement exists the item keeps its ideal day and the honest over-capacity badge. Nothing
-  moves when new work simply fits.
+  displacement that works wins; and a day that does not work is rolled back exactly. Candidates are
+  tried as SETS (smallest first, bounded by `WL_RESHUFFLE_MAX_CANDIDATES` and
+  `WL_RESHUFFLE_MAX_EVICTIONS`), not one at a time cheapest-first, which spends the relocation room
+  a heavier card needed. When no rearrangement exists the item keeps its ideal day and the honest
+  over-capacity badge.
+- **Incumbents anchor.** Because every placement is re-derived per snapshot, "nothing moves unless
+  it clears an overload" is not enough on its own: a newcomer sorted ahead of settled work (heavier
+  first within one ideal day) would rearrange the board without the reshuffle ever running. So the
+  day an item held in the LAST pass is a SOFT PIN — reserved before any new item is placed, if it
+  is still inside that item's window and still fits. It is soft: the reshuffle may still evict it as
+  a last resort, and an anchor that stops fitting (a new manual pin took the room, the day fell
+  behind today, the deadline moved) is dropped and that item re-placed like any other. On a first
+  load there are no anchors and the pass is pure earliest-fit. The record
+  (`wlState.autoPlacementSettled`) is in-memory only, never persisted or read back from a server,
+  and is purged with the pins it derives from.
   Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
   computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
   render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor

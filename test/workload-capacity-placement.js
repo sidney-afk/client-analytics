@@ -65,10 +65,16 @@ function extract(name) {
 
 const walkLimit = Number((source.match(/const WL_PLACEMENT_WALK_LIMIT\s*=\s*(\d+)/) || [])[1]);
 assert(Number.isFinite(walkLimit) && walkLimit > 0, 'WL_PLACEMENT_WALK_LIMIT is a positive literal');
+const reshuffleCandidates = Number((source.match(/const WL_RESHUFFLE_MAX_CANDIDATES\s*=\s*(\d+)/) || [])[1]);
+const reshuffleEvictions = Number((source.match(/const WL_RESHUFFLE_MAX_EVICTIONS\s*=\s*(\d+)/) || [])[1]);
+assert(Number.isFinite(reshuffleCandidates) && reshuffleCandidates > 0
+  && Number.isFinite(reshuffleEvictions) && reshuffleEvictions > 0,
+  'the reshuffle search bounds are positive literals');
 
 const wlState = {
   planByIssueId: new Map(),
   autoPlacementByIssueId: new Map(),
+  autoPlacementSettled: new Map(),
   workloadByIssueId: new Map(),
   planHasSnapshot: true,
   planLoading: false,
@@ -81,6 +87,8 @@ const context = {
   wlState,
   wlWorkloadTodayISO: () => TODAY,
   WL_PLACEMENT_WALK_LIMIT: walkLimit,
+  WL_RESHUFFLE_MAX_CANDIDATES: reshuffleCandidates,
+  WL_RESHUFFLE_MAX_EVICTIONS: reshuffleEvictions,
   Map, Set, Array, Number, String, Boolean, Object, Date, Math, JSON,
   Intl, isNaN, parseInt, parseFloat, console,
 };
@@ -128,6 +136,10 @@ function sub(options) {
 function reset() {
   wlState.planByIssueId = new Map();
   wlState.autoPlacementByIssueId = new Map();
+  // The anchor record from the previous pass. Cleared here so each check
+  // starts from a first load; the churn checks below build it deliberately by
+  // running the pass twice.
+  wlState.autoPlacementSettled = new Map();
   wlState.workloadByIssueId = new Map();
   wlState.planHasSnapshot = true;
   wlState.planLoading = false;
@@ -512,19 +524,62 @@ check('a fragmented window is rearranged instead of declared overloaded', () => 
     'and nothing is left over capacity');
 });
 
-check('a settled board does not churn when new work simply fits', () => {
+check('a HEAVY newcomer does not rearrange a settled board to take the earlier day', () => {
   reset();
-  const settled = Array.from({ length: 3 }, (_, i) => sub({ due: WED_NEXT, identifier: 'VID-710' + i }));
+  // The first version of this check used equal weights, where the sort order
+  // happens to keep incumbents in place — so it proved nothing. Codex's case:
+  // four settled 1-unit cards fill Monday, then a 3-unit card with the same
+  // deadline arrives and SORTS FIRST (heavier first within one ideal day). It
+  // would take Monday and push three incumbents to Tuesday, although it could
+  // simply take Tuesday alone.
+  const settled = Array.from({ length: 4 }, (_, i) => sub({ due: WED_NEXT, identifier: 'VID-710' + i }));
   const before = place(settled, MON);
+  assert.deepStrictEqual(before, [MON, MON, MON, MON], 'all four settle on the earliest day');
+
+  // The SAME snapshot plus the newcomer, recomputed from scratch as a real
+  // refresh does — the anchor record from the pass above is what carries the
+  // incumbents, and it is the only thing that survives.
+  const newcomer = sub({ due: WED_NEXT, weight: 3, identifier: 'VID-7199' });
+  const after = place(settled.concat([newcomer]), MON);
+  assert.deepStrictEqual(after.slice(0, 4), [MON, MON, MON, MON], 'every incumbent keeps its day');
+  assert.strictEqual(after[4], TUE, 'and the newcomer takes the next day with room for it');
+});
+
+check('an anchor is dropped when it stops fitting, and never on a first load', () => {
   reset();
-  // The same three, plus a newcomer that has room of its own. Rebuilt from
-  // scratch exactly as a real snapshot is, so this measures the pass, not a
-  // cache.
-  const again = Array.from({ length: 3 }, (_, i) => sub({ due: WED_NEXT, identifier: 'VID-710' + i }));
-  const newcomer = sub({ due: WED_NEXT, identifier: 'VID-7199' });
-  const after = place(again.concat([newcomer]), MON);
-  assert.deepStrictEqual(after.slice(0, 3), before, 'the three settled cards keep their days');
-  assert.strictEqual(after[3], MON, 'and the newcomer takes the room that was already there');
+  const settled = Array.from({ length: 4 }, () => sub({ due: WED_NEXT }));
+  place(settled, MON);
+  // A pin lands on Monday afterwards and takes the room the anchors held: the
+  // soft anchors must yield to it rather than sit over capacity.
+  const pin = sub({ plan: MON, weight: 2 });
+  const dates = place(settled.concat([pin]), MON);
+  const monday = dates.slice(0, 4).filter(day => day === MON).length;
+  assert.strictEqual(monday, 2, 'only what fits beside the pin stays on Monday');
+  assert.ok(dates.slice(0, 4).every(day => day >= MON && day <= WED_NEXT),
+    'the displaced cards re-place inside their own window');
+  assert.strictEqual(dates[4], MON, 'and the pin itself is untouched');
+});
+
+check('the reshuffle tries eviction SETS, not the cheapest card first', () => {
+  reset();
+  // Codex's second case: Monday holds a 2 and a 1, Tuesday is pinned at 2,
+  // Wednesday is pinned full. A 3-unit newcomer needs three units on Monday.
+  // Taking the lightest candidate first moves the 1 into Tuesday's only hole,
+  // stranding the 2 — and the whole repair rolls back. Moving just the 2 fits
+  // everything: Monday 1+3, Tuesday 2+2.
+  const pins = [sub({ plan: TUE, weight: 2 }), sub({ plan: WED_NEXT, weight: 4 })];
+  const two = sub({ due: WED_NEXT, weight: 2, identifier: 'VID-7401' });
+  const one = sub({ due: WED_NEXT, weight: 1, identifier: 'VID-7402' });
+  place(pins.concat([two, one]), MON);
+  const newcomer = sub({ due: WED_NEXT, weight: 3, identifier: 'VID-7403' });
+  const dates = place(pins.concat([two, one, newcomer]), MON);
+
+  assert.strictEqual(dates[4], MON, 'the newcomer gets the room it needs');
+  assert.strictEqual(dates[2], TUE, 'the 2-unit card is the one that moves');
+  assert.strictEqual(dates[3], MON, 'and the 1-unit card stays where it was');
+  const load = dayLoad(pins.concat([two, one, newcomer]));
+  assert.strictEqual(load.get(context.wlCapacityKey(newcomer) + '@' + MON), 4, 'Monday is exactly full');
+  assert.strictEqual(load.get(context.wlCapacityKey(two) + '@' + TUE), 4, 'Tuesday is exactly full');
 });
 
 check('the reshuffle never moves a pin and never pushes anything past its own deadline', () => {

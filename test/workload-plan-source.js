@@ -586,15 +586,33 @@ ok(/const windowStart = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(tod
    first fit inside its OWN window and may not evict anyone in turn, and a
    day that does not work is rolled back exactly. */
 const reshuffle = capacityPlacement.slice(capacityPlacement.indexOf('const reshuffleFor ='),
-  capacityPlacement.indexOf('for (const entry of automatic)'));
+  capacityPlacement.indexOf('const settle ='));
 ok(reshuffle.length > 0 && reshuffle.length < 4000,
   'the reshuffle slice is bounded (harness is not vacuous)');
 ok(/wlCapacityKey\(other\.sub\) !== wlCapacityKey\(entry\.sub\)/.test(reshuffle)
     && /const moved = firstFit\(other\.sub, other\.ideal, day\)/.test(reshuffle)
     && !/reshuffleFor\(/.test(reshuffle)
-    && /release\(evicted\[i\]\.other\.sub, evicted\[i\]\.to\);\s*\n\s*reserve\(evicted\[i\]\.other\.sub, evicted\[i\]\.from\);/.test(reshuffle)
+    && /for \(const move of moves\) release\(move\.other\.sub, move\.to\);\s*\n\s*for \(const other of set\) reserve\(other\.sub, day\);/.test(reshuffle)
     && /day <= entry\.ideal/.test(reshuffle),
 'the reshuffle only moves same-editor automatic work inside its own window, never recurses, and rolls a failed day back exactly');
+/* Candidates are tried as SETS, smallest first, and the search is bounded by
+   two literals rather than by the size of the board: taking the cheapest card
+   first spends the room a heavier one needed, and an unbounded subset search
+   over a busy day is not something a render pass may do. */
+ok(/const sets = \[\];/.test(capacityPlacement)
+    && /sets\.sort\(\(a, b\) => a\.length - b\.length \|\| weightOf\(a\) - weightOf\(b\)\)/.test(capacityPlacement)
+    && /candidates\.slice\(0, WL_RESHUFFLE_MAX_CANDIDATES\)/.test(capacityPlacement)
+    && /chosen\.length >= WL_RESHUFFLE_MAX_EVICTIONS/.test(capacityPlacement),
+'the eviction search tries sets smallest-first and is bounded by both literals');
+/* The anchor is what keeps a settled board from churning, and it is the one
+   piece of state that crosses a snapshot — so it must be in-memory only,
+   dropped the moment it stops fitting, and purged with the pins it derives
+   from. */
+ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacityPlacement)
+    && /anchor < windowStart \|\| anchor > entry\.ideal \|\| !wlIsWorkingDay\(anchor\) \|\| !fits\(entry\.sub, anchor\)/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(\);/.test(INDEX),
+'incumbents anchor from the previous pass, the anchor is dropped as soon as it no longer fits, and it is purged with the pins');
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

@@ -3592,7 +3592,6 @@
         .wl-plan-origin { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 14px; height: 14px; color: var(--text-muted); font-size: 0.52rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
         .wl-plan-origin svg { width: 13px; height: 13px; display: block; }
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
-        .wl-plan-origin.is-shifted { color: var(--sv-fg-0284c7); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
         .wl-plan-origin.is-loading { color: var(--text-muted); }
         .wl-plan-origin.is-loading svg { animation: wlPlanOriginSpin 0.9s linear infinite; }
@@ -15765,13 +15764,7 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        // `shifted` means "not on the ideal day". Under the 2026-08-10
-        // late-as-possible rule that could only happen when capacity pushed a
-        // card off its usual day, so the label said so. Earliest-fit reaches
-        // the same state the ordinary way — the first working day with room is
-        // simply earlier than the deadline — so the label must not claim a
-        // capacity conflict that usually did not occur.
-        return ({ auto: 'Automatically planned', shifted: 'Planned on the earliest day with room', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
@@ -15779,9 +15772,6 @@
         let icon;
         if (mode === 'manual') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
-        } else if (mode === 'shifted') {
-            // The automatic sparkle, pushed by an arrow back toward an earlier day.
-            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.4H4.4M7.4 5.2 4.1 8.4l3.3 3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="m12.4 1.5.62 1.73 1.73.62-1.73.62-.62 1.73-.62-1.73-1.73-.62 1.73-.62.62-1.73Z" fill="currentColor"/></svg>';
         } else if (mode === 'loading') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } else if (mode === 'fallback') {
@@ -15797,11 +15787,8 @@
                 ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
                 : (mode === 'fallback'
                     ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
-                    : (mode === 'shifted'
-                        // The per-item detail names the day it came from; the
-                        // group/compact icon has no single item to name.
-                        ? (String(tipDetail || '') || 'Automatic plan: placed on the earliest working day with room, which is earlier than the last day it could sit on — one working day before the deadline.')
-                        : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.')));
+                    : (String(tipDetail || '')
+                        || 'Automatic plan: the earliest working day with room, never later than one working day before the deadline. Drag it to pin it somewhere else.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -15811,7 +15798,7 @@
         return 'mixed';
     }
     function wlGroupPlanOriginHtml(subs) {
-        const counts = { auto: 0, shifted: 0, manual: 0, fallback: 0, loading: 0 };
+        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
         for (const sub of subs || []) {
             const mode = wlPlacementMode(sub);
             if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
@@ -16204,12 +16191,17 @@
         // hidden manual override may still settle. A genuine failure (not
         // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
         if (wlState.planHasSnapshot) {
-            // An automatic item that is not on its ideal day gets its own
-            // mode, so the board never silently shows a day that isn't
-            // "one working day before the deadline" with no explanation. Under
-            // earliest-fit that is the common case, not a capacity incident —
-            // see wlPlacementLabel for why the wording changed with it.
-            return wlAutoPlacementDate(sub) ? 'shifted' : 'auto';
+            /* ONE automatic state (owner ruling 2026-09-14).
+             *
+             * There used to be a second mode, `shifted`, for an automatic card
+             * not sitting on its ideal day. Under the late-as-possible rule
+             * that meant something had gone wrong — capacity had pushed the
+             * card off the day it should have had. Under earliest-fit every
+             * automatic card takes the earliest day with room, so the mode
+             * only separated "the earliest day with room happened to BE the
+             * last possible day" from "it was earlier": a fact nobody acts on,
+             * shown as two different icons. The owner asked for one. */
+            return 'auto';
         }
         return wlState.planLoading ? 'loading' : 'fallback';
     }
@@ -16225,12 +16217,18 @@
         if (!(wlState.planHasSnapshot || wlState.planLoading)) return dueDate;
         return wlAutoPlacementDate(sub) || wlAutoPlanDate(sub);
     }
-    function wlShiftedPlacementTip(sub) {
+    /* The per-item automatic detail: where it landed and the latest day it
+       could have sat on. The compact/group icon has no single item to name and
+       falls back to the generic sentence in wlPlanOriginHtml. */
+    function wlAutoPlacementTip(sub) {
         const ideal = wlAutoPlanDate(sub);
-        const placed = wlAutoPlacementDate(sub);
-        if (!ideal || !placed || ideal === placed) return '';
+        const placed = wlAutoPlacementDate(sub) || ideal;
+        if (!ideal || !placed) return '';
         const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
-        return `Planned for ${wlFormatShort(placed)} — the earliest day with room. Automatic planning starts from today and only moves a card later when a day is already at this editor's ${capacity}-unit daily capacity; the last day it could sit on is ${wlFormatShort(ideal)}, one working day before the deadline. Pin it with a drag to override.`;
+        if (placed === ideal) {
+            return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room, and also the latest it could sit on, one working day before the deadline. Drag it to pin it somewhere else.`;
+        }
+        return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room. It only moves later when a day is already at this editor's ${capacity}-unit daily capacity, and never past ${wlFormatShort(ideal)}, one working day before the deadline. Drag it to pin it somewhere else.`;
     }
 
     // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
@@ -19656,7 +19654,7 @@
                         <span class="workload-plan-item-title-line">
                             <span class="workload-plan-item-label">${wlEscape(label)}</span>
                             ${wlWorkloadBadgeHtml(s, true)}
-                            ${wlPlanOriginHtml(mode, false, 0, mode === 'shifted' ? wlShiftedPlacementTip(s) : '')}
+                            ${wlPlanOriginHtml(mode, false, 0, mode === 'auto' ? wlAutoPlacementTip(s) : '')}
                             ${wlIssueDragHandleHtml(issueId, canDrag)}
                         </span>
                         <span class="workload-plan-item-meta">${wlDeadlineTagHtml(s.dueDate, planDate)}</span>

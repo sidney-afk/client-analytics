@@ -16,8 +16,9 @@
  * over-capacity badge. An explicit plan_date wins literally and reserves
  * first. This replaced the 2026-08-10 late-as-possible pass, which sat on the
  * ideal day and walked BACKWARD only when that day was full. Because most
- * automatic rows now sit earlier than their ideal day, `shifted` is the
- * ordinary mode rather than a capacity incident. The dedicated cases for the
+ * automatic rows now sit earlier than their ideal day, there is ONE automatic
+ * mode: the second one only separated a fact nobody acts on (owner ruling
+ * 2026-09-14). The dedicated cases for the
  * placement pass live in workload-capacity-placement.js.
  */
 const fs = require('fs');
@@ -97,6 +98,10 @@ const wlPlanOriginHtml = compile('wlPlanOriginHtml', {
   wlPlacementLabel,
   wlEscape: value => String(value),
 });
+// The per-item automatic detail. Stubbed empty here: this suite is about
+// bucketing and exclusivity, and wlPlanOriginHtml falls back to its generic
+// automatic sentence when the detail is blank.
+const wlAutoPlacementTip = () => '';
 const wlGroupPlacementMode = compile('wlGroupPlacementMode', { wlPlacementMode });
 const wlGroupPlanOriginHtml = compile('wlGroupPlanOriginHtml', { wlPlacementMode, wlPlanOriginHtml });
 const wlWorkingDayDiff = compile('wlWorkingDayDiff', { wlParseISO, wlISO });
@@ -266,9 +271,10 @@ check(wlAutoPlanDate(videoRows[0], '2026-07-15') === autoDate
     && !wlState.calendarByDate.has(dueDate)
     && !wlState.calendarByDate.has(autoDate),
   'without an override, dated rows are auto-planned on the earliest working day with room, not on their ideal day before the deadline');
-check(wlPlacementMode(videoRows[0]) === 'shifted'
-    && wlPlacementLabel('shifted') === 'Planned on the earliest day with room',
-  'an authoritative deadline-derived placement taken earlier than its ideal day is visibly classified as shifted');
+check(wlPlacementMode(videoRows[0]) === 'auto'
+    && wlPlacementLabel('auto') === 'Automatically planned'
+    && wlPlacementLabel('shifted') === '',
+  'a deadline-derived placement taken earlier than its ideal day is one ordinary automatic card, and the retired mode has no label');
 check(autoBucket.every(row => row.dueDate === dueDate
     && !Object.prototype.hasOwnProperty.call(row, 'scheduledDate')
     && !Object.prototype.hasOwnProperty.call(row, 'effectiveWorkDate')),
@@ -298,8 +304,8 @@ check(earliestBucket.length === 4 && spilledBucket.length === 2
   'automatic work fills the earliest day to capacity, spills one working day forward, and stays fully visible');
 check(!wlDayOverCapacity(earliestBucket) && !wlDayOverCapacity(spilledBucket),
   'neither day is left over capacity once the automatic rows have spread');
-check(earliestBucket.concat(spilledBucket).every(row => wlPlacementMode(row) === 'shifted'),
-  'every row placed off its ideal day is classified as shifted, whichever day it took');
+check(earliestBucket.concat(spilledBucket).every(row => wlPlacementMode(row) === 'auto'),
+  'every automatically placed row reads as one automatic mode, whichever day it took');
 
 // A saturated window still cannot invent room: when the ideal day IS today,
 // there is nowhere earlier to go, so the honest overload stays on the board
@@ -457,7 +463,7 @@ const settled = Array.from({ length: 4 }, (_, i) => issue('To Do', 'settled-' + 
 wlApplyData(settled, '2026-07-15T12:00:00Z');
 check((wlState.calendarByDate.get(settledDay) || []).length === 4
     && !wlState.calendarByDate.has(settledIdeal)
-    && settled.every(row => wlPlacementMode(row) === 'shifted'),
+    && settled.every(row => wlPlacementMode(row) === 'auto'),
   'four 1x cards settle exactly onto the earliest working day with room, not on their shared ideal day');
 
 // A heavy newcomer sorts FIRST (weight-descending within one ideal day), so
@@ -706,6 +712,7 @@ const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
   wlEscape: value => String(value),
   wlWorkloadBadgeHtml,
   wlPlanOriginHtml,
+  wlAutoPlacementTip,
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
 });
@@ -718,6 +725,7 @@ const wlRenderPlanIssueCardsReadOnly = compile('wlRenderPlanIssueCards', {
   wlEscape: value => String(value),
   wlWorkloadBadgeHtml,
   wlPlanOriginHtml,
+  wlAutoPlacementTip,
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
 });

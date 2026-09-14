@@ -363,9 +363,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   than the ideal day**, which is not the same as "always before the deadline": the ideal day is
   floored to today, so an item due today, due tomorrow, or already overdue is planned ON today,
   exactly as under the previous rule.
-- Because most automatic cards now sit EARLIER than their ideal day, the `shifted` placement mode is
-  the ordinary outcome rather than a capacity incident, and its label says so ("Planned on the
-  earliest day with room"). It no longer means "this editor's usual day was full".
+- There is ONE automatic placement mode (owner ruling 2026-09-14). A second mode, `shifted`, used to
+  mark an automatic card not sitting on its ideal day; under the late-as-possible rule that meant
+  capacity had pushed it off the day it should have had. Under earliest-fit every automatic card
+  takes the earliest day with room, so the mode only separated "the earliest day with room happened
+  to BE the last possible day" from "it was earlier" — a fact nobody acts on, shown as two different
+  icons. `wlPlacementMode` returns `auto` for every automatic card, and the per-item detail
+  (`wlAutoPlacementTip`) names the day it is on and the latest day it could have sat on. `manual`
+  stays distinct, because a pin does mean something.
 - When first fit fails, a **bounded last-resort reshuffle** runs before the item falls back to its
   ideal day (owner ruling 2026-09-14). It exists because first fit alone can manufacture an overload
   a different order would have avoided — pins of 1/2/2 units on Mon/Tue/Wed, a 2× due Wednesday and

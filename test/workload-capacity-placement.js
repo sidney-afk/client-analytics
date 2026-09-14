@@ -100,7 +100,7 @@ for (const name of [
   'wlWorkloadMeta', 'wlWorkloadWeight', 'wlWorkloadUnits',
   'wlPlanDate', 'wlAutoPlanDate', 'wlAutoPlacementDate', 'wlDisplayDate',
   'wlPlacementMode', 'wlCapacityKey', 'wlComputeAutoPlacements',
-  'wlBucketByDisplayDate', 'wlFormatShort', 'wlShiftedPlacementTip',
+  'wlBucketByDisplayDate', 'wlFormatShort', 'wlAutoPlacementTip',
 ]) vm.runInContext(extract(name), context);
 
 // ── Fixture helpers ─────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ check('placement is deterministic regardless of snapshot order', () => {
 });
 
 // ── 6. What the board and the labels report ─────────────────────────────
-check('only genuinely moved items report the "shifted" placement mode', () => {
+check('every automatic card reports ONE automatic mode, wherever it landed', () => {
   reset();
   const pinned = sub({ plan: MON, due: '2026-08-14' });          // 1 unit of today
   const stayed = sub({ due: '2026-08-11' });                     // ideal IS today
@@ -332,17 +332,19 @@ check('only genuinely moved items report the "shifted" placement mode', () => {
   const subs = [pinned, stayed].concat(later);
   place(subs, MON);
 
+  /* Owner ruling 2026-09-14: one automatic state. The second mode split
+     "the earliest day with room happened to BE the ideal day" from "it was
+     earlier" — under earliest-fit that is not an incident, just arithmetic,
+     and it showed as two different icons nobody could act on. */
   assert.strictEqual(context.wlPlacementMode(pinned), 'manual', 'a pin stays "manual"');
   const modes = subs.slice(1).map(row => context.wlPlacementMode(row));
-  assert.strictEqual(modes.filter(mode => mode === 'auto').length, 3,
-    'the three that landed on their ideal day stay plain "auto"');
-  assert.strictEqual(modes.filter(mode => mode === 'shifted').length, 2,
-    'exactly the two that were pulled earlier report "shifted"');
-  for (const row of subs.slice(1)) {
-    const mode = context.wlPlacementMode(row);
-    const moved = context.wlDisplayDate(row) !== context.wlAutoPlanDate(row, MON);
-    assert.strictEqual(mode === 'shifted', moved, 'the mode matches whether the day actually changed');
-  }
+  assert.strictEqual(modes.filter(mode => mode === 'auto').length, 5,
+    'every automatic card reads "auto", whether or not it sits on its ideal day');
+  assert.strictEqual(modes.filter(mode => mode === 'shifted').length, 0,
+    'no card reports the retired "shifted" mode');
+  const onIdeal = subs.slice(1).filter(row => context.wlDisplayDate(row) === context.wlAutoPlanDate(row, MON));
+  assert.ok(onIdeal.length > 0 && onIdeal.length < 5,
+    'the fixture still mixes cards on and off their ideal day (harness is not vacuous)');
 });
 
 check('the calendar buckets the moved item on its new day, not its ideal day', () => {
@@ -389,8 +391,9 @@ check('a capacity move that has gone stale overnight is ignored, not rendered in
   const bumped = sub({ due: WED_NEXT });
   place([bumped], FRI);
   assert.strictEqual(context.wlDisplayDate(bumped), FRI, 'on Friday it renders on Friday');
-  assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and reports the move');
-  assert.ok(context.wlShiftedPlacementTip(bumped).length > 0, 'with an explanation');
+  assert.strictEqual(context.wlPlacementMode(bumped), 'auto', 'as one automatic card like any other');
+  assert.ok(/earliest working day with room/.test(context.wlAutoPlacementTip(bumped)),
+    'and its detail names the rule it was placed by');
 
   // The tab stays open over the weekend. wlApplyData has not re-run, so the map
   // still says Friday — a day that is now in the past.
@@ -400,9 +403,9 @@ check('a capacity move that has gone stale overnight is ignored, not rendered in
   assert.strictEqual(context.wlDisplayDate(bumped), TUE,
     'the card falls back to its re-floored ideal day instead of a past Friday');
   assert.strictEqual(context.wlPlacementMode(bumped), 'auto',
-    'and stops claiming it was moved');
-  assert.strictEqual(context.wlShiftedPlacementTip(bumped), '',
-    'so no tooltip points at a day it is not on');
+    'and is still an ordinary automatic card');
+  assert.ok(context.wlAutoPlacementTip(bumped).includes(context.wlFormatShort(TUE)),
+    'and its detail names the day it is actually on, not the stale Friday');
 });
 
 check('an automatic card can never render before today, whatever the map holds', () => {
@@ -428,7 +431,7 @@ check('a move that is still in the future survives the same read-time floor', ()
     TODAY = stillEarlier;                // the floor is inclusive of today
     assert.strictEqual(context.wlDisplayDate(bumped), THU,
       `the move is kept while today is ${stillEarlier}`);
-    assert.strictEqual(context.wlPlacementMode(bumped), 'shifted', 'and still reads as shifted');
+    assert.strictEqual(context.wlPlacementMode(bumped), 'auto', 'and reads as an ordinary automatic card');
   }
 });
 
@@ -683,36 +686,33 @@ check('a weekend policy day starts the walk on Monday, not on the weekend itself
   assert.strictEqual(place([dueNow], SAT)[0], SAT, 'a card due today stays on today even on a weekend');
 });
 
-check('a moved card renders the shifted icon and names the day it came from', () => {
+check('an automatic card renders ONE automatic icon and names the day it is on', () => {
   reset();
   const pinned = Array.from({ length: 4 }, () => sub({ plan: WED, due: '2026-08-14' }));
   const bumped = sub({ due: WED_NEXT, identifier: 'VID-9001' });
   place(pinned.concat([bumped]), WED);
 
   const html = context.wlRenderPlanIssueCards([bumped], THU);
-  assert.ok(html.includes('wl-plan-origin is-shifted'), 'the card carries the shifted origin icon');
-  // The label must describe earliest-fit, not a capacity incident: under this
-  // rule a card sitting before its ideal day is the ordinary outcome, so
-  // claiming its usual day was full would be false for most of them.
-  assert.ok(/aria-label="Planned on the earliest day with room"/.test(html), 'and an accessible label saying so');
-  assert.ok(!/Moved earlier for capacity/.test(html), 'and never claims a capacity displacement');
-  assert.ok(html.includes('6 Aug'), 'the tooltip names where it landed');
-  assert.ok(html.includes('11 Aug'), 'the tooltip names the latest day it could have sat on');
-  assert.ok(/4-unit daily capacity/.test(html), 'and names the cap that is the only thing pushing a card later');
+  assert.ok(html.includes('wl-plan-origin is-auto'), 'it is an automatic card like any other');
+  assert.ok(!/is-shifted/.test(html), 'the retired second automatic icon is gone');
+  assert.ok(/aria-label="Automatically planned"/.test(html), 'with the one automatic label');
+  assert.ok(html.includes('6 Aug'), 'the detail names the day it is actually on');
+  assert.ok(html.includes('11 Aug'), 'and the latest day it could have sat on');
+  assert.ok(/4-unit daily capacity/.test(html), 'and the cap that is the only thing pushing a card later');
 
   const stayed = context.wlRenderPlanIssueCards([pinned[0]], WED);
-  assert.ok(stayed.includes('wl-plan-origin is-manual'), 'a pin still renders as manual');
-  assert.ok(!stayed.includes('is-shifted'), 'and never picks up the shifted icon');
+  assert.ok(stayed.includes('wl-plan-origin is-manual'), 'a pin still renders as manual, which does mean something');
 });
 
-check('an unmoved automatic card keeps the plain automatic tooltip', () => {
+check('an automatic card on its ideal day carries the same icon and says so plainly', () => {
   reset();
   const auto = sub({ due: '2026-08-11' });        // ideal day IS today
   place([auto], MON);
   const html = context.wlRenderPlanIssueCards([auto], MON);
-  assert.ok(html.includes('wl-plan-origin is-auto'), 'it stays a plain automatic card');
-  assert.ok(/follows the authoritative due date/.test(html), 'with the unchanged automatic tooltip');
-  assert.ok(!/Moved earlier automatically/.test(html), 'and no capacity explanation');
+  assert.ok(html.includes('wl-plan-origin is-auto'), 'the same automatic icon as a card placed earlier');
+  assert.ok(/aria-label="Automatically planned"/.test(html), 'and the same label');
+  assert.ok(/earliest working day with room/.test(html),
+    'its detail describes the rule rather than distinguishing a non-event');
 });
 
 check('the settle animation covers the cards the capacity pass moved', () => {

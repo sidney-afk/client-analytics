@@ -425,9 +425,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `wlPurgePlanSensitiveState()` with the pins it is derived from. Placement is withheld entirely
   until the authoritative plan snapshot proves which items are pinned, so the fast first paint and a
   plan-read failure both keep the unmoved ideal placement; the bounded settle animation covers the
-  cards that move when the snapshot lands. A moved card reports the `shifted` placement mode with
-  its own icon and a tooltip naming the day it came from, so a day that is not "deadline − 1" is
-  never unexplained.
+  cards that move when the snapshot lands. Every automatic card reports the single `auto` placement
+  mode with one icon (the second mode, `shifted`, retired 2026-09-14 — see above); its per-item
+  tooltip (`wlAutoPlacementTip`) names the day it is on and the latest day it could sit on, so a day
+  that is not "deadline − 1" is never unexplained.
 - Capacity is 4 video workload units / 15 graphics items per editor per day: a hard input to
   automatic placement, and a warning wherever it still cannot be met.
   An exact authoritative `2× Workload` or `3× Workload` label makes that video consume two or three

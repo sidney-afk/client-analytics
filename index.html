@@ -16225,10 +16225,32 @@
         const placed = wlAutoPlacementDate(sub) || ideal;
         if (!ideal || !placed) return '';
         const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
-        if (placed === ideal) {
-            return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room, and also the latest it could sit on, one working day before the deadline. Drag it to pin it somewhere else.`;
+        /* The last day this card may sit on is normally one working day before
+           the deadline — but wlAutoPlanDate floors that to today for an item
+           due today or already overdue, and calling THAT "one working day
+           before the deadline" is simply false. */
+        const natural = String(sub && sub.dueDate || '').slice(0, 10)
+            ? wlSubWorkingDays(String(sub.dueDate).slice(0, 10), 1)
+            : '';
+        const latest = natural && natural < ideal
+            ? `${wlFormatShort(ideal)}, today — its deadline has passed or is today`
+            : `${wlFormatShort(ideal)}, one working day before the deadline`;
+        /* A saturated window does not mean the card found room: the pass falls
+           back to the ideal day and the editor/day keeps the over-capacity
+           badge. Saying "the earliest day with room" there would be confidently
+           wrong about the one case the badge exists to flag. */
+        const sameDay = typeof wlDayOverCapacity === 'function'
+            && wlState.calendarByDate instanceof Map
+            ? (wlState.calendarByDate.get(placed) || []).filter(row =>
+                wlCapacityKey(row) === wlCapacityKey(sub))
+            : null;
+        if (placed === ideal && sameDay && sameDay.length && wlDayOverCapacity(sameDay)) {
+            return `Automatic plan: ${wlFormatShort(placed)} — no working day between today and ${latest} had room, so it sits on the last day it can and that day is over this editor's ${capacity}-unit capacity. Drag it to pin it somewhere else.`;
         }
-        return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room. It only moves later when a day is already at this editor's ${capacity}-unit daily capacity, and never past ${wlFormatShort(ideal)}, one working day before the deadline. Drag it to pin it somewhere else.`;
+        if (placed === ideal) {
+            return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room, and also the latest it can sit on: ${latest}. Drag it to pin it somewhere else.`;
+        }
+        return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room. It only moves later when a day is already at this editor's ${capacity}-unit daily capacity, and never past ${latest}. Drag it to pin it somewhere else.`;
     }
 
     // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
@@ -17792,6 +17814,7 @@
     // Workload fail-closed boundary. The optimistic value is already visible when
     // this runs; anything except one actually-written, matching row restores
     // the precise previous value and tells the user.
+    let _wlLastPlanWriteRefusal = 0;   // 401 or 403 from the last refused plan write
     async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration, quiet) {
         try {
             const resp = await _wlPlanWriteRequest(issue, planDate);
@@ -17805,6 +17828,12 @@
                even the toast, so the summary could report "put back" while
                nothing was. That is the shape of the 2026-09-14 report that
                drags do not survive a refresh. */
+            /* The category of the refusal, for callers that summarise several
+               writes at once. Inferring it afterwards from the purged state
+               cannot tell 401 from 403 — both purge — and the two need
+               opposite advice: sign in again, versus this account may not
+               edit work days at all. */
+            if (resp.status === 401 || resp.status === 403) _wlLastPlanWriteRefusal = resp.status;
             if (resp.status === 401) {
                 /* Restore BEFORE clearing the identity, exactly as the 403
                    branch restores before its purge. _syncviewStaffIdentityClear
@@ -17943,6 +17972,7 @@
         renderWorkloadAll();
 
         let moved = 0;
+        _wlLastPlanWriteRefusal = 0;
         for (const move of moves) {
             const saved = await _wlPersistPlanDate(
                 move.issue, target, move.previousDate, sessionGeneration, true
@@ -17964,18 +17994,22 @@
             wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll();
         }
+        const refusal = _wlLastPlanWriteRefusal;
         if (moved !== moves.length && typeof showNotify === 'function') {
             /* "Kept its previous work day" is only true while this browser
                still holds the saved plans. An auth refusal purges every pin,
                so those cards fall to their deadline placement instead — the
                Workload harness measured the summary claiming otherwise. Say
-               which of the two actually happened. */
-            const pinsPurged = !wlState.planHasSnapshot || !wlPlanEditingEnabled();
+               which actually happened, and take the category from the REFUSAL
+               rather than from the purged state: 401 and 403 both purge, but
+               only one of them is fixed by signing in again. */
             showNotify(
                 `Moved ${moved} of ${moves.length} — ${moves.length - moved} not saved`,
-                pinsPurged
+                refusal === 401
                     ? 'Staff sign-in expired. Saved work days are hidden until you sign in again.'
-                    : 'Each failed item kept its previous work day.'
+                    : (refusal === 403
+                        ? 'This staff account cannot edit saved work days. Saved work days are hidden.'
+                        : 'Each failed item kept its previous work day.')
             );
         }
         return moved === moves.length;

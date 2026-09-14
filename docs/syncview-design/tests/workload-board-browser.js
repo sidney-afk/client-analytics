@@ -302,8 +302,19 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       } else {
         expect(!/kept its previous work day/.test(summary),
           `a ${status} group refusal must not claim the cards kept their previous work day: the pins were purged`);
-        expect(/sign in|signed in|sign-in/i.test(summary),
-          `a ${status} group refusal must say the sign-in is what failed`);
+        /* 401 and 403 both purge, so the summary cannot infer the reason from
+           the purged state — and the two need opposite advice. */
+        if (status === 401) {
+          expect(/sign in again/i.test(summary),
+            'a 401 group refusal must tell the user to sign in again');
+          expect(!/cannot edit/i.test(summary),
+            'a 401 is an expired session, not a permission problem');
+        } else {
+          expect(/cannot edit saved work days/i.test(summary),
+            'a 403 group refusal must say the account may not edit work days');
+          expect(!/sign in again/i.test(summary),
+            'a 403 is not fixed by signing in again with the same account, so it must not say so');
+        }
       }
     } finally { await h.close(); }
   }

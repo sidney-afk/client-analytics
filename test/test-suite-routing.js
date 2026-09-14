@@ -9,6 +9,10 @@ const profile=registry.profiles.find(p=>p.portable_lane==='retirement-switch'),e
 for(const change of [{PGHOST:'hosted.invalid'},{PGHOSTADDR:'192.0.2.1'},{PGSERVICE:'remote'},{PGOPTIONS:'-c search_path=bad'},{SUPABASE_SERVICE_ROLE_KEY:'synthetic'},{LINEAR_API_KEY:'synthetic'}]){assert.throws(()=>api.assertCiEnvironment(profile,{...env,...change}));checks++;}
 const yaml=fs.readFileSync(path.join(__dirname,'../.github/workflows/linear-exit-preparation-ci.yml'),'utf8');assert(!yaml.includes('secrets.')&&!yaml.includes('workflow_dispatch')&&!yaml.includes('pull_request_target'));assert(yaml.includes('contents: read')&&yaml.includes('persist-credentials: false'));assert(yaml.includes('postgres:17'));assert(yaml.includes("'scripts/**'")&&yaml.includes("'test/**'"));checks++;
 
+for(const file of ['linear-exit-preparation-ci.yml','track-b-recovery-rehearsal.yml'])api.assertJobEnvironmentContexts(fs.readFileSync(path.join(__dirname,'../.github/workflows',file),'utf8'));
+assert.throws(()=>api.assertJobEnvironmentContexts('jobs:\n  proof:\n    env:\n      TEMP: ${{ runner.temp }}/proof\n    steps: []'),/unavailable job.env context runner/);
+api.assertJobEnvironmentContexts('jobs:\n  proof:\n    env:\n      ROOT: ${{ github.event.repository.name }}\n    steps:\n      - env:\n          TEMP: ${{ runner.temp }}');checks++;
+
 // Exercise the real unit orchestrator with child execution replaced. This proves
 // dispatch coverage, not the behavior of the mocked child suites.
 const os=require('os'),cp=require('child_process'),temp=fs.mkdtempSync(path.join(os.tmpdir(),'routing-orchestrator-'));

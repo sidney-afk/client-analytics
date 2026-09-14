@@ -35,8 +35,11 @@ jobs:
       TRACK_B_RECOVERY_TARGET_URL: ${{ secrets.TRACK_B_RECOVERY_TARGET_DATABASE_URL }}
       TRACK_B_RESTORE_EXPECTED_PROJECT_REF: ${{ vars.TRACK_B_RECOVERY_TARGET_PROJECT_REF }}
       TRACK_B_RECOVERY_CONFIRM: EMPTY_SCRATCH_ONLY
-      TRACK_B_RECOVERY_DIAGNOSTIC_DIR: ${{ runner.temp }}/track-b-recovery-diagnostics
     steps:
+      - name: Set runner-local diagnostic directory
+        shell: bash
+        run: echo "TRACK_B_RECOVERY_DIAGNOSTIC_DIR=$RUNNER_TEMP/track-b-recovery-diagnostics" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

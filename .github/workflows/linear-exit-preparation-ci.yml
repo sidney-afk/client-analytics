@@ -49,7 +49,6 @@ jobs:
       PGSSLMODE: disable
       F63_REQUIRE_POSTGRES: '1'
       PROOF_REPO_ROOT: ${{ github.workspace }}
-      PROOF_OUTPUT_ROOT: ${{ runner.temp }}/linear-exit-preparation
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,6 +60,8 @@ jobs:
       - name: Verify explicit routing and profile guard
         run: node test/test-suite-routing.js
       - name: Run the isolated profile
+        env:
+          PROOF_OUTPUT_ROOT: ${{ runner.temp }}/linear-exit-preparation
         run: node scripts/test-suite-routing.js --run-ci-profile '${{ matrix.lane }}'
       - name: State remaining proof scope
         if: always()

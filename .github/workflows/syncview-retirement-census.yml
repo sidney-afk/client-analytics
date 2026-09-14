@@ -1,10 +1,9 @@
 name: SyncView retirement admission census
 
-# This monitor is deliberately active while the retirement contract is NOT
-# READY FOR ACTIVATION: active is reported as DORMANT. Once the common native
-# receipt contract exists, it stays scheduled after retirement to prove the SQL
-# high-water remains clean. Do not unschedule main work here; schedule/retire
-# pairs belong to the workflow they actually govern.
+# Automatic census work is dormant until SYNCVIEW_RETIREMENT_CENSUS_ENABLED
+# is true. Manual dispatch remains explicit. Dormant schedules retain only the
+# existing heartbeat; they do not query the retirement boundary. Once enabled,
+# this monitor continues after retirement to check the SQL high-water.
 on:
   schedule:
     - cron: '19,49 * * * *'
@@ -29,7 +28,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Report dormant scheduled census
+        if: github.event_name != 'workflow_dispatch' && vars.SYNCVIEW_RETIREMENT_CENSUS_ENABLED != 'true'
+        run: echo 'Census is DORMANT; automatic census and its alerts are disabled. Existing host heartbeat remains active.'
+
       - name: Require census credentials
+        if: github.event_name == 'workflow_dispatch' || vars.SYNCVIEW_RETIREMENT_CENSUS_ENABLED == 'true'
         shell: bash
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
@@ -37,6 +41,7 @@ jobs:
             exit 1
           fi
       - name: Check retirement admission boundary
+        if: github.event_name == 'workflow_dispatch' || vars.SYNCVIEW_RETIREMENT_CENSUS_ENABLED == 'true'
         run: node scripts/syncview-retirement-census.js
       - name: Record retirement census heartbeat
         if: always()

@@ -1,5 +1,11 @@
 # Agent Guide
 
+> **Owner directive, 2026-09-14:** do not send anything to client Slack channels,
+> including test messages. Reading the owner-designated roster and preparing
+> destination mappings does not authorize sending. Do not infer permission to
+> send from a later database-installation authorization. Delivery testing needs
+> a separately approved internal TEST destination.
+
 > **Scoped owner exception, 2026-09-14, browser verification only:** the owner
 > approved recognizing the three expected missing native-field responses when
 > the corresponding safe reduced-select read demonstrably succeeds. This is

@@ -250,6 +250,7 @@
     "linear-exit-install-journal.js",
     "linear-exit-install-manifest.js",
     "linear-exit-integrated-release-plan.js",
+    "linear-exit-object-concurrency.js",
     "linear-exit-object-custody.js",
     "linear-exit-object-export.js",
     "linear-exit-observed-full-isolation.js",

@@ -16,8 +16,9 @@ name: Mirror outbox debt census
 # heartbeats below under `if: always()`, and the dead-man's switch pages, latches
 # and dedups. The red run is also the only channel that survives an n8n outage.
 #
-# NOTE: `schedule` fires only from the default branch, so this lane goes live at
-# merge. Until then, run it by hand (workflow_dispatch).
+# Automatic census work is dormant until OUTBOX_DEBT_CENSUS_ENABLED is true.
+# Manual dispatch remains explicit. Dormant schedules retain only the existing
+# heartbeat so the dead-man monitor does not mistake dormancy for a failed host.
 
 on:
   schedule:
@@ -52,7 +53,12 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Report dormant scheduled census
+        if: github.event_name != 'workflow_dispatch' && vars.OUTBOX_DEBT_CENSUS_ENABLED != 'true'
+        run: echo 'Census is DORMANT; automatic census and its alerts are disabled. Existing host heartbeat remains active.'
+
       - name: Require census credentials
+        if: github.event_name == 'workflow_dispatch' || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
         shell: bash
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
@@ -63,6 +69,7 @@ jobs:
       # Debt, or a census that could not be taken, leaves this run red on
       # purpose. An unreadable census is never reported as zero debt.
       - name: Count undeliverable mirror rows
+        if: github.event_name == 'workflow_dispatch' || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
         run: node scripts/outbox-debt-census.js
 
       - name: Record outbox debt census heartbeat

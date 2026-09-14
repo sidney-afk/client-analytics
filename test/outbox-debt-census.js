@@ -201,6 +201,28 @@ const assess = (over = {}) => assessDebt({
     'the lane must name its host so the suite can check the registry against reality');
 }
 
+// Preparation: automatic business work is opt-in, but the existing host
+// heartbeat remains scheduled so dormancy does not create a dead-man alarm.
+for (const [file, variable, businessName] of [
+  ['outbox-debt-census.yml', 'OUTBOX_DEBT_CENSUS_ENABLED', 'Count undeliverable mirror rows'],
+  ['syncview-retirement-census.yml', 'SYNCVIEW_RETIREMENT_CENSUS_ENABLED', 'Check retirement admission boundary'],
+]) {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', file), 'utf8');
+  const expected = "github.event_name == 'workflow_dispatch' || vars." + variable + " == 'true'";
+  for (const name of ['Require census credentials', businessName]) {
+    const lines = workflow.slice(workflow.indexOf('- name: ' + name)).split(/\r?\n/);
+    ok(lines[1].trim() === 'if: ' + expected, file + ': ' + name + ' uses the exact activation gate');
+  }
+  const enabled = new Function('github', 'vars', 'return (' + expected + ');');
+  for (const value of [undefined, '', 'false', '0']) {
+    ok(!enabled({event_name: 'schedule'}, {[variable]: value}), file + ': default/disabled schedule performs no census');
+    ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: value}), file + ': explicit manual census stays available');
+  }
+  ok(enabled({event_name: 'schedule'}, {[variable]: 'true'}), file + ': approved scheduled activation works');
+  ok(/if: always\(\)[\s\S]{0,300}?--heartbeat=/.test(workflow), file + ': existing heartbeat remains active');
+  ok(workflow.includes('Report dormant scheduled census') && workflow.includes('heartbeat remains active'), file + ': dormant output distinguishes host health from census completion');
+}
+
 console.log(failures
   ? `outbox-debt-census: ${failures} check(s) failed`
   : 'outbox-debt-census checks passed');

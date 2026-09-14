@@ -147,7 +147,9 @@ docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json -text
 docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json -text
 # Preserve exact reviewed backup source and immutable serving captures.
 scripts/linear-exit-native-preinstall-backup.js -text whitespace=cr-at-eol,-blank-at-eof
+scripts/linear-exit-native-sequence-state.js -text whitespace=cr-at-eol
 test/linear-exit-native-preinstall-backup.js -text whitespace=cr-at-eol
 docs/independence/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PG17_20260913.json -text
+docs/independence/LINEAR_EXIT_NATIVE_ONLINE_SEQUENCE_PG17_20260914.json -text
 qa/linear-exit-rehearsal/serving/functions/_shared/thumbnail-revisions.ts -text whitespace=cr-at-eol,-blank-at-eof
 qa/linear-exit-rehearsal/serving/functions/calendar-upsert/index.ts -text whitespace=cr-at-eol,-blank-at-eof

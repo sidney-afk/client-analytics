@@ -20,17 +20,17 @@ The owner additionally said never to send anything to client Slack channels. The
 - Narrow internal atomic Calendar/Samples preparation, preserving existing links, payload compatibility and tokenless access. No new auth gate.
 - Keep verified native receipts; final retirement requires zero Linear-bound work and unresolved debt, not deletion of successful native receipts.
 - The specific three-field browser-audit exception in root `AGENTS.md`, approved 2026-09-14. It requires a verified safe fallback and retains all unrelated errors, page-error checks and mutation guards. Do not ask again for that same exception.
-- Google Drive for encrypted backup custody; the owner alone holds the recovery record separately. The recovery record was generated privately and the owner confirmed phone access through iOS Notes. Actual encrypted public-database capture and isolated restoration passed; the package was uploaded to a new private Drive folder. Downloaded-copy restoration remains pending.
+- Google Drive for encrypted backup custody; the owner alone holds the recovery record separately. The recovery record was generated privately and the owner confirmed phone access through iOS Notes. Actual encrypted public-database capture and isolated restoration passed; the package was uploaded to a new private Drive folder. The owner-downloaded Drive ZIP matched the original SHA-256 and restored successfully into a second isolated database; the owned scratch server then stopped.
 
 ## Remaining execution work
 
 **Treat the eventual merge as a live release action.** Read-only verification of GitHub Pages found legacy publishing from `main:/`; merging changes the served browser. This PR also changes the onboarding deployment workflow, which matches its own main-push filter and can run its existing eight-function staff deployment lane, subject to its environment. Default-branch schedules also change. Do not describe merging as having no live effect. Coordinate it with the explicitly authorized installation window and the existing release prerequisites. The two census business schedules are now prepared as opt-in; dormant host heartbeats are not evidence that a census ran.
 
-Actual 67-table public-database capture and isolated restoration passed on 2026-09-14, and encrypted Drive upload was verified private. Complete downloaded-copy restoration; refresh the time-sensitive backup/catalog before the eventual installation window as needed. Public-schema backup does not cover non-public Supabase platform state or external file bytes; account for those explicitly.
+Actual 67-table public-database capture and isolated restoration passed on 2026-09-14, and encrypted Drive upload was verified private. The downloaded Drive copy also restored exactly; refresh the time-sensitive backup/catalog before the eventual installation window as needed. Public-schema backup does not cover non-public Supabase platform state or external file bytes; account for those explicitly.
 
 Complete real asset access/preservation and destination confirmation. For the 16 missing destinations, the authoritative owner-designated roster supplies 11 primary-channel mappings; the owner approved two rollout exclusions and three internal entries without client notifications. The final private manifest preserves all records; no live configuration was written. The native notification release/configuration/delivery and independent monitoring still require acceptance. Do not claim they are installed.
 
-Only after those prerequisites, obtain authorization for the exact installation and capability checks. External-worker shutdown/debt closure and actual Linear retirement are a later, separate step. Do not stop workers during preparation. Local green tests do not authorize installation.
+Use the existing phase separation: `LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md` and `../ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md` require classified baseline and recoverable pre-state before dormant installation, then capability-specific hosted acceptance before activation, and required asset custody/handover before retirement. Do not turn incomplete historical Drive/Frame custody into an invented blanket dormant-install gate, or silently waive its later requirements. After the applicable recovery and compatibility prerequisites, obtain authorization for the exact dormant installation; follow pinned unmerged SQL/readback/preflight before live merge and one chosen Edge release lane in `../ops/LINEAR_EXIT_REPAIR_INSTALL.md`. Keep authority, workers and capability flags unchanged until their separate acceptance. External-worker shutdown/debt closure and actual Linear retirement are a later, separate step. Do not stop workers during preparation. Local green tests do not authorize installation.
 
 ## Local material
 
@@ -39,3 +39,11 @@ Only after those prerequisites, obtain authorization for the exact installation 
 - Earlier exact schema/routine inputs and receipts: `D:/Sidney/Codex/2026-09-12-fast-finish-evidence`.
 
 These private directories are not GitHub artifacts. Use sanitized hashes/counts in public reports. If unavailable, identify the exact missing input instead of silently reconstructing or substituting evidence.
+
+## Latest custody outcome
+
+Actual public-database backup: captured, encrypted, uploaded privately, owner downloaded, SHA-256 matched, and second isolated restore passed for all 67 tables/rows/archived sequences; scratch server stopped. Recovery record phone access is owner-confirmed. Private receipts are `real-preinstall-capture-receipt.private.json`, `drive-downloaded-database-restore-receipt.private.json` and `owner-custody-confirmations-20260914.private.json` under the current private directory.
+
+Storage: a signed 1,045-object inventory passed, but first encrypted export refused a request and the bounded export-only attempt correctly refused source drift to 1,047 objects. No complete encrypted Storage copy or off-device Storage custody is proven. Do not reuse stale inventory as current or weaken its final check. Plan a fresh capture in a stable source window under the relevant authorization.
+
+Private notification configuration is `notification-configuration-manifest-20260914.private.json`; exact unresolved file assessments are `drive-exception-recovery-assessment-20260914.private.json` and its Markdown companion. These are not public GitHub inputs or authorization to send messages.

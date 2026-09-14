@@ -9,11 +9,16 @@
  * strip only, never on the planned calendar or another status strip.
  *
  * With an authoritative plan snapshot, an ordinary dated row is auto-planned
- * one working day before its deadline (floored to today). An explicit
- * plan_date wins literally. Since 2026-08-10 an automatic row that does not
- * fit that day is moved back to an earlier working day with room (never
- * later, never before today) — capacity still hides nothing, and the
- * dedicated cases for that pass live in workload-capacity-placement.js.
+ * EARLIEST-FIT (owner ruling 2026-09-14): it starts at the first working day
+ * from today and walks forward to the first day with room, never past its
+ * ideal day (one working day before the deadline, floored to today). When no
+ * day in that window has room it lands on the ideal day and keeps the visible
+ * over-capacity badge. An explicit plan_date wins literally and reserves
+ * first. This replaced the 2026-08-10 late-as-possible pass, which sat on the
+ * ideal day and walked BACKWARD only when that day was full. Because most
+ * automatic rows now sit earlier than their ideal day, `shifted` is the
+ * ordinary mode rather than a capacity incident. The dedicated cases for the
+ * placement pass live in workload-capacity-placement.js.
  */
 const fs = require('fs');
 const path = require('path');

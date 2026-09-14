@@ -379,8 +379,16 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   displacement that works wins; and a day that does not work is rolled back exactly. Candidates are
   tried as SETS (smallest first, bounded by `WL_RESHUFFLE_MAX_CANDIDATES` and
   `WL_RESHUFFLE_MAX_EVICTIONS`), not one at a time cheapest-first, which spends the relocation room
-  a heavier card needed. When no rearrangement exists the item keeps its ideal day and the honest
-  over-capacity badge.
+  a heavier card needed. When the search finds no rearrangement the item keeps its ideal day
+  and the over-capacity badge. **What that badge means:** no arrangement THIS BOUNDED PASS could
+  find — a superset of genuine oversubscription, not a proof that the week is full. The repair is
+  local by construction: candidates come only from the day being freed, so two cards on DIFFERENT
+  days can never exchange places (pins 3 on Wednesday, automatics 1 ideal Mon / 2 ideal Tue / 2 and
+  3 ideal Wed ends 5/4 on Wednesday, although 1+3 Monday and 2+2 Tuesday fits every window). This is
+  bin packing: each further level of search — pairwise cross-day swaps, then 3-cycles — reaches
+  deeper with no natural stopping point, and a more aggressive global search would also make
+  placements more sensitive to small input changes, which is the churn the anchor above exists to
+  prevent. The bound is therefore deliberate, and the badge is described here as what it is.
 - **Incumbents anchor.** Because every placement is re-derived per snapshot, "nothing moves unless
   it clears an overload" is not enough on its own: a newcomer sorted ahead of settled work (heavier
   first within one ideal day) would rearrange the board without the reshuffle ever running. So the

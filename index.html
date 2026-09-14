@@ -15644,6 +15644,10 @@
         const [y, m, d] = iso.split('-').map(Number);
         return new Date(y, m - 1, d);
     }
+    function wlIsWorkingDay(iso) {
+        const dow = wlParseISO(iso).getDay();
+        return dow !== 0 && dow !== 6;
+    }
     function wlAddWorkingDays(iso, n) {
         const d = wlParseISO(iso);
         let added = 0;
@@ -15733,7 +15737,13 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', shifted: 'Moved earlier for capacity', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        // `shifted` means "not on the ideal day". Under the 2026-08-10
+        // late-as-possible rule that could only happen when capacity pushed a
+        // card off its usual day, so the label said so. Earliest-fit reaches
+        // the same state the ordinary way — the first working day with room is
+        // simply earlier than the deadline — so the label must not claim a
+        // capacity conflict that usually did not occur.
+        return ({ auto: 'Automatically planned', shifted: 'Planned on the earliest day with room', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
@@ -15762,7 +15772,7 @@
                     : (mode === 'shifted'
                         // The per-item detail names the day it came from; the
                         // group/compact icon has no single item to name.
-                        ? (String(tipDetail || '') || 'Automatic plan, moved earlier: its usual day — one working day before the deadline — was already at that editor\'s daily capacity. Still before the deadline.')
+                        ? (String(tipDetail || '') || 'Automatic plan: placed on the earliest working day with room, which is earlier than the last day it could sit on — one working day before the deadline.')
                         : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
@@ -16166,9 +16176,11 @@
         // hidden manual override may still settle. A genuine failure (not
         // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
         if (wlState.planHasSnapshot) {
-            // An automatic item that had to leave its ideal day gets its own
+            // An automatic item that is not on its ideal day gets its own
             // mode, so the board never silently shows a day that isn't
-            // "one working day before the deadline" with no explanation.
+            // "one working day before the deadline" with no explanation. Under
+            // earliest-fit that is the common case, not a capacity incident —
+            // see wlPlacementLabel for why the wording changed with it.
             return wlAutoPlacementDate(sub) ? 'shifted' : 'auto';
         }
         return wlState.planLoading ? 'loading' : 'fallback';
@@ -16268,10 +16280,14 @@
 
         for (const entry of automatic) {
             let placed = '';
-            // Earliest first: start at today and walk forward, stopping at the
-            // ideal day. `ideal` is already floored to today, so an item due
-            // now (or overdue) has a one-day window and simply lands there.
-            let day = today;
+            // Earliest first: start at the first WORKING day from today and
+            // walk forward, stopping at the ideal day. Starting at a bare
+            // `today` put ordinary automatic work on a Saturday whenever the
+            // policy day was a weekend and the ideal day was later. `ideal` is
+            // floored to today, so a card due now (or overdue) keeps its
+            // one-day window: the start then runs past the ideal, the loop
+            // never runs, and it lands on the ideal day exactly as before.
+            let day = wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
             for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
                 if (fits(entry.sub, day)) { placed = day; break; }
                 day = wlAddWorkingDays(day, 1);

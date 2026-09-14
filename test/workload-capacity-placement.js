@@ -87,7 +87,7 @@ const context = {
 context.globalThis = context;
 vm.createContext(context);
 for (const name of [
-  'wlISO', 'wlParseISO', 'wlSubWorkingDays', 'wlAddWorkingDays',
+  'wlISO', 'wlParseISO', 'wlSubWorkingDays', 'wlAddWorkingDays', 'wlIsWorkingDay',
   'wlTeamBucket', 'wlEditorCapacity', 'wlDayOverCapacity',
   'wlWorkloadMeta', 'wlWorkloadWeight', 'wlWorkloadUnits',
   'wlPlanDate', 'wlAutoPlanDate', 'wlAutoPlacementDate', 'wlDisplayDate',
@@ -487,6 +487,24 @@ Object.assign(context, {
 for (const name of ['wlPlacementLabel', 'wlPlanOriginHtml',
   'wlRenderPlanIssueCards']) vm.runInContext(extract(name), context);
 
+check('a weekend policy day starts the walk on Monday, not on the weekend itself', () => {
+  reset();
+  // Saturday 2026-08-08 with a Wednesday 2026-08-12 deadline: the ideal day is
+  // Tuesday, and every day in the window is empty. Starting the walk at a bare
+  // `today` put ordinary automatic work on the Saturday.
+  const SAT = '2026-08-08';
+  const weekendCard = sub({ due: '2026-08-12' });
+  const [placed] = place([weekendCard], SAT);
+  assert.strictEqual(placed, '2026-08-10', 'it lands on the Monday, not the Saturday');
+
+  // A card due on the weekend day itself keeps its one-day window: the ideal is
+  // floored to today, the forward start runs past it, and it stays put rather
+  // than being pushed into the next week.
+  reset();
+  const dueNow = sub({ due: SAT });
+  assert.strictEqual(place([dueNow], SAT)[0], SAT, 'a card due today stays on today even on a weekend');
+});
+
 check('a moved card renders the shifted icon and names the day it came from', () => {
   reset();
   const pinned = Array.from({ length: 4 }, () => sub({ plan: WED, due: '2026-08-14' }));
@@ -495,10 +513,14 @@ check('a moved card renders the shifted icon and names the day it came from', ()
 
   const html = context.wlRenderPlanIssueCards([bumped], THU);
   assert.ok(html.includes('wl-plan-origin is-shifted'), 'the card carries the shifted origin icon');
-  assert.ok(/aria-label="Moved earlier for capacity"/.test(html), 'and an accessible label saying so');
+  // The label must describe earliest-fit, not a capacity incident: under this
+  // rule a card sitting before its ideal day is the ordinary outcome, so
+  // claiming its usual day was full would be false for most of them.
+  assert.ok(/aria-label="Planned on the earliest day with room"/.test(html), 'and an accessible label saying so');
+  assert.ok(!/Moved earlier for capacity/.test(html), 'and never claims a capacity displacement');
   assert.ok(html.includes('6 Aug'), 'the tooltip names where it landed');
   assert.ok(html.includes('11 Aug'), 'the tooltip names the latest day it could have sat on');
-  assert.ok(/4-unit daily capacity/.test(html), 'and why it could not stay there');
+  assert.ok(/4-unit daily capacity/.test(html), 'and names the cap that is the only thing pushing a card later');
 
   const stayed = context.wlRenderPlanIssueCards([pinned[0]], WED);
   assert.ok(stayed.includes('wl-plan-origin is-manual'), 'a pin still renders as manual');

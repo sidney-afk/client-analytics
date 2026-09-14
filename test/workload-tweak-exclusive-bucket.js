@@ -54,6 +54,8 @@ const wlISO = compile('wlISO');
 const wlParseISO = compile('wlParseISO');
 const wlWeekMondayISO = compile('wlWeekMondayISO', { wlParseISO, wlISO });
 const wlSubWorkingDays = compile('wlSubWorkingDays', { wlParseISO, wlISO });
+const wlAddWorkingDays = compile('wlAddWorkingDays', { wlParseISO, wlISO });
+const wlIsWorkingDay = compile('wlIsWorkingDay', { wlParseISO });
 const wlWorkloadTodayISO = compile('wlWorkloadTodayISO', {
   WL_WORKLOAD_TIME_ZONE: 'America/Guatemala',
 });
@@ -150,7 +152,8 @@ const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
   wlEditorCapacity,
   wlPlanDate,
   wlAutoPlanDate,
-  wlSubWorkingDays,
+  wlAddWorkingDays,
+  wlIsWorkingDay,
 });
 
 const wlApplyData = compile('wlApplyData', {
@@ -256,25 +259,28 @@ check(wlEditorCapacity('VID', 'Video Editors') === 4
     && wlDayOverCapacity(autoBucket.concat([issue('To Do', 'video-fifth', dueDate)])),
   'video capacity is 4/day and a fifth unit on one editor-day reads as overload');
 
-// Owner ruling 2026-08-10 (Raha's overload report): automatic placement is
-// capacity-aware. Two extra rows do not stack on a full day — they move BACK
-// to the previous working day, which keeps the deadline buffer, and every
-// planned item is still on the calendar exactly once.
-const spillDay = wlSubWorkingDays(autoDate, 1);
+// Owner ruling 2026-09-14: automatic placement is capacity-aware AND
+// earliest-fit. Six rows sharing one deadline fill today to the 4-unit cap and
+// the remaining two take the next working day — forward from today, never past
+// the ideal day — and every planned item is still on the calendar exactly once.
+// (Superseded the 2026-08-10 rule, which filled the ideal day first and walked
+// backward only to relieve an over-capacity day.)
+const firstDay = '2026-07-15';
+const spillDay = wlAddWorkingDays(firstDay, 1);
 const spillRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-spill-' + i, dueDate));
 wlApplyData(spillRows, '2026-07-15T12:00:00Z');
-const idealBucket = wlState.calendarByDate.get(autoDate) || [];
-const movedBucket = wlState.calendarByDate.get(spillDay) || [];
-check(idealBucket.length === 4 && movedBucket.length === 2
+const earliestBucket = wlState.calendarByDate.get(firstDay) || [];
+const spilledBucket = wlState.calendarByDate.get(spillDay) || [];
+check(earliestBucket.length === 4 && spilledBucket.length === 2
     && wlState.planned.length === 6
     && [...wlState.calendarByDate.values()].flat().length === 6
-    && !wlState.calendarByDate.has(dueDate),
-  'automatic work past a full day moves back one working day and stays fully visible');
-check(!wlDayOverCapacity(idealBucket) && !wlDayOverCapacity(movedBucket),
+    && !wlState.calendarByDate.has(dueDate)
+    && !wlState.calendarByDate.has(autoDate),
+  'automatic work fills the earliest day to capacity, spills one working day forward, and stays fully visible');
+check(!wlDayOverCapacity(earliestBucket) && !wlDayOverCapacity(spilledBucket),
   'neither day is left over capacity once the automatic rows have spread');
-check(movedBucket.every(row => wlPlacementMode(row) === 'shifted')
-    && idealBucket.every(row => wlPlacementMode(row) === 'auto'),
-  'only the rows the capacity pass moved are classified as shifted');
+check(earliestBucket.concat(spilledBucket).every(row => wlPlacementMode(row) === 'shifted'),
+  'every row placed off its ideal day is classified as shifted, whichever day it took');
 
 // A saturated window still cannot invent room: when the ideal day IS today,
 // there is nowhere earlier to go, so the honest overload stays on the board

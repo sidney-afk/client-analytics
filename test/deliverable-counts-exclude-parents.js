@@ -237,7 +237,22 @@ const rows = [
   const countSrc = html.slice(from, to);
   ok(/parentUuids\.has\(String\(row && row\.linear_issue_uuid/.test(countSrc),
     'the batch post count excludes parent rows');
-  const assignSrc = gateway.slice(gateway.indexOf('async function autoAssigneeForIntake('), gateway.indexOf('async function autoAssigneeForIntake(') + 4000);
+  /* Bounded by the NEXT function, not by a magic character count. A fixed
+     4000-char window silently stopped covering the parent-uuid read as soon as
+     the function grew past it (2026-09-14, the auto-assign opt-out): the slice
+     still existed, the regex still ran, and the check failed for a property
+     that had not changed. Brace matching ends where the function ends, so it
+     cannot drift again. The same failure mode the pool slice was re-pointed
+     for. */
+  const assignStart = gateway.indexOf('async function autoAssigneeForIntake(');
+  let assignEnd = -1;
+  for (let i = gateway.indexOf('{', assignStart), depth = 0; i < gateway.length; i++) {
+    if (gateway[i] === '{') depth++;
+    else if (gateway[i] === '}' && --depth === 0) { assignEnd = i + 1; break; }
+  }
+  const assignSrc = gateway.slice(assignStart, assignEnd);
+  ok(assignStart >= 0 && assignEnd > assignStart && assignSrc.length < 8000,
+    'the auto-assign slice covers exactly that function (harness is not vacuous)');
   ok(/parentUuids\.has\(clean\(row\.linear_issue_uuid\)\)/.test(assignSrc),
     'the gateway auto-assign excludes parent rows, symmetrically');
 

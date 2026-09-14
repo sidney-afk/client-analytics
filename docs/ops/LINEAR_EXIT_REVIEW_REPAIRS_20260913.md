@@ -27,6 +27,8 @@ The staged-schema read repair passes 17 focused compatibility controls and the a
 
 ## Remaining real-world checks
 
+The subsequent combined browser run passed seven of eight suites. Accessibility still failed while its CPU-heavy scan overlapped initial read recovery. The accessibility harness now asserts the existing bounded read audit before starting that scan, then retains its original final audit, keyboard/geometry assertions and no-write checks. The focused browser rerun passes with zero Axe findings and 12 verified recovered reads; independent review confirms no audit records are cleared and no recovery window or assertion was weakened. Final combined and GitHub results are recorded on PR #1391, including any remaining failures.
+
 Keep these as one ordered acceptance list, not another audit:
 
 1. **Recovery copy:** after explicit export authorization, capture the actual pre-installation public database through the reviewed backup path, encrypt it, store it off this computer, retrieve it and restore into an isolated target. Verify the public-schema scope and separately account for non-public platform dependencies and asset bytes. A database backup containing file links does not preserve the files themselves.

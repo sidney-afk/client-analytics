@@ -374,6 +374,10 @@ async function main() {
       `${file} must evaluate zero-write requests after the bounded settle`);
   }
 
+  const a11ySource = fs.readFileSync(path.join(__dirname, '..', 'docs', 'syncview-design', 'tests', 'prod-a11y-focus.js'), 'utf8');
+  assert.ok(a11ySource.indexOf('const initialReadConsole = await readConsoleAudit.settle()') < a11ySource.indexOf('new AxeBuilder'), 'initial reads settle before the CPU-heavy accessibility scan');
+  assert.ok(a11ySource.includes('if (!initialReadConsole.ok) throw new Error'), 'initial audit failure is asserted, not discarded');
+  assert.ok(a11ySource.indexOf('const readConsole = await readConsoleAudit.settle()') > a11ySource.indexOf('new AxeBuilder'), 'final accessibility audit remains in place');
   console.log('Production read/console audit fail-closed matrix passed');
 }
 

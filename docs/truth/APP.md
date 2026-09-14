@@ -399,6 +399,17 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   load there are no anchors and the pass is pure earliest-fit. The record
   (`wlState.autoPlacementSettled`) is in-memory only, never persisted or read back from a server,
   and is purged with the pins it derives from.
+- Two rules keep the anchor from holding too hard, both from owner reports on 2026-09-14. **Freed
+  room is reclaimed in the same pass:** after placement, each card may move EARLIER into room that
+  is genuinely free — it fills a gap and never evicts, so pinning a card away lets the next card
+  move up without a reload, while arriving work still cannot displace anybody. **An anchor never
+  renders a worse board than a reload:** when the anchored attempt leaves work above capacity, a
+  clean anchor-free pass is computed and adopted if it overflows less. That is the mirror case —
+  "use automatic planning" on a pinned card left the day at 5/4 because the other cards were
+  anchored to the days they held while the pin was away, and only a refresh (which has no anchors)
+  showed the clean 4/4. Bounded at one retry and only reached when the anchored attempt actually
+  overflows. The invariant is swept in `workload-capacity-placement.js` over 24 shapes rather than
+  pinned to one fixture.
   Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
   computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
   render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor

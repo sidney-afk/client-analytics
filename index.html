@@ -16259,8 +16259,8 @@
     }
     function wlComputeAutoPlacements(plannedSubs, todayISO) {
         const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
-        const placements = new Map();
-        const used = new Map();                // `${capacityKey}@${day}` -> workload units already committed
+        let placements = new Map();
+        let used = new Map();                  // `${capacityKey}@${day}` -> workload units already committed
         const slotOf = (sub, day) => wlCapacityKey(sub) + '@' + day;
         const reserve = (sub, day) => {
             const slot = slotOf(sub, day);
@@ -16309,7 +16309,7 @@
             }
             return '';
         };
-        const placedOn = new Map();            // entry -> the day it currently holds
+        let placedOn = new Map();              // entry -> the day it currently holds
         const release = (sub, day) => {
             const slot = slotOf(sub, day);
             used.set(slot, Math.max(0, (used.get(slot) || 0) - wlWorkloadWeight(sub)));
@@ -16449,9 +16449,17 @@
          * persisted or read back from a server.
          */
         const previous = wlState.autoPlacementSettled instanceof Map ? wlState.autoPlacementSettled : new Map();
+        const plan = (useAnchors) => {
+        placements = new Map();
+        used = new Map();
+        placedOn = new Map();
+        for (const sub of plannedSubs || []) {
+            const manual = wlPlanDate(sub);
+            if (manual) reserve(sub, manual);
+        }
         const unanchored = [];
         for (const entry of automatic) {
-            const anchor = String(previous.get(String(entry.sub && entry.sub.id || '')) || '');
+            const anchor = useAnchors ? String(previous.get(String(entry.sub && entry.sub.id || '')) || '') : '';
             if (!anchor || anchor < windowStart || anchor > entry.ideal || !wlIsWorkingDay(anchor) || !fits(entry.sub, anchor)) {
                 unanchored.push(entry);
                 continue;
@@ -16489,6 +16497,43 @@
             reserve(entry.sub, earlier);
             recordDay(entry, earlier);
         }
+
+        // Work sitting ABOVE an editor's daily capacity once this attempt is
+        // done: zero means the board shows no red day.
+        let over = 0;
+        for (const [entry, day] of placedOn) {
+            const slot = slotOf(entry.sub, day);
+            const cap = wlEditorCapacity(entry.sub && entry.sub.teamKey, entry.sub && entry.sub.teamName);
+            const units = used.get(slot) || 0;
+            if (units > cap) { over += units - cap; used.set(slot, cap); }
+        }
+        return { placements, placedOn, over };
+        };
+
+        /*
+         * AN ANCHOR IS A PREFERENCE, NEVER A REASON TO SHOW A WORSE BOARD
+         * (owner report 2026-09-14, second round).
+         *
+         * "Use automatic planning" on a pinned card was the mirror of the
+         * refresh bug. Unpinning hands the card back to automatic placement,
+         * but every other card is anchored to the day it held WHILE the pin was
+         * away, so they do not give the room back and the day renders over
+         * capacity — 5/4 where a reload shows a clean 4/4. A reload fixed it
+         * because a fresh page has no anchors at all.
+         *
+         * So the anchored attempt is kept only while it is no worse: when it
+         * leaves more work above capacity than a clean anchor-free pass would,
+         * the clean pass wins and the board shows what a reload would have
+         * shown. Bounded at one retry, and only reached when the anchored
+         * attempt actually overflows, so the ordinary path stays a single pass.
+         */
+        let attempt = plan(true);
+        if (attempt.over > 0) {
+            const clean = plan(false);
+            attempt = clean.over < attempt.over ? clean : plan(true);
+        }
+        placements = attempt.placements;
+        placedOn = attempt.placedOn;
 
         // What every automatic item ended up holding, for the next pass to
         // anchor against. Distinct from `placements`, which carries only the
@@ -17758,7 +17803,13 @@
                 _syncviewStaffIdentityClear();
                 if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
-                    showNotify("Couldn't save the work day", 'Staff sign-in expired. It was put back — sign in and try again.');
+                    /* NOT "it was put back": the restore above is itself wiped
+                       by the identity purge, which clears every pin, so the
+                       card lands on its deadline fallback — a third day,
+                       neither where it was dropped nor where it came from. The
+                       browser harness caught the copy claiming otherwise. Say
+                       what actually happened. */
+                    showNotify("Couldn't save the work day", 'Staff sign-in expired. Saved work days are hidden until you sign in again.');
                 }
                 return false;
             }

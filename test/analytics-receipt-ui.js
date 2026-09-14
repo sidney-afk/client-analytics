@@ -286,6 +286,9 @@ ok(cardsSource.includes("_analyticsPlatformVisible(r,'instagram'")
 ok(overviewSource.includes("gainCell(r,dp,'ig_followers','col-ig','instagram')")
   && overviewSource.includes("_analyticsProviderFailed(r,'instagram')"),
   'overview table suppresses receipt-shaped provider failures');
+ok(overviewSource.includes("ncViewsDelta(r,mp,'tiktok','tiktok_plays_this_month','col-tt')")
+  && !overviewSource.includes("ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')"),
+  'overview table passes TikTok rows and month references to the 30-day views formatter');
 ok(chartSource.includes('_analyticsProviderFailed(r,receiptPlatform)')
   && chartSource.includes('while(prior>=0&&_analyticsMetricNumber'),
   'charts omit failed points and compare recovery against the last trusted point');

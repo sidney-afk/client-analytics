@@ -1,5 +1,7 @@
 # Claude resume: Linear exit preparation
 
+> **Owner decision, 2026-09-14: NO CLIENT NOTIFICATIONS.** Client-facing notifications are outside the requested Linear-exit rollout. Do not send, test-send, enable, configure for delivery, or replay queued notifications to any client/channel through this migration. Roster access and earlier destination/exclusion decisions were preparation only and do not authorize delivery. Installation, activation or retirement approval does not override this decision. Keep client delivery disabled; do not require a client message to satisfy an acceptance gate. Internal staff/operator alerts are a separate, unapproved scope until exact recipients, content, triggers and channels are agreed. Before any release involving notify or its callers, prove all client-delivery paths remain disabled, including scheduled sends, gateway wakeups and backlog replay; existing tests and documentation alone do not prove that hosted behavior. This documentation change does not modify existing live automations.
+
 Continue from draft [PR #1391](https://github.com/sidney-afk/client-analytics/pull/1391), branch `prep/linear-exit-review-fixes-20260913`. Inspect its current head and checks before making a readiness claim. PR #1382 is historical. Do not restart the audit or substitute an older snapshot for this candidate.
 
 The owner wants a short, efficient installation path after preparation is verified. Publication to reviewed branches/draft PRs is authorized. No merge (including local merge), deployment, installation, manual workflow dispatch, production writes, notification sends or n8n run/edit is authorized. Read-only checks and isolated rehearsals are permitted. Keep public content free of secrets, client identities and share tokens.
@@ -28,7 +30,7 @@ The owner additionally said never to send anything to client Slack channels. The
 
 Actual 67-table public-database capture and isolated restoration passed on 2026-09-14, and encrypted Drive upload was verified private. The downloaded Drive copy also restored exactly; refresh the time-sensitive backup/catalog before the eventual installation window as needed. Public-schema backup does not cover non-public Supabase platform state or external file bytes; account for those explicitly.
 
-Complete real asset access/preservation and destination confirmation. For the 16 missing destinations, the authoritative owner-designated roster supplies 11 primary-channel mappings; the owner approved two rollout exclusions and three internal entries without client notifications. The final private manifest preserves all records; no live configuration was written. The native notification release/configuration/delivery and independent monitoring still require acceptance. Do not claim they are installed.
+Complete real asset access/preservation. Earlier notification mappings are historical only and superseded for rollout use by the owner decision above. Do not enable client notifications or treat delivery as an unmet client acceptance requirement. Internal monitoring/alerts need separately agreed recipients and behavior; no sender is authorized.
 
 Use the existing phase separation: `LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md` and `../ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md` require classified baseline and recoverable pre-state before dormant installation, then capability-specific hosted acceptance before activation, and required asset custody/handover before retirement. Do not turn incomplete historical Drive/Frame custody into an invented blanket dormant-install gate, or silently waive its later requirements. After the applicable recovery and compatibility prerequisites, obtain authorization for the exact dormant installation; follow pinned unmerged SQL/readback/preflight before live merge and one chosen Edge release lane in `../ops/LINEAR_EXIT_REPAIR_INSTALL.md`. Keep authority, workers and capability flags unchanged until their separate acceptance. External-worker shutdown/debt closure and actual Linear retirement are a later, separate step. Do not stop workers during preparation. Local green tests do not authorize installation.
 
@@ -47,3 +49,17 @@ Actual public-database backup: captured, encrypted, uploaded privately, owner do
 Storage: a signed 1,045-object inventory passed, but first encrypted export refused a request and the bounded export-only attempt correctly refused source drift to 1,047 objects. No complete encrypted Storage copy or off-device Storage custody is proven. Do not reuse stale inventory as current or weaken its final check. Plan a fresh capture in a stable source window under the relevant authorization.
 
 Private notification configuration is `notification-configuration-manifest-20260914.private.json`; exact unresolved file assessments are `drive-exception-recovery-assessment-20260914.private.json` and its Markdown companion. These are not public GitHub inputs or authorization to send messages.
+
+## Actions still needing explicit owner agreement
+
+Preparation/publication is not approval for the following live actions:
+
+- Merge/release: Pages updates the live browser, and the onboarding workflow can automatically deploy eight staff functions on the merge. Review that full effect, not just the Linear gateway.
+- Database/function installation: schema, routine, trigger and access changes affect a running service even when native feature flags remain off. Select the exact SQL and Edge-function release scope, including any notify dependency and its verified no-client-delivery configuration.
+- Native activation: moving work ownership from Linear to SyncView, enabling background workers, scheduled writes, gateway wakeups or new automation requires its own scope. Internal staff/operator messages are not implicitly approved.
+- Maintenance/pauses and recovery: pausing submissions, freezing writes, stopping workers, replaying jobs, or restoring data over accepted newer saves requires an explicit window and concrete recovery decision. Do not stop n8n or unrelated workflows under a generic Linear-exit instruction.
+- File decisions: missing-file exceptions, substitutions, link changes, broader uploads/sharing or retention changes are not approved by choosing the existing private encrypted-backup route.
+- Retirement: shutting off Linear integrations, revoking credentials, deleting webhooks/workflows, cancelling billing or deleting the workspace/data are separate decisions; preserve native receipts.
+- Client access: do not change existing tokenless Calendar/Samples links or add a login gate under this migration.
+
+These are proposed/restricted actions found in the strategy, not actions already performed or approvals already granted. Existing live automation behavior has not been exhaustively audited by this documentation review.

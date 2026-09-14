@@ -1,5 +1,7 @@
 ﻿# Native notification handover preparation
 
+> **Owner decision, 2026-09-14: NO CLIENT NOTIFICATIONS.** Client-facing notifications are outside the requested Linear-exit rollout. Do not send, test-send, enable, configure for delivery, or replay queued notifications to any client/channel through this migration. Roster access and earlier destination/exclusion decisions were preparation only and do not authorize delivery. Installation, activation or retirement approval does not override this decision. Keep client delivery disabled; do not require a client message to satisfy an acceptance gate. Internal staff/operator alerts are a separate, unapproved scope until exact recipients, content, triggers and channels are agreed. Before any release involving notify or its callers, prove all client-delivery paths remain disabled, including scheduled sends, gateway wakeups and backlog replay; existing tests and documentation alone do not prove that hosted behavior. This documentation change does not modify existing live automations.
+
 This is an installation-window procedure, not authorization to execute it.
 No workflow, sender, wakeup, destination or credential is activated here.
 Read `NATIVE_NOTIFICATIONS.md` for the existing SQL and delivery semantics.
@@ -21,7 +23,9 @@ message receipts. Publish only hashes, counts and pass/fail classifications.
 Never include bot tokens, runner keys, channel/customer names or message bodies
 in public proof. A checked box or successful HTTP status is not a delivery receipt.
 
-## Required sequence after separate authorization
+## Historical delivery procedure - not approved for this rollout
+
+The following retained procedure documents previously prepared capabilities, not an owner-approved client notification plan. Do not execute its client destination, send or sender-activation steps. A future internal-only proposal must first specify exact recipients, message content and triggers, and prove client routes cannot be reached.
 
 1. Capture recoverable pre-state and verify the installed SQL shape/grants and
    function closure. Verify `NATIVE_NOTIFICATION_SENDER_ENABLED`,

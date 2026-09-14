@@ -1,5 +1,7 @@
 # Agent Guide
 
+> **Owner decision, 2026-09-14: NO CLIENT NOTIFICATIONS.** Client-facing notifications are outside the requested Linear-exit rollout. Do not send, test-send, enable, configure for delivery, or replay queued notifications to any client/channel through this migration. Roster access and earlier destination/exclusion decisions were preparation only and do not authorize delivery. Installation, activation or retirement approval does not override this decision. Keep client delivery disabled; do not require a client message to satisfy an acceptance gate. Internal staff/operator alerts are a separate, unapproved scope until exact recipients, content, triggers and channels are agreed. Before any release involving notify or its callers, prove all client-delivery paths remain disabled, including scheduled sends, gateway wakeups and backlog replay; existing tests and documentation alone do not prove that hosted behavior. This documentation change does not modify existing live automations.
+
 > **Owner directive, 2026-09-14:** do not send anything to client Slack channels,
 > including test messages. Reading the owner-designated roster and preparing
 > destination mappings does not authorize sending. Do not infer permission to

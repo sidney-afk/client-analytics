@@ -16461,6 +16461,35 @@
         }
         for (const entry of unanchored) settle(entry);
 
+        /*
+         * RECLAIM FREED ROOM, in the same pass (owner report 2026-09-14: "when
+         * I drag things around to pin them, I need to refresh the page to
+         * actually see the new board").
+         *
+         * The anchor above holds a card on the day it last held, which is what
+         * stops a newcomer rearranging the board. But it held too hard in one
+         * direction: pinning a card AWAY from a day frees room there, and every
+         * other card sat on its remembered day, so nothing moved up. A reload
+         * cleared the anchors and the board finally settled — which is exactly
+         * the refresh the owner should not need.
+         *
+         * So after everything is placed, each card gets to move EARLIER into
+         * room that is genuinely free. This cannot displace anybody: it only
+         * ever fills a gap, never evicts, and a card already on the earliest
+         * day with room does not move. Tightest deadline first, so the most
+         * urgent card claims freed room before a looser one.
+         */
+        const byUrgency = [...placedOn.keys()].sort((a, b) => automatic.indexOf(a) - automatic.indexOf(b));
+        for (const entry of byUrgency) {
+            const held = placedOn.get(entry);
+            if (!held || held === windowStart) continue;
+            release(entry.sub, held);
+            const earlier = firstFit(entry.sub, entry.ideal);
+            if (!earlier || earlier >= held) { reserve(entry.sub, held); continue; }
+            reserve(entry.sub, earlier);
+            recordDay(entry, earlier);
+        }
+
         // What every automatic item ended up holding, for the next pass to
         // anchor against. Distinct from `placements`, which carries only the
         // items that are NOT on their ideal day.
@@ -17710,16 +17739,31 @@
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
             let json = null;
             try { json = await resp.json(); } catch (e) {}
+            /* A refused save must PUT THE CARD BACK, like every other failure
+               below does. These two branches used to return without restoring
+               it, so the card sat on its new day with nothing saved: it looked
+               moved until the next refresh, and a group drag (quiet) suppressed
+               even the toast, so the summary could report "put back" while
+               nothing was. That is the shape of the 2026-09-14 report that
+               drags do not survive a refresh. */
             if (resp.status === 401) {
                 _syncviewStaffIdentityClear();
+                wlApplyPlanLocal(issue.id, previousDate);
+                if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
-                    showNotify("Couldn't save the work day", 'Staff sign-in expired. Sign in and try again.');
+                    showNotify("Couldn't save the work day", 'Staff sign-in expired. It was put back — sign in and try again.');
                 }
                 return false;
             }
             if (resp.status === 403) {
+                /* The purge clears the pins this restore would write, so the
+                   card is put back FIRST and the purge takes it with the rest —
+                   leaving the board in one honest state rather than showing a
+                   pin the server refused. */
+                wlApplyPlanLocal(issue.id, previousDate);
                 wlPurgePlanSensitiveState();
                 wlState.planError = 'This staff account cannot edit saved work days.';
+                if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
                     showNotify("Couldn't save the work day", 'This staff account cannot edit saved work days.');
                 }

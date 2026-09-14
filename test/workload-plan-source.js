@@ -613,6 +613,21 @@ ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacity
     && /wlState\.autoPlacementSettled = new Map\(/.test(capacityPlacement)
     && /wlState\.autoPlacementSettled = new Map\(\);/.test(INDEX),
 'incumbents anchor from the previous pass, the anchor is dropped as soon as it no longer fits, and it is purged with the pins');
+/* A refused save must put the card back. The 401 and 403 branches used to
+   return without restoring it, so the card sat on a day the server never
+   accepted — visible until the next refresh, and silent entirely on a group
+   drag, which is how a drag appears to "not save". Pinned in source because
+   the failure only shows up against a live gateway. */
+const persistPlan = INDEX.slice(INDEX.indexOf('async function _wlPersistPlanDate('),
+  INDEX.indexOf('async function wlSetPlanDate('));
+ok(persistPlan.length > 0 && persistPlan.length < 4000,
+  'the plan-write slice is bounded (harness is not vacuous)');
+const restores = (persistPlan.match(/wlApplyPlanLocal\(issue\.id, previousDate\)/g) || []).length;
+ok(restores >= 3
+    && /resp\.status === 401\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\)/.test(persistPlan)
+    && /resp\.status === 403\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\)[\s\S]*?wlPurgePlanSensitiveState\(\)/.test(persistPlan),
+'every refused plan write restores the previous day, including 401 and 403, and 403 restores BEFORE the purge so one state is shown');
+
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

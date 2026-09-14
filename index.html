@@ -368,6 +368,20 @@
             --sv-bg-ede9fe: #ede9fe;
             --sv-bg-ededea: #ededea;
             --sv-bg-eef0fe: #eef0fe;
+            /* Vibrant accent pair for the two asset slots: the Thumbnail
+               field and its Production button share blue, the Video field
+               and its Production button share pink, so each field and its
+               square button read as one thing. */
+            --sv-slot-thumb-fg: #3b3bf5;
+            --sv-slot-thumb-bg: #e2e4ff;
+            --sv-slot-thumb-bg-hover: #cdd1ff;
+            --sv-slot-thumb-fg-soft: #6f6fee;
+            --sv-slot-thumb-border: #ccceff;
+            --sv-slot-video-fg: #e01a7c;
+            --sv-slot-video-bg: #ffe0ef;
+            --sv-slot-video-bg-hover: #ffc9e2;
+            --sv-slot-video-fg-soft: #ef5ba1;
+            --sv-slot-video-border: #ffc9e2;
             --sv-bg-ef4444: #ef4444;
             --sv-bg-efedfd: #efedfd;
             --sv-bg-eff3ff: #eff3ff;
@@ -929,6 +943,16 @@
             --sv-bg-ede9fe: #181a1f;
             --sv-bg-ededea: #181a1f;
             --sv-bg-eef0fe: #181a1f;
+            --sv-slot-thumb-fg: #a9aaff;
+            --sv-slot-thumb-bg: #1d1f2e;
+            --sv-slot-thumb-bg-hover: #262a41;
+            --sv-slot-thumb-fg-soft: #8b8cdf;
+            --sv-slot-thumb-border: #2e3250;
+            --sv-slot-video-fg: #ff8ac0;
+            --sv-slot-video-bg: #2b1a25;
+            --sv-slot-video-bg-hover: #3a2231;
+            --sv-slot-video-fg-soft: #d1719f;
+            --sv-slot-video-border: #3a2231;
             --sv-bg-ef4444: #7f2e31;
             --sv-bg-efedfd: #181a1f;
             --sv-bg-eff3ff: #181a1f;
@@ -5457,20 +5481,20 @@
         .cal-link-folder svg,
         .cal-link-edit svg { width: 12px; height: 12px; }
         /* Coloured link pills once a URL is set */
-        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-bg-eef0fe); color: var(--sv-fg-4f46e5); }
-        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-bg-e4e6fc); }
-        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-fg-4f46e5); }
+        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg); }
+        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-slot-thumb-bg-hover); }
+        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-slot-thumb-fg); }
         .cal-link-thumb.has-link .cal-link-folder,
-        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-bg-eef0fe); color: var(--sv-fg-7c79d8); border-left-color: var(--sv-border-dcdcfa); }
+        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg-soft); border-left-color: var(--sv-slot-thumb-border); }
         .cal-link-thumb.has-link .cal-link-folder:hover,
-        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-bg-e4e6fc); color: var(--sv-fg-4f46e5); }
-        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-bg-fde8f3); color: var(--sv-fg-be2d72); }
-        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-bg-fbdcec); }
-        .cal-link-post.has-link .cal-link-ico { color: var(--sv-fg-be2d72); }
+        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-slot-thumb-bg-hover); color: var(--sv-slot-thumb-fg); }
+        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-slot-video-bg-hover); }
+        .cal-link-post.has-link .cal-link-ico { color: var(--sv-slot-video-fg); }
         .cal-link-post.has-link .cal-link-folder,
-        .cal-link-post.has-link .cal-link-edit { background: var(--sv-bg-fde8f3); color: var(--sv-fg-cf6f9e); border-left-color: var(--sv-border-f6d3e4); }
+        .cal-link-post.has-link .cal-link-edit { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
         .cal-link-post.has-link .cal-link-folder:hover,
-        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-bg-fbdcec); color: var(--sv-fg-be2d72); }
+        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
@@ -41364,11 +41388,20 @@
             const rows = await response.json();
             return Array.isArray(rows) ? rows : [];
         };
-        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name'
+        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name,auto_assign_opt_out'
             + '&active=eq.true&team=eq.video&role=eq.editor&linear_user_id=not.is.null'
             + '&order=name.asc&limit=200');
         const editors = editorRows
-            .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '').trim() || 'Editor' }))
+            .map(row => ({
+                id: String(row && row.id || ''),
+                name: String(row && row.name || '').trim() || 'Editor',
+                /* Roster flag, not code: a person the gateway will never pick
+                   automatically. They stay IN this list -- the picker exists so
+                   somebody can choose them on purpose -- but they must never be
+                   the default suggestion, or the dialog would name one person
+                   while the silent path assigns another. */
+                autoOptOut: !!(row && row.auto_assign_opt_out),
+            }))
             .filter(row => row.id);
         if (!editors.length) return [];
         // Open video work per editor. A failure here is not fatal: the picker
@@ -41405,11 +41438,19 @@
         const withLoad = editors.map(editor => ({
             id: editor.id,
             name: editor.name,
+            autoOptOut: !!editor.autoOptOut,
             openCount: counts ? Number(counts.get(editor.id) || 0) : null,
         }));
+        /* Everyone opted out is the gateway's own degenerate case: it ignores
+           the flag rather than failing, so the ranking has to ignore it too. */
+        const optOutRanks = withLoad.some(editor => !editor.autoOptOut);
         /* Same ordering rule as the gateway: fewest open first, then name, then
            id -- so the browser's suggestion and the server's fallback agree. */
         withLoad.sort((left, right) => {
+            if (optOutRanks) {
+                const optDelta = (left.autoOptOut ? 1 : 0) - (right.autoOptOut ? 1 : 0);
+                if (optDelta) return optDelta;
+            }
             if (counts) {
                 const delta = left.openCount - right.openCount;
                 if (delta) return delta;

@@ -572,12 +572,29 @@ ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\);
     && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
     && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
 'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
-ok(/let day = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(today, 1\);/.test(capacityPlacement)
+ok(/const windowStart = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(today, 1\);/.test(capacityPlacement)
+    && /let day = windowStart;/.test(capacityPlacement)
     && /day = wlAddWorkingDays\(day, 1\)/.test(capacityPlacement)
-    && /guard < WL_PLACEMENT_WALK_LIMIT && day <= entry\.ideal/.test(capacityPlacement)
+    && /guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal/.test(capacityPlacement)
     && !/wlSubWorkingDays|wlPrevWorkingDay/.test(capacityPlacement)
-    && /const finalDay = placed \|\| entry\.ideal/.test(capacityPlacement),
-'the walk starts at the first WORKING day from today and only ever steps FORWARD, is double-bounded by the walk limit and the ideal-day ceiling, and falls back to the honest ideal day');
+    && /const finalDay = firstFit\(entry\.sub, entry\.ideal\) \|\| reshuffleFor\(entry\) \|\| entry\.ideal/.test(capacityPlacement),
+'the walk starts at the first WORKING day from today and only ever steps FORWARD, is double-bounded by the walk limit and the ideal-day ceiling, and falls back through the bounded reshuffle to the honest ideal day');
+/* The reshuffle is the one place an ALREADY PLACED item can move, so its
+   bounds are pinned in source rather than left to the behaviour suite: it
+   runs only after first fit fails, it considers only same-capacity-key
+   (same editor, same team) items, an evicted item re-places by ordinary
+   first fit inside its OWN window and may not evict anyone in turn, and a
+   day that does not work is rolled back exactly. */
+const reshuffle = capacityPlacement.slice(capacityPlacement.indexOf('const reshuffleFor ='),
+  capacityPlacement.indexOf('for (const entry of automatic)'));
+ok(reshuffle.length > 0 && reshuffle.length < 4000,
+  'the reshuffle slice is bounded (harness is not vacuous)');
+ok(/wlCapacityKey\(other\.sub\) !== wlCapacityKey\(entry\.sub\)/.test(reshuffle)
+    && /const moved = firstFit\(other\.sub, other\.ideal, day\)/.test(reshuffle)
+    && !/reshuffleFor\(/.test(reshuffle)
+    && /release\(evicted\[i\]\.other\.sub, evicted\[i\]\.to\);\s*\n\s*reserve\(evicted\[i\]\.other\.sub, evicted\[i\]\.from\);/.test(reshuffle)
+    && /day <= entry\.ideal/.test(reshuffle),
+'the reshuffle only moves same-editor automatic work inside its own window, never recurses, and rolls a failed day back exactly');
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

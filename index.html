@@ -16287,22 +16287,105 @@
             return String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || ''));
         });
 
-        for (const entry of automatic) {
-            let placed = '';
-            // Earliest first: start at the first WORKING day from today and
-            // walk forward, stopping at the ideal day. Starting at a bare
-            // `today` put ordinary automatic work on a Saturday whenever the
-            // policy day was a weekend and the ideal day was later. `ideal` is
-            // floored to today, so a card due now (or overdue) keeps its
-            // one-day window: the start then runs past the ideal, the loop
-            // never runs, and it lands on the ideal day exactly as before.
-            let day = wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
-            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
-                if (fits(entry.sub, day)) { placed = day; break; }
+        // The window every item is confined to: the first WORKING day from
+        // today (a bare `today` put ordinary work on a Saturday whenever the
+        // policy day was a weekend) through its own ideal day. `ideal` is
+        // floored to today, so a card due now, due tomorrow, or already
+        // overdue keeps a one-day window and simply lands on today.
+        const windowStart = wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
+        // `skipDay` is the day being cleared during a reshuffle: the evicted
+        // item must not simply re-take the hole it just left, which is exactly
+        // what it would do, that day now being the earliest one with room.
+        const firstFit = (sub, ideal, skipDay) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal; guard++) {
+                if (day !== skipDay && fits(sub, day)) return day;
                 day = wlAddWorkingDays(day, 1);
             }
-            const finalDay = placed || entry.ideal;
+            return '';
+        };
+        const placedOn = new Map();            // entry -> the day it currently holds
+        const release = (sub, day) => {
+            const slot = slotOf(sub, day);
+            used.set(slot, Math.max(0, (used.get(slot) || 0) - wlWorkloadWeight(sub)));
+        };
+
+        /*
+         * LAST-RESORT RESHUFFLE (owner ruling 2026-09-14, on Codex's finding).
+         *
+         * Placing one item at a time and never revisiting a choice can
+         * manufacture an overload that a different order would have avoided:
+         * with pins of 1/2/2 on Mon/Tue/Wed, a 2-unit item due Wednesday takes
+         * Monday, and a 3-unit item due Thursday then fits nowhere and lands on
+         * Wednesday at 5/4 — although 3 on Monday and 2 on Tuesday fits both
+         * exactly. The red badge would be describing the pass, not the week.
+         *
+         * The owner's worry about fixing that was churn: work already planned
+         * jumping around every time a sub-issue arrives. So this runs ONLY when
+         * an item would otherwise land over capacity, and it is bounded on
+         * every side:
+         *   - nothing moves unless it actually clears the overload;
+         *   - only automatic items already placed IN this item's own window
+         *     move, so nothing outside today→its ideal day is touched, and
+         *     never another editor's day (the capacity key includes assignee
+         *     and team);
+         *   - a manual pin is never a candidate — it is absolute here as
+         *     everywhere else;
+         *   - an evicted item must land inside ITS OWN window, so nothing is
+         *     pushed past its own deadline to make room;
+         *   - one level deep: an evicted item re-places by ordinary first fit
+         *     and may not evict anyone in turn, which bounds the work and stops
+         *     a cascade of knock-on moves;
+         *   - the smallest displacement that works wins (fewest evicted, then
+         *     lightest), so a fit costs one moved card rather than five.
+         * When no such rearrangement exists the item keeps its ideal day and
+         * the honest over-capacity badge, exactly as before.
+         */
+        const reshuffleFor = (entry) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
+                const candidates = [];
+                for (const [other, otherDay] of placedOn) {
+                    if (otherDay !== day) continue;
+                    if (wlCapacityKey(other.sub) !== wlCapacityKey(entry.sub)) continue;
+                    candidates.push(other);
+                }
+                // Lightest first: freeing the least that still works is what
+                // keeps this from rewriting a settled board.
+                candidates.sort((a, b) => wlWorkloadWeight(a.sub) - wlWorkloadWeight(b.sub)
+                    || String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || '')));
+                const evicted = [];
+                for (const other of candidates) {
+                    if (fits(entry.sub, day)) break;
+                    release(other.sub, day);
+                    const moved = firstFit(other.sub, other.ideal, day);
+                    if (!moved) { reserve(other.sub, day); continue; }
+                    reserve(other.sub, moved);
+                    evicted.push({ other, from: day, to: moved });
+                }
+                if (fits(entry.sub, day)) {
+                    for (const move of evicted) {
+                        placedOn.set(move.other, move.to);
+                        if (move.to === move.other.ideal) placements.delete(String(move.other.sub && move.other.sub.id || ''));
+                        else placements.set(String(move.other.sub && move.other.sub.id || ''), move.to);
+                    }
+                    return day;
+                }
+                // This day did not work: put every evicted item back exactly
+                // where it was before trying the next one.
+                for (let i = evicted.length - 1; i >= 0; i--) {
+                    release(evicted[i].other.sub, evicted[i].to);
+                    reserve(evicted[i].other.sub, evicted[i].from);
+                }
+                day = wlAddWorkingDays(day, 1);
+            }
+            return '';
+        };
+
+        for (const entry of automatic) {
+            const finalDay = firstFit(entry.sub, entry.ideal) || reshuffleFor(entry) || entry.ideal;
             reserve(entry.sub, finalDay);
+            placedOn.set(entry, finalDay);
             // Only a genuine move is recorded: an untouched item stays a plain
             // "auto" and keeps deriving its day from wlAutoPlanDate.
             if (finalDay !== entry.ideal) placements.set(String(entry.sub && entry.sub.id || ''), finalDay);

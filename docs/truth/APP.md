@@ -366,11 +366,19 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Because most automatic cards now sit EARLIER than their ideal day, the `shifted` placement mode is
   the ordinary outcome rather than a capacity incident, and its label says so ("Planned on the
   earliest day with room"). It no longer means "this editor's usual day was full".
-- The walk is first-fit and does not backtrack: with fragmented pinned capacity and mixed item
-  weights it can leave a heavy item on an over-capacity ideal day even though some other ordering
-  of the same items would have fitted. The red badge therefore means "this first-fit pass found no
-  room", which is a superset of genuine oversubscription. Same property as the 2026-08-10 backward
-  walk; a backtracking pass has not been ruled on.
+- When first fit fails, a **bounded last-resort reshuffle** runs before the item falls back to its
+  ideal day (owner ruling 2026-09-14). It exists because first fit alone can manufacture an overload
+  a different order would have avoided — pins of 1/2/2 units on Mon/Tue/Wed, a 2× due Wednesday and
+  a 3× due Thursday end 5/4 on Wednesday, although 3× Monday + 2× Tuesday fits both exactly. The
+  owner's condition was that a settled board must not churn as new sub-issues arrive, so the repair
+  is bounded on every side: it runs ONLY when the item would otherwise land over capacity; only
+  automatic items already placed inside that item's own window and under the same capacity key
+  (same editor, same team) are candidates; a manual pin is never a candidate; an evicted item must
+  re-place inside ITS OWN window, so nothing is pushed past its own deadline; it is one level deep,
+  so an evicted item re-places by ordinary first fit and may not evict anyone in turn; the smallest
+  displacement that works wins; and a day that does not work is rolled back exactly. When no
+  rearrangement exists the item keeps its ideal day and the honest over-capacity badge. Nothing
+  moves when new work simply fits.
   Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
   computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
   render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor

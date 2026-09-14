@@ -487,6 +487,58 @@ Object.assign(context, {
 for (const name of ['wlPlacementLabel', 'wlPlanOriginHtml',
   'wlRenderPlanIssueCards']) vm.runInContext(extract(name), context);
 
+/* ── Last-resort reshuffle (owner ruling 2026-09-14) ──────────────────────
+   First fit alone can manufacture an overload a different order would have
+   avoided. The repair is deliberately narrow, and the owner's condition for
+   wanting it at all was that a settled board must not churn every time a new
+   sub-issue arrives — so "nothing moves unless it clears an overload" is as
+   much the contract as the rearrangement itself. */
+check('a fragmented window is rearranged instead of declared overloaded', () => {
+  reset();
+  // Codex's case: pins of 1/2/2 on Mon/Tue/Wed leave holes no single pass
+  // fills. 2x due Wed takes Monday first; 3x due Thu then fits nowhere —
+  // unless the 2x moves to Tuesday, which is within ITS OWN window.
+  const pins = [sub({ plan: MON, weight: 1 }), sub({ plan: TUE, weight: 2 }), sub({ plan: WED_NEXT, weight: 2 })];
+  const light = sub({ due: WED_NEXT, weight: 2, identifier: 'VID-7001' });
+  const heavy = sub({ due: '2026-08-13', weight: 3, identifier: 'VID-7002' });
+  place(pins.concat([light, heavy]), MON);
+
+  assert.strictEqual(context.wlDisplayDate(heavy), MON, 'the heavy card takes Monday');
+  assert.strictEqual(context.wlDisplayDate(light), TUE, 'and the lighter one moves to Tuesday, inside its own window');
+  const load = dayLoad(pins.concat([light, heavy]));
+  assert.strictEqual(load.get(context.wlCapacityKey(heavy) + '@' + MON), 4, 'Monday is exactly full');
+  assert.strictEqual(load.get(context.wlCapacityKey(light) + '@' + TUE), 4, 'Tuesday is exactly full');
+  assert.ok(!context.wlDayOverCapacity([pins[2], light, heavy].filter(row => context.wlDisplayDate(row) === WED_NEXT)),
+    'and nothing is left over capacity');
+});
+
+check('a settled board does not churn when new work simply fits', () => {
+  reset();
+  const settled = Array.from({ length: 3 }, (_, i) => sub({ due: WED_NEXT, identifier: 'VID-710' + i }));
+  const before = place(settled, MON);
+  reset();
+  // The same three, plus a newcomer that has room of its own. Rebuilt from
+  // scratch exactly as a real snapshot is, so this measures the pass, not a
+  // cache.
+  const again = Array.from({ length: 3 }, (_, i) => sub({ due: WED_NEXT, identifier: 'VID-710' + i }));
+  const newcomer = sub({ due: WED_NEXT, identifier: 'VID-7199' });
+  const after = place(again.concat([newcomer]), MON);
+  assert.deepStrictEqual(after.slice(0, 3), before, 'the three settled cards keep their days');
+  assert.strictEqual(after[3], MON, 'and the newcomer takes the room that was already there');
+});
+
+check('the reshuffle never moves a pin and never pushes anything past its own deadline', () => {
+  reset();
+  const pin = sub({ plan: MON, weight: 3 });
+  // Its window is Monday only (due Tuesday), so it cannot be evicted anywhere.
+  const stuck = sub({ due: TUE, weight: 2, identifier: 'VID-7300' });
+  const blocker = sub({ due: TUE, weight: 2, identifier: 'VID-7301' });
+  place([pin, stuck, blocker], MON);
+  assert.strictEqual(context.wlDisplayDate(pin), MON, 'the pin holds its exact day');
+  assert.ok(context.wlDisplayDate(stuck) <= MON && context.wlDisplayDate(blocker) <= MON,
+    'neither automatic card is pushed past its own deadline to make room');
+});
+
 check('a weekend policy day starts the walk on Monday, not on the weekend itself', () => {
   reset();
   // Saturday 2026-08-08 with a Wednesday 2026-08-12 deadline: the ideal day is

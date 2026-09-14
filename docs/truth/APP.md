@@ -351,17 +351,26 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Dated work without a saved manual override gets a deterministic **ideal** automatic work day:
   one working day before its Linear deadline, floored to today (`wlAutoPlanDate()`). A saved manual
   `plan_date` always wins and is never moved.
-- **Automatic placement is capacity-aware** (owner ruling 2026-08-10, from Raha's overload report;
-  it replaced the earlier strictly item-local rule). `wlComputeAutoPlacements()` runs once per
-  snapshot inside `wlApplyData()`, over the UNFILTERED planned set, and applies four rules in order:
-  manual pins reserve their units first and are absolute; every remaining item is placed as late as
-  it fits, walking BACKWARD over working days from its ideal day to the first day where that editor
-  still has room; the walk never goes forward past the ideal day; and when nothing between today and
-  the ideal day has room, the item keeps its ideal day and the editor/day keeps the red
-  over-capacity badge. That badge now means genuine oversubscription — more work than the window can
-  hold — not a naive collision. The guaranteed bound is **never later than the ideal day**, which is
-  not the same as "always before the deadline": the ideal day is floored to today, so an item due
-  today is planned ON its due date, exactly as before this change.
+- **Automatic placement is capacity-aware and EARLIEST-FIT** (owner ruling 2026-09-14: automatic
+  planning should always be as soon as possible, with capacity as the only brake. It replaced the
+  2026-08-10 late-as-possible pass, which itself replaced the strictly item-local rule).
+  `wlComputeAutoPlacements()` runs once per snapshot inside `wlApplyData()`, over the UNFILTERED
+  planned set, and applies four rules in order: manual pins reserve their units first and are
+  absolute; every remaining item starts at the first WORKING day from today and walks FORWARD over
+  working days to the first day where that editor still has room; the walk never goes past the
+  ideal day; and when nothing between today and the ideal day has room, the item lands on its ideal
+  day and the editor/day keeps the red over-capacity badge. The guaranteed bound is **never later
+  than the ideal day**, which is not the same as "always before the deadline": the ideal day is
+  floored to today, so an item due today, due tomorrow, or already overdue is planned ON today,
+  exactly as under the previous rule.
+- Because most automatic cards now sit EARLIER than their ideal day, the `shifted` placement mode is
+  the ordinary outcome rather than a capacity incident, and its label says so ("Planned on the
+  earliest day with room"). It no longer means "this editor's usual day was full".
+- The walk is first-fit and does not backtrack: with fragmented pinned capacity and mixed item
+  weights it can leave a heavy item on an over-capacity ideal day even though some other ordering
+  of the same items would have fitted. The red badge therefore means "this first-fit pass found no
+  room", which is a superset of genuine oversubscription. Same property as the 2026-08-10 backward
+  walk; a backtracking pass has not been ruled on.
   Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
   computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
   render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor

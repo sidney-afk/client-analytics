@@ -560,6 +560,24 @@ check('an anchor is dropped when it stops fitting, and never on a first load', (
   assert.strictEqual(dates[4], MON, 'and the pin itself is untouched');
 });
 
+check('room freed by a new pin is reclaimed in the SAME pass, without a reload', () => {
+  reset();
+  // Owner report 2026-09-14: "when I drag things around to pin them, I need to
+  // refresh the page to actually see the new board". The anchor held every
+  // card on its remembered day, so pinning one card AWAY from a day left the
+  // gap it opened unfilled until a reload dropped the anchors.
+  const cards = Array.from({ length: 5 }, (_, i) => sub({ due: '2026-08-14', identifier: 'VID-760' + i }));
+  const settled = place(cards, MON);
+  assert.deepStrictEqual(settled, [MON, MON, MON, MON, TUE], 'four fill Monday and the fifth takes Tuesday');
+
+  // Pin one of the Monday cards to Wednesday: Monday now has room for one.
+  wlState.planByIssueId.set(cards[0].id, WED_NEXT);
+  const after = place(cards, MON);
+  assert.strictEqual(after[0], WED_NEXT, 'the pinned card holds exactly where it was dropped');
+  assert.strictEqual(after[4], MON, 'and the Tuesday card moves up into the room that just opened');
+  assert.deepStrictEqual(after.slice(1, 4), [MON, MON, MON], 'the untouched cards do not move');
+});
+
 check('the reshuffle tries eviction SETS, not the cheapest card first', () => {
   reset();
   // Codex's second case: Monday holds a 2 and a 1, Tuesday is pinned at 2,

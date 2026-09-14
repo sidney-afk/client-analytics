@@ -15518,7 +15518,23 @@
         // automatic estimate the post-plan board uses, so non-manually-planned
         // items don't move and only manually-planned items settle when plans
         // land. Weights show the one-unit fallback until the sweep resolves.
-        if (typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled() && loadGeneration === _wlPlanLoadGeneration) {
+        /*
+         * A REFUSED PLAN READ MUST NOT BE PAINTED OVER.
+         *
+         * The plan read has already settled here, so its refusal is knowable
+         * before anything is drawn — and the skeleton dropping now would show
+         * an estimated schedule, and on a warm refresh the private pins still
+         * in memory, for as long as the metadata sweep takes (up to its
+         * 20-second timeout) before the auth branch below purges them. The
+         * fail-closed contract is that an auth denial withholds the private
+         * projections, so the fast paint stands down and the skeleton holds
+         * until that branch has run.
+         */
+        const planAuthRefused = plansResult.status === 'rejected'
+            && (Number(plansResult.reason && plansResult.reason.status) === 401
+                || Number(plansResult.reason && plansResult.reason.status) === 403);
+        if (!planAuthRefused
+            && typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled() && loadGeneration === _wlPlanLoadGeneration) {
             wlState.planLoading = true;
             fastPainted = true;
             wlApplyData(payload.issues, payload.fetchedAt);
@@ -18616,7 +18632,29 @@
         if (!bodyEl) return;
 
         const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
-        if (wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') {
+        /*
+         * THE FAST FIRST PAINT MUST REACH THE SCREEN.
+         *
+         * wlLoadSnapshot fast-paints as soon as issues and the plan list are
+         * back — planLoading=true, wlApplyData, renderWorkloadAll — precisely
+         * so the calendar is on screen BEFORE the live-Linear weight sweep,
+         * which is the slow part of a cold load. planStatus only becomes
+         * 'ready' when wlAdoptPlanRows runs AFTER that sweep, so this gate,
+         * which keyed on planStatus alone, painted the skeleton over the fast
+         * paint for its entire window and no user ever saw it: the cold load
+         * still blocked on the sweep it was built to skip, and the
+         * "Planning…" placement label was unreachable in the UI. The Workload
+         * browser harness measured it (2026-09-14): planLoading true, cards
+         * computed, #wlBody the skeleton with zero cards.
+         *
+         * So the skeleton yields once the fast paint has data. Everything the
+         * gate protected still holds: the cards carry the 'loading' mode and
+         * its Planning… label, wlPlanEditingEnabled() is false until the
+         * snapshot is authoritative, and a foreground load with nothing to
+         * show yet still gets the skeleton.
+         */
+        const fastPaintOnScreen = wlState.planLoading && hasAnyData;
+        if ((wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') && !fastPaintOnScreen) {
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }

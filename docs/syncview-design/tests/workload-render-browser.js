@@ -196,14 +196,13 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
      * issues but not yet an authoritative plan snapshot. The metadata read is
      * held open to hold the board in exactly that window.
      *
-     * ASSERTED THROUGH THE STATE LAYER, DELIBERATELY. The placement and its
-     * label are correct here, but they are not on screen: `renderWorkloadAll`
-     * paints the loading SKELETON whenever `wlState.planStatus` is 'loading'
-     * or 'refreshing' (index.html:18568), and the fast first paint runs with
-     * planStatus still 'loading' -- so the cards it computes are never
-     * rendered and no user can see this label. That is reported as a defect
-     * rather than fixed here; this phase pins the placement contract that is
-     * provable today, and the DOM half belongs with the fix.
+     * Asserted on SCREEN as well as through state. The first version of this
+     * phase could only assert state: `renderWorkloadAll` painted the loading
+     * skeleton whenever planStatus was 'loading', and the fast first paint
+     * runs with planStatus still 'loading', so the cards it computed were
+     * never rendered -- the cold load blocked on the metadata sweep the fast
+     * paint exists to skip. Fixed 2026-09-14; the DOM half now pins it so it
+     * cannot silently come back.
      */
     const h = await launchWorkloadHarness({
       issues: [parentRow({}), sub('l1', { due_date: WED })],
@@ -228,6 +227,15 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
         'the loading estimate is the automatic day, one working day before the deadline');
       expect(during.snapshot === false && during.editing === false,
         'nothing may be editable before the plan snapshot is authoritative');
+      const onScreen = await h.page.evaluate(() => {
+        const body = document.getElementById('wlBody');
+        return {
+          skeleton: !!(body && body.querySelector('.workload-skeleton-grid')),
+          cards: body ? body.querySelectorAll('[data-wl-issue-id]').length : 0,
+        };
+      });
+      expect(!onScreen.skeleton && onScreen.cards > 0,
+        'the fast first paint is ON SCREEN while the metadata sweep is still open: cards rendered, no skeleton');
       h.state.releaseMetadata();
       await waitForPlanSettled(h.page);
       const settled = await readBoard(h.page);
@@ -266,8 +274,27 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       issues: [parentRow({}), sub('k1', { due_date: WED })],
       plans: [{ issue_id: 'k1', plan_date: FRI }],
       planListStatus: status,
+      holdMetadata: true,
     });
     try {
+      /* The refusal is knowable the moment the plan read settles, so the fast
+         paint must stand down rather than draw an estimated schedule — and on
+         a warm refresh the private pins still in memory — for as long as the
+         metadata sweep takes to return and trigger the purge. */
+      await h.page.waitForFunction(
+        () => Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length > 0,
+        null, { timeout: 15000 },
+      ).catch(() => {});
+      const held = await h.page.evaluate(() => {
+        const body = document.getElementById('wlBody');
+        return {
+          skeleton: !!(body && body.querySelector('.workload-skeleton-grid')),
+          cards: body ? body.querySelectorAll('[data-wl-issue-id]').length : 0,
+        };
+      });
+      expect(held.cards === 0 && held.skeleton,
+        `a ${status} plan read must not be fast-painted over while the metadata sweep is still open`);
+      h.state.releaseMetadata();
       await waitForPlanSettled(h.page);
       const board = await readBoard(h.page);
       expect(board.cards.every(c => c.mode !== 'manual'), `no pin may be shown after a ${status} plan read`);

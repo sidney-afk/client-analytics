@@ -84,7 +84,8 @@ const projectionLoader = extract('_prodLoadDeliverableProjection');
 ok(/\{ keysetColumn: 'id' \}/.test(projectionLoader)
   && !/order=team\.asc/.test(projectionLoader),
 'the deliverable projection walks the primary key instead of the old three-column sort');
-ok((projectionLoader.match(/\{ keysetColumn: 'id' \}/g) || []).length === 2,
+ok((projectionLoader.match(/\{ keysetColumn: 'id' \}/g) || []).length === 1
+  && (extract('_prodBrowserProjectionRows').match(/\{ keysetColumn: 'id' \}/g) || []).length === 2,
   'the release-transition legacy fallback uses the same keyset walk');
 
 // ---- F95: the delta loop ---------------------------------------------------

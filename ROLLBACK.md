@@ -763,3 +763,7 @@ needs undoing.
 
 **Nothing to reseal.** No Edge Function fingerprint moves, so neither F27 lane is
 involved and no bundle needs capturing.
+
+## September 13 review follow-up: staged-schema reads
+
+Source preparation only in draft PR #1391. The additive-column read compatibility does not change hosted schema, writers, authority or activation flags. It provides no authorization to roll back installed data or native work. Installation and any later source rollback remain governed by the reviewed installation boundary; no rollback was performed.

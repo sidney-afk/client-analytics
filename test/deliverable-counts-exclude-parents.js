@@ -183,7 +183,7 @@ const rows = [
     autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
   };
   const EXEMPT = {
-    _prodLoadDeliverableProjection: [1, 'loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
+    _prodBrowserProjectionRows: [3, 'Two safe-view reads plus an exact missing-column error identifier; loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
     _prodDeltaRefresh: [1, 'the incremental half of that same tree projection'],
     _prodBrowserProjectionMissing: [1, 'an error classifier — matches the view name inside a failure detail, reads nothing'],
     wlFetchNativeMetadata: [1, 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call'],

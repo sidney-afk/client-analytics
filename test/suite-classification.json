@@ -403,6 +403,7 @@
     "production-canonical-gate-crosswalk.js",
     "production-canonical-projection-invocation.js",
     "production-client-comment-card-binding.js",
+    "production-client-schema-compatibility.js",
     "production-comment-mark-done-cas.js",
     "production-comment-slice.js",
     "production-comments-source.js",

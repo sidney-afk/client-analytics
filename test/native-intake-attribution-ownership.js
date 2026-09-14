@@ -110,3 +110,7 @@ assert.match(migration, /'native_intake_legacy_project'::text/, 'view admits the
 assert.match(migration, /raw_attribution_native_epoch/, 'view carries bounded epoch evidence');
 assert.match(migration, /\^svproj_\(video\|graphics\)_\[a-f0-9\]\{32\}\$/, 'view bounds native project values');
 console.log('ok native intake attribution ownership');
+
+const absentProof = row(); delete absentProof.raw_attribution_project_id; delete absentProof.raw_attribution_native_epoch;
+const absentMapping = {...client}; delete absentMapping.native_project_ids;
+assert.equal(resolve([absentProof], [absentMapping], new Map()).get('native-row').state, 'needs_attribution', 'pre-install absent columns cannot authorize native attribution');

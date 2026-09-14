@@ -1137,3 +1137,7 @@ OPEN_REPAIRS 187.
     it has always had. Pinned by
     `test/prod-attribution-sync-pending-copy.js`, which executes the shipped
     functions and asserts each of the six ways out of the syncing shape.
+
+## September 13 review follow-up: staged-schema reads
+
+The prepared Production page tolerates only the exact missing-column responses for clients.native_project_ids and the two planned raw attribution fields in production_deliverables_browser_v1. It retries the same safe projection without those additions, preserving absent native proof and existing write gates. Other errors remain visible. This is staged-schema compatibility, not a new visual design or hosted deployment; final review evidence is in docs/ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md.

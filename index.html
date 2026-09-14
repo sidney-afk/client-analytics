@@ -52004,6 +52004,19 @@
             }
             throw lastErr || new Error(table + ' read failed');
         }
+        async function _prodClientRows() {
+            const select = 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,native_project_ids,updated_at';
+            try {
+                return await _prodRestRows('clients', select, 'order=display_name.asc', 1000, 10);
+            } catch (error) {
+                // During staged installation this one additive column may not exist yet.
+                // Preserve the missing field; never invent native project mappings.
+                if (!error || error.status !== 400 || error.code !== '42703'
+                    || error.detail !== 'column clients.native_project_ids does not exist') throw error;
+                return _prodRestRows('clients', select.replace(',native_project_ids', ''), 'order=display_name.asc', 1000, 10);
+            }
+        }
+
         async function _prodRestRows(table, select, params, pageSize, maxPages, options) {
             if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase is not configured');
             const rows = [];
@@ -52092,6 +52105,20 @@
            can be told apart from a moved one. */
         const PROD_BATCH_DESCRIPTION_SELECT = 'id,description,updated_at';
         const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_project_id,raw_attribution_native_epoch,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
+        async function _prodBrowserProjectionRows(select, params) {
+            try {
+                return await _prodRestRows('production_deliverables_browser_v1', select, params, 1000, 50, { keysetColumn: 'id' });
+            } catch (error) {
+                const missing = error && error.status === 400 && error.code === '42703'
+                    && ['raw_attribution_project_id', 'raw_attribution_native_epoch'].some(field =>
+                        error.detail === 'column production_deliverables_browser_v1.' + field + ' does not exist');
+                if (!missing) throw error;
+                // Retain the safe view and pagination. Missing native proof stays missing.
+                const compatible = select.split(',').filter(field =>
+                    field !== 'raw_attribution_project_id' && field !== 'raw_attribution_native_epoch').join(',');
+                return _prodRestRows('production_deliverables_browser_v1', compatible, params, 1000, 50, { keysetColumn: 'id' });
+            }
+        }
         async function _prodLoadDeliverableProjection(filterParams) {
             const select = PROD_DELIVERABLE_SELECT;
             const params = String(filterParams == null ? '' : filterParams);
@@ -52100,14 +52127,7 @@
                 // ever provided stable pagination; a primary-key keyset walk
                 // provides the same stability without re-sorting the relation
                 // per page. See the keyset branch of _prodRestRows.
-                return await _prodRestRows(
-                    'production_deliverables_browser_v1',
-                    select,
-                    params,
-                    1000,
-                    50,
-                    { keysetColumn: 'id' }
-                );
+                return await _prodBrowserProjectionRows(select, params);
             } catch (error) {
                 if (!_prodBrowserProjectionMissing(error)) throw error;
                 // Release transition only: the compatible UI may precede the
@@ -63534,7 +63554,7 @@
                     _prodState.authorityReadAt = Date.now();
                     if (document.getElementById('prodRoot')) _prodRender();
                 }).catch(() => {});
-                const clientsRead = _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,native_project_ids,updated_at', 'order=display_name.asc', 1000, 10);
+                const clientsRead = _prodClientRows();
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
                 /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
 

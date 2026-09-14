@@ -7098,3 +7098,7 @@ truthful, not when coverage began; whether the original claim was ever true is
 open. Nothing is broken and the ledger is MORE complete than the doc claimed.
 Mechanism and caveat both recorded in the truth doc.
 
+
+## September 13 review follow-up: staged-schema reads
+
+Preparation in draft PR #1391 adds exact missing-column compatibility for the three planned native projection fields. Existing canonical reads remain in use and missing native proof remains absent; no authorization is synthesized. The encrypted native public-schema backup has separate observed/populated PG17 proofs. No live writes, merge, installation or deployment occurred. See docs/ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md for evidence and remaining gates.

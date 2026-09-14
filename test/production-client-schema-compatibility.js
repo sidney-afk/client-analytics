@@ -1,0 +1,19 @@
+﻿'use strict';
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const source=fs.readFileSync('index.html','utf8');
+const body=source.slice(source.indexOf('        async function _prodClientRows()'),source.indexOf('        async function _prodRestRows('));
+assert(body);assert(source.includes('const clientsRead = _prodClientRows();'));
+const missing={status:400,code:'42703',detail:'column clients.native_project_ids does not exist'};
+(async()=>{let checks=0;async function run(first,second){const calls=[];const context={_prodRestRows:async(...args)=>{calls.push(args);if(calls.length===1&&first instanceof Error)throw first;if(calls.length===2&&second instanceof Error)throw second;return calls.length===1?first:second;}};vm.createContext(context);vm.runInContext(body,context);return {calls,promise:context._prodClientRows()};}
+const native=[{slug:'synthetic',native_project_ids:{video:'native'}}];let r=await run(native);assert.strictEqual(await r.promise,native);assert.equal(r.calls.length,1);checks++;
+const legacy=[{slug:'synthetic',linear_project_ids:{video:'prior'}}];r=await run(Object.assign(new Error('missing'),missing),legacy);assert.strictEqual(await r.promise,legacy);assert.equal(r.calls.length,2);assert(!r.calls[1][1].includes('native_project_ids'));assert(!Object.hasOwn(legacy[0],'native_project_ids'));assert.deepEqual(r.calls[0].slice(2),r.calls[1].slice(2));checks++;
+for(const change of [{status:401},{status:403},{status:500},{code:'PGRST204'},{detail:'column clients.other does not exist'},{detail:''}]){const e=Object.assign(new Error('refusal'),missing,change);r=await run(e);await assert.rejects(r.promise,x=>x===e);assert.equal(r.calls.length,1);checks++;}
+const network=new TypeError('fetch failed');r=await run(network);await assert.rejects(r.promise,x=>x===network);assert.equal(r.calls.length,1);checks++;
+const second=new Error('legacy also failed');r=await run(Object.assign(new Error('missing'),missing),second);await assert.rejects(r.promise,x=>x===second);assert.equal(r.calls.length,2);checks++;
+console.log('PRODUCTION_CLIENT_SCHEMA_COMPATIBILITY_OK '+checks);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+(async()=>{const start=source.indexOf('        async function _prodBrowserProjectionRows('),end=source.indexOf('        async function _prodLoadDeliverableProjection(');const select='id,raw_attribution_project_id,raw_attribution_native_epoch,title';let checks=0;
+for(const field of ['raw_attribution_project_id','raw_attribution_native_epoch']){const calls=[],rows=[{id:'synthetic',title:'kept'}],ctx={_prodRestRows:async(...a)=>{calls.push(a);if(calls.length===1)throw {status:400,code:'42703',detail:'column production_deliverables_browser_v1.'+field+' does not exist'};return rows;}};vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);assert.strictEqual(await ctx._prodBrowserProjectionRows(select,'client_slug=eq.synthetic'),rows);assert.equal(calls[1][0],calls[0][0]);assert.equal(calls[1][1],'id,title');assert.deepEqual(calls[1].slice(2),calls[0].slice(2));assert(!Object.hasOwn(rows[0],field));checks++;}
+for(const e of [{status:400,code:'42703',detail:'column production_deliverables_browser_v1.title does not exist'},{status:403,code:'42703',detail:'column production_deliverables_browser_v1.raw_attribution_project_id does not exist'},new TypeError('network')]){let calls=0;const ctx={_prodRestRows:async()=>{calls++;throw e;}};vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);await assert.rejects(ctx._prodBrowserProjectionRows(select,''),x=>x===e);assert.equal(calls,1);checks++;}console.log('PRODUCTION_PROJECTION_SCHEMA_COMPATIBILITY_OK '+checks);
+})().catch(e=>{console.error(e);process.exitCode=1;});

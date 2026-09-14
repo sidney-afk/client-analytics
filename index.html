@@ -368,6 +368,29 @@
             --sv-bg-ede9fe: #ede9fe;
             --sv-bg-ededea: #ededea;
             --sv-bg-eef0fe: #eef0fe;
+            /* Vibrant accent pair for the two asset slots: the Thumbnail
+               field and its Production button share blue, the Video field
+               and its Production button share pink, so each field and its
+               square button read as one thing. */
+            --sv-slot-thumb-fg: #3737f2;
+            --sv-slot-thumb-bg: #e2e4ff;
+            --sv-slot-thumb-bg-hover: #cdd1ff;
+            --sv-slot-thumb-fg-soft: #5b5be8;
+            --sv-slot-thumb-border: #ccceff;
+            /* Measured against the pill background, not eyeballed: the label is
+               0.72rem body text, so it needs 4.5:1. The first vivid pink tried
+               here reached only 3.72:1 (the pre-2026-09-14 pair managed
+               4.73:1) -- the vibrancy came straight out of the contrast
+               budget. The value below is 5.47:1 on the pill and 4.69:1 on the
+               HOVER background, which is the darker of the two and the one a
+               label-only check misses, and still reads as the same hot pink.
+               The -soft tone carries icon-only buttons, which need 3:1, on
+               both backgrounds. */
+            --sv-slot-video-fg: #b21060;
+            --sv-slot-video-bg: #ffe0ef;
+            --sv-slot-video-bg-hover: #ffc9e2;
+            --sv-slot-video-fg-soft: #d62d79;
+            --sv-slot-video-border: #ffc9e2;
             --sv-bg-ef4444: #ef4444;
             --sv-bg-efedfd: #efedfd;
             --sv-bg-eff3ff: #eff3ff;
@@ -929,6 +952,16 @@
             --sv-bg-ede9fe: #181a1f;
             --sv-bg-ededea: #181a1f;
             --sv-bg-eef0fe: #181a1f;
+            --sv-slot-thumb-fg: #a9aaff;
+            --sv-slot-thumb-bg: #1d1f2e;
+            --sv-slot-thumb-bg-hover: #262a41;
+            --sv-slot-thumb-fg-soft: #8b8cdf;
+            --sv-slot-thumb-border: #2e3250;
+            --sv-slot-video-fg: #ff8ac0;
+            --sv-slot-video-bg: #2b1a25;
+            --sv-slot-video-bg-hover: #3a2231;
+            --sv-slot-video-fg-soft: #d1719f;
+            --sv-slot-video-border: #3a2231;
             --sv-bg-ef4444: #7f2e31;
             --sv-bg-efedfd: #181a1f;
             --sv-bg-eff3ff: #181a1f;
@@ -5457,20 +5490,20 @@
         .cal-link-folder svg,
         .cal-link-edit svg { width: 12px; height: 12px; }
         /* Coloured link pills once a URL is set */
-        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-bg-eef0fe); color: var(--sv-fg-4f46e5); }
-        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-bg-e4e6fc); }
-        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-fg-4f46e5); }
+        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg); }
+        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-slot-thumb-bg-hover); }
+        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-slot-thumb-fg); }
         .cal-link-thumb.has-link .cal-link-folder,
-        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-bg-eef0fe); color: var(--sv-fg-7c79d8); border-left-color: var(--sv-border-dcdcfa); }
+        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg-soft); border-left-color: var(--sv-slot-thumb-border); }
         .cal-link-thumb.has-link .cal-link-folder:hover,
-        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-bg-e4e6fc); color: var(--sv-fg-4f46e5); }
-        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-bg-fde8f3); color: var(--sv-fg-be2d72); }
-        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-bg-fbdcec); }
-        .cal-link-post.has-link .cal-link-ico { color: var(--sv-fg-be2d72); }
+        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-slot-thumb-bg-hover); color: var(--sv-slot-thumb-fg); }
+        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-slot-video-bg-hover); }
+        .cal-link-post.has-link .cal-link-ico { color: var(--sv-slot-video-fg); }
         .cal-link-post.has-link .cal-link-folder,
-        .cal-link-post.has-link .cal-link-edit { background: var(--sv-bg-fde8f3); color: var(--sv-fg-cf6f9e); border-left-color: var(--sv-border-f6d3e4); }
+        .cal-link-post.has-link .cal-link-edit { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
         .cal-link-post.has-link .cal-link-folder:hover,
-        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-bg-fbdcec); color: var(--sv-fg-be2d72); }
+        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
@@ -15421,8 +15454,11 @@
         _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
         // Derived from the pins, so it is just as sensitive: a retained "moved
-        // earlier" marker would leak that a pin existed on that day.
+        // earlier" marker would leak that a pin existed on that day. The
+        // settled-day record the next pass anchors against is derived from the
+        // same placements, so it goes with them.
         wlState.autoPlacementByIssueId = new Map();
+        wlState.autoPlacementSettled = new Map();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
@@ -15620,6 +15656,10 @@
         const [y, m, d] = iso.split('-').map(Number);
         return new Date(y, m - 1, d);
     }
+    function wlIsWorkingDay(iso) {
+        const dow = wlParseISO(iso).getDay();
+        return dow !== 0 && dow !== 6;
+    }
     function wlAddWorkingDays(iso, n) {
         const d = wlParseISO(iso);
         let added = 0;
@@ -15709,7 +15749,13 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', shifted: 'Moved earlier for capacity', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        // `shifted` means "not on the ideal day". Under the 2026-08-10
+        // late-as-possible rule that could only happen when capacity pushed a
+        // card off its usual day, so the label said so. Earliest-fit reaches
+        // the same state the ordinary way — the first working day with room is
+        // simply earlier than the deadline — so the label must not claim a
+        // capacity conflict that usually did not occur.
+        return ({ auto: 'Automatically planned', shifted: 'Planned on the earliest day with room', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
@@ -15738,7 +15784,7 @@
                     : (mode === 'shifted'
                         // The per-item detail names the day it came from; the
                         // group/compact icon has no single item to name.
-                        ? (String(tipDetail || '') || 'Automatic plan, moved earlier: its usual day — one working day before the deadline — was already at that editor\'s daily capacity. Still before the deadline.')
+                        ? (String(tipDetail || '') || 'Automatic plan: placed on the earliest working day with room, which is earlier than the last day it could sit on — one working day before the deadline.')
                         : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
@@ -16142,9 +16188,11 @@
         // hidden manual override may still settle. A genuine failure (not
         // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
         if (wlState.planHasSnapshot) {
-            // An automatic item that had to leave its ideal day gets its own
+            // An automatic item that is not on its ideal day gets its own
             // mode, so the board never silently shows a day that isn't
-            // "one working day before the deadline" with no explanation.
+            // "one working day before the deadline" with no explanation. Under
+            // earliest-fit that is the common case, not a capacity incident —
+            // see wlPlacementLabel for why the wording changed with it.
             return wlAutoPlacementDate(sub) ? 'shifted' : 'auto';
         }
         return wlState.planLoading ? 'loading' : 'fallback';
@@ -16166,7 +16214,7 @@
         const placed = wlAutoPlacementDate(sub);
         if (!ideal || !placed || ideal === placed) return '';
         const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
-        return `Moved earlier automatically: ${wlFormatShort(ideal)} — the usual day, one working day before the deadline — was already at this editor's ${capacity}-unit daily capacity, so this sits on ${wlFormatShort(placed)} instead. Still before the deadline; pin it with a drag to override.`;
+        return `Planned for ${wlFormatShort(placed)} — the earliest day with room. Automatic planning starts from today and only moves a card later when a day is already at this editor's ${capacity}-unit daily capacity; the last day it could sit on is ${wlFormatShort(ideal)}, one working day before the deadline. Pin it with a drag to override.`;
     }
 
     // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
@@ -16176,18 +16224,26 @@
     //      reserve their units first — even when the pins alone put the editor
     //      over capacity. A person's deliberate placement is never moved by
     //      this pass, only automatic work yields around it.
-    //   2. Every remaining item is placed as LATE as it fits: it starts on its
-    //      own ideal day (one working day before its deadline, floored to
-    //      today) and walks BACKWARD over working days to the first day where
-    //      that editor still has room.
-    //   3. It never walks FORWARD. Pushing past the ideal day would trade a
-    //      visible overload for a silently late delivery, which is strictly
-    //      worse for a client deadline.
-    //   4. When nothing in the today→ideal window has room, the item stays on
+    //   2. Every remaining item is placed as EARLY as it fits (owner ruling
+    //      2026-09-14): it starts at TODAY and walks FORWARD over working days
+    //      to the first day where that editor still has room. Capacity is the
+    //      only thing that pushes a card later — an editor with a free day
+    //      earlier in the week gets the work on that day, not the day before
+    //      the deadline.
+    //   3. It never walks PAST the ideal day (one working day before the
+    //      deadline, floored to today). Beyond that the item would be
+    //      silently late, which is strictly worse than a visible overload.
+    //   4. When nothing in the today→ideal window has room, the item lands on
     //      its ideal day and that editor/day keeps the red over-capacity
-    //      badge. That badge now means genuine oversubscription — more work
-    //      than the window can hold — which only a person can resolve by
+    //      badge. That badge means genuine oversubscription — more work than
+    //      the window can hold — which only a person can resolve by
     //      reassigning or renegotiating a deadline.
+    //
+    // This replaced a late-as-possible pass (2026-08-10 → 2026-09-14), which
+    // only ever moved work EARLIER to relieve an over-capacity day. It left
+    // four videos due Friday stacked on Thursday, exactly at the cap, while
+    // Wednesday sat nearly empty — technically within capacity, and not what
+    // anyone would plan by hand.
     //
     // The pass replaced the previous strictly item-local rule, which let an
     // automatic card land on a day a pin (or six other automatic cards) had
@@ -16195,7 +16251,9 @@
     // editor / client filters can never change where a card sits. Nothing is
     // written: `workload_plan` still holds deliberate manual overrides only,
     // and every placement is re-derived from (issues, plans, weights, today).
-    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the backward walk
+    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the forward walk
+    const WL_RESHUFFLE_MAX_CANDIDATES = 6;     // cards on one day the reshuffle will consider
+    const WL_RESHUFFLE_MAX_EVICTIONS = 3;      // how many of them it may move at once
     function wlCapacityKey(sub) {
         return (sub && sub.assigneeId || '?') + '|' + wlTeamBucket(sub && sub.teamKey, sub && sub.teamName);
     }
@@ -16234,19 +16292,180 @@
             return String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || ''));
         });
 
-        for (const entry of automatic) {
-            let placed = '';
-            let day = entry.ideal;
-            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day >= today; guard++) {
-                if (fits(entry.sub, day)) { placed = day; break; }
-                day = wlSubWorkingDays(day, 1);
+        // The window every item is confined to: the first WORKING day from
+        // today (a bare `today` put ordinary work on a Saturday whenever the
+        // policy day was a weekend) through its own ideal day. `ideal` is
+        // floored to today, so a card due now, due tomorrow, or already
+        // overdue keeps a one-day window and simply lands on today.
+        const windowStart = wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
+        // `skipDay` is the day being cleared during a reshuffle: the evicted
+        // item must not simply re-take the hole it just left, which is exactly
+        // what it would do, that day now being the earliest one with room.
+        const firstFit = (sub, ideal, skipDay) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal; guard++) {
+                if (day !== skipDay && fits(sub, day)) return day;
+                day = wlAddWorkingDays(day, 1);
             }
-            const finalDay = placed || entry.ideal;
+            return '';
+        };
+        const placedOn = new Map();            // entry -> the day it currently holds
+        const release = (sub, day) => {
+            const slot = slotOf(sub, day);
+            used.set(slot, Math.max(0, (used.get(slot) || 0) - wlWorkloadWeight(sub)));
+        };
+        const recordDay = (entry, day) => {
+            const id = String(entry.sub && entry.sub.id || '');
+            placedOn.set(entry, day);
+            // Only a genuine move is recorded: an item on its ideal day stays a
+            // plain "auto" and keeps deriving its day from wlAutoPlanDate.
+            if (day === entry.ideal) placements.delete(id);
+            else placements.set(id, day);
+        };
+
+        /*
+         * LAST-RESORT RESHUFFLE (owner ruling 2026-09-14, on Codex's finding).
+         *
+         * Placing one item at a time and never revisiting a choice can
+         * manufacture an overload that a different order would have avoided:
+         * with pins of 1/2/2 on Mon/Tue/Wed, a 2-unit item due Wednesday takes
+         * Monday, and a 3-unit item due Thursday then fits nowhere and lands on
+         * Wednesday at 5/4 — although 3 on Monday and 2 on Tuesday fits both
+         * exactly. The red badge would be describing the pass, not the week.
+         *
+         * The owner's worry about fixing that was churn: work already planned
+         * jumping around every time a sub-issue arrives. So this runs ONLY when
+         * an item would otherwise land over capacity, and it is bounded on
+         * every side:
+         *   - nothing moves unless it actually clears the overload;
+         *   - only automatic items already placed IN this item's own window
+         *     move, so nothing outside today→its ideal day is touched, and
+         *     never another editor's day (the capacity key includes assignee
+         *     and team);
+         *   - a manual pin is never a candidate — it is absolute here as
+         *     everywhere else;
+         *   - an evicted item must land inside ITS OWN window, so nothing is
+         *     pushed past its own deadline to make room;
+         *   - one level deep: an evicted item re-places by ordinary first fit
+         *     and may not evict anyone in turn, which bounds the work and stops
+         *     a cascade of knock-on moves;
+         *   - the smallest displacement that works wins (fewest cards, then
+         *     least weight), so a fit costs one moved card rather than five.
+         * When no such rearrangement exists the item keeps its ideal day and
+         * the honest over-capacity badge.
+         *
+         * SETS, not a greedy sweep. Taking candidates one at a time cheapest
+         * first spends the relocation room the heavier card needed: Monday
+         * holding a 2 and a 1, Tuesday pinned at 2, and the 1 moves into
+         * Tuesday's only hole, so the 2 has nowhere to go and the whole repair
+         * rolls back — although moving just the 2 to Tuesday fits everything.
+         * So each day's candidates are tried as SETS, smallest first, and the
+         * first set that works wins. The search is bounded by
+         * WL_RESHUFFLE_MAX_CANDIDATES and WL_RESHUFFLE_MAX_EVICTIONS.
+         */
+        const evictionSets = (candidates) => {
+            const pool = candidates.slice(0, WL_RESHUFFLE_MAX_CANDIDATES);
+            const sets = [];
+            const build = (startAt, chosen) => {
+                if (chosen.length) sets.push(chosen.slice());
+                if (chosen.length >= WL_RESHUFFLE_MAX_EVICTIONS) return;
+                for (let i = startAt; i < pool.length; i++) {
+                    chosen.push(pool[i]);
+                    build(i + 1, chosen);
+                    chosen.pop();
+                }
+            };
+            build(0, []);
+            // Fewest cards moved first, then least total weight: the least
+            // disturbance to a board somebody is already working from.
+            const weightOf = (set) => set.reduce((sum, other) => sum + wlWorkloadWeight(other.sub), 0);
+            sets.sort((a, b) => a.length - b.length || weightOf(a) - weightOf(b));
+            return sets;
+        };
+        const reshuffleFor = (entry) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
+                const candidates = [];
+                for (const [other, otherDay] of placedOn) {
+                    if (otherDay !== day) continue;
+                    if (wlCapacityKey(other.sub) !== wlCapacityKey(entry.sub)) continue;
+                    candidates.push(other);
+                }
+                candidates.sort((a, b) => wlWorkloadWeight(a.sub) - wlWorkloadWeight(b.sub)
+                    || String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || '')));
+                for (const set of evictionSets(candidates)) {
+                    const moves = [];
+                    for (const other of set) release(other.sub, day);
+                    // Heaviest first: the hardest card to re-place claims the
+                    // remaining room before a lighter one can take it.
+                    const ordered = set.slice().sort((a, b) => wlWorkloadWeight(b.sub) - wlWorkloadWeight(a.sub));
+                    let ok = true;
+                    for (const other of ordered) {
+                        const moved = firstFit(other.sub, other.ideal, day);
+                        if (!moved) { ok = false; break; }
+                        reserve(other.sub, moved);
+                        moves.push({ other, to: moved });
+                    }
+                    if (ok && fits(entry.sub, day)) {
+                        for (const move of moves) recordDay(move.other, move.to);
+                        return day;
+                    }
+                    // Undo this set exactly before trying the next one.
+                    for (const move of moves) release(move.other.sub, move.to);
+                    for (const other of set) reserve(other.sub, day);
+                }
+                day = wlAddWorkingDays(day, 1);
+            }
+            return '';
+        };
+
+        const settle = (entry) => {
+            const finalDay = firstFit(entry.sub, entry.ideal) || reshuffleFor(entry) || entry.ideal;
             reserve(entry.sub, finalDay);
-            // Only a genuine move is recorded: an untouched item stays a plain
-            // "auto" and keeps deriving its day from wlAutoPlanDate.
-            if (finalDay !== entry.ideal) placements.set(String(entry.sub && entry.sub.id || ''), finalDay);
+            recordDay(entry, finalDay);
+        };
+
+        /*
+         * INCUMBENTS FIRST (owner condition, 2026-09-14).
+         *
+         * Every placement is re-derived from scratch on each snapshot, so
+         * "nothing moves unless it clears an overload" is not enough on its
+         * own: a newcomer sorted ahead of settled work rearranges the board
+         * without the reshuffle ever running. Four 1-unit cards sharing Monday
+         * plus one arriving 3-unit card with the same deadline sorts the
+         * newcomer first, which takes Monday and pushes three incumbents to
+         * Tuesday — when the newcomer could simply have taken Tuesday alone.
+         *
+         * So the day an item held in the LAST pass is treated as a soft pin: if
+         * it is still inside that item's window and still fits, it is reserved
+         * before any new item is placed. It is soft — the reshuffle may still
+         * evict it as a last resort, and an anchor that no longer fits (a new
+         * manual pin took the room, the day fell behind today, the deadline
+         * moved) is dropped and that item re-placed like any other. On a first
+         * load there are no anchors and the pass is pure earliest-fit.
+         *
+         * This is in-memory only, derived from the previous pass, and is
+         * cleared with the pins it ultimately derives from: nothing about it is
+         * persisted or read back from a server.
+         */
+        const previous = wlState.autoPlacementSettled instanceof Map ? wlState.autoPlacementSettled : new Map();
+        const unanchored = [];
+        for (const entry of automatic) {
+            const anchor = String(previous.get(String(entry.sub && entry.sub.id || '')) || '');
+            if (!anchor || anchor < windowStart || anchor > entry.ideal || !wlIsWorkingDay(anchor) || !fits(entry.sub, anchor)) {
+                unanchored.push(entry);
+                continue;
+            }
+            reserve(entry.sub, anchor);
+            recordDay(entry, anchor);
         }
+        for (const entry of unanchored) settle(entry);
+
+        // What every automatic item ended up holding, for the next pass to
+        // anchor against. Distinct from `placements`, which carries only the
+        // items that are NOT on their ideal day.
+        wlState.autoPlacementSettled = new Map(
+            [...placedOn].map(([entry, day]) => [String(entry.sub && entry.sub.id || ''), day]));
         return placements;
     }
 

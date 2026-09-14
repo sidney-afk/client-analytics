@@ -572,11 +572,47 @@ ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\);
     && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
     && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
 'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
-ok(/day = wlSubWorkingDays\(day, 1\)/.test(capacityPlacement)
-    && /guard < WL_PLACEMENT_WALK_LIMIT && day >= today/.test(capacityPlacement)
-    && !/wlAddWorkingDays|wlNextWorkingDay/.test(capacityPlacement)
-    && /const finalDay = placed \|\| entry\.ideal/.test(capacityPlacement),
-'the walk only ever steps BACKWARD, is double-bounded by the walk limit and the today floor, and falls back to the honest ideal day');
+ok(/const windowStart = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(today, 1\);/.test(capacityPlacement)
+    && /let day = windowStart;/.test(capacityPlacement)
+    && /day = wlAddWorkingDays\(day, 1\)/.test(capacityPlacement)
+    && /guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal/.test(capacityPlacement)
+    && !/wlSubWorkingDays|wlPrevWorkingDay/.test(capacityPlacement)
+    && /const finalDay = firstFit\(entry\.sub, entry\.ideal\) \|\| reshuffleFor\(entry\) \|\| entry\.ideal/.test(capacityPlacement),
+'the walk starts at the first WORKING day from today and only ever steps FORWARD, is double-bounded by the walk limit and the ideal-day ceiling, and falls back through the bounded reshuffle to the honest ideal day');
+/* The reshuffle is the one place an ALREADY PLACED item can move, so its
+   bounds are pinned in source rather than left to the behaviour suite: it
+   runs only after first fit fails, it considers only same-capacity-key
+   (same editor, same team) items, an evicted item re-places by ordinary
+   first fit inside its OWN window and may not evict anyone in turn, and a
+   day that does not work is rolled back exactly. */
+const reshuffle = capacityPlacement.slice(capacityPlacement.indexOf('const reshuffleFor ='),
+  capacityPlacement.indexOf('const settle ='));
+ok(reshuffle.length > 0 && reshuffle.length < 4000,
+  'the reshuffle slice is bounded (harness is not vacuous)');
+ok(/wlCapacityKey\(other\.sub\) !== wlCapacityKey\(entry\.sub\)/.test(reshuffle)
+    && /const moved = firstFit\(other\.sub, other\.ideal, day\)/.test(reshuffle)
+    && !/reshuffleFor\(/.test(reshuffle)
+    && /for \(const move of moves\) release\(move\.other\.sub, move\.to\);\s*\n\s*for \(const other of set\) reserve\(other\.sub, day\);/.test(reshuffle)
+    && /day <= entry\.ideal/.test(reshuffle),
+'the reshuffle only moves same-editor automatic work inside its own window, never recurses, and rolls a failed day back exactly');
+/* Candidates are tried as SETS, smallest first, and the search is bounded by
+   two literals rather than by the size of the board: taking the cheapest card
+   first spends the room a heavier one needed, and an unbounded subset search
+   over a busy day is not something a render pass may do. */
+ok(/const sets = \[\];/.test(capacityPlacement)
+    && /sets\.sort\(\(a, b\) => a\.length - b\.length \|\| weightOf\(a\) - weightOf\(b\)\)/.test(capacityPlacement)
+    && /candidates\.slice\(0, WL_RESHUFFLE_MAX_CANDIDATES\)/.test(capacityPlacement)
+    && /chosen\.length >= WL_RESHUFFLE_MAX_EVICTIONS/.test(capacityPlacement),
+'the eviction search tries sets smallest-first and is bounded by both literals');
+/* The anchor is what keeps a settled board from churning, and it is the one
+   piece of state that crosses a snapshot — so it must be in-memory only,
+   dropped the moment it stops fitting, and purged with the pins it derives
+   from. */
+ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacityPlacement)
+    && /anchor < windowStart \|\| anchor > entry\.ideal \|\| !wlIsWorkingDay\(anchor\) \|\| !fits\(entry\.sub, anchor\)/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(\);/.test(INDEX),
+'incumbents anchor from the previous pass, the anchor is dropped as soon as it no longer fits, and it is purged with the pins');
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

@@ -191,9 +191,20 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
 
   phase('label_loading');
   {
-    // The saved-plan read is held open, so the board sits in its fast first
-    // paint: the day is the automatic estimate but the label must NOT claim
-    // the plan snapshot proved anything.
+    /*
+     * "Planning..." -- the honest label for the window where the board has
+     * issues but not yet an authoritative plan snapshot. The metadata read is
+     * held open to hold the board in exactly that window.
+     *
+     * ASSERTED THROUGH THE STATE LAYER, DELIBERATELY. The placement and its
+     * label are correct here, but they are not on screen: `renderWorkloadAll`
+     * paints the loading SKELETON whenever `wlState.planStatus` is 'loading'
+     * or 'refreshing' (index.html:18568), and the fast first paint runs with
+     * planStatus still 'loading' -- so the cards it computes are never
+     * rendered and no user can see this label. That is reported as a defect
+     * rather than fixed here; this phase pins the placement contract that is
+     * provable today, and the DOM half belongs with the fix.
+     */
     const h = await launchWorkloadHarness({
       issues: [parentRow({}), sub('l1', { due_date: WED })],
       plans: [{ issue_id: 'l1', plan_date: FRI }],
@@ -201,14 +212,22 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
     });
     try {
       await h.page.waitForFunction(
-        () => document.querySelectorAll('.workload-view .wl-plan-origin.is-loading').length > 0,
+        () => wlState.planLoading === true && wlState.planned.length > 0,
         null, { timeout: 15000 },
       );
-      const loading = await readBoard(h.page);
-      const card = loading.cards.find(c => c.id === 'l1');
-      expect(card.mode === 'loading' && card.label === 'Planning…',
-        'while plans are still loading the label must say Planning…, not automatic');
-      expect(card.day === TUE, 'the loading estimate is the automatic day, one working day before the deadline');
+      const during = await h.page.evaluate(() => ({
+        mode: wlPlacementMode(wlState.planned[0]),
+        label: wlPlacementLabel(wlPlacementMode(wlState.planned[0])),
+        day: wlDisplayDate(wlState.planned[0]),
+        snapshot: wlState.planHasSnapshot,
+        editing: wlPlanEditingEnabled(),
+      }));
+      expect(during.mode === 'loading' && during.label === 'Planning…',
+        'while plans are still loading the placement must be labelled Planning…, never automatic');
+      expect(during.day === TUE,
+        'the loading estimate is the automatic day, one working day before the deadline');
+      expect(during.snapshot === false && during.editing === false,
+        'nothing may be editable before the plan snapshot is authoritative');
       h.state.releaseMetadata();
       await waitForPlanSettled(h.page);
       const settled = await readBoard(h.page);

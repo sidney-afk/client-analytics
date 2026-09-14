@@ -560,6 +560,59 @@ check('an anchor is dropped when it stops fitting, and never on a first load', (
   assert.strictEqual(dates[4], MON, 'and the pin itself is untouched');
 });
 
+check('an anchored board never shows more overload than a reload would', () => {
+  /* Owner report 2026-09-14 (second round): "use automatic planning" on a
+     pinned card left the day over capacity — 5/4 — and only a refresh showed
+     the clean 4/4, because a fresh page has no anchors. The invariant that
+     covers that whole class, whatever the arrangement: an anchor is a
+     preference for stability, never a reason to render a worse board than the
+     same data would render on a reload.
+
+     Swept over deterministic scenarios rather than one fixture, because the
+     shapes that defeat the bounded repair are exactly the ones nobody thinks
+     to write down. Each scenario settles, pins a card away, unpins it, and
+     compares the resulting overload with the same data planned from scratch. */
+  const overloadOf = (subs) => {
+    const totals = dayLoad(subs);
+    let over = 0;
+    for (const [key, units] of totals) {
+      const row = subs.find(s => context.wlCapacityKey(s) + '@' + context.wlDisplayDate(s) === key);
+      const cap = context.wlEditorCapacity(row && row.teamKey, row && row.teamName);
+      if (units > cap) over += units - cap;
+    }
+    return over;
+  };
+  const WEIGHTS = [1, 2, 3];
+  const DUES = ['2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14'];
+  let scenarios = 0;
+  for (let shape = 0; shape < 24; shape++) {
+    reset();
+    const subs = [];
+    for (let i = 0; i < 9; i++) {
+      subs.push(sub({
+        due: DUES[(i + shape) % DUES.length],
+        weight: WEIGHTS[(i * (shape + 1)) % WEIGHTS.length],
+        identifier: 'VID-8' + shape + i,
+      }));
+    }
+    place(subs, MON);                                   // settle, filling the anchors
+    wlState.planByIssueId.set(subs[shape % subs.length].id, '2026-08-14');
+    place(subs, MON);                                   // pin one card away
+    wlState.planByIssueId.delete(subs[shape % subs.length].id);
+    place(subs, MON);                                   // "use automatic planning"
+    const anchored = overloadOf(subs);
+
+    wlState.autoPlacementSettled = new Map();           // exactly what a reload has
+    place(subs, MON);
+    const reloaded = overloadOf(subs);
+
+    assert.ok(anchored <= reloaded,
+      `shape ${shape}: anchored board is ${anchored} units over capacity where a reload is ${reloaded}`);
+    scenarios++;
+  }
+  assert.strictEqual(scenarios, 24, 'every scenario ran (harness is not vacuous)');
+});
+
 check('room freed by a new pin is reclaimed in the SAME pass, without a reload', () => {
   reset();
   // Owner report 2026-09-14: "when I drag things around to pin them, I need to

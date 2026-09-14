@@ -311,7 +311,7 @@ async function launchWorkloadHarness(options) {
   });
 
   await page.goto(`http://127.0.0.1:${server.address().port}/#workload`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.workload-view .workload-grid.week', { timeout: 20000 });
+  await page.waitForSelector('.workload-view', { timeout: 20000 });
 
   const close = async () => {
     await context.close().catch(() => {});

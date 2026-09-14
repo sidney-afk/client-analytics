@@ -2,6 +2,10 @@
 
 Preparation only. Do not execute mutation steps without authorization for the exact revision, target and release order. Keep all private captures, connection settings and recovery keys outside Git. Never send to client Slack channels.
 
+## 0. Complete Storage custody before the installation-day freeze
+
+If not already complete, use the private Storage operator below in an explicitly confirmed quiet window: capture, encrypt, private upload, owner download, hash comparison and isolated downloaded-copy restore. Allow 20-30 minutes for capture/readback plus transfer time. Preserve failures; source drift requires a new quiet window and fresh attempt. No automations are paused. An older completed capture must still cover the files needed at cutover; check for intervening changes before relying on it. If this cannot be completed earlier, it is the first installation-day step, before freeze/catch-up.
+
 ## 1. Freeze one candidate
 
 Use a clean private worktree. Record the exact candidate and frozen main SHAs. Run the day-of main catch-up rehearsal once:
@@ -38,7 +42,7 @@ Require exit zero on each command before the next. Compare the calculated finger
 
 Refresh the read-only hosted catalog against the published observed certificate. Require exact supported baseline, project/database identity and prerequisite classification. Record current authority, all existing runtime settings and serving fingerprints privately. Preserve already-active legacy flags; “dormant” applies to new exit controls.
 
-Storage comes first if still pending. Follow the private quiet-window procedure below; do not start while the owner is changing files. The owner declined a window during preparation and expects one later at night, requiring a fresh confirmation. Allow approximately 20?30 minutes for capture/readback plus transfer time. Source drift means STOP and a new quiet window, never reuse an incomplete attempt.
+Storage custody must have passed step 0.
 
 Prepared private commands (use a fresh immediate-child directory for every attempt):
 
@@ -48,7 +52,7 @@ node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-databas
 node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-UNIQUE
 ```
 
-Run the catalog command before Storage; if that capture takes over an hour, refresh the catalog into a new directory before the database command. Require the catalog receipt's supported-baseline and TLS checks; then DATABASE_CAPTURE_PASS and ISOLATED_DATABASE_RESTORE_PASS, exit zero and stopped scratch server. Any refusal means STOP and preserve diagnostics. These private wrappers retrieve the existing secret record internally; no password belongs in chat or a command argument.
+Run this catalog read after frozen-main checks pass and immediately before the database refresh. If the catalog is over an hour old, refresh it into a new directory. Require the catalog receipt's supported-baseline and TLS checks; then DATABASE_CAPTURE_PASS and ISOLATED_DATABASE_RESTORE_PASS, exit zero and stopped scratch server. Any refusal means STOP and preserve diagnostics. These private wrappers retrieve the existing secret record internally; no password belongs in chat or a command argument.
 
 The database refresh follows [the native backup route](LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PREPARATION.md). After local restore, upload the encrypted package to the existing private Drive backup folder, download that exact package, compare its full SHA-256/file manifest and run the same isolated restore command against the downloaded package in a new output directory. Custody is incomplete until that downloaded-copy restore passes. Do not confuse public-schema recovery with full platform or asset recovery. Keep Drive/Frame historical gaps explicit. The 14 inaccessible references have a private decision sheet; no replacement or deletion is authorized and those decisions do not block the dormant install.
 
@@ -88,13 +92,46 @@ The workflow first runs the SQL preflight, then eight staff functions, then `lin
 
 Stop on preflight, deployment or fingerprint failure. Preserve the exact partial deployment list. Do not retry a different SHA or deploy readers ahead of their writer. Use the reviewed rollback/release procedure for that actual partial state.
 
-## 5. Observe current behavior, leave new controls dormant
+## 5. Remove only the displayed Linear link from the legacy editor urgent message
+
+This step requires the owner's explicit go-ahead in that same execution session, separately from every other approval. Preparing this plan is not that go-ahead. It follows the authorized merge and completed Edge release.
+
+Before editing, capture the current published workflow version, publication identity and full workflow privately, so that exact version can be restored. Revalidate the prepared offline change with scripts/prepare-urgent-editor-website-only.js against that fresh capture; any template drift is a stop condition. Review the diff before applying: it removes exactly one displayed Linear-link line and nothing else. Preserve the existing website link and the Linear lookup input. No recipient, trigger, dedupe key, delivery receipt, node wiring or other settings change.
+
+After the separate go-ahead, apply only that one-line change and capture/read back the published version. Success is the exact reviewed text-only difference with all other workflow fields unchanged; do not execute it or send a message as verification. If readback fails or the result is ambiguous, stop, inspect the actual published version and do not blindly repeat the update. Recovery is restoration of the privately captured published version after explicit recovery authorization and a check that no intervening owner edit would be overwritten. Record both version identities and the verified restoration.
+
+This is the only n8n change in the entire migration. Every other workflow stays untouched. If website independence needs another legacy path replaced, reroute the website to its accepted native replacement; do not infer permission to edit another n8n workflow. If this step is deferred, record the old displayed link as still present rather than calling the migration finished.
+
+## 6. Observe current behavior, leave new controls dormant
 
 Verify served browser SHA and safe existing reads, then only explicitly approved TEST saves. Check status/body, stored row, receipt/event and draft retention; a successful HTTP response alone is insufficient. No client Slack delivery tests.
 
 Compare settings with pre-state: existing Linear inbound/outbound and legacy capability settings unchanged; new notification sending/wake, follow-up supervisor, reconcile apply and automatic census gates remain at their separately approved dormant posture. Do not blanket-disable existing live flags. Do not call the retired-epoch switch or native reopen. Confirm no worker was stopped and no provider connection was removed.
 
 Record SQL completion, website SHA, exact Edge deployment/fingerprints, TEST observations, unchanged settings and remaining gaps separately. Native activation requires its own hosted acceptance. Linear retirement, shutdown, cancellation and deletion are outside the owner scope and must not be scheduled or inferred.
+## 7. Separately accept native capabilities and close website dependencies
+
+A dormant SQL/13-function release is not completion of website independence. Before enabling each capability, complete its own deployment/configuration and authorized TEST acceptance. The separate Calendar/Samples atomic composers, follow-up endpoint/supervisor and WR-101 function/browser integration are not deployed by the chosen 13-function lane. Accept native notification ownership and observation before moving existing alerts; no client delivery tests.
+
+The checkpoint's source-search table lists remaining provider paths. For each one, record the exact browser/server gate, accepted replacement, current setting and evidence that the legacy route is unreachable. Cover workload legacy rows/foreign metadata/due dates, intake, label/assignee provider fallback, urgent legacy lookup, inbound/outbound and scheduled website mirrors. Merely leaving old code present is not proof of dependence; merely enabling a native flag is not proof of closure. Do not change unrelated n8n workflows or anything inside Linear.
+
+Stop on any required path without an accepted replacement. Keep or restore the recorded prior capability setting only where compatible with accepted new writes; preserve pending receipts and reconcile uncertain effects before retry. Use [notification recovery](NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md) and [follow-up recovery](LINEAR_EXIT_FOLLOWUP_SUPERVISOR.md). Never reactivate provider sending or reverse authority automatically.
+
+Actual Linear retirement is outside this website-only scope. A much-later retirement would need a new explicit owner decision and separate plan; this sequence does not authorize account, credentials, billing, data or Linear-side integration changes.
+
+## Recovery prerequisites before mutation
+
+| Failure point | Written response / prerequisite |
+| --- | --- |
+| Main catch-up or checks | Stop before live changes; retain the isolated receipt and inspect conflicts. In a clean, owner-authorized merge attempt only, git merge --abort returns to pre-merge state; preserve unexpected user edits first. |
+| Storage/database capture or isolated restore | Preserve failed artifacts, leave production untouched, diagnose and start a fresh capture only under its required window. Incomplete ciphertext is not custody. |
+| SQL interruption | Use step 3's exact identity/journal-prefix resume, retaining maintenance protection. If forward recovery is impossible, a hosted restore is a separate operation: contain writes under authorization, account for saves since the snapshot, restore a compatible snapshot and verify before reopening. The local restore proof is not an executable hosted rollback. |
+| Pages / partial Edge release | Before merge, privately capture served browser bytes, every affected function's served source/dependency graph, JWT/configuration posture and restore destination. Identify an executable, authorized restoration route for each exact capture. If any route is missing, STOP before merge. After failure, stop further release/activation, inventory which versions actually changed, restore the captured compatible browser/functions under recovery approval and verify hashes and saves. A git revert alone does not restore deployed functions or business data. |
+| n8n text edit | Step 5: compare actual published state and restore the captured published version without overwriting intervening edits. No test sends. |
+| Capability acceptance | Keep the failed capability unenabled; if already enabled, contain new work and use its compatible recorded pre-state plus receipt/uncertain-effect reconciliation. No blind retry or blanket authority reversal. |
+
+The day-of hosted SQL restore route and per-function/Pages recovery captures are still prerequisites, not completed recovery drills. If maintenance cannot safely resume, or exact release restoration is unavailable, remain stopped and obtain the concrete recovery plan before proceeding. See [repository recovery requirements](../../ROLLBACK.md).
+
 ## Known pre-applied main prerequisite
 
 The fresh read-only catalog found #1393's `migrations/2026-09-14-team-members-auto-assign-opt-out.sql` already applied. Its exact difference is only `team_members`: the new boolean NOT NULL default-false column, removal of anon/authenticated table SELECT, and SELECT grants over the original eleven columns. Do not replay it on that baseline or describe the old 809c catalog as current.

@@ -18,6 +18,8 @@ After the separately approved dormant release:
 | New reconcile apply / census schedules | Remain dormant; manual operations need separate approval | Do not reset already-active legacy flags |
 | Retirement / native reopen | Remain uncalled | Linear workers, inbound/outbound connections and authority stay in their recorded pre-install state |
 
+One separately approved n8n edit, after the website/Edge release, removes only the displayed Linear-link line from the editor urgent message: capture the published version for restoration first, obtain the owner's go-ahead in that same session, and leave all recipients, triggers, delivery handling, wiring and every other workflow untouched.
+
 The owner scope is website-side independence only. Do not retire Linear, cancel it, stop its unrelated workflows or disconnect its integrations on installation day or as an assumed later step. Website-side native capabilities require their own approved acceptance; this does not require retiring Linear itself. Unavailable assets remain explicitly tracked.
 
 The existing manual Edge release requires the selected commit already on main. Therefore “deploy that lane before merging” is not available. The proposed order is SQL preparation, authorized merge (which also publishes Pages and can deploy eight staff functions), then the pinned manual Edge release. The interval between browser publication and the manual release must be explicitly accepted or a different release mechanism separately reviewed. Nothing in this guide approves that interval.

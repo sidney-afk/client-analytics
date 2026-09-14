@@ -2,7 +2,7 @@
 
 > **Owner clarification, 2026-09-14: PRESERVE NORMAL WORKFLOWS; REMOVE WEBSITE RELIANCE ON LINEAR.** Preserve existing expected Slack notifications, including urgent editor and urgent review requests. The owner did NOT request a blanket notification ban. Do not introduce migration announcements, new recipients/triggers, duplicate sends or unexpected messages. Approvals, comments and urgent actions must preserve normal behavior and save correctly without relying on Linear. The owner believes existing urgent messages already link to the SyncView/SyncLinear website instead of Linear; verify that behavior rather than treating it as unbuilt or already proven. During preparation, do not send live/test client messages, merge, deploy or activate services. Remove website-side Linear dependencies as needed while leaving everything inside Linear unchanged: account, data, credentials, billing and Linear-side integrations/webhooks. Do not alter n8n or unrelated external automations in this preparation. Identify website-side sync connections and any backend work necessary to preserve behavior; do not confuse disconnecting those with shutting down Linear. Earlier assistant-authored blanket notification prohibitions and blanket bans on disconnecting website-side sync were overinterpretations and are superseded. No file substitutions, deletion or link changes are authorized by treating access exceptions as lower priority.
 
-Preparation remains in draft PR #1382. Neither installation nor retirement is
+Current entrypoint: [living preparation checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md), draft PR #1391. This matrix retains historical evidence below; dated receipts are not current hosted state. Neither installation nor retirement is
 authorized by this document. The reviewer handoff identifies the prepared
 revision and remaining owner-window gates; it is not installation sign-off.
 
@@ -22,8 +22,7 @@ revision and remaining owner-window gates; it is not installation sign-off.
 Latest follow-up repairs and live-read results are in
 `LINEAR_EXIT_REVIEW_REPAIRS_20260913.md`. Fresh final-ACL switch and recovery
 receipts supersede the corresponding older local runs without expanding their
-hosted acceptance scope. The current public catalog still matches; actual
-off-device recovery, asset custody and notification delivery remain unproven.
+hosted acceptance scope. Current catalog and custody status belong in the living checkpoint; this historical matrix does not establish current hosted state.
 
 ## Order of decisions
 
@@ -35,12 +34,9 @@ off-device recovery, asset custody and notification delivery remain unproven.
    recovery material, validate target compatibility and perform installation in
    the reviewed order. Preserve current authority and all dormant settings until
    their own acceptance conditions pass.
-4. Activate native capabilities only with their required hosted observations.
-   Retain operational Linear dependencies until the separate retirement gate is
-   satisfied. Do not turn an installation receipt into a retirement receipt.
-5. Retire Linear only after the admission/drain protocol and canonical B5 gate
-   are resolved and proved. Retention, cancellation and irreversible deletion
-   remain separate decisions.
+4. After merge and Edge release, the single editor-urgent n8n text edit requires the same-session, separately explicit approval in the current runbook. Every other n8n workflow remains untouched.
+5. Activate native capabilities only after their required hosted observations and closure of website-side provider paths. The dormant release alone does not remove those dependencies.
+6. Actual Linear retirement is outside this website-only scope. It is not an assumed later step; a future proposal requires a new owner decision.
 
 ## Dormant state and recovery
 

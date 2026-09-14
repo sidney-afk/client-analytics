@@ -16190,7 +16190,7 @@
         const placed = wlAutoPlacementDate(sub);
         if (!ideal || !placed || ideal === placed) return '';
         const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
-        return `Moved earlier automatically: ${wlFormatShort(ideal)} — the usual day, one working day before the deadline — was already at this editor's ${capacity}-unit daily capacity, so this sits on ${wlFormatShort(placed)} instead. Still before the deadline; pin it with a drag to override.`;
+        return `Planned for ${wlFormatShort(placed)} — the earliest day with room. Automatic planning starts from today and only moves a card later when a day is already at this editor's ${capacity}-unit daily capacity; the last day it could sit on is ${wlFormatShort(ideal)}, one working day before the deadline. Pin it with a drag to override.`;
     }
 
     // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
@@ -16200,18 +16200,26 @@
     //      reserve their units first — even when the pins alone put the editor
     //      over capacity. A person's deliberate placement is never moved by
     //      this pass, only automatic work yields around it.
-    //   2. Every remaining item is placed as LATE as it fits: it starts on its
-    //      own ideal day (one working day before its deadline, floored to
-    //      today) and walks BACKWARD over working days to the first day where
-    //      that editor still has room.
-    //   3. It never walks FORWARD. Pushing past the ideal day would trade a
-    //      visible overload for a silently late delivery, which is strictly
-    //      worse for a client deadline.
-    //   4. When nothing in the today→ideal window has room, the item stays on
+    //   2. Every remaining item is placed as EARLY as it fits (owner ruling
+    //      2026-09-14): it starts at TODAY and walks FORWARD over working days
+    //      to the first day where that editor still has room. Capacity is the
+    //      only thing that pushes a card later — an editor with a free day
+    //      earlier in the week gets the work on that day, not the day before
+    //      the deadline.
+    //   3. It never walks PAST the ideal day (one working day before the
+    //      deadline, floored to today). Beyond that the item would be
+    //      silently late, which is strictly worse than a visible overload.
+    //   4. When nothing in the today→ideal window has room, the item lands on
     //      its ideal day and that editor/day keeps the red over-capacity
-    //      badge. That badge now means genuine oversubscription — more work
-    //      than the window can hold — which only a person can resolve by
+    //      badge. That badge means genuine oversubscription — more work than
+    //      the window can hold — which only a person can resolve by
     //      reassigning or renegotiating a deadline.
+    //
+    // This replaced a late-as-possible pass (2026-08-10 → 2026-09-14), which
+    // only ever moved work EARLIER to relieve an over-capacity day. It left
+    // four videos due Friday stacked on Thursday, exactly at the cap, while
+    // Wednesday sat nearly empty — technically within capacity, and not what
+    // anyone would plan by hand.
     //
     // The pass replaced the previous strictly item-local rule, which let an
     // automatic card land on a day a pin (or six other automatic cards) had
@@ -16219,7 +16227,7 @@
     // editor / client filters can never change where a card sits. Nothing is
     // written: `workload_plan` still holds deliberate manual overrides only,
     // and every placement is re-derived from (issues, plans, weights, today).
-    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the backward walk
+    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the forward walk
     function wlCapacityKey(sub) {
         return (sub && sub.assigneeId || '?') + '|' + wlTeamBucket(sub && sub.teamKey, sub && sub.teamName);
     }
@@ -16260,10 +16268,13 @@
 
         for (const entry of automatic) {
             let placed = '';
-            let day = entry.ideal;
-            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day >= today; guard++) {
+            // Earliest first: start at today and walk forward, stopping at the
+            // ideal day. `ideal` is already floored to today, so an item due
+            // now (or overdue) has a one-day window and simply lands there.
+            let day = today;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
                 if (fits(entry.sub, day)) { placed = day; break; }
-                day = wlSubWorkingDays(day, 1);
+                day = wlAddWorkingDays(day, 1);
             }
             const finalDay = placed || entry.ideal;
             reserve(entry.sub, finalDay);
@@ -41388,20 +41399,11 @@
             const rows = await response.json();
             return Array.isArray(rows) ? rows : [];
         };
-        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name,auto_assign_opt_out'
+        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name'
             + '&active=eq.true&team=eq.video&role=eq.editor&linear_user_id=not.is.null'
             + '&order=name.asc&limit=200');
         const editors = editorRows
-            .map(row => ({
-                id: String(row && row.id || ''),
-                name: String(row && row.name || '').trim() || 'Editor',
-                /* Roster flag, not code: a person the gateway will never pick
-                   automatically. They stay IN this list -- the picker exists so
-                   somebody can choose them on purpose -- but they must never be
-                   the default suggestion, or the dialog would name one person
-                   while the silent path assigns another. */
-                autoOptOut: !!(row && row.auto_assign_opt_out),
-            }))
+            .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '').trim() || 'Editor' }))
             .filter(row => row.id);
         if (!editors.length) return [];
         // Open video work per editor. A failure here is not fatal: the picker
@@ -41438,19 +41440,11 @@
         const withLoad = editors.map(editor => ({
             id: editor.id,
             name: editor.name,
-            autoOptOut: !!editor.autoOptOut,
             openCount: counts ? Number(counts.get(editor.id) || 0) : null,
         }));
-        /* Everyone opted out is the gateway's own degenerate case: it ignores
-           the flag rather than failing, so the ranking has to ignore it too. */
-        const optOutRanks = withLoad.some(editor => !editor.autoOptOut);
         /* Same ordering rule as the gateway: fewest open first, then name, then
            id -- so the browser's suggestion and the server's fallback agree. */
         withLoad.sort((left, right) => {
-            if (optOutRanks) {
-                const optDelta = (left.autoOptOut ? 1 : 0) - (right.autoOptOut ? 1 : 0);
-                if (optDelta) return optDelta;
-            }
             if (counts) {
                 const delta = left.openCount - right.openCount;
                 if (delta) return delta;

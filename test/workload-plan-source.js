@@ -624,9 +624,9 @@ ok(persistPlan.length > 0 && persistPlan.length < 4000,
   'the plan-write slice is bounded (harness is not vacuous)');
 const restores = (persistPlan.match(/wlApplyPlanLocal\(issue\.id, previousDate\)/g) || []).length;
 ok(restores >= 3
-    && /resp\.status === 401\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\)/.test(persistPlan)
+    && /resp\.status === 401\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\);\s*\n\s*_syncviewStaffIdentityClear\(\)/.test(persistPlan)
     && /resp\.status === 403\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\)[\s\S]*?wlPurgePlanSensitiveState\(\)/.test(persistPlan),
-'every refused plan write restores the previous day, including 401 and 403, and 403 restores BEFORE the purge so one state is shown');
+'every refused plan write restores the previous day, including 401 and 403, each restoring BEFORE the purge that clears the pins, so no plan date is written back on the far side of it');
 
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)

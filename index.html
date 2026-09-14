@@ -17747,8 +17747,15 @@
                nothing was. That is the shape of the 2026-09-14 report that
                drags do not survive a refresh. */
             if (resp.status === 401) {
-                _syncviewStaffIdentityClear();
+                /* Restore BEFORE clearing the identity, exactly as the 403
+                   branch restores before its purge. _syncviewStaffIdentityClear
+                   runs the global sensitive-state purge, which drops
+                   planByIssueId; restoring afterwards would write a staff-only
+                   plan date back in on the far side of sign-out, where the
+                   generation check then exits and leaves it to surface on a
+                   later identity's warm paint. */
                 wlApplyPlanLocal(issue.id, previousDate);
+                _syncviewStaffIdentityClear();
                 if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
                     showNotify("Couldn't save the work day", 'Staff sign-in expired. It was put back — sign in and try again.');

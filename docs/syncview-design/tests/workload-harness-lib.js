@@ -29,6 +29,20 @@
  * "whatever this week is".
  */
 
+/*
+ * HOW TO RUN
+ *   node docs/syncview-design/tests/workload-board-browser.js    (interaction)
+ *   node docs/syncview-design/tests/workload-render-browser.js   (structure)
+ *
+ * By path, deliberately, with no npm script alias. package.json is inside the
+ * leave-evidence source fingerprint (test/leave-evidence-fingerprint-coupling.js),
+ * so adding two script lines invalidates a published evidence packet and, by
+ * that test's own warning, costs a human review of every screenshot in it —
+ * for aliases that have nothing to do with the leave feature. Not worth it:
+ * the sibling browser suites are invoked by path from their workflow lanes
+ * anyway.
+ */
+
 const fs = require('fs');
 const http = require('http');
 const path = require('path');

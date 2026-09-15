@@ -30,6 +30,48 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — Step 2 answered: NO single commit matches all thirteen deployed functions
+
+Recovery route C1, which assumes one older main commit matches every deployed
+Edge function, **is not available**. This became an owner decision before step
+13. Nothing was built in response; the instruction was explicitly to report and
+stop, not to start a replacement route.
+
+The decisive evidence needs no fingerprint comparison at all: **`notify` is not
+deployed.** It exists in the repository with three source files, but the live
+project has no function by that slug. Confirmed by direct lookup, which returned
+`NotFoundException`, rather than inferred from its absence in a list. One of the
+thirteen has no currently deployed version, so no commit can match all thirteen.
+
+Corroborating, the other twelve were deployed across five distinct events
+spanning twenty days:
+
+| Deployed | Functions | Live version |
+|---|---|---|
+| 2026-08-26 | production-comments | 24 |
+| 2026-08-29 | production-archive | 8 |
+| 2026-09-04 | the eight staff functions, within 21 seconds of each other | 32 to 44 |
+| 2026-09-14 | production-write | 71 |
+| 2026-09-15 | linear-outbound | 48 |
+
+Where the set splits is therefore those five groups, with `notify` as a sixth
+case of its own.
+
+**What was proven versus what was not.** Proven: the live inventory, the version
+numbers, the deploy timestamps, and `notify` being absent. Not proven: a
+per-function source fingerprint mapped to a specific commit. `ef-fingerprint.js`
+refuses its live comparison without a Supabase access token, which this
+sandbox does not carry and which nobody should be asked for. The answer does not
+depend on that missing piece, because `notify` settles it on its own, but the
+gap is recorded rather than papered over.
+
+One observation worth keeping, not a finding: `linear-outbound` was deployed at
+16:57 UTC on 2026-09-15, about two minutes after the frozen main commit landed
+at 16:55 UTC. That is consistent with a deploy lane running off the merge that
+became the freeze point. The freeze is on merges, not deploys, so this does not
+break it. Noted so a later reader is not startled by a deploy timestamp inside
+the freeze window.
+
 ### 2026-09-15 — Owner sitting page written for steps 1, 8, 9, 10 and 11
 
 Prepared a single ordered page the owner can follow cold at the keyboard, with
@@ -199,6 +241,8 @@ Live list. Items come off with a date and a note, never by deletion.
 | B3 | Fourteen inaccessible Drive file references undecided | Owner | A decision per reference. A private decision sheet exists. No replacement or deletion is authorized. Does **not** block the dormant install |
 | B4 | No executable hosted database recovery route if journal resume cannot finish | Owner and session, before step 13 | Carried from the checkpoint, not in the owner's own list of three. Named there as a day-of prerequisite |
 | B5 | No captured compatible browser and function versions with an executable restoration route before merge | Owner and session, before step 16 | Carried from the checkpoint, not in the owner's own list of three. Named there as a day-of prerequisite |
+
+| B6 | Recovery route C1 is not available: no single older commit matches all thirteen deployed functions, and `notify` is not deployed at all | Owner, before step 13 | An owner decision. Either accept proceeding without C1, or authorize a separately prepared and reviewed exact-capture restoration lane. Added 2026-09-15 from the step 2 capture. Tightens B5, which assumed a restoration route would exist |
 
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a

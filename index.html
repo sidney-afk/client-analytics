@@ -5288,14 +5288,23 @@
                same pair the link fields, the status dots and the Linear
                buttons already use, so a pile reads as a pink half and a blue
                half.
-             - SHAPE = system. Linear is a solid filled chip; Production is
-               OUTLINED (transparent centre, ringed in its component colour),
-               on top of the already-different glyph — the Linear mark versus
-               the open-in-a-new-tab box.
-           Border, not box-shadow, for the ring: .cal-linear-pile sets its own
+             - SHAPE = system. Linear is a chip filled with its component TINT;
+               Production is a chip on the neutral raised surface, RINGED in
+               its component colour, on top of the already-different glyph —
+               the Linear mark versus the open-in-a-new-tab box.
+           The ring is a border, not a box-shadow: .cal-linear-pile sets its own
            drop box-shadow on every button in the pile and would clobber it.
-           Global box-sizing is border-box, so the ring costs no footprint. */
-        .cal-linear-btn.cal-prod-btn { background: transparent; border: 1.5px solid currentColor; }
+           Global box-sizing is border-box, so the ring costs no footprint.
+           The surface stays OPAQUE, and that is load-bearing rather than
+           cosmetic (Codex, #1403). This pile is absolutely positioned OVER
+           .cal-card-thumb, so a transparent centre puts the ring and the glyph
+           straight onto arbitrary photo pixels — and measured against a
+           deliberately hostile pink/white/lavender thumbnail, pink-on-pale-pink
+           and blue-on-pale-lavender both washed out to nearly unreadable while
+           the filled Linear chips beside them stayed crisp. A thumbnail is
+           user-supplied art that can be any colour, so legibility here cannot
+           depend on it. */
+        .cal-linear-btn.cal-prod-btn { background: var(--surface-raised); border: 1.5px solid currentColor; }
         .cal-linear-btn-video.cal-prod-btn { color: var(--sv-slot-video-fg); }
         .cal-linear-btn-video.cal-prod-btn:hover { background: var(--sv-slot-video-bg); }
         .cal-linear-btn-graphic.cal-prod-btn { color: var(--sv-slot-thumb-fg); }

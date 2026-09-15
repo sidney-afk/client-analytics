@@ -159,10 +159,23 @@ ok(videoTokens[0] !== thumbTokens[0],
   'the Video half and the Thumbnail half of the pile never share a colour');
 
 // The system axis has to stay somewhere, now that it is not hue: Production is
-// the OUTLINED chip. Without this the two halves would be four identical-looking
+// the RINGED chip. Without this the two halves would be four identical-looking
 // chips in two colours, which is the same complaint one level down.
-ok(/\.cal-linear-btn\.cal-prod-btn\s*\{[^}]*background:\s*transparent[^}]*border:\s*[^;]*solid/.test(source),
-  'Production buttons stay visually distinct from Linear ones by being outlined rather than filled');
+const prodChip = source.match(/\.cal-linear-btn\.cal-prod-btn\s*\{([^}]*)\}/);
+ok(!!prodChip, '.cal-linear-btn.cal-prod-btn base chip rule is found');
+if (prodChip) {
+  ok(/border:\s*[^;]*solid/.test(prodChip[1]),
+    'Production buttons stay visually distinct from Linear ones by being ringed rather than plain-filled');
+  /* OPAQUE, and this is a legibility requirement rather than taste (Codex,
+     #1403). The pile is absolutely positioned over .cal-card-thumb, so a
+     transparent centre paints the ring and glyph onto user-supplied photo
+     pixels; measured against a pink/white/lavender thumbnail both Production
+     buttons washed out while the filled Linear chips stayed crisp. */
+  ok(!/background:\s*(transparent|none)\b/.test(prodChip[1]),
+    'Production buttons never go transparent over the thumbnail art they sit on (the #1403 legibility finding)');
+  ok(/background:\s*var\(--/.test(prodChip[1]),
+    'Production buttons keep an opaque themed surface behind the ring and glyph');
+}
 
 if (failures) { console.error('\ncal-comp-dot-matches-slot-colors FAILED: ' + failures); process.exit(1); }
 console.log('\ncal-comp-dot-matches-slot-colors passed');

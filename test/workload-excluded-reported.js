@@ -147,12 +147,85 @@ ok(/THIS ROW'S TEAM/.test(apply),
 ok(/capacity\s+is keyed on the row team/.test(apply),
   'and names why widening the predicate is not the repair, which is the mistake the next person would make');
 
-// --- the banner speaks last -------------------------------------------------
-const status = grabFunc('renderWorkloadPlanStatus');
-ok(status.indexOf('backgroundError') < status.indexOf('wlExcludedSummaryText'),
+// --- the banner speaks last, and is no longer silenced ----------------------
+/* Both checks here used to pin the SOURCE SHAPE -- the index of a token, and a
+   literal `status === 'ready' ? wlExcludedSummaryText` ternary. Both claims are
+   about behaviour, and a shape pin cannot see the difference between "outranks"
+   meaning "is ordered first" and "outranks" meaning "silences". On 2026-09-08 a
+   Codex P1 established that the second reading was wrong -- suppressing a
+   completeness note because something else is also wrong makes the board look
+   MORE complete than it is -- and the renderer now composes every applicable
+   notice in rank order. The shape pin would have gone red for the fix while
+   staying green for the defect, so both are replaced by executed checks. */
+const statusCtx = {};
+vm.createContext(statusCtx);
+vm.runInContext(
+  grabFunc('wlExcludedSummaryText') + '\n' + grabFunc('wlVisibleSubCount') + '\n'
+  + grabFunc('wlDroppedPlanWarningText') + '\n' + grabFunc('renderWorkloadPlanStatus')
+  + '\nthis.paint = renderWorkloadPlanStatus;',
+  statusCtx,
+);
+const statusEl = { hidden: true, className: '', textContent: '' };
+statusCtx.document = { getElementById: () => statusEl };
+const EMPTY_BUCKETS = { planned: [], nowWorking: [], tweaksNeeded: [], overdue: [], undated: [], unassigned: [] };
+/* A RENDERED row is part of the default because the notice is gated on a board
+   being on screen, not on the plan being fresh -- see the guard checks below.
+   `planned` rather than `issueSnapshot`: the predicate counts rows that reached
+   a bucket, because the snapshot also holds parents and completed rows that
+   render nowhere. */
+const paintStatus = state => {
+  statusEl.hidden = true; statusEl.className = ''; statusEl.textContent = '';
+  statusCtx.wlState = { linearMetadataStatus: 'ready', linearMetadataWithheldOnly: 0,
+    backgroundError: null, nativePlansDropped: 0, excluded: null,
+    issueSnapshot: [{ id: 'painted' }], ...EMPTY_BUCKETS, planned: [{ id: 'painted' }], ...state };
+  statusCtx.paint();
+  return statusEl.textContent;
+};
+const TWO_EXCLUDED = { noAssigneeNoDate: ['a', 'b'], offTeamAssignee: [] };
+/* The lead sentence differs by whether anything rendered ("N sub-issues are not
+   shown here" vs "Nothing is shown here, but this is not an empty board"), so
+   the notice is matched on the reason clause, which both leads carry. The
+   empty-board lead gets its own dedicated check below. */
+const EXCLUSION = /no assignee and no work day/;
+
+ok(EXCLUSION.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED })),
+  'harness is not vacuous: a ready board with excluded rows says so');
+
+const both = paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED,
+  backgroundError: 'Workload could not refresh. Previously loaded work is shown; retry to update it.' });
+ok(both.indexOf('could not check for newer changes') < both.search(EXCLUSION),
   'a real refresh failure outranks a completeness note');
-ok(/status === 'ready'\s*\n?\s*\? wlExcludedSummaryText/.test(status),
-  'and the note is only offered once the plan itself is ready, never over a loading or stale board');
+ok(EXCLUSION.test(both),
+  'but outranking it does not SILENCE it -- both are true, so both are said');
+
+/* THE GUARD MOVED, AND THE CONTRACT IT ENFORCES CHANGED WITH IT (2026-09-08).
+
+   It used to read `planStatus === 'ready'`, and the check here asserted the note
+   was never offered "over a loading or stale board". A second Codex P1 showed
+   that reading was wrong for the stale half: when a warm board's refresh fails,
+   wlLoadSnapshot RETAINS `issueSnapshot` and `excluded` and moves planStatus to
+   'stale' -- so the very same rows are still on screen, still excluded, and the
+   note disappeared exactly when the board got worse.
+
+   The real condition was never freshness. It is whether a board is being shown
+   at all: during a first load nothing is painted and there is nothing true to
+   say; once something is painted, what is excluded from it is excluded from it
+   no matter how stale the plan is. Both halves are pinned below. */
+ok(EXCLUSION.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
+  && EXCLUSION.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED }))
+  && EXCLUSION.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED })),
+  'a painted board reports its excluded rows however degraded its plan is');
+/* "Painted" was refined again on the same day (Codex round 7): `issueSnapshot`
+   also carries batch parents and completed rows that reach no bucket, so the
+   predicate counts RENDERED rows plus EXCLUDED ones. Excluded rows therefore
+   count as a board -- an all-excluded board is exactly the one that most needs
+   to explain itself -- and "nothing painted" means neither. */
+ok(/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED, planned: [] })),
+  'a board that renders NOTHING but excludes rows still explains itself');
+ok(!EXCLUSION.test(paintStatus({ planStatus: 'loading', excluded: null, planned: [] }))
+  && !EXCLUSION.test(paintStatus({ planStatus: 'unknown', excluded: null, planned: [] }))
+  && !EXCLUSION.test(paintStatus({ planStatus: 'ready', excluded: null, planned: [] })),
+  'and with NOTHING painted and nothing excluded it stays silent, whatever the plan status claims');
 
 console.log(failures === 0
   ? '\nWorkload excluded-rows reporting checks passed'

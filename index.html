@@ -5899,12 +5899,21 @@
            even when there was no link, which masked the "needs linking"
            visual cue. */
         /* Same reasoning as .cal-linear-btn.is-linked above: Thumbnail's
-           linked pile icon takes the same vibrant blue the Thumbnail link
+           LINEAR pile icon takes the same vibrant blue the Thumbnail link
            field and status dot use, in place of its own independent
            fuchsia -- that pairing read backwards next to the field below it
-           (Thumbnail is blue everywhere else on the card). */
-        .cal-linear-btn-graphic.is-linked { color: var(--sv-slot-thumb-fg); background: var(--sv-slot-thumb-bg); }
-        .cal-linear-btn-graphic.is-linked:hover { background: var(--sv-slot-thumb-bg-hover); }
+           (Thumbnail is blue everywhere else on the card).
+           :not(.cal-prod-btn) is load-bearing (Codex, #1401): this selector
+           and .cal-linear-btn.cal-prod-btn are equal specificity, and
+           .cal-prod-btn's own rule sits BEFORE this one in the stylesheet
+           -- so without the exclusion this rule would win on source order
+           and repaint the SyncView Production graphic link blue too,
+           erasing the teal that deliberately keeps Production and Linear
+           visually apart. That is a real latent bug (it broke the same way
+           to fuchsia before this PR), just never exercised until this
+           selector's colors changed enough to get a second look. */
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) { color: var(--sv-slot-thumb-fg); background: var(--sv-slot-thumb-bg); }
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn):hover { background: var(--sv-slot-thumb-bg-hover); }
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }

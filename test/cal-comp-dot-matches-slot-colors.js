@@ -73,7 +73,13 @@ ok(!/--cal-comp-graphic-dot:\s*var\(--sv-misc-/.test(source),
 // the two rules live far apart in the stylesheet (one is a component-scoped
 // override of the other).
 const LINEAR_VIDEO_RULE = /\.cal-linear-btn\.is-linked\s*\{\s*background:\s*([^;]+);\s*color:\s*([^;]+);\s*\}/;
-const LINEAR_GRAPHIC_RULE = /\.cal-linear-btn-graphic\.is-linked\s*\{\s*color:\s*([^;]+);\s*background:\s*([^;]+);\s*\}/;
+// Codex caught (#1401): this selector is equal specificity to, and sits
+// AFTER, .cal-linear-btn.cal-prod-btn in the stylesheet, so without
+// :not(.cal-prod-btn) it would win on source order and repaint the SyncView
+// Production graphic link (teal, deliberately distinct from Linear) the same
+// blue as the Linear one. The exclusion is load-bearing, not decorative --
+// pin it so it can't be "simplified" away later.
+const LINEAR_GRAPHIC_RULE = /\.cal-linear-btn-graphic\.is-linked:not\(\.cal-prod-btn\)\s*\{\s*color:\s*([^;]+);\s*background:\s*([^;]+);\s*\}/;
 
 const linearVideo = source.match(LINEAR_VIDEO_RULE);
 ok(!!linearVideo, '.cal-linear-btn.is-linked (the video Linear-pile icon) rule is found');
@@ -83,16 +89,18 @@ if (linearVideo) {
 }
 
 const linearGraphic = source.match(LINEAR_GRAPHIC_RULE);
-ok(!!linearGraphic, '.cal-linear-btn-graphic.is-linked (the thumbnail Linear-pile icon) rule is found');
+ok(!!linearGraphic, '.cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) (the thumbnail Linear-pile icon, scoped away from the teal Production variant) rule is found');
 if (linearGraphic) {
   ok(linearGraphic[1].trim() === 'var(--sv-slot-thumb-fg)' && linearGraphic[2].trim() === 'var(--sv-slot-thumb-bg)',
-    `.cal-linear-btn-graphic.is-linked resolves through the thumbnail slot tokens, got color:"${linearGraphic[1].trim()}" background:"${linearGraphic[2].trim()}"`);
+    `.cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) resolves through the thumbnail slot tokens, got color:"${linearGraphic[1].trim()}" background:"${linearGraphic[2].trim()}"`);
 }
 
 ok(!/\.cal-linear-btn\.is-linked\s*\{\s*background:\s*var\(--sv-bg-ecedfb\)/.test(source),
   '.cal-linear-btn.is-linked never reverts to the old generic-indigo background');
-ok(!/\.cal-linear-btn-graphic\.is-linked\s*\{\s*color:\s*var\(--sv-fg-d946ef\)/.test(source),
+ok(!/\.cal-linear-btn-graphic\.is-linked[^:]*\{\s*color:\s*var\(--sv-fg-d946ef\)/.test(source),
   '.cal-linear-btn-graphic.is-linked never reverts to its old standalone fuchsia');
+ok(!/\.cal-linear-btn-graphic\.is-linked\s*\{/.test(source),
+  '.cal-linear-btn-graphic.is-linked never appears WITHOUT the :not(.cal-prod-btn) guard (the Codex #1401 finding)');
 
 if (failures) { console.error('\ncal-comp-dot-matches-slot-colors FAILED: ' + failures); process.exit(1); }
 console.log('\ncal-comp-dot-matches-slot-colors passed');

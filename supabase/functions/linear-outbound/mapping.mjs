@@ -517,15 +517,43 @@ export function collapseLinearAutolinks(value) {
  *   intent `\*t\*`    stored `\*t\*`    -> adopt   (byte-identical, clause one)
  *   intent `\# H`     stored `# H`      -> REFUSE  (a person changed it)
  *
- * The last row is the one symmetric normalization got wrong, and it is the row
- * that matters: refusing there costs an orphan that a human can see and fix,
- * while adopting there silently links an issue whose text somebody else chose.
+ * DIRECTIONALITY ALONE WAS NOT ENOUGH, and Codex's second pass is why the set
+ * below is narrow. Directionality closes the collision in one direction only.
+ * Run it backwards: we send a real heading `# H`, a person edits the unlinked
+ * issue to the literal `\# H`, and stripping escapes from the stored side
+ * yields `# H` — our intent exactly — so we adopt their edit. The stored bytes
+ * of "Linear escaped our `#`" and "a person typed `\#`" are IDENTICAL, so no
+ * amount of directionality can tell them apart. The first version of this fix
+ * shipped a test asserting that adoption as correct, on the reasoning that
+ * Linear's rewrite was the likelier cause. Likelier is not the same as
+ * distinguishable.
+ *
+ * So the escape set is restricted to characters Linear has actually been seen
+ * to escape, and every character kept out of it is a collision that cannot
+ * happen. Refusing costs an orphan a human can see and fix; adopting silently
+ * links an issue whose text somebody else chose.
  *
  * Composed AFTER the auto-link collapse, which stays symmetric and unchanged,
  * so the link form is recognised in the shape Linear actually emits it
  * (unescaped brackets) before any unescaping happens.
  */
-const LINEAR_ESCAPED_PUNCTUATION = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+/*
+ * NARROWED AGAIN, 2026-09-15, on Codex's second pass — and this set is now
+ * EVIDENCE-GATED. It holds exactly the characters Linear has been OBSERVED to
+ * escape, which is `[` and `]`, from the live orphan `\[SyncView\]`. Nothing
+ * is here by extrapolation from CommonMark.
+ *
+ * Adding a character to this set is not free, so do not widen it on a hunch.
+ * Each one admits a stored form that a PERSON could equally have typed, and
+ * stripping it makes their edit compare equal to our intent. Widen it only
+ * when a real orphan names the character, the way `[` and `]` were named.
+ *
+ * The cost of being too narrow is an orphan: visible, reported, recoverable,
+ * and it arrives with the evidence needed to widen this set correctly. The
+ * cost of being too wide is adopting an issue whose text somebody else chose,
+ * silently. Those are not comparable, so this errs narrow on purpose.
+ */
+const LINEAR_ESCAPED_PUNCTUATION = /\\([[\]])/g;
 
 export function collapseLinearEscapes(value) {
   if (typeof value !== "string" || value.indexOf("\\") === -1) return value;

@@ -59,8 +59,12 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     'the escaped form collapses back to the exact original text');
 
   // --- 2. It must stay narrow ----------------------------------------------
-  ok(collapseLinearEscapes('a \\\\ b') === 'a \\ b',
-    'an escaped backslash collapses to one backslash');
+  // Narrowed 2026-09-15 (Codex, 2nd pass): a bare `\\\\` is NOT stripped any more,
+  // because a backslash is not a character Linear was observed to escape. The
+  // case that actually needed it still works, because the escape sits directly
+  // in front of a bracket and the bracket is in the set -- asserted below.
+  ok(collapseLinearEscapes('a \\\\ b') === 'a \\\\ b',
+    'a bare escaped backslash is left alone: not an observed Linear rewrite');
   ok(collapseLinearEscapes('C:\\path\\to\\file') === 'C:\\path\\to\\file',
     'a backslash before a LETTER is not an escape and is left untouched');
   ok(collapseLinearEscapes('plain text') === 'plain text'
@@ -83,8 +87,23 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     "CODEX #1406: a stored '# Heading' does NOT adopt an intent of '\\# Heading' — a person changed it");
   ok(!linearDescriptionMatches('*text*', '\\*text\\*'),
     "CODEX #1406: the same holds for emphasis — '*text*' does not adopt an intent of '\\*text\\*'");
-  ok(linearDescriptionMatches('\\# Heading', '# Heading'),
-    'the other direction still adopts: Linear escaping OUR heading marker is Linear\'s rewrite, not a human edit');
+  // CODEX #1406, SECOND PASS. This assertion used to read the other way -- it
+  // ACCEPTED this pair, on the reasoning that Linear escaping our heading
+  // marker was the likelier cause than a person typing the escape. Likelier is
+  // not distinguishable: the stored bytes are identical either way, so
+  // directionality closed one collision direction and left this one open. The
+  // escape set is now restricted to characters Linear has actually been seen to
+  // escape, which is what shuts it.
+  ok(!linearDescriptionMatches('\\# Heading', '# Heading'),
+    "CODEX #1406 (2nd): a stored '\\# Heading' does NOT adopt an intent of '# Heading' — indistinguishable from a human edit");
+  ok(!linearDescriptionMatches('\\*t\\*', '*t*'),
+    "CODEX #1406 (2nd): nor does a stored '\\*t\\*' adopt an intent of '*t*'");
+
+  // The set is evidence-gated, so assert what is IN it and what is OUT of it.
+  ok(collapseLinearEscapes('\\[a\\]') === '[a]',
+    'the OBSERVED escapes — square brackets, from the live orphan — are stripped');
+  ok(collapseLinearEscapes('\\# \\* \\_ \\` \\! \\.') === '\\# \\* \\_ \\` \\! \\.',
+    'every character NOT observed being escaped by Linear is left completely alone');
   ok(linearDescriptionMatches('\\*text\\*', '\\*text\\*'),
     'a description we genuinely sent escaped, stored verbatim, matches byte-identically (no false mismatch)');
   ok(linearDescriptionMatches('\\\\[x\\\\]', '\\[x\\]'),
@@ -130,6 +149,9 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     'createIntentMismatches compares descriptions through the directional matcher, stored side first');
   ok(!/collapseLinearEscapes\(\s*(expected|intent)/.test(mappingSource),
     'escapes are never stripped from the side WE sent (the directionality is not quietly undone)');
+  const escapeSet = /const LINEAR_ESCAPED_PUNCTUATION = \/[^\n]*\/g;/.exec(mappingSource);
+  ok(!!escapeSet && escapeSet[0].length < 60,
+    'the escape set stays SMALL — widening it on a hunch is what this suite exists to catch (' + (escapeSet ? escapeSet[0] : 'not found') + ')');
 
   if (failures) {
     console.error(`\n${failures} Linear description-escape check(s) failed`);

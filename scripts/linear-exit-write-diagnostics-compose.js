@@ -2,14 +2,14 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto');const root=path.resolve(__dirname,'..');
 function pinned(file,hash){const b=fs.readFileSync(path.join(root,file));if(crypto.createHash('sha256').update(b).digest('hex')!==hash)throw Error('WR101_SOURCE_DRIFT');return b.toString('utf8');}
 function once(source,from,to){if(source.split(from).length!==2)throw Error('WR101_SEAM_DRIFT');return source.replace(from,to);}
-function gateway(){let source=pinned('supabase/functions/production-write/index.ts','1b30b8db8c2c7ca032140c6f776588a04e3215ff82746bbeeefbfba18bb32af4');
+function gateway(){let source=pinned('supabase/functions/production-write/index.ts','a13f4c27cc1666c814f43a506a694a1189dab38c4f5aa2d4d1b8458c18bc4767');
  source='import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal } from "../_shared/write-refusal-diagnostics.mjs";\n'+source;
  source=once(source,'async function authenticate(','async function authenticateWithoutDiagnostics(');
  source+='\nasync function authenticate(supabase: SupabaseClient, req: Request, body: JsonMap, targetClientSlug: string): Promise<Principal> { const principal = await authenticateWithoutDiagnostics(supabase, req, body, targetClientSlug); captureVerifiedPrincipal(req, principal); return principal; }\n';
  source=once(source,'    if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");','    if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");\n    captureRefusalContext(req, body);');
  source=once(source,'      return json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status);','      return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));');
  return {source,separate_release_required:true,default_source_changed:false};}
-function browser({endpoint}){if(!/^https:\/\/[a-z]{20}\.supabase\.co\/functions\/v1\/write-diagnostics$/.test(endpoint))throw Error('WR101_ENDPOINT');let source=pinned('index.html','5733e642468ee06d4eebf93a4dd5428f71b55933f85f32f35a9680d87373ef2c');
+function browser({endpoint}){if(!/^https:\/\/[a-z]{20}\.supabase\.co\/functions\/v1\/write-diagnostics$/.test(endpoint))throw Error('WR101_ENDPOINT');let source=pinned('index.html','e15b741d67a8a6d7fda1876bd80ac6e638e7c87179ab9f87368dbdaa64843289');
  const helper=`    let _writeRefusalBudget = 20;
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBudget <= 0) return;

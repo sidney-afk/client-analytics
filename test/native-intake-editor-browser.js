@@ -5,15 +5,32 @@ const {execFileSync}=require('node:child_process');
 const {extractFunction}=require('./helpers/extract-function');
 const root=path.join(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const base='69ae5d338486bd8084e6bbdbe65be1c44f63dbe1';
+/*
+ * The gateway baseline had to split from `base` at the 2026-09-15 catch-up.
+ *
+ * `base` (69ae5d33) is a BRANCH commit: it already carries this branch's
+ * native-epoch routing through autoAssigneeForIntake/intakeAssigneePool. Frozen
+ * main carries the auto-assign opt-out and none of the native work. So after
+ * merging main, NO single pre-existing commit holds both, and the four gateway
+ * symbols below could not be byte-equal to either one.
+ *
+ * Re-baselining the gateway to the reviewed catch-up merge is the honest move:
+ * that commit is exactly "branch native work + main's opt-out", it is the state
+ * the owner reviewed, and the guard keeps its full strength against every later
+ * change. `base` stays where it is so the browser comparison above keeps its
+ * longer history.
+ */
+const gatewayBase='8a63649b261f09dcf140dd9c0de6e0d5c8fdd6f8';
 const oldHtml=execFileSync('git',['show',base+':index.html'],{cwd:root,encoding:'utf8',maxBuffer:8*1024*1024});
 const oldGateway=execFileSync('git',['show',base+':supabase/functions/production-write/index.ts'],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024});
+const gatewaySymbolSource=execFileSync('git',['show',gatewayBase+':supabase/functions/production-write/index.ts'],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024});
 const gateway=fs.readFileSync(path.join(root,'supabase/functions/production-write/index.ts'),'utf8');
 let checks=0;
 function pass(label){checks++;console.log('ok '+label);}
 assert.equal(extractFunction(html,'_calLegacyVideoEditorPool').replace('_calLegacyVideoEditorPool','_calNativeVideoEditorPool'),extractFunction(oldHtml,'_calNativeVideoEditorPool'));
 pass('provider browser loader body remains exact');
 for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleCreateOptions']) {
- assert.equal(extractFunction(gateway,symbol),extractFunction(oldGateway,symbol));pass(symbol+' remains exact');
+ assert.equal(extractFunction(gateway,symbol),extractFunction(gatewaySymbolSource,symbol));pass(symbol+' remains exact');
 }
 // Accepted native intake now adds routing metadata to its terminal response.
 // Remove ONLY these exact additive bytes before pinning the entire historical

@@ -5263,8 +5263,15 @@
             background: var(--field-bg); color: var(--sv-fg-bdbdb8); transition: background 0.13s, color 0.13s; text-decoration: none; }
         .cal-linear-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn svg { width: 14px; height: 14px; }
-        .cal-linear-btn.is-linked { background: var(--sv-bg-ecedfb); color: var(--sv-fg-5e6ad2); }
-        .cal-linear-btn.is-linked:hover { background: var(--sv-bg-e0e2f8); }
+        /* Video's linked pile icon (bottom-right of the thumbnail, see
+           .cal-linear-pile below) shares the same vibrant pink the Video
+           link field and status dot use, not Linear's own generic indigo --
+           that indigo is still correct everywhere ELSE Linear shows up
+           (Workload's plan-origin badge, the review panel's Linear link,
+           etc.), so it stays a component-scoped override here rather than a
+           change to --sv-fg-5e6ad2 itself. */
+        .cal-linear-btn.is-linked { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-linear-btn.is-linked:hover { background: var(--sv-slot-video-bg-hover); }
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
@@ -5891,8 +5898,22 @@
            the video slot does. The previous unscoped rule kept it purple
            even when there was no link, which masked the "needs linking"
            visual cue. */
-        .cal-linear-btn-graphic.is-linked { color: var(--sv-fg-d946ef); background: var(--sv-bg-fbe7fe); }
-        .cal-linear-btn-graphic.is-linked:hover { background: var(--sv-bg-f5d0fe); }
+        /* Same reasoning as .cal-linear-btn.is-linked above: Thumbnail's
+           LINEAR pile icon takes the same vibrant blue the Thumbnail link
+           field and status dot use, in place of its own independent
+           fuchsia -- that pairing read backwards next to the field below it
+           (Thumbnail is blue everywhere else on the card).
+           :not(.cal-prod-btn) is load-bearing (Codex, #1401): this selector
+           and .cal-linear-btn.cal-prod-btn are equal specificity, and
+           .cal-prod-btn's own rule sits BEFORE this one in the stylesheet
+           -- so without the exclusion this rule would win on source order
+           and repaint the SyncView Production graphic link blue too,
+           erasing the teal that deliberately keeps Production and Linear
+           visually apart. That is a real latent bug (it broke the same way
+           to fuchsia before this PR), just never exercised until this
+           selector's colors changed enough to get a second look. */
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) { color: var(--sv-slot-thumb-fg); background: var(--sv-slot-thumb-bg); }
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn):hover { background: var(--sv-slot-thumb-bg-hover); }
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }

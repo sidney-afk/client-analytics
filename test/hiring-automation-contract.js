@@ -39,13 +39,19 @@ ok(/\["capture_application", "claim_invite", "authorize_invite_send", "record_in
   && /action === "claim_invite"/.test(handler)
   && /action === "authorize_invite_send"/.test(handler)
   && /action === "record_invite"/.test(handler)
-  && /action === "record_booking"/.test(handler),
-  'the bridge accepts only the five bounded capture/delivery receipt actions');
+  && /action === "record_booking"/.test(handler)
+  && /action === "claim_practical_test"/.test(handler)
+  && /action === "authorize_practical_test_send"/.test(handler)
+  && /action === "record_practical_test"/.test(handler),
+  'the bridge accepts only the eight bounded capture/delivery-receipt actions (five original, plus the three Video Editor practical-test mirrors)');
 ok(/APPLICATION_EVENT_SLUG = "client-success-content-manager-application"/.test(SOURCE)
   && /INTERVIEW_EVENT_SLUG = "client-success-content-manager-interview"/.test(SOURCE)
-  && /p_source_event_slug: APPLICATION_EVENT_SLUG/.test(SOURCE)
-  && /p_source_event_slug: INTERVIEW_EVENT_SLUG/.test(SOURCE),
-  'application and booking writes are pinned to the two dedicated iClosed events');
+  && /APPLICATION_EVENT_SLUG_VIDEO_EDITOR = "video-editor-application"/.test(SOURCE)
+  && /INTERVIEW_EVENT_SLUG_VIDEO_EDITOR = "video-editor-interview"/.test(SOURCE)
+  && /function applicationEventSlugFor\(body: JsonMap\)/.test(SOURCE)
+  && /function interviewEventSlugFor\(body: JsonMap\)/.test(SOURCE)
+  && /role === "video-editor"/.test(SOURCE),
+  'application and booking writes are pinned to one of exactly two dedicated iClosed events per role, chosen from a fixed constant, never from a browser-supplied slug');
 ok(/normalizedAnswers\(body\.answers\)/.test(SOURCE)
   && /value\.length < 10/.test(SOURCE)
   && /requiredUrl\(body, "videoUrl"\)/.test(SOURCE)
@@ -55,12 +61,18 @@ ok(/hiring_capture_application_v1/.test(SOURCE)
   && /hiring_claim_next_invite_v1/.test(SOURCE)
   && /hiring_authorize_invite_send_v1/.test(SOURCE)
   && /hiring_record_invite_result_v1/.test(SOURCE)
-  && /hiring_record_interview_booking_v1/.test(SOURCE),
-  'the bridge may call only the five dedicated hiring RPC contracts');
+  && /hiring_record_interview_booking_v1/.test(SOURCE)
+  && /hiring_claim_next_practical_test_v1/.test(SOURCE)
+  && /hiring_authorize_practical_test_send_v1/.test(SOURCE)
+  && /hiring_record_practical_test_result_v1/.test(SOURCE),
+  'the bridge may call only the eight dedicated hiring RPC contracts');
 ok(/DISPATCHER_WORKER_ID = "hiring-invite-dispatch-v1"/.test(SOURCE)
   && /p_worker_id: DISPATCHER_WORKER_ID/.test(SOURCE)
   && /missing_provider_receipt/.test(SOURCE),
   'the dispatcher worker identity is server-owned and the database receipt gate is surfaced safely');
+ok(/PRACTICAL_TEST_DISPATCHER_WORKER_ID = "hiring-practical-test-dispatch-v1"/.test(SOURCE)
+  && /p_worker_id: PRACTICAL_TEST_DISPATCHER_WORKER_ID/.test(SOURCE),
+  'the practical-test dispatcher has its own distinct, server-owned worker identity');
 const claimStart = SOURCE.indexOf('async function claimInvite');
 const authorizeStart = SOURCE.indexOf('async function authorizeInviteSend');
 const claimSource = claimStart >= 0 && authorizeStart > claimStart ? SOURCE.slice(claimStart, authorizeStart) : '';

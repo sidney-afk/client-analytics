@@ -7071,3 +7071,55 @@ shrinks to one day and the card sits in it), and six cards due today against a
 4-unit cap all stay on today and turn the day red. Nothing is dropped, hidden or
 pushed past a deadline. The capacity-placement suite was converted check by
 check to the new rule rather than relaxed: 27/27.
+
+**2026-09-15 — Hiring Process: Video Editor role + practical-test stage,
+applied.** `migrations/2026-09-15-hiring-video-editor-role.sql` was dry-run
+against a disposable local Postgres 16 loaded with the exact live hiring
+migration chain (baseline hiring tables through the 2026-08-25 repair deltas)
+before being applied to the live project via the Supabase SQL editor path.
+Read back clean: `role_slug` backfilled all 14 existing rows to
+`client-success-content-manager`; the new `hiring_practical_tests_enabled`
+flag seeded `false`; `hiring_applications_source_event_slug_check` and
+`hiring_invite_jobs_interview_event_url_check` now allow both roles' iClosed
+slugs/URLs; seven new `hiring_*practical_test*` routines exist and are
+service-role-only. The dry run caught and fixed one real bug before it ever
+reached production: an ambiguous `application_id` reference in
+`hiring_set_practical_test_verdict_v1` (its own RETURNS TABLE column
+collided with the bare column reference — same class of bug the 2026-08-25
+qualification pass fixed elsewhere), qualified with a table alias like the
+existing fixes. Also noted in passing: `hiring_invites_enabled` reads back
+`true` live (not the default-off state this doc elsewhere describes as
+current) — the Client Success & Content Manager interview-invite flow is
+actively sending, with one application already at `interview_booked`. This
+migration's round-3 gate change is a no-op for that role (only role_slug =
+'video-editor' is newly gated on a passed practical test), so nothing about
+that live behavior changed.
+
+**2026-09-15 — Hiring Process: Video Editor n8n wiring, plus a self-caused
+incident during verification.** Three n8n changes, all live: `Hiring —
+Application Capture (iClosed)`'s single event-slug gate now recognizes either
+role's application event and forwards `role` to `hiring-automation`; `Sales —
+Call Booked (iClosed)`'s existing hiring early-branch now recognizes either
+role's interview event the same way (every other branch — contact/deal
+creation, confirmation emails, nurture, SMS — untouched); a new `Hiring —
+Practical Test Dispatch` workflow mirrors `Hiring — Interview Invite
+Dispatch`'s claim/authorize/send/record shape against the new outbox, using
+the same `Hiring Automation Key` and `Hello email` credentials, and is a
+no-op while `hiring_practical_tests_enabled` stays `false`.
+
+**Verifying the Application Capture change with `test_workflow` executed the
+live production version for real** — pin data alone does not stop an
+already-active workflow's own HTTP/messaging nodes, only nodes explicitly
+given pin data. One synthetic "Test Person" / `test@example.com` application
+was actually inserted into `hiring_applications`, and Kasper received one real
+Slack DM and one real Telegram message announcing it. Both were deleted
+immediately (`hiring_application_events` row 32, then the application row);
+`hiring_applications` read back at exactly 14 (unchanged) and
+`hiring_practical_test_jobs` at 0. No further `test_workflow` calls were made
+against already-active workflows after this was understood; the
+`Sales — Call Booked (iClosed)` change was verified by re-reading the staged
+draft's exact node parameters instead, then published directly. One other
+`test_workflow` call (against the not-yet-active `Practical Test Dispatch`,
+and one earlier attempt on the Sales router before understanding this) also
+reached the real `hiring-automation` endpoint with a fake contact id; both
+correctly bounced `422 application_not_found` and wrote nothing.

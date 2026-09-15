@@ -104,7 +104,12 @@ jobs:
       # form -- a leading `\\[SyncView\\] ` marker -- not to brackets in general.
       # Brackets outside the template now orphan rather than adopt. Still
       # mapping.mjs only, file count still 5.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 41eee0b62f65da448acc793a17d1495b5e34e7d19dfe1c081006e4750fe02efa
+      #
+      # Re-pinned a fifth time 2026-09-15, Codex fourth pass (P1): the marker is
+      # matched at the start of any LINE, not the description. Two of the three
+      # generated intake shapes put it in the second paragraph and would have
+      # kept orphaning. Still mapping.mjs only, file count still 5.
+      LINEAR_OUTBOUND_SOURCE_SHA256: f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

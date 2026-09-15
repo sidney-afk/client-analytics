@@ -22076,11 +22076,23 @@ same-session patch. Owner decision, 2026-09-15, with the narrow fix shipped
 today and the architectural one left open. **This is the highest-value item
 this entry leaves behind.**
 
-**The method note, and it is now the fourth restatement of the same failure.**
+**AND THE TEMPLATE SCOPING WAS A REGRESSION — same reviewer, fourth pass,
+raised P1.** `production-write` writes the marker on THREE generated shapes and
+only one puts it first: `:262` is the marker alone, while `:1046` and `:1066`
+place it in the SECOND paragraph after a `Filming Plan: <url>` line. Matching
+with `startsWith` covered one and silently missed two — and the two missed are
+the shapes that ALSO carry a bare URL, so they meet both Linear rewrites at
+once. **I cited all three line numbers in that version's justification without
+reading where in the description each marker lands.** Citing a source is not
+reading it. The exception now matches the marker at the start of any LINE, which
+covers every position the generator uses and widens the discriminator by
+nothing.
+
+**The method note, and it is now the fifth restatement of the same failure.**
 Each wrong version was defended in the code comment, the commit message and the
-PR body before anyone read it. Three times. Writing a justification down, in
+PR body before anyone read it. Four times. Writing a justification down, in
 three places, did not make it true on any of the three occasions; a reviewer
-constructing one concrete counterexample did, three times. Worse, the second
+constructing one concrete counterexample did, four times. Worse, the second
 version shipped a TEST asserting its own hole as correct — an assertion written
 from the same premise as the code it guards proves nothing, and it passed.
 

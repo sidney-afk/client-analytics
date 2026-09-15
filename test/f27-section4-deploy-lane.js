@@ -86,7 +86,9 @@ const CANDIDATES = new Map([
   // to the observed characters only. Same file, same closure, different bytes.
   // Re-pinned a fourth time (Codex 3rd pass, owner's call): escape exception
   // scoped to the observed `[SyncView]` template form. Same closure, new bytes.
-    source: '41eee0b62f65da448acc793a17d1495b5e34e7d19dfe1c081006e4750fe02efa',
+  // Re-pinned a fifth time (Codex 4th pass, P1): marker matched per LINE, so
+  // the two intake shapes that place it in paragraph two are covered.
+    source: 'f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

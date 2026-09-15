@@ -30,6 +30,53 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — B10 is not a catch-up-sized change: STOPPED after three CI rounds
+
+The catch-up to `1abdd1fa` is done and clean. **B10 is the only thing red**, and
+it needs an owner decision rather than a fourth guess.
+
+B10's own note said the change touches "the reviewed admission list **and
+retirement contract**". Only the first half was actioned. Three CI rounds each
+surfaced a different artifact that predates the table:
+
+1. `application_admission_missing_owner:hiring_practical_test_jobs` — the guard
+   calls `to_regclass` and aborts on a listed table that does not exist, so the
+   shared fixture had to apply the migration that creates it. Fixed.
+2. `hiring_practical_test_jobs_raw_footage_url_check` — adding the table to the
+   fixture's `TABLES` list made it synthesise a row, and the generator builds
+   rows from column metadata without knowing check constraints. The guard only
+   needs the table to exist, not to be populated, so that half was reverted.
+   Fixed.
+3. `retirement_trigger_contract` — the reviewed retirement contract enumerates
+   the expected trigger set, and the admission guard now attaches a trigger to
+   a table that contract does not know about. **Not fixed, deliberately.**
+
+The third is a reviewed contract describing what the retirement switch is
+allowed to see. Re-deriving it to match would be exactly the silencing rule D8
+forbids: changing a number until a guard stops objecting, without establishing
+that the new state is the intended one. It is also not verifiable here, because
+this sandbox has PostgreSQL 16 and the lane requires 17.
+
+**The shape of the finding, which is the useful part.** One word added to a
+table list has now invalidated: four hash pins across three files, one shared
+test fixture, and one reviewed retirement contract. The source file's own
+comment said it plainly and was right: *"New tables/DDL require separate
+closure."* Separate closure means a reviewed change of its own, not a line in a
+catch-up.
+
+**Two options for the owner, neither taken unilaterally:**
+
+- **Separate B10 out.** Revert the guard-list addition and its four pin
+  re-derivations and the fixture migration entry, land the pure catch-up green,
+  and do B10 as its own reviewed change that includes the retirement contract.
+  Recommended: it gets CI green now and gives B10 the review it evidently needs.
+- **Continue inside the catch-up**, which means re-deriving the retirement
+  trigger contract. That needs someone to establish what the contract *should*
+  say with the new trigger present, not just what makes it stop failing.
+
+Everything else on the branch is green: all 547 unit suites with the Postgres
+lanes enabled, the mocked Calendar browser gate, and 11 of 12 CI checks.
+
 ### 2026-09-15 — NEAR MISS: a hash was fabricated from a printed prefix, caught and corrected before it shipped
 
 Recorded first because it is the most dangerous thing that happened today, and

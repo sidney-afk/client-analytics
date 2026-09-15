@@ -348,7 +348,7 @@ function applicationDetail(
   const failureCode = safeFailureCode(job?.failure_code);
   const preview = buildInvitePreview(row);
   const role = applicationRole(row);
-  const practicalTestJob = inviteJob(row.hiring_practical_test_jobs) as
+  const practicalTestJob = inviteJob(row.hiring_practical_test_jobs) as unknown as
     (InviteJobRow & { raw_footage_url?: string | null; reference_edit_url?: string | null; subject?: string | null; body?: string | null })
     | null;
   const practicalTestState = clean(practicalTestJob?.state).toLowerCase() || null;
@@ -440,15 +440,6 @@ async function practicalTestsEnabled(db: SupabaseClient): Promise<boolean> {
   return runtimeFlagEnabled(db, "hiring_practical_tests_enabled");
 }
 
-const LIST_SELECT =
-  "id,name,email,location,status,role_slug,state_version,submitted_at,updated_at,video_url," +
-  "hiring_invite_jobs(state,updated_at),hiring_practical_test_jobs(state,updated_at)";
-const DETAIL_SELECT =
-  "id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug," +
-  "practical_test_verdict,state_version,submitted_at,updated_at," +
-  "hiring_invite_jobs(state,updated_at,failure_code,provider_message_id)," +
-  "hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)";
-
 async function listApplications(
   db: SupabaseClient,
   status: string | null,
@@ -457,7 +448,7 @@ async function listApplications(
 ): Promise<JsonMap[]> {
   let query = db
     .from("hiring_applications")
-    .select(LIST_SELECT)
+    .select("id,name,email,location,status,role_slug,state_version,submitted_at,updated_at,video_url,hiring_invite_jobs(state,updated_at),hiring_practical_test_jobs(state,updated_at)")
     .order("submitted_at", { ascending: false })
     .limit(limit);
   if (status) query = query.eq("status", status);
@@ -472,7 +463,7 @@ async function listApplications(
 async function getApplication(db: SupabaseClient, id: string): Promise<ApplicationRow> {
   const { data, error } = await db
     .from("hiring_applications")
-    .select(DETAIL_SELECT)
+    .select("id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug,practical_test_verdict,state_version,submitted_at,updated_at,hiring_invite_jobs(state,updated_at,failure_code,provider_message_id),hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HiringApplicationsError(503, "service_unavailable");

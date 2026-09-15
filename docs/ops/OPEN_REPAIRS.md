@@ -21827,3 +21827,78 @@ ordinary refresh keeps the pin exactly where it was, says nothing about a
 shortfall when there was none, and leaves its own snapshot cached). 101
 assertions across 20 phases. Verified pre-existing: the same probe on `555e662`, before
 any of the boot-speed work, loses the card in exactly the same silence.
+
+---
+---
+
+## 210. [2026-09-15, PARTIALLY FIXED — live budget raised; the real fix is still open] Two people, one card, two different days: `workload-plan`'s alias deadline was a coin flip
+
+**REPORTED** as "I pinned a card to Wednesday, I still see Wednesday after a
+refresh, my SMM sees Tuesday." Neither browser was wrong and neither was stale.
+The endpoint answered them differently.
+
+**MEASURED, live, before any change.** Three overrides for one client had been
+saved minutes earlier, all three to the same day, all three present in
+`workload_plan` with the right date. Nothing was lost at any point.
+
+**MECHANISM.** `workload_plan` holds two identity namespaces for the same card:
+the Linear issue uuid (262 rows) and the native `del_…` deliverable id (80 rows,
+first written 2026-09-08). `action:'list'` papers over that with
+`legacyPlanAliases()`, which emits every override under BOTH keys — but only
+when the enriched snapshot wins a race against `LIST_ENRICH_BUDGET_MS`. On the
+losing branch the endpoint answers `ok_unaliased`: every stored override, keyed
+exactly as stored, no aliases. A board keyed on the Linear uuid then cannot see
+a natively-keyed override at all, so those cards fall back to automatic
+placement — one working day before the deadline. That is one column earlier,
+which is exactly the divergence that was reported.
+
+The three cards in the report have a deadline of the day AFTER the pinned day,
+so the unaliased board placed them the day BEFORE the pin. Same data, same code,
+different column.
+
+**WHY IT WAS A COIN FLIP.** In the function logs the enriched snapshot lands at
+**2.5–2.8 s** against a **3.0 s** deadline. Of 40 consecutive `list` calls, 18
+logged `ok_unaliased` at a flat ~3004 ms. Not degraded under load, not an
+outage: a deadline set a few hundred milliseconds above the thing it was timing.
+Which board you got depended on nothing a person could see or control, which is
+why it read as one person's browser being broken.
+
+**NOTHING WARNED ANYONE.** `renderWorkloadPlanStatus()` speaks for a plan read
+that FAILED. This one succeeded — `{ok:true, complete:true}` — with a subset of
+the overrides it should have carried. The board painted a clean, confident,
+wrong calendar. The unaliased path already knows it is degraded (it has its own
+outcome string); the browser is never told.
+
+**DONE.** `LIST_ENRICH_BUDGET_MS` 3000 → 5000, deployed to live as
+`workload-plan` v12 (operator-manual lane, `--no-verify-jwt` preserved,
+smoke-tested: unauthenticated `list` → 401 `unauthorized`, bad action → 400
+`invalid_action`). 5 s is ~1.8× the measured cost with 3 s still inside the
+browser's 8 s abort — the abort matters, because a snapshot that HANGS is now
+held 5 s before the bounded read may answer, and overrunning the abort loses
+every saved day plus editing, which is worse than an unaliased list.
+
+**NOT DONE, and this is the item.**
+
+1. **The deadline is still a race.** The snapshot grows with the board. When it
+   crosses 5 s this returns, and it will look exactly as mysterious the second
+   time. The fix is for the FALLBACK to alias: a small id-map read the degraded
+   path can afford on its own, so a slow or unhappy snapshot costs latency and
+   never correctness. Slowness is not the only door either — a snapshot that
+   fails validation takes the same unaliased path however long it is given.
+2. **The degraded answer is silent.** `ok_unaliased` should reach the browser as
+   a flag on the response and show a plan-status warning. A wrong calendar that
+   looks right is the expensive part of this whole item.
+3. **Two namespaces is the root cause.** One canonical key, with the 80 native
+   rows migrated, ends the class. Owner decision — scope §6.1 in
+   `docs/ops/WORKLOAD_NATIVE_SOURCE.md` — and a key migration, not a flag.
+
+**REPO/LIVE DRIFT, found on the way and worth its own attention.** Live
+`workload-plan` is far ahead of `main`: the deployed function has the native
+snapshot, the alias adapter, `native_snapshot`, and the RPC write path, none of
+which exist in `supabase/functions/workload-plan/` on `main` (that copy would
+REJECT a native id outright). The deployed bytes match
+`origin/prep/linear-exit-review-fixes-20260913` — verified file by file before
+redeploying, which is the only reason this change could be made without
+regressing live. `docs/ops/EF_DEPLOY_MANIFEST.md` still records "deployed by
+operator from `fd3e0eaa` on 2026-07-20". Anything that captures `main` as the
+rollback truth for this function is capturing code that is not live.

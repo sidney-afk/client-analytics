@@ -30,6 +30,119 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — Owner sitting on the Windows machine: Storage capture passed; catalog refused on live schema drift; steps 8, 9 and 10 not run
+
+Run from the owner's machine against the sitting page, in its order. Nothing
+installed, applied, deployed, merged or dispatched. Main still `0aa5954`.
+
+**Storage capture (step 1), two attempts.**
+
+- Attempt 1 refused after about 19 minutes with `STORAGE_EXPORT_BODY`, at 15,307
+  Storage reads during the encrypted export. Read against the adapter source,
+  that code is a stream error while reading an object body after the request
+  was answered: not the version/size drift fence, not a timeout, not the size
+  limit, and the log shows no non-200 response. Classified as transport, not a
+  broken quiet window. Directory, log and refusal receipt preserved; no
+  plaintext left behind. Owner chose one new attempt.
+- Between the two attempts Storage gained one object (1,084 to 1,085) with no
+  known source. Harmless to attempt 2 because it takes a fresh inventory, and it
+  did not recur during the export.
+- Attempt 2 **PASSED**: 1,085 objects, 2 buckets, 2,343,907,896 bytes,
+  `local_readback_verified: true`, plaintext readback removed. All seven source
+  pins equal to independently computed hashes of the checkout. Inventory SHA-256
+  `c2867ecb6f4cf17fe1238913e046ead12822ac596e2c1a824dc93df5ec17803c`, encrypted
+  manifest SHA-256
+  `47efa156367266af775d68125706be3616aa0f730217003cb3c61e4af61150ce`. 2,824
+  ciphertext files.
+- Transport archive packed with the operator file's own `pack` command:
+  `PACKAGED_NOT_UPLOADED`, 2,824 files, 2,346,184,452 bytes, SHA-256
+  `02bbd69b6a98fa8990a1a4dd7e2bab7b24b01284e1ca47e1eadadcdab7ef9a5a`.
+- **Step 1 is not complete.** The owner has not uploaded it, not chosen the
+  second device, and not downloaded it. The drill is explicitly not started.
+
+**Catalog read (step 8), two runs.**
+
+- Run 1 refused with the wrapper's catch-all. Local checks found the pinned CA
+  file `%APPDATA%\postgresql\root.crt` absent, with its whole folder gone,
+  although yesterday's passing smoke run had used it. Nothing was substituted by
+  the session. The owner downloaded Supabase's public root certificate from the
+  project's own dashboard and placed it. The session verified it before use:
+  exact filename, one clean PEM block, no HTML or stray text, parses as the
+  self-signed CA "Supabase Root 2021 CA", valid to 2031, SHA-256 fingerprint
+  beginning `80:70:25:AD`. **Why the folder disappeared is unknown; recorded by
+  owner instruction, not chased.**
+- Run 2: identity matched yesterday exactly, `tls_verified: true`, but catalog
+  hash `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`
+  matched **neither** profile (`profile: null`, exit 2). Stopped. Step 9 was not
+  started and its wrapper would have refused that receipt anyway.
+- The diff against yesterday's passing `observed67_optout` catalog is entirely
+  hiring: one new table, 4 indexes, 2 triggers, 4 internal constraint triggers,
+  7 new functions, 3 changed function bodies, two new columns and check changes
+  on `hiring_applications`, check changes on two other hiring tables, and 49
+  dependency rows. Policies, default ACLs, sequences, views, types, rules and
+  publications identical. Nothing named `team_members` changed.
+- Source: the owner's own hiring practical-test migration, applied deliberately
+  and dry-run first, unrelated to the Linear exit, on branch
+  `claude/serene-hawking-6cdglo` (PR #1407), not on main.
+
+**Owner decisions taken in the sitting.** Do not re-pin; do not run 8, 9 or 10
+today; classify instead. See D12.
+
+**Classification: is the hiring change confined to hiring?** Answered from code,
+not from structure.
+
+What was checked:
+
+1. The migration file on the branch (964 lines, fetched only, never checked
+   out), SHA-256 `92af9c25e5b0c2846c58e62e596b3a68a5a6e3217a68efd4dabcb82fdd5024e0`.
+2. The live definitions of all ten functions, read-only via
+   `pg_get_functiondef`: the seven new
+   `hiring_authorize_practical_test_send_v1`,
+   `hiring_claim_next_practical_test_v1`, `hiring_queue_practical_test_v1`,
+   `hiring_record_practical_test_result_v1`,
+   `hiring_require_practical_test_send_authorization`,
+   `hiring_retry_failed_practical_test_v1`,
+   `hiring_set_practical_test_verdict_v1`, and the three changed
+   `hiring_capture_application_v1`, `hiring_queue_interview_invite_v1`,
+   `hiring_record_interview_booking_v1`.
+3. **File against live: identical.** For all ten, the md5 of the body text in
+   the file equals the live `body_raw_md5` in today's catalog. Security-definer,
+   `search_path` and execute grants also agree with the file.
+4. The new table's columns, constraints and its only foreign key (to
+   `hiring_applications`), its two triggers, and every added dependency edge.
+5. The installation side: the 48-source plan builders, the admission guard
+   source and the retirement contract source.
+
+The answer has two directions, and it is **not** "confined to hiring".
+
+- **Hiring code into non-hiring objects.** Every table read or written by the
+  ten bodies is a hiring table, with one exception:
+  `public.syncview_runtime_flags`. Six functions read their own keys from it
+  (`hiring_practical_tests_enabled`, and `hiring_invites_enabled` in the
+  interview invite). `hiring_authorize_practical_test_send_v1` takes a
+  `FOR SHARE` row lock on its row. The migration also **inserted one row** into
+  that table (the new kill switch, seeded disabled). No function writes outside
+  hiring. The `touch_updated_at` trigger calls the pre-existing
+  `hiring_touch_updated_at()`. The one non-security-definer trigger function
+  keeps Postgres's default public execute, which the file never revokes.
+- **The installation into hiring.** The installation writes onto hiring tables.
+  The admission guard source, which is in the 48 through the admission release
+  extension, creates `aaa_application_dml_admission_statement` and `…_row`
+  triggers on an exact 86-table list. That list includes `hiring_applications`,
+  `hiring_application_events`, `hiring_invite_jobs` and
+  `syncview_runtime_flags`, but **not** `hiring_practical_test_jobs`. The
+  retirement contract pins those three hiring guard triggers by definition hash.
+  The admission gate installs `open`, so on install day the guards pass
+  everything through. Once admission is closed, writes to the three guarded
+  hiring tables are refused, while updates confined to the new table (claim,
+  authorize, record result) would still commit. The source's own comment says
+  new tables require separate closure. See B10.
+- **Not affected.** The retirement trigger contract scopes itself to named
+  control tables plus the `aaa_application_dml_admission_%` triggers, so the new
+  table's own triggers do not trip it. None of the four legacy hiring migrations
+  is in the install manifest, so installation replays nothing hiring. The new
+  table uses no sequences.
+
 ### 2026-09-15 — Step 2 answered: NO single commit matches all thirteen deployed functions
 
 Recovery route C1, which assumes one older main commit matches every deployed
@@ -438,6 +551,25 @@ frozen main, so having no deployed version is expected. B7 replaces it on the
 correct basis, and reaches a weaker and more honest conclusion: unproven rather
 than unavailable.
 
+| B9 | The live database is ahead of main: the owner's hiring practical-test migration was applied live, so the catalog matches neither reviewed profile and steps 8, 9 and 10 cannot pass | Owner, the hiring migration landing on main after the freeze | Once it is on main, re-derive the catalog profile once against that settled state, review it, then run steps 8, 9 and 10 back to back. Added 2026-09-15. Keeps B2 open |
+| B10 | Admission closure does not cover the new `hiring_practical_test_jobs` table, and the reviewed admission list and retirement contract predate it | Owner and session, before the installation is re-planned for B9 and before admission is ever closed | Decide whether the new table joins the admission guard list, re-derive the guard source and retirement contract expectations if so, and record the classification of the hiring reads and the one inserted row in `syncview_runtime_flags`. Added 2026-09-15 |
+
+**B1 narrowed, 2026-09-15, not cleared.** The quiet-window capture passed on
+its second attempt and the transport archive is packed. Still outstanding: the
+owner's private upload, a download on a second device (not yet chosen), the
+hash and size comparison, and a passing restore of the downloaded copy. B1 stays
+open until that restore passes.
+
+**B2 stays open, 2026-09-15.** Run 2 of the catalog read verified TLS and
+identity, which clears the TLS half of the original row. The profile half now
+fails for a new reason, B9. Not cleared.
+
+**Note on the freeze, 2026-09-15, owner.** The freeze at `0aa5954` was defined
+as a merge freeze. It did not cover live schema changes, and one was applied the
+same day through a separate session. Freezing merges does not freeze the
+database the plan was reviewed against. A future freeze for this work should
+say whether it also freezes live DDL.
+
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a
 session's addition.
@@ -586,11 +718,40 @@ step 27.
 
 ---
 
+### D12 — No catalog re-pin until the hiring migration is on main (2026-09-15, owner)
+
+The live catalog no longer matches either reviewed profile, because of the
+owner's own deliberate hiring migration. The owner ruled against adding or
+re-deriving a profile now. The live database is ahead of main, and re-pinning
+against it would mean doing it twice: once now, and again when the migration
+merges after the freeze. The profile is re-derived **once**, against a settled
+state, after the hiring change is on main.
+
+Consequence: steps 8, 9 and 10 do not run until then. They are day-of work
+anyway, so little is lost. A future session must not "fix" the catalog refusal
+by adding the `ddfa4c4f…` hash as a third profile.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because
 a record that only contains things that went right teaches a future session
 nothing.
+
+### 2026-09-15 — The sitting session reported 7 of 28, and nearly called the hiring change confined
+
+Two things from the Windows sitting.
+
+The session printed "7 of 28" in its progress lines. The authoritative figure
+is **6 of 28, about 21%**, per the entry above. Step 8 was in progress and does
+not count. The owner caught it.
+
+On the hiring drift, the first structural pass (one foreign key inside hiring,
+dependency edges only to the language and the schema) invited the conclusion
+"confined to hiring". Postgres does not record what a plpgsql body reads, so
+that pass could not have seen the reads and row lock on `syncview_runtime_flags`,
+which are in the bodies. Nor does it show the reverse direction, the
+installation's own guard triggers on hiring tables. The owner required the
+answer from code. The code showed it was not confined in either direction.
 
 ### 2026-09-15 — The pin sweep was wrong in kind, not just in count
 

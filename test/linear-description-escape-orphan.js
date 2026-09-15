@@ -42,7 +42,7 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
 (async () => {
   const mapping = await import(require('node:url').pathToFileURL(path.join(ROOT, 'mapping.mjs')).href
     + '?description-escape-test');
-  const { collapseLinearEscapes, linearDescriptionMatches, decideConflict } = mapping;
+  const { collapseSyncViewTemplateEscape, linearDescriptionMatches, decideConflict } = mapping;
 
   // --- 1. The exact live strings that produced the orphans ------------------
   const SENT = '[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.';
@@ -55,22 +55,18 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     'PRE-FIX BEHAVIOUR: a raw byte comparison of sent vs kept DOES differ — the false mismatch that orphaned VID-13912');
   ok(linearDescriptionMatches(KEPT, SENT),
     "Linear's escaped form of the app's own template matches what we sent (the live orphan string)");
-  ok(collapseLinearEscapes(KEPT) === SENT,
-    'the escaped form collapses back to the exact original text');
+  ok(collapseSyncViewTemplateEscape(KEPT) === SENT,
+    'the escaped template marker collapses back to the exact original text');
 
   // --- 2. It must stay narrow ----------------------------------------------
-  // Narrowed 2026-09-15 (Codex, 2nd pass): a bare `\\\\` is NOT stripped any more,
-  // because a backslash is not a character Linear was observed to escape. The
-  // case that actually needed it still works, because the escape sits directly
-  // in front of a bracket and the bracket is in the set -- asserted below.
-  ok(collapseLinearEscapes('a \\\\ b') === 'a \\\\ b',
-    'a bare escaped backslash is left alone: not an observed Linear rewrite');
-  ok(collapseLinearEscapes('C:\\path\\to\\file') === 'C:\\path\\to\\file',
-    'a backslash before a LETTER is not an escape and is left untouched');
-  ok(collapseLinearEscapes('plain text') === 'plain text'
-    && collapseLinearEscapes('') === ''
-    && collapseLinearEscapes(null) === null
-    && collapseLinearEscapes(undefined) === undefined,
+  ok(collapseSyncViewTemplateEscape('a \\ b') === 'a \\ b',
+    'a bare escaped backslash is left alone');
+  ok(collapseSyncViewTemplateEscape('C:\\path\\to\\file') === 'C:\\path\\to\\file',
+    'a backslash before a LETTER is left untouched');
+  ok(collapseSyncViewTemplateEscape('plain text') === 'plain text'
+    && collapseSyncViewTemplateEscape('') === ''
+    && collapseSyncViewTemplateEscape(null) === null
+    && collapseSyncViewTemplateEscape(undefined) === undefined,
   'plain text, empty, null and undefined pass through unchanged');
   ok(!linearDescriptionMatches('one [a] two', 'one [b] two'),
     'two genuinely different descriptions still compare as different (create idempotency is not weakened)');
@@ -100,14 +96,28 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     "CODEX #1406 (2nd): nor does a stored '\\*t\\*' adopt an intent of '*t*'");
 
   // The set is evidence-gated, so assert what is IN it and what is OUT of it.
-  ok(collapseLinearEscapes('\\[a\\]') === '[a]',
-    'the OBSERVED escapes — square brackets, from the live orphan — are stripped');
-  ok(collapseLinearEscapes('\\# \\* \\_ \\` \\! \\.') === '\\# \\* \\_ \\` \\! \\.',
-    'every character NOT observed being escaped by Linear is left completely alone');
+  // CODEX #1406, THIRD PASS — owner's call, 2026-09-15. Pass two narrowed the
+  // set to `[` and `]`; Codex showed the live evidence only ever established
+  // ONE STANDALONE TEMPLATE, so a reference link `[label][ref]` edited to
+  // `\\[label\\][ref]` still compared equal. The exception is now scoped to the
+  // observed form: a leading `\\[SyncView\\] ` marker, this app's own, un-escaped
+  // once.
+  ok(!linearDescriptionMatches('\\[label\\][ref]', '[label][ref]'),
+    "CODEX #1406 (3rd): a reference link a person escaped is NOT adopted");
+  ok(!linearDescriptionMatches('\\[x\\]', '[x]'),
+    'brackets OUTSIDE the template orphan rather than adopt — the deliberate, visible direction');
+  ok(collapseSyncViewTemplateEscape('\\[SyncView\\] x') === '[SyncView] x',
+    "the app's own template marker is the one form un-escaped");
+  ok(collapseSyncViewTemplateEscape('lead \\[SyncView\\] x') === 'lead \\[SyncView\\] x',
+    'and only at the START — a marker mid-description is not a template we wrote');
   ok(linearDescriptionMatches('\\*text\\*', '\\*text\\*'),
     'a description we genuinely sent escaped, stored verbatim, matches byte-identically (no false mismatch)');
-  ok(linearDescriptionMatches('\\\\[x\\\\]', '\\[x\\]'),
-    'Linear escaping our backslash is still adopted');
+  // Narrowed by the third pass and left narrowed on purpose. This pair is
+  // brackets outside the template, so it now orphans instead of adopting. It
+  // was never an observed live case -- it existed to justify the general
+  // character set, and the general set is gone.
+  ok(!linearDescriptionMatches('\\\\[x\\\\]', '\\[x\\]'),
+    'an escaped-backslash bracket pair outside the template orphans (the general set it justified is gone)');
   ok(!linearDescriptionMatches('\\[x\\]', 'totally different'),
     'stripping escapes from the stored side cannot rescue a genuinely different intent');
 
@@ -149,9 +159,9 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     'createIntentMismatches compares descriptions through the directional matcher, stored side first');
   ok(!/collapseLinearEscapes\(\s*(expected|intent)/.test(mappingSource),
     'escapes are never stripped from the side WE sent (the directionality is not quietly undone)');
-  const escapeSet = /const LINEAR_ESCAPED_PUNCTUATION = \/[^\n]*\/g;/.exec(mappingSource);
-  ok(!!escapeSet && escapeSet[0].length < 60,
-    'the escape set stays SMALL — widening it on a hunch is what this suite exists to catch (' + (escapeSet ? escapeSet[0] : 'not found') + ')');
+  ok(/ESCAPED_SYNCVIEW_TEMPLATE_MARKER/.test(mappingSource)
+    && !/LINEAR_ESCAPED_PUNCTUATION/.test(mappingSource),
+  'the general punctuation set is GONE — the exception is template-scoped, and a future widening has to be deliberate');
 
   if (failures) {
     console.error(`\n${failures} Linear description-escape check(s) failed`);

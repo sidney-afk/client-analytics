@@ -538,26 +538,49 @@ export function collapseLinearAutolinks(value) {
  * (unescaped brackets) before any unescaping happens.
  */
 /*
- * NARROWED AGAIN, 2026-09-15, on Codex's second pass — and this set is now
- * EVIDENCE-GATED. It holds exactly the characters Linear has been OBSERVED to
- * escape, which is `[` and `]`, from the live orphan `\[SyncView\]`. Nothing
- * is here by extrapolation from CommonMark.
+ * NARROWED TO THE TEMPLATE, 2026-09-15, on Codex's THIRD pass — and this is the
+ * owner's call, not a fourth guess.
  *
- * Adding a character to this set is not free, so do not widen it on a hunch.
- * Each one admits a stored form that a PERSON could equally have typed, and
- * stripping it makes their edit compare equal to our intent. Widen it only
- * when a real orphan names the character, the way `[` and `]` were named.
+ * Pass two narrowed the escape set from "every CommonMark escape" to "`[` and
+ * `]`", on the evidence of the live orphan. Codex then pointed out the claim
+ * was still too broad: the live observation established that Linear escapes ONE
+ * STANDALONE TEMPLATE, `[SyncView] …`, and nothing about brackets in general.
+ * A description intending a reference link `[label][ref]`, edited by a person
+ * to `\[label\][ref]`, renders differently but compared equal — the third
+ * instance of the same hole, found the same way.
  *
- * The cost of being too narrow is an orphan: visible, reported, recoverable,
- * and it arrives with the evidence needed to widen this set correctly. The
- * cost of being too wide is adopting an issue whose text somebody else chose,
- * silently. Those are not comparable, so this errs narrow on purpose.
+ * So the exception is now scoped to the FORM ACTUALLY OBSERVED: a leading
+ * `\[SyncView\] ` marker, un-escaped once, at the start of the stored
+ * description. That marker is this app's own, written by `production-write` on
+ * exactly three templates (`production-write/index.ts:262`, `:1046`, `:1066`),
+ * and it cannot appear in a reference link a person would write.
+ *
+ * Every other bracket in every other context is now left alone, which means a
+ * bracketed description we did NOT generate will orphan rather than adopt.
+ * That is the deliberate direction: an orphan is visible, reported, recoverable,
+ * and arrives carrying the evidence needed to widen this correctly — which is
+ * exactly how `[SyncView]` got here.
+ *
+ * WHY THIS KEEPS HAPPENING, recorded because the third instance is a pattern
+ * and not an accident. Ownership of a create is already established by the id:
+ * the drainer looks the issue up at a UUIDv5 it mints itself from the row's
+ * `dedup_key` (`_shared/linear-create-id.mjs`), handed to Linear as `input.id`,
+ * so an issue at that id is ours by construction and no foreign issue can
+ * occupy it. Comparing description TEXT to re-establish that ownership is doing
+ * work the id already did, and each hole above is a symptom of it. Dropping
+ * `description` from the create comparison would remove the class rather than
+ * its instances — deliberately NOT done here, because it retires a guard on the
+ * production write path and deserves its own reviewed change rather than a
+ * fourth same-session patch. Owner decision, 2026-09-15.
  */
-const LINEAR_ESCAPED_PUNCTUATION = /\\([[\]])/g;
+const SYNCVIEW_TEMPLATE_MARKER = "[SyncView] ";
+const ESCAPED_SYNCVIEW_TEMPLATE_MARKER = "\\[SyncView\\] ";
 
-export function collapseLinearEscapes(value) {
-  if (typeof value !== "string" || value.indexOf("\\") === -1) return value;
-  return value.replace(LINEAR_ESCAPED_PUNCTUATION, "$1");
+export function collapseSyncViewTemplateEscape(value) {
+  if (typeof value !== "string" || !value.startsWith(ESCAPED_SYNCVIEW_TEMPLATE_MARKER)) {
+    return value;
+  }
+  return SYNCVIEW_TEMPLATE_MARKER + value.slice(ESCAPED_SYNCVIEW_TEMPLATE_MARKER.length);
 }
 
 /*
@@ -568,7 +591,7 @@ export function linearDescriptionMatches(actual, expected) {
   const stored = collapseLinearAutolinks(actual);
   const intent = collapseLinearAutolinks(expected);
   if (stored === intent) return true;
-  return collapseLinearEscapes(stored) === intent;
+  return collapseSyncViewTemplateEscape(stored) === intent;
 }
 
 function createIntentMismatches(issue, payload, context) {

@@ -2,6 +2,8 @@
 
 Emergency entrypoint: [database, website and function recovery](LINEAR_EXIT_RECOVERY_PROCEDURE.md). Read this before authorizing the installation window.
 
+**Read second, after this file: the [running journal](LINEAR_EXIT_JOURNAL.md).** This checkpoint says where we are; the journal says how we got here and why. It carries the progress log, the live blocker list, and every decision with its reasoning and who made it. Read its decisions section before changing anything that looks settled, so you do not relitigate or silently undo a call that was already made. Update it as part of finishing a step, append only, corrections below originals.
+
 Owner keyboard sitting for steps 1, 8, 9, 10 and 11: [owner sitting page](LINEAR_EXIT_OWNER_SITTING_20260915.md). One ordered page with the exact command for each, what output means it worked, timings, what to have on hand before starting, and where it is safe to stop. Storage custody runs FIRST in that page: the catalog read expires after an hour and must be immediately followed by the database refresh, so doing Storage in between would force a re-run.
 
 This is the single entry point. Keep updating this file; 20260914 in its filename is its creation date, not a promise that every observation is fresh. Historical documents are supporting evidence, not competing checklists.

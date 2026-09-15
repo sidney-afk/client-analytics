@@ -33,6 +33,13 @@ const CHAIN = [
   '2026-08-19-samples-batch-purpose.sql',
   '2026-08-19-samples-batch-write-purpose.sql',
   '2026-08-24-public-intake-log.sql',
+  // Added by the 2026-09-15 catch-up. The gateway's roster read now names
+  // team_members.auto_assign_opt_out, so a fixture built without this additive
+  // column makes every assignee lookup fail 503 assignee_lookup_unavailable.
+  // This list binds to the live schema, so a new migration on main has to land
+  // here too, exactly as the migration's own note warns: apply it before the
+  // code that selects the column.
+  '2026-09-14-team-members-auto-assign-opt-out.sql',
 ];
 /* Compiled with check_function_bodies = on, like the fill rehearsal does. */
 const SUBJECTS = [

@@ -178,6 +178,13 @@
                 // (LINEAR_ISSUES_TTL_MS) mean the app would not read at all.
                 var wlKilled = false, wlFresh = false;
                 try { wlKilled = localStorage.getItem('syncview_workload_v2_off') === '1'; } catch (e) {}
+                // The URL override wins over storage, exactly as _wlV2Enabled()
+                // resolves it later: ?wl2=0 is the documented per-browser
+                // rollback and must contain this request too, not just the
+                // board's own; ?wl2=1 clears a stored opt-out.
+                var wl2 = q.get('wl2');
+                if (wl2 === '0' || wl2 === 'false') wlKilled = true;
+                else if (wl2 === '1' || wl2 === 'true') wlKilled = false;
                 try {
                     var wlRaw = localStorage.getItem('syncview_linearIssuesCache_v1');
                     var wlCache = wlRaw ? JSON.parse(wlRaw) : null;

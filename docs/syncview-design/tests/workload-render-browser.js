@@ -24,7 +24,7 @@ const {
 const PHASES = [
   'week_structure', 'capacity_at_cap', 'capacity_over', 'weights',
   'labels_auto_manual', 'label_loading', 'label_fallback',
-  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint', 'early_issue_fetch',
+  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint', 'early_issue_fetch', 'early_fetch_rollback',
   'exclusions', 'filters', 'permissions_readonly', 'permissions_admin',
 ];
 let currentPhase = PHASES[0];
@@ -358,6 +358,26 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       expect(seen.sameUrl, 'the head-script early fetch targets the same workload_issues URL as the app constant');
       expect(seen.adopted && seen.page0 === 1, 'the app adopts the early page-0 response: one page-0 request on the boot, then cleared');
       expect(seen.cards > 0, 'the board renders from the adopted response');
+    } finally { await h.close(); }
+  }
+
+  phase('early_fetch_rollback');
+  {
+    /*
+     * `?wl2=0` is the documented per-browser rollback off the Supabase read.
+     * The head script sees the query before any storage flag exists, so the
+     * early page-0 request must not go out either: during an incident the
+     * rollback has to contain every request to that endpoint, not just the
+     * board's own. (Codex review on #1399.)
+     */
+    const h = await launchWorkloadHarness({ issues: [parentRow({}), sub('r1', { due_date: WED })], query: 'wl2=0' });
+    try {
+      const seen = await h.page.evaluate(() => ({
+        early: typeof window.__wlEarlyIssues,
+        supabaseIssueReads: performance.getEntriesByType('resource').filter(r => /workload_issues/.test(r.name)).length,
+      }));
+      expect(seen.early === 'undefined' && seen.supabaseIssueReads === 0,
+        'with ?wl2=0 in the URL the head script starts no early Supabase read and the board issues none');
     } finally { await h.close(); }
   }
 

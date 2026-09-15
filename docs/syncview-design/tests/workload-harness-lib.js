@@ -146,6 +146,8 @@ function parentRow(overrides) {
  *   planListStatus  force the saved-plan LIST read to fail with this status.
  *   holdMetadata  hold the weight/metadata read open, parking the board in its
  *                 fast first paint until `state.releaseMetadata()` is called.
+ *   query         extra query string for the boot URL (e.g. 'wl2=0'), before the
+ *                 #workload hash.
  *   holdIssues    hold the issue snapshot read open until `state.releaseIssues()`
  *                 is called; `state.holdIssuesRead()` re-arms it before a reload.
  */
@@ -331,7 +333,8 @@ async function launchWorkloadHarness(options) {
     return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
   });
 
-  await page.goto(`http://127.0.0.1:${server.address().port}/#workload`, { waitUntil: 'domcontentloaded' });
+  const query = opts.query ? '?' + String(opts.query).replace(/^\?/, '') : '';
+  await page.goto(`http://127.0.0.1:${server.address().port}/${query}#workload`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.workload-view', { timeout: 20000 });
 
   const close = async () => {

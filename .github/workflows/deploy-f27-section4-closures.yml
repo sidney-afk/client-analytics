@@ -68,7 +68,23 @@ jobs:
       # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
       # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
       # File count is unchanged, so the closure membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
+      # Re-pinned 2026-09-15 (tenth release): LINEAR'S OWN ESCAPING STOPS
+      # ORPHANING OUR ISSUES. Post-create verification byte-compared the
+      # description we sent against the one Linear kept; Linear escapes
+      # markdown-significant punctuation on store, so the app's own
+      # "[SyncView] FILMING PLAN MISSING - ..." template came back with the
+      # brackets backslashed, read as a foreign edit, and terminalized the row
+      # as an idempotency conflict -- applyCreateLinkage never ran and the
+      # issue sat in Linear owned by nobody. This is the 2026-08-07 auto-link
+      # orphan (ff0fc693 lineage) one rewrite later, and it fires on the FIRST
+      # attempt, on every batch created without a filming plan. Measured on
+      # VID-13912 and VID-13919. canonicalLinearDescription composes the new
+      # unescape after the existing auto-link collapse and is applied to both
+      # sides. Supersedes 1489a4c2 (ninth release, the mirror stops vetoing its
+      # own writes). File count is unchanged at 5, so closure membership did
+      # not move, and production-write, batch-write and deliverable-write are
+      # byte-identical to their reviewed pins above.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 207c17d673d3145f4086390c3962b33299a4180191724a538caef99bf390c197
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

@@ -32,6 +32,7 @@ const PHASES = [
   'refuse_group_401', 'refuse_group_403', 'refuse_group_500',
   'group_drag', 'handle_only', 'use_automatic_plan',
   'drag_outside_week', 'drag_same_day',
+  'refresh_short_payload', 'refresh_complete_payload',
 ];
 let currentPhase = PHASES[0];
 let passes = 0;
@@ -446,6 +447,80 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
         'the card must stay exactly where it was, still pinned');
       expect((await notices(h.page)).length === 0, 'a no-op drop must not report a failure');
       expect(h.state.pageErrors.length === 0, 'and must not throw');
+    } finally { await h.close(); }
+  }
+
+
+  /* ── The Refresh button is the ONE read that bypasses the Supabase mirror
+   *    and goes straight to the Linear webhook, so it is the one read whose
+   *    payload can come back SHORTER than the board it replaces. Those
+   *    sub-issues used to vanish off the calendar with nothing said -- pins
+   *    included, the pin still saved and still in memory but its card gone
+   *    until the next reload. That is what a refresh "undoing my work" looks
+   *    like, and it is reported now. ────────────────────────────────────── */
+  const webhookRow = (r) => ({
+    id: r.id, identifier: r.identifier, title: r.title, url: r.url,
+    isSubIssue: !!r.is_sub_issue, parentId: r.parent_id, parentIdentifier: r.parent_identifier,
+    dueDate: r.due_date, status: r.status, statusType: r.status_type,
+    teamKey: r.team_key, teamName: r.team_name, assigneeId: r.assignee_id,
+    assigneeName: r.assignee_name, assigneeEmail: r.assignee_email, clientName: r.client_name,
+    createdAt: r.linear_created_at, updatedAt: r.linear_updated_at,
+    syncedAt: r.synced_at, sortOrder: r.sort_order,
+  });
+  const pinThenRefresh = async (keepCard) => {
+    const rows = [parentRow({}), sub('r1', { due_date: FRI, client_name: 'Client A' })];
+    const h = await launchWorkloadHarness({ issues: rows });
+    await h.context.route('**/webhook/linear-issues**', route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify(rows.filter(r => keepCard || r.id !== 'r1').map(webhookRow)),
+    }));
+    await waitForPlanSettled(h.page);
+    const dragged = await dragIssueToDay(h.page, 'r1', WED);
+    expect(dragged.ok === true, 'the card must be draggable before the refresh');
+    await waitForWrites(h.state, 1, 'the dropped card');
+    await waitForPlanIdle(h.page);
+    expect(dayOf(await readBoard(h.page), 'r1') === WED, 'the pin holds before the refresh');
+    await h.page.click('[data-wl-nav="refresh"]');
+    await h.page.waitForFunction(() => wlState.refreshing === false, null, { timeout: 40000 });
+    await waitForPlanIdle(h.page);
+    return h;
+  };
+
+  phase('refresh_short_payload');
+  {
+    const h = await pinThenRefresh(false);
+    try {
+      const board = await readBoard(h.page);
+      expect(!board.cards.find(c => c.id === 'r1'),
+        'the harness really did drop the card from the refreshed payload (not vacuous)');
+      expect(h.state.plans.get('r1') === WED,
+        'the saved work day is untouched by a short refresh — nothing was written or deleted');
+      const said = await h.page.evaluate(() => {
+        const el = document.getElementById('wlPlanStatus');
+        return { hidden: !el || el.hidden, text: el ? el.textContent : '' };
+      });
+      expect(!said.hidden && /fewer sub-issue/.test(said.text),
+        'a refresh that returns fewer sub-issues than the board had must SAY so, never drop them in silence');
+      expect(/1 of them planned to a work day/.test(said.text),
+        'and must name how many of the missing ones were planned to a work day');
+      expect(/reload/i.test(said.text), 'and must say what to do about it');
+    } finally { await h.close(); }
+  }
+
+  phase('refresh_complete_payload');
+  {
+    const h = await pinThenRefresh(true);
+    try {
+      const board = await readBoard(h.page);
+      const card = board.cards.find(c => c.id === 'r1');
+      expect(!!card && dayOf(board, 'r1') === WED && card.mode === 'manual',
+        'an ordinary refresh keeps the pinned card exactly where it was pinned');
+      const said = await h.page.evaluate(() => {
+        const el = document.getElementById('wlPlanStatus');
+        return { hidden: !el || el.hidden, text: el ? el.textContent : '' };
+      });
+      expect(said.hidden || !/fewer sub-issue/.test(said.text),
+        'and says nothing about a shortfall when there was none — a banner with nothing to report is its own lie');
     } finally { await h.close(); }
   }
 

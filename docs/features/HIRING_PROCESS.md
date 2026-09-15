@@ -1,5 +1,16 @@
 # Hiring Process — operating capture, default-off invitations
 
+> **2026-09-15 addition (source-only): a second role, Video Editor, with a middle
+> practical-test stage.** See "Two roles, and the Video Editor's extra stage"
+> below. Nothing in this addition is live: the migration
+> (`migrations/2026-09-15-hiring-video-editor-role.sql`) has not been applied,
+> the `video-editor-application` / `video-editor-interview` iClosed events still
+> need to be created (the owner asked a separate Claude session to duplicate the
+> existing two events for this), the new `hiring_practical_tests_enabled` flag
+> is seeded false, and no n8n workflow sends a practical-test email yet — that
+> still needs the owner's explicit go-ahead, and the raw footage / reference
+> edit content it should point new applicants at.
+
 > **Current status (2026-08-25): private review and application capture are live; outbound
 > invitation delivery remains default-off.** The public iClosed application event and separate
 > interview event exist outside this repository. The private database sidecar plus both
@@ -95,3 +106,50 @@ released only inside an approved applicant's invitation, never in the public app
 controlled internal send and booking route proved the one-email/one-booking state transition while
 the kill switch was restored to false afterward; a real calendar booking still requires an explicitly
 chosen test slot because it would occupy Kasper's calendar.
+
+## Two roles, and the Video Editor's extra stage
+
+Kasper's Hiring Process tab now has a role toggle: **Client Success & Content
+Manager** (unchanged, live, 14 real applications as of 2026-09-08) and
+**Video Editor** (new). Both roles capture from their own dedicated iClosed
+application event and share every existing safeguard (private mirror,
+state-version compare-and-set, admin-only access, no browser email/iClosed
+access). `role_slug` on `hiring_applications` distinguishes them and defaults
+every pre-existing row to `client-success-content-manager`.
+
+Client Success & Content Manager keeps its original two-stage path exactly as
+documented above: application review, then one interview-invite email.
+
+Video Editor gets a third stage in between:
+
+1. **Application review** — same private mirror, same admin review.
+2. **Practical test** (new, Video Editor only) — Kasper types in a raw-footage
+   link, a reference-edit link, and written instructions for that applicant,
+   and queues a durable practical-test email job
+   (`hiring_practical_test_jobs`, one per application, same claim/authorize/
+   record/retry shape as the interview-invite outbox, gated by its own
+   independent kill switch `hiring_practical_tests_enabled`, default `false`).
+   The raw-footage/reference-edit links and instructions are legitimately
+   browser-supplied per applicant (validated as `https://` and length-bounded)
+   — unlike the interview calendar link, they are not a server secret.
+3. **Verdict** — once the practical-test email is confirmed delivered
+   (provider receipt, same as everywhere else in this sidecar), Kasper marks
+   `passed` or `not_selected` (`hiring_set_practical_test_verdict_v1`). A
+   `not_selected` verdict moves the application straight to the existing
+   `rejected` status; no email is sent. A verdict can never be recorded before
+   delivery is confirmed.
+4. **Final interview invite** — the existing round-3 email
+   (`hiring_queue_interview_invite_v1`), reused as-is, now additionally
+   requires `practical_test_verdict = 'passed'` when `role_slug =
+   'video-editor'`; the Client Success role's gate is unchanged. It points at
+   the `video-editor-interview` iClosed event instead of the Client Success
+   one.
+
+Everything above is additive: the original five hiring-automation bridge
+actions, RPC contracts, and their exact literal iClosed-slug constants are
+untouched; three new bridge actions
+(`claim_practical_test`/`authorize_practical_test_send`/
+`record_practical_test`) exist only for the new stage and stay inert until
+an n8n workflow calls them — which requires the owner's separate, explicit
+go-ahead per the house rule on editing n8n workflows, and the actual raw
+footage / reference edit content to send new applicants.

@@ -34,24 +34,37 @@ ok(handler.indexOf('const auth = authorizeStaffKey') < handler.indexOf('await re
 ok(!/req\.headers\.get\(["']x-syncview-role["']\)/i.test(SOURCE)
   && !/req\.headers\.get\(["']x-syncview-actor["']\)/i.test(SOURCE),
   'spoofable actor/role headers never participate in authorization or audit attribution');
-ok(/\["list", "detail", "set_status", "queue_invite", "retry_invite"\]/.test(SOURCE),
-  'the browser API exposes only the bounded review actions');
-ok(/configuredInterviewEventUrl\(\)/.test(SOURCE)
+ok(/\[\s*"list", "detail", "set_status", "queue_invite", "retry_invite",\s*"queue_practical_test", "retry_practical_test", "set_practical_test_verdict",\s*\]/.test(SOURCE),
+  'the browser API exposes only the bounded review actions (the original five, plus the three Video Editor practical-test mirrors)');
+ok(/configuredInterviewEventUrl\(roleSlug: string\)/.test(SOURCE)
   && /p_recipient_email: preview\.recipient/.test(SOURCE)
-  && /p_interview_event_url: interviewUrl/.test(SOURCE),
-  'recipient and interview link are built server-side rather than accepted from the browser');
+  && /p_interview_event_url: interviewUrl/.test(SOURCE)
+  && /EXPECTED_INTERVIEW_EVENT_URL: Record<string, string>/.test(SOURCE)
+  && /INTERVIEW_EVENT_URL_ENV: Record<string, string>/.test(SOURCE),
+  'recipient and interview link are built server-side per role rather than accepted from the browser');
 ok(/if \(!await invitesEnabled\(db\)\)/.test(SOURCE)
   && /feature_disabled/.test(SOURCE)
   && /interview_event_not_configured/.test(SOURCE),
   'the queue action fails closed when delivery or the known interview event is not configured');
+ok(/if \(!await practicalTestsEnabled\(db\)\)/.test(SOURCE)
+  && /wrong_role/.test(SOURCE),
+  'the practical-test queue action fails closed on its own kill switch and refuses the wrong role');
+ok(/function requireHttpsUrl\(body: JsonMap, field: string\)/.test(SOURCE)
+  && /url\.protocol !== "https:"/.test(SOURCE)
+  && /function requireInstructions\(body: JsonMap\)/.test(SOURCE),
+  'the browser-supplied raw-footage/reference-edit links are validated as https and bounded before being queued');
 ok(!/\bfetch\s*\(/.test(SOURCE) && !/gmail|sendgrid|mailgun/i.test(SOURCE),
   'the Edge Function does not call an email provider or send an invitation itself');
 ok(/hiring_queue_interview_invite_v1/.test(SOURCE)
   && /hiring_retry_failed_invite_v1/.test(SOURCE)
+  && /hiring_queue_practical_test_v1/.test(SOURCE)
+  && /hiring_retry_failed_practical_test_v1/.test(SOURCE)
+  && /hiring_set_practical_test_verdict_v1/.test(SOURCE)
   && /RETRYABLE_FAILURE_CODES/.test(SOURCE)
   && /retry_available/.test(SOURCE)
+  && /practical_test_retry_available/.test(SOURCE)
   && /state_conflict/.test(SOURCE),
-  'the UI API uses durable queue/retry RPCs, exposes only bounded recovery data, and reports stale writes as conflicts');
+  'the UI API uses durable queue/retry RPCs for both stages, exposes only bounded recovery data, and reports stale writes as conflicts');
 
 // Exercise the real shared helper with dummy-only secrets. This proves the
 // role matrix without reading a live staff key or touching a backend.

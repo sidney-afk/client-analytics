@@ -21619,3 +21619,33 @@ it. The guard now requires the increment to be a bare, unguarded statement and
 separately refuses any `driveGone` condition on it. An assertion that a sabotage
 control does not trip is not a test; it is a comment.
 
+
+**Second review round, 2026-09-15 — a fourth P1, on the fix for the first three.**
+Codex was asked to re-review because it had never seen the fix commit, and it
+found that the marker above was bound to the fact of a 404 rather than to the
+FILE that produced one.
+
+`migrations/2026-07-14-thumbnail-revision-v2.sql:163-185` preserves the existing
+pending watcher when a source is re-linked from file A to file B — its own
+comment says so: *"On A -> B link changes the existing A watcher is deliberately
+preserved so the scanner can archive A as Previous."* The insert is
+`on conflict … do nothing`, so the row keeps A's `drive_file_id` AND A's error
+text, while the scan reads the CURRENT source and therefore asks Drive about B.
+Replace a dead thumbnail with a replacement you forget to share, and a
+prefix-only test calls B "already known": `missing_source_new` stays 0, the
+caller subtracts the failure, and the lane goes green for a source nobody can
+read. Same class as the finding it was fixing — a signal that should be loud,
+silently exempted.
+
+The marker now carries the file id (`drive_404[<fileId>]: `) and is compared
+against the file THIS scan read, captured from the source rather than from the
+row's stored `drive_file_id` — which is still A and would have been no help. A
+failure that throws before the file id is known counts as NEW, which is the
+fail-loud direction. A fourth sabotage control reverts the comparison to the bare
+prefix and fails the suite by exit status.
+
+**Three rounds, three findings of the same shape.** The original design exempted
+a 404; the first fix exempted the wrong 404s; the guard for the first fix matched
+a substring that the broken version also contained. Each was caught by review
+rather than by the tests as written, which is the honest summary of how much this
+particular change wanted to be wrong.

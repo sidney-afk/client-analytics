@@ -286,8 +286,21 @@ async function authedFetch(url: string, init: RequestInit = {}): Promise<Respons
  * from "this source just became unreachable". The status is not persisted
  * anywhere else, and matching on Google's message prose is what driveError()
  * exists to avoid. The success path sets `error: null`, so a source that is
- * re-shared drops the marker on its own. */
-const MISSING_SOURCE_MARKER = "drive_404: ";
+ * re-shared drops the marker on its own.
+ *
+ * It is bound to the FILE, not just to the fact of a 404. A prefix alone was
+ * wrong: `migrations/2026-07-14-thumbnail-revision-v2.sql:163-185` preserves the
+ * existing pending watcher when a source is re-linked from file A to file B ("so
+ * the scanner can archive A as Previous"), so a row can carry A's marker while
+ * this scan is reading B. Replace a dead thumbnail with a replacement you forgot
+ * to share and a prefix test would call B "already known", leaving the lane green
+ * for a genuinely new unreadable source. The row's own `drive_file_id` column is
+ * no help either -- it is still A. */
+const MISSING_SOURCE_MARKER = "drive_404";
+
+function missingSourceMark(fileId: string): string {
+  return MISSING_SOURCE_MARKER + "[" + clean(fileId) + "]: ";
+}
 
 type DriveStatusError = Error & { driveStatus?: number };
 
@@ -786,11 +799,17 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
     const surface = clean(row.surface);
     const client = clean(row.client);
     const sourceId = clean(row.source_id);
+    // Hoisted so the catch knows WHICH Drive file answered 404. A 404 can only
+    // come from driveMetadata, which runs after this is set, so a Drive-gone
+    // failure always has it; anything that throws earlier leaves it empty and is
+    // therefore counted as NEW, which is the fail-loud direction.
+    let sourceFileId = "";
     out.checked++;
 
     try {
       if (!activeClients.has(client)) activeClients.set(client, await activeClient(input.supabase, client));
       const source = await sourceThumbnail(input.supabase, surface, client, sourceId);
+      sourceFileId = clean(source && source.fileId);
       if (!activeClients.get(client) || !source || source.archived || !source.url || !source.fileId) {
         out.skipped++;
         const now = new Date().toISOString();
@@ -907,13 +926,14 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
        * instead of settling it. The `error` column still records exactly what
        * happened, per row, for anyone querying the table. */
       const driveGone = driveStatusOf(e) === 404;
-      const knownMissing = driveGone && clean(row.error).startsWith(MISSING_SOURCE_MARKER);
+      const mark = missingSourceMark(sourceFileId);
+      const knownMissing = driveGone && clean(row.error).startsWith(mark);
       out.failed++;
       if (driveGone) {
         out.missing_source++;
         if (!knownMissing) out.missing_source_new++;
       }
-      const stored = driveGone ? MISSING_SOURCE_MARKER + msg : msg;
+      const stored = driveGone ? mark + msg : msg;
       await input.supabase.from("thumbnail_media_revisions")
         .update({ error: stored.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", id);

@@ -262,8 +262,24 @@ async function rejectsMessage(work, pattern) {
     'incrementing failed must not be conditional on the Drive status');
   assert.match(SCANNER, /if \(!knownMissing\) out\.missing_source_new\+\+;/,
     'a source not already recorded as unreadable must count as NEW');
-  assert.match(SCANNER, /clean\(row\.error\)\.startsWith\(MISSING_SOURCE_MARKER\)/,
-    'known-vs-new must be decided by our own persisted marker, not by Google prose');
+  /* Known-vs-new is decided by our own persisted marker, never by Google's prose
+   * — and the marker is bound to the FILE, not just to the fact of a 404. A bare
+   * prefix test was wrong: the media-write trigger preserves the existing pending
+   * watcher when a source is re-linked from file A to file B
+   * (migrations/2026-07-14-thumbnail-revision-v2.sql:163-185), so a row can carry
+   * A's marker while the scan reads B. Replace a dead thumbnail with one you
+   * forgot to share and a prefix test calls B "already known" and keeps the lane
+   * green for a genuinely new unreadable source. */
+  assert.match(SCANNER, /const mark = missingSourceMark\(sourceFileId\);/,
+    'the marker compared against must be built from the file this scan actually read');
+  assert.match(SCANNER, /clean\(row\.error\)\.startsWith\(mark\)/,
+    'known-vs-new must compare the FILE-BOUND marker');
+  assert.doesNotMatch(SCANNER, /startsWith\(MISSING_SOURCE_MARKER\)/,
+    'a bare prefix test would call a different unreadable file "already known"');
+  assert.match(SCANNER, /return MISSING_SOURCE_MARKER \+ "\[" \+ clean\(fileId\) \+ "\]: ";/,
+    'the mark must carry the file id it describes');
+  assert.match(SCANNER, /sourceFileId = clean\(source && source\.fileId\);/,
+    'the file id must be captured from the source this scan read, not the stored column');
 
   /* The row must stay `pending`. syncview_thumbnail_revision_backfill re-enrols
    * any active non-archived source with no pending row, so writing a terminal

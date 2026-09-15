@@ -135,6 +135,41 @@ is byte-identical. It goes live with the Pages deploy on merge, and the rollback
 reverting the commit. Verified in the real app under a headless browser (both themes, one
 and three posts, and an append to a batch holding three previewing Video 4/5/6), plus
 415/415 under CI-equivalent conditions.
+## 2026-09-07 — Built (SOURCE ONLY, draft PR): every piece of feedback on a deliverable, in one place, without Linear
+
+Linear exit, lane D. Owner: *"in the planner we also have a new system to view
+comments, so instead of when Kasper or the client asks feedback, it appears as if
+it was commented on the sub-issue, we planned also a new UI experience to view
+the comments."*
+
+Today a client or Kasper tweak note lands on the Calendar/Samples card cell and is
+mirrored into a Linear sub-issue comment. **Linear is the union point** — the only
+surface showing the canonical `production_comments` thread and the card-cell notes
+together. SyncLinear's panel shows only the canonical half; the Workload popover
+reads Linear through the `linear-tweak-comments` n8n webhook. On 2026-09-15 the
+union point disappears and a note that took the legacy write lane becomes visible
+nowhere in the staff view, with no notice that anything is missing.
+
+**What landed in source.** `production-comments` gains `feedback.mjs` (214 lines,
+zero Linear references) and honours `include_feedback: true` for staff principals
+only, after the existing read budget, target-team authorization and durable
+allow-audit, re-checking the five crosswalk fields before responding. It adds no
+SQL. The SyncLinear panel becomes **Feedback & tweaks** and renders a read-only
+"From the original card" section with every action control suppressed. The Workload
+popover reads native rows from `production-comments` and keeps a legacy fall-through
+for everything else.
+
+**One live defect fixed on the way in.** The lifted `feedback.mjs` selected a
+`tweaks` column from `sample_reviews` for every video deliverable. That column
+exists only on `calendar_posts`; on Samples the select errors and the panel words it
+as "could not load" — indistinguishable from a transient failure. Every Samples
+video deliverable would have rendered a permanent fake outage on Kasper's own review
+surface. Recorded as `OPEN_REPAIRS` 172.
+
+**Nothing is deployed.** Draft PR only; `production-comments` still serves its
+existing closure, so the panel receives no `feedback` key until the owner dispatches
+the deploy lane. That dispatch redeploys four functions from one commit — see
+`ROLLBACK.md`.
 
 ## 2026-09-08 — n8n change: tiktok-upload-direct learns photo carousels
 

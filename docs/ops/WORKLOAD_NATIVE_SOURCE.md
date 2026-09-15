@@ -74,8 +74,17 @@ Review on #1208 caught two more Linear reads that never pass through
 `_wlV2MapRow`, so a scope built from that table alone would have been costed
 short. Both are named here rather than discovered during the cutover:
 
-- **Tweak comments.** Opening a Tweak Needed popover calls
-  `wlFetchTweakComments()` (index.html), which POSTs the board's row ids to
+- **Tweak comments.** *(Updated by the Linear exit, lane D.)*
+  `wlFetchTweakComments()` now routes per row: a row lane A marks
+  `workloadSource === 'native'` is read from Supabase
+  (`functions/v1/production-comments`, keyed on `nativeId`, `include_feedback:
+  true`), and every other row falls through to `_wlLegacyFetchTweakComments()`,
+  which is the original body below, unchanged. Until lane A's native snapshot
+  lands, nothing classifies as native and every row takes the legacy lane, so
+  the paragraph below still describes live behaviour today.
+
+  Originally: opening a Tweak Needed popover called `wlFetchTweakComments()`
+  (index.html), which POSTed the board's row ids to
   `LINEAR_TWEAK_COMMENTS_WEBHOOK` — an **n8n** webhook,
   `…/webhook/linear-tweak-comments`. Change the row id to `del_…` and that
   endpoint matches nothing, immediately; remove Linear and the source is gone
@@ -157,7 +166,7 @@ again. Eight, all live — every one is actually fetched today:
 | endpoint | called from | direction |
 |---|---|---|
 | `linear-issues` | `loadLinearIssues` | read — **Workload's fallback source**; v2 falls back here on any Supabase failure so the board can never blank |
-| `linear-tweak-comments` | `wlFetchTweakComments` | read — the Tweak Needed popover |
+| `linear-tweak-comments` | `_wlLegacyFetchTweakComments` | read — the Tweak Needed popover, **non-native rows only** since the lane D exit work; native rows read `production-comments` |
 | `linear-projects` | `fetchLinearProjects` | read |
 | `linear-subissues` | `_calSyncStatusFromLinear` | read |
 | `linear-issue-statuses` | `_calRefreshParentLinkFlags` | read |

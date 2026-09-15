@@ -1833,10 +1833,13 @@
            on the box: transform runs on the compositor thread, so the shimmer keeps
            moving through the long main-thread task of the first board render instead
            of freezing mid-sweep (measured on the Workload cold boot, 2026-09-14). */
-        .sv-skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--sv-skel-sheen) 50%, transparent 100%); transform: translateX(-100%); animation: sv-shimmer 1.35s ease-in-out infinite; will-change: transform; pointer-events: none; }
+        .sv-skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--sv-skel-sheen) 50%, transparent 100%); transform: translateX(-100%); animation: sv-shimmer-sweep 1.35s ease-in-out infinite; will-change: transform; pointer-events: none; }
         @media (prefers-reduced-motion: reduce) { .sv-skeleton::after { animation: none; } }
         html[data-theme="dark"] .sv-skeleton, html[data-theme="dark"] .tpl-skeleton { --sv-skel-base: var(--surface-subtle); --sv-skel-sheen: var(--field-bg-hover); }
-        @keyframes sv-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        @keyframes sv-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
+        /* Legacy consumers (.prod-skeleton, .tpl-skeleton) still animate background-position
+           via sv-shimmer; the compositor sweep has its own keyframe so the two never collide. */
+        @keyframes sv-shimmer-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .sv-skeleton-pill { border-radius: 999px; }
         .sv-skeleton-line { height: 14px; border-radius: 6px; }
         .sv-skeleton-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }

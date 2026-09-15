@@ -30,6 +30,42 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — LESSON: the freeze covered merges, not the live database
+
+This is the real lesson of the day, and it is recorded on its own so it is not
+lost inside the hiring details.
+
+The owner froze main at `0aa5954` and defined the freeze as **no merges**. The
+reviewed installation plan does not depend on main alone. It depends on the
+**live database** matching a reviewed catalog profile. The freeze said nothing
+about live schema changes. The same day, a separate session applied a
+legitimate, dry-run-tested migration directly to production. Nobody noticed the
+gap, because nothing in the freeze definition made anyone look for it. It
+surfaced only when the catalog read refused.
+
+Nothing was harmed, because the check refused as designed. But a freeze that
+leaves the thing under review free to change is not a freeze.
+
+**For the next freeze, define it from the start to cover everything the plan is
+pinned against:**
+
+- merges to main;
+- live DDL on the production database, from any session, dashboard or tool;
+- deployments that change what the plan observes;
+- and an explicit, named exception process if something must change, so the
+  plan owner hears about it before the catalog read does, not after.
+
+State the scope in the freeze entry itself, not only "main is frozen".
+
+**Second lesson worth carrying forward: read the actual list.** Structural
+checks could not see the admission guard gap. The dependency catalog showed
+hiring objects linked only to hiring objects, and Postgres does not record what a
+plpgsql body touches. The gap was found only by reading the literal table list
+in the admission source. It named three hiring tables and not the new one. When
+a question is "does X cover Y", read the thing that enumerates X. Do not infer
+coverage from the absence of structural links. The owner then confirmed it by
+reading the same list independently.
+
 ### 2026-09-15 — Owner sitting on the Windows machine: Storage capture passed; catalog refused on live schema drift; steps 8, 9 and 10 not run
 
 Run from the owner's machine against the sitting page, in its order. Nothing
@@ -559,6 +595,33 @@ its second attempt and the transport archive is packed. Still outstanding: the
 owner's private upload, a download on a second device (not yet chosen), the
 hash and size comparison, and a passing restore of the downloaded copy. B1 stays
 open until that restore passes.
+
+**B10 decided in principle, 2026-09-15, owner. Row kept above, still open.**
+The owner confirmed the gap by reading the admission list directly: it names
+`hiring_applications`, `hiring_application_events` and `hiring_invite_jobs`, and
+not `hiring_practical_test_jobs`. Decision: the new table **will** join the
+admission guard list. Implementation waits.
+
+**Ordering constraint. Do not get this wrong.** The admission loop raises
+`application_admission_missing_owner` for any listed table that does not exist.
+So adding `hiring_practical_test_jobs` to the list **before** the hiring
+migration is on main would make the installation abort on every database that
+lacks the table: fresh replays, the isolated proof clusters, and any restore.
+Required order:
+
+1. The hiring migration merges to main, after the freeze lifts.
+2. The catalog profile is re-derived once against that settled state (B9).
+3. Only then is the table added to the admission guard list, with the guard
+   source and the retirement contract's expected guard triggers re-derived
+   together and reviewed.
+
+Adding the name first, to "get ahead", is the wrong order.
+
+**B1, B2 and B9 unchanged, 2026-09-15, owner.** B1 is the owner's to finish. No
+second computer has been chosen, the drill has not started, and step 1 is not
+complete. B9 and B2 stand as written: no re-pin; the hiring change merges after
+the freeze lifts, then the profile is re-derived once, and only then do steps 8,
+9 and 10 run back to back.
 
 **B2 stays open, 2026-09-15.** Run 2 of the catalog read verified TLS and
 identity, which clears the TLS half of the original row. The profile half now

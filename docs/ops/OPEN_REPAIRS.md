@@ -21885,10 +21885,40 @@ auto-link fix does, so it can only ever make an intent compare equal to Linear's
 rendering of that same intent. A lone backslash, or one before a letter, is left
 alone.
 
-**Equality does widen by one step, deliberately:** a foreign issue reading `[x]`
-now matches an intent of `\[x\]`. Adoption still requires team, project, title,
-status, due date, assignee, parent and labels to match as well, and the
-alternative is a standing orphan factory.
+**The paragraph that stood here was wrong, and Codex caught it on #1406.** It
+read: *"Equality does widen by one step, deliberately: a foreign issue reading
+`[x]` now matches an intent of `\[x\]`. Adoption still requires team, project,
+title, status, due date, assignee, parent and labels to match as well."* The
+first sentence was true and the justification was not. `\# Heading` and
+`# Heading` RENDER DIFFERENTLY — literal text versus a heading — and a symmetric
+unescape canonicalizes them to one string; the other fields cannot catch that,
+because a **description-only** edit leaves every one of them matching. And the
+precondition is this incident: a create that succeeded with its linkage lost,
+which happened twice in one afternoon.
+
+**So the comparison is DIRECTIONAL**, which is what the asymmetry always called
+for — Linear ADDS escapes, it never removes ours. `linearDescriptionMatches`
+accepts a stored description that is byte-identical to our intent, or whose
+escapes stripped from **the stored side alone** yield our intent exactly. Our
+own intent is never rewritten, so a difference we did not send always survives:
+
+| intent | stored | verdict |
+|---|---|---|
+| `[x]` | `\[x\]` | adopt — Linear escaped ours |
+| `\[x\]` | `\\[x\\]` | adopt — Linear escaped our backslash |
+| `\*t\*` | `\*t\*` | adopt — byte-identical |
+| `\# H` | `# H` | **refuse** — a person changed it |
+
+The last row is the one symmetric normalization got wrong, and it is the row
+that matters: refusing there costs an orphan a human can see and fix, while
+adopting there silently links an issue whose text somebody else chose. The
+auto-link collapse stays symmetric and unchanged.
+
+**The method note, since it is the second time on this ledger.** The wrong call
+was defended in the code comment, in the commit message and in the PR body
+before anyone read it — three restatements of one unchecked claim, which is the
+exact failure this ledger keeps recording. Writing the justification down did
+not make it true; a reviewer constructing one counterexample did.
 
 **Proof.** `test/linear-description-escape-orphan.js`, 13 assertions, built on
 the exact live strings — including the pre-fix assertion that the raw comparison

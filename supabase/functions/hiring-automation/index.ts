@@ -15,7 +15,10 @@ const MAX_BODY_BYTES = 128 * 1024;
 const MAX_TEXT_LENGTH = 8_000;
 const APPLICATION_EVENT_SLUG = "client-success-content-manager-application";
 const INTERVIEW_EVENT_SLUG = "client-success-content-manager-interview";
+const APPLICATION_EVENT_SLUG_VIDEO_EDITOR = "video-editor-application";
+const INTERVIEW_EVENT_SLUG_VIDEO_EDITOR = "video-editor-interview";
 const DISPATCHER_WORKER_ID = "hiring-invite-dispatch-v1";
+const PRACTICAL_TEST_DISPATCHER_WORKER_ID = "hiring-practical-test-dispatch-v1";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FAILURE_CODES = new Set([
   "pre_send_provider_unavailable",
@@ -188,7 +191,8 @@ function safeRpcCode(error: unknown): string {
     "invalid_answers", "application_not_found", "state_conflict", "recipient_conflict",
     "invalid_booking", "booking_conflict", "invite_not_found", "claim_conflict",
     "send_already_authorized", "send_not_authorized", "feature_disabled", "invalid_result", "missing_provider_receipt",
-    "invalid_failure_code", "invalid_provider_receipt",
+    "invalid_failure_code", "invalid_provider_receipt", "wrong_role", "invalid_invite",
+    "terminal_status", "invalid_worker",
   ];
   return allowed.find((code) => message.includes(code)) || "automation_unavailable";
 }
@@ -204,9 +208,24 @@ function firstRow(value: unknown): JsonMap | null {
   return isMap(value) ? value : null;
 }
 
+function applicationEventSlugFor(body: JsonMap): string {
+  const role = clean(body.role).toLowerCase();
+  if (role === "video-editor") return APPLICATION_EVENT_SLUG_VIDEO_EDITOR;
+  // Default preserves exact current behavior for the one role that existed
+  // before video-editor was added, so an n8n workflow that never sends
+  // `role` keeps capturing Client Success & Content Manager applications.
+  return APPLICATION_EVENT_SLUG;
+}
+
+function interviewEventSlugFor(body: JsonMap): string {
+  const role = clean(body.role).toLowerCase();
+  if (role === "video-editor") return INTERVIEW_EVENT_SLUG_VIDEO_EDITOR;
+  return INTERVIEW_EVENT_SLUG;
+}
+
 async function captureApplication(client: SupabaseClient, body: JsonMap): Promise<Response> {
   const rows = await rpc<unknown>(client, "hiring_capture_application_v1", {
-    p_source_event_slug: APPLICATION_EVENT_SLUG,
+    p_source_event_slug: applicationEventSlugFor(body),
     p_source_contact_id: requiredText(body, "sourceContactId", 512),
     p_source_submission_key: requiredText(body, "sourceSubmissionKey", 1_024),
     p_name: requiredText(body, "name", 512),
@@ -298,7 +317,7 @@ async function recordInvite(client: SupabaseClient, body: JsonMap): Promise<Resp
 
 async function recordBooking(client: SupabaseClient, body: JsonMap): Promise<Response> {
   const row = firstRow(await rpc<unknown>(client, "hiring_record_interview_booking_v1", {
-    p_source_event_slug: INTERVIEW_EVENT_SLUG,
+    p_source_event_slug: interviewEventSlugFor(body),
     p_source_contact_id: requiredText(body, "sourceContactId", 512),
     p_booking_id: requiredText(body, "bookingId", 512),
     p_booked_at: optionalTimestamp(body, "bookedAt"),
@@ -309,6 +328,75 @@ async function recordBooking(client: SupabaseClient, body: JsonMap): Promise<Res
     applicationId: clean(row.application_id),
     status: clean(row.status),
     stateVersion: row.state_version,
+  });
+}
+
+// Video Editor round-2 practical-test dispatch. Same claim/authorize/record
+// shape as the interview-invite trio above, against the dedicated practical-
+// test outbox and its own independent kill switch and worker identity.
+async function claimPracticalTest(client: SupabaseClient): Promise<Response> {
+  const row = firstRow(await rpc<unknown>(client, "hiring_claim_next_practical_test_v1", {
+    p_worker_id: PRACTICAL_TEST_DISPATCHER_WORKER_ID,
+  }));
+  if (!row) return json({ ok: true, job: null });
+  const jobId = requiredText(row, "job_id", 64);
+  const claimToken = requiredText(row, "claim_token", 64);
+  if (!UUID.test(jobId) || !UUID.test(claimToken)) {
+    throw new AutomationError(502, "automation_unavailable");
+  }
+  return json({
+    ok: true,
+    job: {
+      id: jobId,
+      claimToken,
+    },
+  });
+}
+
+async function authorizePracticalTestSend(client: SupabaseClient, body: JsonMap): Promise<Response> {
+  const row = firstRow(await rpc<unknown>(client, "hiring_authorize_practical_test_send_v1", {
+    p_job_id: requiredUuid(body, "jobId"),
+    p_claim_token: requiredUuid(body, "claimToken"),
+  }));
+  if (!row) throw new AutomationError(502, "automation_unavailable");
+  if (row.authorized !== true) return json({ ok: true, authorized: false, job: null });
+  return json({
+    ok: true,
+    authorized: true,
+    job: {
+      applicationId: requiredText(row, "application_id", 64),
+      recipient: requiredEmail(row, "recipient_email"),
+      subject: requiredText(row, "subject", 512),
+      body: requiredText(row, "body", 16_000),
+      rawFootageUrl: requiredUrl(row, "raw_footage_url"),
+      referenceEditUrl: requiredUrl(row, "reference_edit_url"),
+    },
+  });
+}
+
+async function recordPracticalTest(client: SupabaseClient, body: JsonMap): Promise<Response> {
+  const result = requiredText(body, "result", 64).toLowerCase();
+  if (!["sent", "failed", "delivery_uncertain"].includes(result)) {
+    throw new AutomationError(400, "invalid_result");
+  }
+  const providerMessageId = optionalText(body, "providerMessageId", 1_024);
+  const failureCode = optionalText(body, "failureCode", 128);
+  if (failureCode && !FAILURE_CODES.has(failureCode)) {
+    throw new AutomationError(400, "invalid_failureCode");
+  }
+  const row = firstRow(await rpc<unknown>(client, "hiring_record_practical_test_result_v1", {
+    p_job_id: requiredUuid(body, "jobId"),
+    p_claim_token: requiredUuid(body, "claimToken"),
+    p_result: result,
+    p_provider_message_id: providerMessageId,
+    p_failure_code: failureCode,
+  }));
+  if (!row) throw new AutomationError(502, "automation_unavailable");
+  return json({
+    ok: true,
+    applicationId: clean(row.application_id),
+    jobState: clean(row.job_state),
+    applicationStatus: clean(row.application_status),
   });
 }
 
@@ -324,6 +412,9 @@ Deno.serve(async (req) => {
     if (action === "authorize_invite_send") return await authorizeInviteSend(client, body);
     if (action === "record_invite") return await recordInvite(client, body);
     if (action === "record_booking") return await recordBooking(client, body);
+    if (action === "claim_practical_test") return await claimPracticalTest(client);
+    if (action === "authorize_practical_test_send") return await authorizePracticalTestSend(client, body);
+    if (action === "record_practical_test") return await recordPracticalTest(client, body);
     throw new AutomationError(400, "unsupported_action");
   } catch (error) {
     if (error instanceof AutomationError) {

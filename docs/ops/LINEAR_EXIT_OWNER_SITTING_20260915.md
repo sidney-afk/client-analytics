@@ -9,7 +9,10 @@ deployed, no merge happens, no n8n workflow is touched, nothing is sent. That is
 why you can stop almost anywhere without risk. The places where stopping costs
 you a re-run are called out inline.
 
-Main is frozen at `0aa5954`. Keep it frozen until the whole installation is
+Main is frozen at **`1abdd1fa`** (re-frozen 2026-09-15 after PR #1407 merged).
+The freeze now explicitly covers three things, not one: merges to main, live
+database changes from any session or dashboard, and deployments of anything the
+exit plan checks against. Keep it frozen until the whole installation is
 finished.
 
 ---
@@ -101,19 +104,29 @@ database refresh and close to it in time.
 node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-UNIQUE
 ```
 
-**Worked when:** the receipt reports its **supported-baseline check** and its
-**TLS check** both passing, and the command exits zero.
+> **CHANGED 2026-09-15 by B9. Read this before running it.** This read will
+> **not** match a reviewed profile, and that is now the expected outcome, not a
+> failure. The hiring practical-test and Video Editor migrations are live, so
+> the catalog has moved past both `observed67` and `observed67_optout`. A third
+> profile has to be derived from the settled state before steps 8, 9 and 10 can
+> pass. Expect `profile: null` and a non-zero exit.
 
-The baseline it should match is **`observed67_optout`**. This session already
-confirmed read-only that the live database carries both halves of that profile:
-the `team_members.auto_assign_opt_out` column, and the table ACL with table-wide
-read revoked from `anon` and `authenticated` in favour of column-level grants
-that withhold the flag. If the receipt names the other profile, `observed67`,
-something disagrees and you should stop.
+**What you are running it for now:** the new catalog hash and its diff, so a
+profile can be derived against the settled state. You are gathering an input,
+not passing a gate.
 
-> **STOP if** the receipt reports an unsupported baseline, a failed TLS check,
-> an identity mismatch, or names `observed67`. Preserve the directory and report
-> it. Do not continue to the database refresh on a refused catalog.
+**Worked when:** the receipt reports **`tls_verified: true`**, the identity
+matches, and it prints a catalog hash. Copy back three things: the hash, the
+`profile` field, and the diff summary against the last passing catalog.
+
+> **STOP and report, do not improvise, if** TLS fails or the identity does not
+> match. Those are real failures. A `profile: null` with TLS verified and
+> identity matched is the expected result today and is what the derivation
+> needs.
+
+> **Do not run step 3 after this one today.** Its wrapper consumes a catalog
+> receipt and will refuse one that names no profile. Steps 9 and 10 wait until
+> the new profile exists.
 
 > **Timing rule, this is the one that bites.** The catalog goes stale after
 > **one hour**. Run step 3 below straight after this. If more than an hour
@@ -312,22 +325,36 @@ the browser. Under two minutes. Read-only: it downloads and hashes, nothing else
 
 **Where from:** anywhere. Paths below are absolute.
 
+> **TIMING, corrected 2026-09-15. This is the part most likely to go wrong.**
+> The capture must be taken **immediately before the exit merge**, not before
+> "any merge". Every merge to main republishes Pages and moves the served
+> browser. Merging PR #1407 already did exactly that, which is why the baseline
+> below was recomputed against `1abdd1fa` and the earlier `0aa5954` values are
+> stale and must not be used. If a capture is taken too early, it records a
+> browser version we would never want to return to, and the whole point of the
+> capture is lost while still looking complete. **Re-derive the baseline from
+> main's tip at the moment you capture, not from any value written here in
+> advance.**
+
 **Why it works:** Pages publishes from `main`, so the served browser should be
-`0aa5954`'s. Confirming that gives you both halves of what B5 needs at once: a
+main's tip. Confirming that gives you both halves of what B5 needs at once: a
 hash-matched capture, and a `matched_git_sha` you can restore from with one
 command.
 
-Baselines computed from `0aa5954` in the repository, for comparison:
+Baselines computed from **`1abdd1fa`**, current main as of 2026-09-15, valid
+only until the next merge:
 
-| File | SHA-256 (first 16) |
+| File | SHA-256 |
 |---|---|
-| `index.html` | `61282fa2c0cb5686` (full: `61282fa2c0cb568668b49566373723bcac5d6cd32c2c9771e01b1bb1c52fcff7`) |
-| `404.html` | `f3ded2c5a7c2b3db` |
-| `CNAME` | `7991ae9386e5b787` |
-| `synchro-social-favicon.png` | `32c638403963ec17` |
-| `synchro-social-logo.png` | `a48c665dcb07754d` |
+| `index.html` | `1d17a0f567071dd9a8ff70dd73244fc819614725c960fee95bbbb9b639979327` |
+| `404.html` | `f3ded2c5a7c2b3dbe7398077de2f7704ae4268f39ad0df45d97751f703063402` |
+| `CNAME` | `7991ae9386e5b7875e31e6755cc4f4209a6e31d00cf5f0ff3a9bbe83c2df8d47` |
+| `synchro-social-favicon.png` | `32c638403963ec173b212d29f2c1933f949d1d3308cf3b80d9bd8e64463c91a5` |
+| `synchro-social-logo.png` | `a48c665dcb07754d7aa11d258ed3e6816d501d2fde98d61d273fdd06ef116eab` |
 
-Plus 18 files under `nav-icons/`.
+Plus 18 files under `nav-icons/`. Only `index.html` changed between `0aa5954`
+and `1abdd1fa`; the other four are unchanged, which is itself a useful signal
+that the merge was browser-light.
 
 ```powershell
 $out = "D:/Sidney/Codex/2026-09-13-final-review-repairs/browser-capture-UNIQUE"
@@ -339,15 +366,16 @@ foreach ($f in @("index.html","404.html","CNAME","synchro-social-favicon.png","s
 }
 ```
 
-**Worked when:** the printed `index.html` hash equals
-`61282fa2c0cb568668b49566373723bcac5d6cd32c2c9771e01b1bb1c52fcff7` and the
-others match their prefixes above.
+**Worked when:** the printed `index.html` hash equals the baseline for main's
+tip at capture time, which is
+`1d17a0f567071dd9a8ff70dd73244fc819614725c960fee95bbbb9b639979327` while main
+is `1abdd1fa`, and the others match the table above.
 
-- **All match** → the served browser is `0aa5954`. Record that as the captured
-  previous browser with `matched_git_sha = 0aa5954`. The restoration route is
-  then the documented one-liner,
-  `git restore --source=0aa5954a5c63e3b6f399caf739e562b371393325 -- index.html`,
-  and the browser half of B5 is closed.
+- **All match** → the served browser is main's tip. Record that as the captured
+  previous browser with `matched_git_sha` set to that SHA. The restoration route
+  is then the documented one-liner,
+  `git restore --source=<that-sha> -- index.html`, and the browser half of B5 is
+  closed.
 - **`index.html` differs** → the served browser is NOT main's tip. Stop and
   report the hash. That is a real finding, not a glitch: it means Pages is
   serving something other than the frozen commit, and the whole browser

@@ -49,7 +49,7 @@
     },
     {
       "path": "supabase/migrations/20260912183653_application_dml_admission_preparation.sql",
-      "sha256": "c3d1e93127156b316ae7baf2176baf7892d5523248c3bbe4ef32c19676a0998e",
+      "sha256": "454cfa64db33977021d42e48fc081016e44062ae06fa89afe2b602cbad4d165b",
       "order": 2
     },
     {
@@ -80,7 +80,7 @@
   ],
   "admission_preflight_contract": {
     "path": "docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json",
-    "sha256": "8980fc5124f9d86064536e55f65f02eedb68cc200e53a266a2a2cd96a9c412f7"
+    "sha256": "3288b4b5fcb9ad4ef1a68a30e90ee16ae65a2d84697cefe73705e06fcd2963f9"
   },
   "writer_sources": [
     {

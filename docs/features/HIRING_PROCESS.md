@@ -1,5 +1,21 @@
 # Hiring Process — operating capture, default-off invitations
 
+> **2026-09-15: a second role, Video Editor, with a middle practical-test
+> stage. Applied and wired, sending stays default-off.** See "Two roles, and
+> the Video Editor's extra stage" below. `migrations/2026-09-15-hiring-video-editor-role.sql`
+> is applied (read back clean; `role_slug` backfilled all pre-existing rows).
+> The owner created the `video-editor-application` / `video-editor-interview`
+> iClosed events. All three n8n changes are live: `Hiring — Application
+> Capture (iClosed)` and `Sales — Call Booked (iClosed)` now recognize the
+> Video Editor slugs alongside Client Success's, and a new `Hiring —
+> Practical Test Dispatch` workflow exists (mirrors the interview-invite
+> dispatcher exactly). The new `hiring_practical_tests_enabled` flag is still
+> seeded `false`, so nothing sends until the owner supplies real raw-footage/
+> reference-edit content and asks for it to be turned on. The `hiring-applications`
+> and `hiring-automation` Edge Functions carry the matching source changes in
+> this repo but are **not yet deployed** — each has its own exact-SHA
+> `workflow_dispatch` release lane and needs a merge to `main` first.
+
 > **Current status (2026-08-25): private review and application capture are live; outbound
 > invitation delivery remains default-off.** The public iClosed application event and separate
 > interview event exist outside this repository. The private database sidecar plus both
@@ -95,3 +111,54 @@ released only inside an approved applicant's invitation, never in the public app
 controlled internal send and booking route proved the one-email/one-booking state transition while
 the kill switch was restored to false afterward; a real calendar booking still requires an explicitly
 chosen test slot because it would occupy Kasper's calendar.
+
+## Two roles, and the Video Editor's extra stage
+
+Kasper's Hiring Process tab now has a role toggle: **Client Success & Content
+Manager** (unchanged, live, 14 real applications as of 2026-09-08) and
+**Video Editor** (new). Both roles capture from their own dedicated iClosed
+application event and share every existing safeguard (private mirror,
+state-version compare-and-set, admin-only access, no browser email/iClosed
+access). `role_slug` on `hiring_applications` distinguishes them and defaults
+every pre-existing row to `client-success-content-manager`.
+
+Client Success & Content Manager keeps its original two-stage path exactly as
+documented above: application review, then one interview-invite email.
+
+Video Editor gets a third stage in between:
+
+1. **Application review** — same private mirror, same admin review.
+2. **Practical test** (new, Video Editor only) — Kasper types in a raw-footage
+   link, a reference-edit link, and written instructions for that applicant,
+   and queues a durable practical-test email job
+   (`hiring_practical_test_jobs`, one per application, same claim/authorize/
+   record/retry shape as the interview-invite outbox, gated by its own
+   independent kill switch `hiring_practical_tests_enabled`, default `false`).
+   The raw-footage/reference-edit links and instructions are legitimately
+   browser-supplied per applicant (validated as `https://` and length-bounded)
+   — unlike the interview calendar link, they are not a server secret.
+3. **Verdict** — once the practical-test email is confirmed delivered
+   (provider receipt, same as everywhere else in this sidecar), Kasper marks
+   `passed` or `not_selected` (`hiring_set_practical_test_verdict_v1`). A
+   `not_selected` verdict moves the application straight to the existing
+   `rejected` status; no email is sent. A verdict can never be recorded before
+   delivery is confirmed.
+4. **Final interview invite** — the existing round-3 email
+   (`hiring_queue_interview_invite_v1`), reused as-is, now additionally
+   requires `practical_test_verdict = 'passed'` when `role_slug =
+   'video-editor'`; the Client Success role's gate is unchanged. It points at
+   the `video-editor-interview` iClosed event instead of the Client Success
+   one.
+
+Everything above is additive: the original five hiring-automation bridge
+actions, RPC contracts, and their exact literal iClosed-slug constants are
+untouched; three new bridge actions
+(`claim_practical_test`/`authorize_practical_test_send`/
+`record_practical_test`) exist only for the new stage. `Hiring — Practical
+Test Dispatch` (n8n) already calls all three every minute, exactly mirroring
+`Hiring — Interview Invite Dispatch`'s shape, but stays a no-op because
+`hiring_practical_tests_enabled` is `false`: `claim_practical_test` always
+returns no job while it is. Kasper can already queue a practical test from
+the Hiring Process tab once `hiring-applications` is deployed and the flag
+is turned on — until then, `queue_practical_test` fails closed with
+`feature_disabled`, same as every other gate in this sidecar.

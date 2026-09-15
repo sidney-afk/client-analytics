@@ -9,7 +9,7 @@ function gateway(){let source=pinned('supabase/functions/production-write/index.
  source=once(source,'    if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");','    if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");\n    captureRefusalContext(req, body);');
  source=once(source,'      return json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status);','      return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));');
  return {source,separate_release_required:true,default_source_changed:false};}
-function browser({endpoint}){if(!/^https:\/\/[a-z]{20}\.supabase\.co\/functions\/v1\/write-diagnostics$/.test(endpoint))throw Error('WR101_ENDPOINT');let source=pinned('index.html','e15b741d67a8a6d7fda1876bd80ac6e638e7c87179ab9f87368dbdaa64843289');
+function browser({endpoint}){if(!/^https:\/\/[a-z]{20}\.supabase\.co\/functions\/v1\/write-diagnostics$/.test(endpoint))throw Error('WR101_ENDPOINT');let source=pinned('index.html','f3330147d5530ca0b6ee2338f95ce30132bf3ab320c1371fe98ca85374e36cf0');
  const helper=`    let _writeRefusalBudget = 20;
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBudget <= 0) return;

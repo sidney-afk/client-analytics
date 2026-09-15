@@ -815,3 +815,17 @@ executes these files (see `README.md` › Repository layout).
   `skipped` alone is never a native exemption. The runbook holds the practical
   capability matrix and `scripts/syncview-retirement-census.js` verifies the
   aggregate result once activation becomes safe.
+- **`2026-09-15-hiring-video-editor-role.sql`** adds a second hiring role
+  (Video Editor) to the Hiring Process sidecar and a Video-Editor-only round-2
+  practical-test stage (raw footage + a reference edit + instructions) between
+  application review and the final interview invite. Additive and
+  backward-compatible only: `role_slug` defaults every existing row to
+  `client-success-content-manager`, the round-3 interview-invite gate only
+  requires a passed practical test when `role_slug = 'video-editor'`, and the
+  new `hiring_practical_tests_enabled` kill switch is seeded `false` with the
+  same pre-existing-value abort guard as `hiring_invites_enabled`. It sends no
+  email and enables no automation by itself. It requires the
+  `video-editor-application` / `video-editor-interview` iClosed events to
+  already exist (owner-side, in the iClosed dashboard) before applying — a
+  capture for that role fails closed with `invalid_event` until they do. This
+  delta is source-only until EXECUTION_LOG.md records its manual application.

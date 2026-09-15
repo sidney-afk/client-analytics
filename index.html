@@ -7940,7 +7940,12 @@
         .hp-refresh, .hp-action { border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; line-height: 1.2; padding: 9px 13px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
         .hp-refresh:hover, .hp-action:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
         .hp-refresh:disabled, .hp-action:disabled { opacity: .55; cursor: default; }
+        .hp-roles { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
         .hp-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+        .hp-field-label { display: block; margin: 10px 0 4px; color: var(--text-secondary); font-size: .72rem; font-weight: 700; }
+        .hp-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font: inherit; font-size: .8rem; padding: 8px 10px; }
+        .hp-input:focus-visible { outline: 2px solid var(--sv-border-5e6ad2); outline-offset: 1px; }
+        .hp-textarea { resize: vertical; line-height: 1.5; }
         .hp-filter { min-height: 34px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: .75rem; font-weight: 700; padding: 7px 12px; cursor: pointer; }
         .hp-filter:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
         .hp-filter.active { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
@@ -77751,8 +77756,13 @@
         { key: 'invited', label: 'Invited' },
         { key: 'all', label: 'All' },
     ];
+    const HP_ROLES = [
+        { key: 'client-success-content-manager', label: 'Client Success & Content Manager' },
+        { key: 'video-editor', label: 'Video Editor' },
+    ];
     const HP_APPLICATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const _hpState = {
+        role: 'client-success-content-manager',
         filter: 'new',
         loadingList: false,
         loadingDetail: false,
@@ -77770,6 +77780,10 @@
         listController: null,
         detailController: null,
         actionController: null,
+        // In-memory-only draft for the Video Editor practical-test compose
+        // fields. Not written to browser storage anywhere, and reset
+        // whenever a different application is selected.
+        practicalDraft: { raw: '', edit: '', instructions: '' },
     };
 
     function _hpEsc(value) { return _calEsc(String(value == null ? '' : value)); }
@@ -77802,7 +77816,11 @@
         if (value === 'feature_disabled') return 'Interview invitations are not enabled yet.';
         if (value === 'interview_event_not_configured') return 'The interview calendar has not been configured yet.';
         if (value === 'state_conflict') return 'This application changed elsewhere. Refreshing the latest details.';
-        if (value === 'retry_not_available') return 'This invitation cannot be retried automatically.';
+        if (value === 'retry_not_available') return 'This cannot be retried automatically.';
+        if (value === 'wrong_role') return 'This action does not apply to this applicant’s role.';
+        if (value === 'practical_test_required') return 'A passed practical test is required before the interview invite can be sent.';
+        if (value === 'practical_test_not_delivered') return 'The practical test email has not been delivered yet, so a verdict cannot be recorded.';
+        if (value === 'invalid_verdict' || value === 'invalid_invite') return 'Check the fields and try again.';
         if (value === 'service_unavailable') return 'The hiring service is temporarily unavailable. Please try again.';
         return fallback || 'Something went wrong. Please try again.';
     }
@@ -77820,6 +77838,7 @@
         _hpAbort('listController');
         _hpAbort('detailController');
         _hpAbort('actionController');
+        _hpState.role = 'client-success-content-manager';
         _hpState.filter = 'new';
         _hpState.loadingList = false;
         _hpState.loadingDetail = false;
@@ -77831,6 +77850,7 @@
         _hpState.detailError = '';
         _hpState.actionMessage = '';
         _hpState.actionError = '';
+        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
         const mounted = document.getElementById('kasperContent');
         if (mounted && document.getElementById('hpBody')) {
             mounted.textContent = '';
@@ -77854,6 +77874,7 @@
     }
     function renderHiringProcessView() {
         const filters = HP_FILTERS.map(filter => `<button type="button" class="hp-filter${filter.key === _hpState.filter ? ' active' : ''}" aria-pressed="${filter.key === _hpState.filter ? 'true' : 'false'}" onclick="_hpSetFilter('${filter.key}')">${_hpEsc(filter.label)}</button>`).join('');
+        const roles = HP_ROLES.map(role => `<button type="button" class="hp-filter${role.key === _hpState.role ? ' active' : ''}" aria-pressed="${role.key === _hpState.role ? 'true' : 'false'}" onclick="_hpSetRole('${role.key}')">${_hpEsc(role.label)}</button>`).join('');
         return `<div class="hp-wrap" id="hpBody">
             <div class="hp-head">
                 <div>
@@ -77862,6 +77883,7 @@
                 </div>
                 <button type="button" class="hp-refresh" onclick="_hpLoadList(true)" aria-label="Refresh applications">Refresh</button>
             </div>
+            <div class="hp-roles" role="group" aria-label="Hiring role">${roles}</div>
             <div class="hp-filters" role="group" aria-label="Application status filters">${filters}</div>
             <div class="hp-workspace">
                 <aside class="hp-list" aria-label="Applications">
@@ -77879,6 +77901,11 @@
         const root = document.querySelector('.hp-filters');
         if (!root) return;
         root.innerHTML = HP_FILTERS.map(filter => `<button type="button" class="hp-filter${filter.key === _hpState.filter ? ' active' : ''}" aria-pressed="${filter.key === _hpState.filter ? 'true' : 'false'}" onclick="_hpSetFilter('${filter.key}')">${_hpEsc(filter.label)}</button>`).join('');
+    }
+    function _hpRenderRoles() {
+        const root = document.querySelector('.hp-roles');
+        if (!root) return;
+        root.innerHTML = HP_ROLES.map(role => `<button type="button" class="hp-filter${role.key === _hpState.role ? ' active' : ''}" aria-pressed="${role.key === _hpState.role ? 'true' : 'false'}" onclick="_hpSetRole('${role.key}')">${_hpEsc(role.label)}</button>`).join('');
     }
     function _hpRenderList() {
         const body = document.getElementById('hpListBody');
@@ -77949,8 +77976,12 @@
         const preview = detail.invite_preview || {};
         const inviteState = String(detail.invite_state || '').trim().toLowerCase();
         const invitationsEnabled = detail.invites_enabled === true;
+        const isVideoEditor = String(detail.role_slug || '') === 'video-editor';
+        const practicalVerdict = String(detail.practical_test_verdict || '').trim().toLowerCase();
+        const practicalTestPassed = practicalVerdict === 'passed';
+        const practicalTestGateBlocks = isVideoEditor && !practicalTestPassed;
         const deliveryPending = ['queued', 'dispatching', 'delivery_uncertain'].includes(inviteState);
-        const canQueue = invitationsEnabled && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) && !inviteState;
+        const canQueue = invitationsEnabled && !practicalTestGateBlocks && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) && !inviteState;
         const canRetry = invitationsEnabled && detail.retry_available === true && inviteState === 'failed';
         const actionDisabled = _hpState.sending ? ' disabled aria-disabled="true"' : '';
         const existingNote = inviteState === 'sent'
@@ -77959,7 +77990,9 @@
                 ? 'Interview invitation is being sent.'
                 : (inviteState === 'failed' ? 'The email was not sent before delivery began. You can retry it deliberately.'
                     : (inviteState === 'delivery_uncertain' ? 'Delivery needs confirmation before another invite can be sent.'
-                        : (!invitationsEnabled ? 'Interview invitations are not enabled yet.' : ''))));
+                        : (practicalTestGateBlocks ? 'This applicant needs a passed practical test before the final interview invite can be sent.'
+                            : (!invitationsEnabled ? 'Interview invitations are not enabled yet.' : '')))));
+        const practicalSection = isVideoEditor ? _hpRenderPracticalTestSection(detail, status, actionDisabled) : '';
         meta.textContent = submitted;
         body.innerHTML = `<div class="hp-detail-body">
             <div class="hp-person">
@@ -77975,8 +78008,9 @@
                 <div class="hp-section-title">Answers</div>
                 <div class="hp-answer-list">${answers.length ? answers.map(answer => `<div class="hp-answer"><div class="hp-answer-q">${_hpEsc(answer.question)}</div><div class="hp-answer-a">${_hpEsc(answer.answer)}</div></div>`).join('') : '<div class="hp-empty">No answers are available for this application.</div>'}</div>
             </div>
+            ${practicalSection}
             <div class="hp-preview">
-                <div class="hp-section-title">Interview invitation preview</div>
+                <div class="hp-section-title">${isVideoEditor ? 'Final interview invitation preview' : 'Interview invitation preview'}</div>
                 <div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc(preview.recipient || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(preview.subject || 'Interview invitation')}</span></div>
                 <div class="hp-email">${_hpEsc(preview.body || 'The invitation preview will appear once the interview calendar is configured.')}</div>
                 <div class="hp-actions">
@@ -77990,7 +78024,47 @@
             </div>
         </div>`;
     }
-    function _hpPaint() { _hpRenderFilters(); _hpRenderList(); _hpRenderDetail(); }
+    function _hpRenderPracticalTestSection(detail, status, actionDisabled) {
+        const testsEnabled = detail.practical_tests_enabled === true;
+        const testState = String(detail.practical_test_state || '').trim().toLowerCase();
+        const verdict = String(detail.practical_test_verdict || '').trim().toLowerCase();
+        const sent = detail.practical_test_sent || null;
+        const draft = _hpState.practicalDraft;
+        const terminal = ['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status);
+        const canQueueTest = testsEnabled && !terminal && !testState;
+        const canRetryTest = testsEnabled && detail.practical_test_retry_available === true && testState === 'failed';
+        const canSetVerdict = testState === 'sent' && !verdict;
+        let statusNote = '';
+        if (!testsEnabled && !testState) statusNote = 'Practical test emails are not enabled yet.';
+        else if (testState === 'queued' || testState === 'dispatching') statusNote = 'Practical test email is being sent.';
+        else if (testState === 'failed') statusNote = 'The email was not sent before delivery began. You can retry it deliberately.';
+        else if (testState === 'delivery_uncertain') statusNote = 'Delivery needs confirmation before another practical test can be sent.';
+        else if (verdict === 'passed') statusNote = 'Verdict: passed. The final interview invite is unlocked below.';
+        else if (verdict === 'not_selected') statusNote = 'Verdict: not moving forward.';
+        return `<div class="hp-preview">
+            <div class="hp-section-title">Practical test</div>
+            ${canQueueTest ? `
+                <label class="hp-field-label" for="hpPracticalRaw">Raw footage link</label>
+                <input type="url" id="hpPracticalRaw" class="hp-input" placeholder="https://drive.google.com/..." value="${_hpEsc(draft.raw)}" oninput="_hpUpdatePracticalDraft('raw', this.value)">
+                <label class="hp-field-label" for="hpPracticalEdit">Reference edit link</label>
+                <input type="url" id="hpPracticalEdit" class="hp-input" placeholder="https://drive.google.com/..." value="${_hpEsc(draft.edit)}" oninput="_hpUpdatePracticalDraft('edit', this.value)">
+                <label class="hp-field-label" for="hpPracticalInstructions">Instructions</label>
+                <textarea id="hpPracticalInstructions" class="hp-input hp-textarea" rows="4" placeholder="What should they do with the footage?" oninput="_hpUpdatePracticalDraft('instructions', this.value)">${_hpEsc(draft.instructions)}</textarea>
+            ` : (sent ? `<div class="hp-preview-meta"><span><b>Subject:</b> ${_hpEsc(sent.subject)}</span></div><div class="hp-email">${_hpEsc(sent.body)}</div>` : '')}
+            <div class="hp-actions">
+                ${canQueueTest ? '<button type="button" class="hp-action primary" id="hpPracticalSendButton" onclick="_hpQueuePracticalTest()"' + actionDisabled + '>Send practical test</button>' : ''}
+                ${canRetryTest ? '<button type="button" class="hp-action primary" onclick="_hpRetryPracticalTest()"' + actionDisabled + '>Retry practical test</button>' : ''}
+                ${canSetVerdict ? '<button type="button" class="hp-action primary" onclick="_hpSetPracticalTestVerdict(\'passed\')"' + actionDisabled + '>Mark practical test passed</button>' : ''}
+                ${canSetVerdict ? '<button type="button" class="hp-action danger" onclick="_hpSetPracticalTestVerdict(\'not_selected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
+            </div>
+            ${statusNote ? `<div class="hp-action-status">${_hpEsc(statusNote)}</div>` : ''}
+        </div>`;
+    }
+    function _hpUpdatePracticalDraft(field, value) {
+        if (!['raw', 'edit', 'instructions'].includes(field)) return;
+        _hpState.practicalDraft[field] = String(value == null ? '' : value);
+    }
+    function _hpPaint() { _hpRenderRoles(); _hpRenderFilters(); _hpRenderList(); _hpRenderDetail(); }
     async function _hpLoadList(force) {
         if (_hpState.loadingList && !force) return;
         _hpAbort('listController');
@@ -78001,7 +78075,7 @@
         _hpState.listError = '';
         _hpRenderList();
         try {
-            const data = await _hpCall({ action: 'list', status: _hpState.filter === 'all' ? null : _hpState.filter, limit: 100 }, controller);
+            const data = await _hpCall({ action: 'list', role: _hpState.role, status: _hpState.filter === 'all' ? null : _hpState.filter, limit: 100 }, controller);
             if (request !== _hpState.listRequest) return;
             _hpState.list = Array.isArray(data.applications) ? data.applications : [];
             if (_hpState.selectedId && !_hpState.list.some(item => String(item && item.id || '') === _hpState.selectedId)) {
@@ -78030,6 +78104,18 @@
         _hpPaint();
         _hpLoadList(true);
     }
+    function _hpSetRole(role) {
+        if (!HP_ROLES.some(option => option.key === role) || role === _hpState.role) return;
+        _hpState.role = role;
+        _hpState.selectedId = '';
+        _hpState.detail = null;
+        _hpState.detailError = '';
+        _hpState.actionError = '';
+        _hpState.actionMessage = '';
+        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
+        _hpPaint();
+        _hpLoadList(true);
+    }
     function _hpSelect(id) {
         const clean = _hpApplicationId(id);
         if (!clean || clean === _hpState.selectedId && _hpState.detail) return;
@@ -78038,6 +78124,7 @@
         _hpState.detailError = '';
         _hpState.actionError = '';
         _hpState.actionMessage = '';
+        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
         _hpPaint();
         _hpLoadDetail(clean, true);
     }
@@ -78144,6 +78231,109 @@
             if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
             _hpState.actionError = _hpDisplayError(e && e.message, 'Could not retry the interview invitation.');
             if (e && (e.message === 'state_conflict' || e.message === 'retry_not_available')) _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpQueuePracticalTest() {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending) return;
+        const draft = _hpState.practicalDraft;
+        const raw = String(draft.raw || '').trim();
+        const edit = String(draft.edit || '').trim();
+        const instructions = String(draft.instructions || '').trim();
+        if (!raw || !edit || !instructions) {
+            _hpState.actionError = 'Add the raw footage link, the reference edit link, and instructions before sending.';
+            _hpRenderDetail();
+            return;
+        }
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Queueing practical test...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({
+                action: 'queue_practical_test', application_id: detail.id, state_version: detail.state_version,
+                raw_footage_url: raw, reference_edit_url: edit, instructions,
+            }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Practical test queued for delivery.';
+            _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = (e && e.message === 'feature_disabled')
+                ? 'Practical test emails are not enabled yet.'
+                : _hpDisplayError(e && e.message, 'Could not queue the practical test.');
+            if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpRetryPracticalTest() {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending || detail.practical_test_retry_available !== true) return;
+        if (!window.confirm('Retry this practical test email? It was confirmed not to have reached the email provider.')) return;
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Requeueing practical test...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'retry_practical_test', application_id: detail.id, state_version: detail.state_version }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Practical test requeued for delivery.';
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = (e && e.message === 'feature_disabled')
+                ? 'Practical test emails are not enabled yet.'
+                : _hpDisplayError(e && e.message, 'Could not retry the practical test.');
+            if (e && (e.message === 'state_conflict' || e.message === 'retry_not_available')) _hpLoadDetail(detail.id, true);
+        } finally {
+            if (request !== _hpState.actionRequest) return;
+            _hpState.sending = false;
+            _hpState.actionController = null;
+            _hpRenderDetail();
+        }
+    }
+    async function _hpSetPracticalTestVerdict(verdict) {
+        const detail = _hpState.detail;
+        if (!detail || _hpState.sending || !['passed', 'not_selected'].includes(verdict)) return;
+        if (verdict === 'not_selected' && !window.confirm('Mark this applicant as not moving forward? This does not send an email.')) return;
+        _hpAbort('actionController');
+        const controller = new AbortController();
+        _hpState.actionController = controller;
+        const request = ++_hpState.actionRequest;
+        _hpState.sending = true;
+        _hpState.actionError = '';
+        _hpState.actionMessage = 'Saving...';
+        _hpRenderDetail();
+        try {
+            const data = await _hpCall({ action: 'set_practical_test_verdict', application_id: detail.id, state_version: detail.state_version, verdict }, controller);
+            if (request !== _hpState.actionRequest) return;
+            _hpState.actionMessage = data.message || 'Practical test verdict recorded.';
+            await _hpLoadDetail(detail.id, true);
+            await _hpLoadList(true);
+        } catch (e) {
+            if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
+            _hpState.actionError = _hpDisplayError(e && e.message, 'Could not record the practical test verdict.');
+            if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
         } finally {
             if (request !== _hpState.actionRequest) return;
             _hpState.sending = false;

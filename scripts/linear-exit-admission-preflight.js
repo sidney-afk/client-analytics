@@ -3,7 +3,7 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const ROOT=path.resolve(__dirname,'..');
 const CONTRACT='docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json';
-const CONTRACT_SHA='8980fc5124f9d86064536e55f65f02eedb68cc200e53a266a2a2cd96a9c412f7';
+const CONTRACT_SHA='3288b4b5fcb9ad4ef1a68a30e90ee16ae65a2d84697cefe73705e06fcd2963f9';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 function loadContract({readFile=fs.readFileSync}={}) {
  const bytes=readFile(path.join(ROOT,CONTRACT));if(sha(bytes)!==CONTRACT_SHA)throw Error('ADMISSION_CONTRACT_HASH_DRIFT');

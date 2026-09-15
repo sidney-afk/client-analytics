@@ -30,6 +30,119 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — NEAR MISS: a hash was fabricated from a printed prefix, caught and corrected before it shipped
+
+Recorded first because it is the most dangerous thing that happened today, and
+it was self-inflicted.
+
+While re-deriving the admission pin chain, a 64-character `CONTRACT_SHA` was
+written into `scripts/linear-exit-admission-preflight.js` by taking the
+**12-character prefix** that had been printed earlier and inventing the
+remaining 52 characters. It was noticed immediately, the real value was computed
+with `sha256sum`, and the file was corrected before anything was committed,
+tested or pushed.
+
+Why it matters more than an ordinary slip: a fabricated hash in a drift guard
+does not fail loudly in an obvious way. It would have made the guard reject the
+correct file forever, and the natural next move when a guard refuses is to
+"re-derive" it again, which is how a wrong value becomes permanent. It also
+defeats the exact protection the guard exists to provide.
+
+The rule this adds, narrower than "be careful": **never write a hash that was
+not produced in full by a command in the same breath.** Print the full value and
+copy it. A truncated display is for reading, never for authoring. Anywhere a
+64-character constant is being written, the full value must come from the tool,
+not from memory or reconstruction.
+
+This is the fourth time today reasoning outran checking, and the first where the
+output would have been actively harmful rather than merely wrong.
+
+### 2026-09-15 — Catch-up to new main `1abdd1fa`, B10 closed, and what a one-word change actually cost
+
+Main moved to `1abdd1fa` (PR #1407, the hiring Video Editor work) and was
+re-frozen there with the wider scope: merges, live database changes from any
+session or dashboard, and deployments of anything the exit plan checks against.
+
+**The catch-up itself was small.** One conflict, `migrations/README.md`, where
+both sides had appended a bullet to the same list; both kept, chronologically
+ordered. Main brought 9 files from the merge base, which was exactly the old
+frozen main `0aa5954`.
+
+**The predicted failure did not recur, and was checked rather than assumed.**
+Last catch-up, the only failure CI could see was the native-intake fixture
+building its database from a hardcoded migration list missing main's new
+migration. The new migration `2026-09-15-hiring-video-editor-role.sql` is also
+absent from that list, but it is entirely hiring-scoped: it touches no table the
+fixture builds and no code path the native-intake lanes exercise. Rather than
+reason about that, the whole suite was run **with the Postgres lanes enabled
+locally**, which is what makes local match CI. That is now the standard for this
+branch: a run that skips the Postgres lanes has not tested the branch.
+
+**Pins re-derived.** `production-write` was unchanged, since main touched only
+the two hiring Edge functions. `index.html` changed, so the write-diagnostics
+composer's `index.html` hash was re-derived after confirming its seam still
+appears exactly once and that main did not touch the seam region.
+
+**B10 closed, and the real cost of it.** `hiring_practical_test_jobs` was added
+to the admission guard's table list in
+`supabase/migrations/20260912183653_application_dml_admission_preparation.sql`,
+in sorted position: 86 entries to 87, still alphabetical, neighbours
+`hiring_invite_jobs` and `kasper_ad_campaign_daily`.
+
+That one word broke four pins across three files, in a chain three levels deep:
+
+1. the source's own hash, in `LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json`
+   and again in `LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json`;
+2. the contract JSON's hash, held both inside the extension JSON and as
+   `CONTRACT_SHA` in `scripts/linear-exit-admission-preflight.js`;
+3. the extension JSON's hash, as `PIN` in
+   `scripts/linear-exit-admission-release-extension.js`.
+
+Re-derived in dependency order, each by string replacement so every file stayed
+byte-identical apart from the hash. Structural invariants confirmed rather than
+assumed: the contract still lists 7 sources, the extension still lists 7
+`sql_owners`, and their `order` values are unchanged. The contract's `tables`
+inventory was read directly and needed no change; it describes the admission
+machinery's own four `card_write_*` tables, not the guarded list.
+
+Worth carrying forward: **the admission source sits behind a four-deep pin
+chain.** Any future change to it, however small, costs the same four
+re-derivations. The `ADMISSION_CONTRACT_HASH_DRIFT` level in particular was only
+discovered after the first three were fixed, because it lives in a different
+script than the other two. Anyone touching that file should map the chain first.
+
+**Result:** all 547 unit suites pass with the Postgres lanes enabled, plus the
+mocked Calendar browser gate. 61 profiles are NOT_RUN in that lane by design.
+
+### 2026-09-15 — Two hiring Edge deploys inside the freeze window, deliberately outside its scope
+
+Owner dispatched `hiring-applications` and `hiring-automation` at `1abdd1fa`.
+
+Recorded so a deploy timestamp inside the freeze window does not surprise a
+later reader, which is the second time today that has needed saying. Neither is
+among B7's twelve, neither touches the database schema, and neither is the
+browser, so nothing the exit plan checks against moved. The freeze covers
+deployments of things the plan checks against; these are not among them.
+
+### 2026-09-15 — B4 decided: accept the loss, no PITR, so steps 9 and 10 are the recovery route that matters
+
+Owner decisions, recorded for their consequence rather than as bookkeeping.
+
+On any managed restore: **accept the loss of newer saves and reconcile by hand
+afterwards.** And **no Point in Time Recovery**, on cost.
+
+The consequence is the part worth writing down. With PITR declined, the managed
+restore can only go back to a nightly backup, so the recovery position is
+materially weaker than it looked, and **the database backup refresh in steps 9
+and 10 becomes the recovery route that actually matters.** It is no longer a
+belt-and-braces custody drill running alongside a strong platform fallback; it
+is the fallback. Anything that lets steps 9 and 10 slip, or that accepts them as
+"done" before the downloaded copy has actually restored, removes the real safety
+net rather than a spare one.
+
+B4's mechanical half, whether the Restore control is enabled at all, still needs
+the click path in the sitting page appendix.
+
 ### 2026-09-15 — B7 settled: frozen main `0aa5954` matches all twelve deployed functions (12 PASS)
 
 The appendix's authenticated fingerprint block was run once on the owner's
@@ -727,6 +840,29 @@ Live list. Items come off with a date and a note, never by deletion.
 
 | B7 | Whether one older main commit matches all **twelve** functions that have deployed versions is UNPROVEN, so C1 is neither confirmed nor ruled out | Owner or CI, before step 13 | One authenticated `ef-fingerprint` live read plus an offline walk back through main. Recipe in the 2026-09-15 correction entry. Added 2026-09-15, superseding B6 |
 | B8 | The recovery procedure does not say what rollback means for a brand-new function | Owner, before step 16 | For `notify` there is no previous version, so rollback means removing it or leaving it inert, not restoring. The procedure should state which. Added 2026-09-15 |
+
+**B10 closed, 2026-09-15.** `hiring_practical_test_jobs` added to the admission
+guard list in sorted position, 86 entries to 87, and the four downstream pins
+re-derived in dependency order. The ordering constraint was satisfied by the
+hiring migration landing on main at `1abdd1fa`.
+
+**B4 decided in part, 2026-09-15, owner. Row kept above, still open.** Accept
+the loss of newer saves and reconcile by hand; no PITR, on cost. Consequence:
+steps 9 and 10 are now the recovery route that actually matters, not a spare.
+What remains open is the mechanical half, whether the managed Restore control is
+enabled at all, which is the click path in the sitting page appendix.
+
+**B5 browser baseline re-derived, 2026-09-15, still open.** Recomputed against
+`1abdd1fa`; the `0aa5954` values are stale and removed from the sitting page. The
+framing was also corrected: the capture must be taken immediately before the
+**exit** merge, not before any merge, because every merge republishes Pages. The
+page now says to re-derive from main's tip at capture time rather than trusting
+any value written in advance.
+
+**B7 closed yes, 2026-09-15.** 12 PASS, 0 FAIL, 0 ERROR at `0aa5954` on the
+Windows machine. C1 exists and `0aa5954` is the commit; it remains an ancestor of
+`1abdd1fa`, so both the answer and the rollback target survive the merge. It does
+not close B5.
 
 **B7 narrowed, 2026-09-15, row kept above.** It does not close to "C1
 unavailable". Measured over full history, ten of the twelve closures are stable

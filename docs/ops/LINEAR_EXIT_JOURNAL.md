@@ -137,6 +137,51 @@ anything. The recovery procedure currently describes a thirteen-function
 restoration in uniform terms and should say which of the two it intends for
 `notify`. Recorded as B8.
 
+### 2026-09-15 — Authoritative step count, and the B7 run prepared for handover
+
+**The step count is 6 of 28, about 21%.** Two sessions were reporting different
+figures into the same record, 6 of 28 against 7 of 28. Take the number from this
+file, not from either chat. The difference was step 8: it is in progress, and
+the map says in progress is not complete, so it does not count. Step 2 being
+answered does not move the figure either, because step 2 sits in Phase 0 and its
+own done-condition is currently unmet.
+
+**The B7 authenticated run is prepared and ready to hand over**, written as a
+runnable block in the [owner sitting page](LINEAR_EXIT_OWNER_SITTING_20260915.md)
+appendix. Not queued and not run: the local session was mid Storage capture and
+must not be interrupted. The token was not requested and does not appear
+anywhere in the repository.
+
+The appendix records that the run settles **both** gaps the offline analysis
+left open, and why:
+
+- A deploy cut from a ref other than main's tip stops mattering once content is
+  compared, because C1 asks whether a commit matches what is deployed and the
+  fingerprint compares closure content directly.
+- The `release/` staging path is handled by `normalizeLivePath`, which maps
+  deployed paths back to the canonical `functions/<slug>/…` form and **throws**
+  on anything it cannot map. A layout mismatch therefore cannot produce a false
+  PASS, only an honest FAIL or a loud ERROR naming the path.
+
+Both of those were checked in the tool's source before being written down,
+rather than assumed from its documentation.
+
+### 2026-09-15 — This round, the supervisor's claim was the thing that failed
+
+Worth recording explicitly, because the previous two rounds went the other way
+and a record that only shows one direction teaches the wrong lesson.
+
+The supervisor's correction about `f2c889d` and the three staff functions did
+not reproduce, and the instruction to verify rather than accept it is what found
+the real problem: the clone was shallow, so both sides had been measuring over
+truncated history. The supervisor independently confirmed this on their own
+clone.
+
+The general rule this supports: a correction from a reviewer is a hypothesis,
+not a fact, and checking it costs one command. Accepting it unverified would
+have written a wrong conclusion into this file with a second signature on it,
+which is harder to unpick later than a single session's error.
+
 ### 2026-09-15 — SECOND correction on step 2: the clone was shallow, and B7 narrows rather than closing
 
 Appended below both earlier entries. Neither is edited.

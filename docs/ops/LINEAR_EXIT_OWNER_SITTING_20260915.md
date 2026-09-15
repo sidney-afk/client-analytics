@@ -240,6 +240,71 @@ directory and report it.
 
 ---
 
+## Appendix: the B7 fingerprint run (not part of the sitting)
+
+Separate from the five sections above and not time-critical. Run it whenever the
+Windows session is free. It takes under a minute.
+
+It answers one question: does frozen main `0aa5954` match all twelve deployed
+functions, which decides whether recovery route C1 exists.
+
+**Where from:** the repository root on the Windows machine, because the tool
+reads Git. Anywhere else will fail.
+
+**What it needs:** `SUPABASE_ACCESS_TOKEN` already present in that machine's
+environment. It is not an argument to the command and must not be pasted into
+chat, into a file, or into this page. If it is not set there, set it yourself on
+that machine.
+
+Run exactly this, as one line:
+
+```powershell
+node scripts/ef-fingerprint.js 0aa5954a5c63e3b6f399caf739e562b371393325 --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,production-comments,production-archive,production-write
+```
+
+That is the full list of twelve. `notify` is deliberately absent: it has never
+been deployed, so it has nothing to compare.
+
+**The only line that matters** is the last one:
+
+```
+Summary: 12 PASS, 0 FAIL, 0 ERROR
+```
+
+- **12 PASS, 0 FAIL, 0 ERROR** means every deployed function matches `0aa5954`.
+  C1 exists, and `0aa5954` is the commit. B7 closes yes.
+- **Any FAIL or ERROR** means it does not match. The tool prints a reason line
+  under each one. Copy those lines verbatim and hand them back without
+  interpreting them; which functions fail and why is the whole answer.
+
+Note that a slug can FAIL for a reason other than its source: the check also
+requires the expected entrypoint, an active function and the expected JWT
+posture. The printed reason says which, so do not read a FAIL as "the source
+differs" without reading it.
+
+Nothing about this run changes anything. It reads Git locally and reads the
+deployed function list; it deploys nothing and writes nothing.
+
+### What this run settles
+
+Both gaps left open by the offline analysis, and it settles them completely.
+
+**Gap 1, a deploy that came from a ref other than main's tip.** Settled, because
+provenance stops mattering once content is compared. C1 asks whether a commit
+*matches* what is deployed, and the fingerprint compares source closure content
+directly. If the fingerprints agree, it is irrelevant which ref the deploy was
+cut from; if they disagree, the answer is no regardless.
+
+**Gap 2, the `release/` staging path versus the `supabase/functions/` path.**
+Settled by the tool itself. `normalizeLivePath` maps deployed source paths back
+to the canonical `functions/<slug>/…` form, handling staging roots and older
+generic roots, and it **throws** on any path it cannot map rather than hashing
+the wrong thing quietly. So a path-layout mismatch cannot produce a false PASS.
+It can only produce a PASS, an honest FAIL, or a loud ERROR naming the path.
+
+So after this single run, B7 is decided either way. No further offline analysis
+is needed, and none should be treated as a substitute.
+
 ## After the sitting
 
 Steps 12 and 13 are next. Step 13 is an approval gate and nothing happens at it

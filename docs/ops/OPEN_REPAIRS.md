@@ -553,6 +553,8 @@ latch on failure, reset on recovery — across four lanes. Closed.
 
 ## 13. [closed] Seven terminal mis-filed rows — verified healed 2026-08-11, no SQL needed
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `13`. **This one is the seven terminal mis-filed rows (promoted 2026-08-10, verified healed 2026-08-11).** The other `13` is the TEST-client ghost calendar cards (2026-08-14), and that is the one meant by every `OPEN_REPAIRS 13` reference in `index.html` (the "MAKE THE RELOAD ADVICE TRUE" block), `test/write-ui-failure-messages.js` and `EXECUTION_LOG.md`.
+
 Surfaced by #1051's review, promoted here 2026-08-10 so it stops living only in
 a PR description. Three batch-title collisions (same mechanism as item 5's GRA
 family: two same-named parent cards collapsing to one batch id) mis-filed rows
@@ -590,6 +592,8 @@ the EXECUTION_LOG 2026-08-10 repair) and the next audit shows no parent
 mismatches for these families.
 
 ## 14. [repair] The #1051 parent map can never FORGET a stale entry
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `14`. **This one is the #1051 parent-map stale entry** and is the one meant by `.github/workflows/b1-linear-incremental-refresh.yml` and by the `outbound_parent_mismatch` rule in `PRE_FLIP_HEALTH_CHECK.md` (POST-FLIP item 5). The other `14` is the `artifact_not_resolvable` wrong-dialog fix (2026-08-16, closed 2026-08-22), which is what `test/write-ui-failure-messages.js` means.
 
 #1051 deliberately made the incremental importer merge-not-replace the
 per-team parent map — clearing by omission was the bug. Consequence, flagged
@@ -853,6 +857,8 @@ the Linear gateway — but must close before any video flip.
 
 ## 13. [closed] TEST-client ghost calendar cards — swept, and the loop closed
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `13`. **This one is the TEST-client ghost calendar cards (2026-08-14)** and is the one meant by every `OPEN_REPAIRS 13` reference in `index.html` (the "MAKE THE RELOAD ADVICE TRUE" block), `test/write-ui-failure-messages.js` and `EXECUTION_LOG.md`. The other `13` is the seven terminal mis-filed rows (2026-08-10).
+
 Found 2026-08-14 while drilling the comment front door. The TEST client's
 calendar renders cards (e.g. "Sample 1") whose backing `deliverables` rows no
 longer exist, so every status/notes save against one is refused by
@@ -915,6 +921,8 @@ render check the row's live existence. With zero instances in the data that
 would be speculative work, and the eviction closes the loop that made it hurt.
 
 ## 14. [closed] `artifact_not_resolvable` shows the wrong dialog — closed 2026-08-22
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `14`. **This one is the `artifact_not_resolvable` wrong-dialog fix (found 2026-08-16, closed 2026-08-22)** and is the one meant by `test/write-ui-failure-messages.js`. The other `14` is the #1051 parent-map stale entry, which is what `.github/workflows/b1-linear-incremental-refresh.yml` and the `outbound_parent_mismatch` rule in `PRE_FLIP_HEALTH_CHECK.md` mean.
 
 Found 2026-08-16 during post-flip live testing. Moving a graphics card to
 **For SMM Approval** runs `assertGraphicsApprovalArtifact` (production-write
@@ -1418,6 +1426,8 @@ sealed capture, its upload, and the dispatch remain.
 
 ## 22. [repair] Linear test-issue debris across two projects
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `22`. **This one is the Linear test/drill issue debris across two projects (flip week).** The other `22` is "Nothing reconciles `deliverables` against Linear" (2026-08-20). No reference outside this file cites either by number; cite them by number AND subject.
+
 ~354 test/drill issues accumulated across two Linear projects during the flip
 week. They inflate `repair_list_size`, the shadow audit's entity counts and the
 F40 counter, which makes every one of those numbers harder to read as a signal.
@@ -1512,6 +1522,8 @@ still the owner's hands. What changed is that it is now a counter-hygiene job
 rather than something two editors see every day.
 
 ## 23. [repair] Archiving stopped parking its sub-issues — it has fired ONCE since it shipped
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `23`. **This one is archiving no longer parking its sub-issues (2026-08-20)** and is the one meant by `index.html` ("11 archives since the feature shipped, 0 parks") and `test/calendar-archive-parks-sub-issues.js`. The other `23` is the `GRA-7112` attribution row, which is what the foreign-write-strand entry in `PRE_FLIP_HEALTH_CHECK.md` means.
 
 Found 2026-08-20 while unarchiving a card at an SMM's request. The card had been
 archived 16 seconds after creation; both its Linear sub-issues were still sitting
@@ -1672,6 +1684,8 @@ an inert EF change into it would make that claim untrue. Recorded here instead.
 
 ## 22. [repair] Nothing reconciles `deliverables` against Linear
 
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `22`. **This one is "nothing reconciles `deliverables` against Linear" (2026-08-20).** The other `22` is the Linear test/drill issue debris across two projects. No reference outside this file cites either by number; cite them by number AND subject.
+
 Found 2026-08-20 while chasing a designer's report that her Workload and her
 Production tab disagreed. That report was a red herring (her "Show sub-issues"
 was off), but measuring it surfaced a real gap.
@@ -1749,6 +1763,8 @@ alarm. Still open: whether the reconciler may repair on its own, and an alarm on
 the engine's own count for the video flip.
 
 ## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified, SQL ready
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `23`. **This one is the `GRA-7112` attribution row** and is the one meant by the foreign-write-strand entry in `PRE_FLIP_HEALTH_CHECK.md`. The other `23` is archiving no longer parking its sub-issues (2026-08-20), which is what `index.html` and `test/calendar-archive-parks-sub-issues.js` mean.
 
 Surfaced by the same census. Its status drift is cosmetic; the real defect is
 that it carries no client mapping, so it appears in no client's view and its
@@ -21060,6 +21076,8 @@ Checked after the merge, per this file's own standing instruction: no duplicate
 duplicate top-level numbers in this file are all present identically on
 `origin/main`.
 
+---
+
 ## 200. [2026-09-14, BUILT] The Workload cold boot: cached snapshot first, an honest loading matrix, and a shimmer that keeps moving
 
 The owner watched a hard refresh of `#workload` and saw three things in a row:
@@ -21092,7 +21110,547 @@ two phases, `cold_boot_skeleton` and `cache_first_paint`, pinning both the
 loading matrix and the stale-cache paint; 77 assertions across 15 phases pass,
 `workload-board-browser.js` still passes 88 across 18.
 
-## 201. [2026-09-15, BUILT] The Workload cold boot, second pass: the network was serial three times over
+---
+
+## 201. [2026-09-12, MEASURED — the growth is one bucket on one team; the mechanism is NOT established] The shadow-audit residue rose 94 → 122 in eleven days, and 19 of the 28 are `outbound_archive_mismatch`
+
+The `production_shadow_audit` lane has been red continuously since 2026-07-24
+and is CONTEXT with a growth gate (`PRE_FLIP_HEALTH_CHECK.md`), so the only
+question it ever asks is whether the residue is growing for a reason nobody
+recorded. Four consecutive scheduled checks reported the rise and did not
+decompose it, which is how "no explanatory repair" became the standing note.
+This is the decomposition. It is a measurement, not a diagnosis, and it names
+no cause.
+
+`unexpected_divergences` per daily run, from `deliverable_events` (no run
+recorded on 09-03):
+
+| run date | total | `outbound_archive_mismatch` | video | graphics |
+|---|---|---|---|---|
+| 2026-09-01 | 94 | 18 | 22 | 72 |
+| 2026-09-02 | 104 | 17 | 32 | 72 |
+| 2026-09-04 | 101 | 17 | 31 | 70 |
+| 2026-09-05 | 103 | 20 | 32 | 71 |
+| 2026-09-06 | 114 | 31 | 43 | 71 |
+| 2026-09-07 | 114 | 31 | 43 | 71 |
+| 2026-09-08 | 116 | 32 | 43 | 73 |
+| 2026-09-09 | 119 | 37 | 44 | 75 |
+| 2026-09-10 | 122 | 37 | 47 | 75 |
+| 2026-09-11 | 122 | 37 | 47 | 75 |
+
+**One bucket.** Every other reason is flat or near-flat across the window:
+`outbound_parent_mismatch` 10 throughout, `outbound_priority_mismatch` 6,
+`outbound_batch_title_mismatch` 12, `outbound_comment_missing_in_linear` 8,
+`outbound_due_date_mismatch` 15 → 17, `outbound_assignee_mismatch` 8 → 9,
+`outbound_state_mismatch` 7 → 13. The deltas sum to the headline +28 and
+`outbound_archive_mismatch` supplies 19 of them.
+
+**One team.** Video went 22 → 47 and graphics 72 → 75. Video supplied 25 of the
+28.
+
+**Two steps, not a drift.** +11 between the 09-05 and 09-06 runs (both ~09:40Z)
+and +5 between 09-08 and 09-09, flat on every other day. A daily lane that jumps
+twice and sits still otherwise is recording two events, not an accumulating
+leak — which is the difference between a repair and a conversation.
+
+**What the bucket means.** `linear-deliverables-reconcile-lib.js:606-617`: the
+native row's archived-or-deleted state disagrees with the Linear issue's, and
+the disagreement is not one `historicalWriteDisposition` tolerates — that
+function tolerates `restore` and `parent` on historical entities and never
+tolerates `archive`.
+
+**A proxy that does NOT answer this, recorded so nobody spends the query
+twice.** Joining `deliverables` to `workload_issues` and comparing
+`status = 'archived'` against `workload_issues.active` returns 0 in the
+native-archived/Linear-active direction on both teams and 599 graphics + 641
+video in the other. Neither number is the audited population.
+`deliverableArchivedOrDeleted` (`:157-162`) reads `linear_raw` — webhook delete
+markers, `issue.archivedAt`, `issue.canceledAt` — not the mirror's `active`
+flag, so the mirror is the wrong side of the comparison entirely.
+
+**One arithmetic note, so a future reader does not chase it.** The
+`unexpected_divergences_by_reason` map sums to exactly 10 fewer than the
+headline `unexpected_divergences` on EVERY run in the window, 09-01 included.
+It is a constant offset, so it changes nothing about the growth attribution
+above; it does mean the map is not a complete partition of the total, and the
+missing 10 have not been identified.
+
+**Not done, and deliberately not repaired here.** What would answer it: the
+lane's own `unexpected_divergence_sample` for the 09-06 and 09-09 runs
+restricted to `outbound_archive_mismatch`, set against whatever was archived in
+SyncView on 09-05 and 09-08. The sample in the stored event payload is too
+small to carry it.
+
+---
+
+## 202. [2026-09-12, MEASURED — one bulk edit, not 98 drifts] Foreign-write STRANDED reads 98 against a baseline of 2, and 97 of the 98 land inside two minutes
+
+`foreign-write-strand-check.js` is CONTEXT with a growth gate, and the number it
+gates on is STRANDED — Linear moved, the native row never caught up — measured
+at **2** on 2026-08-22. Tonight's run over the trailing 14 days reads **98**.
+Read as a growth signal that is a 49x rise. Read as events it is one action plus
+one ordinary case.
+
+Grouping the 98 by the minute of the Linear edit:
+
+| Linear edit | rows |
+|---|---|
+| 2026-09-06T23:04Z | 64 |
+| 2026-09-06T23:05Z | 33 |
+| 2026-09-09T16:33Z | 1 |
+
+95 of the 98 are video and 3 are graphics. 86 of the 98 have the native row in
+`backlog` while Linear reads `Todo` (62) or `For SMM approval` (24).
+
+**What it costs, post-F1.** Both teams are SyncView-authoritative, so a Linear
+edit on these rows records `foreign_write_detected` and is deliberately not
+applied. Nothing is lost and nothing needs healing: SyncView owns the answer and
+the native value stands. What it costs is that whatever was done in Linear in
+those two minutes has no effect. The rows roll out of the 14-day window around
+2026-09-20 and the number falls back on its own, with no repair and no ledger
+close.
+
+**The one row that is not part of the burst** is `VID-13334`: Linear says Posted
+as of 2026-09-09T16:33Z, SyncView says `smm_approval`, last touched
+2026-09-05T20:53Z. That is the ordinary shape this check exists to find, and in
+fourteen days it is the only one.
+
+**The question is for a human and it is not a repair.** A 97-row edit inside two
+minutes is not a person working; it is a bulk action or an automation. Which one
+it was, and whether those rows were meant to move, is the part worth knowing —
+and nothing on this side of the system can answer it. The same entry's standing
+note applies: a stranded row is never auto-healed, because SyncView owns both
+teams and the Linear value is not automatically the truth.
+
+Checked after appending, per this file's own standing instruction: no new
+duplicate `## N.` headers. The six pre-existing duplicate numbers (13, 14, 22,
+23, 175, 176) now each carry a disambiguation block naming which entry is which
+and which references mean it; none were renumbered, because 175 and 176 are
+cited from a dozen places in `index.html` and the tests and the same hazard
+applies to the rest.
+
+---
+
+## 203. [2026-09-12, MEASURED — 635 rows are 11 decisions, and one of them is 92% of the population] The `unmapped_project` bucket is historical projects, not a live attribution gap
+
+`PRE_FLIP_HEALTH_CHECK.md`'s attribution entry says to "flag anything landing in
+`unmapped_project` — that bucket is a decision somebody owes, not a repair."
+Tonight it reads **635**, every row live, and the health check's own gating
+column — an ACTIVE client is waiting — reads **0**. A number that large against
+a waiting count of zero is unreadable without decomposing it, so here is the
+decomposition.
+
+`attribution-stuck-check.js --json`, `buckets.unmapped_project`, grouped by
+`project_id`:
+
+| rows | Linear project (uuid) | project status | project created |
+|---|---|---|---|
+| 585 | `2c6bf693-b689-4748-99eb-2162e50e8ca4` | Backlog | 2023-01 |
+| 22 | `cb21f363-1646-42cc-89e4-a9ed33db5f2d` | Completed 2025-09 | 2023-09 |
+| 8 | `95b04203-85a2-41b1-bd2b-3b174c475eab` | Completed 2024-01 | 2023-05 |
+| 6 | `4a972b36-7796-42fc-9990-acf52760b832` | Completed 2026-01 | 2024-04 |
+| 4 | `f80e0fea-cd20-4a0e-9f05-3c94c2e5e7a1` | Completed 2024-01 | 2023-07 |
+| 3 | `5984daba-3636-4ca7-9a62-605a73bb9eb9` | In Progress | 2023-10 |
+| 3 | `a0ecb524-ed37-4836-8d81-93ae8f1d65ec` | Completed 2024-06 | 2024-03 |
+| 1 | `a8312b32-8e74-409d-b30b-1cea1324d1f0` | In Progress | 2024-10 |
+| 1 | `2a8d3dd5-3b59-40fe-9925-25548f0cbd91` | Backlog | 2024-10 |
+| 1 | `dfb58bb0-2280-4a91-9b3f-c1b63b65b42a` | Backlog | 2024-10 |
+| 1 | `ecf471a7-daf1-4667-a19e-9bbdeccceed0` | Backlog | 2024-12 |
+
+**Eleven projects, and one holds 585 of the 635.** Nine of the eleven are named
+for people who are not on the live roster; two are internal projects from 2023.
+None was created later than 2024-12. Names are deliberately not written here —
+public repo, F64 — and resolve from the uuid for anyone with the workspace.
+
+**Every single row is `backlog`.** Not one is in a working or approval status,
+on either team. That is why the waiting column is 0 and stays 0: a row with no
+`client_slug` appears in no client view, and a backlog row appears on nobody's
+board either, so the absent attribution costs nothing today.
+
+**`days_stuck` is 7 or 14 across the whole bucket** — the rows were last touched
+in two sweeps, not continuously, which is consistent with a bulk import rather
+than anything anyone is doing now.
+
+**So the decision is smaller than the number.** It is not 635 rows needing
+attribution; it is eleven projects needing one ruling each, and the ruling for
+at least nine of them is presumably the one the owner already gave for former
+clients elsewhere (the f200 graph includes inactive roster mappings). Two —
+`a8312b32` and `5984daba`, both In Progress — are the only ones where a live
+answer might differ from a historical one, and they hold four rows between them.
+
+**Not done, and not a repair.** Nothing is proposed here and nothing is mutated.
+The value of the entry is that the next reader does not have to decide whether
+635 is an emergency: it is eleven mappings, 92% of the weight is one of them,
+and no active client is waiting on any of it.
+
+---
+
+## 204. [2026-09-12, ROOT-CAUSED; the fix was REDESIGNED after review — see 204a, and note the header's original claim "the Edge Function is NOT deployed" was WRONG] The thumbnail revision scan has been red about half the time for days, and it is three Drive files the scanner cannot read plus a round-robin cursor
+
+**The symptom.** `Thumbnail revision scan` (cron `*/10`) has been flapping with
+no owner and no diagnosis. Its last eight scheduled runs, newest first:
+FAIL, FAIL, FAIL, pass, FAIL, pass, FAIL, pass. Five of eight, in no pattern,
+on an unchanged `main`.
+
+**What the red actually says.** The whole of the failing log is:
+
+```
+thumbnail revision scan completed with failed items
+{"ok":true,"checked":300,"changed":0,"unchanged":299,"failed":1,"skipped":0}
+```
+
+One item in three hundred. The caller prints aggregates only, on purpose
+(`scripts/thumbnail-revision-scan.js` header: source URLs, post ids, storage
+paths and per-item errors must never reach an Actions log), so the red says
+nothing about which row or why. That is the right privacy call and it is also
+why this sat undiagnosed.
+
+**The row-level error is persisted, though, and that is where the answer was.**
+`thumbnail_media_revisions.error`, live:
+
+| rows | error | status |
+|---|---|---|
+| 3 | `File not found: <drive file id>.` | `pending` |
+| 1 | `thumbnail revision capture failed` | `error` |
+
+Three `pending` rows point at Google Drive files that no longer resolve. Their
+rows were created 2026-07-30 and 2026-08-06 and have been retried ever since.
+
+**Why it alternates.** `scanPendingThumbnailRevisions` selects
+`status = 'pending'` ordered by `last_checked_at` ascending — a round-robin over
+the pending set. There are **579** pending rows and a run covers 300
+(`limit` 25 x `batches` 12), so every row comes round about every second run.
+Three permanently-failing rows scattered through that ordering produce exactly
+the observed five-in-eight. Nothing is intermittent; the cursor is.
+
+**Why it was never going to settle itself.** The catch writes the error and
+leaves `status` at `pending` (`thumbnail-revisions.ts`, scan loop), so the row
+re-enters the rotation forever. And retiring it does not work either:
+`syncview_thumbnail_revision_backfill`
+(`migrations/2026-07-14-thumbnail-revision-v2.sql:327`) inserts a fresh pending
+row for any active, non-archived source with a Drive file id and **no pending
+row** — so a terminal status would simply be re-created on the next run, and the
+table would grow instead of settling. That is why the 116 rows sitting quietly
+in `skipped` do not flap: their sources dropped out of the backfill's candidate
+set. These three did not.
+
+~~**The fix, in repo and NOT deployed.** A Drive 404 is a deleted or unshared
+file. It is permanent, no scan can clear it ... The scan loop counts a 404 as
+`missing_source` instead of `failed` ... the caller does **not** exit 1 on it.
+**Ordering is safe in both directions** ... Neither order breaks. **Still to do
+— the owner's call:** the function half needs a plain dispatch of
+`deploy-thumbnail-edge-functions.yml`.~~
+
+> **SUPERSEDED by 204a, 2026-09-13.** Three of the claims above are wrong, and
+> Codex caught all three on the PR before any of it merged. The 404 is NOT
+> unambiguously a deleted file; the ordering is NOT safe in both directions as
+> originally written; and the function does NOT wait for a manual dispatch. The
+> struck text is kept rather than edited away because a reader who finds it
+> quoted elsewhere needs to see what replaced it. **Read 204a for what actually
+> shipped.**
+
+
+**Not addressed here, deliberately.** The three sources still carry a
+`thumbnail_url` pointing at a Drive file that is gone, so the cards themselves
+show a broken thumbnail to whoever opens them. That is a content question for
+the owner — re-upload or clear the link — and not something a monitor should
+decide. The scan counting them correctly does not make them right.
+
+---
+
+## 205. [2026-09-12, MEASURED — three scheduled lanes have been red for weeks and the twice-daily health check has been reporting ALL CLEAR over the top of them] Nothing was watching the watchers
+
+Found while chasing the thumbnail scan flap (item 204): if one unowned lane had
+been quietly red for days, it was worth asking what else was. One query over the
+heartbeats the lanes already write answers it for all of them.
+
+```sql
+select payload->>'lane' as lane,
+       count(*) filter (where payload->>'ok' = 'false') as red,
+       count(*) as runs,
+       max(ts) filter (where payload->>'ok' = 'true') as last_green
+  from public.deliverable_events
+ where action = 'monitoring_heartbeat'
+   and ts > now() - interval '21 days'
+ group by 1 order by red desc;
+```
+
+| lane | red / runs | last green |
+|---|---|---|
+| `production_shadow_audit` | 21 / 21 | never — red since 2026-07-24 |
+| `samples_e2e_nightly` | 19 / 21 | 2026-09-04 |
+| `calendar_e2e_nightly` | 18 / 21 | **2026-08-25** |
+| `assurance_ledger` | 11 / 20 | 2026-08-31 |
+| `reconciler_pager` | 10 / 288 | green now |
+| `b1_incremental_refresh` | 5 / 1277 | green now |
+| `monitoring_watchdog` | 0 / 601 | green now |
+| `production_write_drill` | 0 / 21 | green now |
+
+`production_shadow_audit` is the one everybody knows about — it has its own
+CONTEXT entry and an owner ruling. The other three are not.
+
+**`calendar_e2e_nightly` has failed every single night since 2026-08-26.** Its
+most recent run: `19 of 70 probe(s) FAILED after 3 attempts`, across features
+with nothing in common — Linear sync, set-all, tweak rounds, Kasper handoff,
+cross-client isolation, link validation, the capstone. Nineteen unrelated probes
+failing together is the shape of one broken precondition, not nineteen
+regressions; but that is a hypothesis, and the 2026-08-26 run's log no longer
+retains the probe list to compare against, so what actually broke that night is
+NOT established here.
+
+**Every one of those nights also posted a Slack alert** reading "❌ Calendar E2E
+nightly FAILED on main — the practice robot found real trouble or needs care."
+Seventeen identical alerts in a row is the alarm-fatigue mode the 2026-08-04
+Slack work was undone by, and this file's own CONTEXT section exists because of
+it. Either the probes found something real weeks ago and nobody looked, or the
+harness is broken and the alert is worthless. Both are bad, and they need
+different work.
+
+**Why the twice-daily health check never said so.** `PRE_FLIP_HEALTH_CHECK.md`
+item 8 gates on three reconcilers BY NAME. Every lane outside that list is
+invisible to the check, so it can report ALL CLEAR — truthfully, by its own
+spec — while three lanes fail nightly. That gap is now closed on the reporting
+side: the query above is added to the CONTEXT section as a standing report, with
+the rule that it is reported and never gated, because a red E2E lane is
+something to go and look at and not a reason to roll anything back.
+
+**One more gap the same query exposes.** A lane with no heartbeat does not appear
+at all. `thumbnail-revision-scan.yml` writes none, which is exactly why item 204
+could flap for days unnoticed — it is not in the watchdog's registry either.
+Absence from this result is not evidence of health, and giving that lane a
+heartbeat is a candidate repair this entry does not make.
+
+**Not done here, deliberately.** No E2E harness change and no probe triage. The
+probes run against the live app with credentials this session does not hold, and
+19 failures is an investigation, not a night's tidy-up. What this entry buys is
+that the failure is now counted, dated, and visible to every future run of the
+check instead of living in a Slack channel nobody reads any more.
+
+### 205a. The assurance-ledger lane was right, and it is green again — restated, not re-proven
+
+The third chronically-red lane turned out to be the cheapest and the most
+honest. `scripts/assurance-ledger-freshness.js --gate` is fully offline — it
+reads `docs/testing/ASSURANCE_LEDGER.md` and does arithmetic — and it was
+failing because four Tier-3 rows still read `FRESH` while their proof date
+(2026-07-17) had aged to 57 days against a 90-day window. Past half the window
+is `NEAR` by the ledger's own rule.
+
+**Why the unit suite stayed green while the scheduled lane went red, which is
+the interesting half.** `test/assurance-ledger-freshness.js` judges every claim
+against the **State column's own stamp** (`State (2026-08-22)`), deliberately —
+the comment in the script explains that anchoring to the refresh stamp instead
+is what let a restatement sail through in the first place. The scheduled lane
+passes `--gate`, which judges against **today**. So the offline suite cannot go
+red as the calendar advances, and the lane can. Both are behaving correctly;
+they are answering different questions.
+
+Restated the four cells to `NEAR`, with each cell now carrying its own as-of
+date and saying in so many words that **nothing was re-proven** — the arithmetic
+moved, not the evidence. The State column stamp is left at 2026-08-22 on
+purpose: bumping it would re-anchor every OTHER row in the table against today
+in one unreviewed edit, and the four that needed restating are the four the gate
+named. The word `FRESH` is kept out of the new text because `claimedState`
+returns the first state word it finds, so a cell reading "NEAR … was FRESH" is
+read as a FRESH claim.
+
+Lane green as of this commit. It will correctly go red again when those rows
+reach 90 days on about 2026-10-15, and at that point the honest answer is to
+re-prove the surfaces rather than to restate them again — three of the four are
+deploy workflows, monitors and admin tooling, and each needs live access this
+session does not have.
+
+### 205b. First triage of the 19 failing calendar E2E probes — clusters, not one broken precondition
+
+Recorded so the next person starts from evidence instead of from the run link.
+This is a TRIAGE of one night's log (run `34600106702`, 2026-09-11). It is not a
+diagnosis, and only five of the nineteen were read in detail.
+
+My first guess was that nineteen unrelated probes failing together had to be one
+broken precondition. **The log does not support that.** They fall into at least
+four groups with nothing in common:
+
+- **A probe credential, not the app.** `p96_description_image_upload` fails 8 of
+  its 12 assertions on `401 invalid_staff_key`. Its first four PASS — the
+  function answers preflight, is deployed, and its runtime flag is on — so the
+  probe reaches the live function and is refused at the key. The app is not
+  implicated by any of those eight.
+- **A stale assertion after a deliberate copy change.** `p95_write_ui_test_guard`
+  asserted `state.saveError === 'native_link_required'` — exact equality against
+  a bare code — while `_saveError` now carries the reader-facing sentence that
+  ENDS in `(code: native_link_required)`. The app change was intentional (the
+  "MAKE THE RELOAD ADVICE TRUE" work). **Fixed in this commit**: assert the code
+  is present rather than that the string equals it, which proves the same thing
+  and survives the next copy edit.
+- **The link-move conflict dialog, twice.** `p81_link_move_conflict` fails 3 of 4
+  and `p86_hidden_owner_warns` fails 1 of 5, and both failures are the same
+  sentence: the "already linked — Move it here?" conflict does not surface. Two
+  probes, one feature, almost certainly one cause. NOT investigated here.
+- **Route chooser and the urgent badge.** `p87_resolve_on_route` fails 2 of 19
+  (`B: routing sends caption → Kasper Approval`, `B: the TICKED change-request is
+  resolved`) and `p92_sxr_resolve_pill_inplace` fails 1 of 10 (`URGENT badge does
+  not linger after leaving Tweaks Needed`). The urgent-marker surface changed
+  recently, so this one has a plausible neighbour; that is a lead, not a finding.
+
+The remaining twelve — `p28`, `p34`, `p41`, `p53`, `p54`, `p55`, `p71`, `p56`,
+`p57`, `p62`, `p77`, `p78`, `p79` — were not read. Their names are recorded so
+the next run's log can be diffed against this list rather than re-derived.
+
+**What this changes about the lane.** Some of the nineteen are the probes being
+wrong, some look like the app being wrong, and telling them apart one at a time
+is the actual work. Until that happens the nightly Slack alert is worth nothing,
+because it has said the same thing every night since 2026-08-26 and at least two
+of its nineteen reasons are the harness.
+
+---
+
+## 206. [2026-09-12, FIXED] Two nightly probes printed live client slugs into a PUBLIC Actions log, and the gate that exists to stop that could not see them
+
+Found while triaging item 205b, in the raw text of the calendar E2E log.
+
+`qa/probes/p95_write_ui_test_guard.js` read the LIVE `write_ui_reroute_clients`
+flag and printed it:
+
+```js
+ok(true, 'live reroute flag loaded with the TEST client (' + JSON.stringify(flagClients) + ')');
+```
+
+That flag is the full roster. The line ran on every successful nightly run and
+published **43 client slugs** into a log that, on a public repository, anybody
+can read. A second copy sat on the skip path three lines above.
+
+`qa/probes/p56_cross_client_isolation.js` printed
+`JSON.stringify(perClient.clients)` in the message of its isolation assertion.
+On the pass path that is only the TEST client. **On the FAIL path — the only
+path where the line matters — it would print the very slugs that leaked.** That
+probe is currently in the failing set.
+
+**Why the exposure gate never caught either.** `scripts/repo-identity-exposure-check.js`
+scans the repository tree and, in CI, the lines a pull request ADDS. Neither
+probe contains a client slug: they fetch the roster at run time and interpolate
+it into a log line. The string that leaks never exists in the repository, so the
+tree scan and the diff scan are both structurally blind to it. This is a third
+surface — **what a job PRINTS** — and nothing was watching it.
+
+**Fixed here.** Both lines now report counts: the number of slugs on the
+allowlist, and for the isolation check the number of distinct clients plus how
+many of them were not the TEST client. Every assertion keeps exactly the same
+strength — a failing isolation check still fails, and still says how badly —
+and the slugs stay one query away for anyone entitled to see them. Same rule the
+exposure checker already follows for itself: report the count, never the match.
+
+**Checked and NOT leaking, so nobody re-checks it.** The 10-minute reconciler
+prints `plan.summary` and its markdown, and both are aggregate-only: the
+`linkage_sample`, `repair_sample` and `tolerated_sample` arrays that DO carry
+`client_slug` sit at the top level of the `deliverable_events` payload and are
+never in what the job prints. `repo-identity-exposure-check.js` prints file
+counts only, by design. No other probe log line was found interpolating live
+roster data — the many `client` matches in `qa/probes/` are the app's client
+ROLE, not a slug.
+
+**Not done.** Nothing here removes the slugs already in the retained logs of
+past runs; Actions log retention and whether it is worth purging is the owner's
+call, and the same judgement as `GIT_HISTORY_PII_PURGE_2026-07-14.md`. And no
+gate now watches job OUTPUT — a checker for that is a real repair and is not
+attempted here.
+
+### 204a. What actually shipped, after review killed three claims in 204
+
+Codex reviewed PR #1390 and filed two P1s and a P2. All three were verified
+against the source and all three were right. None of it had merged.
+
+**P1 — the function was never going to wait for a manual dispatch.**
+`deploy-thumbnail-edge-functions.yml:3-12` triggers on `push` to `main` with
+path filters that include BOTH
+`supabase/functions/thumbnail-revision-scan/**` and
+`supabase/functions/_shared/thumbnail-revisions.ts`, and its deploy step
+publishes both thumbnail functions. This change touches both paths. **Merging
+this PR IS the production rollout** — there is no separate owner dispatch, and
+204 said there was, twice. Nothing in the code needed to change for this one;
+what was wrong was the claim, and it had already been repeated to the owner.
+
+**P1 — a Drive 404 does not mean what 204 said it means.** Google answers 404
+identically for a file that was deleted and for one that exists but is not
+shared with the caller. This repository **already pins that exact ambiguity**
+(`test/prod-asset-state-guidance.js:12-13`: *"Google returns the SAME 404 for a
+Drive file that was deleted and for one that exists but was never shared"*), so
+the original design's premise — that a 404 is permanent and harmless — was
+contradicted by a test already in the tree. Under it, revoking the scanner
+service account's access to a whole folder would have turned every affected row
+into a silently-exempt `missing_source` and left the lane green while nothing
+was being scanned. That is precisely the silent-outage failure the caller's own
+comment exists to prevent, rebuilt by the change meant to respect it.
+
+**P2 — "safe in both orders" was false in one order.** Making `missing_source` a
+sibling bucket meant a response could raise `checked` without raising any bucket
+an older caller knows, so a new function answering an older caller would fail
+its conservation check and throw `invalid aggregate response`. The claim in 204
+was not merely optimistic; it was backwards for the deploy-first direction.
+
+**What replaced it.** One change fixes both code findings:
+
+- **`missing_source` is a reported SUBSET of `failed`, not a bucket beside it.**
+  A 404 still increments `failed`, unconditionally. The four-way conservation
+  `checked = changed + unchanged + failed + skipped` is therefore byte-for-byte
+  what every caller has always applied, and P2 disappears: an old caller against
+  the new function balances and behaves exactly as it does today.
+- **`missing_source_new` is the counter that pages.** The first time a 404 is
+  seen for a row, the scan writes its own marker (`drive_404: `) into that row's
+  `error` column; a later 404 on a row already carrying the marker is "known".
+  New ones keep the lane red. So three long-dead files stop flapping the lane,
+  and a folder-wide access revocation still turns it red immediately — which is
+  the distinction P1 said was missing. The success path already sets
+  `error: null`, so a re-shared source drops the marker by itself.
+- The caller exits 1 when `failed - missing_source > 0` (a real failure) or when
+  `missing_source_new > 0` (something just became unreadable), and fails closed
+  if a response claims a subset larger than its superset rather than subtracting
+  nonsense into a negative and reading it as green.
+
+**Cost, stated plainly:** the three known-dead rows will turn the lane red ONCE
+more after this deploys, because none of them carries the marker yet. Then they
+settle. That is the correct behaviour and not a wart — a row nobody has recorded
+as unreadable should be announced exactly once.
+
+**Guard, and the one that nearly did not hold.** Three sabotage controls, each
+verified by exit status: dropping the new-vs-known split, dropping the subset
+validation, and re-exempting the 404 from `failed`. The third — the exact bug
+Codex found — initially PASSED the suite, because the assertion looked for
+`out.failed++` anywhere in the file and `if (!driveGone) out.failed++;` contains
+it. The guard now requires the increment to be a bare, unguarded statement and
+separately refuses any `driveGone` condition on it. An assertion that a sabotage
+control does not trip is not a test; it is a comment.
+
+
+**Second review round, 2026-09-15 — a fourth P1, on the fix for the first three.**
+Codex was asked to re-review because it had never seen the fix commit, and it
+found that the marker above was bound to the fact of a 404 rather than to the
+FILE that produced one.
+
+`migrations/2026-07-14-thumbnail-revision-v2.sql:163-185` preserves the existing
+pending watcher when a source is re-linked from file A to file B — its own
+comment says so: *"On A -> B link changes the existing A watcher is deliberately
+preserved so the scanner can archive A as Previous."* The insert is
+`on conflict … do nothing`, so the row keeps A's `drive_file_id` AND A's error
+text, while the scan reads the CURRENT source and therefore asks Drive about B.
+Replace a dead thumbnail with a replacement you forget to share, and a
+prefix-only test calls B "already known": `missing_source_new` stays 0, the
+caller subtracts the failure, and the lane goes green for a source nobody can
+read. Same class as the finding it was fixing — a signal that should be loud,
+silently exempted.
+
+The marker now carries the file id (`drive_404[<fileId>]: `) and is compared
+against the file THIS scan read, captured from the source rather than from the
+row's stored `drive_file_id` — which is still A and would have been no help. A
+failure that throws before the file id is known counts as NEW, which is the
+fail-loud direction. A fourth sabotage control reverts the comparison to the bare
+prefix and fails the suite by exit status.
+
+**Three rounds, three findings of the same shape.** The original design exempted
+a 404; the first fix exempted the wrong 404s; the guard for the first fix matched
+a substring that the broken version also contained. Each was caught by review
+rather than by the tests as written, which is the honest summary of how much this
+particular change wanted to be wrong.
+
+## 207. [2026-09-15, BUILT] The Workload cold boot, second pass: the network was serial three times over
 
 After 200 shipped the owner still measured about six seconds on `#workload`.
 The offline harness showed every request settling in well under a second, so

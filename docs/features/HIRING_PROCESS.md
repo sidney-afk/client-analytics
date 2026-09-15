@@ -1,15 +1,20 @@
 # Hiring Process — operating capture, default-off invitations
 
-> **2026-09-15 addition (source-only): a second role, Video Editor, with a middle
-> practical-test stage.** See "Two roles, and the Video Editor's extra stage"
-> below. Nothing in this addition is live: the migration
-> (`migrations/2026-09-15-hiring-video-editor-role.sql`) has not been applied,
-> the `video-editor-application` / `video-editor-interview` iClosed events still
-> need to be created (the owner asked a separate Claude session to duplicate the
-> existing two events for this), the new `hiring_practical_tests_enabled` flag
-> is seeded false, and no n8n workflow sends a practical-test email yet — that
-> still needs the owner's explicit go-ahead, and the raw footage / reference
-> edit content it should point new applicants at.
+> **2026-09-15: a second role, Video Editor, with a middle practical-test
+> stage. Applied and wired, sending stays default-off.** See "Two roles, and
+> the Video Editor's extra stage" below. `migrations/2026-09-15-hiring-video-editor-role.sql`
+> is applied (read back clean; `role_slug` backfilled all pre-existing rows).
+> The owner created the `video-editor-application` / `video-editor-interview`
+> iClosed events. All three n8n changes are live: `Hiring — Application
+> Capture (iClosed)` and `Sales — Call Booked (iClosed)` now recognize the
+> Video Editor slugs alongside Client Success's, and a new `Hiring —
+> Practical Test Dispatch` workflow exists (mirrors the interview-invite
+> dispatcher exactly). The new `hiring_practical_tests_enabled` flag is still
+> seeded `false`, so nothing sends until the owner supplies real raw-footage/
+> reference-edit content and asks for it to be turned on. The `hiring-applications`
+> and `hiring-automation` Edge Functions carry the matching source changes in
+> this repo but are **not yet deployed** — each has its own exact-SHA
+> `workflow_dispatch` release lane and needs a merge to `main` first.
 
 > **Current status (2026-08-25): private review and application capture are live; outbound
 > invitation delivery remains default-off.** The public iClosed application event and separate
@@ -149,7 +154,11 @@ Everything above is additive: the original five hiring-automation bridge
 actions, RPC contracts, and their exact literal iClosed-slug constants are
 untouched; three new bridge actions
 (`claim_practical_test`/`authorize_practical_test_send`/
-`record_practical_test`) exist only for the new stage and stay inert until
-an n8n workflow calls them — which requires the owner's separate, explicit
-go-ahead per the house rule on editing n8n workflows, and the actual raw
-footage / reference edit content to send new applicants.
+`record_practical_test`) exist only for the new stage. `Hiring — Practical
+Test Dispatch` (n8n) already calls all three every minute, exactly mirroring
+`Hiring — Interview Invite Dispatch`'s shape, but stays a no-op because
+`hiring_practical_tests_enabled` is `false`: `claim_practical_test` always
+returns no job while it is. Kasper can already queue a practical test from
+the Hiring Process tab once `hiring-applications` is deployed and the flag
+is turned on — until then, `queue_practical_test` fails closed with
+`feature_disabled`, same as every other gate in this sidecar.

@@ -573,14 +573,35 @@ export function collapseLinearAutolinks(value) {
  * production write path and deserves its own reviewed change rather than a
  * fourth same-session patch. Owner decision, 2026-09-15.
  */
+/*
+ * AT THE START OF ANY LINE, not the start of the description — corrected on
+ * Codex's FOURTH pass, which raised it P1 because the previous version was a
+ * regression I introduced rather than a residual risk.
+ *
+ * `production-write` writes this marker on THREE generated shapes, and only one
+ * of them puts it first:
+ *
+ *   :262   the marker alone IS the whole description        (the live orphan)
+ *   :1046  `Filming Plan: <url>` ¶ marker ¶ notes           (link mismatch)
+ *   :1066  `Filming Plan: <url>` ¶ marker ¶ notes           (mapping missing)
+ *
+ * A `startsWith` test covers the first and silently misses the other two, so
+ * both of those intake shapes would have kept orphaning — and they are the ones
+ * that also carry a bare filming-plan URL, so they meet BOTH Linear rewrites at
+ * once. I cited all three line numbers in the previous version's justification
+ * without reading where in the description each marker lands. Citing a source
+ * is not reading it.
+ *
+ * Matching at the start of a LINE covers every position the generator actually
+ * uses and widens the discriminator by nothing: the marker is still this app's
+ * own literal, and a mid-line occurrence is still left alone.
+ */
 const SYNCVIEW_TEMPLATE_MARKER = "[SyncView] ";
-const ESCAPED_SYNCVIEW_TEMPLATE_MARKER = "\\[SyncView\\] ";
+const ESCAPED_SYNCVIEW_LINE_MARKER = /(^|\n)\\\[SyncView\\\] /g;
 
 export function collapseSyncViewTemplateEscape(value) {
-  if (typeof value !== "string" || !value.startsWith(ESCAPED_SYNCVIEW_TEMPLATE_MARKER)) {
-    return value;
-  }
-  return SYNCVIEW_TEMPLATE_MARKER + value.slice(ESCAPED_SYNCVIEW_TEMPLATE_MARKER.length);
+  if (typeof value !== "string" || value.indexOf("\\[SyncView\\] ") === -1) return value;
+  return value.replace(ESCAPED_SYNCVIEW_LINE_MARKER, "$1" + SYNCVIEW_TEMPLATE_MARKER);
 }
 
 /*

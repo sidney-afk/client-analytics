@@ -109,7 +109,45 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
   ok(collapseSyncViewTemplateEscape('\\[SyncView\\] x') === '[SyncView] x',
     "the app's own template marker is the one form un-escaped");
   ok(collapseSyncViewTemplateEscape('lead \\[SyncView\\] x') === 'lead \\[SyncView\\] x',
-    'and only at the START — a marker mid-description is not a template we wrote');
+    'a marker MID-LINE is not a position the generator uses and is left alone');
+
+  // --- 2c. CODEX #1406, FOURTH PASS (P1) ------------------------------------
+  //
+  // The previous version matched the marker only at the START OF THE
+  // DESCRIPTION. production-write writes it on three shapes and only ONE puts
+  // it first; :1046 and :1068 place it in the SECOND paragraph, after a
+  // `Filming Plan: <url>` line. Those two would have kept orphaning, and they
+  // are the shapes that ALSO carry a bare URL, so they meet both Linear
+  // rewrites at once. A regression introduced by the pass-three narrowing, not
+  // a residual risk -- which is why Codex raised it P1.
+  const PLAN_URL = 'https://docs.google.com/document/d/1u9/edit';
+  const sentMismatch = [
+    `Filming Plan: ${PLAN_URL}`,
+    '[SyncView] FILMING PLAN LINK MISMATCH - server mapping used; submitted link retained for SMM review: ' + PLAN_URL,
+    'notes',
+  ].join('\n\n');
+  const keptMismatch = [
+    `Filming Plan: [${PLAN_URL}](<${PLAN_URL}>)`,
+    '\\[SyncView\\] FILMING PLAN LINK MISMATCH - server mapping used; submitted link retained for SMM review: ' + PLAN_URL,
+    'notes',
+  ].join('\n\n');
+  ok(linearDescriptionMatches(keptMismatch, sentMismatch),
+    'CODEX #1406 (4th, P1): the LINK MISMATCH shape adopts — marker in the 2nd paragraph AND an auto-linked URL');
+
+  const sentMapping = [
+    `Filming Plan: ${PLAN_URL}`,
+    '[SyncView] FILMING PLAN MAPPING MISSING - submitted link retained; SMM verify: ' + PLAN_URL,
+  ].join('\n\n');
+  const keptMapping = [
+    `Filming Plan: [${PLAN_URL}](<${PLAN_URL}>)`,
+    '\\[SyncView\\] FILMING PLAN MAPPING MISSING - submitted link retained; SMM verify: ' + PLAN_URL,
+  ].join('\n\n');
+  ok(linearDescriptionMatches(keptMapping, sentMapping),
+    'CODEX #1406 (4th, P1): the MAPPING MISSING shape adopts too');
+
+  // All three generated shapes are covered, which is the property that broke.
+  ok(/\[SyncView\] FILMING PLAN MISSING/.test(SENT),
+    'and the :262 shape, the one the live orphan used, is still the first case in this suite');
   ok(linearDescriptionMatches('\\*text\\*', '\\*text\\*'),
     'a description we genuinely sent escaped, stored verbatim, matches byte-identically (no false mismatch)');
   // Narrowed by the third pass and left narrowed on purpose. This pair is
@@ -159,9 +197,11 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     'createIntentMismatches compares descriptions through the directional matcher, stored side first');
   ok(!/collapseLinearEscapes\(\s*(expected|intent)/.test(mappingSource),
     'escapes are never stripped from the side WE sent (the directionality is not quietly undone)');
-  ok(/ESCAPED_SYNCVIEW_TEMPLATE_MARKER/.test(mappingSource)
+  ok(/ESCAPED_SYNCVIEW_LINE_MARKER/.test(mappingSource)
     && !/LINEAR_ESCAPED_PUNCTUATION/.test(mappingSource),
-  'the general punctuation set is GONE — the exception is template-scoped, and a future widening has to be deliberate');
+  'the general punctuation set is GONE — the exception is marker-scoped, and a future widening has to be deliberate');
+  ok(mappingSource.includes('SyncView] ') && /SYNCVIEW_TEMPLATE_MARKER/.test(mappingSource),
+    'and the exception names the literal marker, not a character class');
 
   if (failures) {
     console.error(`\n${failures} Linear description-escape check(s) failed`);

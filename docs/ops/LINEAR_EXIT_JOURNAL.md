@@ -30,6 +30,60 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — B7 settled: frozen main `0aa5954` matches all twelve deployed functions (12 PASS)
+
+The appendix's authenticated fingerprint block was run once on the owner's
+Windows machine, from the repository root, exactly as written, pinned at
+`0aa5954a5c63e3b6f399caf739e562b371393325`. It used the
+`SUPABASE_ACCESS_TOKEN` already present in that machine's user environment,
+the same variable the Storage wrapper consumes. The token was not requested,
+printed or written anywhere. Mode reported: `live-read-only`. Nothing was
+deployed or written.
+
+Printed result, per function (version, then source and live fingerprint
+prefixes, which agree in every row):
+
+| Function | Live version | Fingerprint | Files |
+|---|---|---|---|
+| ai-onboarding-list | 36 | `bce568a72fce` | 2/2 |
+| client-credentials | 44 | `d6300381fa19` | 2/2 |
+| filming-plans | 34 | `ef1f6aee94d0` | 2/2 |
+| key-verify | 39 | `68e6d3094a08` | 2/2 |
+| legacy-onboarding-list | 36 | `d1f6a2d9caf4` | 2/2 |
+| linear-outbound | 48 | `f59b6206e3cc` | 5/5 |
+| onboarding-full | 36 | `68da4d8f413d` | 2/2 |
+| onboarding-list | 36 | `a23980f1da39` | 2/2 |
+| production-archive | 8 | `3c478af053f2` | 2/2 |
+| production-comments | 24 | `202c9492e063` | 3/3 |
+| production-write | 71 | `746f8b918d36` | 5/5 |
+| smm-weekly-reports | 32 | `e1f925289245` | 2/2 |
+
+```
+Summary: 12 PASS, 0 FAIL, 0 ERROR
+JWT posture: 12 verify_jwt=false, 0 off-posture
+```
+
+Exit code 0. There were no FAIL or ERROR reason lines.
+
+By the appendix's own reading, **recovery route C1 exists and `0aa5954` is the
+commit.** This confirms the candidate the full-history analysis named, and the
+entry below, which reasoned that the hiring drift cannot affect these twelve.
+The earlier "unavailable" and "unproven" entries stay further down as the
+record of how the question was narrowed.
+
+It closes B7 only. As the entry below lists, it does not close B5. The sealed
+previous-functions record still has to be written; C1's rollback lane remains
+UNTESTED; `notify` stays outside it; and the browser half is untouched.
+
+**Step count left at 6 of 28.** Step 2's done-condition asks for a recorded
+previous version for every deployed function and whether one single commit
+matches all of them. This run answers the second half, but a sealed record is
+not yet written. The count is flagged for the owner rather than moved by the
+session.
+
+Run once only. It was completed before the owner's repeat request for the same
+run arrived, so it was not run again.
+
 ### 2026-09-15 — B9 does not touch B7; B4 and B5 worked out the same way B7 was
 
 **B7 is unaffected by the hiring drift, and `0aa5954` remains the candidate.**
@@ -668,6 +722,13 @@ candidate for a commit matching all twelve. Still unproven: the evidence is
 expected-side plus deploy timing, and does not observe what is running. One
 authenticated `ef-fingerprint` live read confirms or refutes. B7 stays open with
 that candidate named.
+
+**B7 closed YES, 2026-09-15, row kept above.** One authenticated
+`ef-fingerprint` live read pinned at frozen main `0aa5954` returned
+`Summary: 12 PASS, 0 FAIL, 0 ERROR` with all twelve at the expected JWT
+posture. Every function with a deployed version matches `0aa5954`, so recovery
+route C1 exists and `0aa5954` is its commit. `notify` stays outside C1 by
+design (B8). B5 is not closed by this; see the B7 progress entry.
 
 **B8 closed, 2026-09-15.** The recovery procedure now states that `notify` has
 no previous version, so its rollback means removal or leaving it inert, and that

@@ -664,6 +664,20 @@ machine that made it has not been shown to be recoverable.
 
 It has to be refreshed on installation day, which is steps 9 and 10.
 
+**CORRECTION, added 2026-09-15. The entry above is kept as written.** "Downloaded
+on a second device" is not what the private custody record says. Its retrieval
+scope records an actual browser download of the encrypted package from the
+private Drive folder **back onto the same computer** that made it. The
+downloaded archive's SHA-256 matched, and the restore of that downloaded copy
+passed. Separately, the owner opened the recovery record on their phone.
+
+So the 2026-09-14 drill proved three things: a Drive round trip, a restore of
+the downloaded copy, and the recovery record's existence on a separate device.
+It did **not** prove retrieval of the package on a separate device. The owner
+confirmed on 2026-09-15 that the file's wording is the correct record. The
+recovery record itself has been exercised once: it decrypted that downloaded
+package.
+
 ### 2026-09-14 — Three owner approvals recorded
 
 See decisions D2, D3 and D4. In short: a narrow three-field browser exception;
@@ -776,6 +790,34 @@ second computer has been chosen, the drill has not started, and step 1 is not
 complete. B9 and B2 stand as written: no re-pin; the hiring change merges after
 the freeze lifts, then the profile is re-derived once, and only then do steps 8,
 9 and 10 run back to back.
+
+**B1: reduced Storage drill chosen, 2026-09-15, owner. Row kept above, still
+open.** The owner has no convenient second computer and will not chase one.
+In place of the second-device drill, the owner uploads the packed Storage
+archive to the private Drive folder and downloads it back onto **this same
+machine**, into a fresh directory. The session then verifies the downloaded
+copy's SHA-256 and byte size, runs the transport verify, and runs the full
+authenticated decrypt against the signed inventory.
+
+What the reduced drill establishes, if it passes:
+
+- the archive survives a round trip through private Drive byte for byte;
+- the recovery record decrypts it, with every object checked against the
+  inventory hash and size.
+
+What it does **not** establish:
+
+- independent retrieval of the package on a separate device.
+
+This is a **reduced substitute the owner chose, not an equivalent.** It matches
+what was actually done for the database package on 2026-09-14 (see the
+correction under that entry): a same-machine Drive round trip, with the
+recovery record opened on the phone. It is not the stronger second-device drill
+the sitting page describes. To be plain: **no package, database or Storage, has
+yet been retrieved on a separate device.**
+
+**Step 1 is not marked complete on this basis.** When the reduced drill passes,
+B1 narrows to the second-device gap alone, and stays open.
 
 **B2 stays open, 2026-09-15.** Run 2 of the catalog read verified TLS and
 identity, which clears the TLS half of the original row. The profile half now

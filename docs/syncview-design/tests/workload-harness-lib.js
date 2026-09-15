@@ -144,6 +144,11 @@ function parentRow(overrides) {
  *   role          staff role for key-verify ('admin' default; 'creative' is
  *                 the read-only planner).
  *   planListStatus  force the saved-plan LIST read to fail with this status.
+ *   planListMeta  extra top-level fields for a SUCCESSFUL saved-plan LIST
+ *                 response (e.g. { alias_mode: 'pairs', plans_unaliased: 2 }).
+ *                 Omitted by default, which is exactly what an older function
+ *                 build answers -- so every other phase keeps proving that a
+ *                 response without these fields still reads as complete.
  *   holdMetadata  hold the weight/metadata read open, parking the board in its
  *                 fast first paint until `state.releaseMetadata()` is called.
  *   query         extra query string for the boot URL (e.g. 'wl2=0'), before the
@@ -162,6 +167,7 @@ async function launchWorkloadHarness(options) {
     planWrites: [],          // every `set` body the board sent
     planWriteStatus: 200,    // flipped by the refusal phases
     planListStatus: opts.planListStatus || 200,
+    planListMeta: opts.planListMeta || null,
     blockedRequests: [],     // anything the catch-all had to abort
     pageErrors: [],
     notifications: [],       // showNotify(title, body) calls
@@ -304,6 +310,7 @@ async function launchWorkloadHarness(options) {
         contentType: 'application/json',
         body: JSON.stringify({
           ok: true,
+          ...(state.planListMeta || {}),
           plans: [...state.plans].map(([issue_id, plan_date]) => ({ issue_id, plan_date })),
         }),
       });

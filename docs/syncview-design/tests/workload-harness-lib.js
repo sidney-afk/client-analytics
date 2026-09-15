@@ -146,6 +146,8 @@ function parentRow(overrides) {
  *   planListStatus  force the saved-plan LIST read to fail with this status.
  *   holdMetadata  hold the weight/metadata read open, parking the board in its
  *                 fast first paint until `state.releaseMetadata()` is called.
+ *   holdIssues    hold the issue snapshot read open until `state.releaseIssues()`
+ *                 is called; `state.holdIssuesRead()` re-arms it before a reload.
  */
 async function launchWorkloadHarness(options) {
   const opts = options || {};
@@ -163,7 +165,11 @@ async function launchWorkloadHarness(options) {
     notifications: [],       // showNotify(title, body) calls
     holdMetadata: null,      // a promise the weight/metadata read waits on
     releaseMetadata: null,
+    holdIssues: null,        // a promise the issue snapshot read waits on
+    releaseIssues: null,
   };
+  state.holdIssuesRead = () => { state.holdIssues = new Promise(resolve => { state.releaseIssues = resolve; }); };
+  if (opts.holdIssues) state.holdIssuesRead();
   /* HOLDING THE BOARD IN ITS FAST FIRST PAINT.
    * `wlLoadSnapshot` awaits the issues AND the saved-plan read together, then
    * fast-paints with `planLoading` true, and only ADOPTS the plans after the
@@ -242,9 +248,10 @@ async function launchWorkloadHarness(options) {
   }));
 
   // The board's issue snapshot.
-  await context.route('**/rest/v1/workload_issues**', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify(state.issues),
-  }));
+  await context.route('**/rest/v1/workload_issues**', async route => {
+    if (state.holdIssues) await state.holdIssues;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state.issues) });
+  });
 
   // Per-team due-date authority. Both teams SyncView-authoritative, mirroring
   // the live flag after the 2026-08-28 video flip.

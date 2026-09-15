@@ -24,7 +24,7 @@ const {
 const PHASES = [
   'week_structure', 'capacity_at_cap', 'capacity_over', 'weights',
   'labels_auto_manual', 'label_loading', 'label_fallback',
-  'failclosed_401', 'failclosed_403',
+  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint',
   'exclusions', 'filters', 'permissions_readonly', 'permissions_admin',
 ];
 let currentPhase = PHASES[0];
@@ -248,6 +248,92 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       const after = settled.cards.find(c => c.id === 'l1');
       expect(after.mode === 'manual' && after.day === FRI,
         'once the saved plan lands, the hidden pin settles the card onto its saved day');
+    } finally { await h.close(); }
+  }
+
+  phase('cold_boot_skeleton');
+  let coldHarness = null;
+  {
+    /*
+     * A cold boot (no snapshot in memory, no cache) must read as LOADING on
+     * both halves of the page. The team matrix used to paint the full roster
+     * as "Free / Clear / 0" while the issue read was still open -- false data
+     * dressed as a result. It now holds skeleton rows and blank totals until
+     * the board has anything real, and the calendar keeps its skeleton grid.
+     */
+    const h = await launchWorkloadHarness({
+      issues: [parentRow({}), sub('c1', { due_date: WED })],
+      holdIssues: true,
+    });
+    coldHarness = h;
+    const held = await h.page.evaluate(() => ({
+      skeletonRows: document.querySelectorAll('#wlOverviewRows .workload-overview-row.is-skeleton').length,
+      dataRows: document.querySelectorAll('#wlOverviewRows .workload-overview-row:not(.is-skeleton)').length,
+      free: document.querySelector('#wlOverviewRows') && /\bFree\b|\bClear\b/.test(document.querySelector('#wlOverviewRows').textContent),
+      totals: ['wlOverdueTotal', 'wlInProgressTotal', 'wlTweaksTotal'].map(id => document.getElementById(id).textContent),
+      busy: document.getElementById('wlOverview').getAttribute('aria-busy'),
+      calSkeleton: !!document.querySelector('#wlBody .workload-skeleton-grid'),
+    }));
+    expect(held.skeletonRows > 0 && held.dataRows === 0 && !held.free,
+      'while the issue read is open the team matrix shows skeleton rows, never a roster of Free / Clear');
+    expect(held.totals.every(t => t === '–') && held.busy === 'true',
+      'the header totals stay blank (no fake zeros) and the matrix is marked busy while loading');
+    expect(held.calSkeleton, 'the calendar keeps its skeleton grid while the issue read is open');
+    h.state.releaseIssues();
+    await waitForPlanSettled(h.page);
+    const after = await h.page.evaluate(() => ({
+      skeletonRows: document.querySelectorAll('#wlOverviewRows .workload-overview-row.is-skeleton').length,
+      dataRows: document.querySelectorAll('#wlOverviewRows .workload-overview-row:not(.is-skeleton)').length,
+      busy: document.getElementById('wlOverview').getAttribute('aria-busy'),
+    }));
+    expect(after.skeletonRows === 0 && after.dataRows > 0 && after.busy === null,
+      'once the snapshot lands the matrix paints real roster rows and drops the busy marker');
+  }
+
+  phase('cache_first_paint');
+  {
+    /*
+     * A refresh with a STALE snapshot in localStorage (older than the 5-minute
+     * TTL) used to hold the skeleton until the live issue read returned. The
+     * cached issues now go on screen as soon as the saved-plan read settles,
+     * labelled Planning… (no private pins), and the live read replaces them
+     * in place. The issue read is held open to pin the window.
+     */
+    const h = coldHarness;
+    try {
+      const aged = await h.page.evaluate(() => {
+        const key = 'syncview_linearIssuesCache_v1';
+        const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+        if (!parsed || !Array.isArray(parsed.issues) || !parsed.issues.length) return false;
+        parsed.fetchedAt = Date.now() - 10 * 60 * 1000;
+        localStorage.setItem(key, JSON.stringify(parsed));
+        return true;
+      });
+      expect(aged, 'the first boot left an issue snapshot in localStorage to age');
+      h.state.holdIssuesRead();
+      await h.page.reload({ waitUntil: 'domcontentloaded' });
+      await h.page.waitForSelector('.workload-view', { timeout: 20000 });
+      await h.page.waitForFunction(
+        () => typeof wlState !== 'undefined' && wlState.planLoading === true && document.querySelectorAll('#wlBody [data-wl-issue-id]').length > 0,
+        null, { timeout: 15000 },
+      );
+      const during = await h.page.evaluate(() => ({
+        skeleton: !!document.querySelector('#wlBody .workload-skeleton-grid'),
+        cards: document.querySelectorAll('#wlBody [data-wl-issue-id]').length,
+        mode: wlPlacementMode(wlState.planned[0]),
+        editing: wlPlanEditingEnabled(),
+        matrixSkeleton: document.querySelectorAll('#wlOverviewRows .workload-overview-row.is-skeleton').length,
+      }));
+      expect(!during.skeleton && during.cards > 0,
+        'with the live issue read still open, the stale cached snapshot is already on screen');
+      expect(during.mode === 'loading' && during.editing === false,
+        'the cached paint is labelled Planning… and nothing is editable before the snapshot is authoritative');
+      expect(during.matrixSkeleton === 0, 'the team matrix paints from the cached snapshot too');
+      h.state.releaseIssues();
+      await waitForPlanSettled(h.page);
+      const settled = await readBoard(h.page);
+      expect(settled.cards.some(c => c.id === 'c1') && settled.cards.every(c => c.mode !== 'loading'),
+        'the live read replaces the cached paint in place and every card settles out of Planning…');
     } finally { await h.close(); }
   }
 

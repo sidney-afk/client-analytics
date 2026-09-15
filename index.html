@@ -1828,9 +1828,18 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-        .sv-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .sv-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); position: relative; overflow: hidden; background: var(--sv-skel-base); border-radius: 8px; }
+        /* The sheen animates `transform` on a pseudo-element, not `background-position`
+           on the box: transform runs on the compositor thread, so the shimmer keeps
+           moving through the long main-thread task of the first board render instead
+           of freezing mid-sweep (measured on the Workload cold boot, 2026-09-14). */
+        .sv-skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--sv-skel-sheen) 50%, transparent 100%); transform: translateX(-100%); animation: sv-shimmer-sweep 1.35s ease-in-out infinite; will-change: transform; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .sv-skeleton::after { animation: none; } }
         html[data-theme="dark"] .sv-skeleton, html[data-theme="dark"] .tpl-skeleton { --sv-skel-base: var(--surface-subtle); --sv-skel-sheen: var(--field-bg-hover); }
         @keyframes sv-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
+        /* Legacy consumers (.prod-skeleton, .tpl-skeleton) still animate background-position
+           via sv-shimmer; the compositor sweep has its own keyframe so the two never collide. */
+        @keyframes sv-shimmer-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .sv-skeleton-pill { border-radius: 999px; }
         .sv-skeleton-line { height: 14px; border-radius: 6px; }
         .sv-skeleton-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
@@ -3763,6 +3772,10 @@
         .workload-overview-status-head.is-tweaks { --wl-overview-accent: var(--wl-tweaks-accent); }
         .workload-overview-head-total { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font-size: 0.58rem; font-weight: 850; line-height: 1.2; text-align: center; }
         .workload-overview-rows { display: flex; flex-direction: column; gap: 8px; }
+        .workload-overview-row.is-skeleton .workload-overview-editor, .workload-overview-row.is-skeleton .workload-overview-capacity { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+        .workload-overview-row.is-skeleton .workload-overview-editor-copy { display: flex; flex-direction: column; gap: 6px; }
+        .workload-overview-row.is-skeleton .workload-overview-capacity { flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; }
+        .workload-overview-row.is-skeleton .workload-overview-status { display: flex; align-items: center; justify-content: center; min-height: 40px; }
         .workload-overview-row { padding: 10px 12px; border: 0; border-radius: 11px; background: var(--bg); transition: background 0.12s ease, box-shadow 0.12s ease; }
         .workload-overview-row:hover { background: var(--white); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_06); }
         .workload-overview-editor,
@@ -15495,10 +15508,39 @@
             // Warm navigation and automatic freshness checks never enter here.
             renderWorkloadAll();
         }
-        const [issuesResult, plansResult] = await Promise.allSettled([
-            loadLinearIssues(!!force),
-            wlFetchPlanRows()
-        ]);
+        const issuesPromise = loadLinearIssues(!!force);
+        const plansPromise = wlFetchPlanRows();
+        /*
+         * STALE-WHILE-REVALIDATE FIRST PAINT.
+         *
+         * A page refresh has the last snapshot in localStorage (wlReadCache,
+         * passed in as `fallback`) but used to keep the skeleton up until the
+         * live Linear read returned, using the cache only if that read failed.
+         * The plan read is the fast leg and it is the only fail-closed one, so
+         * as soon as it settles and was NOT refused, the cached issues are
+         * painted with the same loading placement the fast paint below uses
+         * (planLoading=true: automatic estimates, no private pins). The live
+         * read then replaces them in place. If the live read wins the race
+         * there is nothing to do; if the plan read was refused the skeleton
+         * holds, exactly as before, until the auth branch below has run.
+         */
+        const cachedIssues = fallback && Array.isArray(fallback.issues) && fallback.issues.length ? fallback.issues : null;
+        if (cachedIssues && !wlState.planHasSnapshot
+            && typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled()) {
+            const plansSettled = plansPromise.then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }));
+            const issuesSettled = issuesPromise.then(() => null, () => null);
+            const early = await Promise.race([plansSettled, issuesSettled]);
+            const earlyRefused = !early || (early.status === 'rejected'
+                && (Number(early.reason && early.reason.status) === 401 || Number(early.reason && early.reason.status) === 403));
+            if (!earlyRefused && loadGeneration === _wlPlanLoadGeneration && !wlState.workloadByIssueId.size) {
+                wlState.planLoading = true;
+                fastPainted = true;
+                wlApplyData(cachedIssues, fallback.fetchedAt);
+                wlState.loading = false;
+                if (document.querySelector('.workload-view')) renderWorkloadAll();
+            }
+        }
+        const [issuesResult, plansResult] = await Promise.allSettled([issuesPromise, plansPromise]);
 
         let payload = null;
         if (issuesResult.status === 'fulfilled') payload = issuesResult.value;
@@ -18824,10 +18866,33 @@
     // row per editor. Whitespace between softly raised rows replaces the old
     // stack of full-width colored strips. Queue totals and client chips stay
     // visible so the matrix is useful at a glance.
+    function _wlBoardHasAnyData() {
+        return !!((wlState.planned && wlState.planned.length) || (wlState.nowWorking && wlState.nowWorking.length)
+            || (wlState.undated && wlState.undated.length) || (wlState.unassigned && wlState.unassigned.length)
+            || (wlState.overdue && wlState.overdue.length) || (wlState.tweaksNeeded && wlState.tweaksNeeded.length));
+    }
+    function _wlOverviewSkeletonHtml() {
+        return Array.from({ length: 4 }, () => `<div class="workload-overview-row is-skeleton" aria-hidden="true">
+            <div class="workload-overview-editor"><span class="sv-skeleton sv-skeleton-dot" style="width:32px;height:32px;"></span><span class="workload-overview-editor-copy">${_svSkel('sv-skeleton-line', 'width:120px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:48px;height:9px;')}</span></div>
+            <div class="workload-overview-capacity">${_svSkel('sv-skeleton-line', 'width:44px;height:11px;')}${_svSkel('sv-skeleton-pill', 'width:120px;height:6px;')}</div>
+            ${['overdue', 'inprogress', 'tweaks'].map(k => `<div class="workload-overview-status is-${k} is-empty">${_svSkel('sv-skeleton-line', 'width:40px;height:11px;')}</div>`).join('')}
+        </div>`).join('');
+    }
     function renderWorkloadOverviewMatrix() {
         const wrap = document.getElementById('wlOverview');
         const rowsEl = document.getElementById('wlOverviewRows');
         if (!wrap || !rowsEl) return;
+        // A cold load with nothing in memory used to paint the whole roster as
+        // "Free / Clear / 0" until the snapshot landed: false data, not a
+        // loading state. Hold a skeleton instead; the counts stay blank.
+        if (!_wlBoardHasAnyData() && (wlState.loading || wlState.planStatus === 'loading')) {
+            wrap.classList.remove('empty');
+            wrap.setAttribute('aria-busy', 'true');
+            ['wlOverdueTotal', 'wlInProgressTotal', 'wlTweaksTotal'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '–'; });
+            rowsEl.innerHTML = _wlOverviewSkeletonHtml();
+            return;
+        }
+        wrap.removeAttribute('aria-busy');
 
         const statusSpecs = [
             { key: 'overdue', sourceMode: 'overdue', suffix: 'overdue', rows: wlState.overdue || [] },

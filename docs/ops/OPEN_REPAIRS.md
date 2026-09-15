@@ -21059,3 +21059,35 @@ Checked after the merge, per this file's own standing instruction: no duplicate
 `## N.` headers introduced, and no duplicate `### 199x.` sub-headers. The six
 duplicate top-level numbers in this file are all present identically on
 `origin/main`.
+
+## 200. [2026-09-14, BUILT] The Workload cold boot: cached snapshot first, an honest loading matrix, and a shimmer that keeps moving
+
+The owner watched a hard refresh of `#workload` and saw three things in a row:
+the boot skeleton, then a page whose team matrix already read "Free / Clear / 0"
+for every editor over a calendar skeleton, then that skeleton's shimmer stopping
+dead for a beat before the board appeared.
+
+**Three causes, three fixes, all in `index.html`.**
+
+1. **The matrix painted a roster of zeros while loading.** `renderWorkloadOverviewMatrix`
+   always merged live rows onto the fixed editor roster, so with nothing loaded
+   yet every editor was "Free" and every count "0": false data dressed as a
+   result. It now holds skeleton rows, blank totals and `aria-busy` until the
+   board has anything real.
+2. **A refresh ignored the snapshot it already had.** `initWorkloadView` read the
+   localStorage cache but `wlLoadSnapshot` only used it if the live read
+   FAILED; past the 5-minute TTL every refresh held the skeleton for the whole
+   Linear round trip. The cached issues now go on screen as soon as the
+   saved-plan read settles and was not refused, at the same `planLoading`
+   placement the fast paint uses (Planning… labels, no private pins, nothing
+   editable), and the live read replaces them in place. The fail-closed
+   contract is untouched: a 401/403 plan read still holds the skeleton.
+3. **The shimmer froze.** `.sv-skeleton` animated `background-position`, which
+   runs on the main thread, so the long first-render task stopped it. The sheen
+   now rides a `::after` `transform`, which the compositor keeps moving through
+   any main-thread task. This is app-wide: every skeleton shares the class.
+
+**Proof.** `workload-render-browser.js` gained a `holdIssues` harness option and
+two phases, `cold_boot_skeleton` and `cache_first_paint`, pinning both the
+loading matrix and the stale-cache paint; 77 assertions across 15 phases pass,
+`workload-board-browser.js` still passes 88 across 18.

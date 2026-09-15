@@ -59,7 +59,7 @@ const OWNERS=[
     "sha256": "da2322afb5209de4a2b3e5b5643e78dbc396b581f2878d0c4cfb84e30db7afa8"
   }
 ];
-const TABLES=['ai_client_onboarding','caption_prompts','client_onboarding','hiring_applications','hiring_invite_jobs','hiring_application_events','hiring_practical_test_jobs','kasper_ad_performance_daily','kasper_ad_performance_by_ad_daily','kasper_ad_leads','kasper_ad_unfinished_leads','kasper_ad_campaign_daily','legacy_onboarding','onboarding_fallback','quiz_responses','quiz_intake_log','sales_intakes','social_media_managers','smm_weekly_reports','templates','tiktok_accounts','tiktok_oauth_state','tiktok_pilot_posts'];
+const TABLES=['ai_client_onboarding','caption_prompts','client_onboarding','hiring_applications','hiring_invite_jobs','hiring_application_events','kasper_ad_performance_daily','kasper_ad_performance_by_ad_daily','kasper_ad_leads','kasper_ad_unfinished_leads','kasper_ad_campaign_daily','legacy_onboarding','onboarding_fallback','quiz_responses','quiz_intake_log','sales_intakes','social_media_managers','smm_weekly_reports','templates','tiktok_accounts','tiktok_oauth_state','tiktok_pilot_posts'];
 const quote=s=>"'"+String(s).replaceAll("'","''")+"'";const ident=s=>{assert.match(s,/^[a-z_][a-z0-9_]*$/);return '"'+s+'"';};
 async function installAndPopulate({query}){
  const executed=[];

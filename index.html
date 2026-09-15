@@ -14421,9 +14421,6 @@
     // page with limit/offset until a short page — otherwise the board would
     // silently miss issues beyond the first 1000.
     const WL_V2_PAGE_ROWS = 1000;   // PostgREST's server-side max-rows cap
-    function _wlV2IssuesUrl(offset) {
-        return CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=' + WL_V2_PAGE_ROWS + '&offset=' + offset;
-    }
     function _wlV2IssuesHeaders(withCount) {
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         // `count=exact` makes PostgREST put the total on Content-Range
@@ -14437,20 +14434,23 @@
         if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
         return rows;
     }
+    /*
+     * ONE ROUND TRIP OF LATENCY, NOT ONE PER PAGE.
+     *
+     * The mirror holds ~2,100 active rows and the server caps a page at
+     * 1,000, so this read used to be three ~660 KB round trips one after
+     * another (~0.65 s each from a datacenter, more from a laptop): the
+     * single largest slice of the Workload cold boot, measured 2026-09-15.
+     * Page 0 now asks for the exact count and every remaining page is
+     * requested in parallel. When the URL booted straight into #workload,
+     * the head script has page 0 in flight already (window.__wlEarlyIssues,
+     * started before this 5 MB document finished parsing); it is adopted
+     * once and cleared so a later refresh never re-reads a stale response.
+     * The source is unchanged: this is still the board's read of
+     * `workload_issues` (test/workload-native-view-contract.js pins it).
+     */
     async function _wlV2FetchIssues() {
-        /*
-         * ONE ROUND TRIP OF LATENCY, NOT ONE PER PAGE.
-         *
-         * The mirror holds ~2,100 active rows and the server caps a page at
-         * 1,000, so this read used to be three ~660 KB round trips one after
-         * another (~0.65 s each from a datacenter, more from a laptop): the
-         * single largest slice of the Workload cold boot, measured 2026-09-15.
-         * Page 0 now asks for the exact count and every remaining page is
-         * requested in parallel. When the URL booted straight into #workload,
-         * the head script has page 0 in flight already (window.__wlEarlyIssues,
-         * started before this 5 MB document finished parsing); it is adopted
-         * once and cleared so a later refresh never re-reads a stale response.
-         */
+        const base = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=' + WL_V2_PAGE_ROWS + '&offset=';
         let first = null;
         try {
             const early = window.__wlEarlyIssues;
@@ -14459,7 +14459,7 @@
                 first = await early;
             }
         } catch { first = null; }
-        if (!first) first = await fetch(_wlV2IssuesUrl(0), { cache: 'no-store', headers: _wlV2IssuesHeaders(true) });
+        if (!first) first = await fetch(base + '0', { cache: 'no-store', headers: _wlV2IssuesHeaders(true) });
         let all = await _wlV2ReadPage(first);
         if (all.length >= WL_V2_PAGE_ROWS) {
             const range = String(first.headers.get('content-range') || '');
@@ -14469,12 +14469,12 @@
                 const offsets = [];
                 for (let offset = WL_V2_PAGE_ROWS; offset < Math.min(total, cap); offset += WL_V2_PAGE_ROWS) offsets.push(offset);
                 const pages = await Promise.all(offsets.map(offset =>
-                    fetch(_wlV2IssuesUrl(offset), { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }).then(_wlV2ReadPage)));
+                    fetch(base + offset, { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }).then(_wlV2ReadPage)));
                 for (const rows of pages) all = all.concat(rows);
             } else {
                 // No usable count header: the original serial walk, unchanged.
                 for (let offset = WL_V2_PAGE_ROWS, guard = 1; guard < 50; guard++, offset += WL_V2_PAGE_ROWS) {
-                    const rows = await _wlV2ReadPage(await fetch(_wlV2IssuesUrl(offset), { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }));
+                    const rows = await _wlV2ReadPage(await fetch(base + offset, { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }));
                     all = all.concat(rows);
                     if (rows.length < WL_V2_PAGE_ROWS) break;
                 }

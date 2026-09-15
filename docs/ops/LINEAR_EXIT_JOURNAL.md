@@ -137,6 +137,67 @@ anything. The recovery procedure currently describes a thirteen-function
 restoration in uniform terms and should say which of the two it intends for
 `notify`. Recorded as B8.
 
+### 2026-09-15 — SECOND correction on step 2: the clone was shallow, and B7 narrows rather than closing
+
+Appended below both earlier entries. Neither is edited.
+
+**The clone was shallow.** This is the important finding, and it invalidates
+earlier reasoning. `git rev-parse --is-shallow-repository` returned true, and
+the commit at the boundary reported no parents, so every `git log --since`
+count in the first step 2 entry was computed over truncated history and a
+`git show --stat` on a boundary merge showed the whole tree as additions.
+History was fetched in full, 3787 commits on main, before redoing anything.
+
+Any future session doing history archaeology here should check for a shallow
+clone first. A truncated history does not announce itself; it just quietly
+answers the wrong question.
+
+**A supervisor claim was checked and did not reproduce.** The claim was that
+commit `f2c889d` on 2026-09-07 added 361 lines across `filming-plans`,
+`key-verify` and `onboarding-list`, which would have put source changes after
+those functions' 2026-09-04 deploy. Measured against full history, `f2c889d`
+touches none of those three directories on either parent, and **none** of the
+eight staff functions' own directories changed on main at any point after
+2026-09-04. The conclusion drawn from that premise therefore does not follow.
+
+**The closures were then measured with the real tool**, rather than by counting
+commits, using `ef-fingerprint --expected-only` at a commit just after the staff
+deploy and at frozen main. Across that whole window:
+
+- **Ten of the twelve are byte-identical**: the eight staff functions plus
+  `production-comments` and `production-archive`.
+- **Two moved**: `production-write` and `linear-outbound`.
+
+**Where the two moved, and when they deployed:**
+
+| Function | Closure last changed on main | Deployed |
+|---|---|---|
+| `production-write` | `73d5fdc3`, 2026-09-14 20:20 UTC | 2026-09-14 21:34 UTC |
+| `linear-outbound` | `0aa5954`, 2026-09-15 16:55 UTC | 2026-09-15 16:57 UTC |
+
+Each was deployed shortly after the commit that last changed it, and neither
+changed again afterwards. That also explains the deploy timestamp inside the
+freeze window noted in the first entry: `linear-outbound` was deployed two
+minutes after the merge that became the freeze point.
+
+**So B7 does not close to "C1 unavailable". The offline evidence points the
+other way.** Frozen main `0aa5954` is the single leading candidate: ten of the
+twelve are stable through it, `production-write` sits at its deployed value
+unchanged since `73d5fdc3`, and `linear-outbound` changed exactly at `0aa5954`
+and deployed minutes later.
+
+**The honest limit, unchanged.** This is expected-side evidence plus deploy
+timing. It is circumstantial, not proof. Nothing here observes what is actually
+running. Two specific gaps: a deploy could have come from a ref other than
+main's tip, and the deployed entrypoint paths for `production-write` and
+`linear-outbound` sit under a `release/` staging directory rather than the
+`supabase/functions/` paths the expected side is computed from, so path-level
+agreement has not been shown either. One authenticated `ef-fingerprint` live
+read settles all of it, and remains the final word.
+
+B7 is therefore narrowed, not closed: named candidate `0aa5954`, one live read
+to confirm or refute.
+
 ### 2026-09-15 — Owner sitting page written for steps 1, 8, 9, 10 and 11
 
 Prepared a single ordered page the owner can follow cold at the keyboard, with
@@ -311,6 +372,19 @@ Live list. Items come off with a date and a note, never by deletion.
 
 | B7 | Whether one older main commit matches all **twelve** functions that have deployed versions is UNPROVEN, so C1 is neither confirmed nor ruled out | Owner or CI, before step 13 | One authenticated `ef-fingerprint` live read plus an offline walk back through main. Recipe in the 2026-09-15 correction entry. Added 2026-09-15, superseding B6 |
 | B8 | The recovery procedure does not say what rollback means for a brand-new function | Owner, before step 16 | For `notify` there is no previous version, so rollback means removing it or leaving it inert, not restoring. The procedure should state which. Added 2026-09-15 |
+
+**B7 narrowed, 2026-09-15, row kept above.** It does not close to "C1
+unavailable". Measured over full history, ten of the twelve closures are stable
+across the deploy window and the two that moved were each deployed minutes after
+the commit that changed them, making frozen main `0aa5954` the single leading
+candidate for a commit matching all twelve. Still unproven: the evidence is
+expected-side plus deploy timing, and does not observe what is running. One
+authenticated `ef-fingerprint` live read confirms or refutes. B7 stays open with
+that candidate named.
+
+**B8 closed, 2026-09-15.** The recovery procedure now states that `notify` has
+no previous version, so its rollback means removal or leaving it inert, and that
+the other twelve are a different operation. Owner-approved amendment.
 
 **B6 is withdrawn as reasoned, 2026-09-15.** Its row stays above per the append
 rule. It asserted that C1 was unavailable *because* `notify` had no deployed
@@ -489,6 +563,33 @@ its categories, so no amount of re-running it would have found the fifth item.
 The fixture fix was quoted to the owner as four edits, one per failing chain. It
 was one: all five suites route through the same shared cluster builder. The
 scope was checked properly only after the number had already been given.
+
+### 2026-09-15 — Twice a verdict was reached through reasoning that was never checked
+
+Recorded as one lesson because the two failures are the same shape.
+
+The first was **inverted**: `notify` having no deployment was called decisive
+proof, without checking whether `notify` was ever supposed to be deployed.
+
+The second was **too generous**: "ten of the twelve saw no changes to their own
+source directories" was asserted from a command that had lumped each function's
+directory together with `_shared`, so it never measured what was claimed. The
+claim later turned out to be true when measured properly with
+`ef-fingerprint`, which is luck, not method. A correct conclusion from an
+unchecked method is still an unchecked method, and next time it lands the other
+way.
+
+Both checks were cheap. One `git ls-tree`, one correctly scoped command. Neither
+was run before the conclusion was stated.
+
+A third, in the same family, was structural rather than logical: the repository
+was a **shallow clone**, so the history commands underpinning the second claim
+were answering over truncated history. That was not discovered until a commit
+reported having no parents.
+
+The useful generalisation: before a fact becomes load-bearing, confirm the
+command measured the thing named, and confirm the data source is complete.
+Absence, aggregation and truncation each produce confident wrong answers.
 
 ### 2026-09-15 — A step 2 argument was built on a premise never checked against main
 

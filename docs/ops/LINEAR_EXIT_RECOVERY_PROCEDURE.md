@@ -93,6 +93,24 @@ gh workflow run deploy-onboarding-edge-functions.yml --ref main -f commit_sha=<v
 5. Wait for completion. Independently retrieve served source and verify all 13 previous fingerprints/JWT postures, then check compatible reads and authorized TEST saves and confirm no new sender/flag was enabled. A new active provider version number is normal for redeployment: source equivalence, not numeric version equality, proves recovery. Restore configuration only if changed and separately approved. No client delivery test.
 6. If deployment fails or times out, stop, inventory actual deployed versions and receipts, and choose recovery for that mixed state. Never blindly rerun all 13.
 
+### Rolling back `notify` is a different operation from the other twelve
+
+**Owner-approved amendment, 2026-09-15.** The release set is thirteen functions,
+but only twelve of them have a previous deployed version. `notify` does not
+exist on frozen main; it is new code this migration adds, and it has never been
+deployed.
+
+So "roll back the thirteen" is two operations, not one:
+
+- **The twelve** have a prior served version, and rolling back means restoring
+  it, as the routes below describe.
+- **`notify` has nothing to restore.** Rolling it back means **removing the
+  function, or leaving it deployed but inert**. Choose and state which before
+  the forward release; do not treat it as a restoration, and do not let a
+  thirteen-function count imply thirteen previous versions exist.
+
+The same reasoning applies to any function this migration adds later.
+
 ### Route C2: previous functions were mixed versions or unmatched captured source
 
 The onboarding lane cannot select a different previous commit per slug or deploy arbitrary captured source. The separate [Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml) has restore-captured-prior-four for its sealed set (batch-write, deliverable-write, production-write, linear-outbound); it is NOT a rollback for notify, the readers or all eight staff functions. Do not substitute it for a 13-function recovery.

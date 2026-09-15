@@ -9,11 +9,17 @@
  * strip only, never on the planned calendar or another status strip.
  *
  * With an authoritative plan snapshot, an ordinary dated row is auto-planned
- * one working day before its deadline (floored to today). An explicit
- * plan_date wins literally. Since 2026-08-10 an automatic row that does not
- * fit that day is moved back to an earlier working day with room (never
- * later, never before today) — capacity still hides nothing, and the
- * dedicated cases for that pass live in workload-capacity-placement.js.
+ * EARLIEST-FIT (owner ruling 2026-09-14): it starts at the first working day
+ * from today and walks forward to the first day with room, never past its
+ * ideal day (one working day before the deadline, floored to today). When no
+ * day in that window has room it lands on the ideal day and keeps the visible
+ * over-capacity badge. An explicit plan_date wins literally and reserves
+ * first. This replaced the 2026-08-10 late-as-possible pass, which sat on the
+ * ideal day and walked BACKWARD only when that day was full. Because most
+ * automatic rows now sit earlier than their ideal day, there is ONE automatic
+ * mode: the second one only separated a fact nobody acts on (owner ruling
+ * 2026-09-14). The dedicated cases for the
+ * placement pass live in workload-capacity-placement.js.
  */
 const fs = require('fs');
 const path = require('path');
@@ -54,6 +60,8 @@ const wlISO = compile('wlISO');
 const wlParseISO = compile('wlParseISO');
 const wlWeekMondayISO = compile('wlWeekMondayISO', { wlParseISO, wlISO });
 const wlSubWorkingDays = compile('wlSubWorkingDays', { wlParseISO, wlISO });
+const wlAddWorkingDays = compile('wlAddWorkingDays', { wlParseISO, wlISO });
+const wlIsWorkingDay = compile('wlIsWorkingDay', { wlParseISO });
 const wlWorkloadTodayISO = compile('wlWorkloadTodayISO', {
   WL_WORKLOAD_TIME_ZONE: 'America/Guatemala',
 });
@@ -90,6 +98,10 @@ const wlPlanOriginHtml = compile('wlPlanOriginHtml', {
   wlPlacementLabel,
   wlEscape: value => String(value),
 });
+// The per-item automatic detail. Stubbed empty here: this suite is about
+// bucketing and exclusivity, and wlPlanOriginHtml falls back to its generic
+// automatic sentence when the detail is blank.
+const wlAutoPlacementTip = () => '';
 const wlGroupPlacementMode = compile('wlGroupPlacementMode', { wlPlacementMode });
 const wlGroupPlanOriginHtml = compile('wlGroupPlanOriginHtml', { wlPlacementMode, wlPlanOriginHtml });
 const wlWorkingDayDiff = compile('wlWorkingDayDiff', { wlParseISO, wlISO });
@@ -144,13 +156,23 @@ const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
   WL_PLACEMENT_WALK_LIMIT: Number(
     (INDEX.match(/const WL_PLACEMENT_WALK_LIMIT\s*=\s*(\d+)/) || [])[1],
   ),
+  WL_RESHUFFLE_MAX_CANDIDATES: Number(
+    (INDEX.match(/const WL_RESHUFFLE_MAX_CANDIDATES\s*=\s*(\d+)/) || [])[1],
+  ),
+  WL_RESHUFFLE_MAX_EVICTIONS: Number(
+    (INDEX.match(/const WL_RESHUFFLE_MAX_EVICTIONS\s*=\s*(\d+)/) || [])[1],
+  ),
+  // The pass now anchors each item to the day it held last time, so it needs
+  // the state that record lives on.
+  wlState,
   wlWorkloadTodayISO: () => '2026-07-15',
   wlCapacityKey,
   wlWorkloadWeight,
   wlEditorCapacity,
   wlPlanDate,
   wlAutoPlanDate,
-  wlSubWorkingDays,
+  wlAddWorkingDays,
+  wlIsWorkingDay,
 });
 
 /* The real predicate, not `() => true`. This file executes the SHIPPED
@@ -250,18 +272,24 @@ check(wlWorkloadTodayISO(new Date('2026-07-22T05:59:59.000Z')) === '2026-07-21'
   'automatic placement uses one Guatemala policy day across viewer time zones');
 const dueDate = '2026-07-20';
 const autoDate = '2026-07-17';
-// Exactly one editor-day's worth of work, so nothing has to move: the ideal
-// automatic placement is observable on its own.
+// Exactly one editor-day's worth of work, so it all fits on the first working
+// day from today: the earliest-fit placement is observable on its own, and the
+// ideal day (one working day before the deadline) is only the last day it
+// could have taken.
+const earliestWorkDay = '2026-07-15';
 const videoRows = Array.from({ length: 4 }, (_, i) => issue('To Do', 'video-' + i, dueDate));
 wlApplyData(videoRows, '2026-07-15T12:00:00Z');
-const autoBucket = wlState.calendarByDate.get(autoDate) || [];
+const autoBucket = wlState.calendarByDate.get(earliestWorkDay) || [];
 check(wlAutoPlanDate(videoRows[0], '2026-07-15') === autoDate
     && wlState.calendarByDate.size === 1
     && autoBucket.length === videoRows.length
-    && !wlState.calendarByDate.has(dueDate),
-  'without an override, dated rows are auto-planned one working day before their deadline');
-check(wlPlacementMode(videoRows[0]) === 'auto',
-  'an authoritative deadline-derived placement is visibly classified as auto');
+    && !wlState.calendarByDate.has(dueDate)
+    && !wlState.calendarByDate.has(autoDate),
+  'without an override, dated rows are auto-planned on the earliest working day with room, not on their ideal day before the deadline');
+check(wlPlacementMode(videoRows[0]) === 'auto'
+    && wlPlacementLabel('auto') === 'Automatically planned'
+    && wlPlacementLabel('shifted') === '',
+  'a deadline-derived placement taken earlier than its ideal day is one ordinary automatic card, and the retired mode has no label');
 check(autoBucket.every(row => row.dueDate === dueDate
     && !Object.prototype.hasOwnProperty.call(row, 'scheduledDate')
     && !Object.prototype.hasOwnProperty.call(row, 'effectiveWorkDate')),
@@ -271,25 +299,28 @@ check(wlEditorCapacity('VID', 'Video Editors') === 4
     && wlDayOverCapacity(autoBucket.concat([issue('To Do', 'video-fifth', dueDate)])),
   'video capacity is 4/day and a fifth unit on one editor-day reads as overload');
 
-// Owner ruling 2026-08-10 (Raha's overload report): automatic placement is
-// capacity-aware. Two extra rows do not stack on a full day — they move BACK
-// to the previous working day, which keeps the deadline buffer, and every
-// planned item is still on the calendar exactly once.
-const spillDay = wlSubWorkingDays(autoDate, 1);
+// Owner ruling 2026-09-14: automatic placement is capacity-aware AND
+// earliest-fit. Six rows sharing one deadline fill today to the 4-unit cap and
+// the remaining two take the next working day — forward from today, never past
+// the ideal day — and every planned item is still on the calendar exactly once.
+// (Superseded the 2026-08-10 rule, which filled the ideal day first and walked
+// backward only to relieve an over-capacity day.)
+const firstDay = '2026-07-15';
+const spillDay = wlAddWorkingDays(firstDay, 1);
 const spillRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-spill-' + i, dueDate));
 wlApplyData(spillRows, '2026-07-15T12:00:00Z');
-const idealBucket = wlState.calendarByDate.get(autoDate) || [];
-const movedBucket = wlState.calendarByDate.get(spillDay) || [];
-check(idealBucket.length === 4 && movedBucket.length === 2
+const earliestBucket = wlState.calendarByDate.get(firstDay) || [];
+const spilledBucket = wlState.calendarByDate.get(spillDay) || [];
+check(earliestBucket.length === 4 && spilledBucket.length === 2
     && wlState.planned.length === 6
     && [...wlState.calendarByDate.values()].flat().length === 6
-    && !wlState.calendarByDate.has(dueDate),
-  'automatic work past a full day moves back one working day and stays fully visible');
-check(!wlDayOverCapacity(idealBucket) && !wlDayOverCapacity(movedBucket),
+    && !wlState.calendarByDate.has(dueDate)
+    && !wlState.calendarByDate.has(autoDate),
+  'automatic work fills the earliest day to capacity, spills one working day forward, and stays fully visible');
+check(!wlDayOverCapacity(earliestBucket) && !wlDayOverCapacity(spilledBucket),
   'neither day is left over capacity once the automatic rows have spread');
-check(movedBucket.every(row => wlPlacementMode(row) === 'shifted')
-    && idealBucket.every(row => wlPlacementMode(row) === 'auto'),
-  'only the rows the capacity pass moved are classified as shifted');
+check(earliestBucket.concat(spilledBucket).every(row => wlPlacementMode(row) === 'auto'),
+  'every automatically placed row reads as one automatic mode, whichever day it took');
 
 // A saturated window still cannot invent room: when the ideal day IS today,
 // there is nowhere earlier to go, so the honest overload stays on the board
@@ -363,19 +394,37 @@ check(wlDisplayDate(pinnedDueEdit) === '2026-07-21'
   'changing a Linear due date to the past keeps the exact pin and also shows Overdue');
 wlState.planByIssueId.delete(pinnedDueEdit.id);
 
+// Under earliest-fit an automatic row on an empty board always lands on the
+// first working day from today, whatever its deadline — so to observe the
+// re-derivation at all, every working day from today up to the ideal day is
+// filled to the 4-unit cap with manual pins. The automatic row then has to sit
+// on its ideal day (the latest day it may take), and moving the deadline later
+// opens exactly one new day for it to move to.
+const dueEditFillers = [];
+for (const day of ['2026-07-15', '2026-07-16', '2026-07-17', '2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23']) {
+  // Two 2x pins spend the whole 4-unit daily capacity in two rows.
+  for (let i = 0; i < 2; i++) {
+    const filler = issue('To Do', 'due-edit-filler-' + day + '-' + i, day);
+    wlState.workloadByIssueId.set(filler.id, { label: '2× Workload', weight: 2, color: '#EA580C' });
+    wlState.planByIssueId.set(filler.id, day);
+    dueEditFillers.push(filler);
+  }
+}
 const automaticDueEdit = issue('To Do', 'automatic-due-edit', '2026-07-24');
-wlApplyData([automaticDueEdit], '2026-07-15T12:00:00Z');
+wlApplyData(dueEditFillers.concat([automaticDueEdit]), '2026-07-15T12:00:00Z');
 const automaticBeforeEdit = wlDisplayDate(automaticDueEdit);
 wlApplyDueLocal(automaticDueEdit.id, '2026-07-27');
 check(automaticBeforeEdit === '2026-07-23'
     && wlDisplayDate(automaticDueEdit) === '2026-07-24'
     && (wlState.calendarByDate.get('2026-07-24') || []).some(row => row.id === automaticDueEdit.id),
   'changing a Linear due date rederives only an automatically planned work day');
+for (const filler of dueEditFillers) { wlState.planByIssueId.delete(filler.id); wlState.workloadByIssueId.delete(filler.id); }
 
 wlState.planByIssueId.delete(planned.id);
 wlApplyData([planned], '2026-07-15T12:00:00Z');
-check((wlState.calendarByDate.get(autoDate) || []).map(row => row.id).includes(planned.id),
-  'clearing plan_date returns the issue to its automatic plan day');
+check((wlState.calendarByDate.get(earliestWorkDay) || []).map(row => row.id).includes(planned.id)
+    && !wlState.calendarByDate.has(autoDate),
+  'clearing plan_date returns the issue to its automatic plan day — the earliest working day with room');
 
 wlState.planHasSnapshot = false;
 wlApplyData([planned], '2026-07-15T12:00:00Z');
@@ -400,56 +449,60 @@ check(wlState.tweaksNeeded.map(row => row.id).includes(plannedTweak.id)
   'a saved plan override never breaks tweak-bucket exclusivity');
 wlState.planByIssueId.clear();
 
-// New work with a DIFFERENT ideal day still cannot disturb a settled automatic
-// placement: the two never compete for the same editor-day, so the reflow rule
-// below is the only thing that can move anything.
+// Under earliest-fit both a far deadline and an urgent one start from the same
+// first working day, so new work SHARES that day rather than competing for a
+// different one. While the day still has room nothing moves: the reflow rule
+// below is the only thing that can shift a settled card.
 const steady = issue('To Do', 'steady-auto', '2026-07-24');
 wlApplyData([steady], '2026-07-15T12:00:00Z');
 const steadyDate = wlDisplayDate(steady);
 const urgent = issue('To Do', 'new-urgent', '2026-07-15');
 wlApplyData([steady, urgent], '2026-07-15T12:00:00Z');
-check(steadyDate === '2026-07-23'
+check(steadyDate === earliestWorkDay
     && wlDisplayDate(steady) === steadyDate
     && (wlState.calendarByDate.get(steadyDate) || []).some(row => row.id === steady.id)
-    && (wlState.calendarByDate.get('2026-07-15') || []).some(row => row.id === urgent.id),
-  'urgent work on a different day never disturbs a settled automatic placement');
+    && (wlState.calendarByDate.get(earliestWorkDay) || []).some(row => row.id === urgent.id),
+  'urgent work sharing the earliest day with room never disturbs a settled automatic placement');
 
-// Owner ruling 2026-08-10: when new automatic work DOES compete for a full
-// editor-day, existing automatic cards are reflowed — that is the whole point
-// of the capacity pass, and the previous assertion here claimed the opposite.
-// It only stayed green because its fixture was two items against four units,
-// so capacity never bound. Weight-descending order inside one ideal day means
-// a newly-added 3x card takes the day and pushes lighter settled cards back.
+// When new automatic work competes for a full editor-day, existing automatic
+// cards are reflowed — that is the whole point of the capacity pass. Under
+// earliest-fit (owner ruling 2026-09-14) the contested day is the FIRST working
+// day from today, and displaced cards move one working day LATER, never past
+// their ideal day. Weight-descending order inside one ideal day means a
+// newly-added 3x card takes the earliest day and pushes lighter cards on.
 const settledDue = '2026-07-20';
-const settledDay = '2026-07-17';
-const earlierDay = '2026-07-16';
+const settledDay = earliestWorkDay;      // 2026-07-15 — the earliest day with room
+const laterDay = '2026-07-16';           // where the displaced cards land
+const settledIdeal = '2026-07-17';       // one working day before the deadline: the last day they may take
 const settled = Array.from({ length: 4 }, (_, i) => issue('To Do', 'settled-' + i, settledDue));
 wlApplyData(settled, '2026-07-15T12:00:00Z');
 check((wlState.calendarByDate.get(settledDay) || []).length === 4
+    && !wlState.calendarByDate.has(settledIdeal)
     && settled.every(row => wlPlacementMode(row) === 'auto'),
-  'four 1x cards settle exactly onto the shared ideal day');
+  'four 1x cards settle exactly onto the earliest working day with room, not on their shared ideal day');
 
-// Deliberately named to sort LAST on the identifier tie-break, so it can only
-// win the ideal day through the weight-descending rule — otherwise this check
-// would stay green even if that rule were deleted.
+// A heavy newcomer sorts FIRST (weight-descending within one ideal day), so
+// without the incumbent anchor it would take the settled day and push three
+// cards off it — the churn the owner ruled against on 2026-09-14. Deliberately
+// named to sort LAST on the identifier tie-break, so sort order alone cannot
+// make this pass.
 const heavyNewcomer = issue('To Do', 'zz-newcomer-3x', settledDue);
 wlState.workloadByIssueId.set(heavyNewcomer.id, {
   label: '3× Workload', weight: 3, color: '#EA580C',
 });
 wlApplyData(settled.concat([heavyNewcomer]), '2026-07-15T12:00:00Z');
-const idealAfter = wlState.calendarByDate.get(settledDay) || [];
-const pushedBack = wlState.calendarByDate.get(earlierDay) || [];
+const earliestAfter = wlState.calendarByDate.get(settledDay) || [];
+const pushedOn = wlState.calendarByDate.get(laterDay) || [];
 check(wlWorkloadWeight(heavyNewcomer) === 3
-    && idealAfter.map(row => row.id).includes(heavyNewcomer.id)
-    && wlWorkloadUnits(idealAfter) === 4 && idealAfter.length === 2
-    && pushedBack.length === 3
-    && pushedBack.every(row => wlPlacementMode(row) === 'shifted')
-    && !wlDayOverCapacity(idealAfter) && !wlDayOverCapacity(pushedBack)
+    && earliestAfter.length === 4
+    && settled.every(row => (wlState.calendarByDate.get(settledDay) || []).map(r => r.id).includes(row.id))
+    && pushedOn.length === 1 && pushedOn[0].id === heavyNewcomer.id
+    && !wlDayOverCapacity(earliestAfter) && !wlDayOverCapacity(pushedOn)
     && wlState.planned.length === 5,
-  'a heavier newcomer takes the full ideal day and reflows the lighter settled cards one working day earlier');
-check(pushedBack.every(row => wlDisplayDate(row) < settledDay
-    && wlDisplayDate(row) >= '2026-07-15'),
-  'the reflowed cards move earlier only, never past their deadline and never before today');
+  'a heavier newcomer takes the next day with room instead of rearranging the settled cards');
+check(pushedOn.every(row => wlDisplayDate(row) > settledDay
+    && wlDisplayDate(row) <= settledIdeal),
+  'the reflowed cards move later only, never past their ideal day and never before today');
 wlState.workloadByIssueId.clear();
 
 console.log('\nWorkload placement, deadline, and weighted-capacity signals');
@@ -619,10 +672,25 @@ const filteredMonthHtml = renderFilteredMonthGrid();
 check(!/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(filteredMonthHtml),
   'month overload also ignores rows hidden by current filters');
 
+// Earliest-fit would otherwise place the Saturday-deadline card on the first
+// working day from today, far outside the week under test, so every working
+// day from today up to its ideal day is pinned full. The card then takes its
+// ideal day — Friday 2026-07-24 — which is what this check is about: a
+// Saturday deadline never renders on a Saturday.
+const weekendFillers = [];
+for (const day of ['2026-07-15', '2026-07-16', '2026-07-17', '2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23']) {
+  // Two 2x pins spend the whole 4-unit daily capacity in two rows.
+  for (let i = 0; i < 2; i++) {
+    const filler = issue('To Do', 'wk-filler-' + day + '-' + i, day);
+    wlState.workloadByIssueId.set(filler.id, { label: '2× Workload', weight: 2, color: '#EA580C' });
+    wlState.planByIssueId.set(filler.id, day);
+    weekendFillers.push(filler);
+  }
+}
 const weekendDue = issue('To Do', 'weekend-due', '2026-07-25');
 const weekendPlan = issue('To Do', 'weekend-plan', '2026-07-31');
 wlState.planByIssueId.set(weekendPlan.id, '2026-07-26');
-wlApplyData([weekendDue, weekendPlan], '2026-07-19T12:00:00Z');
+wlApplyData(weekendFillers.concat([weekendDue, weekendPlan]), '2026-07-19T12:00:00Z');
 wlState.weekStart = '2026-07-20';
 const weekendWeekHtml = renderWeekGrid();
 const wlWeekendExceptions = compile('wlWeekendExceptions', {
@@ -647,6 +715,7 @@ check((weekendWeekHtml.match(/data-wl-day=/g) || []).length === 5
     && weekendExceptions.due[0].date === '2026-07-25'
     && weekendExceptions.rows.length === 2,
   'fixed Monday-Friday Week keeps a Saturday deadline plan on Friday and reports hidden weekend plan/due exceptions');
+for (const filler of weekendFillers) { wlState.planByIssueId.delete(filler.id); wlState.workloadByIssueId.delete(filler.id); }
 wlState.planByIssueId.clear();
 
 const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
@@ -658,6 +727,7 @@ const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
   wlEscape: value => String(value),
   wlWorkloadBadgeHtml,
   wlPlanOriginHtml,
+  wlAutoPlacementTip,
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
 });
@@ -670,6 +740,7 @@ const wlRenderPlanIssueCardsReadOnly = compile('wlRenderPlanIssueCards', {
   wlEscape: value => String(value),
   wlWorkloadBadgeHtml,
   wlPlanOriginHtml,
+  wlAutoPlacementTip,
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
 });
@@ -932,7 +1003,21 @@ check(backwardTrack.planIndex === 3
 
 wlState.planByIssueId.set(plannedTweak.id, '2026-07-22');
 const timelineOrdinary = issue('To Do', 'timeline-ordinary', '2026-07-22');
-wlApplyData([plannedTweak, timelineOrdinary], '2026-07-15T12:00:00Z');
+// Earliest-fit would put an unobstructed automatic row on the first working
+// day from today, before this week starts, so the days from today up to its
+// ideal day (2026-07-21) are pinned full and the row takes that ideal day —
+// inside the week these deadline tracks cover.
+const timelineFillers = [];
+for (const day of ['2026-07-15', '2026-07-16', '2026-07-17', '2026-07-20']) {
+  // Two 2x pins spend the whole 4-unit daily capacity in two rows.
+  for (let i = 0; i < 2; i++) {
+    const filler = issue('To Do', 'tl-filler-' + day + '-' + i, day);
+    wlState.workloadByIssueId.set(filler.id, { label: '2× Workload', weight: 2, color: '#EA580C' });
+    wlState.planByIssueId.set(filler.id, day);
+    timelineFillers.push(filler);
+  }
+}
+wlApplyData(timelineFillers.concat([plannedTweak, timelineOrdinary]), '2026-07-15T12:00:00Z');
 const tweakSafeTracks = wlWeekDeadlineTracks(trackStart);
 const trackedIds = tweakSafeTracks.flatMap(editor => editor.tracks.flatMap(track => track.subs.map(sub => sub.id)));
 check(trackedIds.includes(timelineOrdinary.id) && !trackedIds.includes(plannedTweak.id),
@@ -946,7 +1031,7 @@ check(weekendBoundaryTrack.planIndex === 4
     && weekendBoundaryTrack.endpoints[0].boundary === 'after',
   'a weekend deadline remains an explicit after-Friday continuation in the five-day relationship view');
 
-wlApplyData([pastDue, timelineOrdinary], '2026-07-15T12:00:00Z');
+wlApplyData(timelineFillers.concat([pastDue, timelineOrdinary]), '2026-07-15T12:00:00Z');
 const overdueSafeTracks = wlWeekDeadlineTracks(trackStart);
 const overdueSafeIds = overdueSafeTracks.flatMap(editor => editor.tracks.flatMap(track => track.subs.map(sub => sub.id)));
 check(overdueSafeIds.includes(timelineOrdinary.id) && !overdueSafeIds.includes(pastDue.id),

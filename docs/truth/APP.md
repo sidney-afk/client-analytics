@@ -361,17 +361,70 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Dated work without a saved manual override gets a deterministic **ideal** automatic work day:
   one working day before its Linear deadline, floored to today (`wlAutoPlanDate()`). A saved manual
   `plan_date` always wins and is never moved.
-- **Automatic placement is capacity-aware** (owner ruling 2026-08-10, from Raha's overload report;
-  it replaced the earlier strictly item-local rule). `wlComputeAutoPlacements()` runs once per
-  snapshot inside `wlApplyData()`, over the UNFILTERED planned set, and applies four rules in order:
-  manual pins reserve their units first and are absolute; every remaining item is placed as late as
-  it fits, walking BACKWARD over working days from its ideal day to the first day where that editor
-  still has room; the walk never goes forward past the ideal day; and when nothing between today and
-  the ideal day has room, the item keeps its ideal day and the editor/day keeps the red
-  over-capacity badge. That badge now means genuine oversubscription — more work than the window can
-  hold — not a naive collision. The guaranteed bound is **never later than the ideal day**, which is
-  not the same as "always before the deadline": the ideal day is floored to today, so an item due
-  today is planned ON its due date, exactly as before this change.
+- **Automatic placement is capacity-aware and EARLIEST-FIT** (owner ruling 2026-09-14: automatic
+  planning should always be as soon as possible, with capacity as the only brake. It replaced the
+  2026-08-10 late-as-possible pass, which itself replaced the strictly item-local rule).
+  `wlComputeAutoPlacements()` runs once per snapshot inside `wlApplyData()`, over the UNFILTERED
+  planned set, and applies four rules in order: manual pins reserve their units first and are
+  absolute; every remaining item starts at the first WORKING day from today and walks FORWARD over
+  working days to the first day where that editor still has room; the walk never goes past the
+  ideal day; and when nothing between today and the ideal day has room, the item lands on its ideal
+  day and the editor/day keeps the red over-capacity badge. The guaranteed bound is **never later
+  than the ideal day**, which is not the same as "always before the deadline": the ideal day is
+  floored to today, so an item due today, due tomorrow, or already overdue is planned ON today,
+  exactly as under the previous rule.
+- There is ONE automatic placement mode (owner ruling 2026-09-14). A second mode, `shifted`, used to
+  mark an automatic card not sitting on its ideal day; under the late-as-possible rule that meant
+  capacity had pushed it off the day it should have had. Under earliest-fit every automatic card
+  takes the earliest day with room, so the mode only separated "the earliest day with room happened
+  to BE the last possible day" from "it was earlier" — a fact nobody acts on, shown as two different
+  icons. `wlPlacementMode` returns `auto` for every automatic card, and the per-item detail
+  (`wlAutoPlacementTip`) names the day it is on and the latest day it could have sat on. `manual`
+  stays distinct, because a pin does mean something.
+- When first fit fails, a **bounded last-resort reshuffle** runs before the item falls back to its
+  ideal day (owner ruling 2026-09-14). It exists because first fit alone can manufacture an overload
+  a different order would have avoided — pins of 1/2/2 units on Mon/Tue/Wed, a 2× due Wednesday and
+  a 3× due Thursday end 5/4 on Wednesday, although 3× Monday + 2× Tuesday fits both exactly. The
+  owner's condition was that a settled board must not churn as new sub-issues arrive, so the repair
+  is bounded on every side: it runs ONLY when the item would otherwise land over capacity; only
+  automatic items already placed inside that item's own window and under the same capacity key
+  (same editor, same team) are candidates; a manual pin is never a candidate; an evicted item must
+  re-place inside ITS OWN window, so nothing is pushed past its own deadline; it is one level deep,
+  so an evicted item re-places by ordinary first fit and may not evict anyone in turn; the smallest
+  displacement that works wins; and a day that does not work is rolled back exactly. Candidates are
+  tried as SETS (smallest first, bounded by `WL_RESHUFFLE_MAX_CANDIDATES` and
+  `WL_RESHUFFLE_MAX_EVICTIONS`), not one at a time cheapest-first, which spends the relocation room
+  a heavier card needed. When the search finds no rearrangement the item keeps its ideal day
+  and the over-capacity badge. **What that badge means:** no arrangement THIS BOUNDED PASS could
+  find — a superset of genuine oversubscription, not a proof that the week is full. The repair is
+  local by construction: candidates come only from the day being freed, so two cards on DIFFERENT
+  days can never exchange places (pins 3 on Wednesday, automatics 1 ideal Mon / 2 ideal Tue / 2 and
+  3 ideal Wed ends 5/4 on Wednesday, although 1+3 Monday and 2+2 Tuesday fits every window). This is
+  bin packing: each further level of search — pairwise cross-day swaps, then 3-cycles — reaches
+  deeper with no natural stopping point, and a more aggressive global search would also make
+  placements more sensitive to small input changes, which is the churn the anchor above exists to
+  prevent. The bound is therefore deliberate, and the badge is described here as what it is.
+- **Incumbents anchor.** Because every placement is re-derived per snapshot, "nothing moves unless
+  it clears an overload" is not enough on its own: a newcomer sorted ahead of settled work (heavier
+  first within one ideal day) would rearrange the board without the reshuffle ever running. So the
+  day an item held in the LAST pass is a SOFT PIN — reserved before any new item is placed, if it
+  is still inside that item's window and still fits. It is soft: the reshuffle may still evict it as
+  a last resort, and an anchor that stops fitting (a new manual pin took the room, the day fell
+  behind today, the deadline moved) is dropped and that item re-placed like any other. On a first
+  load there are no anchors and the pass is pure earliest-fit. The record
+  (`wlState.autoPlacementSettled`) is in-memory only, never persisted or read back from a server,
+  and is purged with the pins it derives from.
+- Two rules keep the anchor from holding too hard, both from owner reports on 2026-09-14. **Freed
+  room is reclaimed in the same pass:** after placement, each card may move EARLIER into room that
+  is genuinely free — it fills a gap and never evicts, so pinning a card away lets the next card
+  move up without a reload, while arriving work still cannot displace anybody. **An anchor never
+  renders a worse board than a reload:** when the anchored attempt leaves work above capacity, a
+  clean anchor-free pass is computed and adopted if it overflows less. That is the mirror case —
+  "use automatic planning" on a pinned card left the day at 5/4 because the other cards were
+  anchored to the days they held while the pin was away, and only a refresh (which has no anchors)
+  showed the clean 4/4. Bounded at one retry and only reached when the anchored attempt actually
+  overflows. The invariant is swept in `workload-capacity-placement.js` over 24 shapes rather than
+  pinned to one fixture.
   Nothing is written: `workload_plan` still stores deliberate manual overrides only. The moves are
   computed once per snapshot into `wlState.autoPlacementByIssueId` (inside `wlApplyData()`, not per
   render) and only read while rendering, so `wlAutoPlacementDate()` re-applies the same today floor
@@ -382,9 +435,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `wlPurgePlanSensitiveState()` with the pins it is derived from. Placement is withheld entirely
   until the authoritative plan snapshot proves which items are pinned, so the fast first paint and a
   plan-read failure both keep the unmoved ideal placement; the bounded settle animation covers the
-  cards that move when the snapshot lands. A moved card reports the `shifted` placement mode with
-  its own icon and a tooltip naming the day it came from, so a day that is not "deadline − 1" is
-  never unexplained.
+  cards that move when the snapshot lands. Every automatic card reports the single `auto` placement
+  mode with one icon (the second mode, `shifted`, retired 2026-09-14 — see above); its per-item
+  tooltip (`wlAutoPlacementTip`) names the day it is on and the latest day it could sit on, so a day
+  that is not "deadline − 1" is never unexplained.
 - Capacity is 4 video workload units / 15 graphics items per editor per day: a hard input to
   automatic placement, and a warning wherever it still cannot be met.
   An exact authoritative `2× Workload` or `3× Workload` label makes that video consume two or three

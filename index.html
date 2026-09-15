@@ -168,9 +168,43 @@
                     if (ksub) de.setAttribute('data-boot-subtab', ksub);
                 }
             }
+            if (target === 'workload' && window.fetch) {
+                // Start the Workload issue read NOW, while the rest of this
+                // 5 MB document is still parsing, so the network round trip
+                // overlaps the parse instead of following it. Same URL and
+                // key as CAL_SUPABASE_URL / CAL_SUPABASE_ANON_KEY in the app
+                // script (the render harness asserts they match); same gates
+                // as loadLinearIssues: the v2 kill switch and a fresh cache
+                // (LINEAR_ISSUES_TTL_MS) mean the app would not read at all.
+                var wlKilled = false, wlFresh = false;
+                try { wlKilled = localStorage.getItem('syncview_workload_v2_off') === '1'; } catch (e) {}
+                // The URL override wins over storage, exactly as _wlV2Enabled()
+                // resolves it later: ?wl2=0 is the documented per-browser
+                // rollback and must contain this request too, not just the
+                // board's own; ?wl2=1 clears a stored opt-out.
+                var wl2 = q.get('wl2');
+                if (wl2 === '0' || wl2 === 'false') wlKilled = true;
+                else if (wl2 === '1' || wl2 === 'true') wlKilled = false;
+                try {
+                    var wlRaw = localStorage.getItem('syncview_linearIssuesCache_v1');
+                    var wlCache = wlRaw ? JSON.parse(wlRaw) : null;
+                    wlFresh = !!(wlCache && typeof wlCache.fetchedAt === 'number' && (Date.now() - wlCache.fetchedAt) < 5 * 60 * 1000);
+                } catch (e) {}
+                var wlBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                var wlKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                window.__wlEarlyIssuesUrl = wlBase + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0';
+                if (!wlKilled && !wlFresh) {
+                    window.__wlEarlyIssues = fetch(window.__wlEarlyIssuesUrl, {
+                        cache: 'no-store',
+                        headers: { apikey: wlKey, Authorization: 'Bearer ' + wlKey, Accept: 'application/json', Prefer: 'count=exact' }
+                    });
+                    window.__wlEarlyIssues.catch(function () {});
+                }
+            }
         } catch (e) {}
     })();
     </script>
+    <link rel="preconnect" href="https://uzltbbrjidmjwwfakwve.supabase.co">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://docs.google.com">
@@ -214,7 +248,14 @@
             --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
             --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
             --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
-            --cal-comp-video-dot: var(--sv-misc-06b6d4); --cal-comp-graphic-dot: var(--sv-misc-d946ef); --cal-comp-caption-dot: var(--sv-misc-f59e0b); --cal-comp-title-dot: var(--sv-misc-ef4444); --cal-comp-dot-ring: var(--sv-shadow-rgba-255-255-255-0_55);
+            /* Video and Thumbnail share the same vibrant pink/blue pair the
+               link fields use (--sv-slot-video-fg / --sv-slot-thumb-fg,
+               defined below) instead of their own independent cyan/fuchsia --
+               those never matched the fields and, worse, paired the wrong way
+               round: Video's dot read blue-ish and Thumbnail's read pink-ish,
+               backwards from the fields sitting right below them on the same
+               card. One token per concept now. */
+            --cal-comp-video-dot: var(--sv-slot-video-fg); --cal-comp-graphic-dot: var(--sv-slot-thumb-fg); --cal-comp-caption-dot: var(--sv-misc-f59e0b); --cal-comp-title-dot: var(--sv-misc-ef4444); --cal-comp-dot-ring: var(--sv-shadow-rgba-255-255-255-0_55);
             --cal-notes-accent: var(--sv-bg-ea580c); --cal-notes-accent-fg: var(--sv-fg-c2410c); --cal-notes-open-bg: var(--sv-bg-fff5e6); --cal-notes-count-fg: var(--sv-fg-fff); --cal-notes-dot-bg: var(--sv-bg-ea580c); --cal-notes-dot-ring: rgba(0,0,0,0); --cal-notes-dot-glow: rgba(234,88,12,0);
             --wl-status-fg: var(--sv-fg-fff); --wl-progress-section-bg: var(--sv-bg-fefce8); --wl-progress-border: var(--sv-border-fde047); --wl-progress-accent: var(--sv-bg-eab308); --wl-progress-accent-hover: var(--sv-bg-ca8a04); --wl-progress-label: var(--sv-fg-854d0e); --wl-progress-chip-bg: var(--sv-bg-fef9c3); --wl-progress-chip-hover: var(--sv-bg-fef08a); --wl-progress-chip-fg: var(--sv-fg-854d0e);
             --wl-proximity-red: #e11d48; --wl-proximity-orange: #ea580c; --wl-proximity-green: #0f9f50;
@@ -240,7 +281,7 @@
             --media-tub-bg: linear-gradient(155deg, #202a35 0%, #151b24 100%); --media-tub-empty-bg: #1e2530;
             --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
             --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
-            --cal-comp-video-dot: #22d3ee; --cal-comp-graphic-dot: #e879f9; --cal-comp-caption-dot: #f59e0b; --cal-comp-title-dot: #f87171; --cal-comp-dot-ring: rgba(16,17,20,0.82);
+            --cal-comp-video-dot: var(--sv-slot-video-fg); --cal-comp-graphic-dot: var(--sv-slot-thumb-fg); --cal-comp-caption-dot: #f59e0b; --cal-comp-title-dot: #f87171; --cal-comp-dot-ring: rgba(16,17,20,0.82);
             --cal-notes-accent: #fb923c; --cal-notes-accent-fg: #fdba74; --cal-notes-open-bg: rgba(251,146,60,0.14); --cal-notes-count-fg: #101114; --cal-notes-dot-bg: #fb923c; --cal-notes-dot-ring: #181a1f; --cal-notes-dot-glow: rgba(251,146,60,0.35);
             --wl-status-fg: #101114; --wl-progress-section-bg: #221f14; --wl-progress-border: #facc15; --wl-progress-accent: #facc15; --wl-progress-accent-hover: #eab308; --wl-progress-label: #facc15; --wl-progress-chip-bg: #fde047; --wl-progress-chip-hover: #facc15; --wl-progress-chip-fg: #101114;
             --wl-timeline-today-bg: rgba(139,124,246,0.10); --wl-timeline-lane-alt-bg: rgba(255,255,255,0.025);
@@ -368,6 +409,29 @@
             --sv-bg-ede9fe: #ede9fe;
             --sv-bg-ededea: #ededea;
             --sv-bg-eef0fe: #eef0fe;
+            /* Vibrant accent pair for the two asset slots: the Thumbnail
+               field and its Production button share blue, the Video field
+               and its Production button share pink, so each field and its
+               square button read as one thing. */
+            --sv-slot-thumb-fg: #3737f2;
+            --sv-slot-thumb-bg: #e2e4ff;
+            --sv-slot-thumb-bg-hover: #cdd1ff;
+            --sv-slot-thumb-fg-soft: #5b5be8;
+            --sv-slot-thumb-border: #ccceff;
+            /* Measured against the pill background, not eyeballed: the label is
+               0.72rem body text, so it needs 4.5:1. The first vivid pink tried
+               here reached only 3.72:1 (the pre-2026-09-14 pair managed
+               4.73:1) -- the vibrancy came straight out of the contrast
+               budget. The value below is 5.47:1 on the pill and 4.69:1 on the
+               HOVER background, which is the darker of the two and the one a
+               label-only check misses, and still reads as the same hot pink.
+               The -soft tone carries icon-only buttons, which need 3:1, on
+               both backgrounds. */
+            --sv-slot-video-fg: #b21060;
+            --sv-slot-video-bg: #ffe0ef;
+            --sv-slot-video-bg-hover: #ffc9e2;
+            --sv-slot-video-fg-soft: #d62d79;
+            --sv-slot-video-border: #ffc9e2;
             --sv-bg-ef4444: #ef4444;
             --sv-bg-efedfd: #efedfd;
             --sv-bg-eff3ff: #eff3ff;
@@ -929,6 +993,16 @@
             --sv-bg-ede9fe: #181a1f;
             --sv-bg-ededea: #181a1f;
             --sv-bg-eef0fe: #181a1f;
+            --sv-slot-thumb-fg: #a9aaff;
+            --sv-slot-thumb-bg: #1d1f2e;
+            --sv-slot-thumb-bg-hover: #262a41;
+            --sv-slot-thumb-fg-soft: #8b8cdf;
+            --sv-slot-thumb-border: #2e3250;
+            --sv-slot-video-fg: #ff8ac0;
+            --sv-slot-video-bg: #2b1a25;
+            --sv-slot-video-bg-hover: #3a2231;
+            --sv-slot-video-fg-soft: #d1719f;
+            --sv-slot-video-border: #3a2231;
             --sv-bg-ef4444: #7f2e31;
             --sv-bg-efedfd: #181a1f;
             --sv-bg-eff3ff: #181a1f;
@@ -1795,9 +1869,18 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-        .sv-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .sv-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); position: relative; overflow: hidden; background: var(--sv-skel-base); border-radius: 8px; }
+        /* The sheen animates `transform` on a pseudo-element, not `background-position`
+           on the box: transform runs on the compositor thread, so the shimmer keeps
+           moving through the long main-thread task of the first board render instead
+           of freezing mid-sweep (measured on the Workload cold boot, 2026-09-14). */
+        .sv-skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, var(--sv-skel-sheen) 50%, transparent 100%); transform: translateX(-100%); animation: sv-shimmer-sweep 1.35s ease-in-out infinite; will-change: transform; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .sv-skeleton::after { animation: none; } }
         html[data-theme="dark"] .sv-skeleton, html[data-theme="dark"] .tpl-skeleton { --sv-skel-base: var(--surface-subtle); --sv-skel-sheen: var(--field-bg-hover); }
         @keyframes sv-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
+        /* Legacy consumers (.prod-skeleton, .tpl-skeleton) still animate background-position
+           via sv-shimmer; the compositor sweep has its own keyframe so the two never collide. */
+        @keyframes sv-shimmer-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         .sv-skeleton-pill { border-radius: 999px; }
         .sv-skeleton-line { height: 14px; border-radius: 6px; }
         .sv-skeleton-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
@@ -3566,7 +3649,6 @@
         .wl-plan-origin { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 14px; height: 14px; color: var(--text-muted); font-size: 0.52rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
         .wl-plan-origin svg { width: 13px; height: 13px; display: block; }
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
-        .wl-plan-origin.is-shifted { color: var(--sv-fg-0284c7); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
         .wl-plan-origin.is-loading { color: var(--text-muted); }
         .wl-plan-origin.is-loading svg { animation: wlPlanOriginSpin 0.9s linear infinite; }
@@ -3742,6 +3824,10 @@
         .workload-overview-status-head.is-tweaks { --wl-overview-accent: var(--wl-tweaks-accent); }
         .workload-overview-head-total { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font-size: 0.58rem; font-weight: 850; line-height: 1.2; text-align: center; }
         .workload-overview-rows { display: flex; flex-direction: column; gap: 8px; }
+        .workload-overview-row.is-skeleton .workload-overview-editor, .workload-overview-row.is-skeleton .workload-overview-capacity { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+        .workload-overview-row.is-skeleton .workload-overview-editor-copy { display: flex; flex-direction: column; gap: 6px; }
+        .workload-overview-row.is-skeleton .workload-overview-capacity { flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; }
+        .workload-overview-row.is-skeleton .workload-overview-status { display: flex; align-items: center; justify-content: center; min-height: 40px; }
         .workload-overview-row { padding: 10px 12px; border: 0; border-radius: 11px; background: var(--bg); transition: background 0.12s ease, box-shadow 0.12s ease; }
         .workload-overview-row:hover { background: var(--white); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_06); }
         .workload-overview-editor,
@@ -5188,15 +5274,52 @@
             background: var(--field-bg); color: var(--sv-fg-bdbdb8); transition: background 0.13s, color 0.13s; text-decoration: none; }
         .cal-linear-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn svg { width: 14px; height: 14px; }
-        .cal-linear-btn.is-linked { background: var(--sv-bg-ecedfb); color: var(--sv-fg-5e6ad2); }
-        .cal-linear-btn.is-linked:hover { background: var(--sv-bg-e0e2f8); }
+        /* Video's linked pile icon (bottom-right of the thumbnail, see
+           .cal-linear-pile below) shares the same vibrant pink the Video
+           link field and status dot use, not Linear's own generic indigo --
+           that indigo is still correct everywhere ELSE Linear shows up
+           (Workload's plan-origin badge, the review panel's Linear link,
+           etc.), so it stays a component-scoped override here rather than a
+           change to --sv-fg-5e6ad2 itself. */
+        .cal-linear-btn.is-linked { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-linear-btn.is-linked:hover { background: var(--sv-slot-video-bg-hover); }
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
         /* SyncView Production sub-issue link — same footprint as the Linear
-           icon, teal so the two systems read apart at a glance. */
-        .cal-linear-btn.cal-prod-btn { background: var(--sv-bg-e6f7f4, #e6f7f4); color: var(--sv-fg-0d9488, #0d9488); }
-        .cal-linear-btn.cal-prod-btn:hover { background: var(--sv-bg-d1f0eb, #d1f0eb); color: var(--sv-fg-0f766e, #0f766e); }
+           icon. This used to be teal for BOTH components, which meant the two
+           Production buttons in one pile were identical twins: same colour,
+           same glyph, nothing to say which was the video and which the
+           thumbnail (owner, 2026-09-15: "both of them look the same... the
+           sync linear button looks the fucking same"). Teal carried the
+           SYSTEM but threw away the COMPONENT, and the component is what a
+           reader is actually picking between when four buttons stack up.
+           So the two axes are split across two properties:
+             - COLOUR = component. Pink for Video, blue for Thumbnail, the
+               same pair the link fields, the status dots and the Linear
+               buttons already use, so a pile reads as a pink half and a blue
+               half.
+             - SHAPE = system. Linear is a chip filled with its component TINT;
+               Production is a chip on the neutral raised surface, RINGED in
+               its component colour, on top of the already-different glyph —
+               the Linear mark versus the open-in-a-new-tab box.
+           The ring is a border, not a box-shadow: .cal-linear-pile sets its own
+           drop box-shadow on every button in the pile and would clobber it.
+           Global box-sizing is border-box, so the ring costs no footprint.
+           The surface stays OPAQUE, and that is load-bearing rather than
+           cosmetic (Codex, PR 1403). This pile is absolutely positioned OVER
+           .cal-card-thumb, so a transparent centre puts the ring and the glyph
+           straight onto arbitrary photo pixels — and measured against a
+           deliberately hostile pink/white/lavender thumbnail, pink-on-pale-pink
+           and blue-on-pale-lavender both washed out to nearly unreadable while
+           the filled Linear chips beside them stayed crisp. A thumbnail is
+           user-supplied art that can be any colour, so legibility here cannot
+           depend on it. */
+        .cal-linear-btn.cal-prod-btn { background: var(--surface-raised); border: 1.5px solid currentColor; }
+        .cal-linear-btn-video.cal-prod-btn { color: var(--sv-slot-video-fg); }
+        .cal-linear-btn-video.cal-prod-btn:hover { background: var(--sv-slot-video-bg); }
+        .cal-linear-btn-graphic.cal-prod-btn { color: var(--sv-slot-thumb-fg); }
+        .cal-linear-btn-graphic.cal-prod-btn:hover { background: var(--sv-slot-thumb-bg); }
         /* Fill the missing component. A DASHED outline over the plain field
            background, deliberately quieter than the orange warn state: a card
            with one component is a normal, common shape (127 of 688 live cards
@@ -5468,20 +5591,20 @@
         .cal-link-folder svg,
         .cal-link-edit svg { width: 12px; height: 12px; }
         /* Coloured link pills once a URL is set */
-        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-bg-eef0fe); color: var(--sv-fg-4f46e5); }
-        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-bg-e4e6fc); }
-        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-fg-4f46e5); }
+        .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg); }
+        .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-slot-thumb-bg-hover); }
+        .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-slot-thumb-fg); }
         .cal-link-thumb.has-link .cal-link-folder,
-        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-bg-eef0fe); color: var(--sv-fg-7c79d8); border-left-color: var(--sv-border-dcdcfa); }
+        .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg-soft); border-left-color: var(--sv-slot-thumb-border); }
         .cal-link-thumb.has-link .cal-link-folder:hover,
-        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-bg-e4e6fc); color: var(--sv-fg-4f46e5); }
-        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-bg-fde8f3); color: var(--sv-fg-be2d72); }
-        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-bg-fbdcec); }
-        .cal-link-post.has-link .cal-link-ico { color: var(--sv-fg-be2d72); }
+        .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-slot-thumb-bg-hover); color: var(--sv-slot-thumb-fg); }
+        .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-slot-video-bg-hover); }
+        .cal-link-post.has-link .cal-link-ico { color: var(--sv-slot-video-fg); }
         .cal-link-post.has-link .cal-link-folder,
-        .cal-link-post.has-link .cal-link-edit { background: var(--sv-bg-fde8f3); color: var(--sv-fg-cf6f9e); border-left-color: var(--sv-border-f6d3e4); }
+        .cal-link-post.has-link .cal-link-edit { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg-soft); border-left-color: var(--sv-slot-video-border); }
         .cal-link-post.has-link .cal-link-folder:hover,
-        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-bg-fbdcec); color: var(--sv-fg-be2d72); }
+        .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
@@ -5816,8 +5939,22 @@
            the video slot does. The previous unscoped rule kept it purple
            even when there was no link, which masked the "needs linking"
            visual cue. */
-        .cal-linear-btn-graphic.is-linked { color: var(--sv-fg-d946ef); background: var(--sv-bg-fbe7fe); }
-        .cal-linear-btn-graphic.is-linked:hover { background: var(--sv-bg-f5d0fe); }
+        /* Same reasoning as .cal-linear-btn.is-linked above: Thumbnail's
+           LINEAR pile icon takes the same vibrant blue the Thumbnail link
+           field and status dot use, in place of its own independent
+           fuchsia -- that pairing read backwards next to the field below it
+           (Thumbnail is blue everywhere else on the card).
+           :not(.cal-prod-btn) is load-bearing (Codex, PR 1401): this selector
+           and .cal-linear-btn.cal-prod-btn are equal specificity, and
+           .cal-prod-btn's own rule sits BEFORE this one in the stylesheet
+           -- so without the exclusion this rule would win on source order
+           and repaint the SyncView Production graphic link blue too,
+           erasing the teal that deliberately keeps Production and Linear
+           visually apart. That is a real latent bug (it broke the same way
+           to fuchsia before this PR), just never exercised until this
+           selector's colors changed enough to get a second look. */
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) { color: var(--sv-slot-thumb-fg); background: var(--sv-slot-thumb-bg); }
+        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn):hover { background: var(--sv-slot-thumb-bg-hover); }
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
@@ -11575,7 +11712,7 @@
             const mp=mPrevMap[r.client_name];
             const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${ncAnalytics(r,'instagram','ig_followers','col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig','instagram')}${ncViewsDelta(r,mp,'instagram','ig_views_this_month','col-ig')}${igViewDeltaCell}`;
             const _isPending=!r.date;
-            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
+            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r,mp,'tiktok','tiktok_plays_this_month','col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:_isPending?`${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             const _dateCell=_isPending?`<td style="font-size:0.68rem"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;">Pending</span></td>`:`<td style="font-size:0.76rem">${fmtDate(r.date)}</td>`;
             return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="if(_modClick(event))return;event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
@@ -14149,6 +14286,14 @@
         planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         planError: null,
         planFetchedAt: null,
+        // How the sidecar matched saved days to cards on the last authoritative
+        // read. 'snapshot' and 'pairs' are both complete answers; 'none' means
+        // it could not build the id pairing at all. planUnaliased counts the
+        // saved days it could NOT match — the board is then right about
+        // everything else and missing those, which is exactly the state that
+        // used to be invisible (item 210).
+        planAliasMode: '',                         // '' | 'snapshot' | 'pairs' | 'none'
+        planUnaliased: 0,
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
@@ -14182,6 +14327,17 @@
     }
     function wlWriteCache(payload) {
         try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
+    }
+    /* A snapshot known to be INCOMPLETE must not be replayed.
+       A forced refresh writes whatever the Linear webhook returned straight
+       into this cache, short payload and all, and an ordinary load replays it
+       for the next five minutes -- so telling the owner to reload would have
+       handed them the same short board with the warning cleared, which is
+       worse than saying nothing (Codex review, PR 1404). Dropping it costs a network
+       read on the next boot and makes that instruction true: the reload misses
+       the cache, reads the complete mirror, and the board comes back whole. */
+    function wlDropCache() {
+        try { localStorage.removeItem(LINEAR_ISSUES_CACHE_KEY); } catch {}
     }
     function wlIsFresh(fetchedAt) {
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
@@ -14375,18 +14531,65 @@
     // Read every ACTIVE row. Supabase caps a single response at 1000 rows, so we
     // page with limit/offset until a short page — otherwise the board would
     // silently miss issues beyond the first 1000.
-    async function _wlV2FetchIssues() {
-        const base = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=';
+    const WL_V2_PAGE_ROWS = 1000;   // PostgREST's server-side max-rows cap
+    function _wlV2IssuesHeaders(withCount) {
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
-        let from = 0, all = [];
-        for (let guard = 0; guard < 50; guard++) {        // hard cap 50k rows
-            const resp = await fetch(base + from, { cache: 'no-store', headers });
-            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-            const rows = await resp.json();
-            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
-            all = all.concat(rows);
-            if (rows.length < 1000) break;
-            from += 1000;
+        // `count=exact` makes PostgREST put the total on Content-Range
+        // ("0-999/2128"), which is what lets every later page go out at once.
+        if (withCount) headers.Prefer = 'count=exact';
+        return headers;
+    }
+    async function _wlV2ReadPage(resp) {
+        if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+        const rows = await resp.json();
+        if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+        return rows;
+    }
+    /*
+     * ONE ROUND TRIP OF LATENCY, NOT ONE PER PAGE.
+     *
+     * The mirror holds ~2,100 active rows and the server caps a page at
+     * 1,000, so this read used to be three ~660 KB round trips one after
+     * another (~0.65 s each from a datacenter, more from a laptop): the
+     * single largest slice of the Workload cold boot, measured 2026-09-15.
+     * Page 0 now asks for the exact count and every remaining page is
+     * requested in parallel. When the URL booted straight into #workload,
+     * the head script has page 0 in flight already (window.__wlEarlyIssues,
+     * started before this 5 MB document finished parsing); it is adopted
+     * once and cleared so a later refresh never re-reads a stale response.
+     * The source is unchanged: this is still the board's read of
+     * `workload_issues` (test/workload-native-view-contract.js pins it).
+     */
+    async function _wlV2FetchIssues() {
+        const base = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=' + WL_V2_PAGE_ROWS + '&offset=';
+        let first = null;
+        try {
+            const early = window.__wlEarlyIssues;
+            if (early && typeof early.then === 'function') {
+                window.__wlEarlyIssues = null;
+                first = await early;
+            }
+        } catch { first = null; }
+        if (!first) first = await fetch(base + '0', { cache: 'no-store', headers: _wlV2IssuesHeaders(true) });
+        let all = await _wlV2ReadPage(first);
+        if (all.length >= WL_V2_PAGE_ROWS) {
+            const range = String(first.headers.get('content-range') || '');
+            const total = Number((range.split('/')[1] || '').trim());
+            const cap = 50 * WL_V2_PAGE_ROWS;                 // hard cap 50k rows
+            if (Number.isFinite(total) && total > all.length) {
+                const offsets = [];
+                for (let offset = WL_V2_PAGE_ROWS; offset < Math.min(total, cap); offset += WL_V2_PAGE_ROWS) offsets.push(offset);
+                const pages = await Promise.all(offsets.map(offset =>
+                    fetch(base + offset, { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }).then(_wlV2ReadPage)));
+                for (const rows of pages) all = all.concat(rows);
+            } else {
+                // No usable count header: the original serial walk, unchanged.
+                for (let offset = WL_V2_PAGE_ROWS, guard = 1; guard < 50; guard++, offset += WL_V2_PAGE_ROWS) {
+                    const rows = await _wlV2ReadPage(await fetch(base + offset, { cache: 'no-store', headers: _wlV2IssuesHeaders(false) }));
+                    all = all.concat(rows);
+                    if (rows.length < WL_V2_PAGE_ROWS) break;
+                }
+            }
         }
         return all.map(_wlV2MapRow);
     }
@@ -15007,7 +15210,20 @@
                 throw error;
             }
             if (sessionGeneration !== _wlPlanSessionGeneration) throw new Error('staff_session_changed');
-            return { rows: json.plans, readGeneration };
+            /* A response can be OK and still carry an INCOMPLETE map: saved days
+               are stored under two ids for the same card and the sidecar
+               reconciles them per answer, so a degraded answer holds every
+               stored day but not every alias. Absent fields mean an older
+               function build, which cannot report either way — read as
+               complete, exactly as this client behaved before they existed. */
+            const aliasMode = String(json.alias_mode || '');
+            const unaliased = Number(json.plans_unaliased);
+            return {
+                rows: json.plans,
+                readGeneration,
+                aliasMode,
+                unaliased: Number.isFinite(unaliased) && unaliased > 0 ? Math.floor(unaliased) : 0
+            };
         } finally {
             clearTimeout(timeout);
         }
@@ -15186,8 +15402,16 @@
         const failedChunkIds = [];
         let firstChunkError = null;
         let anyChunkSucceeded = false;
-        for (let index = 0; index < issueIds.length; index += 100) {
-            const chunk = issueIds.slice(index, index + 100);
+        /* EVERY CHUNK IN FLIGHT AT ONCE. This loop used to await each 100-id
+           chunk before starting the next: ~8 serial round trips for the live
+           board (~0.3 s each from a laptop), all of it AFTER the fast paint and
+           all of it what the user waits through before the Planning… labels
+           settle. Chunks are independent reads, so they go out together and
+           are folded back in index order, which keeps `firstChunkError` (the
+           earliest chunk's failure) and `failedChunkIds` exactly as before. */
+        const chunks = [];
+        for (let index = 0; index < issueIds.length; index += 100) chunks.push(issueIds.slice(index, index + 100));
+        const readChunk = async (chunk) => {
             const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
             const readPage = async (table, select) => {
                 const url = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=' + select
@@ -15233,13 +15457,21 @@
                 const page = projected.payload;
                 if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
                 page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
-                rows.push(...page);
-                anyChunkSucceeded = true;
+                return { page };
             } catch (error) {
-                if (!firstChunkError) firstChunkError = error;
-                failedChunkIds.push(...chunk);
+                return { error };
             }
-        }
+        };
+        const chunkResults = await Promise.all(chunks.map(readChunk));
+        chunkResults.forEach((result, index) => {
+            if (result && result.page) {
+                rows.push(...result.page);
+                anyChunkSucceeded = true;
+            } else {
+                if (!firstChunkError) firstChunkError = result && result.error || new Error('Native Workload metadata read failed.');
+                failedChunkIds.push(...chunks[index]);
+            }
+        });
         if (firstChunkError && !anyChunkSucceeded) throw firstChunkError;
         const byIssueId = new Map();
         const ambiguous = new Set();
@@ -15640,6 +15872,8 @@
         wlState.planStatus = 'ready';
         wlState.planError = null;
         wlState.planFetchedAt = Date.now();
+        wlState.planAliasMode = String(snapshot && snapshot.aliasMode || '');
+        wlState.planUnaliased = Number(snapshot && snapshot.unaliased) || 0;
     }
 
     function wlMarkPlanReadFailure(error) {
@@ -15673,9 +15907,14 @@
         _wlNativeDueReceiptRetryTimer = null;
         _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
+        wlState.planAliasMode = '';
+        wlState.planUnaliased = 0;
         // Derived from the pins, so it is just as sensitive: a retained "moved
-        // earlier" marker would leak that a pin existed on that day.
+        // earlier" marker would leak that a pin existed on that day. The
+        // settled-day record the next pass anchors against is derived from the
+        // same placements, so it goes with them.
         wlState.autoPlacementByIssueId = new Map();
+        wlState.autoPlacementSettled = new Map();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
@@ -15760,6 +15999,19 @@
     async function _wlLegacyLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
         let fastPainted = false;
+        /* WHAT THE BOARD IS SHOWING BEFORE THIS LOAD REPLACES IT.
+           The Refresh button is the one read that bypasses the Supabase mirror
+           and goes straight to the Linear webhook, so it is the one read whose
+           payload can come back SHORTER than the board it replaces -- a
+           workspace that errored, a truncated aggregate. Every such sub-issue
+           then disappeared off the calendar with nothing said, pins included:
+           the pin was still saved and still in memory, but the card carrying
+           it was gone until the next reload, which is exactly what a refresh
+           "undoing my work" looks like. Captured here, before the fast paint
+           overwrites allActiveSubs with the new payload. */
+        const priorActiveSubIds = force
+            ? new Set((wlState.allActiveSubs || []).map(sub => String(sub && sub.id || '')).filter(Boolean))
+            : null;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.linearMetadataWithheldOnly = 0;
@@ -15770,10 +16022,39 @@
             // Warm navigation and automatic freshness checks never enter here.
             renderWorkloadAll();
         }
-        const [issuesResult, plansResult] = await Promise.allSettled([
-            loadLinearIssues(!!force),
-            wlFetchPlanRows()
-        ]);
+        const issuesPromise = loadLinearIssues(!!force);
+        const plansPromise = wlFetchPlanRows();
+        /*
+         * STALE-WHILE-REVALIDATE FIRST PAINT.
+         *
+         * A page refresh has the last snapshot in localStorage (wlReadCache,
+         * passed in as `fallback`) but used to keep the skeleton up until the
+         * live Linear read returned, using the cache only if that read failed.
+         * The plan read is the fast leg and it is the only fail-closed one, so
+         * as soon as it settles and was NOT refused, the cached issues are
+         * painted with the same loading placement the fast paint below uses
+         * (planLoading=true: automatic estimates, no private pins). The live
+         * read then replaces them in place. If the live read wins the race
+         * there is nothing to do; if the plan read was refused the skeleton
+         * holds, exactly as before, until the auth branch below has run.
+         */
+        const cachedIssues = fallback && Array.isArray(fallback.issues) && fallback.issues.length ? fallback.issues : null;
+        if (cachedIssues && !wlState.planHasSnapshot
+            && typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled()) {
+            const plansSettled = plansPromise.then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }));
+            const issuesSettled = issuesPromise.then(() => null, () => null);
+            const early = await Promise.race([plansSettled, issuesSettled]);
+            const earlyRefused = !early || (early.status === 'rejected'
+                && (Number(early.reason && early.reason.status) === 401 || Number(early.reason && early.reason.status) === 403));
+            if (!earlyRefused && loadGeneration === _wlPlanLoadGeneration && !wlState.workloadByIssueId.size) {
+                wlState.planLoading = true;
+                fastPainted = true;
+                wlApplyData(cachedIssues, fallback.fetchedAt);
+                wlState.loading = false;
+                if (document.querySelector('.workload-view')) renderWorkloadAll();
+            }
+        }
+        const [issuesResult, plansResult] = await Promise.allSettled([issuesPromise, plansPromise]);
 
         let payload = null;
         if (issuesResult.status === 'fulfilled') payload = issuesResult.value;
@@ -15792,7 +16073,23 @@
         // automatic estimate the post-plan board uses, so non-manually-planned
         // items don't move and only manually-planned items settle when plans
         // land. Weights show the one-unit fallback until the sweep resolves.
-        if (typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled() && loadGeneration === _wlPlanLoadGeneration) {
+        /*
+         * A REFUSED PLAN READ MUST NOT BE PAINTED OVER.
+         *
+         * The plan read has already settled here, so its refusal is knowable
+         * before anything is drawn — and the skeleton dropping now would show
+         * an estimated schedule, and on a warm refresh the private pins still
+         * in memory, for as long as the metadata sweep takes (up to its
+         * 20-second timeout) before the auth branch below purges them. The
+         * fail-closed contract is that an auth denial withholds the private
+         * projections, so the fast paint stands down and the skeleton holds
+         * until that branch has run.
+         */
+        const planAuthRefused = plansResult.status === 'rejected'
+            && (Number(plansResult.reason && plansResult.reason.status) === 401
+                || Number(plansResult.reason && plansResult.reason.status) === 403);
+        if (!planAuthRefused
+            && typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled() && loadGeneration === _wlPlanLoadGeneration) {
             wlState.planLoading = true;
             fastPainted = true;
             wlApplyData(payload.issues, payload.fetchedAt);
@@ -15835,6 +16132,26 @@
         else {
             wlMarkLinearMetadataFailure(metadataResult.reason, payload.issues);
             console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
+        }
+        if (priorActiveSubIds && !payload.usedFallback) {
+            const incoming = new Set((payload.issues || [])
+                .filter(issue => issue && issue.isSubIssue)
+                .map(issue => String(issue.id || '')));
+            let missing = 0;
+            let missingPinned = 0;
+            for (const issueId of priorActiveSubIds) {
+                if (incoming.has(issueId)) continue;
+                missing++;
+                if (wlState.planByIssueId.has(issueId)) missingPinned++;
+            }
+            wlState.refreshMissing = missing;
+            wlState.refreshMissingPinned = missingPinned;
+            if (missing > 0) wlDropCache();
+        } else if (!force) {
+            // An ordinary load reads the complete mirror, so it supersedes
+            // whatever a short refresh reported.
+            wlState.refreshMissing = 0;
+            wlState.refreshMissingPinned = 0;
         }
         wlApplyData(payload.issues, payload.fetchedAt);
         // If this load fast-painted at automatic estimates, flag the items whose
@@ -15906,6 +16223,14 @@
      * without being taught about a new global.
      */
     function wlWorkloadTodayISO(now) {
+        /* The no-argument form is "what day is it in the workload time zone",
+           asked once per sub-issue inside the classification loop and once per
+           card while rendering. It cannot change within a second, so it is
+           formatted at most once a second; an explicit `now` always formats
+           that instant and never touches the memo. */
+        if (now === undefined && wlWorkloadTodayISO._iso && Date.now() - wlWorkloadTodayISO._stamp < 1000) {
+            return wlWorkloadTodayISO._iso;
+        }
         const formatter = wlWorkloadTodayISO._fmt || (wlWorkloadTodayISO._fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: WL_WORKLOAD_TIME_ZONE,
             year: 'numeric',
@@ -15917,7 +16242,9 @@
         for (const part of parts) {
             if (part.type !== 'literal') values[part.type] = part.value;
         }
-        return `${values.year}-${values.month}-${values.day}`;
+        const iso = `${values.year}-${values.month}-${values.day}`;
+        if (now === undefined) { wlWorkloadTodayISO._iso = iso; wlWorkloadTodayISO._stamp = Date.now(); }
+        return iso;
     }
     function wlTodayISO() {
         const d = new Date();
@@ -15930,7 +16257,20 @@
         const [y, m, d] = iso.split('-').map(Number);
         return new Date(y, m - 1, d);
     }
+    function wlIsWorkingDay(iso) {
+        const dow = wlParseISO(iso).getDay();
+        return dow !== 0 && dow !== 6;
+    }
+    /* Walking the calendar a day at a time is the single hottest thing the
+       capacity placement does: `firstFit` and `reshuffleFor` each walk up to
+       WL_PLACEMENT_WALK_LIMIT days, per candidate, per eviction set. It was
+       35.8% of a 97 s settle pass at live shape (profiled 2026-09-15) and it
+       is a pure function of (iso, n), so the walk is done once per pair. */
     function wlAddWorkingDays(iso, n) {
+        const cache = wlAddWorkingDays._cache || (wlAddWorkingDays._cache = new Map());
+        const cacheKey = String(iso) + '|' + String(n);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const d = wlParseISO(iso);
         let added = 0;
         while (added < n) {
@@ -15938,9 +16278,16 @@
             const dow = d.getDay();
             if (dow !== 0 && dow !== 6) added++;
         }
-        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        const out = wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        if (cache.size > 20000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlSubWorkingDays(iso, n) {
+        const cache = wlSubWorkingDays._cache || (wlSubWorkingDays._cache = new Map());
+        const cacheKey = String(iso) + '|' + String(n);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const d = wlParseISO(iso);
         let removed = 0;
         while (removed < n) {
@@ -15948,7 +16295,10 @@
             const dow = d.getDay();
             if (dow !== 0 && dow !== 6) removed++;
         }
-        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        const out = wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlNextWorkingDay(iso) {
         const d = wlParseISO(iso);
@@ -15971,9 +16321,25 @@
         d.setDate(d.getDate() + n);
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    /* MEMOISED PURE HELPERS.
+       Each of these is a pure function of its arguments and is called once per
+       sub-issue (sometimes several times) inside the board's hot loops, so at
+       live scale they dominate the boot. Profiled 2026-09-15 on a fixture at
+       live shape (~1,700 sub-issues): wlFormatShort 942 ms of a 3.1 s render,
+       wlNormalizeClient 157 ms and wlWorkloadTodayISO 85 ms of a 446 ms
+       wlApplyData. The caches are keyed by the exact inputs, so the result is
+       identical; they are cleared wholesale past a ceiling rather than grown
+       without bound. */
     function wlFormatShort(iso) {
+        const cache = wlFormatShort._cache || (wlFormatShort._cache = new Map());
+        const key = String(iso);
+        const hit = cache.get(key);
+        if (hit !== undefined) return hit;
         const d = wlParseISO(iso);
-        return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        const out = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        if (cache.size > 4000) cache.clear();
+        cache.set(key, out);
+        return out;
     }
     function wlCalendarDayDiff(fromISO, toISO) {
         const parseUTC = (iso) => {
@@ -16019,7 +16385,7 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', shifted: 'Moved earlier for capacity', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count, tipDetail) {
         const label = wlPlacementLabel(mode);
@@ -16027,9 +16393,6 @@
         let icon;
         if (mode === 'manual') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
-        } else if (mode === 'shifted') {
-            // The automatic sparkle, pushed by an arrow back toward an earlier day.
-            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.4H4.4M7.4 5.2 4.1 8.4l3.3 3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="m12.4 1.5.62 1.73 1.73.62-1.73.62-.62 1.73-.62-1.73-1.73-.62 1.73-.62.62-1.73Z" fill="currentColor"/></svg>';
         } else if (mode === 'loading') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } else if (mode === 'fallback') {
@@ -16045,11 +16408,8 @@
                 ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
                 : (mode === 'fallback'
                     ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
-                    : (mode === 'shifted'
-                        // The per-item detail names the day it came from; the
-                        // group/compact icon has no single item to name.
-                        ? (String(tipDetail || '') || 'Automatic plan, moved earlier: its usual day — one working day before the deadline — was already at that editor\'s daily capacity. Still before the deadline.')
-                        : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.')));
+                    : (String(tipDetail || '')
+                        || 'Automatic plan: the earliest working day with room, never later than one working day before the deadline. Drag it to pin it somewhere else.')));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -16059,7 +16419,7 @@
         return 'mixed';
     }
     function wlGroupPlanOriginHtml(subs) {
-        const counts = { auto: 0, shifted: 0, manual: 0, fallback: 0, loading: 0 };
+        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
         for (const sub of subs || []) {
             const mode = wlPlacementMode(sub);
             if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
@@ -16146,7 +16506,8 @@
         return wlState.workloadByIssueId.get(String(sub && sub.id || '')) || null;
     }
     function wlWorkloadWeight(sub) {
-        const weight = Number(wlWorkloadMeta(sub) && wlWorkloadMeta(sub).weight);
+        const meta = wlWorkloadMeta(sub);          // one lookup, not two
+        const weight = Number(meta && meta.weight);
         return weight === 2 || weight === 3 ? weight : 1;
     }
     function wlWorkloadUnits(subs) {
@@ -16295,10 +16656,17 @@
     ]);
     function wlNormalizeEditor(s) {
         if (!s) return '';
+        const cache = wlNormalizeEditor._cache || (wlNormalizeEditor._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const lower = String(s).trim().toLowerCase()
             .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
         const local = lower.includes('@') ? lower.split('@')[0] : lower;
-        return local.replace(/[\s._\-]+/g, '');
+        const out = local.replace(/[\s._\-]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlIsInactiveEditor(id, name) {
         return WL_INACTIVE_EDITOR_IDS.has(String(id || '').trim()) ||
@@ -16322,11 +16690,17 @@
     // "Eben and Annie" collapse to one too.
     function wlNormalizeClient(s) {
         if (!s) return '';
+        const cache = wlNormalizeClient._cache || (wlNormalizeClient._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         let t = String(s).toLowerCase().trim()
             .normalize('NFD').replace(/[̀-ͯ]/g, '');
         t = t.replace(/^dr\.?\s+/, '');
         t = t.replace(/\s+(?:and|&)\s+/g, '&');
         t = t.replace(/[^a-z0-9&]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, t);
         return t;
     }
     // SEED + OFFLINE FALLBACK ONLY. The live source of truth for "who's a
@@ -16442,10 +16816,17 @@
         // hidden manual override may still settle. A genuine failure (not
         // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
         if (wlState.planHasSnapshot) {
-            // An automatic item that had to leave its ideal day gets its own
-            // mode, so the board never silently shows a day that isn't
-            // "one working day before the deadline" with no explanation.
-            return wlAutoPlacementDate(sub) ? 'shifted' : 'auto';
+            /* ONE automatic state (owner ruling 2026-09-14).
+             *
+             * There used to be a second mode, `shifted`, for an automatic card
+             * not sitting on its ideal day. Under the late-as-possible rule
+             * that meant something had gone wrong — capacity had pushed the
+             * card off the day it should have had. Under earliest-fit every
+             * automatic card takes the earliest day with room, so the mode
+             * only separated "the earliest day with room happened to BE the
+             * last possible day" from "it was earlier": a fact nobody acts on,
+             * shown as two different icons. The owner asked for one. */
+            return 'auto';
         }
         return wlState.planLoading ? 'loading' : 'fallback';
     }
@@ -16461,12 +16842,40 @@
         if (!(wlState.planHasSnapshot || wlState.planLoading)) return dueDate;
         return wlAutoPlacementDate(sub) || wlAutoPlanDate(sub);
     }
-    function wlShiftedPlacementTip(sub) {
+    /* The per-item automatic detail: where it landed and the latest day it
+       could have sat on. The compact/group icon has no single item to name and
+       falls back to the generic sentence in wlPlanOriginHtml. */
+    function wlAutoPlacementTip(sub) {
         const ideal = wlAutoPlanDate(sub);
-        const placed = wlAutoPlacementDate(sub);
-        if (!ideal || !placed || ideal === placed) return '';
+        const placed = wlAutoPlacementDate(sub) || ideal;
+        if (!ideal || !placed) return '';
         const capacity = wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
-        return `Moved earlier automatically: ${wlFormatShort(ideal)} — the usual day, one working day before the deadline — was already at this editor's ${capacity}-unit daily capacity, so this sits on ${wlFormatShort(placed)} instead. Still before the deadline; pin it with a drag to override.`;
+        /* The last day this card may sit on is normally one working day before
+           the deadline — but wlAutoPlanDate floors that to today for an item
+           due today or already overdue, and calling THAT "one working day
+           before the deadline" is simply false. */
+        const natural = String(sub && sub.dueDate || '').slice(0, 10)
+            ? wlSubWorkingDays(String(sub.dueDate).slice(0, 10), 1)
+            : '';
+        const latest = natural && natural < ideal
+            ? `${wlFormatShort(ideal)}, today — its deadline has passed or is today`
+            : `${wlFormatShort(ideal)}, one working day before the deadline`;
+        /* A saturated window does not mean the card found room: the pass falls
+           back to the ideal day and the editor/day keeps the over-capacity
+           badge. Saying "the earliest day with room" there would be confidently
+           wrong about the one case the badge exists to flag. */
+        const sameDay = typeof wlDayOverCapacity === 'function'
+            && wlState.calendarByDate instanceof Map
+            ? (wlState.calendarByDate.get(placed) || []).filter(row =>
+                wlCapacityKey(row) === wlCapacityKey(sub))
+            : null;
+        if (placed === ideal && sameDay && sameDay.length && wlDayOverCapacity(sameDay)) {
+            return `Automatic plan: ${wlFormatShort(placed)} — no working day between today and ${latest} had room, so it sits on the last day it can and that day is over this editor's ${capacity}-unit capacity. Drag it to pin it somewhere else.`;
+        }
+        if (placed === ideal) {
+            return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room, and also the latest it can sit on: ${latest}. Drag it to pin it somewhere else.`;
+        }
+        return `Automatic plan: ${wlFormatShort(placed)} — the earliest working day with room. It only moves later when a day is already at this editor's ${capacity}-unit daily capacity, and never past ${latest}. Drag it to pin it somewhere else.`;
     }
 
     // Automatic placement is capacity-aware (owner ruling 2026-08-10, from
@@ -16476,18 +16885,26 @@
     //      reserve their units first — even when the pins alone put the editor
     //      over capacity. A person's deliberate placement is never moved by
     //      this pass, only automatic work yields around it.
-    //   2. Every remaining item is placed as LATE as it fits: it starts on its
-    //      own ideal day (one working day before its deadline, floored to
-    //      today) and walks BACKWARD over working days to the first day where
-    //      that editor still has room.
-    //   3. It never walks FORWARD. Pushing past the ideal day would trade a
-    //      visible overload for a silently late delivery, which is strictly
-    //      worse for a client deadline.
-    //   4. When nothing in the today→ideal window has room, the item stays on
+    //   2. Every remaining item is placed as EARLY as it fits (owner ruling
+    //      2026-09-14): it starts at TODAY and walks FORWARD over working days
+    //      to the first day where that editor still has room. Capacity is the
+    //      only thing that pushes a card later — an editor with a free day
+    //      earlier in the week gets the work on that day, not the day before
+    //      the deadline.
+    //   3. It never walks PAST the ideal day (one working day before the
+    //      deadline, floored to today). Beyond that the item would be
+    //      silently late, which is strictly worse than a visible overload.
+    //   4. When nothing in the today→ideal window has room, the item lands on
     //      its ideal day and that editor/day keeps the red over-capacity
-    //      badge. That badge now means genuine oversubscription — more work
-    //      than the window can hold — which only a person can resolve by
+    //      badge. That badge means genuine oversubscription — more work than
+    //      the window can hold — which only a person can resolve by
     //      reassigning or renegotiating a deadline.
+    //
+    // This replaced a late-as-possible pass (2026-08-10 → 2026-09-14), which
+    // only ever moved work EARLIER to relieve an over-capacity day. It left
+    // four videos due Friday stacked on Thursday, exactly at the cap, while
+    // Wednesday sat nearly empty — technically within capacity, and not what
+    // anyone would plan by hand.
     //
     // The pass replaced the previous strictly item-local rule, which let an
     // automatic card land on a day a pin (or six other automatic cards) had
@@ -16495,21 +16912,48 @@
     // editor / client filters can never change where a card sits. Nothing is
     // written: `workload_plan` still holds deliberate manual overrides only,
     // and every placement is re-derived from (issues, plans, weights, today).
-    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the backward walk
+    const WL_PLACEMENT_WALK_LIMIT = 260;       // ~one working year; bounds the forward walk
+    const WL_RESHUFFLE_MAX_CANDIDATES = 6;     // cards on one day the reshuffle will consider
+    const WL_RESHUFFLE_MAX_EVICTIONS = 3;      // how many of them it may move at once
     function wlCapacityKey(sub) {
         return (sub && sub.assigneeId || '?') + '|' + wlTeamBucket(sub && sub.teamKey, sub && sub.teamName);
     }
     function wlComputeAutoPlacements(plannedSubs, todayISO) {
         const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
-        const placements = new Map();
-        const used = new Map();                // `${capacityKey}@${day}` -> workload units already committed
-        const slotOf = (sub, day) => wlCapacityKey(sub) + '@' + day;
-        const reserve = (sub, day) => {
-            const slot = slotOf(sub, day);
-            used.set(slot, (used.get(slot) || 0) + wlWorkloadWeight(sub));
+        let placements = new Map();
+        let used = new Map();                  // `${capacityKey}@${day}` -> workload units already committed
+        /* THE THREE FACTS THIS PASS ASKS ABOUT A SUB-ISSUE, ANSWERED ONCE.
+           Its capacity key, its workload weight and its editor's daily capacity
+           do not change while the pass runs, but `fits`, `reserve`, `release`
+           and `slotOf` recomputed all three on every call -- and they are
+           called once per candidate day, per eviction set, per entry. That made
+           wlTeamBucket alone 37% of a 67 s settle pass at live shape (profiled
+           2026-09-15), reached through wlCapacityKey, wlWorkloadWeight and
+           wlEditorCapacity. The map is keyed by the sub-issue object and lives
+           only for this call, so a later pass still sees fresh metadata. */
+        const subFacts = new Map();
+        const factsOf = (sub) => {
+            let facts = subFacts.get(sub);
+            if (!facts) {
+                facts = {
+                    key: wlCapacityKey(sub),
+                    weight: wlWorkloadWeight(sub),
+                    capacity: wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName),
+                };
+                subFacts.set(sub, facts);
+            }
+            return facts;
         };
-        const fits = (sub, day) => (used.get(slotOf(sub, day)) || 0) + wlWorkloadWeight(sub)
-            <= wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
+        const slotOf = (sub, day) => factsOf(sub).key + '@' + day;
+        const reserve = (sub, day) => {
+            const facts = factsOf(sub);
+            const slot = facts.key + '@' + day;
+            used.set(slot, (used.get(slot) || 0) + facts.weight);
+        };
+        const fits = (sub, day) => {
+            const facts = factsOf(sub);
+            return (used.get(facts.key + '@' + day) || 0) + facts.weight <= facts.capacity;
+        };
 
         const automatic = [];
         for (const sub of plannedSubs || []) {
@@ -16534,19 +16978,281 @@
             return String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || ''));
         });
 
-        for (const entry of automatic) {
-            let placed = '';
-            let day = entry.ideal;
-            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day >= today; guard++) {
-                if (fits(entry.sub, day)) { placed = day; break; }
-                day = wlSubWorkingDays(day, 1);
+        // The window every item is confined to: the first WORKING day from
+        // today (a bare `today` put ordinary work on a Saturday whenever the
+        // policy day was a weekend) through its own ideal day. `ideal` is
+        // floored to today, so a card due now, due tomorrow, or already
+        // overdue keeps a one-day window and simply lands on today.
+        const windowStart = wlIsWorkingDay(today) ? today : wlAddWorkingDays(today, 1);
+        // `skipDay` is the day being cleared during a reshuffle: the evicted
+        // item must not simply re-take the hole it just left, which is exactly
+        // what it would do, that day now being the earliest one with room.
+        const firstFit = (sub, ideal, skipDay) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal; guard++) {
+                if (day !== skipDay && fits(sub, day)) return day;
+                day = wlAddWorkingDays(day, 1);
             }
-            const finalDay = placed || entry.ideal;
+            return '';
+        };
+        let placedOn = new Map();              // entry -> the day it currently holds
+        /* AND THE SAME ENTRIES BY SLOT.
+           `reshuffleFor` needs the entries already sitting on one capacity key
+           on one day. It used to find them by scanning every placed entry, for
+           every candidate day (up to WL_PLACEMENT_WALK_LIMIT), for every entry
+           being settled -- O(n²) in the size of the board, which is why the
+           settle pass took 105 s on a fixture at live shape and would only get
+           worse as the board grows (profiled 2026-09-15). This index is that
+           same set, kept in step by recordDay, and the filter it replaces was
+           exactly `same capacity key AND same day`, which is what slotOf is. */
+        let placedBySlot = new Map();          // `${capacityKey}@${day}` -> Set of entries
+        const release = (sub, day) => {
+            const facts = factsOf(sub);
+            const slot = facts.key + '@' + day;
+            used.set(slot, Math.max(0, (used.get(slot) || 0) - facts.weight));
+        };
+        const recordDay = (entry, day) => {
+            const id = String(entry.sub && entry.sub.id || '');
+            const previousDay = placedOn.get(entry);
+            if (previousDay !== undefined) {
+                const previousSlot = slotOf(entry.sub, previousDay);
+                const previousBucket = placedBySlot.get(previousSlot);
+                if (previousBucket) {
+                    previousBucket.delete(entry);
+                    if (!previousBucket.size) placedBySlot.delete(previousSlot);
+                }
+            }
+            placedOn.set(entry, day);
+            const slot = slotOf(entry.sub, day);
+            let bucket = placedBySlot.get(slot);
+            if (!bucket) { bucket = new Set(); placedBySlot.set(slot, bucket); }
+            bucket.add(entry);
+            // Only a genuine move is recorded: an item on its ideal day stays a
+            // plain "auto" and keeps deriving its day from wlAutoPlanDate.
+            if (day === entry.ideal) placements.delete(id);
+            else placements.set(id, day);
+        };
+
+        /*
+         * LAST-RESORT RESHUFFLE (owner ruling 2026-09-14, on Codex's finding).
+         *
+         * Placing one item at a time and never revisiting a choice can
+         * manufacture an overload that a different order would have avoided:
+         * with pins of 1/2/2 on Mon/Tue/Wed, a 2-unit item due Wednesday takes
+         * Monday, and a 3-unit item due Thursday then fits nowhere and lands on
+         * Wednesday at 5/4 — although 3 on Monday and 2 on Tuesday fits both
+         * exactly. The red badge would be describing the pass, not the week.
+         *
+         * The owner's worry about fixing that was churn: work already planned
+         * jumping around every time a sub-issue arrives. So this runs ONLY when
+         * an item would otherwise land over capacity, and it is bounded on
+         * every side:
+         *   - nothing moves unless it actually clears the overload;
+         *   - only automatic items already placed IN this item's own window
+         *     move, so nothing outside today→its ideal day is touched, and
+         *     never another editor's day (the capacity key includes assignee
+         *     and team);
+         *   - a manual pin is never a candidate — it is absolute here as
+         *     everywhere else;
+         *   - an evicted item must land inside ITS OWN window, so nothing is
+         *     pushed past its own deadline to make room;
+         *   - one level deep: an evicted item re-places by ordinary first fit
+         *     and may not evict anyone in turn, which bounds the work and stops
+         *     a cascade of knock-on moves;
+         *   - the smallest displacement that works wins (fewest cards, then
+         *     least weight), so a fit costs one moved card rather than five.
+         * When no such rearrangement exists the item keeps its ideal day and
+         * the honest over-capacity badge.
+         *
+         * SETS, not a greedy sweep. Taking candidates one at a time cheapest
+         * first spends the relocation room the heavier card needed: Monday
+         * holding a 2 and a 1, Tuesday pinned at 2, and the 1 moves into
+         * Tuesday's only hole, so the 2 has nowhere to go and the whole repair
+         * rolls back — although moving just the 2 to Tuesday fits everything.
+         * So each day's candidates are tried as SETS, smallest first, and the
+         * first set that works wins. The search is bounded by
+         * WL_RESHUFFLE_MAX_CANDIDATES and WL_RESHUFFLE_MAX_EVICTIONS.
+         */
+        const evictionSets = (candidates) => {
+            const pool = candidates.slice(0, WL_RESHUFFLE_MAX_CANDIDATES);
+            const sets = [];
+            const build = (startAt, chosen) => {
+                if (chosen.length) sets.push(chosen.slice());
+                if (chosen.length >= WL_RESHUFFLE_MAX_EVICTIONS) return;
+                for (let i = startAt; i < pool.length; i++) {
+                    chosen.push(pool[i]);
+                    build(i + 1, chosen);
+                    chosen.pop();
+                }
+            };
+            build(0, []);
+            // Fewest cards moved first, then least total weight: the least
+            // disturbance to a board somebody is already working from.
+            const weightOf = (set) => set.reduce((sum, other) => sum + factsOf(other.sub).weight, 0);
+            sets.sort((a, b) => a.length - b.length || weightOf(a) - weightOf(b));
+            return sets;
+        };
+        const reshuffleFor = (entry) => {
+            let day = windowStart;
+            for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
+                const bucket = placedBySlot.get(slotOf(entry.sub, day));
+                const candidates = bucket ? [...bucket] : [];
+                candidates.sort((a, b) => factsOf(a.sub).weight - factsOf(b.sub).weight
+                    || String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || '')));
+                for (const set of evictionSets(candidates)) {
+                    const moves = [];
+                    for (const other of set) release(other.sub, day);
+                    // Heaviest first: the hardest card to re-place claims the
+                    // remaining room before a lighter one can take it.
+                    const ordered = set.slice().sort((a, b) => factsOf(b.sub).weight - factsOf(a.sub).weight);
+                    let ok = true;
+                    for (const other of ordered) {
+                        const moved = firstFit(other.sub, other.ideal, day);
+                        if (!moved) { ok = false; break; }
+                        reserve(other.sub, moved);
+                        moves.push({ other, to: moved });
+                    }
+                    if (ok && fits(entry.sub, day)) {
+                        for (const move of moves) recordDay(move.other, move.to);
+                        return day;
+                    }
+                    // Undo this set exactly before trying the next one.
+                    for (const move of moves) release(move.other.sub, move.to);
+                    for (const other of set) reserve(other.sub, day);
+                }
+                day = wlAddWorkingDays(day, 1);
+            }
+            return '';
+        };
+
+        const settle = (entry) => {
+            const finalDay = firstFit(entry.sub, entry.ideal) || reshuffleFor(entry) || entry.ideal;
             reserve(entry.sub, finalDay);
-            // Only a genuine move is recorded: an untouched item stays a plain
-            // "auto" and keeps deriving its day from wlAutoPlanDate.
-            if (finalDay !== entry.ideal) placements.set(String(entry.sub && entry.sub.id || ''), finalDay);
+            recordDay(entry, finalDay);
+        };
+
+        /*
+         * INCUMBENTS FIRST (owner condition, 2026-09-14).
+         *
+         * Every placement is re-derived from scratch on each snapshot, so
+         * "nothing moves unless it clears an overload" is not enough on its
+         * own: a newcomer sorted ahead of settled work rearranges the board
+         * without the reshuffle ever running. Four 1-unit cards sharing Monday
+         * plus one arriving 3-unit card with the same deadline sorts the
+         * newcomer first, which takes Monday and pushes three incumbents to
+         * Tuesday — when the newcomer could simply have taken Tuesday alone.
+         *
+         * So the day an item held in the LAST pass is treated as a soft pin: if
+         * it is still inside that item's window and still fits, it is reserved
+         * before any new item is placed. It is soft — the reshuffle may still
+         * evict it as a last resort, and an anchor that no longer fits (a new
+         * manual pin took the room, the day fell behind today, the deadline
+         * moved) is dropped and that item re-placed like any other. On a first
+         * load there are no anchors and the pass is pure earliest-fit.
+         *
+         * This is in-memory only, derived from the previous pass, and is
+         * cleared with the pins it ultimately derives from: nothing about it is
+         * persisted or read back from a server.
+         */
+        const previous = wlState.autoPlacementSettled instanceof Map ? wlState.autoPlacementSettled : new Map();
+        const plan = (useAnchors) => {
+        placements = new Map();
+        used = new Map();
+        placedOn = new Map();
+        placedBySlot = new Map();
+        for (const sub of plannedSubs || []) {
+            const manual = wlPlanDate(sub);
+            if (manual) reserve(sub, manual);
         }
+        const unanchored = [];
+        for (const entry of automatic) {
+            const anchor = useAnchors ? String(previous.get(String(entry.sub && entry.sub.id || '')) || '') : '';
+            if (!anchor || anchor < windowStart || anchor > entry.ideal || !wlIsWorkingDay(anchor) || !fits(entry.sub, anchor)) {
+                unanchored.push(entry);
+                continue;
+            }
+            reserve(entry.sub, anchor);
+            recordDay(entry, anchor);
+        }
+        for (const entry of unanchored) settle(entry);
+
+        /*
+         * RECLAIM FREED ROOM, in the same pass (owner report 2026-09-14: "when
+         * I drag things around to pin them, I need to refresh the page to
+         * actually see the new board").
+         *
+         * The anchor above holds a card on the day it last held, which is what
+         * stops a newcomer rearranging the board. But it held too hard in one
+         * direction: pinning a card AWAY from a day frees room there, and every
+         * other card sat on its remembered day, so nothing moved up. A reload
+         * cleared the anchors and the board finally settled — which is exactly
+         * the refresh the owner should not need.
+         *
+         * So after everything is placed, each card gets to move EARLIER into
+         * room that is genuinely free. This cannot displace anybody: it only
+         * ever fills a gap, never evicts, and a card already on the earliest
+         * day with room does not move. Tightest deadline first, so the most
+         * urgent card claims freed room before a looser one.
+         */
+        /* The urgency order is `automatic`'s own order. Reading it back with
+           indexOf inside the comparator made this sort O(n² log n); the
+           positions are fixed, so they are looked up once. */
+        const urgencyOrder = new Map(automatic.map((entry, index) => [entry, index]));
+        const urgencyRank = (entry) => (urgencyOrder.has(entry) ? urgencyOrder.get(entry) : -1);
+        const byUrgency = [...placedOn.keys()].sort((a, b) => urgencyRank(a) - urgencyRank(b));
+        for (const entry of byUrgency) {
+            const held = placedOn.get(entry);
+            if (!held || held === windowStart) continue;
+            release(entry.sub, held);
+            const earlier = firstFit(entry.sub, entry.ideal);
+            if (!earlier || earlier >= held) { reserve(entry.sub, held); continue; }
+            reserve(entry.sub, earlier);
+            recordDay(entry, earlier);
+        }
+
+        // Work sitting ABOVE an editor's daily capacity once this attempt is
+        // done: zero means the board shows no red day.
+        let over = 0;
+        for (const [entry, day] of placedOn) {
+            const facts = factsOf(entry.sub);
+            const slot = facts.key + '@' + day;
+            const cap = facts.capacity;
+            const units = used.get(slot) || 0;
+            if (units > cap) { over += units - cap; used.set(slot, cap); }
+        }
+        return { placements, placedOn, over };
+        };
+
+        /*
+         * AN ANCHOR IS A PREFERENCE, NEVER A REASON TO SHOW A WORSE BOARD
+         * (owner report 2026-09-14, second round).
+         *
+         * "Use automatic planning" on a pinned card was the mirror of the
+         * refresh bug. Unpinning hands the card back to automatic placement,
+         * but every other card is anchored to the day it held WHILE the pin was
+         * away, so they do not give the room back and the day renders over
+         * capacity — 5/4 where a reload shows a clean 4/4. A reload fixed it
+         * because a fresh page has no anchors at all.
+         *
+         * So the anchored attempt is kept only while it is no worse: when it
+         * leaves more work above capacity than a clean anchor-free pass would,
+         * the clean pass wins and the board shows what a reload would have
+         * shown. Bounded at one retry, and only reached when the anchored
+         * attempt actually overflows, so the ordinary path stays a single pass.
+         */
+        let attempt = plan(true);
+        if (attempt.over > 0) {
+            const clean = plan(false);
+            attempt = clean.over < attempt.over ? clean : plan(true);
+        }
+        placements = attempt.placements;
+        placedOn = attempt.placedOn;
+
+        // What every automatic item ended up holding, for the next pass to
+        // anchor against. Distinct from `placements`, which carries only the
+        // items that are NOT on their ideal day.
+        wlState.autoPlacementSettled = new Map(
+            [...placedOn].map(([entry, day]) => [String(entry.sub && entry.sub.id || ''), day]));
         return placements;
     }
 
@@ -16561,11 +17267,19 @@
         return byDate;
     }
 
+    /* Asked for the same handful of team key/name pairs thousands of times per
+       placement pass (8% of a 97 s settle, profiled 2026-09-15). Pure. */
     function wlTeamBucket(teamKey, teamName) {
+        const cache = wlTeamBucket._cache || (wlTeamBucket._cache = new Map());
+        const cacheKey = String(teamKey || '') + '|' + String(teamName || '');
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const k = (teamKey || '').toUpperCase();
         const n = (teamName || '').toLowerCase();
-        if (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') return 'graphics';
-        return 'video';
+        const out = (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') ? 'graphics' : 'video';
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlEditorCapacity(teamKey, teamName) {
         return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 4;
@@ -17815,22 +18529,57 @@
     // Workload fail-closed boundary. The optimistic value is already visible when
     // this runs; anything except one actually-written, matching row restores
     // the precise previous value and tells the user.
+    let _wlLastPlanWriteRefusal = 0;   // 401 or 403 from the last refused plan write
     async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration, quiet) {
         try {
             const resp = await _wlPlanWriteRequest(issue, planDate);
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
             let json = null;
             try { json = await resp.json(); } catch (e) {}
+            /* A refused save must PUT THE CARD BACK, like every other failure
+               below does. These two branches used to return without restoring
+               it, so the card sat on its new day with nothing saved: it looked
+               moved until the next refresh, and a group drag (quiet) suppressed
+               even the toast, so the summary could report "put back" while
+               nothing was. That is the shape of the 2026-09-14 report that
+               drags do not survive a refresh. */
+            /* The category of the refusal, for callers that summarise several
+               writes at once. Inferring it afterwards from the purged state
+               cannot tell 401 from 403 — both purge — and the two need
+               opposite advice: sign in again, versus this account may not
+               edit work days at all. */
+            if (resp.status === 401 || resp.status === 403) _wlLastPlanWriteRefusal = resp.status;
             if (resp.status === 401) {
+                /* Restore BEFORE clearing the identity, exactly as the 403
+                   branch restores before its purge. _syncviewStaffIdentityClear
+                   runs the global sensitive-state purge, which drops
+                   planByIssueId; restoring afterwards would write a staff-only
+                   plan date back in on the far side of sign-out, where the
+                   generation check then exits and leaves it to surface on a
+                   later identity's warm paint. */
+                wlApplyPlanLocal(issue.id, previousDate);
                 _syncviewStaffIdentityClear();
+                if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
-                    showNotify("Couldn't save the work day", 'Staff sign-in expired. Sign in and try again.');
+                    /* NOT "it was put back": the restore above is itself wiped
+                       by the identity purge, which clears every pin, so the
+                       card lands on its deadline fallback — a third day,
+                       neither where it was dropped nor where it came from. The
+                       browser harness caught the copy claiming otherwise. Say
+                       what actually happened. */
+                    showNotify("Couldn't save the work day", 'Staff sign-in expired. Saved work days are hidden until you sign in again.');
                 }
                 return false;
             }
             if (resp.status === 403) {
+                /* The purge clears the pins this restore would write, so the
+                   card is put back FIRST and the purge takes it with the rest —
+                   leaving the board in one honest state rather than showing a
+                   pin the server refused. */
+                wlApplyPlanLocal(issue.id, previousDate);
                 wlPurgePlanSensitiveState();
                 wlState.planError = 'This staff account cannot edit saved work days.';
+                if (!quiet) renderWorkloadAll();
                 if (!quiet && typeof showNotify === 'function') {
                     showNotify("Couldn't save the work day", 'This staff account cannot edit saved work days.');
                 }
@@ -17938,6 +18687,7 @@
         renderWorkloadAll();
 
         let moved = 0;
+        _wlLastPlanWriteRefusal = 0;
         for (const move of moves) {
             const saved = await _wlPersistPlanDate(
                 move.issue, target, move.previousDate, sessionGeneration, true
@@ -17959,10 +18709,22 @@
             wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll();
         }
+        const refusal = _wlLastPlanWriteRefusal;
         if (moved !== moves.length && typeof showNotify === 'function') {
+            /* "Kept its previous work day" is only true while this browser
+               still holds the saved plans. An auth refusal purges every pin,
+               so those cards fall to their deadline placement instead — the
+               Workload harness measured the summary claiming otherwise. Say
+               which actually happened, and take the category from the REFUSAL
+               rather than from the purged state: 401 and 403 both purge, but
+               only one of them is fixed by signing in again. */
             showNotify(
-                `Moved ${moved} of ${moves.length} — ${moves.length - moved} put back`,
-                'Each failed item kept its previous work day.'
+                `Moved ${moved} of ${moves.length} — ${moves.length - moved} not saved`,
+                refusal === 401
+                    ? 'Staff sign-in expired. Saved work days are hidden until you sign in again.'
+                    : (refusal === 403
+                        ? 'This staff account cannot edit saved work days. Saved work days are hidden.'
+                        : 'Each failed item kept its previous work day.')
             );
         }
         return moved === moves.length;
@@ -18635,6 +19397,44 @@
                 : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.');
         }
 
+        /* AN INCOMPLETE MATCH OUTRANKS EVERY NOTE BELOW IT.
+         *
+         * This exists because of the report in item 210: one person saw a card
+         * on the day they pinned it, another saw it a day earlier, both after a
+         * refresh, and nothing on either board said anything was wrong. The read
+         * had SUCCEEDED for both. Saved days live under two ids for the same
+         * card and the sidecar matches them per answer; a degraded answer still
+         * carries every saved day, just not every alias, so the cards it could
+         * not match fall to automatic placement on a board that otherwise looks
+         * entirely normal.
+         *
+         * It ranks above the metadata note and above 209's short-refresh note
+         * for the same reason both of those exist: a board that is WRONG about
+         * where work sits is more urgent than one that is incomplete about
+         * weights, and far more urgent than a count of what it left out. All
+         * three say what happened; this one says the day you are looking at may
+         * not be the day that was saved.
+         *
+         * It speaks only when something is actually unmatched, or when no map
+         * could be built at all. A complete match says nothing, which is what
+         * keeps it worth reading — and it deliberately does NOT speak for the
+         * historical client drift the sidecar reports separately, because that
+         * number never goes down and a standing warning is how a real one stops
+         * being read. */
+        /* Main shipped this as an early return that silenced every note below
+           it. This ladder ORDERS rather than suppresses, so it became a push at
+           the same rank: still above the metadata note and above 209's
+           short-refresh note, but the lesser notes are now appended instead of
+           dropped. Main's gate is unchanged. */
+        if (status === 'ready' && (wlState.planUnaliased > 0 || wlState.planAliasMode === 'none')) {
+            const missing = Number(wlState.planUnaliased) || 0;
+            notices.push(wlState.planAliasMode === 'none'
+                ? 'Saved work days could not be matched to their cards on this load, so some cards may be shown on an automatic day instead of their saved one. Use Refresh to try again.'
+                : (missing === 1
+                    ? 'One saved work day could not be matched to its card, so that card is shown on an automatic day. Everything else here is up to date.'
+                    : missing + ' saved work days could not be matched to their cards, so those cards are shown on an automatic day. Everything else here is up to date.'));
+        }
+
         if (boardShown && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             /*
              * Two very different situations reach this branch, and until
@@ -18659,6 +19459,19 @@
                     ? 'One item is missing its workload label, so it is shown without a weight or a due date. Everything else here is up to date and editable.'
                     : withheld + ' items are missing their workload label, so they are shown without a weight or a due date. Everything else here is up to date and editable.')
                 : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.');
+        }
+
+        /* 209's short-refresh note, from main, at the rank it shipped with:
+           below every real plan or metadata problem, above the completeness
+           note. Early return became a push; main's gate is unchanged. */
+        const refreshMissing = Number(wlState.refreshMissing) || 0;
+        if (status === 'ready' && refreshMissing > 0) {
+            const pinned = Number(wlState.refreshMissingPinned) || 0;
+            notices.push('That refresh came back with ' + refreshMissing + ' fewer sub-issue'
+                + (refreshMissing === 1 ? '' : 's') + ' than the board had'
+                + (pinned > 0 ? ' (' + pinned + ' of them planned to a work day)' : '')
+                + '. Nothing was lost — saved work days are untouched — but Linear returned less than the'
+                + ' calendar was showing, so reload the page to get the full board back.');
         }
 
         /* Still the lowest rank: a real plan or metadata problem is more urgent
@@ -18746,7 +19559,29 @@
         if (!bodyEl) return;
 
         const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
-        if (wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') {
+        /*
+         * THE FAST FIRST PAINT MUST REACH THE SCREEN.
+         *
+         * wlLoadSnapshot fast-paints as soon as issues and the plan list are
+         * back — planLoading=true, wlApplyData, renderWorkloadAll — precisely
+         * so the calendar is on screen BEFORE the live-Linear weight sweep,
+         * which is the slow part of a cold load. planStatus only becomes
+         * 'ready' when wlAdoptPlanRows runs AFTER that sweep, so this gate,
+         * which keyed on planStatus alone, painted the skeleton over the fast
+         * paint for its entire window and no user ever saw it: the cold load
+         * still blocked on the sweep it was built to skip, and the
+         * "Planning…" placement label was unreachable in the UI. The Workload
+         * browser harness measured it (2026-09-14): planLoading true, cards
+         * computed, #wlBody the skeleton with zero cards.
+         *
+         * So the skeleton yields once the fast paint has data. Everything the
+         * gate protected still holds: the cards carry the 'loading' mode and
+         * its Planning… label, wlPlanEditingEnabled() is false until the
+         * snapshot is authoritative, and a foreground load with nothing to
+         * show yet still gets the skeleton.
+         */
+        const fastPaintOnScreen = wlState.planLoading && hasAnyData;
+        if ((wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') && !fastPaintOnScreen) {
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
@@ -18876,10 +19711,33 @@
     // row per editor. Whitespace between softly raised rows replaces the old
     // stack of full-width colored strips. Queue totals and client chips stay
     // visible so the matrix is useful at a glance.
+    function _wlBoardHasAnyData() {
+        return !!((wlState.planned && wlState.planned.length) || (wlState.nowWorking && wlState.nowWorking.length)
+            || (wlState.undated && wlState.undated.length) || (wlState.unassigned && wlState.unassigned.length)
+            || (wlState.overdue && wlState.overdue.length) || (wlState.tweaksNeeded && wlState.tweaksNeeded.length));
+    }
+    function _wlOverviewSkeletonHtml() {
+        return Array.from({ length: 4 }, () => `<div class="workload-overview-row is-skeleton" aria-hidden="true">
+            <div class="workload-overview-editor"><span class="sv-skeleton sv-skeleton-dot" style="width:32px;height:32px;"></span><span class="workload-overview-editor-copy">${_svSkel('sv-skeleton-line', 'width:120px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:48px;height:9px;')}</span></div>
+            <div class="workload-overview-capacity">${_svSkel('sv-skeleton-line', 'width:44px;height:11px;')}${_svSkel('sv-skeleton-pill', 'width:120px;height:6px;')}</div>
+            ${['overdue', 'inprogress', 'tweaks'].map(k => `<div class="workload-overview-status is-${k} is-empty">${_svSkel('sv-skeleton-line', 'width:40px;height:11px;')}</div>`).join('')}
+        </div>`).join('');
+    }
     function renderWorkloadOverviewMatrix() {
         const wrap = document.getElementById('wlOverview');
         const rowsEl = document.getElementById('wlOverviewRows');
         if (!wrap || !rowsEl) return;
+        // A cold load with nothing in memory used to paint the whole roster as
+        // "Free / Clear / 0" until the snapshot landed: false data, not a
+        // loading state. Hold a skeleton instead; the counts stay blank.
+        if (!_wlBoardHasAnyData() && (wlState.loading || wlState.planStatus === 'loading')) {
+            wrap.classList.remove('empty');
+            wrap.setAttribute('aria-busy', 'true');
+            ['wlOverdueTotal', 'wlInProgressTotal', 'wlTweaksTotal'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '–'; });
+            rowsEl.innerHTML = _wlOverviewSkeletonHtml();
+            return;
+        }
+        wrap.removeAttribute('aria-busy');
 
         const statusSpecs = [
             { key: 'overdue', sourceMode: 'overdue', suffix: 'overdue', rows: wlState.overdue || [] },
@@ -19341,6 +20199,7 @@
         if (!filtered.length) {
             stripEl.classList.add('empty');
             chipsEl.innerHTML = '';
+            chipsEl.__wlLooseSig = '';
             return;
         }
         stripEl.classList.remove('empty');
@@ -19363,6 +20222,39 @@
 
         const clients = [...byClient.values()].sort((a, b) =>
             (a.clientName || '').localeCompare(b.clientName || ''));
+        /* AN UNCHANGED STRIP IS NOT REBUILT.
+           Both loose strips render one chip per loose sub-issue, with two
+           links and an icon each, and every renderWorkloadAll rebuilt them
+           from scratch. A cold boot paints twice -- the fast paint, then the
+           settle once plans and weights land -- and the loose lists are
+           almost always identical across the two, so the second rebuild is
+           pure waste: 2.3 s of a 2.6 s render at live shape, profiled
+           2026-09-15.
+           The signature covers EVERY field the markup below reads (the three
+           filters, each sub's id/identifier/title/url/client/team and the
+           sort order the chips are ordered by, and the resolved parent's
+           key/identifier/title/url), so anything the user could see changing
+           still rebuilds. It is checked against the DOM
+           actually on screen, so a strip wiped by anything else is rebuilt
+           rather than assumed good. */
+        const looseSignature = [
+            wlState.team, applyEditorFilter ? wlState.editor : '-', wlState.client,
+            ...clients.map(client => [
+                client.clientName, client.total,
+                ...[...client.groups.values()].map(group => [
+                    group.parent ? [group.parent.key, group.parent.identifier, group.parent.title, group.parent.url].join('\u0001') : '-',
+                    ...group.subs.map(sub => [
+                        sub.id, sub.identifier, sub.title, sub.url, sub.clientName, sub.teamKey, sub.teamName,
+                        // wlSortSubIssues orders the chips inside a parent group by
+                        // the native sort order first, so a snapshot that changes
+                        // only that field still has to redraw (Codex, #1402).
+                        sub.sortOrder ?? sub.sort_order,
+                    ].join('\u0001')),
+                ].join('\u0002')),
+            ].join('\u0003')),
+        ].join('\u0004');
+        if (chipsEl.__wlLooseSig === looseSignature && chipsEl.childElementCount > 0) return;
+        chipsEl.__wlLooseSig = looseSignature;
 
         const externalMark = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>`;
         const linearMark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/></svg>`;
@@ -19748,7 +20640,7 @@
                         <span class="workload-plan-item-title-line">
                             <span class="workload-plan-item-label">${wlEscape(label)}</span>
                             ${wlWorkloadBadgeHtml(s, true)}
-                            ${wlPlanOriginHtml(mode, false, 0, mode === 'shifted' ? wlShiftedPlacementTip(s) : '')}
+                            ${wlPlanOriginHtml(mode, false, 0, mode === 'auto' ? wlAutoPlacementTip(s) : '')}
                             ${wlIssueDragHandleHtml(issueId, canDrag)}
                         </span>
                         <span class="workload-plan-item-meta">${wlDeadlineTagHtml(s.dueDate, planDate)}</span>

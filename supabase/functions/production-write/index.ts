@@ -3095,7 +3095,7 @@ async function intakeAssigneePool(
   nativeEpoch = "",
 ): Promise<JsonMap[]> {
   const { data, error } = await supabase.from("team_members")
-    .select("id,name,role,team,linear_user_id,default_for_team,active")
+    .select("id,name,role,team,linear_user_id,default_for_team,active,auto_assign_opt_out")
     .eq("active", true)
     .eq("team", team);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
@@ -3116,7 +3116,18 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nat
     return clean(defaults[0].id);
   }
 
-  const editors = members.filter(member => lower(member.role) === "editor");
+  const allEditors = members.filter(member => lower(member.role) === "editor");
+  /*
+   * Opt-out is about AUTOMATIC picks only (owner request 2026-09-14: an
+   * outsourced editor should not receive work nobody deliberately gave them).
+   * An explicit override still goes through assertEligibleAssignee, which does
+   * not consult this flag, so the person stays fully assignable by hand.
+   *
+   * If the flag would empty the pool we ignore it and use everyone: a roster
+   * where every editor opted out must not turn every submission into a 409.
+   */
+  const available = allEditors.filter(member => member.auto_assign_opt_out !== true);
+  const editors = available.length ? available : allEditors;
   if (!editors.length) throw new GatewayError(409, "video_assignee_pool_unavailable");
   /*
    * "Freest" has to mean free NOW.

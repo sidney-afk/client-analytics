@@ -77,6 +77,18 @@ function aggregateCount(payload, field) {
   return value;
 }
 
+/* Both missing-source counters are OPTIONAL on the wire and read 0 when absent,
+ * and both are a SUBSET of `failed` rather than a bucket beside it. That is what
+ * makes this safe to merge and deploy in either order: the four-way conservation
+ * below is byte-for-byte the rule every caller has always applied, so a new
+ * function answering an old caller still balances, and an old function answering
+ * this caller reports no subset and simply behaves as it does today. A
+ * PRESENT-but-malformed value is still a hard failure. */
+function optionalAggregateCount(payload, field) {
+  if (payload[field] === undefined) return 0;
+  return aggregateCount(payload, field);
+}
+
 function sanitizeSummary(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.ok !== true) {
     throw new Error('thumbnail revision scan returned an invalid aggregate response');
@@ -89,8 +101,16 @@ function sanitizeSummary(payload) {
     unchanged: aggregateCount(payload, 'unchanged'),
     failed: aggregateCount(payload, 'failed'),
     skipped: aggregateCount(payload, 'skipped'),
+    missing_source: optionalAggregateCount(payload, 'missing_source'),
+    missing_source_new: optionalAggregateCount(payload, 'missing_source_new'),
   };
   if (summary.checked !== summary.changed + summary.unchanged + summary.failed + summary.skipped) {
+    throw new Error('thumbnail revision scan returned an invalid aggregate response');
+  }
+  // Fail closed on a response that contradicts itself about the subset, rather
+  // than subtracting it below and reporting a negative failure count as green.
+  if (summary.missing_source > summary.failed
+    || summary.missing_source_new > summary.missing_source) {
     throw new Error('thumbnail revision scan returned an invalid aggregate response');
   }
   return Object.freeze(summary);
@@ -109,7 +129,8 @@ async function runScan(options = {}) {
     // at or after it, so later batches cannot wrap around to the first page
     // when the eligible count is an exact multiple of the page size.
     const checkedBefore = new Date().toISOString();
-    const total = { ok: true, checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0 };
+    const total = { ok: true, checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0,
+      missing_source: 0, missing_source_new: 0 };
     for (let batch = 0; batch < config.batches; batch++) {
       let response;
       try {
@@ -141,7 +162,8 @@ async function runScan(options = {}) {
         throw new Error('thumbnail revision scan returned an invalid aggregate response');
       }
       const summary = sanitizeSummary(payload);
-      for (const field of ['checked', 'changed', 'unchanged', 'failed', 'skipped']) {
+      for (const field of ['checked', 'changed', 'unchanged', 'failed', 'skipped',
+        'missing_source', 'missing_source_new']) {
         const next = total[field] + summary[field];
         if (!Number.isSafeInteger(next)) {
           throw new Error('thumbnail revision scan returned an invalid aggregate response');
@@ -164,8 +186,27 @@ async function main() {
   // A transport-level 200 is not a healthy scan when any row failed. Keep the
   // only logged detail aggregate-only, but make Actions red so silent Drive or
   // Storage outages cannot leave every viewer stale behind a green schedule.
-  if (summary.failed > 0) {
+  //
+  // The one thing that does NOT keep the lane red is a Drive 404 on a source
+  // this scan has already recorded as unreadable. Those are the rows that made
+  // the lane red on 5 of its last 8 scheduled runs purely by where the
+  // round-robin cursor landed (OPEN_REPAIRS 204), and no scan can ever clear
+  // them: the backfill re-enrols any active non-archived source with no pending
+  // row, so they cannot be retired either.
+  //
+  // A NEWLY unreadable source still goes red, and that distinction is the whole
+  // point. Google answers 404 identically for a deleted file and for one the
+  // caller simply cannot see, so "the service account lost a folder" would
+  // otherwise hide behind the same counter as "the same three dead files came
+  // round again" -- which is the silent-outage failure the paragraph above
+  // exists to prevent.
+  const realFailures = summary.failed - summary.missing_source;
+  if (realFailures > 0) {
     process.stderr.write('thumbnail revision scan completed with failed items\n');
+    process.exitCode = 1;
+  }
+  if (summary.missing_source_new > 0) {
+    process.stderr.write('thumbnail revision scan found newly unreadable Drive sources\n');
     process.exitCode = 1;
   }
 }

@@ -474,10 +474,18 @@ async function verifyVideoAutoAssign(asset) {
     const parentRows = await rest(
       `${parentRead[1]}?select=raw_issue_parent_id&team=eq.video&raw_issue_parent_id=not.is.null`);
     const parentUuids = new Set(parentRows.map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
-    const members = await rest('team_members?select=id,name,role,linear_user_id&active=eq.true&team=eq.video');
-    const editors = members
+    const members = await rest('team_members?select=id,name,role,linear_user_id,auto_assign_opt_out&active=eq.true&team=eq.video');
+    const allEditors = members
       .filter(m => clean(m.linear_user_id) && clean(m.role).toLowerCase() === 'editor')
       .sort((a, b) => clean(a.name).localeCompare(clean(b.name)) || clean(a.id).localeCompare(clean(b.id)));
+    // The replica must carry the gateway's opt-out rule INCLUDING its
+    // all-opted-out fallback (autoAssigneeForIntake ignores the flag rather
+    // than 409ing when it would empty the pool). Without both halves the drill
+    // reconstructs a pool the gateway never uses and reports
+    // "gateway auto-assign diverged" for correct production behaviour, which
+    // leaves the nightly red on a working deploy.
+    const available = allEditors.filter(m => m.auto_assign_opt_out !== true);
+    const editors = available.length ? available : allEditors;
     assert(editors.length, 'no active mapped video editors to verify the auto-assign against');
     const loadRows = await rest(
       `deliverables?select=id,assignee_id,status,linear_issue_uuid&team=eq.video&status=in.(${liveStatuses.join(',')})`);

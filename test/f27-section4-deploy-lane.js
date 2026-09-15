@@ -69,8 +69,26 @@ const CANDIDATES = new Map([
   // already had, so an owner-classified rollback could be terminalized here with
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
+  // Re-pinned 2026-09-15: Linear's markdown ESCAPING stops orphaning our own
+  // issues. Post-create verification byte-compared the description we sent
+  // against the one Linear kept, and Linear escapes markdown-significant
+  // punctuation on store -- so the app's own "[SyncView] FILMING PLAN MISSING"
+  // template came back backslashed, read as a foreign edit, and terminalized
+  // the row as an idempotency conflict with the issue already live in Linear
+  // and linked to nothing. The 2026-08-07 auto-link orphan one rewrite later,
+  // firing on the FIRST attempt rather than on a retry, on every batch created
+  // without a filming plan. mapping.mjs only -- file count 5, entrypoint hash
+  // unchanged (it hashes the PATH, not the file). Re-pinned again the same
+  // day after Codex review made the unescape directional rather than
+  // symmetric -- same file, same closure, different bytes.
   ['linear-outbound', {
-    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
+  // Re-pinned a third time the same day (Codex 2nd pass): escape set narrowed
+  // to the observed characters only. Same file, same closure, different bytes.
+  // Re-pinned a fourth time (Codex 3rd pass, owner's call): escape exception
+  // scoped to the observed `[SyncView]` template form. Same closure, new bytes.
+  // Re-pinned a fifth time (Codex 4th pass, P1): marker matched per LINE, so
+  // the two intake shapes that place it in paragraph two are covered.
+    source: 'f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
@@ -447,6 +465,17 @@ const CANDIDATES = new Map([
     // the existing length/grounding rejections. Comment-only elsewhere; no
     // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
+    // Re-pinned 2026-09-09: a client re-sending the status her row already
+    // holds is admitted as the no-op it is, rather than refused
+    // 403 operation_forbidden with a message accusing her account of lacking
+    // permission. Only policy.mjs moved (clientOperationAllowed) -- no
+    // migration, no schema, no new import, file count unchanged at 5, and the
+    // entrypoint hash is unchanged because it hashes the PATH.
+    // Re-pinned 2026-09-14: autoAssigneeForIntake drops editors flagged
+    // team_members.auto_assign_opt_out from the AUTOMATIC video pool. Reads one
+    // more column on the existing roster select -- no migration beyond the
+    // additive column, no schema, no new import, file count unchanged at 5, and
+    // the entrypoint hash is unchanged because it hashes the PATH.
     //
     // Re-pinned AGAIN, same day, ON TOP of the above: the native write gateway
     // lift. Intake, append, component fill, assignee change and labels stop
@@ -461,8 +490,8 @@ const CANDIDATES = new Map([
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
     // Integrated main client status no-op authorization and due-bump guard.
     // Prepared canonical archive-lifecycle notification repair.
-    source: '807a4fb0a8e7afe401c633842fd9c14e4a7f23b8884430b699e1afedae90ac69',
-    entrypoint: '7126f7eb9cc166be39cab7fe28395e9d0c2521ba16cb2e92495d8110e710711e',
+    source: '4e716d1008d992d4681d91b59dd8e0f325c24b2f45de48f7aff1b85fc42f4b7b',
+    entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],
 ]);

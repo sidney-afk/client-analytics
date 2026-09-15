@@ -888,6 +888,14 @@ Live list. Items come off with a date and a note, never by deletion.
 | B7 | Whether one older main commit matches all **twelve** functions that have deployed versions is UNPROVEN, so C1 is neither confirmed nor ruled out | Owner or CI, before step 13 | One authenticated `ef-fingerprint` live read plus an offline walk back through main. Recipe in the 2026-09-15 correction entry. Added 2026-09-15, superseding B6 |
 | B8 | The recovery procedure does not say what rollback means for a brand-new function | Owner, before step 16 | For `notify` there is no previous version, so rollback means removing it or leaving it inert, not restoring. The procedure should state which. Added 2026-09-15 |
 
+**B10 NOT closed, corrected 2026-09-15 later the same day. The note below stands
+as written per the append rule and is wrong.** The guard-list addition and its
+four pin re-derivations landed, but closure also requires the reviewed
+retirement trigger contract, which B10's own note named and which was missed.
+CI's Isolated PG17 retirement-switch lane is red on `retirement_trigger_contract`.
+B10 is open and needs an owner decision: separate it out of the catch-up, or
+re-derive that contract deliberately. See the top progress entry.
+
 **B10 closed, 2026-09-15.** `hiring_practical_test_jobs` added to the admission
 guard list in sorted position, 86 entries to 87, and the four downstream pins
 re-derived in dependency order. The ordering constraint was satisfied by the

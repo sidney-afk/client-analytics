@@ -84,7 +84,14 @@ jobs:
       # own writes). File count is unchanged at 5, so closure membership did
       # not move, and production-write, batch-write and deliverable-write are
       # byte-identical to their reviewed pins above.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 207c17d673d3145f4086390c3962b33299a4180191724a538caef99bf390c197
+      #
+      # Re-pinned again 2026-09-15, same release, after Codex review: the
+      # unescape is DIRECTIONAL, not symmetric. Symmetric canonicalization made
+      # `\\# Heading` and `# Heading` compare equal, so a description-only human
+      # edit on an issue whose linkage was lost would have been adopted. Escapes
+      # are now stripped from the STORED side only; our intent is never
+      # rewritten. Still mapping.mjs only, file count still 5.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 56b3c098c955157e55fb482de69123c54755c2ff72a8b3ba632435b87d327675
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

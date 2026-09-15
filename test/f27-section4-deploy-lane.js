@@ -78,9 +78,11 @@ const CANDIDATES = new Map([
   // and linked to nothing. The 2026-08-07 auto-link orphan one rewrite later,
   // firing on the FIRST attempt rather than on a retry, on every batch created
   // without a filming plan. mapping.mjs only -- file count 5, entrypoint hash
-  // unchanged (it hashes the PATH, not the file).
+  // unchanged (it hashes the PATH, not the file). Re-pinned again the same
+  // day after Codex review made the unescape directional rather than
+  // symmetric -- same file, same closure, different bytes.
   ['linear-outbound', {
-    source: '207c17d673d3145f4086390c3962b33299a4180191724a538caef99bf390c197',
+    source: '56b3c098c955157e55fb482de69123c54755c2ff72a8b3ba632435b87d327675',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

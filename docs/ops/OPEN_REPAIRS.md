@@ -21827,3 +21827,88 @@ ordinary refresh keeps the pin exactly where it was, says nothing about a
 shortfall when there was none, and leaves its own snapshot cached). 101
 assertions across 20 phases. Verified pre-existing: the same probe on `555e662`, before
 any of the boot-speed work, loses the card in exactly the same silence.
+## 210. [2026-09-15, FIXED — DEPLOY REQUIRED (F27 §4)] Every post created without a filming plan orphaned its Linear issue, because Linear escaped a bracket we sent
+
+Reported as "the client needs attribution" on two calendars. The banner was
+honest and pointed at the wrong thing: the cards' stored client was correct and
+active, but attribution is decided from the Linear PROJECT on the mirrored
+issue, and these cards never got one.
+
+**Surfaced by an outage, caused by a bug.** Linear's account hit a usage limit
+at 13:49Z and refused every issue CREATE for ~84 minutes (reads and updates to
+existing issues kept working throughout, which is what made it look like a
+SyncView fault). Service returned at 15:13Z. One calendar's five videos then
+mirrored normally. The other's did not, and that second failure is ours:
+
+```
+{"conflict": {"reason": "linear_create_intent_mismatch",
+              "decision": "idempotency_conflict",
+              "mismatched_fields": ["description"]}}
+```
+
+We sent `[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up
+required.` Linear stored `\[SyncView\] FILMING PLAN MISSING - ...`, escaping the
+markdown-significant brackets. Post-create verification byte-compared the two,
+found a difference it had not made, and terminalized the row as a conflict —
+so `applyCreateLinkage` never ran and the issue sat in Linear owned by nobody.
+
+**This is the 2026-08-07 auto-link orphan again, one rewrite later** (ledger
+entry and `test/linear-autolink-parent-linkage.js`). Same mechanism, same
+consequence, different Linear-side rewrite. The first fix normalized the
+auto-link form on both sides of that comparison and stopped there; escaping was
+never considered.
+
+**Three things make this one worse than its sibling.**
+
+1. **The trigger is a string this app writes itself.** That bracketed sentence
+   is the template for any batch created with no filming plan. So it is not an
+   occasional paste, it is a permanent class: every such post orphans.
+2. **It fires on the FIRST attempt, not on a retry.** Verification reads back
+   after every create. The outage was not a precondition; it was only what drew
+   attention to it.
+3. **Recreating the post reproduces it.** Told the first four cards were outage
+   damage, the owner archived them and made two fresh ones. Those orphaned in
+   seventeen seconds, adding VID-13919 beside VID-13912 — two correct issues in
+   Linear, both `createdBy: SyncView Mirror`, both unlinked. The natural repair
+   makes the problem bigger.
+
+**Isolated by the calendar that worked.** Its batch description was a bare
+filming-plan URL. No brackets, no escaping, no mismatch — same minute, same
+lane, same account. That contrast is what identified the character class rather
+than the outage.
+
+**The fix.** `collapseLinearEscapes` drops a backslash that directly precedes a
+character CommonMark defines as escapable, and `canonicalLinearDescription`
+composes it after the existing auto-link collapse. `createIntentMismatches`
+compares descriptions through that one normalizer on BOTH sides, exactly as the
+auto-link fix does, so it can only ever make an intent compare equal to Linear's
+rendering of that same intent. A lone backslash, or one before a letter, is left
+alone.
+
+**Equality does widen by one step, deliberately:** a foreign issue reading `[x]`
+now matches an intent of `\[x\]`. Adoption still requires team, project, title,
+status, due date, assignee, parent and labels to match as well, and the
+alternative is a standing orphan factory.
+
+**Proof.** `test/linear-description-escape-orphan.js`, 13 assertions, built on
+the exact live strings — including the pre-fix assertion that the raw comparison
+really does differ, so the suite evidences the bug and not only the fix, and a
+check that a genuinely different description still refuses adoption.
+`test/linear-autolink-parent-linkage.js` had pinned the literal call spelling of
+the description comparison and failed on a change that strictly widened it; it
+now pins the PROPERTY (one normalizer, both sides, auto-link collapse still
+inside it), which is what it meant all along.
+
+**NOT done here, flagged for a decision.** The `description` UPDATE operation
+compares `actual === intended` with no normalization at all — not even the
+2026-08-07 auto-link collapse. On this reading a description containing either
+rewrite would never register as already-applied and would be re-sent, and a
+re-send bumps the issue clock the stale guard reads. Not measured against a live
+row, so it is stated as a suspicion, not a defect, and left out of a fix that is
+otherwise minimal and reviewable.
+
+**Still outstanding after this ships:** the two orphaned issues need adopting or
+retiring, and the owner's two cards need linking to one of them. Six thumbnails
+on a third calendar were queued behind the outage itself, not this bug, and
+clear on their own.
+

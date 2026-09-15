@@ -81,9 +81,24 @@ const indexSource = fs.readFileSync(path.join(ROOT, 'index.ts'), 'utf8');
     'every auto-link in a description is collapsed, not just the first');
 
   // --- 4. The comparison itself must use it ---------------------------------
-  ok(/collapseLinearAutolinks\(actualDescription\)\s*!==\s*collapseLinearAutolinks\(expectedDescription\)/
-    .test(mappingSource),
-  'createIntentMismatches compares descriptions through the normalizer on BOTH sides');
+  //
+  // Widened 2026-09-15, when Linear's markdown ESCAPING turned out to orphan
+  // issues the same way (test/linear-description-escape-orphan.js). The
+  // description comparison now runs through `canonicalLinearDescription`, which
+  // composes this collapse with the unescape. What this suite must keep pinned
+  // is the PROPERTY, not the call spelling: the same normalizer on both sides,
+  // and the auto-link collapse still inside it. Pinning the literal call was
+  // what made this assertion fail on a change that strictly widened the fix.
+  const descriptionComparison =
+    /(\w+)\(actualDescription\)\s*!==\s*\1\(expectedDescription\)/.exec(mappingSource);
+  ok(!!descriptionComparison,
+    'createIntentMismatches compares descriptions through ONE normalizer applied to BOTH sides');
+  ok(!!descriptionComparison
+    && new RegExp('function ' + descriptionComparison[1] + '\\b[^]*?collapseLinearAutolinks')
+      .test(mappingSource),
+  'that normalizer still collapses auto-links (the 2026-08-07 fix is not dropped by a later one)');
+  ok(collapseLinearAutolinks(mapping.canonicalLinearDescription(kept)) === sent,
+    'the live outage string still normalizes to what we sent, through the composed normalizer');
 
   // --- 5. The fail-closed guard ---------------------------------------------
   ok(/outbound_parent_dependency_unresolved/.test(indexSource),

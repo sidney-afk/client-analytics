@@ -451,6 +451,64 @@ export function collapseLinearAutolinks(value) {
   return value.replace(LINEAR_AUTOLINK, (match, label, target) => (label === target ? label : match));
 }
 
+/*
+ * THE SAME DEFECT CLASS AS THE AUTO-LINK ABOVE, ONE REWRITE LATER — and this
+ * one is not a retry artefact. Linear escapes markdown-significant punctuation
+ * when it stores a description, so a description we SEND as
+ *
+ *   [SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.
+ *
+ * comes back from the very next read as
+ *
+ *   \[SyncView\] FILMING PLAN MISSING - submission accepted; SMM follow-up required.
+ *
+ * Post-create verification compared those byte for byte, saw a difference it
+ * had not made, and recorded a `description` mismatch — so the row terminalized
+ * as `idempotency_conflict`, `applyCreateLinkage` never ran, and the issue sat
+ * in Linear owned by nobody.
+ *
+ * WHY THIS MATTERS MORE THAN THE AUTO-LINK CASE. That bracketed sentence is a
+ * TEMPLATE THIS APP WRITES ITSELF, on every batch created without a filming
+ * plan. So the failure is not rare and not incidental to any outage: every such
+ * batch orphans, every time, on its FIRST attempt — verification reads back
+ * after each create, so there is no retry needed to reach the comparison.
+ *
+ * Measured 2026-09-15 on two live issues, VID-13912 and VID-13919, both
+ * `createdBy: SyncView Mirror`, both correct in Linear, both unlinked. The
+ * second exists only because the first was assumed to be outage damage and the
+ * post was recreated by hand; recreating produced an identical orphan in
+ * seventeen seconds. A batch whose description was a bare filming-plan URL
+ * (no brackets) went through untouched in the same minute, which is what
+ * isolated the character class.
+ *
+ * NARROW, AND SYMMETRIC LIKE THE AUTO-LINK COLLAPSE. Only a backslash directly
+ * in front of a character CommonMark defines as escapable is dropped — exactly
+ * the sequences a markdown serializer emits and a renderer reads back as the
+ * bare character. Anything else, a lone backslash or a backslash before a
+ * letter, is left alone. `\\` collapses to `\` for the same reason, which keeps
+ * a description we genuinely sent with a backslash comparing equal to itself.
+ *
+ * Applied to BOTH sides, like `collapseLinearAutolinks`, so it can only ever
+ * make an intent compare equal to Linear's rendering of that same intent. It
+ * does widen equality by one step — a foreign issue reading `[x]` now matches
+ * an intent of `\[x\]` — which is accepted deliberately: adoption still
+ * requires team, project, title, status, due date, assignee, parent and labels
+ * to match as well, and the alternative is the standing orphan factory above.
+ *
+ * Composed AFTER the auto-link collapse, so the link form is recognised in the
+ * shape Linear actually emits it (unescaped brackets) before any unescaping.
+ */
+const LINEAR_ESCAPED_PUNCTUATION = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+
+export function collapseLinearEscapes(value) {
+  if (typeof value !== "string" || value.indexOf("\\") === -1) return value;
+  return value.replace(LINEAR_ESCAPED_PUNCTUATION, "$1");
+}
+
+export function canonicalLinearDescription(value) {
+  return collapseLinearEscapes(collapseLinearAutolinks(value));
+}
+
 function createIntentMismatches(issue, payload, context) {
   const mismatches = [];
   const actualTeamId = clean(issue && issue.team && issue.team.id);
@@ -469,7 +527,7 @@ function createIntentMismatches(issue, payload, context) {
         ? issue.description
         : null;
     if (expectedDescription == null
-        || collapseLinearAutolinks(actualDescription) !== collapseLinearAutolinks(expectedDescription)) {
+        || canonicalLinearDescription(actualDescription) !== canonicalLinearDescription(expectedDescription)) {
       mismatches.push("description");
     }
   }

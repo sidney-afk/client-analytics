@@ -5296,7 +5296,7 @@
            drop box-shadow on every button in the pile and would clobber it.
            Global box-sizing is border-box, so the ring costs no footprint.
            The surface stays OPAQUE, and that is load-bearing rather than
-           cosmetic (Codex, #1403). This pile is absolutely positioned OVER
+           cosmetic (Codex, PR 1403). This pile is absolutely positioned OVER
            .cal-card-thumb, so a transparent centre puts the ring and the glyph
            straight onto arbitrary photo pixels — and measured against a
            deliberately hostile pink/white/lavender thumbnail, pink-on-pale-pink
@@ -5933,7 +5933,7 @@
            field and status dot use, in place of its own independent
            fuchsia -- that pairing read backwards next to the field below it
            (Thumbnail is blue everywhere else on the card).
-           :not(.cal-prod-btn) is load-bearing (Codex, #1401): this selector
+           :not(.cal-prod-btn) is load-bearing (Codex, PR 1401): this selector
            and .cal-linear-btn.cal-prod-btn are equal specificity, and
            .cal-prod-btn's own rule sits BEFORE this one in the stylesheet
            -- so without the exclusion this rule would win on source order

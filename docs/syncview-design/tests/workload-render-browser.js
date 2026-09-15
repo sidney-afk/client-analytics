@@ -24,7 +24,7 @@ const {
 const PHASES = [
   'week_structure', 'capacity_at_cap', 'capacity_over', 'weights',
   'labels_auto_manual', 'label_loading', 'label_fallback',
-  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint',
+  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint', 'early_issue_fetch', 'early_fetch_rollback',
   'exclusions', 'filters', 'permissions_readonly', 'permissions_admin',
 ];
 let currentPhase = PHASES[0];
@@ -334,6 +334,50 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       const settled = await readBoard(h.page);
       expect(settled.cards.some(c => c.id === 'c1') && settled.cards.every(c => c.mode !== 'loading'),
         'the live read replaces the cached paint in place and every card settles out of Planning…');
+    } finally { await h.close(); }
+  }
+
+  phase('early_issue_fetch');
+  {
+    /*
+     * A boot straight into #workload starts the page-0 issue read from the
+     * head script, before the document has parsed, and the app adopts that
+     * in-flight response instead of issuing its own: exactly one page-0
+     * request, and the head script's URL must be the app's URL (the two
+     * literals are kept in sync by hand, so this is what pins them).
+     */
+    const h = await launchWorkloadHarness({ issues: [parentRow({}), sub('e1', { due_date: WED })] });
+    try {
+      await waitForPlanSettled(h.page);
+      const seen = await h.page.evaluate(() => ({
+        sameUrl: window.__wlEarlyIssuesUrl === (CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0'),
+        adopted: window.__wlEarlyIssues === null,
+        page0: performance.getEntriesByType('resource').filter(r => /workload_issues.*offset=0/.test(r.name)).length,
+        cards: document.querySelectorAll('#wlBody [data-wl-issue-id]').length,
+      }));
+      expect(seen.sameUrl, 'the head-script early fetch targets the same workload_issues URL as the app constant');
+      expect(seen.adopted && seen.page0 === 1, 'the app adopts the early page-0 response: one page-0 request on the boot, then cleared');
+      expect(seen.cards > 0, 'the board renders from the adopted response');
+    } finally { await h.close(); }
+  }
+
+  phase('early_fetch_rollback');
+  {
+    /*
+     * `?wl2=0` is the documented per-browser rollback off the Supabase read.
+     * The head script sees the query before any storage flag exists, so the
+     * early page-0 request must not go out either: during an incident the
+     * rollback has to contain every request to that endpoint, not just the
+     * board's own. (Codex review on #1399.)
+     */
+    const h = await launchWorkloadHarness({ issues: [parentRow({}), sub('r1', { due_date: WED })], query: 'wl2=0' });
+    try {
+      const seen = await h.page.evaluate(() => ({
+        early: typeof window.__wlEarlyIssues,
+        supabaseIssueReads: performance.getEntriesByType('resource').filter(r => /workload_issues/.test(r.name)).length,
+      }));
+      expect(seen.early === 'undefined' && seen.supabaseIssueReads === 0,
+        'with ?wl2=0 in the URL the head script starts no early Supabase read and the board issues none');
     } finally { await h.close(); }
   }
 

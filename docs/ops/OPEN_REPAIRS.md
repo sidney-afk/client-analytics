@@ -21649,3 +21649,46 @@ a 404; the first fix exempted the wrong 404s; the guard for the first fix matche
 a substring that the broken version also contained. Each was caught by review
 rather than by the tests as written, which is the honest summary of how much this
 particular change wanted to be wrong.
+
+## 207. [2026-09-15, BUILT] The Workload cold boot, second pass: the network was serial three times over
+
+After 200 shipped the owner still measured about six seconds on `#workload`.
+The offline harness showed every request settling in well under a second, so
+the time was in the live network, and timing the live endpoints from the
+sandbox found it:
+
+- **The issue read was three round trips, one after another.** The mirror holds
+  about 2,100 active rows and PostgREST caps a page at 1,000, so
+  `_wlV2FetchIssues` walked pages serially: ~0.65 s each from a datacenter,
+  ~660 KB each, and nothing painted until the last one landed. Page 0 now
+  sends `Prefer: count=exact`, reads the total off `Content-Range`, and every
+  remaining page is fetched at once (measured: three serial pages 1.5 s, the
+  same three in parallel 0.6 s). No count header falls back to the old walk.
+- **The read waited for a 5 MB document to parse first.** The head boot script,
+  which already knows the route before first paint, now starts page 0 the
+  moment it sees `#workload` (same kill switch and same 5-minute cache gate
+  as `loadLinearIssues`) and the app adopts that in-flight response instead of
+  issuing its own. `<link rel="preconnect">` to Supabase opens the connection
+  in the same window. The URL literal is duplicated in the head script by
+  necessity; the render harness pins it equal to `CAL_SUPABASE_URL`.
+- **The metadata sweep after the fast paint was eight serial requests.**
+  `wlFetchNativeMetadata` awaited each 100-id chunk before starting the next.
+  The chunks are independent reads, so they go out together and are folded
+  back in index order; `firstChunkError` and `failedChunkIds` keep their exact
+  meaning.
+
+Rendering is not the cost: `wlApplyData` plus `renderWorkloadAll` for 800
+sub-issues measured 45 ms.
+
+**What is left and why it is not in this pass.** The document itself is 5.5 MB
+raw, 1.3 MB gzipped, and is parsed on every hard refresh; that is a build-step
+question (splitting the single file), not a Workload one. Edge functions
+(`key-verify`, `workload-plan`) answer in 0.3 to 0.5 s each and the plan read
+gates the first paint by design (fail closed). The issue payload carries
+timestamp columns the board does not display (about a fifth of the bytes);
+left as is because `syncedAt` and `updatedAt` are read on other paths.
+
+**Proof.** `workload-render-browser.js` gained `early_issue_fetch` (URL parity,
+page 0 requested exactly once, board renders from the adopted response); 80
+assertions across 16 phases. `workload-board-browser.js` 88 across 18 and the
+mocked Production write-gateway gate still pass.

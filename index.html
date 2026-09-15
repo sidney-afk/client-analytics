@@ -15814,6 +15814,14 @@
      * without being taught about a new global.
      */
     function wlWorkloadTodayISO(now) {
+        /* The no-argument form is "what day is it in the workload time zone",
+           asked once per sub-issue inside the classification loop and once per
+           card while rendering. It cannot change within a second, so it is
+           formatted at most once a second; an explicit `now` always formats
+           that instant and never touches the memo. */
+        if (now === undefined && wlWorkloadTodayISO._iso && Date.now() - wlWorkloadTodayISO._stamp < 1000) {
+            return wlWorkloadTodayISO._iso;
+        }
         const formatter = wlWorkloadTodayISO._fmt || (wlWorkloadTodayISO._fmt = new Intl.DateTimeFormat('en-CA', {
             timeZone: WL_WORKLOAD_TIME_ZONE,
             year: 'numeric',
@@ -15825,7 +15833,9 @@
         for (const part of parts) {
             if (part.type !== 'literal') values[part.type] = part.value;
         }
-        return `${values.year}-${values.month}-${values.day}`;
+        const iso = `${values.year}-${values.month}-${values.day}`;
+        if (now === undefined) { wlWorkloadTodayISO._iso = iso; wlWorkloadTodayISO._stamp = Date.now(); }
+        return iso;
     }
     function wlTodayISO() {
         const d = new Date();
@@ -15842,7 +15852,16 @@
         const dow = wlParseISO(iso).getDay();
         return dow !== 0 && dow !== 6;
     }
+    /* Walking the calendar a day at a time is the single hottest thing the
+       capacity placement does: `firstFit` and `reshuffleFor` each walk up to
+       WL_PLACEMENT_WALK_LIMIT days, per candidate, per eviction set. It was
+       35.8% of a 97 s settle pass at live shape (profiled 2026-09-15) and it
+       is a pure function of (iso, n), so the walk is done once per pair. */
     function wlAddWorkingDays(iso, n) {
+        const cache = wlAddWorkingDays._cache || (wlAddWorkingDays._cache = new Map());
+        const cacheKey = String(iso) + '|' + String(n);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const d = wlParseISO(iso);
         let added = 0;
         while (added < n) {
@@ -15850,9 +15869,16 @@
             const dow = d.getDay();
             if (dow !== 0 && dow !== 6) added++;
         }
-        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        const out = wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        if (cache.size > 20000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlSubWorkingDays(iso, n) {
+        const cache = wlSubWorkingDays._cache || (wlSubWorkingDays._cache = new Map());
+        const cacheKey = String(iso) + '|' + String(n);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const d = wlParseISO(iso);
         let removed = 0;
         while (removed < n) {
@@ -15860,7 +15886,10 @@
             const dow = d.getDay();
             if (dow !== 0 && dow !== 6) removed++;
         }
-        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        const out = wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlNextWorkingDay(iso) {
         const d = wlParseISO(iso);
@@ -15883,9 +15912,25 @@
         d.setDate(d.getDate() + n);
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    /* MEMOISED PURE HELPERS.
+       Each of these is a pure function of its arguments and is called once per
+       sub-issue (sometimes several times) inside the board's hot loops, so at
+       live scale they dominate the boot. Profiled 2026-09-15 on a fixture at
+       live shape (~1,700 sub-issues): wlFormatShort 942 ms of a 3.1 s render,
+       wlNormalizeClient 157 ms and wlWorkloadTodayISO 85 ms of a 446 ms
+       wlApplyData. The caches are keyed by the exact inputs, so the result is
+       identical; they are cleared wholesale past a ceiling rather than grown
+       without bound. */
     function wlFormatShort(iso) {
+        const cache = wlFormatShort._cache || (wlFormatShort._cache = new Map());
+        const key = String(iso);
+        const hit = cache.get(key);
+        if (hit !== undefined) return hit;
         const d = wlParseISO(iso);
-        return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        const out = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        if (cache.size > 4000) cache.clear();
+        cache.set(key, out);
+        return out;
     }
     function wlCalendarDayDiff(fromISO, toISO) {
         const parseUTC = (iso) => {
@@ -16052,7 +16097,8 @@
         return wlState.workloadByIssueId.get(String(sub && sub.id || '')) || null;
     }
     function wlWorkloadWeight(sub) {
-        const weight = Number(wlWorkloadMeta(sub) && wlWorkloadMeta(sub).weight);
+        const meta = wlWorkloadMeta(sub);          // one lookup, not two
+        const weight = Number(meta && meta.weight);
         return weight === 2 || weight === 3 ? weight : 1;
     }
     function wlWorkloadUnits(subs) {
@@ -16211,10 +16257,17 @@
     ];
     function wlNormalizeEditor(s) {
         if (!s) return '';
+        const cache = wlNormalizeEditor._cache || (wlNormalizeEditor._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const lower = String(s).trim().toLowerCase()
             .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
         const local = lower.includes('@') ? lower.split('@')[0] : lower;
-        return local.replace(/[\s._\-]+/g, '');
+        const out = local.replace(/[\s._\-]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlIsInactiveEditor(id, name) {
         return WL_INACTIVE_EDITOR_IDS.has(String(id || '').trim()) ||
@@ -16238,11 +16291,17 @@
     // "Eben and Annie" collapse to one too.
     function wlNormalizeClient(s) {
         if (!s) return '';
+        const cache = wlNormalizeClient._cache || (wlNormalizeClient._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         let t = String(s).toLowerCase().trim()
             .normalize('NFD').replace(/[̀-ͯ]/g, '');
         t = t.replace(/^dr\.?\s+/, '');
         t = t.replace(/\s+(?:and|&)\s+/g, '&');
         t = t.replace(/[^a-z0-9&]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, t);
         return t;
     }
     // SEED + OFFLINE FALLBACK ONLY. The live source of truth for "who's a
@@ -16464,13 +16523,38 @@
         const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
         let placements = new Map();
         let used = new Map();                  // `${capacityKey}@${day}` -> workload units already committed
-        const slotOf = (sub, day) => wlCapacityKey(sub) + '@' + day;
-        const reserve = (sub, day) => {
-            const slot = slotOf(sub, day);
-            used.set(slot, (used.get(slot) || 0) + wlWorkloadWeight(sub));
+        /* THE THREE FACTS THIS PASS ASKS ABOUT A SUB-ISSUE, ANSWERED ONCE.
+           Its capacity key, its workload weight and its editor's daily capacity
+           do not change while the pass runs, but `fits`, `reserve`, `release`
+           and `slotOf` recomputed all three on every call -- and they are
+           called once per candidate day, per eviction set, per entry. That made
+           wlTeamBucket alone 37% of a 67 s settle pass at live shape (profiled
+           2026-09-15), reached through wlCapacityKey, wlWorkloadWeight and
+           wlEditorCapacity. The map is keyed by the sub-issue object and lives
+           only for this call, so a later pass still sees fresh metadata. */
+        const subFacts = new Map();
+        const factsOf = (sub) => {
+            let facts = subFacts.get(sub);
+            if (!facts) {
+                facts = {
+                    key: wlCapacityKey(sub),
+                    weight: wlWorkloadWeight(sub),
+                    capacity: wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName),
+                };
+                subFacts.set(sub, facts);
+            }
+            return facts;
         };
-        const fits = (sub, day) => (used.get(slotOf(sub, day)) || 0) + wlWorkloadWeight(sub)
-            <= wlEditorCapacity(sub && sub.teamKey, sub && sub.teamName);
+        const slotOf = (sub, day) => factsOf(sub).key + '@' + day;
+        const reserve = (sub, day) => {
+            const facts = factsOf(sub);
+            const slot = facts.key + '@' + day;
+            used.set(slot, (used.get(slot) || 0) + facts.weight);
+        };
+        const fits = (sub, day) => {
+            const facts = factsOf(sub);
+            return (used.get(facts.key + '@' + day) || 0) + facts.weight <= facts.capacity;
+        };
 
         const automatic = [];
         for (const sub of plannedSubs || []) {
@@ -16513,13 +16597,37 @@
             return '';
         };
         let placedOn = new Map();              // entry -> the day it currently holds
+        /* AND THE SAME ENTRIES BY SLOT.
+           `reshuffleFor` needs the entries already sitting on one capacity key
+           on one day. It used to find them by scanning every placed entry, for
+           every candidate day (up to WL_PLACEMENT_WALK_LIMIT), for every entry
+           being settled -- O(n²) in the size of the board, which is why the
+           settle pass took 105 s on a fixture at live shape and would only get
+           worse as the board grows (profiled 2026-09-15). This index is that
+           same set, kept in step by recordDay, and the filter it replaces was
+           exactly `same capacity key AND same day`, which is what slotOf is. */
+        let placedBySlot = new Map();          // `${capacityKey}@${day}` -> Set of entries
         const release = (sub, day) => {
-            const slot = slotOf(sub, day);
-            used.set(slot, Math.max(0, (used.get(slot) || 0) - wlWorkloadWeight(sub)));
+            const facts = factsOf(sub);
+            const slot = facts.key + '@' + day;
+            used.set(slot, Math.max(0, (used.get(slot) || 0) - facts.weight));
         };
         const recordDay = (entry, day) => {
             const id = String(entry.sub && entry.sub.id || '');
+            const previousDay = placedOn.get(entry);
+            if (previousDay !== undefined) {
+                const previousSlot = slotOf(entry.sub, previousDay);
+                const previousBucket = placedBySlot.get(previousSlot);
+                if (previousBucket) {
+                    previousBucket.delete(entry);
+                    if (!previousBucket.size) placedBySlot.delete(previousSlot);
+                }
+            }
             placedOn.set(entry, day);
+            const slot = slotOf(entry.sub, day);
+            let bucket = placedBySlot.get(slot);
+            if (!bucket) { bucket = new Set(); placedBySlot.set(slot, bucket); }
+            bucket.add(entry);
             // Only a genuine move is recorded: an item on its ideal day stays a
             // plain "auto" and keeps deriving its day from wlAutoPlanDate.
             if (day === entry.ideal) placements.delete(id);
@@ -16581,27 +16689,23 @@
             build(0, []);
             // Fewest cards moved first, then least total weight: the least
             // disturbance to a board somebody is already working from.
-            const weightOf = (set) => set.reduce((sum, other) => sum + wlWorkloadWeight(other.sub), 0);
+            const weightOf = (set) => set.reduce((sum, other) => sum + factsOf(other.sub).weight, 0);
             sets.sort((a, b) => a.length - b.length || weightOf(a) - weightOf(b));
             return sets;
         };
         const reshuffleFor = (entry) => {
             let day = windowStart;
             for (let guard = 0; guard < WL_PLACEMENT_WALK_LIMIT && day <= entry.ideal; guard++) {
-                const candidates = [];
-                for (const [other, otherDay] of placedOn) {
-                    if (otherDay !== day) continue;
-                    if (wlCapacityKey(other.sub) !== wlCapacityKey(entry.sub)) continue;
-                    candidates.push(other);
-                }
-                candidates.sort((a, b) => wlWorkloadWeight(a.sub) - wlWorkloadWeight(b.sub)
+                const bucket = placedBySlot.get(slotOf(entry.sub, day));
+                const candidates = bucket ? [...bucket] : [];
+                candidates.sort((a, b) => factsOf(a.sub).weight - factsOf(b.sub).weight
                     || String(a.sub && a.sub.id || '').localeCompare(String(b.sub && b.sub.id || '')));
                 for (const set of evictionSets(candidates)) {
                     const moves = [];
                     for (const other of set) release(other.sub, day);
                     // Heaviest first: the hardest card to re-place claims the
                     // remaining room before a lighter one can take it.
-                    const ordered = set.slice().sort((a, b) => wlWorkloadWeight(b.sub) - wlWorkloadWeight(a.sub));
+                    const ordered = set.slice().sort((a, b) => factsOf(b.sub).weight - factsOf(a.sub).weight);
                     let ok = true;
                     for (const other of ordered) {
                         const moved = firstFit(other.sub, other.ideal, day);
@@ -16656,6 +16760,7 @@
         placements = new Map();
         used = new Map();
         placedOn = new Map();
+        placedBySlot = new Map();
         for (const sub of plannedSubs || []) {
             const manual = wlPlanDate(sub);
             if (manual) reserve(sub, manual);
@@ -16690,7 +16795,12 @@
          * day with room does not move. Tightest deadline first, so the most
          * urgent card claims freed room before a looser one.
          */
-        const byUrgency = [...placedOn.keys()].sort((a, b) => automatic.indexOf(a) - automatic.indexOf(b));
+        /* The urgency order is `automatic`'s own order. Reading it back with
+           indexOf inside the comparator made this sort O(n² log n); the
+           positions are fixed, so they are looked up once. */
+        const urgencyOrder = new Map(automatic.map((entry, index) => [entry, index]));
+        const urgencyRank = (entry) => (urgencyOrder.has(entry) ? urgencyOrder.get(entry) : -1);
+        const byUrgency = [...placedOn.keys()].sort((a, b) => urgencyRank(a) - urgencyRank(b));
         for (const entry of byUrgency) {
             const held = placedOn.get(entry);
             if (!held || held === windowStart) continue;
@@ -16705,8 +16815,9 @@
         // done: zero means the board shows no red day.
         let over = 0;
         for (const [entry, day] of placedOn) {
-            const slot = slotOf(entry.sub, day);
-            const cap = wlEditorCapacity(entry.sub && entry.sub.teamKey, entry.sub && entry.sub.teamName);
+            const facts = factsOf(entry.sub);
+            const slot = facts.key + '@' + day;
+            const cap = facts.capacity;
             const units = used.get(slot) || 0;
             if (units > cap) { over += units - cap; used.set(slot, cap); }
         }
@@ -16757,11 +16868,19 @@
         return byDate;
     }
 
+    /* Asked for the same handful of team key/name pairs thousands of times per
+       placement pass (8% of a 97 s settle, profiled 2026-09-15). Pure. */
     function wlTeamBucket(teamKey, teamName) {
+        const cache = wlTeamBucket._cache || (wlTeamBucket._cache = new Map());
+        const cacheKey = String(teamKey || '') + '|' + String(teamName || '');
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
         const k = (teamKey || '').toUpperCase();
         const n = (teamName || '').toLowerCase();
-        if (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') return 'graphics';
-        return 'video';
+        const out = (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') ? 'graphics' : 'video';
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
     }
     function wlEditorCapacity(teamKey, teamName) {
         return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 4;
@@ -19473,6 +19592,7 @@
         if (!filtered.length) {
             stripEl.classList.add('empty');
             chipsEl.innerHTML = '';
+            chipsEl.__wlLooseSig = '';
             return;
         }
         stripEl.classList.remove('empty');
@@ -19495,6 +19615,34 @@
 
         const clients = [...byClient.values()].sort((a, b) =>
             (a.clientName || '').localeCompare(b.clientName || ''));
+        /* AN UNCHANGED STRIP IS NOT REBUILT.
+           Both loose strips render one chip per loose sub-issue, with two
+           links and an icon each, and every renderWorkloadAll rebuilt them
+           from scratch. A cold boot paints twice -- the fast paint, then the
+           settle once plans and weights land -- and the loose lists are
+           almost always identical across the two, so the second rebuild is
+           pure waste: 2.3 s of a 2.6 s render at live shape, profiled
+           2026-09-15.
+           The signature covers EVERY field the markup below reads (the three
+           filters, each sub's id/identifier/title/url/client/team, and the
+           resolved parent's key/identifier/title/url), so anything the user
+           could see changing still rebuilds. It is checked against the DOM
+           actually on screen, so a strip wiped by anything else is rebuilt
+           rather than assumed good. */
+        const looseSignature = [
+            wlState.team, applyEditorFilter ? wlState.editor : '-', wlState.client,
+            ...clients.map(client => [
+                client.clientName, client.total,
+                ...[...client.groups.values()].map(group => [
+                    group.parent ? [group.parent.key, group.parent.identifier, group.parent.title, group.parent.url].join('\u0001') : '-',
+                    ...group.subs.map(sub => [
+                        sub.id, sub.identifier, sub.title, sub.url, sub.clientName, sub.teamKey, sub.teamName,
+                    ].join('\u0001')),
+                ].join('\u0002')),
+            ].join('\u0003')),
+        ].join('\u0004');
+        if (chipsEl.__wlLooseSig === looseSignature && chipsEl.childElementCount > 0) return;
+        chipsEl.__wlLooseSig = looseSignature;
 
         const externalMark = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>`;
         const linearMark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/></svg>`;

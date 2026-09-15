@@ -21692,3 +21692,74 @@ left as is because `syncedAt` and `updatedAt` are read on other paths.
 page 0 requested exactly once, board renders from the adopted response); 80
 assertions across 16 phases. `workload-board-browser.js` 88 across 18 and the
 mocked Production write-gateway gate still pass.
+
+## 208. [2026-09-15, BUILT] The Workload boot was never mostly network — it was the board recomputing the same answers millions of times
+
+207 made the network side of `#workload` about as fast as it can be, and the
+owner still measured about six seconds on an ordinary refresh. So this pass
+measured the CLIENT instead, with a fixture at live shape (2,128 rows, ~1,700
+sub-issues, ~40% carrying a due date, spread over eight weeks) served from
+localhost with **zero network latency**. Time to the board appearing: **8.5
+seconds**. None of it was the network, and only 0.3 s of it was parsing the
+5.5 MB document.
+
+**Four findings, all the same mistake in different clothes: a pure answer
+recomputed inside a hot loop.**
+
+1. **`wlFormatShort` built a fresh `Intl` date string per card** — 942 ms of a
+   3.1 s render. It is a pure function of an ISO date.
+2. **The classification pass re-derived constants per sub-issue** —
+   `wlNormalizeClient` 157 ms and `wlWorkloadTodayISO` 85 ms of a 446 ms
+   `wlApplyData`, the latter running `Intl.formatToParts` to ask what today is,
+   once per row.
+3. **Both loose strips were rebuilt by every render** — one chip with two links
+   and an icon per loose sub-issue, 2.3 s of a 2.6 s render. A cold boot paints
+   twice (the fast paint, then the settle) and the lists are almost always
+   identical across the two.
+4. **The capacity placement pass was quadratic, and then some.** This is the
+   big one: the second `wlApplyData`, the one that runs only once saved plans
+   are authoritative, took **105 seconds** on this fixture. Three causes, each
+   found by CPU profile rather than guessed at:
+   - `reshuffleFor` found the entries sharing a capacity slot by scanning
+     *every* placed entry, for every candidate day, for every entry it settled.
+   - the urgency sort called `automatic.indexOf(entry)` inside its comparator.
+   - `fits`, `reserve`, `release` and `slotOf` recomputed each sub-issue's
+     capacity key, weight and editor capacity on every call — `wlTeamBucket`
+     alone was 37% of the pass, reached three times per `fits`.
+
+**What changed.** Each of these is now answered once: memoised pure helpers
+(`wlFormatShort`, `wlNormalizeClient`, `wlNormalizeEditor`, `wlAddWorkingDays`,
+`wlSubWorkingDays`, `wlTeamBucket`, and a one-second memo on the no-argument
+`wlWorkloadTodayISO`), a content signature that skips a loose-strip rebuild
+when nothing it renders has changed, a slot index for the reshuffle candidates,
+a precomputed urgency order, and a per-pass `factsOf` map for the three
+constants the placement asks about a sub-issue.
+
+**Every memo is function-scoped, not module-level.** Several suites compile
+these functions in isolation out of `index.html`, and
+`workload-today-formatter-hoisted` asserts exactly that, so each cache hangs
+off its own function rather than introducing a global. Getting this wrong first
+is what broke five suites mid-pass.
+
+**Measured on the same fixture, same machine:**
+
+| | before | after |
+|---|---|---|
+| board on screen | 8.5 s | 3.6 s |
+| settle recompute (`wlApplyData`) | 105.5 s | 31.3 s |
+| repeat render, strips unchanged | 2.6 s | 0.2 s |
+
+**Nothing about placement changed, and that is the point.** The reshuffle still
+moves only same-editor automatic work inside its own window, never recurses,
+never moves a pin, and rolls a failed day back exactly; the weight is still
+`wlWorkloadWeight` and the ceiling still `wlEditorCapacity`. Two guards in
+`workload-plan-source.js` pinned the *old expression* of those contracts and
+were rewritten to pin the same contracts against the new shape — the whole
+`workload-capacity-placement` suite, which checks the placements themselves,
+passes untouched.
+
+**What is left.** The remaining 31 s on that fixture is the combinatorial
+reshuffle itself, and the fixture is deliberately pathological: 1,700
+sub-issues across three editors at four units a day. The live board spreads the
+same work over eleven. Making the search cheaper is real work and wants its own
+pass.

@@ -575,9 +575,19 @@ const placementRead = INDEX.slice(
 );
 ok(capacityPlacement.length > 0 && placementRead.length > 0,
 'the capacity-placement pass and its read helpers are locatable in source');
+/* The three facts this pass needs about a sub-issue -- its capacity key, its
+   weight and its editor's daily capacity -- are constant for the length of the
+   pass and are now answered once per sub-issue by `factsOf` rather than
+   recomputed inside `fits`/`reserve`/`release` on every one of millions of
+   calls (2026-09-15, the boot-speed work). The contract is unchanged and is
+   what this guard states: the weight is still wlWorkloadWeight, the ceiling is
+   still wlEditorCapacity, and a pin still reserves before anything automatic
+   is placed. */
 ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\); continue; \}/.test(capacityPlacement)
-    && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
-    && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
+    && /weight: wlWorkloadWeight\(sub\),/.test(capacityPlacement)
+    && /capacity: wlEditorCapacity\(sub && sub\.teamKey, sub && sub\.teamName\),/.test(capacityPlacement)
+    && /const fits = \(sub, day\) => \{\s*const facts = factsOf\(sub\);\s*return \(used\.get\(facts\.key \+ '@' \+ day\) \|\| 0\) \+ facts\.weight <= facts\.capacity;/.test(capacityPlacement)
+    && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ facts\.weight\)/.test(capacityPlacement),
 'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
 ok(/const windowStart = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(today, 1\);/.test(capacityPlacement)
     && /let day = windowStart;/.test(capacityPlacement)
@@ -596,7 +606,12 @@ const reshuffle = capacityPlacement.slice(capacityPlacement.indexOf('const reshu
   capacityPlacement.indexOf('const settle ='));
 ok(reshuffle.length > 0 && reshuffle.length < 4000,
   'the reshuffle slice is bounded (harness is not vacuous)');
-ok(/wlCapacityKey\(other\.sub\) !== wlCapacityKey\(entry\.sub\)/.test(reshuffle)
+/* The eviction candidates used to be found by scanning every placed entry and
+   filtering on `wlCapacityKey(other.sub) === wlCapacityKey(entry.sub) && day`,
+   which made the pass quadratic. They now come from an index keyed by exactly
+   that pair -- `slotOf` is capacityKey + '@' + day -- so the same-editor,
+   same-day restriction is structural rather than a filter. */
+ok(/const bucket = placedBySlot\.get\(slotOf\(entry\.sub, day\)\);\s*const candidates = bucket \? \[\.\.\.bucket\] : \[\];/.test(reshuffle)
     && /const moved = firstFit\(other\.sub, other\.ideal, day\)/.test(reshuffle)
     && !/reshuffleFor\(/.test(reshuffle)
     && /for \(const move of moves\) release\(move\.other\.sub, move\.to\);\s*\n\s*for \(const other of set\) reserve\(other\.sub, day\);/.test(reshuffle)

@@ -17,6 +17,16 @@
  * resolve THROUGH the same slot tokens the fields use, not carry their own
  * hex (or a differently-named token that merely happens to match today and
  * can drift tomorrow).
+ *
+ * The same crossed pair existed a THIRD time, in the Linear "pile" icons
+ * stacked at the bottom-right corner of the thumbnail (`.cal-linear-pile`,
+ * video on top, graphic/thumbnail below) -- fixed same day, same report:
+ * `.cal-linear-btn.is-linked` (video) carried Linear's own generic indigo,
+ * `.cal-linear-btn-graphic.is-linked` (thumbnail) carried a fuchsia, and
+ * neither was the vibrant pink/blue pair, so the corner of the card still
+ * disagreed with the fields even after the dot fix above. That indigo stays
+ * correct everywhere else Linear appears (Workload's plan-origin badge, the
+ * review panel's Linear link) -- only these two component-scoped rules move.
  */
 const fs = require('fs');
 const path = require('path');
@@ -57,6 +67,32 @@ ok(!/--cal-comp-video-dot:\s*var\(--sv-misc-/.test(source),
   '--cal-comp-video-dot never reverts to the old standalone sv-misc token');
 ok(!/--cal-comp-graphic-dot:\s*var\(--sv-misc-/.test(source),
   '--cal-comp-graphic-dot never reverts to the old standalone sv-misc token');
+
+// The Linear pile icons (bottom-right of the thumbnail): same pairing,
+// checked directly against the rule text rather than a combined regex, since
+// the two rules live far apart in the stylesheet (one is a component-scoped
+// override of the other).
+const LINEAR_VIDEO_RULE = /\.cal-linear-btn\.is-linked\s*\{\s*background:\s*([^;]+);\s*color:\s*([^;]+);\s*\}/;
+const LINEAR_GRAPHIC_RULE = /\.cal-linear-btn-graphic\.is-linked\s*\{\s*color:\s*([^;]+);\s*background:\s*([^;]+);\s*\}/;
+
+const linearVideo = source.match(LINEAR_VIDEO_RULE);
+ok(!!linearVideo, '.cal-linear-btn.is-linked (the video Linear-pile icon) rule is found');
+if (linearVideo) {
+  ok(linearVideo[1].trim() === 'var(--sv-slot-video-bg)' && linearVideo[2].trim() === 'var(--sv-slot-video-fg)',
+    `.cal-linear-btn.is-linked resolves through the video slot tokens, got background:"${linearVideo[1].trim()}" color:"${linearVideo[2].trim()}"`);
+}
+
+const linearGraphic = source.match(LINEAR_GRAPHIC_RULE);
+ok(!!linearGraphic, '.cal-linear-btn-graphic.is-linked (the thumbnail Linear-pile icon) rule is found');
+if (linearGraphic) {
+  ok(linearGraphic[1].trim() === 'var(--sv-slot-thumb-fg)' && linearGraphic[2].trim() === 'var(--sv-slot-thumb-bg)',
+    `.cal-linear-btn-graphic.is-linked resolves through the thumbnail slot tokens, got color:"${linearGraphic[1].trim()}" background:"${linearGraphic[2].trim()}"`);
+}
+
+ok(!/\.cal-linear-btn\.is-linked\s*\{\s*background:\s*var\(--sv-bg-ecedfb\)/.test(source),
+  '.cal-linear-btn.is-linked never reverts to the old generic-indigo background');
+ok(!/\.cal-linear-btn-graphic\.is-linked\s*\{\s*color:\s*var\(--sv-fg-d946ef\)/.test(source),
+  '.cal-linear-btn-graphic.is-linked never reverts to its old standalone fuchsia');
 
 if (failures) { console.error('\ncal-comp-dot-matches-slot-colors FAILED: ' + failures); process.exit(1); }
 console.log('\ncal-comp-dot-matches-slot-colors passed');

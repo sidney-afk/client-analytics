@@ -19624,9 +19624,10 @@
            pure waste: 2.3 s of a 2.6 s render at live shape, profiled
            2026-09-15.
            The signature covers EVERY field the markup below reads (the three
-           filters, each sub's id/identifier/title/url/client/team, and the
-           resolved parent's key/identifier/title/url), so anything the user
-           could see changing still rebuilds. It is checked against the DOM
+           filters, each sub's id/identifier/title/url/client/team and the
+           sort order the chips are ordered by, and the resolved parent's
+           key/identifier/title/url), so anything the user could see changing
+           still rebuilds. It is checked against the DOM
            actually on screen, so a strip wiped by anything else is rebuilt
            rather than assumed good. */
         const looseSignature = [
@@ -19637,6 +19638,10 @@
                     group.parent ? [group.parent.key, group.parent.identifier, group.parent.title, group.parent.url].join('\u0001') : '-',
                     ...group.subs.map(sub => [
                         sub.id, sub.identifier, sub.title, sub.url, sub.clientName, sub.teamKey, sub.teamName,
+                        // wlSortSubIssues orders the chips inside a parent group by
+                        // the native sort order first, so a snapshot that changes
+                        // only that field still has to redraw (Codex, #1402).
+                        sub.sortOrder ?? sub.sort_order,
                     ].join('\u0001')),
                 ].join('\u0002')),
             ].join('\u0003')),

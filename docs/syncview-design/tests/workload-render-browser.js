@@ -24,7 +24,7 @@ const {
 const PHASES = [
   'week_structure', 'capacity_at_cap', 'capacity_over', 'weights',
   'labels_auto_manual', 'label_loading', 'label_fallback',
-  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint', 'early_issue_fetch', 'early_fetch_rollback',
+  'failclosed_401', 'failclosed_403', 'cold_boot_skeleton', 'cache_first_paint', 'early_issue_fetch', 'early_fetch_rollback', 'loose_strip_resort',
   'exclusions', 'filters', 'permissions_readonly', 'permissions_admin',
 ];
 let currentPhase = PHASES[0];
@@ -378,6 +378,42 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       }));
       expect(seen.early === 'undefined' && seen.supabaseIssueReads === 0,
         'with ?wl2=0 in the URL the head script starts no early Supabase read and the board issues none');
+    } finally { await h.close(); }
+  }
+
+  phase('loose_strip_resort');
+  {
+    /*
+     * The loose strips skip their rebuild when a content signature says
+     * nothing they render has changed. The chips inside a parent group are
+     * ordered by the native sort order, so a snapshot that changes ONLY that
+     * field still has to redraw -- the first version of the signature left
+     * those queues in their stale order (Codex review on #1402).
+     */
+    const rows = [parentRow({ id: 'p1', identifier: 'VID-P1' })];
+    for (let i = 0; i < 3; i++) {
+      rows.push(issueRow({
+        id: 'u' + i, identifier: 'VID-U' + i, title: 'Loose ' + i, parent_id: 'p1',
+        is_sub_issue: true, due_date: WED, assignee_id: null, assignee_name: null, sort_order: i + 1,
+      }));
+    }
+    const h = await launchWorkloadHarness({ issues: rows });
+    try {
+      await h.page.waitForFunction(
+        () => document.querySelectorAll('#wlUnassignedChips .workload-chip').length === 3,
+        null, { timeout: 30000 },
+      );
+      const before = await h.page.evaluate(() => [...document.querySelectorAll('#wlUnassignedChips .workload-chip')].map(a => a.textContent.trim()));
+      expect(before.join('|').includes('Loose 0|') && before[0].includes('Loose 0'),
+        'the strip starts in native sort order (harness is not vacuous)');
+      const after = await h.page.evaluate(() => {
+        for (const issue of wlState.issueSnapshot) if (issue.id === 'u0') issue.sortOrder = 99;
+        wlApplyData(wlState.issueSnapshot, Date.now());
+        renderWorkloadAll();
+        return [...document.querySelectorAll('#wlUnassignedChips .workload-chip')].map(a => a.textContent.trim());
+      });
+      expect(after[after.length - 1].includes('Loose 0') && !after[0].includes('Loose 0'),
+        'a snapshot that changes only the sort order still redraws the strip into the new order');
     } finally { await h.close(); }
   }
 

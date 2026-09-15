@@ -72,6 +72,71 @@ became the freeze point. The freeze is on merges, not deploys, so this does not
 break it. Noted so a later reader is not startled by a deploy timestamp inside
 the freeze window.
 
+### 2026-09-15 — CORRECTION to the entry above: the decisive argument was wrong, and the question is now UNPROVEN
+
+Placed below the original per the house rule. The original entry stays exactly
+as written; it is wrong and that is the point of keeping it.
+
+**What was wrong.** The entry treated `notify` having no live deployment as
+proof that no commit could match all thirteen. That inverts the meaning.
+`notify` **does not exist on frozen main at all**. It is new code this migration
+branch adds. Verified both ways: no `notify` source directory at `0aa5954`, one
+on the prep branch; main's onboarding lane deploys **twelve** slugs, the prep
+branch's deploys thirteen with `notify` as the addition.
+
+So `notify` having no live version is the ordinary state of a function that has
+not shipped yet, not a missing prior deployment. The premise was true and meant
+the opposite of what was drawn from it. The verdict happened to be defensible;
+the reasoning that produced it was not, which is worse than a wrong answer
+honestly reasoned, because it would have survived review on false grounds.
+
+The failure was not checking whether `notify` existed on main before building an
+argument on its absence. One `git ls-tree` would have caught it.
+
+**Re-answer for the twelve that do have deployed versions: UNPROVEN from this
+sandbox.** Not "no". Unproven.
+
+Worse, the original entry's supporting evidence leaned toward "no" and that lean
+was also unjustified. The offline structure actually leaves a single matching
+commit **plausible**: of the twelve, ten saw no changes to their own source
+directories across the whole deploy window, and the two that moved a lot,
+`linear-outbound` and `production-write`, are the two deployed most recently. A
+commit near the top of main is a reasonable candidate. That is not a finding
+either; it is the reason the question needs a real answer rather than an
+inference in either direction.
+
+**What would prove it, exactly.** Live fingerprints are what is missing, and
+they are independent of whichever commit is pinned, so one authenticated run
+produces all of them:
+
+1. On a machine that carries `SUPABASE_ACCESS_TOKEN` (the owner's machine, or
+   CI), run `node scripts/ef-fingerprint.js <any-40-char-sha>
+   --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,production-comments,production-archive,production-write
+   --format=json` and keep the twelve `live_fingerprint` values.
+2. Offline, walk main backwards from `0aa5954` running the same command with
+   `--expected-only` at each candidate commit.
+3. The answer is the first commit whose twelve `expected_fingerprint` values all
+   equal the live ones. If no commit matches, C1 is genuinely unavailable.
+
+This session cannot do step 1: `ef-fingerprint` refuses its live comparison
+without that token, the sandbox does not carry it, and the house rule is that
+nobody asks the owner for it. Reading deployed source through the Supabase
+connection and re-hashing it locally was considered and rejected as a
+workaround that would reimplement the closure algorithm and could quietly
+disagree with the real tool.
+
+**Also corrected: the live function count is 36, not 37.** A miscount. It
+cross-checks: the branch manifest carries 38 slugs, and the two not live are
+`notify`, unshipped, and `write-diagnostics`, dormant by design.
+
+**New point nobody had stated.** Rolling back a brand-new function is a
+different operation from rolling back the other twelve. For the twelve there is
+a previous version to restore. For `notify` there is no previous version, so
+"rollback" means **removing the function or leaving it inert**, not restoring
+anything. The recovery procedure currently describes a thirteen-function
+restoration in uniform terms and should say which of the two it intends for
+`notify`. Recorded as B8.
+
 ### 2026-09-15 — Owner sitting page written for steps 1, 8, 9, 10 and 11
 
 Prepared a single ordered page the owner can follow cold at the keyboard, with
@@ -244,6 +309,16 @@ Live list. Items come off with a date and a note, never by deletion.
 
 | B6 | Recovery route C1 is not available: no single older commit matches all thirteen deployed functions, and `notify` is not deployed at all | Owner, before step 13 | An owner decision. Either accept proceeding without C1, or authorize a separately prepared and reviewed exact-capture restoration lane. Added 2026-09-15 from the step 2 capture. Tightens B5, which assumed a restoration route would exist |
 
+| B7 | Whether one older main commit matches all **twelve** functions that have deployed versions is UNPROVEN, so C1 is neither confirmed nor ruled out | Owner or CI, before step 13 | One authenticated `ef-fingerprint` live read plus an offline walk back through main. Recipe in the 2026-09-15 correction entry. Added 2026-09-15, superseding B6 |
+| B8 | The recovery procedure does not say what rollback means for a brand-new function | Owner, before step 16 | For `notify` there is no previous version, so rollback means removing it or leaving it inert, not restoring. The procedure should state which. Added 2026-09-15 |
+
+**B6 is withdrawn as reasoned, 2026-09-15.** Its row stays above per the append
+rule. It asserted that C1 was unavailable *because* `notify` had no deployed
+version. That reasoning was wrong: `notify` is new code that does not exist on
+frozen main, so having no deployed version is expected. B7 replaces it on the
+correct basis, and reaches a weaker and more honest conclusion: unproven rather
+than unavailable.
+
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a
 session's addition.
@@ -414,6 +489,24 @@ its categories, so no amount of re-running it would have found the fifth item.
 The fixture fix was quoted to the owner as four edits, one per failing chain. It
 was one: all five suites route through the same shared cluster builder. The
 scope was checked properly only after the number had already been given.
+
+### 2026-09-15 — A step 2 argument was built on a premise never checked against main
+
+The worst of the session's errors, because it was not a miscount or a loose
+description but a confident inference from a fact that meant the opposite of
+what was claimed. `notify` having no live deployment was presented as decisive
+proof, without first checking whether `notify` existed on main. It does not; it
+is new code this branch adds.
+
+The supervisor caught it. The lesson is narrow and worth keeping: when a missing
+thing is about to become the load-bearing part of an argument, establish whether
+it was ever supposed to be there. Absence has at least two causes and they point
+in opposite directions.
+
+Also corrected in the same pass: the live function count was reported as 37 and
+is 36; and the current head was described as green while three of its checks
+were still running. Both are small, but the second is the same species of error
+as the first, which is asserting a state that had not actually been observed.
 
 ### 2026-09-15 — The intake test was described as pinning expected source text
 

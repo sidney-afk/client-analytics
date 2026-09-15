@@ -27,6 +27,16 @@
  * disagreed with the fields even after the dot fix above. That indigo stays
  * correct everywhere else Linear appears (Workload's plan-origin badge, the
  * review panel's Linear link) -- only these two component-scoped rules move.
+ *
+ * And a FOURTH time, which is why this file now guards the shape of the rule
+ * rather than just its colour. A full pile is four buttons: Linear + SyncView
+ * Production, for each of Video and Thumbnail. The two PRODUCTION buttons were
+ * both teal -- one colour, one glyph, nothing at all to say which was which
+ * (owner, 2026-09-15, having asked three times: "both of them look the same").
+ * Teal encoded the system and discarded the component. Now colour carries the
+ * component on all four (pink Video / blue Thumbnail) and the system moves to
+ * fill-vs-outline, so the invariant worth pinning is not "this rule is pink"
+ * but "no two buttons in a pile resolve to the same colour token".
  */
 const fs = require('fs');
 const path = require('path');
@@ -101,6 +111,58 @@ ok(!/\.cal-linear-btn-graphic\.is-linked[^:]*\{\s*color:\s*var\(--sv-fg-d946ef\)
   '.cal-linear-btn-graphic.is-linked never reverts to its old standalone fuchsia');
 ok(!/\.cal-linear-btn-graphic\.is-linked\s*\{/.test(source),
   '.cal-linear-btn-graphic.is-linked never appears WITHOUT the :not(.cal-prod-btn) guard (the Codex #1401 finding)');
+
+/* THE FOUR-BUTTON PILE. Video and Thumbnail each get a Linear button and a
+   SyncView Production button, and all four can stack at once. Every one of
+   them must resolve to its OWN component's colour token -- the failure this
+   guards is two of them landing on the same colour, which is what shipped
+   when both Production buttons were teal. */
+const PROD_VIDEO_RULE = /\.cal-linear-btn-video\.cal-prod-btn\s*\{\s*color:\s*([^;]+);\s*\}/;
+const PROD_GRAPHIC_RULE = /\.cal-linear-btn-graphic\.cal-prod-btn\s*\{\s*color:\s*([^;]+);\s*\}/;
+
+const prodVideo = source.match(PROD_VIDEO_RULE);
+const prodGraphic = source.match(PROD_GRAPHIC_RULE);
+ok(!!prodVideo, '.cal-linear-btn-video.cal-prod-btn (the Video Production pile button) is component-scoped');
+ok(!!prodGraphic, '.cal-linear-btn-graphic.cal-prod-btn (the Thumbnail Production pile button) is component-scoped');
+if (prodVideo) {
+  ok(prodVideo[1].trim() === 'var(--sv-slot-video-fg)',
+    `the Video Production button takes the video slot colour, got "${prodVideo[1].trim()}"`);
+}
+if (prodGraphic) {
+  ok(prodGraphic[1].trim() === 'var(--sv-slot-thumb-fg)',
+    `the Thumbnail Production button takes the thumbnail slot colour, got "${prodGraphic[1].trim()}"`);
+}
+if (prodVideo && prodGraphic) {
+  ok(prodVideo[1].trim() !== prodGraphic[1].trim(),
+    'the two Production buttons never resolve to the SAME colour again (the 2026-09-15 "both of them look the same" report)');
+}
+
+// The four colours a full pile can show, as the stylesheet resolves them.
+// Four buttons, four distinct tokens -- no pair may collide.
+const pileColours = [
+  ['Video Linear', linearVideo && linearVideo[2].trim()],
+  ['Video Production', prodVideo && prodVideo[1].trim()],
+  ['Thumbnail Linear', linearGraphic && linearGraphic[1].trim()],
+  ['Thumbnail Production', prodGraphic && prodGraphic[1].trim()],
+].filter(entry => entry[1]);
+ok(pileColours.length === 4, 'all four pile buttons have a resolvable colour rule, found ' + pileColours.length);
+// Video's two share pink and Thumbnail's two share blue BY DESIGN -- the
+// system axis is fill-vs-outline, not hue. What must never collide is the two
+// halves of the pile, i.e. Video's colour against Thumbnail's.
+const videoTokens = pileColours.filter(e => e[0].startsWith('Video')).map(e => e[1]);
+const thumbTokens = pileColours.filter(e => e[0].startsWith('Thumbnail')).map(e => e[1]);
+ok(videoTokens.length === 2 && new Set(videoTokens).size === 1,
+  "Video's Linear and Production buttons share one component colour");
+ok(thumbTokens.length === 2 && new Set(thumbTokens).size === 1,
+  "Thumbnail's Linear and Production buttons share one component colour");
+ok(videoTokens[0] !== thumbTokens[0],
+  'the Video half and the Thumbnail half of the pile never share a colour');
+
+// The system axis has to stay somewhere, now that it is not hue: Production is
+// the OUTLINED chip. Without this the two halves would be four identical-looking
+// chips in two colours, which is the same complaint one level down.
+ok(/\.cal-linear-btn\.cal-prod-btn\s*\{[^}]*background:\s*transparent[^}]*border:\s*[^;]*solid/.test(source),
+  'Production buttons stay visually distinct from Linear ones by being outlined rather than filled');
 
 if (failures) { console.error('\ncal-comp-dot-matches-slot-colors FAILED: ' + failures); process.exit(1); }
 console.log('\ncal-comp-dot-matches-slot-colors passed');

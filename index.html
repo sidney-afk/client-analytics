@@ -5276,9 +5276,30 @@
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
         /* SyncView Production sub-issue link — same footprint as the Linear
-           icon, teal so the two systems read apart at a glance. */
-        .cal-linear-btn.cal-prod-btn { background: var(--sv-bg-e6f7f4, #e6f7f4); color: var(--sv-fg-0d9488, #0d9488); }
-        .cal-linear-btn.cal-prod-btn:hover { background: var(--sv-bg-d1f0eb, #d1f0eb); color: var(--sv-fg-0f766e, #0f766e); }
+           icon. This used to be teal for BOTH components, which meant the two
+           Production buttons in one pile were identical twins: same colour,
+           same glyph, nothing to say which was the video and which the
+           thumbnail (owner, 2026-09-15: "both of them look the same... the
+           sync linear button looks the fucking same"). Teal carried the
+           SYSTEM but threw away the COMPONENT, and the component is what a
+           reader is actually picking between when four buttons stack up.
+           So the two axes are split across two properties:
+             - COLOUR = component. Pink for Video, blue for Thumbnail, the
+               same pair the link fields, the status dots and the Linear
+               buttons already use, so a pile reads as a pink half and a blue
+               half.
+             - SHAPE = system. Linear is a solid filled chip; Production is
+               OUTLINED (transparent centre, ringed in its component colour),
+               on top of the already-different glyph — the Linear mark versus
+               the open-in-a-new-tab box.
+           Border, not box-shadow, for the ring: .cal-linear-pile sets its own
+           drop box-shadow on every button in the pile and would clobber it.
+           Global box-sizing is border-box, so the ring costs no footprint. */
+        .cal-linear-btn.cal-prod-btn { background: transparent; border: 1.5px solid currentColor; }
+        .cal-linear-btn-video.cal-prod-btn { color: var(--sv-slot-video-fg); }
+        .cal-linear-btn-video.cal-prod-btn:hover { background: var(--sv-slot-video-bg); }
+        .cal-linear-btn-graphic.cal-prod-btn { color: var(--sv-slot-thumb-fg); }
+        .cal-linear-btn-graphic.cal-prod-btn:hover { background: var(--sv-slot-thumb-bg); }
         /* Fill the missing component. A DASHED outline over the plain field
            background, deliberately quieter than the orange warn state: a card
            with one component is a normal, common shape (127 of 688 live cards

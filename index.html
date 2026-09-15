@@ -14275,6 +14275,14 @@
         planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         planError: null,
         planFetchedAt: null,
+        // How the sidecar matched saved days to cards on the last authoritative
+        // read. 'snapshot' and 'pairs' are both complete answers; 'none' means
+        // it could not build the id pairing at all. planUnaliased counts the
+        // saved days it could NOT match — the board is then right about
+        // everything else and missing those, which is exactly the state that
+        // used to be invisible (item 210).
+        planAliasMode: '',                         // '' | 'snapshot' | 'pairs' | 'none'
+        planUnaliased: 0,
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
@@ -14949,7 +14957,20 @@
                 throw error;
             }
             if (sessionGeneration !== _wlPlanSessionGeneration) throw new Error('staff_session_changed');
-            return { rows: json.plans, readGeneration };
+            /* A response can be OK and still carry an INCOMPLETE map: saved days
+               are stored under two ids for the same card and the sidecar
+               reconciles them per answer, so a degraded answer holds every
+               stored day but not every alias. Absent fields mean an older
+               function build, which cannot report either way — read as
+               complete, exactly as this client behaved before they existed. */
+            const aliasMode = String(json.alias_mode || '');
+            const unaliased = Number(json.plans_unaliased);
+            return {
+                rows: json.plans,
+                readGeneration,
+                aliasMode,
+                unaliased: Number.isFinite(unaliased) && unaliased > 0 ? Math.floor(unaliased) : 0
+            };
         } finally {
             clearTimeout(timeout);
         }
@@ -15598,6 +15619,8 @@
         wlState.planStatus = 'ready';
         wlState.planError = null;
         wlState.planFetchedAt = Date.now();
+        wlState.planAliasMode = String(snapshot && snapshot.aliasMode || '');
+        wlState.planUnaliased = Number(snapshot && snapshot.unaliased) || 0;
     }
 
     function wlMarkPlanReadFailure(error) {
@@ -15631,6 +15654,8 @@
         _wlNativeDueReceiptRetryTimer = null;
         _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
+        wlState.planAliasMode = '';
+        wlState.planUnaliased = 0;
         // Derived from the pins, so it is just as sensitive: a retained "moved
         // earlier" marker would leak that a pin existed on that day. The
         // settled-day record the next pass anchors against is derived from the
@@ -18916,6 +18941,41 @@
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
             el.textContent = 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            return;
+        }
+        /* AN INCOMPLETE MATCH OUTRANKS EVERY NOTE BELOW IT.
+         *
+         * This exists because of the report in item 210: one person saw a card
+         * on the day they pinned it, another saw it a day earlier, both after a
+         * refresh, and nothing on either board said anything was wrong. The read
+         * had SUCCEEDED for both. Saved days live under two ids for the same
+         * card and the sidecar matches them per answer; a degraded answer still
+         * carries every saved day, just not every alias, so the cards it could
+         * not match fall to automatic placement on a board that otherwise looks
+         * entirely normal.
+         *
+         * It ranks above the metadata note and above 209's short-refresh note
+         * for the same reason both of those exist: a board that is WRONG about
+         * where work sits is more urgent than one that is incomplete about
+         * weights, and far more urgent than a count of what it left out. All
+         * three say what happened; this one says the day you are looking at may
+         * not be the day that was saved.
+         *
+         * It speaks only when something is actually unmatched, or when no map
+         * could be built at all. A complete match says nothing, which is what
+         * keeps it worth reading — and it deliberately does NOT speak for the
+         * historical client drift the sidecar reports separately, because that
+         * number never goes down and a standing warning is how a real one stops
+         * being read. */
+        if (status === 'ready' && (wlState.planUnaliased > 0 || wlState.planAliasMode === 'none')) {
+            const missing = Number(wlState.planUnaliased) || 0;
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = wlState.planAliasMode === 'none'
+                ? 'Saved work days could not be matched to their cards on this load, so some cards may be shown on an automatic day instead of their saved one. Use Refresh to try again.'
+                : (missing === 1
+                    ? 'One saved work day could not be matched to its card, so that card is shown on an automatic day. Everything else here is up to date.'
+                    : missing + ' saved work days could not be matched to their cards, so those cards are shown on an automatic day. Everything else here is up to date.');
             return;
         }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {

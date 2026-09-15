@@ -21827,7 +21827,117 @@ ordinary refresh keeps the pin exactly where it was, says nothing about a
 shortfall when there was none, and leaves its own snapshot cached). 101
 assertions across 20 phases. Verified pre-existing: the same probe on `555e662`, before
 any of the boot-speed work, loses the card in exactly the same silence.
-## 210. [2026-09-15, FIXED — DEPLOY REQUIRED (F27 §4)] Every post created without a filming plan orphaned its Linear issue, because Linear escaped a bracket we sent
+
+---
+---
+
+## 210. [2026-09-15, PARTIALLY FIXED — live budget raised; the real fix is still open] Two people, one card, two different days: `workload-plan`'s alias deadline was a coin flip
+
+**REPORTED** as "I pinned a card to Wednesday, I still see Wednesday after a
+refresh, my SMM sees Tuesday." Neither browser was wrong and neither was stale.
+The endpoint answered them differently.
+
+**MEASURED, live, before any change.** Three overrides for one client had been
+saved minutes earlier, all three to the same day, all three present in
+`workload_plan` with the right date. Nothing was lost at any point.
+
+**MECHANISM.** `workload_plan` holds two identity namespaces for the same card:
+the Linear issue uuid (262 rows) and the native `del_…` deliverable id (80 rows,
+first written 2026-09-08). `action:'list'` papers over that with
+`legacyPlanAliases()`, which emits every override under BOTH keys — but only
+when the enriched snapshot wins a race against `LIST_ENRICH_BUDGET_MS`. On the
+losing branch the endpoint answers `ok_unaliased`: every stored override, keyed
+exactly as stored, no aliases. A board keyed on the Linear uuid then cannot see
+a natively-keyed override at all, so those cards fall back to automatic
+placement — one working day before the deadline. That is one column earlier,
+which is exactly the divergence that was reported.
+
+The three cards in the report have a deadline of the day AFTER the pinned day,
+so the unaliased board placed them the day BEFORE the pin. Same data, same code,
+different column.
+
+**WHY IT WAS A COIN FLIP.** In the function logs the enriched snapshot lands at
+**2.5–2.8 s** against a **3.0 s** deadline. Of 40 consecutive `list` calls, 18
+logged `ok_unaliased` at a flat ~3004 ms. Not degraded under load, not an
+outage: a deadline set a few hundred milliseconds above the thing it was timing.
+Which board you got depended on nothing a person could see or control, which is
+why it read as one person's browser being broken.
+
+**NOTHING WARNED ANYONE.** `renderWorkloadPlanStatus()` speaks for a plan read
+that FAILED. This one succeeded — `{ok:true, complete:true}` — with a subset of
+the overrides it should have carried. The board painted a clean, confident,
+wrong calendar. The unaliased path already knows it is degraded (it has its own
+outcome string); the browser is never told.
+
+**DONE.** `LIST_ENRICH_BUDGET_MS` 3000 → 5000, deployed to live as
+`workload-plan` v12 (operator-manual lane, `--no-verify-jwt` preserved,
+smoke-tested: unauthenticated `list` → 401 `unauthorized`, bad action → 400
+`invalid_action`). 5 s is ~1.8× the measured cost with 3 s still inside the
+browser's 8 s abort — the abort matters, because a snapshot that HANGS is now
+held 5 s before the bounded read may answer, and overrunning the abort loses
+every saved day plus editing, which is worse than an unaliased list.
+
+**THEN DONE PROPERLY, same day, because the budget was only headroom.**
+
+1. **The fallback aliases on its own** (`planAliasPairs`, live as v14). It reads
+   the id pairing straight out of `deliverables`, bounded to the ids already in
+   the answer it is returning, under a 1.2 s deadline of its own. Losing the
+   snapshot race now costs latency, never correctness — and it does not matter
+   WHY the snapshot was unavailable, since a validation refusal takes the same
+   path as a slow one. Two id namespaces are still the root cause; this stops
+   them being able to move a card.
+
+   It keeps the snapshot validator's safety property rather than re-deriving its
+   contract: a saved day whose client no longer matches its card's is never
+   re-keyed onto that card, and an ambiguous claim aliases neither side. That
+   ambiguity check was WRONG in the first draft — the bounded read cannot see a
+   second deliverable claiming the same Linear id, because that row is not in
+   the answer — and a harness case caught it. It now confirms every candidate
+   Linear id with one extra bounded read before aliasing to it.
+
+   **MEASURED against the live table:** 342 stored days, 336 aliases emitted, 6
+   refused as client drift — the same 6 rows the snapshot path has been dropping
+   since item 177. Coverage of the two paths is now identical.
+
+2. **The degraded answer speaks.** The response carries `alias_mode`
+   (`snapshot` | `pairs` | `none`) and `plans_unaliased`, and the board renders a
+   warning above the metadata and short-refresh notes, because a board that is
+   WRONG about where work sits outranks one that is incomplete about weights.
+   A response without those fields reads as complete, so an older open tab is
+   unaffected.
+
+   **Client drift is reported separately (`plans_drifted`) and never reaches the
+   banner.** It is permanent until the data is repaired, it does not go down,
+   and a standing warning is how a real one stops being read. Counting those 6
+   on the board was in this change until it was caught in review of my own diff.
+
+**STILL OPEN.** One canonical key, with the 80 native rows migrated, ends the
+class rather than compensating for it. Owner decision — scope §6.1 in
+`docs/ops/WORKLOAD_NATIVE_SOURCE.md` — and a key migration, not a flag. Until
+then two namespaces remain, and every reader of `workload_plan` has to know it.
+
+**PROOF.** `docs/syncview-design/tests/workload-board-browser.js` phases
+`plan_alias_incomplete`, `plan_alias_unavailable`, `plan_alias_complete` (9
+assertions; 110 across 23 phases, so the 20 pre-existing phases also prove the
+no-fields-means-complete path). The pairing itself is covered by a 13-check
+harness run against the compiled function bundle, including drift, ambiguity,
+collision, a failed lookup and the slug/client-key normalization; that harness
+belongs with the function source, which is NOT on main — see the drift note
+below. `prod-write-gateway-browser` passes; `prod-boot-budget` fails identically
+on `origin/main` in this sandbox (external CDN TLS), so it is not this change.
+
+**REPO/LIVE DRIFT, found on the way and worth its own attention.** Live
+`workload-plan` is far ahead of `main`: the deployed function has the native
+snapshot, the alias adapter, `native_snapshot`, and the RPC write path, none of
+which exist in `supabase/functions/workload-plan/` on `main` (that copy would
+REJECT a native id outright). The deployed bytes match
+`origin/prep/linear-exit-review-fixes-20260913` — verified file by file before
+redeploying, which is the only reason this change could be made without
+regressing live. `docs/ops/EF_DEPLOY_MANIFEST.md` still records "deployed by
+operator from `fd3e0eaa` on 2026-07-20". Anything that captures `main` as the
+rollback truth for this function is capturing code that is not live.
+
+## 211. [2026-09-15, FIXED — DEPLOY REQUIRED (F27 §4)] Every post created without a filming plan orphaned its Linear issue, because Linear escaped a bracket we sent
 
 Reported as "the client needs attribution" on two calendars. The banner was
 honest and pointed at the wrong thing: the cards' stored client was correct and

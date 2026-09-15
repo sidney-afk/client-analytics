@@ -33,6 +33,7 @@ const PHASES = [
   'group_drag', 'handle_only', 'use_automatic_plan',
   'drag_outside_week', 'drag_same_day',
   'refresh_short_payload', 'refresh_complete_payload',
+  'plan_alias_incomplete', 'plan_alias_unavailable', 'plan_alias_complete',
 ];
 let currentPhase = PHASES[0];
 let passes = 0;
@@ -532,6 +533,71 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       const cached = await h.page.evaluate(() => localStorage.getItem('syncview_linearIssuesCache_v1'));
       expect(typeof cached === 'string' && cached.includes('r1'),
         'and a complete refresh leaves its snapshot cached, so only a SHORT one costs the next boot a network read');
+    } finally { await h.close(); }
+  }
+
+  /* ── 13. A saved-day answer can be OK and still be an incomplete MAP. ──
+   *
+   * Saved days are stored under two ids for the same card; the sidecar matches
+   * them per answer and says how well it managed. When it could not match some
+   * of them, those cards sit on an automatic day while everything around them
+   * is right -- the exact state that cost item 210 an afternoon, because the
+   * board said nothing at all. These phases hold it to saying so. */
+  const bootWithMeta = (planListMeta) => launchWorkloadHarness({
+    issues: [
+      parentRow({}),
+      sub('a1', { due_date: WED, client_name: 'Client A' }),
+      sub('a2', { due_date: FRI, client_name: 'Client A' }),
+    ],
+    plans: [{ issue_id: 'a2', plan_date: THU }],
+    planListMeta,
+  });
+  const planStatusText = (page) => page.evaluate(() => {
+    const el = document.getElementById('wlPlanStatus');
+    return { hidden: !el || el.hidden, text: el ? el.textContent : '' };
+  });
+
+  phase('plan_alias_incomplete');
+  {
+    const h = await bootWithMeta({ alias_mode: 'pairs', plans_unaliased: 2, plans_drifted: 6 });
+    try {
+      await waitForPlanSettled(h.page);
+      const said = await planStatusText(h.page);
+      expect(!said.hidden && /2 saved work days could not be matched/.test(said.text),
+        'an answer that could not match some saved days must say how many');
+      expect(/automatic day/.test(said.text),
+        'and must say what that means for those cards, not just that something happened');
+      expect(!/6/.test(said.text),
+        'and must NOT report the historical client drift the sidecar counts separately — that number never goes down, and a standing warning is how a real one stops being read');
+      const board = await readBoard(h.page);
+      expect(dayOf(board, 'a2') === THU && board.cards.find(c => c.id === 'a2').mode === 'manual',
+        'while every saved day it DID match still renders exactly where it was saved');
+      expect(h.state.planWrites.length === 0, 'and reading an incomplete map writes nothing');
+    } finally { await h.close(); }
+  }
+
+  phase('plan_alias_unavailable');
+  {
+    const h = await bootWithMeta({ alias_mode: 'none', plans_unaliased: 1 });
+    try {
+      await waitForPlanSettled(h.page);
+      const said = await planStatusText(h.page);
+      expect(!said.hidden && /could not be matched to their cards/.test(said.text),
+        'a map that could not be built at all must be reported');
+      expect(/Refresh/.test(said.text), 'and must say what to do about it');
+      expect(await h.page.evaluate(() => wlState.planStatus) === 'ready',
+        'the read itself still succeeded, so editing stays enabled — this is a warning, not a failure');
+    } finally { await h.close(); }
+  }
+
+  phase('plan_alias_complete');
+  {
+    const h = await bootWithMeta({ alias_mode: 'snapshot', plans_unaliased: 0, plans_drifted: 6 });
+    try {
+      await waitForPlanSettled(h.page);
+      const said = await planStatusText(h.page);
+      expect(said.hidden || !/could not be matched/.test(said.text),
+        'a complete match says nothing — a banner with nothing to report is its own lie');
     } finally { await h.close(); }
   }
 

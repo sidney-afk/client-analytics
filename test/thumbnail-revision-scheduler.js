@@ -166,7 +166,7 @@ async function rejectsMessage(work, pattern) {
    * what makes the function and this caller safe to ship in either order.
    *
    * Known-dead rows do not keep the lane red -- they are what made it red on 5
-   * of its last 8 scheduled runs purely by cursor position (OPEN_REPAIRS 203),
+   * of its last 8 scheduled runs purely by cursor position (OPEN_REPAIRS 204),
    * and nothing can ever clear them. A NEWLY unreadable source does, because
    * "the service account lost a folder" must not read like "the same three dead
    * files came round again". */

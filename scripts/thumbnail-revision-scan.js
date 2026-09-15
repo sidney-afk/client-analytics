@@ -190,7 +190,7 @@ async function main() {
   // The one thing that does NOT keep the lane red is a Drive 404 on a source
   // this scan has already recorded as unreadable. Those are the rows that made
   // the lane red on 5 of its last 8 scheduled runs purely by where the
-  // round-robin cursor landed (OPEN_REPAIRS 203), and no scan can ever clear
+  // round-robin cursor landed (OPEN_REPAIRS 204), and no scan can ever clear
   // them: the backfill re-enrols any active non-archived source with no pending
   // row, so they cannot be retired either.
   //

@@ -453,7 +453,12 @@ const CANDIDATES = new Map([
     // permission. Only policy.mjs moved (clientOperationAllowed) -- no
     // migration, no schema, no new import, file count unchanged at 5, and the
     // entrypoint hash is unchanged because it hashes the PATH.
-    source: 'fc721251eeb6bd5c5f75456657ee51e105e452e6234a4121e61b93dd1b59de90',
+    // Re-pinned 2026-09-14: autoAssigneeForIntake drops editors flagged
+    // team_members.auto_assign_opt_out from the AUTOMATIC video pool. Reads one
+    // more column on the existing roster select -- no migration beyond the
+    // additive column, no schema, no new import, file count unchanged at 5, and
+    // the entrypoint hash is unchanged because it hashes the PATH.
+    source: '746f8b918d369e4e14f9ed1d3640e5cb566edd41fa0608255be5fd95d09ded42',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

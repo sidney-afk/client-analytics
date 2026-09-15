@@ -450,7 +450,14 @@ ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
   && !/Promise\.all|_wlPlanWriteRequest|action:\s*['"]batch['"]/.test(clientGroupMove)
-  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} put back/.test(clientGroupMove),
+  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} not saved/.test(clientGroupMove)
+  /* The body is status-aware since 2026-09-14: after an auth refusal the pins
+     are purged, so the cards do NOT keep their previous work day — and the
+     category comes from the REFUSAL, not from the purged state, because 401
+     and 403 both purge and need opposite advice. */
+  && /refusal === 401[\s\S]*?sign in again/.test(clientGroupMove)
+  && /refusal === 403[\s\S]*?cannot edit saved work days/.test(clientGroupMove)
+  && /Each failed item kept its previous work day/.test(clientGroupMove),
 'collapsed group drag stays Admin/SMM-gated, tweak-exclusive, sequential, and aggregate-notified through the one-row writer');
 ok(/rollupEl\.setAttribute\('aria-expanded', 'true'\)/.test(INDEX)
   && /anchor\.setAttribute\('aria-expanded', 'false'\)/.test(INDEX)
@@ -572,11 +579,71 @@ ok(/const manual = wlPlanDate\(sub\);\s*if \(manual\) \{ reserve\(sub, manual\);
     && /const fits = \(sub, day\) => \(used\.get\(slotOf\(sub, day\)\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\s*<= wlEditorCapacity\(/.test(capacityPlacement)
     && /used\.set\(slot, \(used\.get\(slot\) \|\| 0\) \+ wlWorkloadWeight\(sub\)\)/.test(capacityPlacement),
 'manual pins reserve their weighted units before any automatic item is placed, and fit uses the same weight and per-editor capacity as the red badge');
-ok(/day = wlSubWorkingDays\(day, 1\)/.test(capacityPlacement)
-    && /guard < WL_PLACEMENT_WALK_LIMIT && day >= today/.test(capacityPlacement)
-    && !/wlAddWorkingDays|wlNextWorkingDay/.test(capacityPlacement)
-    && /const finalDay = placed \|\| entry\.ideal/.test(capacityPlacement),
-'the walk only ever steps BACKWARD, is double-bounded by the walk limit and the today floor, and falls back to the honest ideal day');
+ok(/const windowStart = wlIsWorkingDay\(today\) \? today : wlAddWorkingDays\(today, 1\);/.test(capacityPlacement)
+    && /let day = windowStart;/.test(capacityPlacement)
+    && /day = wlAddWorkingDays\(day, 1\)/.test(capacityPlacement)
+    && /guard < WL_PLACEMENT_WALK_LIMIT && day <= ideal/.test(capacityPlacement)
+    && !/wlSubWorkingDays|wlPrevWorkingDay/.test(capacityPlacement)
+    && /const finalDay = firstFit\(entry\.sub, entry\.ideal\) \|\| reshuffleFor\(entry\) \|\| entry\.ideal/.test(capacityPlacement),
+'the walk starts at the first WORKING day from today and only ever steps FORWARD, is double-bounded by the walk limit and the ideal-day ceiling, and falls back through the bounded reshuffle to the honest ideal day');
+/* The reshuffle is the one place an ALREADY PLACED item can move, so its
+   bounds are pinned in source rather than left to the behaviour suite: it
+   runs only after first fit fails, it considers only same-capacity-key
+   (same editor, same team) items, an evicted item re-places by ordinary
+   first fit inside its OWN window and may not evict anyone in turn, and a
+   day that does not work is rolled back exactly. */
+const reshuffle = capacityPlacement.slice(capacityPlacement.indexOf('const reshuffleFor ='),
+  capacityPlacement.indexOf('const settle ='));
+ok(reshuffle.length > 0 && reshuffle.length < 4000,
+  'the reshuffle slice is bounded (harness is not vacuous)');
+ok(/wlCapacityKey\(other\.sub\) !== wlCapacityKey\(entry\.sub\)/.test(reshuffle)
+    && /const moved = firstFit\(other\.sub, other\.ideal, day\)/.test(reshuffle)
+    && !/reshuffleFor\(/.test(reshuffle)
+    && /for \(const move of moves\) release\(move\.other\.sub, move\.to\);\s*\n\s*for \(const other of set\) reserve\(other\.sub, day\);/.test(reshuffle)
+    && /day <= entry\.ideal/.test(reshuffle),
+'the reshuffle only moves same-editor automatic work inside its own window, never recurses, and rolls a failed day back exactly');
+/* Candidates are tried as SETS, smallest first, and the search is bounded by
+   two literals rather than by the size of the board: taking the cheapest card
+   first spends the room a heavier one needed, and an unbounded subset search
+   over a busy day is not something a render pass may do. */
+ok(/const sets = \[\];/.test(capacityPlacement)
+    && /sets\.sort\(\(a, b\) => a\.length - b\.length \|\| weightOf\(a\) - weightOf\(b\)\)/.test(capacityPlacement)
+    && /candidates\.slice\(0, WL_RESHUFFLE_MAX_CANDIDATES\)/.test(capacityPlacement)
+    && /chosen\.length >= WL_RESHUFFLE_MAX_EVICTIONS/.test(capacityPlacement),
+'the eviction search tries sets smallest-first and is bounded by both literals');
+/* The anchor is what keeps a settled board from churning, and it is the one
+   piece of state that crosses a snapshot — so it must be in-memory only,
+   dropped the moment it stops fitting, and purged with the pins it derives
+   from. */
+ok(/const previous = wlState\.autoPlacementSettled instanceof Map/.test(capacityPlacement)
+    && /anchor < windowStart \|\| anchor > entry\.ideal \|\| !wlIsWorkingDay\(anchor\) \|\| !fits\(entry\.sub, anchor\)/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(/.test(capacityPlacement)
+    && /wlState\.autoPlacementSettled = new Map\(\);/.test(INDEX),
+'incumbents anchor from the previous pass, the anchor is dropped as soon as it no longer fits, and it is purged with the pins');
+/* A refused save must put the card back. The 401 and 403 branches used to
+   return without restoring it, so the card sat on a day the server never
+   accepted — visible until the next refresh, and silent entirely on a group
+   drag, which is how a drag appears to "not save". Pinned in source because
+   the failure only shows up against a live gateway. */
+/* Brace-matched, not cut at a character count: a fixed window silently stops
+   covering the end of the function as soon as it grows, which is how the
+   auto-assign slice in deliverable-counts-exclude-parents broke on 2026-09-14
+   for a property that had not changed. */
+const persistStart = INDEX.indexOf('async function _wlPersistPlanDate(');
+let persistEnd = -1;
+for (let i = INDEX.indexOf('{', persistStart), depth = 0; i < INDEX.length; i++) {
+  if (INDEX[i] === '{') depth++;
+  else if (INDEX[i] === '}' && --depth === 0) { persistEnd = i + 1; break; }
+}
+const persistPlan = INDEX.slice(persistStart, persistEnd);
+ok(persistStart >= 0 && persistEnd > persistStart && persistPlan.length < 8000,
+  'the plan-write slice covers exactly that function (harness is not vacuous)');
+const restores = (persistPlan.match(/wlApplyPlanLocal\(issue\.id, previousDate\)/g) || []).length;
+ok(restores >= 3
+    && /resp\.status === 401\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\);\s*\n\s*_syncviewStaffIdentityClear\(\)/.test(persistPlan)
+    && /resp\.status === 403\)\s*\{[\s\S]*?wlApplyPlanLocal\(issue\.id, previousDate\)[\s\S]*?wlPurgePlanSensitiveState\(\)/.test(persistPlan),
+'every refused plan write restores the previous day, including 401 and 403, each restoring BEFORE the purge that clears the pins, so no plan date is written back on the far side of it');
+
 ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/wlApplyPlanLocal|wlSetPlanDate|_wlPersistPlanDate|_wlPlanWriteRequest|WORKLOAD_PLAN_URL/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),

@@ -21078,7 +21078,41 @@ duplicate top-level numbers in this file are all present identically on
 
 ---
 
-## 200. [2026-09-12, MEASURED — the growth is one bucket on one team; the mechanism is NOT established] The shadow-audit residue rose 94 → 122 in eleven days, and 19 of the 28 are `outbound_archive_mismatch`
+## 200. [2026-09-14, BUILT] The Workload cold boot: cached snapshot first, an honest loading matrix, and a shimmer that keeps moving
+
+The owner watched a hard refresh of `#workload` and saw three things in a row:
+the boot skeleton, then a page whose team matrix already read "Free / Clear / 0"
+for every editor over a calendar skeleton, then that skeleton's shimmer stopping
+dead for a beat before the board appeared.
+
+**Three causes, three fixes, all in `index.html`.**
+
+1. **The matrix painted a roster of zeros while loading.** `renderWorkloadOverviewMatrix`
+   always merged live rows onto the fixed editor roster, so with nothing loaded
+   yet every editor was "Free" and every count "0": false data dressed as a
+   result. It now holds skeleton rows, blank totals and `aria-busy` until the
+   board has anything real.
+2. **A refresh ignored the snapshot it already had.** `initWorkloadView` read the
+   localStorage cache but `wlLoadSnapshot` only used it if the live read
+   FAILED; past the 5-minute TTL every refresh held the skeleton for the whole
+   Linear round trip. The cached issues now go on screen as soon as the
+   saved-plan read settles and was not refused, at the same `planLoading`
+   placement the fast paint uses (Planning… labels, no private pins, nothing
+   editable), and the live read replaces them in place. The fail-closed
+   contract is untouched: a 401/403 plan read still holds the skeleton.
+3. **The shimmer froze.** `.sv-skeleton` animated `background-position`, which
+   runs on the main thread, so the long first-render task stopped it. The sheen
+   now rides a `::after` `transform`, which the compositor keeps moving through
+   any main-thread task. This is app-wide: every skeleton shares the class.
+
+**Proof.** `workload-render-browser.js` gained a `holdIssues` harness option and
+two phases, `cold_boot_skeleton` and `cache_first_paint`, pinning both the
+loading matrix and the stale-cache paint; 77 assertions across 15 phases pass,
+`workload-board-browser.js` still passes 88 across 18.
+
+---
+
+## 201. [2026-09-12, MEASURED — the growth is one bucket on one team; the mechanism is NOT established] The shadow-audit residue rose 94 → 122 in eleven days, and 19 of the 28 are `outbound_archive_mismatch`
 
 The `production_shadow_audit` lane has been red continuously since 2026-07-24
 and is CONTEXT with a growth gate (`PRE_FLIP_HEALTH_CHECK.md`), so the only
@@ -21149,7 +21183,7 @@ small to carry it.
 
 ---
 
-## 201. [2026-09-12, MEASURED — one bulk edit, not 98 drifts] Foreign-write STRANDED reads 98 against a baseline of 2, and 97 of the 98 land inside two minutes
+## 202. [2026-09-12, MEASURED — one bulk edit, not 98 drifts] Foreign-write STRANDED reads 98 against a baseline of 2, and 97 of the 98 land inside two minutes
 
 `foreign-write-strand-check.js` is CONTEXT with a growth gate, and the number it
 gates on is STRANDED — Linear moved, the native row never caught up — measured
@@ -21197,7 +21231,7 @@ applies to the rest.
 
 ---
 
-## 202. [2026-09-12, MEASURED — 635 rows are 11 decisions, and one of them is 92% of the population] The `unmapped_project` bucket is historical projects, not a live attribution gap
+## 203. [2026-09-12, MEASURED — 635 rows are 11 decisions, and one of them is 92% of the population] The `unmapped_project` bucket is historical projects, not a live attribution gap
 
 `PRE_FLIP_HEALTH_CHECK.md`'s attribution entry says to "flag anything landing in
 `unmapped_project` — that bucket is a decision somebody owes, not a repair."
@@ -21251,7 +21285,7 @@ and no active client is waiting on any of it.
 
 ---
 
-## 203. [2026-09-12, ROOT-CAUSED and FIXED IN REPO — the Edge Function is NOT deployed] The thumbnail revision scan has been red about half the time for days, and it is three deleted Drive files plus a round-robin cursor
+## 204. [2026-09-12, ROOT-CAUSED; the fix was REDESIGNED after review — see 204a, and note the header's original claim "the Edge Function is NOT deployed" was WRONG] The thumbnail revision scan has been red about half the time for days, and it is three Drive files the scanner cannot read plus a round-robin cursor
 
 **The symptom.** `Thumbnail revision scan` (cron `*/10`) has been flapping with
 no owner and no diagnosis. Its last eight scheduled runs, newest first:
@@ -21307,12 +21341,12 @@ file. It is permanent, no scan can clear it ... The scan loop counts a 404 as
 — the owner's call:** the function half needs a plain dispatch of
 `deploy-thumbnail-edge-functions.yml`.~~
 
-> **SUPERSEDED by 203a, 2026-09-13.** Three of the claims above are wrong, and
+> **SUPERSEDED by 204a, 2026-09-13.** Three of the claims above are wrong, and
 > Codex caught all three on the PR before any of it merged. The 404 is NOT
 > unambiguously a deleted file; the ordering is NOT safe in both directions as
 > originally written; and the function does NOT wait for a manual dispatch. The
 > struck text is kept rather than edited away because a reader who finds it
-> quoted elsewhere needs to see what replaced it. **Read 203a for what actually
+> quoted elsewhere needs to see what replaced it. **Read 204a for what actually
 > shipped.**
 
 
@@ -21324,9 +21358,9 @@ decide. The scan counting them correctly does not make them right.
 
 ---
 
-## 204. [2026-09-12, MEASURED — three scheduled lanes have been red for weeks and the twice-daily health check has been reporting ALL CLEAR over the top of them] Nothing was watching the watchers
+## 205. [2026-09-12, MEASURED — three scheduled lanes have been red for weeks and the twice-daily health check has been reporting ALL CLEAR over the top of them] Nothing was watching the watchers
 
-Found while chasing the thumbnail scan flap (item 203): if one unowned lane had
+Found while chasing the thumbnail scan flap (item 204): if one unowned lane had
 been quietly red for days, it was worth asking what else was. One query over the
 heartbeats the lanes already write answers it for all of them.
 
@@ -21381,7 +21415,7 @@ the rule that it is reported and never gated, because a red E2E lane is
 something to go and look at and not a reason to roll anything back.
 
 **One more gap the same query exposes.** A lane with no heartbeat does not appear
-at all. `thumbnail-revision-scan.yml` writes none, which is exactly why item 203
+at all. `thumbnail-revision-scan.yml` writes none, which is exactly why item 204
 could flap for days unnoticed — it is not in the watchdog's registry either.
 Absence from this result is not evidence of health, and giving that lane a
 heartbeat is a candidate repair this entry does not make.
@@ -21392,7 +21426,7 @@ probes run against the live app with credentials this session does not hold, and
 that the failure is now counted, dated, and visible to every future run of the
 check instead of living in a Slack channel nobody reads any more.
 
-### 204a. The assurance-ledger lane was right, and it is green again — restated, not re-proven
+### 205a. The assurance-ledger lane was right, and it is green again — restated, not re-proven
 
 The third chronically-red lane turned out to be the cheapest and the most
 honest. `scripts/assurance-ledger-freshness.js --gate` is fully offline — it
@@ -21425,7 +21459,7 @@ re-prove the surfaces rather than to restate them again — three of the four ar
 deploy workflows, monitors and admin tooling, and each needs live access this
 session does not have.
 
-### 204b. First triage of the 19 failing calendar E2E probes — clusters, not one broken precondition
+### 205b. First triage of the 19 failing calendar E2E probes — clusters, not one broken precondition
 
 Recorded so the next person starts from evidence instead of from the run link.
 This is a TRIAGE of one night's log (run `34600106702`, 2026-09-11). It is not a
@@ -21469,9 +21503,9 @@ of its nineteen reasons are the harness.
 
 ---
 
-## 205. [2026-09-12, FIXED] Two nightly probes printed live client slugs into a PUBLIC Actions log, and the gate that exists to stop that could not see them
+## 206. [2026-09-12, FIXED] Two nightly probes printed live client slugs into a PUBLIC Actions log, and the gate that exists to stop that could not see them
 
-Found while triaging item 204b, in the raw text of the calendar E2E log.
+Found while triaging item 205b, in the raw text of the calendar E2E log.
 
 `qa/probes/p95_write_ui_test_guard.js` read the LIVE `write_ui_reroute_clients`
 flag and printed it:
@@ -21519,7 +21553,7 @@ call, and the same judgement as `GIT_HISTORY_PII_PURGE_2026-07-14.md`. And no
 gate now watches job OUTPUT — a checker for that is a real repair and is not
 attempted here.
 
-### 203a. What actually shipped, after review killed three claims in 203
+### 204a. What actually shipped, after review killed three claims in 204
 
 Codex reviewed PR #1390 and filed two P1s and a P2. All three were verified
 against the source and all three were right. None of it had merged.
@@ -21531,10 +21565,10 @@ path filters that include BOTH
 `supabase/functions/_shared/thumbnail-revisions.ts`, and its deploy step
 publishes both thumbnail functions. This change touches both paths. **Merging
 this PR IS the production rollout** — there is no separate owner dispatch, and
-203 said there was, twice. Nothing in the code needed to change for this one;
+204 said there was, twice. Nothing in the code needed to change for this one;
 what was wrong was the claim, and it had already been repeated to the owner.
 
-**P1 — a Drive 404 does not mean what 203 said it means.** Google answers 404
+**P1 — a Drive 404 does not mean what 204 said it means.** Google answers 404
 identically for a file that was deleted and for one that exists but is not
 shared with the caller. This repository **already pins that exact ambiguity**
 (`test/prod-asset-state-guidance.js:12-13`: *"Google returns the SAME 404 for a
@@ -21549,7 +21583,7 @@ comment exists to prevent, rebuilt by the change meant to respect it.
 **P2 — "safe in both orders" was false in one order.** Making `missing_source` a
 sibling bucket meant a response could raise `checked` without raising any bucket
 an older caller knows, so a new function answering an older caller would fail
-its conservation check and throw `invalid aggregate response`. The claim in 203
+its conservation check and throw `invalid aggregate response`. The claim in 204
 was not merely optimistic; it was backwards for the deploy-first direction.
 
 **What replaced it.** One change fixes both code findings:
@@ -21584,3 +21618,4 @@ Codex found — initially PASSED the suite, because the assertion looked for
 it. The guard now requires the increment to be a bare, unguarded statement and
 separately refuses any `driveGone` condition on it. An assertion that a sabotage
 control does not trip is not a test; it is a comment.
+

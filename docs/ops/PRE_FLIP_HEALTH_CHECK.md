@@ -527,7 +527,7 @@ trains everyone to skim the report, which is the exact failure mode the
     auto-healed, because SyncView owns graphics and the Linear value is not
     automatically the truth. Flag GROWTH in the stranded number.
 - **Scheduled lanes that are chronically red** (added 2026-09-12, OPEN_REPAIRS
-  item 204). **Report every lane whose recent runs are mostly red, and the date
+  item 205). **Report every lane whose recent runs are mostly red, and the date
   it was last green. Never gate on it.** Item 8 gates on three reconcilers by
   name, so a lane outside that list can fail every night for weeks while this
   check reports ALL CLEAR — which is exactly what happened: `calendar_e2e_nightly`
@@ -558,7 +558,7 @@ trains everyone to skim the report, which is the exact failure mode the
     apart.
   - **A lane with no heartbeat is invisible to this query and to the watchdog.**
     `thumbnail-revision-scan.yml` writes none, which is why it flapped red for
-    days with nobody noticing (OPEN_REPAIRS item 203). Absence from the result
+    days with nobody noticing (OPEN_REPAIRS item 204). Absence from the result
     is not evidence of health.
   - This is CONTEXT and must stay CONTEXT. A red E2E lane is a thing to go and
     look at, not a reason to roll anything back, and gating on it would produce

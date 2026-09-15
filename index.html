@@ -14298,6 +14298,17 @@
     function wlWriteCache(payload) {
         try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
     }
+    /* A snapshot known to be INCOMPLETE must not be replayed.
+       A forced refresh writes whatever the Linear webhook returned straight
+       into this cache, short payload and all, and an ordinary load replays it
+       for the next five minutes -- so telling the owner to reload would have
+       handed them the same short board with the warning cleared, which is
+       worse than saying nothing (Codex review, PR 1404). Dropping it costs a network
+       read on the next boot and makes that instruction true: the reload misses
+       the cache, reads the complete mirror, and the board comes back whole. */
+    function wlDropCache() {
+        try { localStorage.removeItem(LINEAR_ISSUES_CACHE_KEY); } catch {}
+    }
     function wlIsFresh(fetchedAt) {
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
     }
@@ -15653,6 +15664,19 @@
     async function wlLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
         let fastPainted = false;
+        /* WHAT THE BOARD IS SHOWING BEFORE THIS LOAD REPLACES IT.
+           The Refresh button is the one read that bypasses the Supabase mirror
+           and goes straight to the Linear webhook, so it is the one read whose
+           payload can come back SHORTER than the board it replaces -- a
+           workspace that errored, a truncated aggregate. Every such sub-issue
+           then disappeared off the calendar with nothing said, pins included:
+           the pin was still saved and still in memory, but the card carrying
+           it was gone until the next reload, which is exactly what a refresh
+           "undoing my work" looks like. Captured here, before the fast paint
+           overwrites allActiveSubs with the new payload. */
+        const priorActiveSubIds = force
+            ? new Set((wlState.allActiveSubs || []).map(sub => String(sub && sub.id || '')).filter(Boolean))
+            : null;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.linearMetadataWithheldOnly = 0;
@@ -15773,6 +15797,26 @@
         else {
             wlMarkLinearMetadataFailure(metadataResult.reason, payload.issues);
             console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
+        }
+        if (priorActiveSubIds && !payload.usedFallback) {
+            const incoming = new Set((payload.issues || [])
+                .filter(issue => issue && issue.isSubIssue)
+                .map(issue => String(issue.id || '')));
+            let missing = 0;
+            let missingPinned = 0;
+            for (const issueId of priorActiveSubIds) {
+                if (incoming.has(issueId)) continue;
+                missing++;
+                if (wlState.planByIssueId.has(issueId)) missingPinned++;
+            }
+            wlState.refreshMissing = missing;
+            wlState.refreshMissingPinned = missingPinned;
+            if (missing > 0) wlDropCache();
+        } else if (!force) {
+            // An ordinary load reads the complete mirror, so it supersedes
+            // whatever a short refresh reported.
+            wlState.refreshMissing = 0;
+            wlState.refreshMissingPinned = 0;
         }
         wlApplyData(payload.issues, payload.fetchedAt);
         // If this load fast-painted at automatic estimates, flag the items whose
@@ -18906,6 +18950,18 @@
             /* Lowest priority by design: a real plan or metadata problem is
                more urgent than a completeness note, and this only speaks when
                there is nothing more important to say. */
+            const missing = Number(wlState.refreshMissing) || 0;
+            if (status === 'ready' && missing > 0) {
+                const pinned = Number(wlState.refreshMissingPinned) || 0;
+                el.hidden = false;
+                el.className = 'workload-plan-status is-warning';
+                el.textContent = 'That refresh came back with ' + missing + ' fewer sub-issue'
+                    + (missing === 1 ? '' : 's') + ' than the board had'
+                    + (pinned > 0 ? ' (' + pinned + ' of them planned to a work day)' : '')
+                    + '. Nothing was lost — saved work days are untouched — but Linear returned less than the'
+                    + ' calendar was showing, so reload the page to get the full board back.';
+                return;
+            }
             const excludedText = status === 'ready'
                 ? wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount())
                 : '';

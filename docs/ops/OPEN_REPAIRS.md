@@ -21763,3 +21763,67 @@ reshuffle itself, and the fixture is deliberately pathological: 1,700
 sub-issues across three editors at four units a day. The live board spreads the
 same work over eleven. Making the search cheaper is real work and wants its own
 pass.
+
+## 209. [2026-09-15, FIXED] The Refresh button could make cards disappear off the Workload calendar, pins included, and said nothing
+
+The owner reported that the Refresh control on the work-day calendar "is
+refreshing in a bad way... it's like removing the pins, things that I'm doing".
+Driven in the board harness across the conditions that button actually meets,
+four of them, with a card pinned to a day first:
+
+| what happens to the plan/issue read | the pinned card after refresh | was the owner told? |
+|---|---|---|
+| everything fine | stays pinned | n/a |
+| refresh races an in-flight pin write | stays pinned | n/a |
+| plan read refused (403) | pins withheld, deadline fallback | yes, banner |
+| plan read fails (500) | stays pinned, editing paused | yes, banner |
+| **Linear webhook returns fewer issues than the board had** | **card gone from the board** | **NOTHING** |
+
+**The last row is the bug, and it belongs to this button specifically.** The
+manual refresh is the ONE read that bypasses the Supabase mirror and goes
+straight to the Linear webhook — deliberately, to honour its "from Linear"
+contract (`loadLinearIssues(force)`). It is therefore the one read whose
+payload can come back SHORTER than the board it replaces: a workspace that
+errored inside the n8n aggregate, a truncated response. Every sub-issue the
+payload omitted simply vanished off the calendar, with `planStatus` still
+reading `ready` and no notice of any kind.
+
+**Nothing was ever lost server-side** — the harness confirms the saved work day
+is still in `workload_plan`, and the pin is still in `planByIssueId` in memory.
+The CARD carrying it is what disappears, until the next reload reads the
+complete mirror and brings it back. That is exactly the shape of "the refresh
+undid what I was doing", and it explains why it looks random: it depends on
+what the webhook happened to return that second.
+
+**Fixed by saying it.** `wlLoadSnapshot` now captures the active sub-issue ids
+the board is showing BEFORE a forced load replaces them (before the fast paint
+overwrites `allActiveSubs`), compares them against the incoming payload, and
+records how many went missing and how many of those were planned to a work day.
+`renderWorkloadPlanStatus` reports it at the same lowest priority as the
+existing exclusion note, ranked just ahead of it: a card that vanished is more
+urgent than one knowingly filtered out. An ordinary (non-forced) load reads the
+complete mirror, so it supersedes and clears the report.
+
+**Deliberately NOT done: refusing the short payload.** Refusing to adopt any
+refresh that shrinks the board would also refuse a legitimately deleted or
+completed issue, and would then keep refusing until a reload. Reporting cannot
+make anything worse; refusing can. If the owner would rather the refresh hold
+the previous board and retry, that is a one-line change to the same branch and
+the decision is theirs.
+
+**And the reload it advises had to be made true.** The forced read writes
+whatever the webhook returned straight into the five-minute issue cache
+(`wlWriteCache` inside `loadLinearIssues`), so the reload would have replayed
+the same short board from that cache and cleared the warning with it — worse
+than saying nothing. A detected shortfall now drops that cache
+(`wlDropCache`), so the reload misses it and reads the complete mirror. Caught
+by the Codex review on the first version of this fix.
+
+**Proof.** `workload-board-browser.js` gained `refresh_short_payload` (the card
+really is dropped from the refreshed payload, the saved work day is untouched,
+and the banner names the count, how many were planned, and what to do, and the short
+snapshot is gone from the issue cache) and `refresh_complete_payload` (an
+ordinary refresh keeps the pin exactly where it was, says nothing about a
+shortfall when there was none, and leaves its own snapshot cached). 101
+assertions across 20 phases. Verified pre-existing: the same probe on `555e662`, before
+any of the boot-speed work, loses the card in exactly the same silence.

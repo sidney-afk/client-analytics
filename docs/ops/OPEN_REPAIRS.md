@@ -22045,13 +22045,50 @@ widen the set correctly — which is how `[` and `]` got here. Too wide silently
 links an issue whose text somebody else chose. Those costs are not comparable,
 so this errs narrow and says so in the source.
 
-**The method note, and it is now the third restatement of the same failure.**
+**AND THE NARROWED SET WAS STILL TOO BROAD — same reviewer, third pass.** The
+live evidence established that Linear escapes ONE STANDALONE TEMPLATE,
+`\[SyncView\] …`, and nothing about brackets in general. A description
+intending a reference link `[label][ref]`, edited by a person to
+`\[label\][ref]`, renders differently and still compared equal. So the
+exception is now scoped to the observed FORM: a leading `\[SyncView\] ` marker,
+this app's own (`production-write/index.ts:262`, `:1046`, `:1066`), un-escaped
+once at the start. Brackets anywhere else orphan rather than adopt.
+
+**WHY IT KEPT HAPPENING, which is the finding worth more than the fix.**
+Ownership of a create is ALREADY established by the id. The drainer looks the
+issue up at a UUIDv5 it mints itself from the row's `dedup_key` and hands to
+Linear as `input.id` (`_shared/linear-create-id.mjs`) — re-derived against the
+live orphan, the dedup_key of outbox 9435 yields `54f839e2…`, which is
+VID-13912's uuid exactly. **An issue at that id is ours by construction and no
+foreign issue can occupy it.** Yet `createIntentMismatches` justifies its
+exactness as "the property the `already_exists` gate depends on to refuse
+adopting a foreign issue" — a foreign issue it cannot encounter on this path.
+
+So the guard's real effect is not "refuse a foreign issue". It is **"refuse to
+link our own issue when its text changed"**, and refusing is precisely what
+produces the orphan this entry exists for. All three holes are symptoms of
+using text to establish ownership the id already established.
+
+**Dropping `description` from the create comparison would remove the class
+rather than its instances. Deliberately NOT done here** — it retires a guard on
+the production write path and deserves its own reviewed change, not a fourth
+same-session patch. Owner decision, 2026-09-15, with the narrow fix shipped
+today and the architectural one left open. **This is the highest-value item
+this entry leaves behind.**
+
+**The method note, and it is now the fourth restatement of the same failure.**
 Each wrong version was defended in the code comment, the commit message and the
-PR body before anyone read it. Twice. Writing a justification down, three times,
-in three places, did not make it true either time; a reviewer constructing one
-concrete counterexample did, twice. The lesson this entry is really recording is
-that confidence expressed in prose is not evidence, and that the second draft
-deserved the same adversarial reading as the first and did not get it from me.
+PR body before anyone read it. Three times. Writing a justification down, in
+three places, did not make it true on any of the three occasions; a reviewer
+constructing one concrete counterexample did, three times. Worse, the second
+version shipped a TEST asserting its own hole as correct — an assertion written
+from the same premise as the code it guards proves nothing, and it passed.
+
+The lesson this entry is really recording is that confidence expressed in prose
+is not evidence, that each draft deserved the same adversarial reading as the
+first and never got it from me, and that when a reviewer names the same
+direction three times the answer is to take the narrow option they keep
+pointing at rather than to find a cleverer general one.
 
 **Proof.** `test/linear-description-escape-orphan.js`, 13 assertions, built on
 the exact live strings — including the pre-fix assertion that the raw comparison

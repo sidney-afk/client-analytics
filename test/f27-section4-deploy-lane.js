@@ -84,7 +84,9 @@ const CANDIDATES = new Map([
   ['linear-outbound', {
   // Re-pinned a third time the same day (Codex 2nd pass): escape set narrowed
   // to the observed characters only. Same file, same closure, different bytes.
-    source: '993fa51a77e915192d5fbeb233a20be3362517b14aae7453e5ec95c5d04d6206',
+  // Re-pinned a fourth time (Codex 3rd pass, owner's call): escape exception
+  // scoped to the observed `[SyncView]` template form. Same closure, new bytes.
+    source: '41eee0b62f65da448acc793a17d1495b5e34e7d19dfe1c081006e4750fe02efa',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

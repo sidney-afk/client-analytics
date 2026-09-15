@@ -98,7 +98,13 @@ jobs:
       # one collision direction; a stored `\\# H` against an intent of `# H` is
       # indistinguishable from a human edit, so the set is evidence-gated now.
       # Still mapping.mjs only, file count still 5.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 993fa51a77e915192d5fbeb233a20be3362517b14aae7453e5ec95c5d04d6206
+      #
+      # Re-pinned a fourth time 2026-09-15, same release, Codex third pass and the
+      # owner's call: the escape exception is scoped to the OBSERVED template
+      # form -- a leading `\\[SyncView\\] ` marker -- not to brackets in general.
+      # Brackets outside the template now orphan rather than adopt. Still
+      # mapping.mjs only, file count still 5.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 41eee0b62f65da448acc793a17d1495b5e34e7d19dfe1c081006e4750fe02efa
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

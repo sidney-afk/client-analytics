@@ -81,9 +81,26 @@ const indexSource = fs.readFileSync(path.join(ROOT, 'index.ts'), 'utf8');
     'every auto-link in a description is collapsed, not just the first');
 
   // --- 4. The comparison itself must use it ---------------------------------
-  ok(/collapseLinearAutolinks\(actualDescription\)\s*!==\s*collapseLinearAutolinks\(expectedDescription\)/
-    .test(mappingSource),
-  'createIntentMismatches compares descriptions through the normalizer on BOTH sides');
+  //
+  // Widened 2026-09-15, when Linear's markdown ESCAPING turned out to orphan
+  // issues the same way (test/linear-description-escape-orphan.js), and then
+  // narrowed again the same day after Codex showed the escape half had to be
+  // DIRECTIONAL. What this suite must keep pinned is the PROPERTY, not the call
+  // spelling: whatever function decides a description match still collapses
+  // auto-links, and still does so on BOTH sides -- that part of the 2026-08-07
+  // fix is symmetric and stays symmetric. Pinning the literal call is what made
+  // this assertion fail on a change that strictly improved the code.
+  const matcher = /!(\w+)\(actualDescription,\s*expectedDescription\)/.exec(mappingSource);
+  ok(!!matcher,
+    'createIntentMismatches decides descriptions through a named matcher taking (actual, expected)');
+  const matcherBody = matcher
+    ? mappingSource.slice(mappingSource.indexOf('function ' + matcher[1]))
+    : '';
+  ok(/collapseLinearAutolinks\(actual\)/.test(matcherBody)
+    && /collapseLinearAutolinks\(expected\)/.test(matcherBody),
+  'that matcher still collapses auto-links on BOTH sides (the 2026-08-07 fix is not dropped by a later one)');
+  ok(mapping.linearDescriptionMatches(kept, sent),
+    'the live outage string still matches what we sent, through the current matcher');
 
   // --- 5. The fail-closed guard ---------------------------------------------
   ok(/outbound_parent_dependency_unresolved/.test(indexSource),

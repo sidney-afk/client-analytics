@@ -21936,3 +21936,191 @@ redeploying, which is the only reason this change could be made without
 regressing live. `docs/ops/EF_DEPLOY_MANIFEST.md` still records "deployed by
 operator from `fd3e0eaa` on 2026-07-20". Anything that captures `main` as the
 rollback truth for this function is capturing code that is not live.
+
+## 211. [2026-09-15, FIXED — DEPLOY REQUIRED (F27 §4)] Every post created without a filming plan orphaned its Linear issue, because Linear escaped a bracket we sent
+
+Reported as "the client needs attribution" on two calendars. The banner was
+honest and pointed at the wrong thing: the cards' stored client was correct and
+active, but attribution is decided from the Linear PROJECT on the mirrored
+issue, and these cards never got one.
+
+**Surfaced by an outage, caused by a bug.** Linear's account hit a usage limit
+at 13:49Z and refused every issue CREATE for ~84 minutes (reads and updates to
+existing issues kept working throughout, which is what made it look like a
+SyncView fault). Service returned at 15:13Z. One calendar's five videos then
+mirrored normally. The other's did not, and that second failure is ours:
+
+```
+{"conflict": {"reason": "linear_create_intent_mismatch",
+              "decision": "idempotency_conflict",
+              "mismatched_fields": ["description"]}}
+```
+
+We sent `[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up
+required.` Linear stored `\[SyncView\] FILMING PLAN MISSING - ...`, escaping the
+markdown-significant brackets. Post-create verification byte-compared the two,
+found a difference it had not made, and terminalized the row as a conflict —
+so `applyCreateLinkage` never ran and the issue sat in Linear owned by nobody.
+
+**This is the 2026-08-07 auto-link orphan again, one rewrite later** (ledger
+entry and `test/linear-autolink-parent-linkage.js`). Same mechanism, same
+consequence, different Linear-side rewrite. The first fix normalized the
+auto-link form on both sides of that comparison and stopped there; escaping was
+never considered.
+
+**Three things make this one worse than its sibling.**
+
+1. **The trigger is a string this app writes itself.** That bracketed sentence
+   is the template for any batch created with no filming plan. So it is not an
+   occasional paste, it is a permanent class: every such post orphans.
+2. **It fires on the FIRST attempt, not on a retry.** Verification reads back
+   after every create. The outage was not a precondition; it was only what drew
+   attention to it.
+3. **Recreating the post reproduces it.** Told the first four cards were outage
+   damage, the owner archived them and made two fresh ones. Those orphaned in
+   seventeen seconds, adding VID-13919 beside VID-13912 — two correct issues in
+   Linear, both `createdBy: SyncView Mirror`, both unlinked. The natural repair
+   makes the problem bigger.
+
+**Isolated by the calendar that worked.** Its batch description was a bare
+filming-plan URL. No brackets, no escaping, no mismatch — same minute, same
+lane, same account. That contrast is what identified the character class rather
+than the outage.
+
+**The fix.** `collapseLinearEscapes` drops a backslash that directly precedes a
+character CommonMark defines as escapable, and `canonicalLinearDescription`
+composes it after the existing auto-link collapse. `createIntentMismatches`
+compares descriptions through that one normalizer on BOTH sides, exactly as the
+auto-link fix does, so it can only ever make an intent compare equal to Linear's
+rendering of that same intent. A lone backslash, or one before a letter, is left
+alone.
+
+**The paragraph that stood here was wrong, and Codex caught it on #1406.** It
+read: *"Equality does widen by one step, deliberately: a foreign issue reading
+`[x]` now matches an intent of `\[x\]`. Adoption still requires team, project,
+title, status, due date, assignee, parent and labels to match as well."* The
+first sentence was true and the justification was not. `\# Heading` and
+`# Heading` RENDER DIFFERENTLY — literal text versus a heading — and a symmetric
+unescape canonicalizes them to one string; the other fields cannot catch that,
+because a **description-only** edit leaves every one of them matching. And the
+precondition is this incident: a create that succeeded with its linkage lost,
+which happened twice in one afternoon.
+
+**So the comparison is DIRECTIONAL**, which is what the asymmetry always called
+for — Linear ADDS escapes, it never removes ours. `linearDescriptionMatches`
+accepts a stored description that is byte-identical to our intent, or whose
+escapes stripped from **the stored side alone** yield our intent exactly. Our
+own intent is never rewritten, so a difference we did not send always survives:
+
+| intent | stored | verdict |
+|---|---|---|
+| `[x]` | `\[x\]` | adopt — Linear escaped ours |
+| `\[x\]` | `\\[x\\]` | adopt — Linear escaped our backslash |
+| `\*t\*` | `\*t\*` | adopt — byte-identical |
+| `\# H` | `# H` | **refuse** — a person changed it |
+
+The last row is the one symmetric normalization got wrong, and it is the row
+that matters: refusing there costs an orphan a human can see and fix, while
+adopting there silently links an issue whose text somebody else chose. The
+auto-link collapse stays symmetric and unchanged.
+
+**AND THE DIRECTIONAL VERSION WAS STILL WRONG — same reviewer, second pass.**
+Directionality closes the collision in ONE direction. Run it backwards: we send
+a real heading `# H`, a person edits the still-unlinked issue to the literal
+`\# H`, and stripping escapes from the stored side yields `# H`, our intent
+exactly, so we adopt their edit. The stored bytes of *"Linear escaped our `#`"*
+and *"a person typed `\#`"* are **identical**, so nothing about direction can
+separate them. The directional commit even shipped a test ASSERTING that
+adoption as correct, justified by Linear's rewrite being the likelier cause —
+and an assertion written from the same wrong premise as the code it guards is
+not evidence of anything.
+
+**So the escape set is now evidence-gated:** exactly `[` and `]`, the characters
+the live orphan `\[SyncView\]` actually named. Nothing is in it by extrapolation
+from CommonMark, and widening it needs a real orphan naming the character.
+
+**The asymmetry is the whole argument.** Too narrow costs an orphan: visible,
+reported, recoverable, and it arrives carrying exactly the evidence needed to
+widen the set correctly — which is how `[` and `]` got here. Too wide silently
+links an issue whose text somebody else chose. Those costs are not comparable,
+so this errs narrow and says so in the source.
+
+**AND THE NARROWED SET WAS STILL TOO BROAD — same reviewer, third pass.** The
+live evidence established that Linear escapes ONE STANDALONE TEMPLATE,
+`\[SyncView\] …`, and nothing about brackets in general. A description
+intending a reference link `[label][ref]`, edited by a person to
+`\[label\][ref]`, renders differently and still compared equal. So the
+exception is now scoped to the observed FORM: a leading `\[SyncView\] ` marker,
+this app's own (`production-write/index.ts:262`, `:1046`, `:1066`), un-escaped
+once at the start. Brackets anywhere else orphan rather than adopt.
+
+**WHY IT KEPT HAPPENING, which is the finding worth more than the fix.**
+Ownership of a create is ALREADY established by the id. The drainer looks the
+issue up at a UUIDv5 it mints itself from the row's `dedup_key` and hands to
+Linear as `input.id` (`_shared/linear-create-id.mjs`) — re-derived against the
+live orphan, the dedup_key of outbox 9435 yields `54f839e2…`, which is
+VID-13912's uuid exactly. **An issue at that id is ours by construction and no
+foreign issue can occupy it.** Yet `createIntentMismatches` justifies its
+exactness as "the property the `already_exists` gate depends on to refuse
+adopting a foreign issue" — a foreign issue it cannot encounter on this path.
+
+So the guard's real effect is not "refuse a foreign issue". It is **"refuse to
+link our own issue when its text changed"**, and refusing is precisely what
+produces the orphan this entry exists for. All three holes are symptoms of
+using text to establish ownership the id already established.
+
+**Dropping `description` from the create comparison would remove the class
+rather than its instances. Deliberately NOT done here** — it retires a guard on
+the production write path and deserves its own reviewed change, not a fourth
+same-session patch. Owner decision, 2026-09-15, with the narrow fix shipped
+today and the architectural one left open. **This is the highest-value item
+this entry leaves behind.**
+
+**AND THE TEMPLATE SCOPING WAS A REGRESSION — same reviewer, fourth pass,
+raised P1.** `production-write` writes the marker on THREE generated shapes and
+only one puts it first: `:262` is the marker alone, while `:1046` and `:1066`
+place it in the SECOND paragraph after a `Filming Plan: <url>` line. Matching
+with `startsWith` covered one and silently missed two — and the two missed are
+the shapes that ALSO carry a bare URL, so they meet both Linear rewrites at
+once. **I cited all three line numbers in that version's justification without
+reading where in the description each marker lands.** Citing a source is not
+reading it. The exception now matches the marker at the start of any LINE, which
+covers every position the generator uses and widens the discriminator by
+nothing.
+
+**The method note, and it is now the fifth restatement of the same failure.**
+Each wrong version was defended in the code comment, the commit message and the
+PR body before anyone read it. Four times. Writing a justification down, in
+three places, did not make it true on any of the three occasions; a reviewer
+constructing one concrete counterexample did, four times. Worse, the second
+version shipped a TEST asserting its own hole as correct — an assertion written
+from the same premise as the code it guards proves nothing, and it passed.
+
+The lesson this entry is really recording is that confidence expressed in prose
+is not evidence, that each draft deserved the same adversarial reading as the
+first and never got it from me, and that when a reviewer names the same
+direction three times the answer is to take the narrow option they keep
+pointing at rather than to find a cleverer general one.
+
+**Proof.** `test/linear-description-escape-orphan.js`, 13 assertions, built on
+the exact live strings — including the pre-fix assertion that the raw comparison
+really does differ, so the suite evidences the bug and not only the fix, and a
+check that a genuinely different description still refuses adoption.
+`test/linear-autolink-parent-linkage.js` had pinned the literal call spelling of
+the description comparison and failed on a change that strictly widened it; it
+now pins the PROPERTY (one normalizer, both sides, auto-link collapse still
+inside it), which is what it meant all along.
+
+**NOT done here, flagged for a decision.** The `description` UPDATE operation
+compares `actual === intended` with no normalization at all — not even the
+2026-08-07 auto-link collapse. On this reading a description containing either
+rewrite would never register as already-applied and would be re-sent, and a
+re-send bumps the issue clock the stale guard reads. Not measured against a live
+row, so it is stated as a suspicion, not a defect, and left out of a fix that is
+otherwise minimal and reviewable.
+
+**Still outstanding after this ships:** the two orphaned issues need adopting or
+retiring, and the owner's two cards need linking to one of them. Six thumbnails
+on a third calendar were queued behind the outage itself, not this bug, and
+clear on their own.
+

@@ -451,6 +451,170 @@ export function collapseLinearAutolinks(value) {
   return value.replace(LINEAR_AUTOLINK, (match, label, target) => (label === target ? label : match));
 }
 
+/*
+ * THE SAME DEFECT CLASS AS THE AUTO-LINK ABOVE, ONE REWRITE LATER — and this
+ * one is not a retry artefact. Linear escapes markdown-significant punctuation
+ * when it stores a description, so a description we SEND as
+ *
+ *   [SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.
+ *
+ * comes back from the very next read as
+ *
+ *   \[SyncView\] FILMING PLAN MISSING - submission accepted; SMM follow-up required.
+ *
+ * Post-create verification compared those byte for byte, saw a difference it
+ * had not made, and recorded a `description` mismatch — so the row terminalized
+ * as `idempotency_conflict`, `applyCreateLinkage` never ran, and the issue sat
+ * in Linear owned by nobody.
+ *
+ * WHY THIS MATTERS MORE THAN THE AUTO-LINK CASE. That bracketed sentence is a
+ * TEMPLATE THIS APP WRITES ITSELF, on every batch created without a filming
+ * plan. So the failure is not rare and not incidental to any outage: every such
+ * batch orphans, every time, on its FIRST attempt — verification reads back
+ * after each create, so there is no retry needed to reach the comparison.
+ *
+ * Measured 2026-09-15 on two live issues, VID-13912 and VID-13919, both
+ * `createdBy: SyncView Mirror`, both correct in Linear, both unlinked. The
+ * second exists only because the first was assumed to be outage damage and the
+ * post was recreated by hand; recreating produced an identical orphan in
+ * seventeen seconds. A batch whose description was a bare filming-plan URL
+ * (no brackets) went through untouched in the same minute, which is what
+ * isolated the character class.
+ *
+ * NARROW, AND DIRECTIONAL — corrected on review, because the first version of
+ * this fix was symmetric and that was wrong.
+ *
+ * Only a backslash directly in front of a character CommonMark defines as
+ * escapable is dropped: exactly the sequences a markdown serializer emits and a
+ * renderer reads back as the bare character. A lone backslash, or one before a
+ * letter, is left alone.
+ *
+ * The first version applied that to BOTH sides, reasoning by analogy with
+ * `collapseLinearAutolinks`, and accepted the resulting one-step widening as a
+ * fair price. Codex found the counterexample and it is a good one: `\# Heading`
+ * and `# Heading` RENDER DIFFERENTLY — one is literal text, one is a heading —
+ * and symmetric unescaping canonicalizes them to the same string. So an intent
+ * of `\# Heading` would adopt an issue whose description a person had edited to
+ * `# Heading`. Team, project, title, status and the rest cannot catch that: the
+ * edit is description-only, which is the one field this check owns.
+ *
+ * AND THE PRECONDITION IS NOT HYPOTHETICAL. It is "a create succeeded but its
+ * linkage was lost, and the description was edited before recovery" — the first
+ * half of which is precisely the incident above, twice in one afternoon. The
+ * widening was defended on the grounds that adoption needs every other field to
+ * match too; the defence was simply wrong, because a description-only edit
+ * leaves every other field matching.
+ *
+ * SO THE COMPARISON IS DIRECTIONAL INSTEAD, which is what the asymmetry of the
+ * problem always called for: Linear ADDS escapes, it never removes ours. A
+ * stored description is therefore accepted when it is byte-identical to our
+ * intent, or when stripping escapes from THE STORED SIDE ALONE yields our
+ * intent exactly. Our own intent is never rewritten, so any difference we did
+ * not send survives the comparison:
+ *
+ *   intent `[x]`      stored `\[x\]`    -> adopt   (Linear escaped ours)
+ *   intent `\[x\]`    stored `\\[x\\]`  -> adopt   (Linear escaped our backslash)
+ *   intent `\*t\*`    stored `\*t\*`    -> adopt   (byte-identical, clause one)
+ *   intent `\# H`     stored `# H`      -> REFUSE  (a person changed it)
+ *
+ * DIRECTIONALITY ALONE WAS NOT ENOUGH, and Codex's second pass is why the set
+ * below is narrow. Directionality closes the collision in one direction only.
+ * Run it backwards: we send a real heading `# H`, a person edits the unlinked
+ * issue to the literal `\# H`, and stripping escapes from the stored side
+ * yields `# H` — our intent exactly — so we adopt their edit. The stored bytes
+ * of "Linear escaped our `#`" and "a person typed `\#`" are IDENTICAL, so no
+ * amount of directionality can tell them apart. The first version of this fix
+ * shipped a test asserting that adoption as correct, on the reasoning that
+ * Linear's rewrite was the likelier cause. Likelier is not the same as
+ * distinguishable.
+ *
+ * So the escape set is restricted to characters Linear has actually been seen
+ * to escape, and every character kept out of it is a collision that cannot
+ * happen. Refusing costs an orphan a human can see and fix; adopting silently
+ * links an issue whose text somebody else chose.
+ *
+ * Composed AFTER the auto-link collapse, which stays symmetric and unchanged,
+ * so the link form is recognised in the shape Linear actually emits it
+ * (unescaped brackets) before any unescaping happens.
+ */
+/*
+ * NARROWED TO THE TEMPLATE, 2026-09-15, on Codex's THIRD pass — and this is the
+ * owner's call, not a fourth guess.
+ *
+ * Pass two narrowed the escape set from "every CommonMark escape" to "`[` and
+ * `]`", on the evidence of the live orphan. Codex then pointed out the claim
+ * was still too broad: the live observation established that Linear escapes ONE
+ * STANDALONE TEMPLATE, `[SyncView] …`, and nothing about brackets in general.
+ * A description intending a reference link `[label][ref]`, edited by a person
+ * to `\[label\][ref]`, renders differently but compared equal — the third
+ * instance of the same hole, found the same way.
+ *
+ * So the exception is now scoped to the FORM ACTUALLY OBSERVED: a leading
+ * `\[SyncView\] ` marker, un-escaped once, at the start of the stored
+ * description. That marker is this app's own, written by `production-write` on
+ * exactly three templates (`production-write/index.ts:262`, `:1046`, `:1066`),
+ * and it cannot appear in a reference link a person would write.
+ *
+ * Every other bracket in every other context is now left alone, which means a
+ * bracketed description we did NOT generate will orphan rather than adopt.
+ * That is the deliberate direction: an orphan is visible, reported, recoverable,
+ * and arrives carrying the evidence needed to widen this correctly — which is
+ * exactly how `[SyncView]` got here.
+ *
+ * WHY THIS KEEPS HAPPENING, recorded because the third instance is a pattern
+ * and not an accident. Ownership of a create is already established by the id:
+ * the drainer looks the issue up at a UUIDv5 it mints itself from the row's
+ * `dedup_key` (`_shared/linear-create-id.mjs`), handed to Linear as `input.id`,
+ * so an issue at that id is ours by construction and no foreign issue can
+ * occupy it. Comparing description TEXT to re-establish that ownership is doing
+ * work the id already did, and each hole above is a symptom of it. Dropping
+ * `description` from the create comparison would remove the class rather than
+ * its instances — deliberately NOT done here, because it retires a guard on the
+ * production write path and deserves its own reviewed change rather than a
+ * fourth same-session patch. Owner decision, 2026-09-15.
+ */
+/*
+ * AT THE START OF ANY LINE, not the start of the description — corrected on
+ * Codex's FOURTH pass, which raised it P1 because the previous version was a
+ * regression I introduced rather than a residual risk.
+ *
+ * `production-write` writes this marker on THREE generated shapes, and only one
+ * of them puts it first:
+ *
+ *   :262   the marker alone IS the whole description        (the live orphan)
+ *   :1046  `Filming Plan: <url>` ¶ marker ¶ notes           (link mismatch)
+ *   :1066  `Filming Plan: <url>` ¶ marker ¶ notes           (mapping missing)
+ *
+ * A `startsWith` test covers the first and silently misses the other two, so
+ * both of those intake shapes would have kept orphaning — and they are the ones
+ * that also carry a bare filming-plan URL, so they meet BOTH Linear rewrites at
+ * once. I cited all three line numbers in the previous version's justification
+ * without reading where in the description each marker lands. Citing a source
+ * is not reading it.
+ *
+ * Matching at the start of a LINE covers every position the generator actually
+ * uses and widens the discriminator by nothing: the marker is still this app's
+ * own literal, and a mid-line occurrence is still left alone.
+ */
+const SYNCVIEW_TEMPLATE_MARKER = "[SyncView] ";
+const ESCAPED_SYNCVIEW_LINE_MARKER = /(^|\n)\\\[SyncView\\\] /g;
+
+export function collapseSyncViewTemplateEscape(value) {
+  if (typeof value !== "string" || value.indexOf("\\[SyncView\\] ") === -1) return value;
+  return value.replace(ESCAPED_SYNCVIEW_LINE_MARKER, "$1" + SYNCVIEW_TEMPLATE_MARKER);
+}
+
+/*
+ * `actual` is what Linear stored, `expected` is what we sent. The argument
+ * order is load-bearing: escapes are stripped from the stored side only.
+ */
+export function linearDescriptionMatches(actual, expected) {
+  const stored = collapseLinearAutolinks(actual);
+  const intent = collapseLinearAutolinks(expected);
+  if (stored === intent) return true;
+  return collapseSyncViewTemplateEscape(stored) === intent;
+}
+
 function createIntentMismatches(issue, payload, context) {
   const mismatches = [];
   const actualTeamId = clean(issue && issue.team && issue.team.id);
@@ -469,7 +633,7 @@ function createIntentMismatches(issue, payload, context) {
         ? issue.description
         : null;
     if (expectedDescription == null
-        || collapseLinearAutolinks(actualDescription) !== collapseLinearAutolinks(expectedDescription)) {
+        || !linearDescriptionMatches(actualDescription, expectedDescription)) {
       mismatches.push("description");
     }
   }

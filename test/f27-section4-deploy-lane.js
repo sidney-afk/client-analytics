@@ -69,8 +69,26 @@ const CANDIDATES = new Map([
   // already had, so an owner-classified rollback could be terminalized here with
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
+  // Re-pinned 2026-09-15: Linear's markdown ESCAPING stops orphaning our own
+  // issues. Post-create verification byte-compared the description we sent
+  // against the one Linear kept, and Linear escapes markdown-significant
+  // punctuation on store -- so the app's own "[SyncView] FILMING PLAN MISSING"
+  // template came back backslashed, read as a foreign edit, and terminalized
+  // the row as an idempotency conflict with the issue already live in Linear
+  // and linked to nothing. The 2026-08-07 auto-link orphan one rewrite later,
+  // firing on the FIRST attempt rather than on a retry, on every batch created
+  // without a filming plan. mapping.mjs only -- file count 5, entrypoint hash
+  // unchanged (it hashes the PATH, not the file). Re-pinned again the same
+  // day after Codex review made the unescape directional rather than
+  // symmetric -- same file, same closure, different bytes.
   ['linear-outbound', {
-    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
+  // Re-pinned a third time the same day (Codex 2nd pass): escape set narrowed
+  // to the observed characters only. Same file, same closure, different bytes.
+  // Re-pinned a fourth time (Codex 3rd pass, owner's call): escape exception
+  // scoped to the observed `[SyncView]` template form. Same closure, new bytes.
+  // Re-pinned a fifth time (Codex 4th pass, P1): marker matched per LINE, so
+  // the two intake shapes that place it in paragraph two are covered.
+    source: 'f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

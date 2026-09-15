@@ -30,6 +30,99 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — B9 does not touch B7; B4 and B5 worked out the same way B7 was
+
+**B7 is unaffected by the hiring drift, and `0aa5954` remains the candidate.**
+The twelve are the eight staff functions plus `linear-outbound`,
+`production-comments`, `production-archive` and `production-write`.
+`hiring-applications` and `hiring-automation` are not among them, and a database
+migration does not enter an Edge function's source-closure fingerprint in any
+case. None of the twelve's source changed.
+
+One correction to the framing that reached this session: the two hiring Edge
+functions **are** deployed, both at version 3 since 2026-08-25, not undeployed.
+It does not change the conclusion, only the reason.
+
+---
+
+**B4: no executable hosted database recovery route if journal resume cannot
+finish.**
+
+*What precisely closes it.* Four things, and only the first is mechanical: a
+named operator confirming the managed **Restore** control is present and enabled
+on the correct project; an identified eligible restore point with its timestamp;
+an owner decision taken **in advance** on newer accepted saves, which the
+procedure says must be explicit before any overwrite; and an accepted outage
+expectation, for which no hosted measurement exists.
+
+*Offline from this sandbox now.* Nothing that closes it. No amount of reading
+establishes a permission or an ETA. What can be prepared is the pre-restore
+evidence set the route's step 1 demands, so it is not composed under pressure.
+
+*Needs the Windows machine or a browser.* The permission check, prepared as a
+click path in the sitting page appendix. Deliberately not a script: it is a
+capability question, and a script that "checks" it would either do nothing or
+start a restore.
+
+*Needs an owner decision.* Two. The disposition of newer saves, pre-decided
+rather than decided mid-incident. And whether to enable **PITR**, which was
+observed disabled on 2026-09-14; enabling it before the installation converts
+recovery from "the last nightly backup" to "a chosen moment". That is a real
+improvement to the recovery position and is nobody's call but the owner's.
+
+Honest summary: B4 is not a blocker a session can clear. It closes on a
+capability check and a pre-decision.
+
+---
+
+**B5: no captured compatible browser and function versions with an executable
+restoration route before merge.** Two halves, and they are not symmetric.
+
+*What precisely closes the functions half.* The procedure requires one private
+row per slug carrying `captured_at`, `prior_version`, `source_sha256`,
+`entrypoint_path_sha256`, `file_count`, `verify_jwt`, `matched_git_sha` and the
+capture location, across the staff group of eight and the Track-B group of five.
+
+*What a passing B7 would close there, precisely.* Most of it. A PASS means every
+deployed function's closure equals `0aa5954`, which supplies `matched_git_sha`
+for twelve of the thirteen and, with it, `source_sha256`,
+`entrypoint_path_sha256` and `file_count` from the expected side at that commit.
+This session has already captured `prior_version` and `verify_jwt` read-only for
+all twelve (`verify_jwt` is false on every one).
+
+*What a passing B7 would NOT close.* Four things, stated rather than assumed:
+
+1. **`notify`.** It is in the Track-B five and has no previous version, so no
+   pin can exist for it. B8's amendment covers what rollback means there, but it
+   remains outside anything B7 can say.
+2. **The record still has to be written.** A verified fact in a chat transcript
+   is not the sealed private `previous-functions.json` the procedure requires,
+   and the configuration backup is recorded separately from it.
+3. **Executable is not the same as matched.** C1 restores by deploying an older
+   commit through the onboarding lane; matching pins establish that `0aa5954` is
+   the right commit, not that the lane will accept and deploy it. The procedure
+   already marks that rollback UNTESTED.
+4. **The browser half. Entirely.** B7 concerns Edge functions and says nothing
+   whatever about the served browser.
+
+*What can be established offline now, and was.* The browser half's baseline. If
+Pages publishes from main, the served browser should be `0aa5954`'s, so the
+comparison values were computed here: `index.html` at
+`61282fa2c0cb568668b49566373723bcac5d6cd32c2c9771e01b1bb1c52fcff7`, plus
+`404.html`, `CNAME`, the favicon, the logo and 18 `nav-icons/` files. That is
+half the check done without touching anything.
+
+*Needs the Windows machine.* Downloading the actually served files and hashing
+them, prepared as a runnable block in the sitting page appendix. It must happen
+**before the merge**: afterwards Pages republishes and the pre-merge browser is
+no longer downloadable. If `index.html` does not match, that is a finding in its
+own right, because it would mean Pages is serving something other than the
+frozen commit.
+
+*Needs an owner decision.* Whether an UNTESTED C1 rollback is acceptable as the
+function-side route, which is the same question B6 was withdrawn over and B7
+feeds.
+
 ### 2026-09-15 — LESSON: the freeze covered merges, not the live database
 
 This is the real lesson of the day, and it is recorded on its own so it is not

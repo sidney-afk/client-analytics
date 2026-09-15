@@ -305,6 +305,87 @@ It can only produce a PASS, an honest FAIL, or a loud ERROR naming the path.
 So after this single run, B7 is decided either way. No further offline analysis
 is needed, and none should be treated as a substitute.
 
+## Appendix: B5 browser capture (not part of the sitting)
+
+Closes the **browser half** of B5. Independent of B7, which says nothing about
+the browser. Under two minutes. Read-only: it downloads and hashes, nothing else.
+
+**Where from:** anywhere. Paths below are absolute.
+
+**Why it works:** Pages publishes from `main`, so the served browser should be
+`0aa5954`'s. Confirming that gives you both halves of what B5 needs at once: a
+hash-matched capture, and a `matched_git_sha` you can restore from with one
+command.
+
+Baselines computed from `0aa5954` in the repository, for comparison:
+
+| File | SHA-256 (first 16) |
+|---|---|
+| `index.html` | `61282fa2c0cb5686` (full: `61282fa2c0cb568668b49566373723bcac5d6cd32c2c9771e01b1bb1c52fcff7`) |
+| `404.html` | `f3ded2c5a7c2b3db` |
+| `CNAME` | `7991ae9386e5b787` |
+| `synchro-social-favicon.png` | `32c638403963ec17` |
+| `synchro-social-logo.png` | `a48c665dcb07754d` |
+
+Plus 18 files under `nav-icons/`.
+
+```powershell
+$out = "D:/Sidney/Codex/2026-09-13-final-review-repairs/browser-capture-UNIQUE"
+New-Item -ItemType Directory -Path $out -Force | Out-Null
+$base = "https://syncview.synchrosocial.com"
+foreach ($f in @("index.html","404.html","CNAME","synchro-social-favicon.png","synchro-social-logo.png")) {
+  Invoke-WebRequest -Uri "$base/$f" -OutFile "$out/$f" -Headers @{"Cache-Control"="no-cache"} -UseBasicParsing
+  "{0}  {1}" -f (Get-FileHash "$out/$f" -Algorithm SHA256).Hash.ToLower(), $f
+}
+```
+
+**Worked when:** the printed `index.html` hash equals
+`61282fa2c0cb568668b49566373723bcac5d6cd32c2c9771e01b1bb1c52fcff7` and the
+others match their prefixes above.
+
+- **All match** → the served browser is `0aa5954`. Record that as the captured
+  previous browser with `matched_git_sha = 0aa5954`. The restoration route is
+  then the documented one-liner,
+  `git restore --source=0aa5954a5c63e3b6f399caf739e562b371393325 -- index.html`,
+  and the browser half of B5 is closed.
+- **`index.html` differs** → the served browser is NOT main's tip. Stop and
+  report the hash. That is a real finding, not a glitch: it means Pages is
+  serving something other than the frozen commit, and the whole browser
+  restoration assumption needs rechecking before the merge.
+
+Do this **before** the merge. After the merge, Pages republishes and the
+pre-merge browser is no longer downloadable.
+
+## Appendix: B4 managed restore permission check (not part of the sitting)
+
+Closes the part of B4 that no command can: whether the managed restore route is
+actually executable by you on the correct project. This is a browser click path,
+not a script, and it changes nothing.
+
+1. Open [the Supabase dashboard](https://supabase.com/dashboard) and select the
+   project recorded privately (its ref is in your private evidence directory;
+   it is not written here).
+2. Go to **Database → Backups**.
+3. Confirm three things and write down what you see:
+   - that you can see the backup list at all, and the timestamp of the latest;
+   - whether a **Restore** control is present and enabled for your account, as
+     opposed to greyed out or absent;
+   - the current **Point in Time Recovery** state.
+4. Do **not** start a restore. This is a capability check only.
+
+**What each outcome means:**
+
+- **Restore control present and enabled** → the route is executable, and B4's
+  mechanical half is closed. What remains is the decision in the next line.
+- **Absent or greyed out** → the route is not executable by you, and B4 cannot
+  close on this path. Report it; a different operator or a plan change is needed
+  before step 13.
+- **PITR disabled** was the state observed on 2026-09-14. Turning it on before
+  the installation would materially improve the recovery position, because it
+  replaces "restore to the last nightly backup" with "restore to a chosen
+  moment". That is a cost and configuration decision, so it is yours to make,
+  but it is worth making deliberately rather than by default.
+
 ## After the sitting
 
 Steps 12 and 13 are next. Step 13 is an approval gate and nothing happens at it

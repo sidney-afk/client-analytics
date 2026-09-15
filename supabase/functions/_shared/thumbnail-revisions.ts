@@ -281,6 +281,41 @@ async function authedFetch(url: string, init: RequestInit = {}): Promise<Respons
   return fetch(url, { ...init, headers });
 }
 
+/* Our own marker, written into the row's `error` column the first time a Drive
+ * 404 is seen, so a LATER run can tell "the same dead file coming round again"
+ * from "this source just became unreachable". The status is not persisted
+ * anywhere else, and matching on Google's message prose is what driveError()
+ * exists to avoid. The success path sets `error: null`, so a source that is
+ * re-shared drops the marker on its own.
+ *
+ * It is bound to the FILE, not just to the fact of a 404. A prefix alone was
+ * wrong: `migrations/2026-07-14-thumbnail-revision-v2.sql:163-185` preserves the
+ * existing pending watcher when a source is re-linked from file A to file B ("so
+ * the scanner can archive A as Previous"), so a row can carry A's marker while
+ * this scan is reading B. Replace a dead thumbnail with a replacement you forgot
+ * to share and a prefix test would call B "already known", leaving the lane green
+ * for a genuinely new unreadable source. The row's own `drive_file_id` column is
+ * no help either -- it is still A. */
+const MISSING_SOURCE_MARKER = "drive_404";
+
+function missingSourceMark(fileId: string): string {
+  return MISSING_SOURCE_MARKER + "[" + clean(fileId) + "]: ";
+}
+
+type DriveStatusError = Error & { driveStatus?: number };
+
+function driveError(message: string, status: number): DriveStatusError {
+  const err = new Error(message) as DriveStatusError;
+  err.driveStatus = status;
+  return err;
+}
+
+function driveStatusOf(e: unknown): number {
+  if (!e || typeof e !== "object") return 0;
+  const status = Number((e as DriveStatusError).driveStatus);
+  return Number.isFinite(status) ? status : 0;
+}
+
 async function driveMetadata(fileId: string): Promise<DriveMeta> {
   const fields = "id,name,mimeType,modifiedTime,md5Checksum,headRevisionId,size";
   const url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId)
@@ -290,7 +325,11 @@ async function driveMetadata(fileId: string): Promise<DriveMeta> {
   const body = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     const msg = clean((body && (body.error as JsonMap)?.message) || body.error_description) || ("Drive HTTP " + resp.status);
-    throw new Error(msg);
+    // Carry the STATUS, not the prose. The caller has to tell a deleted or
+    // unshared file (404, permanent) from a Drive outage (5xx, transient), and
+    // matching on Google's message text would make that distinction depend on
+    // wording nobody here controls.
+    throw driveError(msg, resp.status);
   }
   return body as DriveMeta;
 }
@@ -750,7 +789,8 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data as JsonMap[] : [];
-  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, items: [] as JsonMap[] };
+  const out = { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0,
+    missing_source: 0, missing_source_new: 0, items: [] as JsonMap[] };
   const activeClients = new Map<string, boolean>();
 
   for (const originalRow of rows) {
@@ -759,11 +799,17 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
     const surface = clean(row.surface);
     const client = clean(row.client);
     const sourceId = clean(row.source_id);
+    // Hoisted so the catch knows WHICH Drive file answered 404. A 404 can only
+    // come from driveMetadata, which runs after this is set, so a Drive-gone
+    // failure always has it; anything that throws earlier leaves it empty and is
+    // therefore counted as NEW, which is the fail-loud direction.
+    let sourceFileId = "";
     out.checked++;
 
     try {
       if (!activeClients.has(client)) activeClients.set(client, await activeClient(input.supabase, client));
       const source = await sourceThumbnail(input.supabase, surface, client, sourceId);
+      sourceFileId = clean(source && source.fileId);
       if (!activeClients.get(client) || !source || source.archived || !source.url || !source.fileId) {
         out.skipped++;
         const now = new Date().toISOString();
@@ -860,12 +906,38 @@ export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<J
       out.changed++;
       out.items.push({ id, status: "changed", thumb_rev: thumbRev });
     } catch (e) {
-      out.failed++;
       const msg = e instanceof Error ? e.message : "scan failed";
+      /* A Drive 404 is a source the scanner cannot read. It is NOT necessarily a
+       * deleted file: Google answers 404 identically for a file that was deleted
+       * and for one that exists but is not shared with the caller, and this
+       * repository already pins that ambiguity (`test/prod-asset-state-guidance.js`).
+       * So a 404 is never silently exempt from failure. It stays inside `failed`
+       * -- which keeps the response's four-way conservation exactly as every
+       * existing caller already requires -- and is reported ALONGSIDE as a
+       * subset, split into rows already known dead and rows newly unreadable.
+       * The caller keeps the lane red for the new ones, because "the service
+       * account just lost a whole folder" and "the same three dead files came
+       * round again" arrive here as the identical status code and must not read
+       * the same.
+       *
+       * The row stays `pending` on purpose: syncview_thumbnail_revision_backfill
+       * re-enrols any active, non-archived source with no pending row, so a
+       * terminal status would be re-created on the next run and grow the table
+       * instead of settling it. The `error` column still records exactly what
+       * happened, per row, for anyone querying the table. */
+      const driveGone = driveStatusOf(e) === 404;
+      const mark = missingSourceMark(sourceFileId);
+      const knownMissing = driveGone && clean(row.error).startsWith(mark);
+      out.failed++;
+      if (driveGone) {
+        out.missing_source++;
+        if (!knownMissing) out.missing_source_new++;
+      }
+      const stored = driveGone ? mark + msg : msg;
       await input.supabase.from("thumbnail_media_revisions")
-        .update({ error: msg.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ error: stored.slice(0, 500), last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq("id", id);
-      out.items.push({ id, status: "failed", error: msg });
+      out.items.push({ id, status: driveGone ? "missing_source" : "failed", error: msg });
     }
   }
 

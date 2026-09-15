@@ -21877,20 +21877,54 @@ browser's 8 s abort — the abort matters, because a snapshot that HANGS is now
 held 5 s before the bounded read may answer, and overrunning the abort loses
 every saved day plus editing, which is worse than an unaliased list.
 
-**NOT DONE, and this is the item.**
+**THEN DONE PROPERLY, same day, because the budget was only headroom.**
 
-1. **The deadline is still a race.** The snapshot grows with the board. When it
-   crosses 5 s this returns, and it will look exactly as mysterious the second
-   time. The fix is for the FALLBACK to alias: a small id-map read the degraded
-   path can afford on its own, so a slow or unhappy snapshot costs latency and
-   never correctness. Slowness is not the only door either — a snapshot that
-   fails validation takes the same unaliased path however long it is given.
-2. **The degraded answer is silent.** `ok_unaliased` should reach the browser as
-   a flag on the response and show a plan-status warning. A wrong calendar that
-   looks right is the expensive part of this whole item.
-3. **Two namespaces is the root cause.** One canonical key, with the 80 native
-   rows migrated, ends the class. Owner decision — scope §6.1 in
-   `docs/ops/WORKLOAD_NATIVE_SOURCE.md` — and a key migration, not a flag.
+1. **The fallback aliases on its own** (`planAliasPairs`, live as v14). It reads
+   the id pairing straight out of `deliverables`, bounded to the ids already in
+   the answer it is returning, under a 1.2 s deadline of its own. Losing the
+   snapshot race now costs latency, never correctness — and it does not matter
+   WHY the snapshot was unavailable, since a validation refusal takes the same
+   path as a slow one. Two id namespaces are still the root cause; this stops
+   them being able to move a card.
+
+   It keeps the snapshot validator's safety property rather than re-deriving its
+   contract: a saved day whose client no longer matches its card's is never
+   re-keyed onto that card, and an ambiguous claim aliases neither side. That
+   ambiguity check was WRONG in the first draft — the bounded read cannot see a
+   second deliverable claiming the same Linear id, because that row is not in
+   the answer — and a harness case caught it. It now confirms every candidate
+   Linear id with one extra bounded read before aliasing to it.
+
+   **MEASURED against the live table:** 342 stored days, 336 aliases emitted, 6
+   refused as client drift — the same 6 rows the snapshot path has been dropping
+   since item 177. Coverage of the two paths is now identical.
+
+2. **The degraded answer speaks.** The response carries `alias_mode`
+   (`snapshot` | `pairs` | `none`) and `plans_unaliased`, and the board renders a
+   warning above the metadata and short-refresh notes, because a board that is
+   WRONG about where work sits outranks one that is incomplete about weights.
+   A response without those fields reads as complete, so an older open tab is
+   unaffected.
+
+   **Client drift is reported separately (`plans_drifted`) and never reaches the
+   banner.** It is permanent until the data is repaired, it does not go down,
+   and a standing warning is how a real one stops being read. Counting those 6
+   on the board was in this change until it was caught in review of my own diff.
+
+**STILL OPEN.** One canonical key, with the 80 native rows migrated, ends the
+class rather than compensating for it. Owner decision — scope §6.1 in
+`docs/ops/WORKLOAD_NATIVE_SOURCE.md` — and a key migration, not a flag. Until
+then two namespaces remain, and every reader of `workload_plan` has to know it.
+
+**PROOF.** `docs/syncview-design/tests/workload-board-browser.js` phases
+`plan_alias_incomplete`, `plan_alias_unavailable`, `plan_alias_complete` (9
+assertions; 110 across 23 phases, so the 20 pre-existing phases also prove the
+no-fields-means-complete path). The pairing itself is covered by a 13-check
+harness run against the compiled function bundle, including drift, ambiguity,
+collision, a failed lookup and the slug/client-key normalization; that harness
+belongs with the function source, which is NOT on main — see the drift note
+below. `prod-write-gateway-browser` passes; `prod-boot-budget` fails identically
+on `origin/main` in this sandbox (external CDN TLS), so it is not this change.
 
 **REPO/LIVE DRIFT, found on the way and worth its own attention.** Live
 `workload-plan` is far ahead of `main`: the deployed function has the native

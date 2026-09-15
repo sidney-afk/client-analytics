@@ -481,22 +481,49 @@ export function collapseLinearAutolinks(value) {
  * (no brackets) went through untouched in the same minute, which is what
  * isolated the character class.
  *
- * NARROW, AND SYMMETRIC LIKE THE AUTO-LINK COLLAPSE. Only a backslash directly
- * in front of a character CommonMark defines as escapable is dropped — exactly
- * the sequences a markdown serializer emits and a renderer reads back as the
- * bare character. Anything else, a lone backslash or a backslash before a
- * letter, is left alone. `\\` collapses to `\` for the same reason, which keeps
- * a description we genuinely sent with a backslash comparing equal to itself.
+ * NARROW, AND DIRECTIONAL — corrected on review, because the first version of
+ * this fix was symmetric and that was wrong.
  *
- * Applied to BOTH sides, like `collapseLinearAutolinks`, so it can only ever
- * make an intent compare equal to Linear's rendering of that same intent. It
- * does widen equality by one step — a foreign issue reading `[x]` now matches
- * an intent of `\[x\]` — which is accepted deliberately: adoption still
- * requires team, project, title, status, due date, assignee, parent and labels
- * to match as well, and the alternative is the standing orphan factory above.
+ * Only a backslash directly in front of a character CommonMark defines as
+ * escapable is dropped: exactly the sequences a markdown serializer emits and a
+ * renderer reads back as the bare character. A lone backslash, or one before a
+ * letter, is left alone.
  *
- * Composed AFTER the auto-link collapse, so the link form is recognised in the
- * shape Linear actually emits it (unescaped brackets) before any unescaping.
+ * The first version applied that to BOTH sides, reasoning by analogy with
+ * `collapseLinearAutolinks`, and accepted the resulting one-step widening as a
+ * fair price. Codex found the counterexample and it is a good one: `\# Heading`
+ * and `# Heading` RENDER DIFFERENTLY — one is literal text, one is a heading —
+ * and symmetric unescaping canonicalizes them to the same string. So an intent
+ * of `\# Heading` would adopt an issue whose description a person had edited to
+ * `# Heading`. Team, project, title, status and the rest cannot catch that: the
+ * edit is description-only, which is the one field this check owns.
+ *
+ * AND THE PRECONDITION IS NOT HYPOTHETICAL. It is "a create succeeded but its
+ * linkage was lost, and the description was edited before recovery" — the first
+ * half of which is precisely the incident above, twice in one afternoon. The
+ * widening was defended on the grounds that adoption needs every other field to
+ * match too; the defence was simply wrong, because a description-only edit
+ * leaves every other field matching.
+ *
+ * SO THE COMPARISON IS DIRECTIONAL INSTEAD, which is what the asymmetry of the
+ * problem always called for: Linear ADDS escapes, it never removes ours. A
+ * stored description is therefore accepted when it is byte-identical to our
+ * intent, or when stripping escapes from THE STORED SIDE ALONE yields our
+ * intent exactly. Our own intent is never rewritten, so any difference we did
+ * not send survives the comparison:
+ *
+ *   intent `[x]`      stored `\[x\]`    -> adopt   (Linear escaped ours)
+ *   intent `\[x\]`    stored `\\[x\\]`  -> adopt   (Linear escaped our backslash)
+ *   intent `\*t\*`    stored `\*t\*`    -> adopt   (byte-identical, clause one)
+ *   intent `\# H`     stored `# H`      -> REFUSE  (a person changed it)
+ *
+ * The last row is the one symmetric normalization got wrong, and it is the row
+ * that matters: refusing there costs an orphan that a human can see and fix,
+ * while adopting there silently links an issue whose text somebody else chose.
+ *
+ * Composed AFTER the auto-link collapse, which stays symmetric and unchanged,
+ * so the link form is recognised in the shape Linear actually emits it
+ * (unescaped brackets) before any unescaping happens.
  */
 const LINEAR_ESCAPED_PUNCTUATION = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
 
@@ -505,8 +532,15 @@ export function collapseLinearEscapes(value) {
   return value.replace(LINEAR_ESCAPED_PUNCTUATION, "$1");
 }
 
-export function canonicalLinearDescription(value) {
-  return collapseLinearEscapes(collapseLinearAutolinks(value));
+/*
+ * `actual` is what Linear stored, `expected` is what we sent. The argument
+ * order is load-bearing: escapes are stripped from the stored side only.
+ */
+export function linearDescriptionMatches(actual, expected) {
+  const stored = collapseLinearAutolinks(actual);
+  const intent = collapseLinearAutolinks(expected);
+  if (stored === intent) return true;
+  return collapseLinearEscapes(stored) === intent;
 }
 
 function createIntentMismatches(issue, payload, context) {
@@ -527,7 +561,7 @@ function createIntentMismatches(issue, payload, context) {
         ? issue.description
         : null;
     if (expectedDescription == null
-        || canonicalLinearDescription(actualDescription) !== canonicalLinearDescription(expectedDescription)) {
+        || !linearDescriptionMatches(actualDescription, expectedDescription)) {
       mismatches.push("description");
     }
   }

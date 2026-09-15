@@ -42,7 +42,7 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
 (async () => {
   const mapping = await import(require('node:url').pathToFileURL(path.join(ROOT, 'mapping.mjs')).href
     + '?description-escape-test');
-  const { collapseLinearEscapes, canonicalLinearDescription, decideConflict } = mapping;
+  const { collapseLinearEscapes, linearDescriptionMatches, decideConflict } = mapping;
 
   // --- 1. The exact live strings that produced the orphans ------------------
   const SENT = '[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.';
@@ -53,8 +53,8 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
   // exact strings read back from VID-13912.
   ok(KEPT !== SENT,
     'PRE-FIX BEHAVIOUR: a raw byte comparison of sent vs kept DOES differ — the false mismatch that orphaned VID-13912');
-  ok(canonicalLinearDescription(KEPT) === canonicalLinearDescription(SENT),
-    "Linear's escaped form of the app's own template compares equal to what we sent (the live orphan string)");
+  ok(linearDescriptionMatches(KEPT, SENT),
+    "Linear's escaped form of the app's own template matches what we sent (the live orphan string)");
   ok(collapseLinearEscapes(KEPT) === SENT,
     'the escaped form collapses back to the exact original text');
 
@@ -68,15 +68,36 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
     && collapseLinearEscapes(null) === null
     && collapseLinearEscapes(undefined) === undefined,
   'plain text, empty, null and undefined pass through unchanged');
-  ok(canonicalLinearDescription('one [a] two') !== canonicalLinearDescription('one [b] two'),
+  ok(!linearDescriptionMatches('one [a] two', 'one [b] two'),
     'two genuinely different descriptions still compare as different (create idempotency is not weakened)');
+
+  // --- 2b. THE DIRECTIONALITY, which is the whole point of the Codex fix ----
+  //
+  // Codex's counterexample on PR #1406, against the first (symmetric) version
+  // of this fix. `\# Heading` is literal text; `# Heading` is a heading. They
+  // render differently, so they are NOT the same description, and a symmetric
+  // unescape canonicalized them to the same string. The precondition is real:
+  // a create whose linkage was lost, with the description edited before
+  // recovery, is the first half of the incident this suite is named for.
+  ok(!linearDescriptionMatches('# Heading', '\\# Heading'),
+    "CODEX #1406: a stored '# Heading' does NOT adopt an intent of '\\# Heading' — a person changed it");
+  ok(!linearDescriptionMatches('*text*', '\\*text\\*'),
+    "CODEX #1406: the same holds for emphasis — '*text*' does not adopt an intent of '\\*text\\*'");
+  ok(linearDescriptionMatches('\\# Heading', '# Heading'),
+    'the other direction still adopts: Linear escaping OUR heading marker is Linear\'s rewrite, not a human edit');
+  ok(linearDescriptionMatches('\\*text\\*', '\\*text\\*'),
+    'a description we genuinely sent escaped, stored verbatim, matches byte-identically (no false mismatch)');
+  ok(linearDescriptionMatches('\\\\[x\\\\]', '\\[x\\]'),
+    'Linear escaping our backslash is still adopted');
+  ok(!linearDescriptionMatches('\\[x\\]', 'totally different'),
+    'stripping escapes from the stored side cannot rescue a genuinely different intent');
 
   // --- 3. Composed with the auto-link collapse, in that order ---------------
   const PLAN = 'https://docs.google.com/document/d/1u9JPDZomzUD1pWHMDi5n2wSjGjni0CeNSv1TCQnOycI/edit';
-  ok(canonicalLinearDescription(`Filming Plan: [${PLAN}](<${PLAN}>)`) === `Filming Plan: ${PLAN}`,
-    'the auto-link case still collapses through the composed normalizer (no regression on the 2026-08-07 fix)');
-  ok(canonicalLinearDescription(`\\[SyncView\\] see [${PLAN}](<${PLAN}>)`) === `[SyncView] see ${PLAN}`,
-    'an escaped bracket and an auto-link in one description both normalize');
+  ok(linearDescriptionMatches(`Filming Plan: [${PLAN}](<${PLAN}>)`, `Filming Plan: ${PLAN}`),
+    'the auto-link case still matches (no regression on the 2026-08-07 fix)');
+  ok(linearDescriptionMatches(`\\[SyncView\\] see [${PLAN}](<${PLAN}>)`, `[SyncView] see ${PLAN}`),
+    'an escaped bracket and an auto-link in one stored description both normalize');
 
   // --- 4. decideConflict itself must accept the live case -------------------
   const context = { team_id: 'team-1', project_id: 'proj-1', state_id: 'state-1' };
@@ -105,9 +126,10 @@ const mappingSource = fs.readFileSync(path.join(ROOT, 'mapping.mjs'), 'utf8');
   'a genuinely different description still refuses adoption (the gate is not disarmed)');
 
   // --- 5. The comparison must use the composed normalizer -------------------
-  ok(/canonicalLinearDescription\(actualDescription\)\s*!==\s*canonicalLinearDescription\(expectedDescription\)/
-    .test(mappingSource),
-  'createIntentMismatches compares descriptions through the composed normalizer on BOTH sides');
+  ok(/!linearDescriptionMatches\(actualDescription,\s*expectedDescription\)/.test(mappingSource),
+    'createIntentMismatches compares descriptions through the directional matcher, stored side first');
+  ok(!/collapseLinearEscapes\(\s*(expected|intent)/.test(mappingSource),
+    'escapes are never stripped from the side WE sent (the directionality is not quietly undone)');
 
   if (failures) {
     console.error(`\n${failures} Linear description-escape check(s) failed`);

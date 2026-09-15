@@ -22024,11 +22024,34 @@ that matters: refusing there costs an orphan a human can see and fix, while
 adopting there silently links an issue whose text somebody else chose. The
 auto-link collapse stays symmetric and unchanged.
 
-**The method note, since it is the second time on this ledger.** The wrong call
-was defended in the code comment, in the commit message and in the PR body
-before anyone read it — three restatements of one unchecked claim, which is the
-exact failure this ledger keeps recording. Writing the justification down did
-not make it true; a reviewer constructing one counterexample did.
+**AND THE DIRECTIONAL VERSION WAS STILL WRONG — same reviewer, second pass.**
+Directionality closes the collision in ONE direction. Run it backwards: we send
+a real heading `# H`, a person edits the still-unlinked issue to the literal
+`\# H`, and stripping escapes from the stored side yields `# H`, our intent
+exactly, so we adopt their edit. The stored bytes of *"Linear escaped our `#`"*
+and *"a person typed `\#`"* are **identical**, so nothing about direction can
+separate them. The directional commit even shipped a test ASSERTING that
+adoption as correct, justified by Linear's rewrite being the likelier cause —
+and an assertion written from the same wrong premise as the code it guards is
+not evidence of anything.
+
+**So the escape set is now evidence-gated:** exactly `[` and `]`, the characters
+the live orphan `\[SyncView\]` actually named. Nothing is in it by extrapolation
+from CommonMark, and widening it needs a real orphan naming the character.
+
+**The asymmetry is the whole argument.** Too narrow costs an orphan: visible,
+reported, recoverable, and it arrives carrying exactly the evidence needed to
+widen the set correctly — which is how `[` and `]` got here. Too wide silently
+links an issue whose text somebody else chose. Those costs are not comparable,
+so this errs narrow and says so in the source.
+
+**The method note, and it is now the third restatement of the same failure.**
+Each wrong version was defended in the code comment, the commit message and the
+PR body before anyone read it. Twice. Writing a justification down, three times,
+in three places, did not make it true either time; a reviewer constructing one
+concrete counterexample did, twice. The lesson this entry is really recording is
+that confidence expressed in prose is not evidence, and that the second draft
+deserved the same adversarial reading as the first and did not get it from me.
 
 **Proof.** `test/linear-description-escape-orphan.js`, 13 assertions, built on
 the exact live strings — including the pre-fix assertion that the raw comparison

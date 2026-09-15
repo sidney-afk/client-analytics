@@ -91,7 +91,14 @@ jobs:
       # edit on an issue whose linkage was lost would have been adopted. Escapes
       # are now stripped from the STORED side only; our intent is never
       # rewritten. Still mapping.mjs only, file count still 5.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 56b3c098c955157e55fb482de69123c54755c2ff72a8b3ba632435b87d327675
+      #
+      # Re-pinned a third time 2026-09-15, same release, Codex second pass: the
+      # escape set is narrowed to the characters Linear was OBSERVED to escape
+      # (`[` and `]`), not every CommonMark escape. Directionality closed only
+      # one collision direction; a stored `\\# H` against an intent of `# H` is
+      # indistinguishable from a human edit, so the set is evidence-gated now.
+      # Still mapping.mjs only, file count still 5.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 993fa51a77e915192d5fbeb233a20be3362517b14aae7453e5ec95c5d04d6206
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

@@ -504,6 +504,14 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       expect(/1 of them planned to a work day/.test(said.text),
         'and must name how many of the missing ones were planned to a work day');
       expect(/reload/i.test(said.text), 'and must say what to do about it');
+      /* And that instruction has to be TRUE. The forced read wrote the short
+         payload into the five-minute issue cache on its way through, so a
+         reload would have replayed the same short board and cleared the
+         warning with it. The cache is dropped, so the reload misses it and
+         reads the complete mirror instead. */
+      const cached = await h.page.evaluate(() => localStorage.getItem('syncview_linearIssuesCache_v1'));
+      expect(cached === null,
+        'the short snapshot must not stay in the issue cache to be replayed by the reload it just advised');
     } finally { await h.close(); }
   }
 
@@ -521,6 +529,9 @@ const sub = (id, over) => issueRow({ id, identifier: 'VID-' + id.toUpperCase(), 
       });
       expect(said.hidden || !/fewer sub-issue/.test(said.text),
         'and says nothing about a shortfall when there was none — a banner with nothing to report is its own lie');
+      const cached = await h.page.evaluate(() => localStorage.getItem('syncview_linearIssuesCache_v1'));
+      expect(typeof cached === 'string' && cached.includes('r1'),
+        'and a complete refresh leaves its snapshot cached, so only a SHORT one costs the next boot a network read');
     } finally { await h.close(); }
   }
 

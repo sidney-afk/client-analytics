@@ -14298,6 +14298,17 @@
     function wlWriteCache(payload) {
         try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
     }
+    /* A snapshot known to be INCOMPLETE must not be replayed.
+       A forced refresh writes whatever the Linear webhook returned straight
+       into this cache, short payload and all, and an ordinary load replays it
+       for the next five minutes -- so telling the owner to reload would have
+       handed them the same short board with the warning cleared, which is
+       worse than saying nothing (Codex review, PR 1404). Dropping it costs a network
+       read on the next boot and makes that instruction true: the reload misses
+       the cache, reads the complete mirror, and the board comes back whole. */
+    function wlDropCache() {
+        try { localStorage.removeItem(LINEAR_ISSUES_CACHE_KEY); } catch {}
+    }
     function wlIsFresh(fetchedAt) {
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
     }
@@ -15800,6 +15811,7 @@
             }
             wlState.refreshMissing = missing;
             wlState.refreshMissingPinned = missingPinned;
+            if (missing > 0) wlDropCache();
         } else if (!force) {
             // An ordinary load reads the complete mirror, so it supersedes
             // whatever a short refresh reported.

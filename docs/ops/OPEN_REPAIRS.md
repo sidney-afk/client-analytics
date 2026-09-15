@@ -21811,10 +21811,19 @@ make anything worse; refusing can. If the owner would rather the refresh hold
 the previous board and retry, that is a one-line change to the same branch and
 the decision is theirs.
 
+**And the reload it advises had to be made true.** The forced read writes
+whatever the webhook returned straight into the five-minute issue cache
+(`wlWriteCache` inside `loadLinearIssues`), so the reload would have replayed
+the same short board from that cache and cleared the warning with it — worse
+than saying nothing. A detected shortfall now drops that cache
+(`wlDropCache`), so the reload misses it and reads the complete mirror. Caught
+by the Codex review on the first version of this fix.
+
 **Proof.** `workload-board-browser.js` gained `refresh_short_payload` (the card
 really is dropped from the refreshed payload, the saved work day is untouched,
-and the banner names the count, how many were planned, and what to do) and
-`refresh_complete_payload` (an ordinary refresh keeps the pin exactly where it
-was, and says nothing about a shortfall when there was none). 99 assertions
-across 20 phases. Verified pre-existing: the same probe on `555e662`, before
+and the banner names the count, how many were planned, and what to do, and the short
+snapshot is gone from the issue cache) and `refresh_complete_payload` (an
+ordinary refresh keeps the pin exactly where it was, says nothing about a
+shortfall when there was none, and leaves its own snapshot cached). 101
+assertions across 20 phases. Verified pre-existing: the same probe on `555e662`, before
 any of the boot-speed work, loses the card in exactly the same silence.

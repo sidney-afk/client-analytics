@@ -1,0 +1,2547 @@
+{
+  "format": "linear-exit-retirement-switch-dependencies-v1",
+  "classification": "SOURCE_CALIBRATED_PREPARATION",
+  "base_target_sha256": "2144ae7a4218092851848692f5859537a9aefb9d6940abf9ca41dc9fd6eb7685",
+  "base_target_is_hosted_proof": false,
+  "application_guard_source_sha256": "1cd078001df6c6280760efdcf155d52c4b61ab5543fa797d7b392e9320e5fdd0",
+  "functions": [
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "mirror_outbox_enqueue",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "bigint",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_entity text, p_entity_id text, p_operation text, p_payload jsonb, p_dedup_key text, p_source_edited_at timestamp with time zone, p_client_slug text, p_team text, p_actor text, p_role text, p_deliverable_id text, p_batch_id text, p_comment_id text, p_depends_on_id bigint, p_test_only boolean",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "fb876555f3b5e9f98fd17a4d1c46e456",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_application_dml_guard_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "4d83d66e6f3bcef1e341a2d18ce11030",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_assignment_epoch",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "text",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_team text",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "a5010614cc8a63256a2f7cd2fc040541",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_card_context_consumed_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_catalog"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "5b897bdace6e9b5ec1d82a19420ae878",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_comment_lifecycle_write",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "production_comments",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_comment jsonb, p_event jsonb, p_expected_version integer, p_expected_updated_at timestamp with time zone",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "052a20d664440b91a5cdeae755b3517e",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_comment_write",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "production_comments",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_comment jsonb, p_event jsonb",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "983e93fdbd79687adc5524d5d6b6c80d",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_deliverable_write",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "deliverables",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_row jsonb, p_event jsonb",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "6ab21b7383badbcc5f8a979428c20491",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_label_catalog_capability",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "614ce8280c97e4647e2a67d62f4a3f60",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_label_catalog_check_manifest",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "text",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_manifest jsonb",
+      "leakproof": false,
+      "volatility": "i",
+      "anon_execute": false,
+      "body_raw_md5": "cdddaecafedc1d461f8fee91ba3713cf",
+      "service_execute": false,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_label_catalog_read_attested",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_version_id uuid, p_team text",
+      "leakproof": false,
+      "volatility": "s",
+      "anon_execute": false,
+      "body_raw_md5": "9d6af86fdde16550de2fea071ab60b37",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_label_catalog_read_version",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_version_id uuid, p_team text",
+      "leakproof": false,
+      "volatility": "s",
+      "anon_execute": false,
+      "body_raw_md5": "591b334202ebbe29dea308e12b01633b",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_assignment_receipt_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "f46ecebecb9b30a4def17507fe507423",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_assignment_truncate_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "00a61cf4de605c748aee6caff2e1c23c",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_intake_delete_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "536b301835307cec25c63cbb9e52add0",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_native_intake_epochs",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "6bef99627364e74b11274d34097ec3e8",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_intake_receipt_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "f6ab5faa9c94ba35256e4fd1a4a2f47d",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_intake_truncate_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "ba1dcf1511154225c3a14887dd8bf0ea",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_label_receipt_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "ee99c6348af748dfbf801b80e2c931d3",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_label_truncate_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "a80b58043f81e9f05b3318ceb37fd44a",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_ordinary_capability",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_team text",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "78c0f8edb38234b19d7c411541da9ff3",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_ordinary_event",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_event jsonb, p_expected jsonb",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "0b07bb0d482658a33138cc901ba9b0e7",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_ordinary_receipt_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "05076600c6f50ce43a42470591687d3f",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_native_ordinary_receipt_truncate_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "8b9fb45737b4ce36c89bf227e3d9b1e0",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_legacy_written_shape_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "o mirror_outbox",
+      "leakproof": false,
+      "volatility": "s",
+      "anon_execute": false,
+      "body_raw_md5": "4875b74bc975a2ff2a65be9a4436aafb",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_send_admit_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_epoch uuid, p_outbox_id bigint, p_lock_token text, p_request jsonb, p_replay_scope jsonb",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "b6dd601cc767885e6bb97d8ad373ae0c",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_send_admit_v2",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_epoch uuid, p_outbox_id bigint, p_lock_token text, p_request jsonb, p_replay_scope jsonb, p_receipt_context jsonb",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "48b5c3bd9e059256d71f26409e96c2ad",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_terminal_clean_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog"
+      ],
+      "result": "text",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "arguments": "v text",
+      "leakproof": false,
+      "volatility": "i",
+      "anon_execute": false,
+      "body_raw_md5": "73ccb0aea4d0adf50cf1ab943c2bd284",
+      "service_execute": false,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_terminal_eligible_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "o mirror_outbox",
+      "leakproof": false,
+      "volatility": "s",
+      "anon_execute": false,
+      "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_provider_terminal_history_capture_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public",
+        "lock_timeout=5s"
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_epoch uuid, p_expected_rows jsonb, p_actor text",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "4b79f4b41ac5c20e47d9cd0d506ca4e1",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_syncview_retirement_admission_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": true,
+      "body_raw_md5": "e4d931c4c23b1fb667dd512cf4eacc00",
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_syncview_retirement_f27_drill_receipt",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "arguments": "p_row mirror_outbox",
+      "leakproof": false,
+      "volatility": "i",
+      "anon_execute": true,
+      "body_raw_md5": "7b0377cb6613987904b56a06fa089c30",
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "production_syncview_retirement_typed_native_receipt",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "arguments": "p_row mirror_outbox",
+      "leakproof": false,
+      "volatility": "i",
+      "anon_execute": true,
+      "body_raw_md5": "7955efee85e447534427364acdaf2d50",
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "kind": "f",
+      "name": "track_b_f27_hold_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "anon_execute": false,
+      "body_raw_md5": "e7d41d5ac3edd6da291bbb6c2c4b2817",
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    }
+  ],
+  "triggers": [
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "ai_client_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "91bd0937623d9b719ad8d4d36103f1f3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "ai_client_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d26668b8b34087fe858abfa40c1c71a0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "batches",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c512b6944566534b2d13f895cfef948b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "batches",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ac4b131844607b0aa918e1e35f649cb8",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "batches_parent_claim_backup_20260824",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "318b4fc0693a1ebe633af712166bae28",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "batches_parent_claim_backup_20260824",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ef2c501011fd69f2ac131da2f44f1214",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_feedback_materializations",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "589a874e9c015f154189a23bb38d61af",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_feedback_materializations",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "bca1bb095832e953c88a432d75fb922e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_post_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7c80735351404687d0db441ac34de028",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_post_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e616fa8d35942b094d911d7bdb85f5cd",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "calendar_posts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "99f5149e24240c26007e6df25c2196f8",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "calendar_posts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "07a72956f8e6de7a1302f1a0294e5137",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "caption_prompts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6103cc8fe51b580fd2f8daba24993dfc",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "caption_prompts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b8027951baf0ef453ad2db81d2b0a4f0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "card_change_journal",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "1a277cd2096232b0c2d6640780b18e06",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "card_change_journal",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e5f23d95ba6520e90d548e9bf95b4ab5",
+      "initially_deferred": false
+    },
+    {
+      "name": "card_context_must_be_consumed",
+      "table": "card_write_transaction_context_v1",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": true,
+      "definition_md5": "c07554503cad062a2a356a4c6d27f339",
+      "initially_deferred": true
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_access",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2b8960ccf43b2ed7bedd69ff0f789149",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_access",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "4bce90db29ba9a127200745301439030",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_access_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "14c7d430ac8b6fbb66d7b6a3f86d81b2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_access_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e9999e96139c3d5661697c89b9a3141c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credential_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "968c37204d2cb7a09adfbc1cc342664d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credential_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e9a2fbfe5ddcf37a6847a76799893a10",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credentials",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3612c2fa0404a802a134e2fd27a232b8",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credentials",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "05c69f827888170808c85da18f811bfd",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_credentials_rev",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6ca414dfacde572cd48d714a942cc78f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_credentials_rev",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7d9f24891e6607836d91e8e2c75068f5",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "client_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b4691a912c2f1e036a0a4b9b3182b526",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "client_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "623287809402044d556d8eba657ca6ec",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "clients",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b6afc581ec48d5bd5786223684eba7ab",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "clients",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0bfb3fb2f30aecca6139731a5c6b698e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "content_samples",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "8ad1b0fcba36c69f488507d766ce921f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "content_samples",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "322e9e5e26bd75895e56b4ac80ed21fa",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "deliverable_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "29f1d44c225ca0a8b592cb219e82801e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "deliverable_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b950e304d416f817be1a3a1e2112c297",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "deliverables",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5b55e17633c87de6a9c0f2acd3420e63",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "deliverables",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e49fa712b1c1a7621a4d00a1b5011b95",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "description_images",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "a8ad6cafa9be77005bcf64ba43125339",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "description_images",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ac0f58084826d7d1206a00ab78951745",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "filming_plans",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "52f939eae2e091b92c0d7698b8d9e87a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "filming_plans",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "221cff821ebfd3b33a93bbb5a8f92449",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "flag_flips",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b2dafeb6f41c6cfa6e7e1bd53d201037",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "flag_flips",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e763e8828fc0ef95da355f5885c10f4d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_application_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0772afa5759800246effe9202540f024",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_application_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2142550e63090e004467f1fe295c1e1b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_applications",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "adb012be363ef04a94c1e52193a9335a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_applications",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3deb4588e3c561841f33196fb124dee4",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "hiring_invite_jobs",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3ae957b90ba15162418f8b2608c42106",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_invite_jobs",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "fff250228e36960595cb948108d1082d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_campaign_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0ba97d9204c78adaf9eba03d4cddd557",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_campaign_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "55bb740336a5794ff93ffb2a483439f4",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_leads",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "73e4f2b92559ed650809f936a123a96d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_leads",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "801bb7ad336de992bef0c468d9b7e030",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_performance_by_ad_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "8d1809f15340121c8dfc6630840a5319",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_performance_by_ad_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9ff9a94dece023d155365b563e5c7c64",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_performance_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "1c1d2cee2eac540855a5612f25e6b874",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_performance_daily",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "865680d663abcbb16b03f64fae0f71f0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "kasper_ad_unfinished_leads",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "33187d76763d69c877b7d8fcc47cecca",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "kasper_ad_unfinished_leads",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "1c83f4acc5ceec0af3d0f8e02541ed96",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "legacy_intake_native_triage",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "34be6c4ea5850b509ae3f804ec78907d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "legacy_intake_native_triage",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d37a91a8c63bf8f2024f95a4487ae1ac",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "legacy_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c593a905827ae07949c5aa4434dfc495",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "legacy_onboarding",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5111b66b393065eeda33d74b0b8038a0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "168f5a776151d9cff25a0fca2d9b95fc",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3738e3436516f585d5994e24a9d9bcde",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive_asset_refs",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "fa8bf6162295903a30d99bac234001d1",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive_asset_refs",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ed547201cbbff4cbfbc90fed35ca1fe7",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_archive_asset_rescue_config",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "8f39298a8276751f0463cf87067371d0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_archive_asset_rescue_config",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "223474eb8302bf9273218fa139c794cd",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_intake_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0ce5e8cbdc82be2a3e2c8d31b991ed17",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_intake_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3d4e83bed9348bb14a4b89b70922ec0c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_outbound_cutoff_control",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2cede44b902497b142da8b00e5dc6fe4",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_outbound_cutoff_control",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "4239954e75fa1366b1d8bbec0c1d69bc",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "linear_project_ids_shape_migration_20260728",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2a57263f7c8c98574a267a27f3dc6b70",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "linear_project_ids_shape_migration_20260728",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "dffca7d381fd7cd1964dc6efedbb930c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "dd883cec71a5fe84c0d1313eeef18ba3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "be355884d722c8c6deec03177a595f14",
+      "initially_deferred": false
+    },
+    {
+      "name": "linear_outbound_control_lock_v1",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6b4a92c6e34228a6963b56be272b56d9",
+      "initially_deferred": false
+    },
+    {
+      "name": "linear_outbound_stale_worker_guard_v1",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c496249566c701f4bfb87346104d3e82",
+      "initially_deferred": false
+    },
+    {
+      "name": "track_b_f27_hold_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7556348134963ed4e88dbcef14decedc",
+      "initially_deferred": false
+    },
+    {
+      "name": "zz_native_intake_delete_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "84662453ccea1826bdf945501c440b61",
+      "initially_deferred": false
+    },
+    {
+      "name": "zz_native_intake_receipt_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "8c6afcf81dd7e272a30919f99fc00110",
+      "initially_deferred": false
+    },
+    {
+      "name": "zz_native_intake_truncate_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "90a94d8e98bdb811f605299b3fba9cfa",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_assignment_receipt_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ad694578d0230eb65a61f216f5b5feb5",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_assignment_truncate_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2a2211234ca50314a5a54b9bb73b74be",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_label_receipt_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2eaf74d88a709b28288da55e30af7535",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_label_truncate_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9f8758ab727a76b8610e9db556e7490b",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_ordinary_receipt_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "8910753022741a1fd90abec61376da38",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_native_ordinary_receipt_truncate_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2420c9740a1956583aa895e31c64ad20",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzz_syncview_retirement_admission_guard",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7fe115064124477b1af2a96da8ea084b",
+      "initially_deferred": false
+    },
+    {
+      "name": "zzzz_linear_outbound_stamp_generation_v1",
+      "table": "mirror_outbox",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7eec5928ffd078d49f4a85f19ace9aad",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "native_brief_media_occurrences",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c55b92f81e4a72de472fa6f69758797e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "native_brief_media_occurrences",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "99ab1d177290a772ee272c91663aa932",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "onboarding_fallback",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e39a7581560865db9c1bfe2ad3f3dd7e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "onboarding_fallback",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ff11af371be6259ade8b61c43b10fa4a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_asset_access_checks",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "25a52e25deea01e774fb81127176ff1e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_asset_access_checks",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7c580df8d40e7f15174f64178a40b1f0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_materialization_ingress",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d2444da7a9487ef6f2898bdcf7b28b9d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_materialization_ingress",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cc54483254fad50a6097e20f4143bedb",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_materialization_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0e0f6222576822f60a197d32b7094262",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_materialization_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "23b79e4152dd6e02c53fbbd514082cfb",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_card_provenance",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "df0d9708896529cc7e57796eb0af73a2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_card_provenance",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "53952578a510ff0cc40c3481fb7518eb",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_card_links",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7fdd8f663948ab7b6bf8adfe8cf586d2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_card_links",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "754549313195cee91ff136510f258c2d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_import_conflicts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0c1c784366dd4d12f8dd90f54c8a6839",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_import_conflicts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3afd2a0649d5da47929d8b575864777b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_mutation_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7ca121eeed1c4ad95bb14d8516b74fb0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_mutation_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e1a46c4c47f87acc5ebedd8da70f7a14",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_read_audit",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cce24ff15e16f87645319e576a3c70d5",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_read_audit",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cebf3bb3196c6cdaf821cf2a19c10cc4",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comment_read_budget",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9e0599dd8ccc2916b655531a31ee6d6f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comment_read_budget",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d05ab8b42e4e92db182035a0ee8abe12",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_comments",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "28e2064b96514849a61a07fb8e198ac1",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_comments",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "b76956ee7309aa15e94ce8178a0bc022",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_intake_manifests",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d1cbb2754e70bbb8cddc3dab39c856a2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_intake_manifests",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c0db4dbe9337fa6078a4c3d9aecdaf38",
+      "initially_deferred": false
+    },
+    {
+      "name": "legacy_intake_native_acceptance_guard",
+      "table": "production_intake_manifests",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "3a17e846c650ac65cdecd46d3456fca9",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cfcba6245698c5a2edb43470a12b4297",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "66d9aa0c516ab5ffce4445fd7b9b5b62",
+      "initially_deferred": false
+    },
+    {
+      "name": "production_label_catalog_no_change",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9170d044818fb20791998a835df7cc35",
+      "initially_deferred": false
+    },
+    {
+      "name": "production_label_catalog_no_truncate",
+      "table": "production_label_catalog_versions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "dc2dd25a4920bcb49540a6895a5ed6bd",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_client_provisions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "38d4e78412f9e1006f370d8fa443dd04",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_client_provisions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2c94f6f76b3ea308ebe58d44f0523711",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_identifier_grants",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2003c7294ce9d2903daa7bf0b26b049a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_identifier_grants",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c90b696c4fff3d19055168c95134d784",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_identifier_mint",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d071844039d1f3763eb7a1becc0bef8a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_identifier_mint",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9ed866d4de90cc009587e5fce7fec6a3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_native_ordinary_receipt_admissions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0eae26b885d489779478aed7cb8ed9aa",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_native_ordinary_receipt_admissions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c8f05d3984ef85fd46078dfa269a1852",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_config",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "06cd49927ead4ce77d24c768c6463d7d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_config",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "217a2bd840240554b5b8c0feb56afdb3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_delivery_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2e00d3cf1cbe2302f46220aa581de703",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_delivery_receipts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "f25f441ace4b944c9a12d927c5dddfd6",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_intents",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ce4a58609cf58aa561116add26f5b458",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_intents",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "a0550e9bfe542626d48b0c527e555c56",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "production_notification_reconciliations",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cbfaca5774655a4a6eb9fdf4c144058c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "production_notification_reconciliations",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "0cc9d3ad9ef8ed4ca343a70a2831c0a2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_adjustments",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ee87c79f1d5e7dcacb816bf84fd1e526",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_adjustments",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "2270d9263ff179a67dfcf59974c02ce9",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_members",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "786219add5eb4cad605db2ee0385852b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_members",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "baaabb09cdf1c81c0ef6ae356bf7d990",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "pto_requests",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "508f5727254f98ebce9331d5b9cb28ec",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "pto_requests",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "af511e98ba646033476fec26d63367fe",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "public_intake_log",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e5c903b6363d9591a4fdadccf6a91040",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "public_intake_log",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "323c0cc58840544adbdfe87df524deef",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "quiz_intake_log",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "c2b3f15ace8c5ab8edb7e2af079e1131",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "quiz_intake_log",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "189675655325a874c02faab3845b314d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "quiz_responses",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cc61c8ef6e426097466dc77486d88268",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "quiz_responses",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "4ed27c0f715ab6e73c395b4bcfebd70b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sales_intakes",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "a86c303cd762ce55c11c3b49411e4d89",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sales_intakes",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5d7e0c8a3f7fff1fcce655c29a92ce6c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sample_review_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e16c084a8a0cc2e5a626b5c54e02854e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sample_review_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6224930f61e80b1f8a9da1fd8e9e584b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "sample_reviews",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "98f6043e4a3429e1391fb1416b5de270",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "sample_reviews",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5e78623965223d2d87ae274512a484f6",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "settings_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "35e9c80845ed7643d9fdab2f2f739436",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "settings_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9b5f77d14be0f694fa8179383efa4d33",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "smm_weekly_reports",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9176e80af433b302967f51d8ac659249",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "smm_weekly_reports",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "171fae18e5461e03cb3f633f90fbdef9",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "social_media_managers",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6f02b890594e9ec6d5d698afb8dd34c2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "social_media_managers",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "84e7ef028c983ad1efd132e61120530a",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_auth_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "66703d3205cbcf5d57547004feeeba94",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_auth_events",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "516a26cb5cee4af3fbb724eb93900b7f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_retirement_admission",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ebc4031e30e0b3d7d85b28e2d57bf727",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_retirement_admission",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "9da85d075ec6c409db6715b401da833b",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "syncview_runtime_flags",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "532ff5a8fbf786854eb89e1fcab53c65",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "syncview_runtime_flags",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "63ac113bda60d810cb685946648f1f39",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "team_members",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "a7364f94787d1c283dac7ef3f2694001",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "team_members",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "e14d280c56fd892665b266d889650dbc",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "templates",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5eeda1832026991879e7c75a62b24a3d",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "templates",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7055816c28e333e7590283db45c48ba2",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "thumbnail_media_revisions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "ae0eedf36b9a3d1ef67b5553c757c710",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "thumbnail_media_revisions",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "cd17007b9339bd58c34766005e52cb7c",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_accounts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5f730441dd125c99e2037186d1f3bc3f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_accounts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "85b5c1929c8d35c470456618a04c1fee",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_oauth_state",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "f4b7bf3472d659cf5fdc8af5473eddf8",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_oauth_state",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "fcbf9d9cf8be5a361521145abc160d6f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "tiktok_pilot_posts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "5cb29693ba6b89a21fdb8b93708ce7de",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "tiktok_pilot_posts",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "724b5c41e834868313c89e50559f24e3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_f27_team_fences",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "efdab1fcb7ba403f7c69f72d18fa84e3",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_f27_team_fences",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "52e9225c83e987f1266a349d674fd91f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_team_rollback_intents",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "6bb01d7e1974111021bcaaf731b188e5",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_team_rollback_intents",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "10b415aa3259b3f046f402afe952c62f",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "track_b_team_rollbacks",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "074f55b02a6add0e0257f5905603f19e",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "track_b_team_rollbacks",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "da9b7f874335e8c470f1ab1e542013b0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "workload_issues",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "726057edc627bd3fa7559ea15f878188",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "workload_issues",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "d18dbfe318ee6bacc237feb3468387b4",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
+      "table": "workload_plan",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "588eee08f983356afde7e00303fecbd0",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "workload_plan",
+      "enabled": "O",
+      "internal": false,
+      "deferrable": false,
+      "definition_md5": "7367fd5d1dfcdee09b1b5728f42151db",
+      "initially_deferred": false
+    }
+  ],
+  "protected_trigger_tables": [
+    "mirror_outbox",
+    "production_native_ordinary_receipt_admissions",
+    "production_intake_manifests",
+    "production_label_catalog_versions",
+    "syncview_retirement_admission",
+    "card_write_transaction_context_v1"
+  ],
+  "own_checker_and_switch_trusted_code": true,
+  "full_transitive_platform_contract": false,
+  "activation_authorized": false,
+  "classifier_source": {
+    "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+    "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0",
+    "functions": [
+      {
+        "acl": "{postgres=X/postgres}",
+        "kind": "f",
+        "name": "production_provider_legacy_written_shape_v1",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "o mirror_outbox",
+        "leakproof": false,
+        "volatility": "s",
+        "anon_execute": false,
+        "body_raw_md5": "4875b74bc975a2ff2a65be9a4436aafb",
+        "service_execute": false,
+        "security_definer": true,
+        "authenticated_execute": false
+      },
+      {
+        "acl": "{postgres=X/postgres}",
+        "kind": "f",
+        "name": "production_provider_terminal_clean_v1",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog"
+        ],
+        "result": "text",
+        "strict": false,
+        "language": "sql",
+        "parallel": "u",
+        "arguments": "v text",
+        "leakproof": false,
+        "volatility": "i",
+        "anon_execute": false,
+        "body_raw_md5": "73ccb0aea4d0adf50cf1ab943c2bd284",
+        "service_execute": false,
+        "security_definer": false,
+        "authenticated_execute": false
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "kind": "f",
+        "name": "production_provider_terminal_eligible_v1",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public"
+        ],
+        "result": "boolean",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "o mirror_outbox",
+        "leakproof": false,
+        "volatility": "s",
+        "anon_execute": false,
+        "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
+        "service_execute": true,
+        "security_definer": true,
+        "authenticated_execute": false
+      },
+      {
+        "acl": "{postgres=X/postgres,service_role=X/postgres}",
+        "kind": "f",
+        "name": "production_provider_terminal_history_capture_v1",
+        "owner": "postgres",
+        "config": [
+          "search_path=pg_catalog, public",
+          "lock_timeout=5s"
+        ],
+        "result": "jsonb",
+        "strict": false,
+        "language": "plpgsql",
+        "parallel": "u",
+        "arguments": "p_epoch uuid, p_expected_rows jsonb, p_actor text",
+        "leakproof": false,
+        "volatility": "v",
+        "anon_execute": false,
+        "body_raw_md5": "4b79f4b41ac5c20e47d9cd0d506ca4e1",
+        "service_execute": true,
+        "security_definer": true,
+        "authenticated_execute": false
+      }
+    ]
+  },
+  "protected_control_write_tables": [
+    "card_write_transaction_context_v1",
+    "card_write_admission_v1",
+    "syncview_retirement_admission",
+    "production_native_ordinary_receipt_admissions"
+  ],
+  "derived_provider_admission_bodies": [
+    {
+      "name": "production_provider_send_admit_v1",
+      "body_raw_md5": "b6dd601cc767885e6bb97d8ad373ae0c",
+      "change": "retirement check immediately after unchanged gate lock; remaining source body retained"
+    },
+    {
+      "name": "production_provider_send_admit_v2",
+      "body_raw_md5": "48b5c3bd9e059256d71f26409e96c2ad",
+      "change": "retirement check immediately after unchanged gate lock; remaining source body retained"
+    }
+  ],
+  "terminal_observation_override": {
+    "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+    "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b",
+    "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
+    "metadata_basis": "Same signature, return type, language, volatility, security definer, search_path and preserved ACL as terminal history owner; actual full comparison required by switch test."
+  },
+  "terminal_issue_observation_override": {
+    "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+    "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2",
+    "body_raw_md5": "1d086289a3b4fb9fa4084aab89ca0309",
+    "metadata_basis": "Same full routine metadata except exact source body; runtime checker compares all fields."
+  }
+}

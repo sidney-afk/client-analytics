@@ -15,3 +15,149 @@ index.html text eol=lf
 # PR #992 review on 2026-07-29 and cost a round trip to attribute.
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# This authenticated row contract is hashed as exact bytes across checkouts.
+docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json text eol=lf
+
+# Exact-byte observed catalog contract for the isolated PG17 baseline.
+docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json text eol=lf
+
+# Exact-byte credential row contract for the isolated companion.
+docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json text eol=lf
+
+# Serving captures are byte-pinned evidence, including original CR/LF bytes.
+qa/linear-exit-rehearsal/serving/samples-v50/** -text
+qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json text eol=lf
+docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json text eol=lf
+qa/linear-exit-rehearsal/followup-deno.lock text eol=lf
+docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json text eol=lf
+docs/independence/LINEAR_EXIT_BASELINE_REQUIREMENTS_V1.json text eol=lf
+
+docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json text eol=lf
+
+docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json text eol=lf
+
+# Preserve exact tested bytes for source-inventory/catalog dependencies.
+migrations/2026-09-11-native-signoff-verifier.sql -text whitespace=cr-at-eol
+scripts/linear-exit-source-baseline-catalog.sql -text whitespace=cr-at-eol
+test/helpers/remaining-application-fixture.js -text whitespace=cr-at-eol
+
+docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json text eol=lf
+
+# Exact observed function definitions include semantically significant CR bytes.
+qa/linear-exit-rehearsal/observed-baseline/routines-64.sql -text whitespace=cr-at-eol
+qa/linear-exit-rehearsal/observed-baseline/routines-contract.json text eol=lf
+
+# Source-stage bootstrap is byte-pinned by observed routine reconstruction.
+test/linear-exit-source-phases-postgres.js -text whitespace=cr-at-eol
+scripts/linear-exit-observed-routines.js -text whitespace=cr-at-eol
+test/linear-exit-observed-routines-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-observed-routines.js -text whitespace=cr-at-eol
+
+scripts/linear-exit-install-bootstrap.js -text whitespace=cr-at-eol
+scripts/linear-exit-install-finalize.js -text whitespace=cr-at-eol
+scripts/linear-exit-install-maintenance.js -text whitespace=cr-at-eol
+supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql -text whitespace=cr-at-eol
+test/helpers/install-bootstrap-worker.mjs -text whitespace=cr-at-eol
+test/helpers/install-finalize-worker.mjs -text whitespace=cr-at-eol
+test/helpers/install-maintenance-worker.mjs -text whitespace=cr-at-eol,-blank-at-eof
+test/linear-exit-install-bootstrap-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-install-finalize-postgres.js -text whitespace=cr-at-eol
+test/linear-exit-install-maintenance-postgres.js -text whitespace=cr-at-eol
+
+docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json text eol=lf
+
+# Preserve reviewed recovery source pins and contract bytes.
+scripts/linear-exit-provider-ack-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-checkpoint-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-comment-recovery.mjs -text whitespace=cr-at-eol
+scripts/linear-exit-provider-send-v2-compose.js -text whitespace=cr-at-eol
+supabase/functions/linear-outbound/provider-send-v2-preparation.mjs -text whitespace=cr-at-eol
+supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-ack-recovery.js -text whitespace=cr-at-eol
+test/linear-exit-provider-checkpoint-recovery.js -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-recovery.js -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_SCHEMA_V1.json text eol=lf
+supabase/migrations/20260913051511_provider_create_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-create-recovery.js -text whitespace=cr-at-eol
+supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-create-observation.js -text whitespace=cr-at-eol
+test/linear-exit-provider-create-observation-transport.mjs -text whitespace=cr-at-eol
+test/helpers/observed-full-pipeline-worker.mjs -text whitespace=cr-at-eol
+supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-recorded-create-recovery.js -text whitespace=cr-at-eol
+supabase/migrations/20260913062741_provider_terminal_history_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-provider-terminal-history.js -text whitespace=cr-at-eol
+supabase/migrations/20260913062149_retirement_switch_preparation.sql -text whitespace=cr-at-eol
+test/linear-exit-retirement-switch-postgres.js -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_RETIREMENT_SWITCH_DEPENDENCIES_20260913.json -text whitespace=cr-at-eol
+supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql -text whitespace=cr-at-eol
+scripts/linear-exit-provider-comment-observation.mjs -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-observation.js -text whitespace=cr-at-eol
+test/linear-exit-provider-comment-observation-transport.mjs -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json text eol=lf
+docs/independence/LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json text eol=lf
+supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql -text whitespace=cr-at-eol
+scripts/linear-exit-provider-issue-observation.mjs -text whitespace=cr-at-eol
+test/linear-exit-provider-issue-observation.js -text whitespace=cr-at-eol
+test/linear-exit-provider-issue-observation-transport.mjs -text whitespace=cr-at-eol
+
+test/helpers/native-ordinary-business-assertions.js -text whitespace=cr-at-eol
+
+test/helpers/native-capability-post-reopen.js -text whitespace=cr-at-eol
+
+scripts/linear-exit-observed-full-install-plan.js -text whitespace=cr-at-eol
+
+docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json -text
+
+docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json -text
+docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json -text
+docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json -text
+docs/independence/LINEAR_EXIT_BACKUP_TABLE_CATALOG_20260911.json -text
+docs/independence/LINEAR_EXIT_BASELINE_REQUIREMENTS_V1.json -text
+docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json -text
+docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json -text
+docs/independence/LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_PROOF_20260913.json -text
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_RETIREMENT_SCHEMA_V1.json -text
+docs/independence/LINEAR_EXIT_CONTROL_DIAGNOSTICS_SCHEMA_V1.json -text
+docs/independence/LINEAR_EXIT_CONTROL_RECOVERY_PROOF_20260912.json -text
+docs/independence/LINEAR_EXIT_CONTROL_SCHEMA_V1.json -text
+docs/independence/LINEAR_EXIT_CREDENTIAL_ENCRYPTION_20260911.json -text
+docs/independence/LINEAR_EXIT_CREDENTIAL_RECOVERY_20260911.json -text
+docs/independence/LINEAR_EXIT_CREDENTIAL_ROW_SCHEMA_20260911.json -text
+docs/independence/LINEAR_EXIT_CREDENTIAL_SCHEMA_20260911.json -text
+docs/independence/LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json -text
+docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json -text
+docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json -text
+docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_20260911.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_GAPS_20260910.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_APPLICATION_SUPPLEMENT_20260910.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_LOCAL_STORAGE_20260911.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_OBSERVED_BASELINE_RESULT_20260911.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_RESTORED_BEHAVIOR_20260911.json -text
+docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json -text
+docs/independence/LINEAR_EXIT_RECOVERY_SCOPE_20260910.json -text
+docs/independence/LINEAR_EXIT_SEQUENCE_APPLICATION_20260911.json -text
+docs/independence/LINEAR_EXIT_SEQUENCE_CONSISTENCY_20260911.json -text
+docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json -text
+docs/independence/LINEAR_EXIT_STORAGE_VERSION_CAPABILITY_20260912.json -text
+# Preserve exact reviewed backup source and immutable serving captures.
+scripts/linear-exit-native-preinstall-backup.js -text whitespace=cr-at-eol,-blank-at-eof
+scripts/linear-exit-native-sequence-state.js -text whitespace=cr-at-eol
+test/linear-exit-native-preinstall-backup.js -text whitespace=cr-at-eol
+docs/independence/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PG17_20260913.json -text
+docs/independence/LINEAR_EXIT_NATIVE_ONLINE_SEQUENCE_PG17_20260914.json -text
+qa/linear-exit-rehearsal/serving/functions/_shared/thumbnail-revisions.ts -text whitespace=cr-at-eol,-blank-at-eof
+qa/linear-exit-rehearsal/serving/functions/calendar-upsert/index.ts -text whitespace=cr-at-eol,-blank-at-eof
+
+scripts/linear-exit-install-operator.js -text whitespace=cr-at-eol
+
+test/linear-exit-install-operator-postgres.js -text whitespace=cr-at-eol
+
+test/helpers/install-operator-worker.mjs -text whitespace=cr-at-eol
+
+scripts/linear-exit-install-profiles.js -text whitespace=cr-at-eol

@@ -1,4 +1,5 @@
 'use strict';
+const { installReadConsoleAudit } = require('./prod-test-utils');
 /*
  * Track B B2 wired-tab smoke suite.
  *
@@ -87,7 +88,9 @@ async function assertNoWriteRequests(requests) {
     try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
     const keys = Object.keys(body).sort();
-    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    const shape = keys.join(',');
+    if (shape !== 'before,deliverable_id,limit'
+      && !(shape === 'before,deliverable_id,include_feedback,limit' && body.include_feedback === true)) return false;
     return typeof body.deliverable_id === 'string'
       && body.deliverable_id.length > 0
       && body.limit === 50
@@ -136,8 +139,7 @@ async function assertNoWriteRequests(requests) {
 
 async function newAuthedPage(browser, viewport, errors, requests) {
   const page = await browser.newPage(viewport);
-  page.on('pageerror', err => errors.push(err.message));
-  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  page.readConsoleAudit = installReadConsoleAudit(page, { schemaOnly: true, consoleOnly: true });
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
   // The gate needs a verified key to let the app boot; this suite needs the app
   // UNVERIFIED, which is the posture every assertion in it was written against.
@@ -365,8 +367,12 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     await mobile.waitForSelector('.prod-detail-title', { timeout: 10000 });
     if (await mobile.locator('.prod-detail-title').count() !== 1) throw new Error('Mobile detail view did not open');
     await maybeShot(mobile, 'prod-mobile-detail');
+    const mobileAudit = await mobile.readConsoleAudit.settle();
+    if (!mobileAudit.ok) errors.push(mobileAudit.error);
     await mobile.close();
 
+    const desktopAudit = await page.readConsoleAudit.settle();
+    if (!desktopAudit.ok) errors.push(desktopAudit.error);
     stage('no_write_requests');
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));

@@ -1,0 +1,108 @@
+{
+  "classification": "LIVE_READ_CATALOG_ONLY",
+  "table": "public.batches_parent_claim_backup_20260824",
+  "observations": [
+    "2026-09-11T00:18:29.982795+00:00",
+    "2026-09-11T00:19:31.178094+00:00",
+    "2026-09-11T00:20:04.393392+00:00"
+  ],
+  "atomic_capture": false,
+  "application_rows_read": false,
+  "historical_provenance_proven": false,
+  "columns": [
+    {
+      "name": "id",
+      "type": "text",
+      "default": null,
+      "identity": "",
+      "not_null": false,
+      "generated": ""
+    },
+    {
+      "name": "linear_parent_ids",
+      "type": "jsonb",
+      "default": null,
+      "identity": "",
+      "not_null": false,
+      "generated": ""
+    },
+    {
+      "name": "backed_up_at",
+      "type": "timestamp with time zone",
+      "default": null,
+      "identity": "",
+      "not_null": false,
+      "generated": ""
+    }
+  ],
+  "relation": {
+    "rls": false,
+    "kind": "r",
+    "force_rls": false,
+    "persistence": "p",
+    "replica_identity": "d",
+    "options": null,
+    "partition": false,
+    "tablespace": "0",
+    "access_method": "heap"
+  },
+  "constraints_count": 0,
+  "indexes_count": 0,
+  "user_triggers_count": 0,
+  "policies_count": 0,
+  "rules_count": 0,
+  "inheritance_links": 0,
+  "referencing_foreign_keys": 0,
+  "extension_owned": 0,
+  "column_properties": [
+    {
+      "acl": null,
+      "name": "id",
+      "options": null,
+      "storage": "x",
+      "collation": "\"default\"",
+      "compression": "",
+      "fdw_options": null
+    },
+    {
+      "acl": null,
+      "name": "linear_parent_ids",
+      "options": null,
+      "storage": "x",
+      "collation": null,
+      "compression": "",
+      "fdw_options": null
+    },
+    {
+      "acl": null,
+      "name": "backed_up_at",
+      "options": null,
+      "storage": "p",
+      "collation": null,
+      "compression": "",
+      "fdw_options": null
+    }
+  ],
+  "owner_is_postgres": true,
+  "publications": [],
+  "privileges": [
+    "INSERT",
+    "SELECT",
+    "UPDATE",
+    "DELETE",
+    "TRUNCATE",
+    "REFERENCES",
+    "TRIGGER",
+    "MAINTAIN"
+  ],
+  "role_set": [
+    "postgres",
+    "anon",
+    "authenticated",
+    "service_role"
+  ],
+  "all_grants_non_grantable": true,
+  "grant_count": 32,
+  "exact_acl_requires_postgres_major_at_least": 17,
+  "installation_ready": false
+}

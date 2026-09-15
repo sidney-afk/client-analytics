@@ -1,0 +1,860 @@
+{
+  "classification": "ISOLATED_SOURCE_CONTROL_SCHEMA",
+  "owners": [
+    [
+      "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    ],
+    [
+      "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    ],
+    [
+      "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    ],
+    [
+      "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    ],
+    [
+      "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    ]
+  ],
+  "catalog": {
+    "linear_exit_install.journal_v1": {
+      "table": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "owner": "postgres",
+        "rules": null,
+        "columns": [
+          {
+            "acl": null,
+            "name": "singleton",
+            "type": "boolean",
+            "default": "true",
+            "identity": "",
+            "not_null": true,
+            "position": 1,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "plan_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 2,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "stage_id",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 3,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "database_identity",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 4,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "initial_catalog_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 5,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "completed",
+            "type": "jsonb",
+            "default": "'[]'::jsonb",
+            "identity": "",
+            "not_null": true,
+            "position": 6,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "after_catalog_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 7,
+            "generated": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "journal_v1_pkey",
+            "ready": true,
+            "valid": true,
+            "unique": true,
+            "primary": true,
+            "definition": "CREATE UNIQUE INDEX journal_v1_pkey ON linear_exit_install.journal_v1 USING btree (singleton)"
+          }
+        ],
+        "options": null,
+        "policies": null,
+        "triggers": null,
+        "force_rls": false,
+        "partition": false,
+        "constraints": [
+          {
+            "name": "journal_v1_after_catalog_sha256_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK ((after_catalog_sha256 ~ '^[a-f0-9]{64}$'::text))"
+          },
+          {
+            "name": "journal_v1_completed_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK ((jsonb_typeof(completed) = 'array'::text))"
+          },
+          {
+            "name": "journal_v1_initial_catalog_sha256_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK ((initial_catalog_sha256 ~ '^[a-f0-9]{64}$'::text))"
+          },
+          {
+            "name": "journal_v1_pkey",
+            "type": "p",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "PRIMARY KEY (singleton)"
+          },
+          {
+            "name": "journal_v1_plan_sha256_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK ((plan_sha256 ~ '^[a-f0-9]{64}$'::text))"
+          },
+          {
+            "name": "journal_v1_singleton_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK (singleton)"
+          }
+        ],
+        "persistence": "p",
+        "access_method": "heap",
+        "replica_identity": "d"
+      },
+      "schema": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "CREATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "USAGE",
+            false
+          ]
+        ],
+        "owner": "postgres"
+      },
+      "functions": null,
+      "relations": [
+        [
+          "journal_v1",
+          "r"
+        ],
+        [
+          "journal_v1_pkey",
+          "i"
+        ]
+      ]
+    },
+    "linear_exit_maintenance.gate_v1": {
+      "table": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "owner": "postgres",
+        "rules": null,
+        "columns": [
+          {
+            "acl": null,
+            "name": "singleton",
+            "type": "boolean",
+            "default": "true",
+            "identity": "",
+            "not_null": true,
+            "position": 1,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "original_plan_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 2,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "derived_plan_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 3,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "guarded_initial_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 4,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "database_identity",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 5,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "owner_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 6,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "installer_pid",
+            "type": "integer",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 7,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "installer_backend_start",
+            "type": "timestamp with time zone",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 8,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "created_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "position": 9,
+            "generated": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "gate_v1_pkey",
+            "ready": true,
+            "valid": true,
+            "unique": true,
+            "primary": true,
+            "definition": "CREATE UNIQUE INDEX gate_v1_pkey ON linear_exit_maintenance.gate_v1 USING btree (singleton)"
+          }
+        ],
+        "options": null,
+        "policies": null,
+        "triggers": null,
+        "force_rls": false,
+        "partition": false,
+        "constraints": [
+          {
+            "name": "gate_v1_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK (((installer_pid IS NULL) = (installer_backend_start IS NULL)))"
+          },
+          {
+            "name": "gate_v1_pkey",
+            "type": "p",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "PRIMARY KEY (singleton)"
+          },
+          {
+            "name": "gate_v1_singleton_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK (singleton)"
+          }
+        ],
+        "persistence": "p",
+        "access_method": "heap",
+        "replica_identity": "d"
+      },
+      "schema": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "CREATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "USAGE",
+            false
+          ]
+        ],
+        "owner": "postgres"
+      },
+      "functions": [
+        {
+          "acl": "{postgres=X/postgres}",
+          "kind": "f",
+          "name": "reject_other_writer_v1",
+          "owner": "postgres",
+          "config": [
+            "search_path=pg_catalog"
+          ],
+          "result": "trigger",
+          "strict": false,
+          "body_md5": "116ea95ea37b438afbcef599a9226b26",
+          "language": "plpgsql",
+          "parallel": "u",
+          "arguments": "",
+          "leakproof": false,
+          "volatility": "v",
+          "definition_md5": "e69107e1e4b7463e13cf0904a55b61c1",
+          "security_definer": true
+        }
+      ],
+      "relations": [
+        [
+          "gate_v1",
+          "r"
+        ],
+        [
+          "gate_v1_pkey",
+          "i"
+        ]
+      ]
+    },
+    "linear_exit_provider.send_attempts_v1": {
+      "table": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "DELETE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "INSERT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "MAINTAIN",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "REFERENCES",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "SELECT",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRIGGER",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "TRUNCATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "UPDATE",
+            false
+          ]
+        ],
+        "rls": true,
+        "kind": "r",
+        "owner": "postgres",
+        "rules": null,
+        "columns": [
+          {
+            "acl": null,
+            "name": "attempt_id",
+            "type": "uuid",
+            "default": "gen_random_uuid()",
+            "identity": "",
+            "not_null": true,
+            "position": 1,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "epoch",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 2,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "outbox_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 3,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "team",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 4,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lock_token",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 5,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "request",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 6,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "request_sha256",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "position": 7,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "replay_scope",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 8,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "state",
+            "type": "text",
+            "default": "'admitted'::text",
+            "identity": "",
+            "not_null": true,
+            "position": 9,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "provider_response",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 10,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "local_receipt",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 11,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "admitted_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "position": 12,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "acknowledged_at",
+            "type": "timestamp with time zone",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 13,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "completed_at",
+            "type": "timestamp with time zone",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 14,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "admission_preimage_v1",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 15,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "receipt_context_v1",
+            "type": "jsonb",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "position": 16,
+            "generated": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "send_attempts_v1_outbox_id_key",
+            "ready": true,
+            "valid": true,
+            "unique": true,
+            "primary": false,
+            "definition": "CREATE UNIQUE INDEX send_attempts_v1_outbox_id_key ON linear_exit_provider.send_attempts_v1 USING btree (outbox_id)"
+          },
+          {
+            "name": "send_attempts_v1_pkey",
+            "ready": true,
+            "valid": true,
+            "unique": true,
+            "primary": true,
+            "definition": "CREATE UNIQUE INDEX send_attempts_v1_pkey ON linear_exit_provider.send_attempts_v1 USING btree (attempt_id)"
+          }
+        ],
+        "options": null,
+        "policies": null,
+        "triggers": [
+          {
+            "enabled": "O",
+            "internal": false,
+            "definition": "CREATE TRIGGER provider_admission_preimage_immutable_v1 BEFORE UPDATE ON linear_exit_provider.send_attempts_v1 FOR EACH ROW EXECUTE FUNCTION linear_exit_provider.immutable_admission_preimage_v1()"
+          }
+        ],
+        "force_rls": false,
+        "partition": false,
+        "constraints": [
+          {
+            "name": "send_attempts_v1_admission_preimage_v1_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK (((admission_preimage_v1 IS NULL) OR (jsonb_typeof(admission_preimage_v1) = 'object'::text)))"
+          },
+          {
+            "name": "send_attempts_v1_outbox_id_key",
+            "type": "u",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "UNIQUE (outbox_id)"
+          },
+          {
+            "name": "send_attempts_v1_pkey",
+            "type": "p",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "PRIMARY KEY (attempt_id)"
+          },
+          {
+            "name": "send_attempts_v1_receipt_context_v1_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK (((receipt_context_v1 IS NULL) OR (jsonb_typeof(receipt_context_v1) = 'object'::text)))"
+          },
+          {
+            "name": "send_attempts_v1_state_check",
+            "type": "c",
+            "deferred": false,
+            "validated": true,
+            "deferrable": false,
+            "definition": "CHECK ((state = ANY (ARRAY['admitted'::text, 'acknowledged'::text, 'completed'::text])))"
+          }
+        ],
+        "persistence": "p",
+        "access_method": "heap",
+        "replica_identity": "d"
+      },
+      "schema": {
+        "acl": [
+          [
+            "postgres",
+            "postgres",
+            "CREATE",
+            false
+          ],
+          [
+            "postgres",
+            "postgres",
+            "USAGE",
+            false
+          ]
+        ],
+        "owner": "postgres"
+      },
+      "functions": [
+        {
+          "acl": "{postgres=X/postgres}",
+          "kind": "f",
+          "name": "immutable_admission_preimage_v1",
+          "owner": "postgres",
+          "config": [
+            "search_path=pg_catalog"
+          ],
+          "result": "trigger",
+          "strict": false,
+          "body_md5": "e5c8d79ad74c61e32e23e72c8feecffa",
+          "language": "plpgsql",
+          "parallel": "u",
+          "arguments": "",
+          "leakproof": false,
+          "volatility": "v",
+          "definition_md5": "d7c967f3ff047907e016661d68f16e19",
+          "security_definer": true
+        },
+        {
+          "acl": "{postgres=X/postgres}",
+          "kind": "f",
+          "name": "refuse_unresolved_seal_v1",
+          "owner": "postgres",
+          "config": [
+            "search_path=pg_catalog, public"
+          ],
+          "result": "trigger",
+          "strict": false,
+          "body_md5": "468a19879ea3851f3610865300accd00",
+          "language": "plpgsql",
+          "parallel": "u",
+          "arguments": "",
+          "leakproof": false,
+          "volatility": "v",
+          "definition_md5": "ad5543c0b5b9e5905158b44c6cfde1e3",
+          "security_definer": true
+        }
+      ],
+      "relations": [
+        [
+          "send_attempts_v1",
+          "r"
+        ],
+        [
+          "send_attempts_v1_outbox_id_key",
+          "i"
+        ],
+        [
+          "send_attempts_v1_pkey",
+          "i"
+        ]
+      ]
+    }
+  }
+}

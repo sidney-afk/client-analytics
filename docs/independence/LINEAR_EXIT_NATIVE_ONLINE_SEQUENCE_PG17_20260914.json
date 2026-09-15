@@ -1,0 +1,231 @@
+{
+  "format": "native-online-identity-sequence-pg17-proof-v1",
+  "classification": "ISOLATED_POSTGRES",
+  "date": "2026-09-14",
+  "status": "PASS",
+  "runs": [
+    {
+      "profile": "strict_and_online_concurrent_synthetic_67",
+      "receipt": "b0ed02b809164e1aa5ee12d7b527421e",
+      "checks": 20,
+      "exit_code": 0,
+      "server_stopped": true,
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-native-preinstall-backup.js",
+          "sha256": "cb78569c31b3dd7bda0f2ae943371ff72b924e771fa6e43cdb75fe8bd911528f"
+        },
+        {
+          "file": "scripts/linear-exit-native-sequence-state.js",
+          "sha256": "fc4cbd8ac2eea42e85d02c67821faf44b8283c982f0bddf216920de65459bb9f"
+        },
+        {
+          "file": "test/linear-exit-native-preinstall-backup.js",
+          "sha256": "e8affbe798ca43c858ada7b120a83ee346e0e6ca0a665b345cbf59087aaa0eac"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody-encrypted.js",
+          "sha256": "bbaeec554a0cf808879d207989782f3b41f5cc84dcf1aa365ee8728d692c1d0b"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody.js",
+          "sha256": "6f4636d3f6252d8f4cc60684ca0f0631db786213c80f6653a7d1b456f8bfcc54"
+        },
+        {
+          "file": "scripts/track-b-backup.js",
+          "sha256": "a84804464325bcc9a7d97437ff8a8a26344077265e1d4eb50b3620bf8696bf3f"
+        },
+        {
+          "file": "scripts/linear-exit-source-baseline-catalog.sql",
+          "sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8"
+        },
+        {
+          "file": "scripts/linear-exit-observed-schema.js",
+          "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+        },
+        {
+          "file": "scripts/linear-exit-observed-public-catalog.js",
+          "sha256": "f7fc36ca7afe610b0cfd1c7cf6ad8e2638a1cc859ba3ac8e89766dd3f47cecfd"
+        },
+        {
+          "file": "docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json",
+          "sha256": "824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "native-backup-proof.private.json",
+          "sha256": "686f114b7f72c2f7772d023bf820f5cc4e36d635c94b53eb0e090e53655e6188"
+        },
+        {
+          "file": "RESULT.txt",
+          "sha256": "5bdac69fecf3a2c3a8ba40ef8f810ed111f3734e0f4d6046f1af2b39e0df13a2"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "06ecd08da31b71aa468dde3ad7796a9a06310934a6c21b3bf0bdd6af1f54d972"
+        },
+        {
+          "file": "unit-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        },
+        {
+          "file": "stop-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "profile": "online_observed_schema_67",
+      "receipt": "ee05e3f1312b4eb1aef2eb6f6d0f100a",
+      "checks": 8,
+      "exit_code": 0,
+      "server_stopped": true,
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-native-preinstall-backup.js",
+          "sha256": "cb78569c31b3dd7bda0f2ae943371ff72b924e771fa6e43cdb75fe8bd911528f"
+        },
+        {
+          "file": "scripts/linear-exit-native-sequence-state.js",
+          "sha256": "fc4cbd8ac2eea42e85d02c67821faf44b8283c982f0bddf216920de65459bb9f"
+        },
+        {
+          "file": "test/linear-exit-native-preinstall-backup.js",
+          "sha256": "e8affbe798ca43c858ada7b120a83ee346e0e6ca0a665b345cbf59087aaa0eac"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody-encrypted.js",
+          "sha256": "bbaeec554a0cf808879d207989782f3b41f5cc84dcf1aa365ee8728d692c1d0b"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody.js",
+          "sha256": "6f4636d3f6252d8f4cc60684ca0f0631db786213c80f6653a7d1b456f8bfcc54"
+        },
+        {
+          "file": "scripts/track-b-backup.js",
+          "sha256": "a84804464325bcc9a7d97437ff8a8a26344077265e1d4eb50b3620bf8696bf3f"
+        },
+        {
+          "file": "scripts/linear-exit-source-baseline-catalog.sql",
+          "sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8"
+        },
+        {
+          "file": "scripts/linear-exit-observed-schema.js",
+          "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+        },
+        {
+          "file": "scripts/linear-exit-observed-public-catalog.js",
+          "sha256": "f7fc36ca7afe610b0cfd1c7cf6ad8e2638a1cc859ba3ac8e89766dd3f47cecfd"
+        },
+        {
+          "file": "docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json",
+          "sha256": "824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "native-backup-proof.private.json",
+          "sha256": "d7548a40fd40c5c4062b6f86fe23f1f7e5ff9394d823feae45fd9a70fc24d03d"
+        },
+        {
+          "file": "RESULT.txt",
+          "sha256": "5bdac69fecf3a2c3a8ba40ef8f810ed111f3734e0f4d6046f1af2b39e0df13a2"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "e65767206fdcc2d96d45c5b3cbff1eae1089b88310ae6bdbc8579c6b4b9982f9"
+        },
+        {
+          "file": "unit-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        },
+        {
+          "file": "stop-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "observed-schema-report.private.json",
+          "sha256": "5bede899d73b3d4a71b0a947649e6cdc0b0d245281c7bb94d8063669604a28d4"
+        },
+        {
+          "file": "observed-schema-after.private.json",
+          "sha256": "73e43111cb4c3712b2d59b0e5ba61f3cc28b4b61f1f131afa3e929d0624b2694"
+        }
+      ]
+    }
+  ],
+  "supporting_source_pins": [
+    {
+      "file": "scripts/track-b-recovery-package.js",
+      "sha256": "c13dba50600e3e7214272dcc1233652a457993d79e7f55717ea0b1ab9067a1e6"
+    }
+  ],
+  "mode": "online-identity-v1",
+  "default_strict_mode_retained": true,
+  "online_manifest_format": "native-preinstall-public-backup-online-identity-v1",
+  "checks": {
+    "original_strict_controls": true,
+    "concurrent_external_session_inserts": true,
+    "strict_source_changed_refusal": true,
+    "online_archived_sequence_restore": true,
+    "restored_snapshot_excludes_later_committed_rows": true,
+    "empty_identity_consumer_maximum": true,
+    "exact_catalog_and_row_comparison": true,
+    "duplicate_unknown_schema_setval_refusal": true,
+    "duplicate_unknown_toc_refusal": true,
+    "lowered_out_of_interval_and_exhausted_state_refusal": true,
+    "nonunit_descending_cache_cycle_refusal": true,
+    "nonidentity_unowned_incoming_consumer_refusal": true,
+    "explicit_high_identifier_row_bound_refusal": true,
+    "sequence_column_type_mismatch_refusal": true
+  },
+  "limits": {
+    "dynamic_consumers_proven": false,
+    "simultaneous_sequence_snapshot_proven": false,
+    "source_quiescence_proven": false,
+    "live_capture_proven": false,
+    "off_device_custody_proven": false,
+    "operational_keys_generated": false,
+    "full_platform_recovery_proven": false
+  },
+  "retained_failed_local_receipts": [
+    {
+      "receipt": "487b3b2c3d8c4bb29490b2e3ea7f634c",
+      "reason": "sequence extraction parser omitted native header warning token"
+    },
+    {
+      "receipt": "5dc1fdffc71c42d98af39c16bc080fa9",
+      "reason": "same parser diagnostic retained"
+    },
+    {
+      "receipt": "ed963ba1d13642668f333fe33ed87404",
+      "reason": "empty maximum was SQL NULL rather than JSON null; fixed with explicit coalesce"
+    }
+  ],
+  "historical_proof_preserved": "docs/independence/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PG17_20260913.json",
+  "control_methods": {
+    "actual_postgres": [
+      "concurrent inserts and strict refusal",
+      "online restore and snapshot row difference",
+      "empty consumer maximum",
+      "descending/cycling sequences",
+      "unowned sequence and incoming default consumer",
+      "explicit high identifier maximum"
+    ],
+    "pure_parser_or_validator": [
+      "duplicate/unknown/schema setval and TOC entries",
+      "outside observed interval and exhaustion",
+      "nonunit increment/cache",
+      "nonidentity owner and sequence-column type mismatch"
+    ]
+  }
+}

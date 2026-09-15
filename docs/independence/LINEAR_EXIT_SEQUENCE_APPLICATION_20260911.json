@@ -1,0 +1,389 @@
+{
+  "marker": "LINEAR_EXIT_SEQUENCE_APPLICATION_REPORT",
+  "classification": "ISOLATED_POSTGRES_CATALOG_DEPENDENCIES_AND_BOUNDS",
+  "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+  "sequences": [
+    {
+      "name": "calendar_post_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "calendar_post_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "card_change_journal_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "card_change_journal",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "client_access_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "client_access_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "deliverable_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "deliverable_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "flag_flips_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "flag_flips",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": false,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "mirror_outbox_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "mirror_outbox",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "production_card_provenance_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "production_card_provenance",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": false,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "production_comment_import_conflicts_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "production_comment_import_conflicts",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "production_comment_read_audit_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "production_comment_read_audit",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "production_notification_delivery_receipts_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "production_notification_delivery_receipts",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "production_notification_reconciliations_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "production_notification_reconciliations",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "public_intake_log_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "public_intake_log",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "sample_review_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "sample_review_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "settings_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "settings_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    },
+    {
+      "name": "syncview_auth_events_id_seq",
+      "type": "bigint",
+      "increment": "1",
+      "cache": "1",
+      "positive_increment": true,
+      "cycle": false,
+      "next_in_sequence_range": true,
+      "catalog_consumers": [
+        {
+          "type": "bigint",
+          "table": "syncview_auth_events",
+          "column": "id",
+          "schema": "public",
+          "edge_kinds": [
+            "owned_or_identity"
+          ],
+          "status": "bound_pass",
+          "empty": true,
+          "next_above_maximum": true
+        }
+      ],
+      "status": "catalog_bound_pass",
+      "complete_consumers_proven": false
+    }
+  ],
+  "catalog_mapped_bound_all_pass": true,
+  "consumer_closure_proven": false,
+  "dynamic_calls_reviewed": false,
+  "source_sequence_fence_proven": false,
+  "concurrent_capture_consistency_proven": false,
+  "receipt": "linear-exit-sequence-application-d5e42b1b78864e13b98c410e4ae1f402",
+  "status": "PASS_CATALOG_BOUND_ONLY"
+}

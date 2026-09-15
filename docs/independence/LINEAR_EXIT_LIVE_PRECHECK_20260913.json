@@ -1,0 +1,112 @@
+{
+  "classification": "LIVE_READ_PRECHECK_ONLY",
+  "observed_at": "2026-09-14T03:06:04.822Z",
+  "catalog": {
+    "status": "MATCHED_OBSERVED_PUBLIC_CATALOG",
+    "changed_sections": [],
+    "tables": 67,
+    "functions": 115,
+    "private_capture_sha256": "cba273de8238f69c3f06062b91414b5dfa8519a1445289edcc4611f66a9cd1d6",
+    "query_sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8",
+    "recheck_required_before_installation": true
+  },
+  "notifications": {
+    "active_client_records": 42,
+    "missing_client_destinations": 16,
+    "active_editors": 4,
+    "missing_editor_destinations": 0,
+    "channel_search": {
+      "with_candidates": 10,
+      "ambiguous": 3,
+      "without_candidates": 6,
+      "selection_confirmed": false
+    },
+    "native_notify_function_present": false,
+    "native_notification_config_table_present": false,
+    "github_notify_secret_names_present": [],
+    "delivery_proven": false
+  },
+  "assets": {
+    "scope": "Direct asset and thumbnail fields in Calendar, Samples and deliverables; not full history or byte custody",
+    "client_scope_mapping_unresolved": 0,
+    "active_client_asset_sources": [
+      {
+        "source": "calendar_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "drive.google.com",
+        "reference_count": 5,
+        "distinct_references": 4
+      },
+      {
+        "source": "calendar_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "f.io",
+        "reference_count": 685,
+        "distinct_references": 649
+      },
+      {
+        "source": "calendar_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "linear.app",
+        "reference_count": 2,
+        "distinct_references": 2
+      },
+      {
+        "source": "calendar_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "next.frame.io",
+        "reference_count": 30,
+        "distinct_references": 14
+      },
+      {
+        "source": "calendar_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "NON_HTTP_REFERENCE",
+        "reference_count": 3,
+        "distinct_references": 2
+      },
+      {
+        "source": "deliverable_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "drive.google.com",
+        "reference_count": 187,
+        "distinct_references": 187
+      },
+      {
+        "source": "deliverable_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "f.io",
+        "reference_count": 8,
+        "distinct_references": 8
+      },
+      {
+        "source": "sample_asset",
+        "client_kind": "client",
+        "active": true,
+        "host": "f.io",
+        "reference_count": 16,
+        "distinct_references": 16
+      }
+    ],
+    "byte_preservation_proven": false,
+    "complete_asset_census": false
+  },
+  "custody": {
+    "proposed_route": "User-owned encrypted Drive backup with separate recovery record accessible from another device",
+    "owner_preference": "Easiest and fastest arrangement; sole keyholder",
+    "second_person_required": false,
+    "off_device_key_retrieval_proven": false,
+    "upload_performed": false
+  },
+  "production_writes": 0,
+  "notifications_sent": 0,
+  "workers_stopped": 0,
+  "installation_authorized": false
+}

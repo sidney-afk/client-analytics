@@ -1,5 +1,7 @@
 # SyncView Go-Live Checklist — Linear → SyncView cutover
 
+> **Owner clarification, 2026-09-14: PRESERVE NORMAL WORKFLOWS; REMOVE WEBSITE RELIANCE ON LINEAR.** Preserve existing expected Slack notifications, including urgent editor and urgent review requests. The owner did NOT request a blanket notification ban. Do not introduce migration announcements, new recipients/triggers, duplicate sends or unexpected messages. Approvals, comments and urgent actions must preserve normal behavior and save correctly without relying on Linear. The owner believes existing urgent messages already link to the SyncView/SyncLinear website instead of Linear; verify that behavior rather than treating it as unbuilt or already proven. During preparation, do not send live/test client messages, merge, deploy or activate services. Remove website-side Linear dependencies as needed while leaving everything inside Linear unchanged: account, data, credentials, billing and Linear-side integrations/webhooks. Do not alter n8n or unrelated external automations in this preparation. Identify website-side sync connections and any backend work necessary to preserve behavior; do not confuse disconnecting those with shutting down Linear. Earlier assistant-authored blanket notification prohibitions and blanket bans on disconnecting website-side sync were overinterpretations and are superseded. No file substitutions, deletion or link changes are authorized by treating access exceptions as lower priority.
+
 **Purpose.** The single canonical, owner-facing sequence for cutting production over from
 Linear to SyncView. Rewritten 2026-07-13 after the full cutover audit
 (`CUTOVER_AUDIT_2026-07-13.md`) — that register is the authority on WHY each gate exists.
@@ -991,6 +993,21 @@ replacement agreed/proved to the gate chosen for F138.
 
 ## Phase 5 — B5: retire Linear (its own project)
 
+Preparation clarification: `docs/ops/SYNCVIEW_RETIREMENT_RUNBOOK.md` now records
+implemented ordinary receipt recognition, the still-refusing activation RPC,
+and unproven whole-application freeze coverage. The description RPC participates
+through the shared authority lock despite making no outbox insert; its attempted
+counterexample timed out. Frozen Calendar/Samples boundaries remain unproven.
+Owner decision, 2026-09-12: retain verified native completion receipts and require
+zero work still destined for Linear. The former literal zero-new-outbox-row
+criterion is replaced below by zero new provider-bound work and zero unresolved
+provider debt. Only verified native completions and the explicitly typed F27
+drill exception may be excluded; unknown or malformed records remain blockers.
+The owner also permitted preparation of narrow atomic persistence changes to
+Calendar/Samples while preserving existing links and tokenless access. Neither
+decision authorizes installation, deployment, activation or a completed checkbox.
+
+
 Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md §13** (D-22's roughly one-week dual-ready fallback,
 archive-completeness + full private export, then the owner-gated retirement order with a proved
 inverse per action — Workload feeder,
@@ -1002,17 +1019,19 @@ complete issue/history paging, historical-roster behavior, cache, and failure UX
 totals alone is not a retirement gate. Verify the already-inactive `MJbMZ789B5ExZz9x` topology from
 live readback; do not list “deactivate it” as newly completed teardown work.
 - [ ] **Linear-free retired epoch built but not prematurely activated (F32/F61):** an isolated
-      service-only TEST override removes Linear validation, eligibility, IDs, and new outbox
+      service-only TEST override removes Linear validation, eligibility, IDs, and new provider-bound
       enqueues transactionally; full TEST mutations pass with Linear unavailable and create zero
-      intents. Keep the real retired-epoch flag disabled throughout the dual-ready grace.
+      provider-bound intents. Verified native completions may remain. Keep the real retired-epoch
+      flag disabled throughout the dual-ready grace.
 - [ ] **End-of-grace activation order proven (F58/F61/F92):** freeze human/app/service writes;
       set/read F4
       parity false; classify/replay/disposition final intents and prove both teams zero; set/read F2
       normal outbound off; run only a dry-run/detect-only final reconcile. Any diff/would-enqueue
       aborts and returns under the freeze to F2 live plus classify/drain/disposition and a fresh
       per-team zero proof. Only a final dry-run zero may proceed to archive/export and atomic
-      retired-mode activation/readback. Prove a private TEST mutation creates zero outbox rows before
-      teardown/resume.
+      retired-mode activation/readback. Prove a private TEST mutation creates zero provider-bound
+      work, leaves zero unresolved provider debt, and preserves any verified native completion
+      receipt before teardown/resume. Unclassified records abort the gate.
 - [ ] **The end-of-grace freeze is server-enforced** (F61): a team-scoped maintenance/cutoff state
       or atomic high-water protocol rejects every browser, stale-tab, retry, service, and automation
       mutation with explicit UX while the final zero/export/epoch transaction runs. TEST races prove

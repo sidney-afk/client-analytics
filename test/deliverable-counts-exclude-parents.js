@@ -177,13 +177,13 @@ const rows = [
      they are on. PARENT_AWARE excludes batch-parent rows; EXEMPT does not,
      with the reason it does not need to. */
   const PARENT_AWARE = {
-    _calNativeVideoEditorPool: [2, 'freest-editor suggestion — the count read plus the parent-uuid read it excludes with'],
+    _calLegacyVideoEditorPool: [2, 'freest-editor suggestion, PROVIDER lane — the count read plus the parent-uuid read it excludes with. Renamed 2026-09-08 when the native lane moved to the gateway; the body is byte-for-byte what _calNativeVideoEditorPool held'],
+    handleIntakeEditorOptions: [2, 'the same suggestion in the NATIVE lane, computed server-side — the open-work read plus the parent-uuid read it excludes with, symmetric with the browser loader above and with autoAssigneeForIntake below'],
     _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
     autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
   };
   const EXEMPT = {
-    _prodLoadDeliverableProjection: [1, 'loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
-    _prodDeltaRefresh: [1, 'the incremental half of that same tree projection'],
+    _prodBrowserProjectionRows: [3, 'Two safe-view reads plus an exact missing-column error identifier; loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
     _prodBrowserProjectionMissing: [1, 'an error classifier — matches the view name inside a failure detail, reads nothing'],
     wlFetchNativeMetadata: [1, 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call'],
     reclaimMirrorBatches: [1, 'counts a displaced batch to decide whether it is EMPTY enough to archive — there the parent row is precisely what must be counted'],
@@ -230,7 +230,12 @@ const rows = [
      deleted with the paragraph it built, and indexOf returning -1 quietly
      turned this slice into "everything but the last character" -- green, and
      measuring nothing. */
-  const poolSrc = html.slice(html.indexOf('function _calNativeVideoEditorPool('), html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'));
+  /* Re-pointed 2026-09-08 at the PROVIDER loader: `_calNativeVideoEditorPool`
+     is now the gateway-first wrapper in front of it and holds no deliverable
+     read of its own, so slicing from there ran through BOTH functions and blew
+     the bound. The parent exclusion this asserts lives, unchanged, in the
+     loader that still does the PostgREST reads. */
+  const poolSrc = html.slice(html.indexOf('function _calLegacyVideoEditorPool('), html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'));
   ok(poolSrc.length > 0 && poolSrc.length < 8000, 'the editor-pool slice is bounded (harness is not vacuous)');
   ok(/raw_issue_parent_id/.test(poolSrc) && /parentUuids\.has/.test(poolSrc),
     'the editor pool still excludes parent rows');

@@ -145,7 +145,7 @@ function newHarness(opts) {
   };
   vm.createContext(sandbox);
   vm.runInContext(
-    ['_prodDeepLinkRowQuery', '_prodDeepLinkFastPaint', '_prodCarryDeepLinkRows', '_prodFetchDeepLinkRow', '_prodLoadData']
+    ['_prodClientRows', '_prodDeepLinkRowQuery', '_prodDeepLinkFastPaint', '_prodCarryDeepLinkRows', '_prodFetchDeepLinkRow', '_prodLoadData']
       .map(name => (source.includes('async function ' + name + '(') ? 'async ' : '') + extractFunction(name)).join('\n')
       + "\nlet _prodDeepLinkFastRows = null; let _prodDeepLinkFetchInFlight = '';"
       + '\nthis.load = _prodLoadData; this.fastRecord = () => _prodDeepLinkFastRows;',

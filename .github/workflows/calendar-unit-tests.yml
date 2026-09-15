@@ -19,7 +19,9 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The expanded classified suite completed close to the ten-minute limit.
+    # Keep a bounded margin for runner variance without changing any assertions.
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16

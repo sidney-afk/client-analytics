@@ -1,5 +1,36 @@
 # Agent Guide
 
+> **Owner clarification, 2026-09-14: PRESERVE NORMAL WORKFLOWS; REMOVE WEBSITE RELIANCE ON LINEAR.** Preserve existing expected Slack notifications, including urgent editor and urgent review requests. The owner did NOT request a blanket notification ban. Do not introduce migration announcements, new recipients/triggers, duplicate sends or unexpected messages. Approvals, comments and urgent actions must preserve normal behavior and save correctly without relying on Linear. The owner believes existing urgent messages already link to the SyncView/SyncLinear website instead of Linear; verify that behavior rather than treating it as unbuilt or already proven. During preparation, do not send live/test client messages, merge, deploy or activate services. Remove website-side Linear dependencies as needed while leaving everything inside Linear unchanged: account, data, credentials, billing and Linear-side integrations/webhooks. Do not alter n8n or unrelated external automations in this preparation. Identify website-side sync connections and any backend work necessary to preserve behavior; do not confuse disconnecting those with shutting down Linear. Earlier assistant-authored blanket notification prohibitions and blanket bans on disconnecting website-side sync were overinterpretations and are superseded. No file substitutions, deletion or link changes are authorized by treating access exceptions as lower priority.
+
+> **Owner directive, 2026-09-14:** do not send anything to client Slack channels,
+> including test messages. Reading the owner-designated roster and preparing
+> destination mappings does not authorize sending. Do not infer permission to
+> send from a later database-installation authorization. Delivery testing needs
+> a separately approved internal TEST destination.
+
+> **Scoped owner exception, 2026-09-14, browser verification only:** the owner
+> approved recognizing the three expected missing native-field responses when
+> the corresponding safe reduced-select read demonstrably succeeds. This is
+> the sole exception to the identical-URL recovery rule below. Require the exact
+> GET/400/42703 response and field message, configured backend origin, unchanged
+> safe view/filters/pagination, a completed 2xx JSON-array fallback started after
+> the failure within the bounded recovery window, and one-to-one failed-response
+> to resource-console URL/time correlation. The fields are
+> `clients.native_project_ids` and
+> `production_deliverables_browser_v1.raw_attribution_project_id` /
+> `raw_attribution_native_epoch`. Unknown, unrelated, malformed, pending or failed
+> reads remain failures. Page errors and mutation guards remain unchanged.
+> This authorizes no merge, deployment, production write or activation.
+
+> **Scoped owner exception, 2026-09-12, preparation only:** the owner approved
+> preparing narrow atomic-persistence changes inside Calendar/Samples, preserving
+> existing URLs, payload compatibility, review links and tokenless access. Keep
+> the original serving captures and repository 401 controls as immutable evidence.
+> This permits no new authentication gate, merge, deployment, installation,
+> production write or n8n execution. The owner also approved retaining verified
+> native completion receipts while requiring zero work destined for Linear;
+> see `docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md` and canonical B5.
+
 > ## ⛔ FROZEN — client write gate (owner directive, 2026-07-15). READ BEFORE TOUCHING WRITERS.
 > The Edge Functions **`calendar-upsert`** and **`sample-review-upsert`** are **INTENTIONALLY
 > UN-GATED** (open / tokenless) right now, by explicit owner decision, so that clients' existing

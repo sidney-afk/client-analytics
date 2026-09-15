@@ -91,9 +91,10 @@ await seedStaffGate(ctx);   // stored identity + a key-verify route stub
 `_syncviewStaffCan()` opens every browser-side capability of the seeded role, and
 this seed is an admin by default: credentials, review links, intake, onboarding,
 hiring, PTO admin. It is NOT the old password's "shell and nothing more". What it
-cannot do is the part that protects real data: the stub key still goes to the REAL
-backend on every staff call and is still rejected, so no harness writes anything
-and no server-gated read returns. Seed a narrower role when your suite does not
+does not do is isolate transport or prevent writes. Staff endpoints that validate
+the stub key should reject it, but the intentionally tokenless Calendar/Samples
+writers do not provide that protection. Each isolated suite must independently
+refuse or mock external mutations. Seed a narrower role when your suite does not
 need an admin.
 
 **If your suite already mocks `key-verify`**, use `seedStaffIdentity(ctx, member)`

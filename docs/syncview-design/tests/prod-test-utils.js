@@ -1,11 +1,13 @@
 'use strict';
 
 const fs = require('fs');
+const { recoveryFor } = require('./prod-schema-compat-audit');
 const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..', '..');
+const productionApiOrigin = "https://uzltbbrjidmjwwfakwve.supabase.co";
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -130,6 +132,8 @@ function formatFailures(title, failures) {
 
 function installReadConsoleAudit(page, opts = {}) {
   const pageErrors = [];
+  const responseBodies = new Set();
+  const schemaOutcomes = [];
   const consoleErrors = [];
   const readOutcomes = new Map();
   const mainFrameNavigations = [];
@@ -185,7 +189,19 @@ function installReadConsoleAudit(page, opts = {}) {
       at: Date.now(),
     });
   });
-  page.on('response', response => recordReadOutcome(response.request(), response.status()));
+  page.on('response', response => {
+    const request = response.request();
+    recordReadOutcome(request, response.status());
+    if (request.method() !== 'GET') return;
+    let parsedUrl; try { parsedUrl = new URL(request.url()); } catch (_) { return; }
+    if (parsedUrl.origin !== productionApiOrigin || !['/rest/v1/clients', '/rest/v1/production_deliverables_browser_v1'].includes(parsedUrl.pathname)) return;
+    const key = request.method() + ' ' + request.url();
+    const item = readOutcomes.get(key).at(-1);
+    Object.assign(item, { method: 'GET', url: request.url(), status: response.status(), finished: false });
+    schemaOutcomes.push(item);
+    const task = Promise.resolve().then(() => typeof response.json === 'function' ? response.json() : undefined).then(body => { item.body = body; item.finished = true; }).catch(() => {});
+    responseBodies.add(task); task.finally(() => responseBodies.delete(task));
+  });
   page.on('request', request => {
     requestStartedAt.set(request, Date.now());
     if (['GET', 'HEAD'].includes(request.method())) outstandingReads.add(request);
@@ -296,6 +312,14 @@ function installReadConsoleAudit(page, opts = {}) {
        there is nothing outstanding. */
     if (outstandingReads.size) await drainOutstandingReads();
 
+    let bodyTimer;
+    try {
+      await Promise.race([
+        Promise.all([...responseBodies]),
+        new Promise(resolve => { bodyTimer = setTimeout(resolve, 5000); }),
+      ]);
+    } finally { clearTimeout(bodyTimer); }
+    if (responseBodies.size) pageErrors.push('schema compatibility response body remained pending');
     const readEntries = [...readOutcomes.entries()];
     const recoveredReads = [];
     let navigationAborts = 0;
@@ -304,7 +328,7 @@ function installReadConsoleAudit(page, opts = {}) {
       const url = key.replace(/^[A-Z]+ /, '');
       const unrecovered = outcomes.filter((item, index) => {
         if (!failed(item.outcome)) return false;
-        const navigationAbort = isNavigationAbort(item.outcome) && mainFrameNavigations.some(navigation =>
+        const navigationAbort = opts.schemaOnly !== true && isNavigationAbort(item.outcome) && mainFrameNavigations.some(navigation =>
           navigation.committedAt !== null
           && item.startedAt <= navigation.startedAt
           && navigation.startedAt <= item.at
@@ -314,16 +338,19 @@ function installReadConsoleAudit(page, opts = {}) {
           navigationAborts++;
           return false;
         }
-        const recovery = eligibleForRecovery(item.outcome) && outcomes.slice(index + 1).find(next => succeeded(next.outcome)
+        const recovery = opts.schemaOnly !== true && eligibleForRecovery(item.outcome) && outcomes.slice(index + 1).find(next => succeeded(next.outcome)
           && next.at >= item.at
           && next.at - item.at <= recoveryWindowMs);
-        if (recovery) {
-          recoveredReads.push({ url, failedAt: item.at, recoveredAt: recovery.at, used: false });
+        const schemaRecovery = recoveryFor(item, schemaOutcomes, { origin: productionApiOrigin, windowMs: recoveryWindowMs });
+        // Origin is additionally bound to the application's configured Supabase endpoint.
+        const approvedSchemaRecovery = schemaRecovery && new URL(url).origin === productionApiOrigin;
+        if (recovery || approvedSchemaRecovery) {
+          recoveredReads.push({ url, failedAt: item.at, recoveredAt: recovery ? recovery.at : item.at, used: false });
           return false;
         }
         return true;
       });
-      if (unrecovered.length) persistentReadFailures.push([key, outcomes]);
+      if (unrecovered.length && opts.consoleOnly !== true) persistentReadFailures.push([key, outcomes]);
     }
 
     const resourceErrors = consoleErrors.filter(item => /^Failed to load resource:/i.test(item.message));
@@ -340,7 +367,7 @@ function installReadConsoleAudit(page, opts = {}) {
     });
     const errors = [...pageErrors, ...otherConsoleErrors, ...unexplainedResourceErrors];
     const pendingReadFailures = [...outstandingReads]
-      .filter(request => ['GET', 'HEAD'].includes(request.method()))
+      .filter(request => opts.consoleOnly !== true && ['GET', 'HEAD'].includes(request.method()))
       .map(request => [`${request.method()} ${request.url()}`, [{ outcome: 'pending' }]]);
     const ok = !errors.length && !persistentReadFailures.length && !pendingReadFailures.length;
     return {

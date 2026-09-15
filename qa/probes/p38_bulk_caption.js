@@ -1,8 +1,8 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p38 — §4.4 bulk "Generate all" (_calBulkGenerateCaptions): concurrency cap + partial failure.
 //   - 3 eligible cards selected → all generate, but at most CAL_CAPJOB_CONCURRENCY in flight at once
 //   - one card's backend returns an error → the others still succeed (batch isn't all-or-nothing)
 const Q = require('./lib.js');
-const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const A = 'p_bg_a_' + TS, B = 'p_bg_b_' + TS, C = 'p_bg_c_' + TS;
 const FRAME = 'https://frame.io/test/' + TS;
@@ -12,7 +12,7 @@ const seed = (id) => Q.up({ id, name: 'BG ' + id.slice(-6), platforms: 'youtube'
   const S = Q.makeOk('P38 bulk-caption');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await seedStaffGate(ctx);
   let inFlight = 0, maxConcurrent = 0;
   const respFor = {};

@@ -52,3 +52,9 @@ qa/shots/
 # scripts/deno-typecheck-ratchet.js passes --no-lock, and this is the backstop.
 deno.lock
 !supabase/functions/*/deno.lock
+
+# Agent worktrees (`Agent` tool isolation). These are real git worktrees, i.e.
+# embedded repositories, so `git add -A` in a session that spawned one stages a
+# gitlink and warns about an embedded repo. That happened once already; the rest
+# of `.claude/` is tracked on purpose, so the ignore is scoped to this directory.
+.claude/worktrees/

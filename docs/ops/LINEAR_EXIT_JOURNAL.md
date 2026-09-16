@@ -30,6 +30,42 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Composite-claim rule RATIFIED and added; the recursion is the point, not an embarrassment
+
+Short form is now in `AGENTS.md`, in the hash rule's shape. The owner asked that
+the practical half be the part written down, so it is: **split a claim and label
+each part — read from the code, or assumed about the platform.** The mechanism
+that needs the label is specific. A verified half **lends its credibility** to
+an unverified half bolted onto it, and the composite then gets recorded as
+checked without anyone deciding to record it that way.
+
+The incident: the restore-to-new-project evaluation refused the route partly on
+"it fails the installer's identity check, and that is verifiable". The
+`IDENTITY_SQL` half really was read from the code. The other half — that
+Supabase provisions a restored project as a fresh cluster with a new identifier
+— was never checked and was entirely checkable. The rehearsal measured the
+opposite.
+
+**Kept prominently at the owner's instruction, because it is the most useful
+thing in this record and a later session will be tempted to trim it:**
+
+> That document **asserted the answer to its own open question in one section
+> while arguing to go and measure it in another.** One section said the identity
+> check would fail; another said the rehearsal was worth running precisely
+> because whether identity survives a restore was assumed rather than known.
+> Both were written in the same pass. And the push that carried them is the same
+> push that recorded the rule about facts knowable by reading live.
+
+That is not an anecdote about one bad paragraph. **It is the rule failing inside
+the document that was arguing for the rule**, which is the strongest available
+evidence that stating a rule does not apply it. A future session that finds
+itself writing "and that is verifiable" should treat the phrase as a prompt to
+split the claim, not as a summary of work already done.
+
+Worth being precise about why it survived review by its own author: the claim
+read as verified *because part of it was*. There was no moment of deciding to
+assert something unchecked. The labelling step exists to create that moment.
+
 ### 2026-09-16 — Restore duration BOUNDED, not measured: at most 12 minutes; the rehearsal project is deleted
 
 The owner started the restore-to-new-project rehearsal at **09:38 local**

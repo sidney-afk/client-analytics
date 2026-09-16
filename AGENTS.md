@@ -171,6 +171,14 @@ against the version it replaces and confirm each dropped constraint was dropped
 on purpose; say which, and why, in the commit message. Reasoning and the
 incident behind it are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A COMPOSITE CLAIM IS ONLY AS VERIFIED AS ITS WEAKEST PART.
+
+Owner-ratified 2026-09-16. Before calling a claim verified, split it and label
+each part: **read from the code**, or **assumed about the platform**. A verified
+half lends its credibility to an unverified half bolted onto it, and the whole
+thing then gets written down as checked. Reasoning and the incident behind it
+are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## A GATE WITH AN EXEMPTION LIST IS OFF FOR EVERYTHING ON THAT LIST. COUNT THE LIST.
 
 Owner-approved 2026-09-16, from the line-ending finding in

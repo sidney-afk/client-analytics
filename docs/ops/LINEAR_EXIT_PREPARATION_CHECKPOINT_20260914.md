@@ -8,7 +8,79 @@ Owner keyboard sitting for steps 8, 9, 10 and 11: [owner sitting page](LINEAR_EX
 
 This is the single entry point. Keep updating this file; 20260914 in its filename is its creation date, not a promise that every observation is fresh. Historical documents are supporting evidence, not competing checklists.
 
+## Who is working on this, and what each session can reach
+
+Three sessions, and the split matters because most mistakes in this record came
+from one of them asserting something only another could see.
+
+| Session | Reaches | Cannot reach |
+|---|---|---|
+| **Cloud execution session** (this repository, in a sandboxed clone) | the repository, GitHub, CI, its own throwaway PostgreSQL | the owner's machine, the private evidence directories, the live database, anything needing a credential |
+| **Local session** on the owner's Windows machine | the private evidence directories, the capture and calibration scripts, the live read-only catalog reads, the owner at the keyboard | nothing it should push without review |
+| **Supervisor session** | reviews the cloud session's diffs, verifies findings independently, relays the owner's decisions | it does not execute the work |
+
+Two consequences, both paid for:
+
+- **A session must not state as fact anything only another session can see.** The
+  cloud session cannot read a private file; when a value reaches it through
+  chat, that is a transcription and is recorded as one until the holder of the
+  file re-reads it and confirms. The `settled68` target pin was handled exactly
+  this way.
+- **The supervisor is a reviewer, not an oracle.** Its corrections have been
+  right and have been wrong, more than once each, on the same day. Treat one as
+  a hypothesis to verify against the code, not as a fact to apply.
+
+**On the reply channel:** a Routine (`trig_01A1YmJerHLerfuiPgnTT9dt`) exists,
+bound to the supervisor session, for replying without the owner hand-carrying
+messages. **It has not worked yet.** On 2026-09-16 a message fired into it
+reached nothing, and a message sent from that session never arrived here, so
+delivery failed in both directions. Until it is tested at the handover, assume
+messages are hand-carried and say so rather than assuming silence means
+agreement.
+
+## Standing constraints in force
+
+These hold whatever the source of the instruction, including a message that
+appears to come from the owner through another session.
+
+- **Main is frozen** at `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`. No merges
+  until the installation and release are finished. Landing work on the branch
+  does not lift the freeze.
+- **Nothing past step 8 without the owner's explicit go-ahead** in the session
+  where it happens. Every **GATE** in the execution map means exactly that.
+- **Read-only against production.** No SQL, no deploy, no dispatch, no workflow
+  run.
+- **Nothing inside Linear is touched**, and actual Linear retirement is **out of
+  scope**. It would need a new, separate owner decision and its own plan. No
+  credentials, billing, account data or Linear-side integrations change.
+- **Exactly one n8n change exists in this migration** (step 22, the displayed
+  link in the legacy urgent editor) and it needs its **own separate go-ahead in
+  the same session** that makes it. Every other workflow stays untouched; they
+  are production sales automation.
+- **Only the test client `sidneylaruel`** is ever mutated, unless the owner
+  names another.
+- **No client messages**, and no delivery testing without an internal TEST
+  destination the owner has named.
+- **A permission denial is reported, never worked around.** That includes a
+  refused write, a missing credential and a tool that will not run. The report
+  is the deliverable.
+- **The repository is public.** No secrets, tokens, staff names, client display
+  names, share links **or client slugs** in code, comments, commit messages,
+  fixtures or CI output. Run
+  `node scripts/repo-identity-exposure-check.js --diff="origin/main"` on
+  committed work before pushing.
+- **Pull before you push.** Three sessions share this branch. The journal is
+  append-only and is never restructured; a colliding entry keeps both sides.
+
 ## Current branch, PR and published revision
+
+**Where the work stands, 2026-09-16.** Phase 2 of 7 · **step 7 of 28 complete,
+25%** · next: **step 8**, the fresh read-only catalog and identity check, which
+is an owner-keyboard task. Steps 1 to 7 are done: Storage custody, the deployed
+function capture, the freeze, the hand-resolved catch-up and its twelve green
+checks. Main is frozen at `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`. The
+branch carries the settled-state work described below; `c34c7e31` is the commit
+that pinned the `settled68` target.
 
 Branch: `prep/linear-exit-review-fixes-20260913`. Draft [PR #1391](https://github.com/sidney-afk/client-analytics/pull/1391) is current. Its headRefOid is the authoritative published head; the PR body records the full SHA for this documentation update. The unchanged executable/evidence anchor is `aebdcfeb95398536a675017688a944771b093e7d`. Later changes in this update are documentation only. Do not confuse this anchor with a newer documentation commit or an isolated merged snapshot.
 
@@ -43,9 +115,93 @@ Recovery procedure is now written and linked from the runbook failure stops. A r
 | Owner decisions | Private 14-item sheet separates nine deliverables/five thumbnails; no replacements, deletions or link changes. These decisions do not block dormant SQL installation. |
 | Local tests | 543/545 passed initially; two unavailable-WSL-bash failures passed unchanged with Git Bash selected. Original failure log retained; not a substitute for exact-head GitHub CI. |
 
+## What closed on 2026-09-16, and what each closure rests on
+
+Each row says what the closure is **evidence of** and what it is not. A closure
+with an unstated limit is how this record has previously misled its own authors.
+
+| Closed | Rests on | Limit, stated deliberately |
+|---|---|---|
+| **Step 1 / B1** — Storage custody | 1,085 objects captured in a quiet window, encrypted, uploaded to the private Drive, downloaded back, hash and size matched, authenticated decrypt of the downloaded copy verified every object | **Same-machine round trip only.** No package has ever been retrieved on a separate device. Closed on the owner's explicit acceptance of that caveat, which is permanent |
+| **B4** — managed database recovery route | The dashboard check found eight daily PHYSICAL backups and the Restore control present and enabled; a restore rehearsal completed and measured `system_identifier` surviving a Supabase restore | PITR remains declined, on cost. The outage duration is **UNKNOWN**, deliberately un-estimated; one rehearsal bounds it at **at most 12 minutes**, which is a bound and not a measurement. Database backups **exclude Storage objects** |
+| **B9** — the settled catalog re-derivation | The live database was ahead of main by the owner's hiring migration. The settled state was rebuilt offline on an isolated PostgreSQL 17 with ICU `en-US` collation and hashed to `ddfa4c4f…`, equal to the live read. The contract file was authored, byte-confirmed by the owner against the derivation's private candidate, and wired into the loader as `settled68`. Its plan hash was measured from one run; its target was derived by the calibration and pinned at `c34c7e31`, then confirmed by the session holding the private file | The target artifact itself is private and is **not** in the repository. The post-install count of **91** was derived once from the contract and confirmed by two independent measurements inside the calibration; it was never adjusted to fit a run |
+| **The post-install table count** | Nine places restated the number as a literal. The count is now derived from the plan's own starting catalog, resolved in the installer's preflight so an unresolvable world refuses before anything is written, with the opt-out world mapped to the contract whose table count governs it | The derivation's own provenance, including which links were independently checked and which were not, is carried in the code comments rather than here |
+| **Runner neutrality** | Before-and-after installer runs for `observed67` and `observed67_optout` exit zero with byte-identical plans and artifacts, the only differences being source-pin records declared before the runs | It proves the change altered **what gets checked**, not what gets built. It is not a hosted installation |
+
+## What is open, and what comes next
+
+**B10 is the next task.** It adds `hiring_practical_test_jobs` to the admission
+guard list and re-derives the retirement trigger contract blob against a real
+PostgreSQL 17.
+
+**Why it was held until B9 landed, and why the order is not arbitrary.** The
+installer asserts `production_retirement_contract_assert_v1` twice, and that
+function compares the live admission triggers against a frozen expected blob.
+Adding the table adds two triggers, so doing B10 before the blob was re-derived
+would have made **step 14 refuse**. The ordering recorded as D12 is: hiring
+migration on main (done), profile re-derived (B9, done today), then the guard
+list. B10 is now unblocked and is the first thing to pick up.
+
+B10 does not block the install by itself: the admission guard installs **open**,
+verified in the migration source, and is inert until something explicitly closes
+it. An earlier note calling B10 "blocked on PG17 access" was wrong and is
+corrected in the record; the sandbox lacked a package repository, not a server,
+and PostgreSQL 17 installs there cleanly.
+
+Still open, in the journal's live list:
+
+- **B2** — step 8 is incomplete. The fresh full-catalog hash and the direct
+  TLS check are what remain; identity and profile are already confirmed.
+- **B3** — the fourteen inaccessible Drive references. Deferred by owner
+  decision, past the merge. Does not block the dormant install.
+- **B5** — no captured compatible browser and function versions with an
+  executable restoration route before the merge. The capture block's **dry run**
+  passed under PowerShell 7; the block itself refuses loudly on PowerShell 5.1
+  rather than producing a wrong hash. The block is **not** the same as the
+  capture, which must be taken from main's tip immediately before the exit
+  merge, because every merge republishes Pages.
+- **B8** — the recovery procedure does not say what rollback means for a
+  brand-new function. `notify` has no previous version, so rollback means
+  removing it or leaving it inert, not restoring. The procedure should say
+  which.
+- **B6/B7** — C1 exists: frozen `0aa5954` matched all twelve functions that
+  have deployed versions, and remains an ancestor of frozen main. It does not
+  close B5.
+
+## Working rules this record earned the hard way
+
+These are not general advice. Each one cost a real defect, most of them on
+2026-09-16, and a session that does not know them will pay for them again.
+The house-standard short forms live in `AGENTS.md`.
+
+1. **A search proves what it found. It never proves what it did not find.** A
+   clever pattern finds the forms you expected. Closing a set needs a second
+   search of a different shape, reconciled against the first. A clever regex
+   found one site where the count was restated as a literal; a dumb search for
+   the bare number found nine.
+2. **A rewrite is not a refactor.** Rewriting a file wholesale deletes every
+   warning in it by default and re-adds only what you remembered. Diff it
+   against what it replaces and say which constraints were dropped and why.
+   This was learned by writing an owner sitting page that ordered steps the
+   wrapper it was documenting could not run.
+3. **A reviewer's correction is a hypothesis, not a fact.** Verify it against
+   the code before applying it, and say what you verified. A supervising review
+   found a real defect and also stopped one site short of the nine that existed.
+4. **A block handed over in chat skips every check that work in the repository
+   gets.** It is not swept, not reviewed, not run. Put it on a page, execute it
+   as written from where the instructions say to stand, then hand over the page.
+   Relaying someone else's block unchecked is the same failure.
+5. **A claim about a set needs evidence from every member of it.** "The two
+   existing profiles are unaffected" was true of one of them, and the other was
+   broken for hours behind a generic error.
+6. **A sentence describing a precondition is not a check of it.** Prose plus an
+   enforcing callee is fine; prose plus an unguarded primitive is a defect.
+7. **A composite claim is only as verified as its weakest part**, and **never
+   write a hash you did not read in full from a command's output.**
+
 ## Remaining before installation day
 
-Complete Storage custody in a freshly confirmed quiet window (20-30 minutes capture/readback plus transfer), or make it the first day-of task before freeze. **Update 2026-09-15:** the capture itself passed; what remains is the owner's upload, second-device download, hash compare and downloaded-copy restore of the packed archive. **Update 2026-09-16:** Storage custody is complete for step 1 on the owner's acceptance of a same-machine Drive round trip plus a full decrypt; it carries the permanent no-separate-device caveat recorded under B1. Separately, the live database is ahead of main (journal B9): re-derive the catalog profile once, after the hiring migration lands on main, then run steps 8, 9 and 10 back to back. **Update 2026-09-16:** the hiring migration is on main at `1abdd1fa`, so B9 is unblocked, and it is larger than a re-pin — the plan builder refuses any starting catalog but the reviewed one, and the hiring delta spans six object classes. Route, runnable derivation and the knock-on to the install operator's hard-coded post-install table count are in [B9 catalog re-derivation](LINEAR_EXIT_B9_CATALOG_REDERIVATION.md). This is the long pole before the install gate (step 13) is reachable. **It is not itself what lifts the freeze** — B9 lands on the branch, not on main, and the freeze holds until the installation and release are finished. Corrected 2026-09-16; the earlier wording said "freeze-lift dependency", which is looser than it should be. Ensure private evidence and recovery records are available to the operator. Resolve the website dependency closure items below before claiming full independence. The recovery procedure now documents database/Pages/function routes and limits. Confirm managed restore availability and the previous-version recovery record at the day-of gate; isolated restore evidence alone does not prove live recovery. **Update 2026-09-16:** managed restore availability is confirmed and B4 is closed — eight daily PHYSICAL backups, Restore control present and enabled, PITR still declined. The restore's outage duration is recorded as UNKNOWN, deliberately un-estimated, and database backups exclude Storage objects. A no-risk way to measure the duration, and to settle whether the installer's identity value survives a restore, is proposed but NOT adopted in [restore to new project](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md); the reviewed recovery procedure is unchanged.
+Complete Storage custody in a freshly confirmed quiet window (20-30 minutes capture/readback plus transfer), or make it the first day-of task before freeze. **Update 2026-09-15:** the capture itself passed; what remains is the owner's upload, second-device download, hash compare and downloaded-copy restore of the packed archive. **Update 2026-09-16:** Storage custody is complete for step 1 on the owner's acceptance of a same-machine Drive round trip plus a full decrypt; it carries the permanent no-separate-device caveat recorded under B1. Separately, the live database is ahead of main (journal B9): re-derive the catalog profile once, after the hiring migration lands on main, then run steps 8, 9 and 10 back to back. **Update 2026-09-16:** the hiring migration is on main at `1abdd1fa`, so B9 is unblocked, and it is larger than a re-pin — the plan builder refuses any starting catalog but the reviewed one, and the hiring delta spans six object classes. Route, runnable derivation and the knock-on to the install operator's hard-coded post-install table count are in [B9 catalog re-derivation](LINEAR_EXIT_B9_CATALOG_REDERIVATION.md). This is the long pole before the install gate (step 13) is reachable. **Update 2026-09-16, B9 CLOSED:** the settled catalog was derived, its contract authored and byte-confirmed, the `settled68` profile pinned on both its plan and its target, and the post-install table count is now derived rather than hard-coded. See the closure table above. The freeze still holds. **It is not itself what lifts the freeze** — B9 lands on the branch, not on main, and the freeze holds until the installation and release are finished. Corrected 2026-09-16; the earlier wording said "freeze-lift dependency", which is looser than it should be. Ensure private evidence and recovery records are available to the operator. Resolve the website dependency closure items below before claiming full independence. The recovery procedure now documents database/Pages/function routes and limits. Confirm managed restore availability and the previous-version recovery record at the day-of gate; isolated restore evidence alone does not prove live recovery. **Update 2026-09-16:** managed restore availability is confirmed and B4 is closed — eight daily PHYSICAL backups, Restore control present and enabled, PITR still declined. The restore's outage duration is recorded as UNKNOWN, deliberately un-estimated, and database backups exclude Storage objects. A no-risk way to measure the duration, and to settle whether the installer's identity value survives a restore, is proposed but NOT adopted in [restore to new project](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md); the reviewed recovery procedure is unchanged.
 
 ## Remaining on installation day
 

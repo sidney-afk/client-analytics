@@ -30,6 +30,37 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — The checkpoint was brought up to date so a session that has never seen this conversation can take over from the file alone
+
+Written from this record and the execution map rather than from anyone's summary
+of them, because the file should descend from the record and not from a
+retelling of it. Additive: 157 lines added, one line deleted and immediately
+re-added with a B9 closure clause appended, so no existing constraint was
+dropped. The journal and the execution map were not restructured.
+
+What the checkpoint now carries that it did not: the three-session arrangement
+and what each session can and cannot reach, with the two consequences that cost
+us something today (a session must not state as fact what only another session
+can see; a reviewer's correction is a hypothesis); the standing constraints in
+one place, including the frozen main SHA, the gates, Linear being untouched and
+its retirement out of scope, the single n8n change needing its own approval, the
+test client, and reporting a permission denial rather than working around it;
+where the work stands, phase 2 of 7 and step 7 of 28 with step 8 next; a closure
+table for today with each closure's evidence AND its stated limit; what is open,
+with B10 named as next and the D12 ordering explaining why it was held; and the
+working rules this record earned, in the form a stranger can use.
+
+Also recorded there, because it is operationally load-bearing and was not
+written down anywhere: the supervisor reply channel does not work yet. A message
+fired into the Routine reached nothing and a message sent from that session
+never arrived, so delivery failed in both directions on 2026-09-16.
+
+REPO_MAP's three ambiguous entries were rewritten in the same pass, from
+present-tense claims into statements of what each document records, each with
+one clause naming what has changed since. That is the shape the owner ratified:
+a map entry describing a document should not assert a present state it cannot
+keep current.
+
 ### 2026-09-16 — REPO_MAP corrected where today's work made it state the opposite of the truth
 
 A fresh session reads the map first, so a line there that confidently describes

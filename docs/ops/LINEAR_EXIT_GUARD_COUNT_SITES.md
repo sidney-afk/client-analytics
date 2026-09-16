@@ -18,18 +18,37 @@ exists to correct was a claim that looked checked and was not.
 
 ---
 
-## The one fact underneath all of them
+## Two 90s, not one — CORRECTED 2026-09-16
 
-`complete.expectedNames('v2')` returns **exactly 90 names**; `('v1')` returns 86.
-**READ**, by running both and counting.
+An earlier version of this section said every `90` below is the length of the
+complete-application-data list, restated. **That was wrong, and it was asserted
+rather than tested.** Tested now:
 
-The reviewed object is a **versioned, byte-pinned, named set of public tables**.
-Every `90` in the table below is that set's length, restated as a constant in a
-different file. Nobody chose nine literals; one derived fact was flattened into
-nine places.
+- `expectedNames('v1')` is **86 names and is byte-for-byte the source baseline
+  catalog's table set** — zero difference in either direction. **READ**, by
+  diffing both lists in both directions.
+- `expectedNames('v2')` is **v1 plus exactly four names**, all `card_write_*`:
+  `card_write_admission_v1`, `card_write_followups_v1`,
+  `card_write_operations_v1`, `card_write_transaction_context_v1`. **READ.**
+- `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` records post-install
+  `public_tables: 90` from a **67**-table live start. **READ.**
 
-That is why a literal is the wrong shape, and why it was the wrong shape before
-a second profile existed. A second profile only made it visible.
+So there are two different 90s that decompose differently:
+
+| | decomposition |
+|---|---|
+| complete-application-data v2 | 86 source-baseline tables **+ 4** |
+| install target | 67 live tables **+ 23** created by the install |
+
+**86 ≠ 67 and 4 ≠ 23.** They coincide at 90 today and they are not the same
+fact. The decisive evidence is what happens next: under `settled68` the live
+start becomes 68, so the install's post-install count becomes **91**, while v2
+stays **90** because the source-baseline universe has not changed. **Two numbers
+that take different values are not one number restated.**
+
+What remains true is that a literal is the wrong shape. Nine copies of a derived
+quantity is still nine copies. But the quantity is per-profile arithmetic, not
+the length of the custody list.
 
 ---
 

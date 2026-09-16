@@ -30,6 +30,81 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — The two groups ARE independently fixable, and the coupling I claimed does not exist; my "every 90 is that list's length" was wrong
+
+The owner asked the right question and named the trap in it: if every 90 really
+is the length of the custody name list, then a profile-derived count restates the
+same fact in a second place, which is the defect this whole thread is about. He
+said to say so if that was the honest answer.
+
+**It is not. The two numbers are different facts, and I tested it rather than
+repeating the assertion.**
+
+### The evidence
+
+- `expectedNames('v1')` is 86 names and is **byte-for-byte the source baseline
+  catalog's table set** — diffed in both directions, zero difference either way.
+- `expectedNames('v2')` is v1 **plus exactly four** `card_write_*` tables:
+  `card_write_admission_v1`, `card_write_followups_v1`,
+  `card_write_operations_v1`, `card_write_transaction_context_v1`.
+- `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` records post-install
+  `public_tables: 90` from a **67**-table live start.
+
+So the two 90s decompose differently: **86 + 4** for the custody list, **67 + 23**
+for the install target. 86 is not 67 and 4 is not 23. They coincide at 90 and
+that is all.
+
+**The decisive part is what happens next.** Under `settled68` the live start
+becomes 68, so the install's post-install count becomes **91**, while v2 stays
+**90** — the source-baseline universe has not moved. **Two quantities that take
+different values are not one quantity restated.** That is as clean a refutation
+of the coupling as the evidence allows, and it only became visible because the
+second profile forced them apart.
+
+### The answer to the sequencing question
+
+**Yes, the groups are independently fixable, and sites 1, 2 and 3 do not need v3
+to exist.**
+
+The post-install count for a profile is its **own contract's** table count plus
+the tables the install creates:
+
+- The per-profile pre-install count already exists in a reviewed, byte-pinned
+  artifact: `settled68`'s contract records 68, `observed67`'s records 67. Both
+  are already wired into the loader and the settled one was byte-confirmed
+  against the derivation's private candidate.
+- The install-created count, 23, is a property of the plan's source list, which
+  is **identical across all three profiles** — established earlier by reading the
+  builder, where the contract changes only `initial_catalog_sha256` and the
+  comparison target. It is derivable from artifacts that already exist:
+  the target's 90 minus observed67's 67.
+
+**Neither input is the complete-application-data list.** So the install path can
+unblock now, and v3 gets its own review without holding anything up. That is the
+tidy-looking route and it also happens to be the correct one, which is worth
+saying explicitly because those are not usually the same and the owner was right
+to check.
+
+### What this does not change
+
+A literal is still the wrong shape. Nine copies of a derived quantity is nine
+copies whichever quantity it is. The correction is only about **which** fact was
+being copied: per-profile arithmetic, not the custody list's length.
+
+And site 9 still needs v3 regardless. It compares **names**, not counts, so
+nothing in the group-1 fix touches it.
+
+**Correction recorded against myself.** "Every 90 is just that set's length" was
+stated twice, in the survey doc and in a report, and it was never tested. It is
+the same shape as the identity claim and the closing claim: a statement that
+sounded like a finding, was produced by pattern-matching two equal numbers, and
+would have sent the work down a longer route than necessary. The survey doc's
+section is corrected in place with the original claim quoted.
+
+**Noted and moving on, per the owner:** the widened trace leaves steps 6 and 7
+uncovered. They are Phase 6 and Phase 7 work, well past the install, so they are
+not in front of anything.
+
 ### 2026-09-16 — Does any install-day step reach the fixed table-list check? NO for every step with a named script; checked by measurement where it could be run
 
 **The question.** The cloud session found that `captureRows()` in

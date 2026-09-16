@@ -5774,6 +5774,67 @@ correctly. This rules out, finally, the third option the storage session listed
 at `ff9b379f`. A future session must not relax
 `application_admission_missing_owner` to make a pre-hiring world install.
 
+
+### D21 — No claim of "zero regressions" without its denominator (2026-09-16, owner)
+
+**Binding on every session.** A session reporting that a change broke nothing
+must say **how many suites ran and how many exist**. "Zero regressions" alone is
+not a permitted report.
+
+Given after this session reported B10 as zero regressions on the evidence of 547
+passing suites and a clean control worktree, when 61 more existed that the unit
+lane defers and three of those were broken by the change. The claim was true of
+what ran and false of the repository, and the missing denominator is precisely
+what hid the difference.
+
+The correct form is "547 of 608 ran; the 61 deferred were not run", not a bare
+adjective.
+
+### D22 — All 61 deferred suites run before the exit merge (2026-09-16, owner)
+
+Not a sample, not the ones that look relevant: **all of them.** The unit lane
+defers 61 suites as `NOT_RUN_BY_UNIT_LANE`, 18 of which carry a hard-coded world
+literal, and the deferral is static rather than environment-dependent, so
+nothing about a better-equipped machine changes it.
+
+Not scheduled here. It is a gate before the exit merge, and it is not started
+until the backup-path review and ruling 3 are settled.
+
+### D23 — The table-name coupling is DECLARED, not patched (2026-09-16, owner)
+
+The same table-name set is written down in more than one place and nothing says
+they must agree. Updating the stale copy closes today's failure and leaves the
+coupling undeclared for next time, so that is ruled out. **Either the places
+derive from one source, or something asserts they agree — and which one is
+proposed before it is implemented.**
+
+Proposal written, not implemented:
+[`LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md`](LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md).
+It recommends **assert, not derive**, and corrects this session's own "four
+places" to three, of which two are already byte-identical. Two reasons deriving
+is wrong rather than merely harder: one of the three is a **captured
+observation**, and generating it from a list would be the same falsification the
+pipeline-proof decision rejected this morning; and the guard list is install-plan
+source #2, so generating it would make every custody-corpus edit move all three
+profile plan and target pins, which B10 measured the cost of.
+
+**It is blocked on one question the owner must answer**, stated in §4 of the
+proposal: is the intended relation between the admission guard list and the
+custody corpus **equality** or **containment**? They were equal throughout
+history and are now guard = corpus + 1. Nothing in the repository states which
+was intended, and freezing a guess into an assertion whose purpose is to state
+the rule explicitly would defeat the point.
+
+### D24 — The three broken suites are re-based onto the settled world (2026-09-16, owner)
+
+`linear-exit-application-dml-admission`, `linear-exit-source-phases-postgres`
+and `linear-exit-source-baseline-catalog-postgres` are re-based onto the settled
+68-table world. They are **not** repaired against the 67-table profiles, per
+D18, which ruled that those two profiles need not be installable.
+
+Not started. It waits on the backup-path review and on D23's open question,
+because re-basing moves the custody corpus and an assertion written against
+today's sets would have to be revisited immediately.
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

@@ -9,6 +9,12 @@ same shape — a table count or a catalog fingerprint written down when the worl
 looked one way, never updated when the world moved, sitting in code nobody runs
 often enough to notice. This sweep looks for the rest on purpose.
 
+**The cause of the class, stated here next to the symptoms so a future reader
+does not have to reach §2 to find it: the unit lane runs 547 suites and defers
+61, statically, and 18 of those 61 carry a world literal — so the checks most
+likely to encode one are the checks least likely to run, and a literal inside
+them can be wrong indefinitely while the repository stays green.**
+
 **Scope of the answer: 43 sites examined, in 27 files.** Seven are stale, three
 of them failing right now. Fifteen are deliberate frozen contracts that are
 still true. Eleven are correct today but bound to a single world and will refuse

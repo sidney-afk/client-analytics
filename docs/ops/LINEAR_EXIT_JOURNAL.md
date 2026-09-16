@@ -30,6 +30,135 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — The guard-count set is NINE sites, not two and not three; and the literal is the wrong shape because the real object is a NAMED SET, not a number
+
+The owner declined the go-ahead and was right to. The supervisor found a third
+site. Sweeping properly found nine, two of them in `scripts/` rather than tests,
+and one of them is not a count at all.
+
+**Nothing has been changed. This is the survey he asked for.**
+
+### The full set, and which profile path each one serves
+
+| # | Site | Shape | Serves |
+|---|---|---|---|
+| 1 | `scripts/linear-exit-install-operator.js:34` | literal 90 → `fail('GUARD_COUNT')` | **every profile** |
+| 2 | `scripts/linear-exit-observed-full-target.js:6` | literal 90, `catalog.tables.length===90` | **every profile** (operator compares, calibrate creates) |
+| 3 | `test/helpers/install-operator-worker.mjs:9` | literal 90 | **every profile**, selected by `INSTALL_OPERATOR_PROFILE` |
+| 4 | `test/helpers/observed-full-pipeline-worker.mjs:11` | literal 90 | **67 only** |
+| 5 | `test/linear-exit-observed-full-pipeline.js:33` | literal 90, `after.tables.length` | **67 only** |
+| 6 | `test/linear-exit-observed-full-install.js:11` | synthetic 90-table fixture | coupled to #2, not to any profile |
+| 7 | `test/helpers/control-recovery-proof.js:54` | literal 90 trigger count | the **control-companion** world |
+| 8 | `test/linear-exit-control-restore-only-postgres.js:16` | same | the **control-companion** world |
+| 9 | `scripts/linear-exit-complete-application-data.js:29` | **exact name-set comparison** | custody and recovery |
+
+#4 and #5 are 67-only because `test/linear-exit-observed-full-pipeline.js` calls
+`full.build(initial)` with **no options**, so it takes the default contract.
+Read, not assumed. #7 and #8 are not on an install profile at all: they build
+the control-companion world from `expectedNames('v2')`.
+
+### Why a literal is the wrong shape, which is the real answer
+
+`complete.expectedNames('v2')` returns exactly **90 names**. `expectedNames('v1')`
+returns **86**. The reviewed object is a **named set of public tables**, versioned
+and byte-pinned, and **every 90 in the table above is just that set's length,
+copied into eight places as a constant.** Nobody chose eight literals; one
+derived fact got flattened into eight.
+
+So the answer to "is a literal the right shape now" is no, and it was never the
+right shape — having two profiles with different starting sizes only makes the
+existing defect visible.
+
+**#9 is the proof, and it is the finding that matters most.**
+`captureRows` compares the live catalog's table names against
+`expectedNames(name)` as an **exact set** and fails
+`UNCLASSIFIED_OR_MISSING_TABLE` on any difference. On the settled database, with
+`hiring_practical_test_jobs` present and absent from v2, that refuses. **No
+amount of changing 90 to 91 fixes it, because it is not counting.** That module
+feeds `track-b-recovery-package.js` and
+`linear-exit-complete-application-custody.js`.
+
+**Flagged as UNVERIFIED and worth the owner's attention:** if the day-of database
+capture wrapper reaches that code path, **step 9 may refuse on the settled
+schema for this reason**, which would be a second thing failing inside the
+one-hour clock. This session cannot read the private wrapper, so it cannot
+determine whether it does. It is a question, not a claim.
+
+### What is proposed, and not done
+
+The reviewed change is **a v3 of the complete application data list**, 91 names
+including `hiring_practical_test_jobs`, and then counts that **derive from the
+list** rather than restating it:
+
+- #1, #2, #3 take the expected count from the profile's own list version.
+- #4, #5 stay on v2 and change nothing; they are the 67-table world and it is
+  still correct.
+- #7, #8 stay on v2; the control-companion world is not an install profile.
+- #6 follows whatever #2 becomes.
+- #9 selects v3 for the settled state.
+
+That removes the class rather than the symptom: add a table, add it to the
+reviewed list, and every count follows. The alternative, nine literals kept in
+step by hand, is the same defect with a bigger surface.
+
+**Costs, stated so the decision is real.** v2 is byte-pinned and historically
+meaningful, so a v3 is an addition and never a mutation.
+`test/linear-exit-complete-application-data.js:41` gates the v1 to v2 delta
+(`names2.length===90`, `added.length===4`) and a v3 needs its own reviewed delta
+assertion. And this touches the custody and recovery path, which is what B4 just
+closed on, so it deserves its own review rather than riding in as a fix to a
+number.
+
+### 2026-09-16 — The closing claim was the unchecked part, for the third time today
+
+Recorded at the owner's instruction and in the terms he used.
+
+The rehearsal entry said there were two hard-coded counts and named
+`finalize.js` as deriving rather than pinning. The `finalize.js` half was read
+from the code and is correct. **The closing half — "so those two are the whole
+set" — was never checked.** A search was run for the two shapes expected, it
+found them, and the set was declared closed. The supervisor found a third
+immediately; sweeping exhaustively found nine.
+
+That is the third time today the same shape has landed:
+
+1. the identity claim, where `IDENTITY_SQL` was read and what Supabase does with
+   a restore was assumed;
+2. the selfcheck, twice, which covered what was imagined to be fragile rather
+   than what the code asserts;
+3. this, where the members of a set were verified and the **completeness** of
+   the set was not.
+
+The composite-claim rule already names the mechanism, and this is its third
+form: **"and that is all of them" is a claim, and it is usually the one part of
+a careful piece of work that nobody checks.** A search proves what it found. It
+never proves what it did not find, and the difference is invisible unless you
+say which one you are asserting.
+
+The practical form, since the rule wants a practical half: when a search closes
+a set, run a second search of a **different shape** — here, every bare `90` in
+every `.js`, `.mjs` and `.cjs` — and reconcile the two. The clever regex found
+one site. The dumb one found nine.
+
+### 2026-09-16 — Bound: the derivation happens once, and the calibration is its test
+
+Recorded at the owner's instruction, as a standing constraint on this work.
+
+> **The derivation happens once, and the calibration is the test of it. If the
+> calibration reports anything other than what was derived, that is a finding.
+> Stop and report it. It is not a licence to adjust a second time — adjusting
+> twice is fitting the number to the observation, which is the thing we have
+> twice agreed not to do.**
+
+And the circularity, which the owner asked be kept in this session's own words:
+
+> The calibration is the only thing that can measure the post-install count, and
+> it cannot run until the constant it would verify has already been changed.
+> **Nothing removes that except deriving first and letting the calibration
+> confirm or refute.** The derivation has to be defensible on its own evidence
+> before the measurement exists, because once the measurement exists it is too
+> late to claim the derivation was independent of it.
+
 ### 2026-09-16 — Calibration rehearsal attempted; it found a SECOND hard-coded 90, in the calibrate path itself, which would have failed session C at the keyboard
 
 The owner asked for the calibration command to be rehearsed and then written on

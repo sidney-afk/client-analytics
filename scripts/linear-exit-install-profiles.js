@@ -7,16 +7,32 @@ const OLD='809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd',NEW
 // against an isolated PostgreSQL 17 and equal to that day's live read.
 const SETTLED='ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c';
 const profiles={observed67:{plan:'3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb',target:'f3db4b7cd0649800e4811d1c4b32cf3f37e5c2bf951d4b12d22009faf08aa28f'},observed67_optout:{plan:'0c88914972800f8268a9a5857535ca8cb624f6b25460b19b34091ea4b58ced57',target:'79710a7f96855c6f3975ab88558e9c6f3b51ffc01a7b7d56a2508982955456f0'},
- // HALF PINNED. Both values are measured, never chosen. The plan hash was read
- // whole from one --plan-from run against the real settled catalog on
- // 2026-09-16, which also reported initial_catalog_sha256 equal to the settled
- // catalog hash, proving the plan was built against the settled picture rather
- // than a stale contract. The target is still null: it is only derivable from a
- // calibration run of the installer, which needs the private observed-schema
- // inputs. get() therefore still refuses this profile, so it cannot be used by
- // accident. A plausible-looking hash in either slot would be exactly the
- // silencing D8 forbids.
- settled68:{plan:'e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54',target:null,contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
+ // FULLY PINNED as of 2026-09-16. Both values are MEASURED, never chosen, and a
+ // hash in either slot is only ever one read whole from a run.
+ //
+ // PLAN. Read whole from one --plan-from run against the real settled catalog,
+ // which also reported initial_catalog_sha256 equal to the settled catalog hash,
+ // proving the plan was built against the settled picture and not a stale
+ // contract.
+ //
+ // TARGET. Derived by the settled68 calibration at cd6f1808 on a fresh
+ // PostgreSQL 17: file settled68-target.private.json, 1,613,093 bytes, built
+ // under plan e3dae746... from starting catalog ddfa4c4f..., installed public
+ // catalog 0d4eb7dc..., private fccae16a.... Post-install public table count
+ // 91, which is the number derived once from the settled contract before the
+ // run and confirmed by two independent measurements inside it -- the worker's
+ // guard count and the target builder's table count -- neither of which was
+ // given the number. The derivation stands; this is the target it produced.
+ //
+ // TRANSCRIPTION STATUS, recorded because the hash rule says a hash is read
+ // from a command's output and this one was not read by this session: the file
+ // is private and only the storage session can read it, so the value arrived
+ // through chat. The storage session re-reads its own file and confirms the
+ // committed value. Until that confirmation lands, treat this pin as committed
+ // but not closed. A plausible-looking hash in either slot would be exactly the
+ // silencing D8 forbids, and a transcription error is the way one gets here now
+ // that both values are real.
+ settled68:{plan:'e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54',target:'625430979c5508f2a87b18bfa9d7135806273c909c3f5baf9f5a5fe835f97356',contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
 function has(name){return Object.hasOwn(profiles,name);}
 function get(name='observed67'){
  assert(has(name),'unknown installation profile');

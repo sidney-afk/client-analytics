@@ -4574,6 +4574,65 @@ in the same class. Named here so the next reader knows it was considered.
 
 Nothing was run against a database.
 
+### D17 — The settled68 target is pinned; the calibration reported the derived 91, so the derivation stands (2026-09-16, supervisor, on the calibration result)
+
+The calibration reported a post-install public table count of **91**, which is
+the number derived once from the settled contract before the run. Under the
+binding set on 2026-09-16 that is the only outcome that is not a finding: 91
+confirms the derivation, anything else would have stopped everything. So the
+derivation stands and the target that run produced is the reviewed one.
+
+`profiles.settled68.target` is now
+`625430979c5508f2a87b18bfa9d7135806273c909c3f5baf9f5a5fe835f97356`.
+
+**Provenance, all measured.** Derived by the settled68 calibration at
+`cd6f1808` on a fresh PostgreSQL 17. File `settled68-target.private.json`,
+1,613,093 bytes, built under plan `e3dae746…` from starting catalog
+`ddfa4c4f…`, installed public catalog `0d4eb7dc…`, private `fccae16a…`. The 91
+was confirmed by two independent measurements inside the run, the worker's
+guard count and the target builder's table count, neither of which was handed
+the number.
+
+**The pin is committed but NOT closed.** The value comes from a private file
+only the storage session can read and reached this session as text in chat. The
+house rule is that a hash is read whole from a command's output, and this one
+was not read by the session writing it down. The storage session re-reads its
+own file and confirms the committed value; until that lands, the pin is
+provisional. Recorded in the profile comment as well, so the file says so and
+not only this entry.
+
+**The behavior change, reported before it was made rather than handled
+quietly.** Pinning the target makes `get('settled68')` stop refusing, because
+`get()` refuses any profile whose plan or target is missing. Five searches of
+different shapes were run to find anything depending on that refusal:
+`settled68` across the whole tracked repository; every caller of
+`profiles.get`; refusal assertions in the test tree; the phrases that describe
+the profile as unpinned; and every test file naming the profile at all.
+
+What they found:
+
+- **No test and no assertion anywhere depends on `settled68` refusing.** Nothing
+  was deleted, weakened or adjusted, because there was nothing to adjust.
+- `test/linear-exit-install-operator-postgres.js` is the only test file that
+  names the profile. It carries the per-profile SETUP row and, on a
+  non-calibrating run, compares the target file's hash to `get(profile).target`.
+  For `settled68` that line previously threw "not pinned yet" before it could
+  compare; it now compares. Same for
+  `test/helpers/install-operator-worker.mjs` line 12. Both are consumers that
+  become live, not assertions that break.
+- `profiles.build(catalog,'settled68')` never went through `get()` at all: the
+  settled branch returns before that line, which is why the plan could be
+  exercised while the target was null. The pin does not change `build()`.
+
+**One stale line found in passing, reported rather than edited**, since this
+decision's scope was the pin: `REPO_MAP.md` line 467 still describes
+`LINEAR_EXIT_RUNNER_SETTLED_WORLD_PROPOSAL.md` as "proposal, not applied — the
+operator test runner has no settled68 branch". The runner change was applied
+earlier today and that file now carries the per-profile table including
+`settled68`, so the line describes a world that no longer exists.
+
+Nothing was run against a database.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

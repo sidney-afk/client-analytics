@@ -30,6 +30,60 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Calibration rehearsal ATTEMPTED and executed; it stops at the private inputs, so the command still cannot be written
+
+The owner asked for the rehearsal that was deferred, and for the box to come off
+only if the command had actually been run. **It has not, so the box stays**, but
+this time the answer is an executed attempt rather than a reasoned one.
+
+**Both of my own environment gaps were removed first**, so that whatever
+remained could not be confused with them: **PostgreSQL 17.11** on a throwaway
+ICU `en-US` cluster listening on `127.0.0.1`, and **Deno 2.9.6** installed. The
+calibration was then run with `INSTALL_OPERATOR_PROFILE=settled68` and
+`INSTALL_OPERATOR_CALIBRATE=1`.
+
+**Where it stopped, from the preserved error log:** `ENOENT` on the private
+input directory, inside `applyObservedSchema` at
+`scripts/linear-exit-observed-schema.js:16`, reached from
+`test/linear-exit-install-operator-postgres.js:7`.
+
+| Stage | State |
+|---|---|
+| the four environment assertions | **PASSED, executed** |
+| throwaway ICU cluster on loopback | **PASSED, executed** |
+| observed-schema reconstruction | **STOPPED**, private inputs absent |
+| `settled68` profile allowlist | **NOT REACHED** |
+| plan build, derived guard count, target creation | **NOT REACHED** |
+
+**A precision worth stating, because it corrects something I would otherwise
+have claimed.** I would have said this run proved the allowlist accepts
+`settled68`. It did not: the allowlist is at line 9 and the reconstruction is at
+line 7, so execution stopped **before** it. The allowlist fix is confirmed by
+**reading the file**, not by running it. That distinction is small and it is
+exactly the one this session has got wrong three times today, so it is written
+down rather than rounded up.
+
+**The earlier blocker is genuinely cleared.** Both hard-coded guard counts now
+derive from the profile's contract, so the calibration would no longer abort at
+91 guards. **Wired, not executed** — nothing past line 7 ran.
+
+**So the command still cannot be written.** Writing it now would be precisely
+the defect the sweep found: a block handed over having never run past its first
+real step. The box on the session C page is updated to say so, with this table
+in it, so whoever writes the command later knows exactly which part is proven
+and which is not.
+
+### Is session C runnable end to end? No. One section of three.
+
+| Section | State |
+|---|---|
+| 1, calibration | **No command.** Executed here only as far as the private-input boundary. Cannot be prepared without the owner's machine. |
+| 2, B5 dry run | **Executed as written**, PowerShell 7.4.6. Residual: `tar.exe` on Windows, which is what the dry run exists to discover. |
+| 3, wrapper preflight | **Executed as written**, including its failure paths. Residual: the argument lists, closed by reading the wrappers' usage lines, not by the block. |
+
+Two of three sections are proven and worth the sitting. The third does not exist
+and must not be improvised at the keyboard.
+
 ### 2026-09-16 — Group 1 BUILT: sites 1, 2 and 3 derive their count from the profile's own contract; four files, 67 added lines, 5 removed
 
 Scope exactly as approved. Sites 4, 5, 7 and 8 untouched, and **site 6 needed no

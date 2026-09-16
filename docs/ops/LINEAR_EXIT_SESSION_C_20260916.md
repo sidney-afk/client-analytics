@@ -56,23 +56,38 @@ node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-
 
 **Worked when:** `"marker": "B9_DERIVE_SELFCHECK_OK"` and `"problems": []`.
 
-> **SECTION 1 CANNOT RUN YET. Read this before you sit down.**
+> **SECTION 1 STILL HAS NO COMMAND, AND THE REASON HAS CHANGED. Read this
+> before you sit down.**
 >
-> The rehearsal was attempted on 2026-09-16 and stopped on a blocker in the
-> code, not in the command. **The calibrate path has its own hard-coded guard
-> count**, `assert.equal(guards.length,90)` in
-> `test/helpers/install-operator-worker.mjs`, separate from the one already
-> known about in `scripts/linear-exit-install-operator.js`. The settled database
-> has 68 public tables rather than 67, so the calibration would produce 91
-> guards and **abort before it could derive a target**.
+> **The earlier blocker is fixed.** Both hard-coded guard counts now derive
+> from the profile's own contract, so the calibration would no longer abort at
+> 91 guards. That is wired but **not executed** — see below for exactly how far
+> an execution got.
 >
-> That is the entire purpose of this section, so section 1 would have failed at
-> the keyboard with nothing to show for it.
+> **The remaining reason is that the cloud session cannot run this at all.**
+> The calibration reconstructs the live schema from your **private
+> observed-schema inputs**, which exist only on your machine. No amount of
+> preparation elsewhere changes that.
 >
-> **Both constants are re-derived and reviewed before this section is written
-> or run.** The derivation is recorded in the journal; it is not an edit from 90
-> to 91 to make a check pass. Until that is done and the command has actually
-> been executed, this box stays and **section 1 does not exist**.
+> **An execution was attempted here on 2026-09-16**, with PostgreSQL 17.11 on an
+> ICU `en-US` cluster and Deno 2.9.6 both installed so neither was a
+> confounding gap. What it establishes, and what it does not:
+>
+> | Stage | State |
+> |---|---|
+> | the four environment assertions | **PASSED, executed** |
+> | throwaway ICU cluster on `127.0.0.1` | **PASSED, executed** |
+> | observed-schema reconstruction | **STOPPED** — `ENOENT` on the private input directory, `linear-exit-observed-schema.js:16` |
+> | the `settled68` profile allowlist | **not reached.** It sits *after* the reconstruction. Confirmed present by reading the file, never by running it |
+> | plan build, derived guard count, target creation | **not reached** |
+>
+> So the command's preamble is proven and everything that matters is not.
+> **Writing the command here now would be exactly the defect the 2026-09-16
+> sweep found**: a block handed over having never been run past its first real
+> step.
+>
+> **If you have reached this page and this box is still present, ask rather
+> than improvising a command.**
 >
 > **Sections 2 and 3 below are unaffected and are worth doing on their own.**
 

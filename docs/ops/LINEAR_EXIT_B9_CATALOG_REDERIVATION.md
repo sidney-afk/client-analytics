@@ -60,7 +60,10 @@ are two honest routes and they are not the same size:
 that does not depend on getting a six-class reversal perfectly right.
 
 Either way this is a **reviewed-artifact change, not a re-pin**, and it has to
-land on the branch before the exit merge. That is the freeze-lift dependency.
+land on the branch before the exit merge. It is the long pole before the
+install gate at step 13 is reachable. It is **not** what lifts the freeze: it
+lands on the branch, not on main, and the freeze holds until the installation
+and release are finished.
 
 ---
 

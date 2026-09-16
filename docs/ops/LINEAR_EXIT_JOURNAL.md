@@ -1535,7 +1535,9 @@ B10 is not merely safe, it is required. D12's ordering is unchanged, and B10
 stays gated on B9 rather than on PG17 access — that access now exists in this
 sandbox, which the 2026-09-16 note above assumed it did not.
 
-**B9 RE-SIZED, 2026-09-16, still open, and this is the freeze-lift dependency.**
+**B9 RE-SIZED, 2026-09-16, still open. It is the long pole before the install
+gate at step 13, not the thing that lifts the freeze — it lands on the branch,
+not on main. Wording corrected 2026-09-17.**
 Not a re-pin. The plan builder refuses any starting catalog that is not
 byte-exact against the reviewed observed contract, and the hiring delta spans
 six object classes, so it will not reverse the way the opt-out delta did. The

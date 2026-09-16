@@ -30,6 +30,153 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — STOPPED: after B10, `observed67` and `observed67_optout` CANNOT INSTALL; the admission guard refuses a table only `settled68` has. `settled68`'s target re-derived. Pipeline proof NOT re-run
+
+Storage session, second of three jobs. Every value below was read from a run's
+own files after that run finished. Nothing was adjusted, re-pinned, or run
+twice to get a different answer.
+
+#### What was run
+
+The reviewed `run-portable.ps1 -Lane install-operator` in calibrate mode, once
+per profile, one after another. Launched through the handover section 4.6
+launcher, taken whole from `git show HEAD:` of the handover, from a Windows
+PowerShell 5.1 host.
+
+- Checkout at `8e2b0f36`. **Its code is byte-identical to B10's commit
+  `89405832`**: `git diff --stat 89405832 HEAD` outside `docs/`, `REPO_MAP.md`
+  and `EXECUTION_LOG.md` is empty.
+- PostgreSQL 17 ICU `en-US` on loopback, via the runner's own cluster.
+  `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ACCESS_TOKEN` were cleared in each
+  run's process only (names only).
+- Private observed inputs, hashed immediately before the batch:
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| `live-full-catalog-20260912.private.json` | 969,383 | `b12defb25d1bde3a59a1680cb7b81084b651e7e84b4c5e243afa1772f6f47da2` |
+| `live-routine-definitions-20260912.private.json` | 750,023 | `3728b7b676cfd7971515f03bb90f9204ac7e764a901804f8318571ea496ba6a7` |
+| `live-routine-metadata-20260912.private.json` | 53,127 | `aa33b43598500718924be2fb2775f68f126eb9d28ac825d14b4d5929786b375d` |
+| `live-routine-source-map-20260912.private.json` | 120,753 | `6399972a96ba7e95fb55c8ddba2ed3de17a124a560badae73d8f943029d35c9b` |
+| `live-sequence-ownership-20260912.private.json` | 1,857 | `f861749a4b22337ed1124811cdbac3bd601f4875039de07fee7c7dbb1616c87a` |
+| `live-structural-definitions-20260912.private.json` | 141,305 | `e12db373b9e94e9dfb400b75e0b41072096d9ba7c493072af9c4b532e4eec178` |
+
+**Expectations stated before the runs:** post-install public tables 90, 90 and
+91; plan hashes measured first and only then compared with the cloud session's
+reported prefixes; no expected target values.
+
+Two launches before these never reached the runner, both from the session's
+own launch syntax. One was a PowerShell parse error, a `foreach` piped to
+`Tee-Object`. The other passed a comma list to the launcher's `ValidateSet` as
+one string. Neither cleared the environment, created a directory or started a
+cluster: the only directory created in that window was `day-catalog-20260916-4`.
+
+#### Results
+
+| Profile | Run directory (`linear-exit-install-operator-…`) | Exit | Plan SHA-256 (from `operator-plan.private.json`) | Target |
+|---|---|---|---|---|
+| `observed67` | `957db6c8d50d4b7abb4a1c6b6cc3af9a` | **1** | `7043637f90378244f445d588680709d67f16cee7ee43170b2254f0edb78b3f1f` | **none written** |
+| `observed67_optout` | `8f40b44d6a274597af0cfb3ec8ab3209` | **1** | `92a4737ffd13b3634aad76ed8ceded28966a66a4de0b09fb503fdd4a4c5d4021` | **none written** |
+| `settled68` | `f215fa6863d6456ca36868280bb5f649` | **0** | `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` | **`24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`** |
+
+All three reconstructions printed `LINEAR_EXIT_OBSERVED_SCHEMA_OK`. All three
+clusters logged `server stopped` and left no `postmaster.pid`. Every plan
+declares 48 sources and the expected starting catalog: `809c5dc7…`,
+`f5ed8a38…`, `ddfa4c4f…`.
+
+**Cross-check against the messenger, done last:** the three measured plans
+begin `7043637f`, `92a4737f` and `508e6369`, the prefixes the cloud session
+reported in its B10 entry. They agree.
+
+#### `settled68`, the one that completed
+
+| Item | Value |
+|---|---|
+| Target file | `settled68-target.private.json`, **1,613,689 bytes** |
+| **Target SHA-256** | **`24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`** |
+| Post-install public tables | **91**, equal to the stated expectation |
+| Plan (file, `target.plan_sha256`, `operator-result.plan_sha256`) | all `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` |
+| Stage | `OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1` |
+| Installed public catalog | `331aabb2b51067b1b07d444e39e010c1c8ed18349f2f0ab3a0426cab0f5ff84d` (was `0d4eb7dc…` before B10) |
+| Installed private catalog | `fccae16ac7200ac82369f73449512d21f762b86b53bdb306fba172388bbc2401`, **unchanged** from the pre-B10 calibration |
+| Operator result | `CALIBRATION_ONLY`, `target_sha256` equal to the file's SHA-256, `activation_performed: false` |
+| Target flags | `installation_authorized: false`, `hosted_target_verified: false` |
+| Markers | `LINEAR_EXIT_OBSERVED_SCHEMA_OK`, `LINEAR_EXIT_INSTALL_OPERATOR_OK` |
+
+**Not pinned.** `profiles.settled68` in `linear-exit-install-profiles.js` still
+carries plan `e3dae746…` and target `625430…`, both superseded by B10 as
+predicted. Pinning is the owner's reviewed step.
+
+#### THE STOP: why the two older profiles produced no target
+
+Both failed inside the installer's SQL, at the same point, with the same error.
+It came from the worker's stderr, `operator-worker.private.json`:
+
+```
+PostgresError: application_admission_missing_owner:hiring_practical_test_jobs
+```
+
+**Traced, read from code and history:**
+
+- The error is raised in
+  `supabase/migrations/20260912183653_application_dml_admission_preparation.sql`
+  line 73. The guard loops over its table list and, for each name,
+  `if to_regclass('public.'||t) is null then raise exception 'application_admission_missing_owner:%'`.
+- `hiring_practical_test_jobs` appears in that file **0 times at `89405832^`
+  and once at `89405832`.** B10 put it there.
+- The table exists only in a world where the hiring migration ran. In the
+  runner's per-profile `SETUP` table only `settled68` has `hiring: true`.
+  `observed67` and `observed67_optout` are the pre-hiring worlds by definition.
+
+**So after B10, the plan for any pre-hiring world contains a guard over a table
+that world does not have, and the install refuses before finishing.** That is
+not a defect in those runs. It is what B10 means for any profile whose starting
+catalog predates the hiring migration.
+
+**Why nothing caught it before now.** B10's green lane,
+`linear-exit-retirement-switch-postgres.js` with 46 checks, runs on the shared
+fixture, and B10 added the hiring migration to that fixture as an OWNERS
+entry, so the table existed there. B10's plan-hash measurements stubbed the
+starting-catalog gate and never installed anything. Neither could have seen a
+pre-hiring world. This is the first real install of either older profile since
+B10.
+
+**What this invalidates, stated so nobody has to infer it:**
+
+1. **Job 2 cannot be completed as specified.** There is no post-B10 target for
+   `observed67` or `observed67_optout`, and there cannot be one without a
+   change to either the profiles or the guard.
+2. **The pipeline proof (job 3) was NOT run.** `test/linear-exit-observed-full-pipeline.js`
+   builds only the `observed67` world, with `observed-full-install-plan.build()`
+   and the same admission migration. **On reading, it will refuse the same way.
+   That is a prediction, not a measurement.** No new dated proof file was
+   written, and `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` is untouched
+   (SHA-256 `73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb`,
+   12,660 bytes).
+3. **The source-pin gate count was measured independently:**
+   `source_pins`, 3 of 26 mismatched, the same three files as the entry below.
+   `calibration_source_pins`, 5 of 26. The two extra are the pipeline test and
+   its worker, whose 2026-09-13 hashes already differed between that day's
+   calibration and replay. That list has no code consumer.
+
+**The decision this needs is the owner's, and none of it was attempted.** In
+rough shape, not as recommendations:
+
+- whether the two pre-hiring profiles are still required to install, given
+  live is `settled68`;
+- whether the pipeline proof should be re-based on the settled world rather
+  than the 67-table capture;
+- or whether the guard should tolerate an absent table. That changes what a
+  security guard admits, and needs its own review.
+
+Each option changes reviewed code or reviewed scope. None is a storage-session
+fix.
+
+**Not run, stated plainly:** the pipeline lane in either mode, and any
+neutrality comparison against the pre-B10 worktrees. The worktrees
+`2026-09-16-runner-before-05bf19f6` (`05bf19f6`) and
+`2026-09-16-optout-before-d3cbca7f` (`d3cbca7f`) were confirmed present and
+clean at the start of this sitting, and were not used.
+
 ### 2026-09-16 — Storage session: the private catalog wrapper now names `settled68`, PROVEN by a live read; plus three findings, one of them a step 9 and 10 refusal nobody had listed
 
 Written by the storage and custody session on the owner's machine, at branch

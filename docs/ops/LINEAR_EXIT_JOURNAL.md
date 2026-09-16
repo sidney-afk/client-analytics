@@ -30,6 +30,135 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — CORRECTION to the collation entry: the right answer, reached by an argument that was not the decisive one
+
+The ICU recommendation was correct and the owner's retry confirmed it. The
+reasoning given for it was not the reason it is correct, and that is worth
+recording because it is the failure shape this file already warns about.
+
+The entry below argued ICU on **portability** grounds: PostgreSQL on Windows
+does not handle UTF-8 libc locales well, and ICU behaves the same everywhere.
+True, and beside the point. The decisive fact is that **live's own database uses
+ICU `en-US`**, which the owner established with one read-only query against
+`pg_database`. Matching live is the requirement; portability was a convenience
+argument that happened to point the same way.
+
+This session could not have read live — no SQL against production — but it could
+have said so, and said that the collation must be taken from live's own
+`pg_database` row rather than chosen on any other basis. Instead it recommended
+a locale on secondary grounds and did not name the check that would settle it.
+**A correct conclusion from an argument that was never the load-bearing one is
+still an unchecked method**, and this file already records that lesson from
+2026-09-15. It landed the right way twice now, which is luck.
+
+Also recorded from the owner's run, because it is a real limit on what the match
+proves: local ICU collation version **153.14** against live's **153.121**.
+Different ICU majors. They produced identical orderings for this schema and the
+exact-match checks prove it, but that is a fact about this data, not a
+guarantee. A future divergence would surface as an order-only mismatch and stop
+safely rather than producing a wrong hash.
+
+And his `dependencies` observation is the sharper version of the durable fix
+noted below: the array is ordered by text only to make it deterministic for
+hashing, and nothing consumes that order, so the hash conflates a different sort
+locale with a different schema. That is a latent defect in the check itself.
+Making the ordering locale-independent would be a correctness fix rather than
+silencing. Not needed today, not changed, and the cheapest moment to weigh it is
+while the reviewed picture is being re-authored anyway.
+
+### 2026-09-16 — Short sitting, part 3: B9 settled catalog DERIVED on an ICU cluster; it equals the live read
+
+**Result: `B9_SETTLED_CATALOG_DERIVED`, derivation exit 0.** Every
+self-verification in the chain passed, and the offline derivation agrees with
+the live read exactly.
+
+**How the retry differed from the failed run.** The owner checked live and
+found the premise of the session's question wrong: live's database collation
+is **ICU**, not glibc. So the retry used a new throwaway cluster whose flags
+were worked out from live's own `pg_database` row (one read-only catalog query):
+
+| | Live | Local throwaway cluster |
+|---|---|---|
+| PostgreSQL | 17.6 | 17.11 (runbook binaries) |
+| Locale provider | ICU (`i`) | ICU (`i`) |
+| ICU locale (`datlocale`) | `en-US` | `en-US` |
+| Encoding | UTF8 | UTF8 |
+| Collation version | **153.121** | **153.14** (bundled ICU 67) |
+| ICU rules | none | none |
+
+`initdb -E UTF8 --locale-provider=icu --icu-locale=en-US --locale=en-US`. The
+last flag only sets the libc categories Windows still requires. Listening on
+`127.0.0.1` only, `F63_REQUIRE_POSTGRES=1`, new directories, cluster stopped
+afterwards (`pg_ctl status` exit 3, port not listening). Before the derivation,
+a two-string sort probe put `…_counts(pg_catalog.text)` before
+`…import(pg_catalog.jsonb)`, the same order as live and the pair the failed run
+had inverted.
+
+**The chain, stage by stage:**
+
+- Observed-schema rebuild: `exact_captured_catalog_match: true` (67 tables,
+  115 routines, 14 identity sequences). The failed run's order-only mismatch is
+  gone.
+- `pre_hiring_catalog_sha256`
+  `f5ed8a38a4454e62905192c49de9a6a790c1bb48e247884efed12562b1161c25`,
+  **`pre_hiring_matches_optout_profile: true`**.
+- **`settled_catalog_sha256`
+  `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`.**
+- **Cross-check: equal to today's live step 8 read.** The live state is fully
+  explained by the reviewed opt-out profile plus the hiring migration exactly
+  as merged on main. Nothing else moved.
+- **`settled_public_tables`: 68.** Equal to the live count measured in part 1.
+- Repository head was `fffa901c` at both start and end of the run.
+
+**Per-section hashes of the settled catalog** (reviewed count, then settled
+count):
+
+| Section | Counts | Settled SHA-256 | Moved |
+|---|---|---|---|
+| default_acls | 6 / 6 | `91df0c128bddd74cb59379a5527bd8adc3b226de6b6150053f16bbc3226e3903` | no |
+| dependencies | 1336 / 1385 | `8468123989bbba5baee609b3f9f164de510bde51fdeb4c2152e52734c0b2ba3e` | **yes** |
+| functions | 115 / 122 | `931a4c488a7894d3ddd39d7f146f0777618a328eb3946cb0a20750ae7ab528e4` | **yes** |
+| indexes | 177 / 181 | `0a3d23ede3c0e06af89adffa11636c24e77e978d175aa239ab2356b08184286c` | **yes** |
+| internal_constraint_triggers | 120 / 124 | `f30b8f0b305ad70a5e91d3dac295690c0afc8f7dfb8d84e96a086efcfd997341` | **yes** |
+| policies | 31 / 31 | `acceb6c96263cf4d03acb1466b88476b8e5aba55ceb26e4d4ba325850b583342` | no |
+| publications | 1 / 1 | `c60699c826fab3996ceaa77ef428af5d11f6a71a6e68fba28c8c6a3aac76e182` | no |
+| rules | 5 / 5 | `fa1f9a6f1a685d5f39275ec91c73ed354d0ea2a5a37a416724b0b7a825228cb9` | no |
+| schema | n/a | `c91069038c90fad6352cf43431351624bd97601f93cafa0d62a11fbc295a404e` | no |
+| sequences | 14 / 14 | `52a5069240442913d3e49161ea79043d137531a30ba4aad06711c67d62a39083` | no |
+| server_major | n/a | `4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3` | no |
+| tables | 67 / 68 | `8b4e693aa135cc923bf7e68bb7c358a06c0675812b9dc865318564434ae40ff9` | **yes** |
+| triggers | 28 / 30 | `762848f5011d66f2d08d771d6d84da3788eda7a840f195106407850bd95a2a5b` | **yes** |
+| types | 0 / 0 | `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` | no |
+| views | 5 / 5 | `aea9d547855042b848ba97e412b52d57c0503eefdca6defd79fdc0f3e3a0db0b` | no |
+
+Every hash above is copied whole from the derivation's printed output, none
+retyped from a prefix. The derived catalog and the candidate observed contract
+stay in the private output directory and are **not** committed. Nothing was
+re-pinned, no profile was written, and no step 9, 10 or 11 ran. Step 8 still
+does not pass: there is no reviewed profile for `ddfa4c4f…` yet, and authoring
+one is the cloud session's work.
+
+**ICU version caveat, stated rather than discovered later (owner).** The two
+sides run different ICU majors: collation version 153.14 locally against
+153.121 live. For this schema they produced identical orderings, and the
+exact-match checks prove that. That is a fact about **this** data, not a
+guarantee. ICU collation can change between major versions, so a future
+derivation on a different schema, or against a live server that upgrades ICU,
+could order some text differently. A mismatch would surface as an order-only
+difference, as in part 2, and stop safely. It would not produce a wrong hash
+silently.
+
+**Observation, not a proposal.** The catalog query orders the `dependencies`
+array by text columns only so the array is deterministic for hashing, and
+nothing consumes that order. So the hash is sensitive to the server's
+collation, which conflates a different sort locale with a different schema.
+That is a real latent defect in the check. The owner framed the fix well:
+making the ordering locale-independent would be a correctness fix, not
+silencing. But it touches a byte-pinned file and cascades into pins. The
+cheapest moment to weigh it is while the reviewed picture is being re-authored
+anyway. It was **not needed today** and **not changed**. It is recorded so it is
+decided deliberately, not rediscovered.
+
 ### 2026-09-16 — Collation settled by measurement: use ICU `en-US`; the selfcheck now probes it, which is the fix that matters
 
 Answering the choice the part 2 entry put to the owner. The diagnosis in that
@@ -86,6 +215,7 @@ hash, so changing the query re-pins every observed artifact that depends on it.
 That is a bigger change than the one in front of us and it belongs to whoever
 revisits the baseline, not to the middle of an install window. Recorded so it is
 not rediscovered as though it were new.
+
 
 ### 2026-09-16 — Short sitting, part 2: B9 derivation FAILED on a collation the session chose; stopped, not retried
 

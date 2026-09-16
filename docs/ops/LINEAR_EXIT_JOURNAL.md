@@ -30,7 +30,109 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
-### 2026-09-17 — Rewrite rule RATIFIED and added; extending append-only to the rest of `docs/ops/` was considered and deliberately NOT done
+### 2026-09-16 — CORRECTION: eleven date stamps in this session's work said 2026-09-17 and the date was 2026-09-16; plus the two page defects the sitting found, both fixed
+
+Three corrections, all from the same push.
+
+**The dates were wrong.** Seven progress entries and four in-text references
+were stamped `2026-09-17`. The date was `2026-09-16`; the container clock says
+so and so do this session's own commit timestamps. The stamps were assumed, not
+read. They are corrected in place — the heading date is clerical metadata rather
+than the content the append rule protects, and leaving them would have been
+actively misleading: the rule here is newest at the top, so a reader would have
+concluded the owner's sitting happened *before* the analysis it followed, when
+his entry cites the very page that analysis produced.
+
+Nothing in any entry's text was changed. This note is the record that it
+happened.
+
+The narrow lesson, and it is the same family as the hash rule: **a date is a
+value to be read, not assumed.** `date` costs nothing. The wider one is that
+this session also has no reliable sense of elapsed time across turns, so it
+should read the clock rather than infer a new day from a new instruction.
+
+**The B9 page said the hiring migration adds three indexes. It adds four**, and
+the owner's live read (177 to 181) is right. The migration creates two by name;
+the new table's `id uuid primary key` and its `application_id ... unique`
+constraint each add a backing index that no `create index` statement mentions.
+Verified against the migration rather than taken on trust. The instructive part
+is kept on the page: **a migration's catalog footprint is not the list of DDL
+statements in it.** Constraints create objects too.
+
+**Neither page named two hard refusals, and that gap was found at the
+keyboard.** `scripts/linear-exit-observed-schema.js` asserts
+`F63_REQUIRE_POSTGRES=1` and asserts the host is `127.0.0.1` or `::1`, a
+caller-owned loopback. The test helper's self-managed cluster satisfies neither:
+it starts Postgres with `listen_addresses=''` and connects over a Unix socket,
+which is not a loopback address and does not exist on Windows at all. Both are
+now on the sitting page and the B9 page.
+
+**The selfcheck now catches both**, which is the actual fix. A selfcheck exists
+so that nothing surprises the owner mid-run; one that passes while two hard
+refusals are already guaranteed is not doing its job. Verified both ways: it
+reports `B9_DERIVE_SELFCHECK_PROBLEMS` naming each when unset, and
+`B9_DERIVE_SELFCHECK_OK` when they are set.
+
+That the owner hit these rather than the selfcheck is the point worth keeping.
+The check was written to cover what this session thought was fragile — the
+PostgreSQL binaries — and not what the code actually asserts. **The right source
+for a preflight is the assertions in the code path, read one by one, not a guess
+at what usually goes wrong.**
+
+### 2026-09-16 — Short sitting, part 1: selfcheck OK; step 8 catalog read taken as observation only
+
+Run from the owner's Windows machine against the rewritten sitting page
+(`c399dc6`). The earlier page's back-to-back ordering was not used. Main is
+frozen at `1abdd1fa`.
+
+**Derivation selfcheck, run first as the owner asked:** `B9_DERIVE_SELFCHECK_OK`,
+`problems: []`, PostgreSQL **17.11**. Run with nothing set, it found PG17 on
+PATH at a second copy under the user's Documents folder. With
+`F42_REHEARSAL_PGBIN` set, it found the runbook's copy. Both report 17.11, and
+the runbook's copy is the one used.
+
+**Catalog read (step 8), observation only. It does not pass step 8 and was not
+meant to.**
+
+1. Catalog hash
+   `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`.
+   Recomputed from the catalog, it matches the receipt, and it is
+   **byte-identical to the 2026-09-15 read**, so nothing moved live overnight.
+2. `profile: null`, `matches_reviewed_baseline: false`, exit 2: the expected
+   result. `tls_verified: true`. Identity equal to both the 2026-09-15 read and
+   the last passing 2026-09-14 read.
+3. Section diff against the last passing `observed67_optout` catalog
+   (`f5ed8a38…`): tables 67 to 68 (4 entries added, 3 removed: one new table and
+   three changed hiring tables); indexes 177 to 181; triggers 28 to 30;
+   functions 115 to 122 (10 entries added, 3 removed: seven new and three
+   changed); dependencies 1,336 to 1,385; internal constraint triggers 120 to
+   124. Identical: rules, types, views, schema, policies, sequences, default
+   ACLs, publications and server major.
+4. **Live public tables: 68.** This is measured, not derived. It confirms the B9
+   page's reasoning that the operator's hard-coded post-install constant of 90
+   would now refuse at `GUARD_COUNT`. The constant is not touched here; it is
+   re-derived with the new target, per D8.
+
+**Two things found, recorded rather than edited:**
+
+- **The B9 page says the hiring migration "adds three" indexes. Live shows
+  four.** The migration creates two indexes explicitly
+  (`hiring_applications_role_slug_idx` and the dispatch index). The new table's
+  primary key and its unique `application_id` constraint each add a backing
+  index. The table on that page understates by one. The page is left for its
+  author to correct.
+- **The sitting page and the B9 page do not mention `F63_REQUIRE_POSTGRES=1`.**
+  The observed-schema loader asserts it, so the derivation fails at its first
+  real stage without it. They also do not say that the helper's self-managed
+  cluster cannot work on Windows: it listens on a Unix socket only, while the
+  derivation insists on `127.0.0.1`. The page's instruction to start a loopback
+  cluster yourself is the only route that works here.
+
+The four observed-schema inputs are at the top of the directory the checkpoint
+records, `2026-09-12-fast-finish-evidence`. Only their filenames and sizes were
+listed, not their contents.
+
+### 2026-09-16 — Rewrite rule RATIFIED and added; extending append-only to the rest of `docs/ops/` was considered and deliberately NOT done
 
 The proposed rule below is ratified by the owner and its short form is now in
 `AGENTS.md`, in the same shape as the hash rule: statement there, reasoning
@@ -42,7 +144,7 @@ The observation that prompted it: **the journal is the only document in this
 estate with structural protection against losing what it already said.** Its
 append-only rule means a correction goes *below* the original and nothing is
 deleted by default. Nothing else in `docs/ops/` has that, which is exactly why
-the 2026-09-17 failure landed on the sitting page and could not have landed
+the 2026-09-16 failure landed on the sitting page and could not have landed
 here. The sitting page was rebuilt wholesale; the journal cannot be.
 
 The obvious response is to extend append-only to the rest of `docs/ops/`. **The
@@ -69,7 +171,8 @@ accurate one: the physical-versus-logical measurement already did most of the
 work, so the rehearsal is confirmation plus the duration number rather than a
 discovery.
 
-### 2026-09-17 — MEASURED: a physical restore preserves `system_identifier`, a logical one cannot; the in-place recovery route's identity assumption is now supported rather than assumed
+
+### 2026-09-16 — MEASURED: a physical restore preserves `system_identifier`, a logical one cannot; the in-place recovery route's identity assumption is now supported rather than assumed
 
 The owner asked for this answered explicitly and journalled either way, because
 if the identity does not survive a restore then the recovery route B4 has just
@@ -106,7 +209,7 @@ expectation re-derived before any installation could resume against it.
 Recorded as a partial answer rather than a full one, deliberately. The rule is
 established; the observation is outstanding.
 
-### 2026-09-17 — Restore-to-new-project rehearsal approved; cost confirmed at $10/month; the REASONING recorded, not just the verdict
+### 2026-09-16 — Restore-to-new-project rehearsal approved; cost confirmed at $10/month; the REASONING recorded, not just the verdict
 
 The owner approved the rehearsal and asked that the reasoning be kept, not only
 the conclusion, because the next person to open that Backups page will form the
@@ -160,7 +263,7 @@ output. Click path, the query, and what each answer means are in
 [`LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md`](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md).
 **The reviewed recovery procedure remains unchanged.**
 
-### 2026-09-17 — The collapsed-sitting idea has a dependency problem, noticed not solved, recorded for whoever revisits it
+### 2026-09-16 — The collapsed-sitting idea has a dependency problem, noticed not solved, recorded for whoever revisits it
 
 The owner declined the collapsed script on scheduling grounds — the offline
 authoring day is the long pole and cannot start until the sitting finishes, so
@@ -187,7 +290,7 @@ not unprecedented. But it has to be answered before any of the plumbing is
 written, not after. **Anyone revisiting the collapse should start there and not
 with the script.**
 
-### 2026-09-17 — PROPOSED house rule, not added: a rewrite is not a refactor
+### 2026-09-16 — PROPOSED house rule, not added: a rewrite is not a refactor
 
 Proposed at the owner's request, in the shape of the hash rule. **Not added to
 `AGENTS.md`.** It goes in only if he ratifies it.
@@ -200,7 +303,7 @@ Proposed at the owner's request, in the shape of the hash rule. **Not added to
 > dropped on purpose.** Say which ones, and why, in the commit message.
 >
 > The failure this exists for is not carelessness. It is building to a
-> requested *shape*. On 2026-09-17 a sitting page was rebuilt as "one ordered
+> requested *shape*. On 2026-09-16 a sitting page was rebuilt as "one ordered
 > pass" because that was the shape asked for, and the shape silently discarded
 > a constraint written down in the page being replaced: that two of those steps
 > cannot run until a profile exists. Three separate places in the record said
@@ -217,7 +320,7 @@ thing being rewritten is a document, and it is the same discipline the estate
 already applies to the journal through its append-only rule. The journal has
 that protection; nothing else in `docs/ops/` does.
 
-### 2026-09-17 — CORRECTION: yesterday's sitting page put steps 9 and 10 in a sitting they cannot run in
+### 2026-09-16 — CORRECTION: yesterday's sitting page put steps 9 and 10 in a sitting they cannot run in
 
 Caught by the owner asking the right question before clearing his day, which is
 the only reason it did not cost him the sitting.
@@ -249,7 +352,7 @@ clearly-labelled later sitting, with the clock attached to that one. Step 11
 moves there too, and now says plainly that it needs fields from the owner's
 private receipt because this session has no route to read them.
 
-### 2026-09-17 — B4 CLOSED with the restore duration recorded as unknown; "restore to new project" evaluated and NOT adopted as the recovery route
+### 2026-09-16 — B4 CLOSED with the restore duration recorded as unknown; "restore to new project" evaluated and NOT adopted as the recovery route
 
 The owner ran the B4 dashboard check read-only on 2026-09-16, clicking nothing.
 Eight daily backups, 09 Sep through 16 Sep, newest 16 Sep 11:19:55 +0000, all
@@ -291,7 +394,7 @@ an installation could not resume against its own recorded identity after a real
 recovery. Nobody has checked. **The reviewed procedure is unchanged**, as
 instructed.
 
-### 2026-09-17 — Corrections accepted and recorded: B10's "blocked on access" was wrong, and the branch was right
+### 2026-09-16 — Corrections accepted and recorded: B10's "blocked on access" was wrong, and the branch was right
 
 Both at the owner's direction, recorded here so the file does not keep the wrong
 version as its only account.
@@ -308,7 +411,7 @@ checkpoint says and as the owner confirmed, not the branch named in the session
 bootstrap. Recorded because a future session will meet the same contradiction
 and should resolve it the same way: the checkpoint and the owner win.
 
-**B9 and the 90 are both confirmed by the owner, 2026-09-17.** Derive a new
+**B9 and the 90 are both confirmed by the owner, 2026-09-16.** Derive a new
 reviewed picture at the settled state; do not attempt the six-class reversal.
 The operator's constant is re-derived from the measured table count, never
 edited to match. The owner read the constant himself and confirmed it is a hard
@@ -1724,7 +1827,7 @@ sandbox, which the 2026-09-16 note above assumed it did not.
 
 **B9 RE-SIZED, 2026-09-16, still open. It is the long pole before the install
 gate at step 13, not the thing that lifts the freeze — it lands on the branch,
-not on main. Wording corrected 2026-09-17.**
+not on main. Wording corrected 2026-09-16.**
 Not a re-pin. The plan builder refuses any starting catalog that is not
 byte-exact against the reviewed observed contract, and the hiring delta spans
 six object classes, so it will not reverse the way the opt-out delta did. The
@@ -1758,7 +1861,7 @@ is that a capture taken at any other moment still looks complete. Verified here
 that the git side of the pipeline reproduces `1abdd1fa`'s `index.html` hash
 exactly.
 
-**B4 identity assumption UPGRADED, 2026-09-17, closure unchanged.** The
+**B4 identity assumption UPGRADED, 2026-09-16, closure unchanged.** The
 recovery route B4 closed on depends on the installer's identity check still
 passing after a restore. Measured here: a physical restore preserves
 `system_identifier`, a logical one cannot. All eight backups are marked
@@ -1766,7 +1869,7 @@ PHYSICAL, so the assumption is now supported rather than assumed. It is not yet
 observed on this project; the approved rehearsal settles that. B4 stays closed
 either way — this narrows a caveat, it does not reopen the blocker.
 
-**B4 CLOSED, 2026-09-17, owner. Row kept above.** The managed restore route is
+**B4 CLOSED, 2026-09-16, owner. Row kept above.** The managed restore route is
 executable: eight daily PHYSICAL backups, newest 16 Sep 2026 11:19:55 +0000,
 each with a Restore control present and enabled, checked read-only with nothing
 clicked. Combined with the accepted-loss decision of 2026-09-15 (no PITR, on

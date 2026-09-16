@@ -74,7 +74,7 @@ That is the single cheapest way to convert an accepted unknown into a fact.
 
 ### 2. It closes the last part of a question that is now MEASURED, not assumed
 
-**Updated 2026-09-17. The general rule is no longer an assumption.** Measured on
+**Updated 2026-09-16. The general rule is no longer an assumption.** Measured on
 an isolated PostgreSQL 17.11 cluster in this sandbox:
 
 | Restore kind | `system_identifier` |
@@ -132,7 +132,7 @@ available without changing the recovery route: it is what you would reach for
   and it should not be assumed benign.
 - **It is BETA.** Behaviour may change or be withdrawn. Fine for a rehearsal,
   not something to make a documented recovery route depend on.
-- **Cost, confirmed 2026-09-17.** An additional project on this organization's
+- **Cost, confirmed 2026-09-16.** An additional project on this organization's
   Pro plan is **$10/month recurring**, read from the organization's own cost
   endpoint. Supabase bills compute by the hour, so a project that lives for an
   afternoon should cost a small fraction of that — but **that proration is not

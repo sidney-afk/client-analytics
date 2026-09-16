@@ -154,8 +154,17 @@ node scripts/linear-exit-b9-catalog-derive.js --selfcheck
 Anything in `problems` names exactly what is missing — most likely the
 PostgreSQL 17 binaries, which you set with `F42_REHEARSAL_PGBIN`.
 
-**Then the derivation.** Start a throwaway PostgreSQL 17 cluster on
-`127.0.0.1`, point `PGHOST` and `PGPORT` at it, and run:
+**Then the derivation.**
+
+> **Two prerequisites this page omitted until 2026-09-16. Both are hard
+> refusals.** `F63_REQUIRE_POSTGRES=1` must be set, because the observed-schema
+> loader asserts it before doing anything. And **you must start the loopback
+> cluster yourself**: the same line requires the host to be `127.0.0.1` or
+> `::1`, and the helper's own self-managed cluster listens on a Unix socket
+> only, which does not satisfy that and does not exist on Windows.
+
+Start a throwaway PostgreSQL 17 cluster listening on `127.0.0.1`, point
+`PGHOST` and `PGPORT` at it, set `F63_REQUIRE_POSTGRES=1`, and run:
 
 ```powershell
 node scripts/linear-exit-b9-catalog-derive.js `

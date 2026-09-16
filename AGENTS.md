@@ -165,7 +165,7 @@ for authoring. Reasoning and the incident behind it are in
 
 ## A REWRITE IS NOT A REFACTOR. DIFF IT AGAINST WHAT IT REPLACES.
 
-Owner-ratified 2026-09-17. Rewriting a file wholesale deletes every warning in
+Owner-ratified 2026-09-16. Rewriting a file wholesale deletes every warning in
 it by default and re-adds only what you remembered. Before shipping one, diff it
 against the version it replaces and confirm each dropped constraint was dropped
 on purpose; say which, and why, in the commit message. Reasoning and the

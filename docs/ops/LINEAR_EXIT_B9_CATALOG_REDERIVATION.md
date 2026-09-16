@@ -39,11 +39,20 @@ migration on main:
 |---|---|
 | Tables | creates `public.hiring_practical_test_jobs` (1 new public table) |
 | Columns | adds two to `hiring_applications`, with two column comments |
-| Indexes | adds three |
+| Indexes | adds **four** |
 | Triggers | adds two, on the new table |
 | Functions | ten `create or replace` in `public`, new and replaced |
 | ACLs / RLS | RLS on the new table, plus revokes and grants on the table and on six functions |
 | Other tables | alters `hiring_invite_jobs` and `hiring_application_events` |
+
+**Correction 2026-09-16, from the owner's live read.** This table said "three"
+indexes. Live shows **four**, and the live number is right. The migration
+creates two by name (`hiring_applications_role_slug_idx` and the dispatch
+index), and the new table's `id uuid primary key` and its `application_id ...
+unique` constraint each add a backing index that no `create index` statement
+mentions. Measured live: 177 to 181. Kept as a correction rather than a silent
+edit, because the mistake is instructive: **a migration's catalog footprint is
+not the list of DDL statements in it.** Constraints create objects too.
 
 Reversing all of that by hand, exactly enough to reproduce a byte-exact
 `809c5dc7…`, is a large error-prone patch across six object classes. So there
@@ -129,8 +138,20 @@ sitting, not during it.**
 
 ### The derivation
 
-Start a throwaway PostgreSQL 17 cluster on `127.0.0.1`, point `PGHOST` and
-`PGPORT` at it, then:
+**Two prerequisites the first version of this page omitted. Both are hard
+refusals, not warnings, and both were found at the keyboard on 2026-09-16.**
+
+1. **`F63_REQUIRE_POSTGRES=1` must be set.**
+   `scripts/linear-exit-observed-schema.js` asserts it before doing anything,
+   so without it the derivation fails at its first real stage.
+2. **You must start the loopback cluster yourself.** The same line asserts the
+   host is `127.0.0.1` or `::1` — "caller-owned loopback". The test helper's
+   own self-managed cluster will **not** satisfy this: it starts Postgres with
+   `listen_addresses=''` and connects over a Unix socket, which is not a
+   loopback address and does not exist on Windows at all.
+
+So: start a throwaway PostgreSQL 17 cluster listening on `127.0.0.1`, point
+`PGHOST` and `PGPORT` at it, set `F63_REQUIRE_POSTGRES=1`, then:
 
 ```powershell
 node scripts/linear-exit-b9-catalog-derive.js `

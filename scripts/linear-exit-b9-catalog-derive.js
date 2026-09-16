@@ -111,6 +111,15 @@ function selfcheck() {
   const hiring = fs.readFileSync(path.join(ROOT, HIRING_MIGRATION));
   const createdTables = [...hiring.toString('utf8').matchAll(/create table (?:if not exists )?public\.([a-z_0-9]+)/gi)].map((m) => m[1]);
 
+  /* Both of these are hard refusals inside linear-exit-observed-schema.js, and
+   * both cost time at the keyboard on 2026-09-16 because neither page said so.
+   * The whole point of a selfcheck is that nothing surprises you mid-run. */
+  if (process.env.F63_REQUIRE_POSTGRES !== '1') problems.push('F63_REQUIRE_POSTGRES is not set to 1 -- the observed-schema loader asserts it and the derivation will refuse at its first real stage');
+  const host = process.env.F42_REHEARSAL_SOCKET || process.env.F42_REHEARSAL_PGHOST || process.env.PGHOST || '';
+  if (!['127.0.0.1', '::1'].includes(host)) {
+    problems.push('PGHOST is ' + (host ? '"' + host + '"' : 'unset') + ' -- the loader requires a caller-owned loopback (127.0.0.1 or ::1). Start a throwaway PostgreSQL 17 cluster listening on 127.0.0.1 and point PGHOST/PGPORT at it; the helper\'s self-managed cluster listens on a Unix socket only and will not do, and does not exist on Windows.');
+  }
+
   let prerequisiteOk = false;
   try { prerequisiteOk = j.sha(gitShow(OPTOUT_PREREQUISITE_REF, OPTOUT_PREREQUISITE)) === OPTOUT_PREREQUISITE_SHA; }
   catch (e) { problems.push('cannot read the opt-out prerequisite from ' + OPTOUT_PREREQUISITE_REF + ': ' + e.message + ' (shallow clone?)'); }

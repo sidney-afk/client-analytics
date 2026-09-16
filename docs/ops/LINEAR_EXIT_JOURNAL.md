@@ -30,6 +30,45 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Rewrite rule RATIFIED and added; extending append-only to the rest of `docs/ops/` was considered and deliberately NOT done
+
+The proposed rule below is ratified by the owner and its short form is now in
+`AGENTS.md`, in the same shape as the hash rule: statement there, reasoning
+here.
+
+The more interesting half is what was decided against.
+
+The observation that prompted it: **the journal is the only document in this
+estate with structural protection against losing what it already said.** Its
+append-only rule means a correction goes *below* the original and nothing is
+deleted by default. Nothing else in `docs/ops/` has that, which is exactly why
+the 2026-09-17 failure landed on the sitting page and could not have landed
+here. The sitting page was rebuilt wholesale; the journal cannot be.
+
+The obvious response is to extend append-only to the rest of `docs/ops/`. **The
+owner ruled against it, and the reasoning is worth keeping so nobody proposes it
+again as though it were new.**
+
+Those documents genuinely need editing. A runbook, a checklist and a sitting
+page exist to describe the current state accurately; an append-only runbook
+accumulates contradictory instructions and pushes the reader into deciding which
+paragraph is live — which is a worse failure than the one being prevented, and a
+more dangerous one at a keyboard mid-procedure. The journal can be append-only
+precisely because it is a *record* rather than an *instruction*: it is read to
+understand how we got here, not to decide what to type next.
+
+So the two kinds of document get two kinds of protection. Records get
+append-only. Instructions get the rewrite rule, which costs one diff and leaves
+them editable. **The rule is the right level of response and the stronger
+version was rejected on purpose, not overlooked.**
+
+Also confirmed today: the restore-to-new-project rehearsal is approved at the
+$10 figure, **to start when the offline authoring day begins and not before**,
+with the project deleted the same day. The owner's framing of it, which is the
+accurate one: the physical-versus-logical measurement already did most of the
+work, so the rehearsal is confirmation plus the duration number rather than a
+discovery.
+
 ### 2026-09-17 — MEASURED: a physical restore preserves `system_identifier`, a logical one cannot; the in-place recovery route's identity assumption is now supported rather than assumed
 
 The owner asked for this answered explicitly and journalled either way, because

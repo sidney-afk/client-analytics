@@ -163,6 +163,14 @@ Owner-ratified 2026-09-16. A truncated or prefixed hash is for reading, never
 for authoring. Reasoning and the incident behind it are in
 `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A REWRITE IS NOT A REFACTOR. DIFF IT AGAINST WHAT IT REPLACES.
+
+Owner-ratified 2026-09-17. Rewriting a file wholesale deletes every warning in
+it by default and re-adds only what you remembered. Before shipping one, diff it
+against the version it replaces and confirm each dropped constraint was dropped
+on purpose; say which, and why, in the commit message. Reasoning and the
+incident behind it are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## A GATE WITH AN EXEMPTION LIST IS OFF FOR EVERYTHING ON THAT LIST. COUNT THE LIST.
 
 Owner-approved 2026-09-16, from the line-ending finding in

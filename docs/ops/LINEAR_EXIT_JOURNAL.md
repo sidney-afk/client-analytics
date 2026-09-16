@@ -30,6 +30,55 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Step 1 COMPLETE on the owner's explicit decision; count 7 of 28; B1 closed with a permanent caveat
+
+The owner accepted the reduced Storage drill as sufficient for step 1, and asked
+the session to check the reasoning against the execution map rather than take
+it on trust.
+
+**The map was read as it stands on origin, and it supports the decision.**
+
+- Step 1 reads: "capture, encrypt, upload privately, **owner downloads**, hash
+  matches, isolated restore of the downloaded copy". It names no device.
+- Step 10, two rows down, reads "Owner downloads it **on another device**". So
+  where the map means another device, it says so. Its silence in step 1 is
+  meaningful, not an oversight to be filled in.
+- The map's rule is that a step is complete when its *Done when* column is
+  satisfied. Step 1's column: "Restore of the downloaded copy verifies, scratch
+  server stopped, receipt recorded."
+  - *Restore of the downloaded copy verifies:* **met.** The authenticated
+    decrypt of the Drive-downloaded copy verified all 1,085 objects and
+    2,343,907,896 bytes in a fresh, isolated directory.
+  - *Receipt recorded:* **met.** The private receipt
+    `downloaded-storage-readback-20260915-2.json` exists, and the result is
+    journaled below.
+  - *Scratch server stopped:* **not applicable, rather than satisfied.** The
+    Storage drill involves no scratch database server. The operator procedure
+    states that no backend restore or database connection is part of it, and
+    the verify script never starts Postgres. The clause reads as carried over
+    from the database custody row. It cannot block step 1, and it is recorded
+    as not applicable rather than claimed as met.
+
+**One correction to the premise, recorded for accuracy.** The owner attributed
+the second-device requirement to the sitting page, written later. It was also
+in the private Storage operator procedure, written 2026-09-14, which says the
+owner downloads the file "through another device". That does not change the
+map's reading, since the map is the completion authority. But the requirement
+had two sources, not one.
+
+**Therefore: step 1 is complete. The authoritative count moves from 6 to 7 of
+28 (25%).** Step 1 is complete on the owner's explicit acceptance of the reduced
+substitute, read against the map's own wording. It is not claimed that a
+second-device drill happened.
+
+**B1 is closed as accepted by the owner, with a permanent caveat.** See the
+closure note under B1 in the blocker section. The caveat is part of the record
+indefinitely and is not an open decision.
+
+Nothing else was done: no B9 re-derivation, no steps 8, 9 or 10. Those run
+together in one sitting with ninety clear minutes, because the catalog read
+expires after an hour and the database capture has to follow it immediately.
+
 ### 2026-09-15 — Reduced Storage drill PASSED: same-machine Drive round trip and full decrypt
 
 Same owner sitting as the Storage capture below; placed at the top because it is
@@ -1180,6 +1229,26 @@ bytes against the signed inventory. Receipt
 retrieved on a separate device.** Step 1 is not complete. Whoever closes B1
 must either do that drill or record an explicit owner acceptance of the
 reduced substitute as sufficient for step 13.
+
+**B1 CLOSED, 2026-09-16, accepted by the owner. Row kept above.** The owner
+explicitly accepted the reduced drill as sufficient for step 1, and the
+execution map's step 1 wording supports that reading (see the 2026-09-16
+progress entry). Step 1 is complete.
+
+**PERMANENT CAVEAT. This is part of the record, not an open item, and must not
+be removed or softened by a later session.**
+
+> No package, database or Storage, has ever been retrieved on a separate
+> device. The 2026-09-14 database drill and the 2026-09-15 Storage drill were
+> both same-machine round trips through private Drive. Each proves that the
+> archive survives the round trip byte for byte and that the recovery record
+> decrypts it with every item verified. Neither proves hardware independence:
+> that the backup is retrievable when this machine is lost or unavailable. The
+> recovery record itself has been opened on a separate device, the owner's
+> phone. The packages have not.
+
+Anyone relying on these backups for a scenario that includes loss of the owner's
+Windows machine should treat retrieval from another device as **unproven**.
 
 **B2 stays open, 2026-09-15.** Run 2 of the catalog read verified TLS and
 identity, which clears the TLS half of the original row. The profile half now

@@ -7,14 +7,16 @@ const OLD='809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd',NEW
 // against an isolated PostgreSQL 17 and equal to that day's live read.
 const SETTLED='ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c';
 const profiles={observed67:{plan:'3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb',target:'f3db4b7cd0649800e4811d1c4b32cf3f37e5c2bf951d4b12d22009faf08aa28f'},observed67_optout:{plan:'0c88914972800f8268a9a5857535ca8cb624f6b25460b19b34091ea4b58ced57',target:'79710a7f96855c6f3975ab88558e9c6f3b51ffc01a7b7d56a2508982955456f0'},
- // NOT PINNED YET, AND DELIBERATELY NOT GUESSED. Both values are measured, not
- // chosen: the plan hash from one build against the real settled catalog, the
- // target from a calibration run of the installer. Until they are measured and
- // reviewed, get() refuses this profile, so it cannot be used by accident. A
- // plausible-looking hash written here would be exactly the silencing D8
- // forbids. build() still works, because building is how the plan hash is
- // obtained in the first place.
- settled68:{plan:null,target:null,contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
+ // HALF PINNED. Both values are measured, never chosen. The plan hash was read
+ // whole from one --plan-from run against the real settled catalog on
+ // 2026-09-16, which also reported initial_catalog_sha256 equal to the settled
+ // catalog hash, proving the plan was built against the settled picture rather
+ // than a stale contract. The target is still null: it is only derivable from a
+ // calibration run of the installer, which needs the private observed-schema
+ // inputs. get() therefore still refuses this profile, so it cannot be used by
+ // accident. A plausible-looking hash in either slot would be exactly the
+ // silencing D8 forbids.
+ settled68:{plan:'e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54',target:null,contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
 function has(name){return Object.hasOwn(profiles,name);}
 function get(name='observed67'){
  assert(has(name),'unknown installation profile');

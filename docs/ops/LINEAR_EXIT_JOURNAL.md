@@ -30,6 +30,97 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Plan hash PINNED; and a sweep of every runnable block, after a prepared block failed at the keyboard
+
+**`settled68.plan` is pinned to
+`e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54`**, read whole
+from the owner's `--plan-from` run. The run also reported
+`initial_catalog_sha256` equal to `settled_catalog_sha256`
+(`ddfa4c4f…`), which is the check that matters: it proves the plan was built
+against the settled picture and not a stale contract. `plan_bytes` 945,060,
+stage_id `OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1`, exit 0.
+
+`target` stays `null`, so `get('settled68')` still refuses the profile. Only a
+calibration run produces the target.
+
+**The block as handed over could not be run.** Two defects, both mine: the
+script path was relative and resolves to nothing from the directory the page
+tells the owner to stand in, and `--plan-from` is rejected unless absolute — by
+an assertion I wrote, at line 295 of that same script. The local session found
+both by reading the code, confirmed the function was read-only before running
+it, and **reported what it substituted instead of quietly fixing it.** The
+supervisor relayed the command without checking it either.
+
+**The owner's framing, which is the lesson and is bigger than the instance:**
+
+> The entire purpose of a prepared runnable block is that it can be run at the
+> keyboard **without reasoning**. A block that needs a path corrected before it
+> works has defeated its own purpose, and it failed in exactly the place where
+> reasoning at the keyboard is most expensive.
+
+### The sweep
+
+Every runnable block in the sitting page and its appendices, and in the B9 page,
+checked against the pages' own claims and against the scripts' actual
+assertions. **Five defects found, all fixed. Two unproven blocks found and
+recorded rather than fixed, because the honest thing is to say so.**
+
+**D1. Relative script paths under a header promising absolute ones. Four
+occurrences** — sitting page sections 1 and 2, B9 page twice. The sitting page
+says, categorically, "**It does not matter.** Every path below is absolute",
+and then invokes `node scripts/linear-exit-b9-catalog-derive.js`. Reproduced
+here: from a non-repository directory that throws `Cannot find module`; with an
+absolute script path it runs. **This is the defect that bit him**, and it was
+present in four places, not one. Fixed by making every invocation absolute,
+which is safe because the script resolves the repository from its own location
+rather than from the working directory.
+
+**D2. A Unix line continuation in a PowerShell block.** The `initdb` example
+wrapped with a trailing backslash. PowerShell's continuation is a backtick, so
+the block could not be pasted as written, and the failure mode is silent until
+it runs. Fixed by making it one line, and by using **the flags the owner
+actually ran on 2026-09-16** rather than the ones this session had proposed.
+
+**D3. `initdb` invoked bare**, assuming it is on PATH. Fixed to an explicit
+path to the PostgreSQL 17 binary.
+
+**D4. Absolute-path requirements unstated.** `--observed-input` and `--out` are
+both asserted absolute by the script; the page said only "your private
+observed-schema input directory". The sitting page happened to give an absolute
+value for `--out`, so it worked by example rather than by instruction. Both now
+say ABSOLUTE.
+
+**D5. The B9 page had lost its "where to run from" statement**, removed when the
+collation section was inserted. Restored.
+
+**And the one that explains the rest: the `--plan-from` block was never on a
+page at all.** It existed only in a chat message. **A runnable block that lives
+outside the prepared pages gets none of the checking the pages get** — it is not
+swept, not reviewed, and not executed before it is handed over. It is now on the
+B9 page, with that note attached to it.
+
+**Recorded, not fixed, because they are unproven rather than wrong:**
+
+- **The three step 9 and 10 blocks have never been executed in their current
+  form.** They use absolute paths to the owner's own wrappers, the same shape as
+  the catalog read that ran successfully, so there is no known defect. That is
+  not proof and the page now says so.
+- **The B5 browser capture has never been run on Windows.** Its git side was
+  verified on Linux and it deliberately moves bytes with `git archive` and `tar`
+  so PowerShell never touches them, but the block as a whole is untested there.
+  It depends on `tar` being present and on PowerShell splatting an array into a
+  native call. The page now says to **run it once well before the merge purely
+  to find out** — the one moment it must not fail is the moment it is needed,
+  and a dry run costs nothing.
+
+**The general defect class, for whoever prepares the next block:** a runnable
+block is only prepared if it has been **executed as written, from the place the
+page says to stand**. Everything in this sweep was a difference between the
+environment the block was authored in and the one it would be run in — working
+directory, shell, PATH. None of it was visible by reading the block. This is the
+same shape as the composite-claim rule ratified an hour earlier: the parts that
+look obviously fine are exactly the parts nobody checks.
+
 ### 2026-09-16 — Composite-claim rule RATIFIED and added; the recursion is the point, not an embarrassment
 
 Short form is now in `AGENTS.md`, in the hash rule's shape. The owner asked that

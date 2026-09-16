@@ -147,7 +147,7 @@ larger than a re-pin.
 **Confirm the plumbing first. Seconds, no inputs, do it before the sitting:**
 
 ```powershell
-node scripts/linear-exit-b9-catalog-derive.js --selfcheck
+node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-catalog-derive.js --selfcheck
 ```
 
 **Worked when:** `"marker": "B9_DERIVE_SELFCHECK_OK"` and `"problems": []`.
@@ -165,25 +165,27 @@ PostgreSQL 17 binaries, which you set with `F42_REHEARSAL_PGBIN`.
 
 > **The cluster's collation matters and it is what stopped the first attempt.**
 > A `--locale=C` or `C.UTF-8` cluster sorts by byte value; live sorts
-> linguistically, and the rebuild will not match. Create it with ICU:
->
-> ```
-> initdb -D <new data dir> -U postgres -A trust \
->        --locale-provider=icu --icu-locale=en-US --encoding=UTF8
-> ```
->
-> (If `initdb` complains about the libc locale alongside ICU, add `--locale=C`.
-> The ICU locale is the one that matters here; the libc one only covers ctype.)
->
-> Then start it listening on loopback, and point `PGHOST`/`PGPORT` at it.
+> linguistically, and the rebuild will not match. Create it with ICU, in one
+> line, using the flags that actually worked on 2026-09-16:
+
+```powershell
+& "<your PostgreSQL 17 bin>\initdb.exe" -D "<new data dir>" -U postgres -A trust -E UTF8 --locale-provider=icu --icu-locale=en-US --locale=en-US
+```
+
+One line on purpose. A wrapped command needs PowerShell's backtick, not the
+backslash a Unix example would use, and that difference is silent until it
+fails. `--locale=en-US` sets only the libc categories Windows still requires;
+the ICU locale is the one that decides the sort order.
+
+Then start it listening on `127.0.0.1` and point `PGHOST` / `PGPORT` at it.
 
 With that cluster up, `F63_REQUIRE_POSTGRES=1` set and `PGHOST`/`PGPORT`
 pointed at it, run the selfcheck again — **it now probes the collation** and
 will refuse up front rather than twenty minutes in. Then run:
 
 ```powershell
-node scripts/linear-exit-b9-catalog-derive.js `
-  --observed-input=<your private observed-schema input directory> `
+node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-catalog-derive.js `
+  --observed-input=<ABSOLUTE path to your private observed-schema input directory> `
   --out=D:/Sidney/Codex/2026-09-13-final-review-repairs/b9-derive-UNIQUE
 ```
 
@@ -259,6 +261,12 @@ between. If you have to break, break before the catalog read, not after it.
 
 Have your phone, the recovery record and the private Drive folder ready for
 that one. You do not need them today.
+
+> **The three blocks in this later sitting have not been executed in their
+> current form**, because steps 9 and 10 were deferred. They use absolute paths
+> to the owner's own wrappers, the same shape as the catalog read that ran
+> successfully on 2026-09-16, so there is no known defect in them. That is not
+> the same as proof, and it is recorded here rather than assumed.
 
 ### Database capture and local restore (step 9), 20 to 30 minutes
 
@@ -404,6 +412,16 @@ hashes out of git rather than from a table, so it cannot go stale:
 
 **Run this from the repository checkout on this machine**, because it reads
 git. Everything else on this page runs from anywhere; this one does not.
+
+> **NEVER EXECUTED ON WINDOWS, stated rather than discovered.** Its git side was
+> verified on Linux, reproducing `1abdd1fa`'s `index.html` hash exactly, and
+> `git archive | tar` is deliberately used so PowerShell never touches the
+> bytes. But the block as a whole has not been run on this machine. It depends
+> on `tar` being present (Windows 10 and later ship it) and on PowerShell
+> splatting the `$files` array into the native `git` call. **Run it once, well
+> before the merge, purely to find out whether it works** — the one moment it
+> must not fail is the moment it is actually needed. A dry run costs nothing;
+> it downloads and hashes and writes only into its own output directory.
 
 ```powershell
 $out = "D:/Sidney/Codex/2026-09-13-final-review-repairs/browser-capture-UNIQUE"

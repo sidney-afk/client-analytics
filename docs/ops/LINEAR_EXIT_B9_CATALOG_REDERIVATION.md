@@ -123,10 +123,15 @@ profile has to be written against.
 **It reads nothing hosted. It installs nothing. It authorizes nothing.** No
 password, token or project reference goes into it or comes out of it.
 
+**Where to run these from: anywhere.** Every path in this section is absolute,
+including the path to the script itself. The script resolves the repository from
+its own location rather than from the working directory, so there is no folder
+to find.
+
 ### Before you run it, confirm the plumbing (seconds, no inputs needed)
 
 ```powershell
-node scripts/linear-exit-b9-catalog-derive.js --selfcheck
+node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-catalog-derive.js --selfcheck
 ```
 
 **Worked when:** `"marker": "B9_DERIVE_SELFCHECK_OK"` and `"problems": []`.
@@ -165,10 +170,14 @@ refusals, not warnings, and both were found at the keyboard on 2026-09-16.**
 >
 > So create the cluster with an ICU locale:
 
+```powershell
+& "<your PostgreSQL 17 bin>\initdb.exe" -D "<new data dir>" -U postgres -A trust -E UTF8 --locale-provider=icu --icu-locale=en-US --locale=en-US
 ```
-initdb -D <new data dir> -U postgres -A trust \
-       --locale-provider=icu --icu-locale=en-US --encoding=UTF8
-```
+
+One line on purpose: a wrapped command needs PowerShell's backtick, not the
+backslash a Unix example would use, and that difference is silent until it
+fails. These are the flags that actually worked on 2026-09-16, not a
+reconstruction.
 
 (If `initdb` complains about the libc locale alongside ICU, add `--locale=C`.
 The ICU locale is the one that matters here; the libc one only covers ctype.)
@@ -190,9 +199,9 @@ With that cluster up, `F63_REQUIRE_POSTGRES=1` set and `PGHOST`/`PGPORT`
 pointed at it:
 
 ```powershell
-node scripts/linear-exit-b9-catalog-derive.js `
-  --observed-input=<your private observed-schema input directory> `
-  --out=<a NEW private output directory>
+node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-catalog-derive.js `
+  --observed-input=<ABSOLUTE path to your private observed-schema input directory> `
+  --out=<ABSOLUTE path to a NEW private output directory>
 ```
 
 `--observed-input` is the private observed-schema input directory recorded in
@@ -233,6 +242,32 @@ disagreement is the finding** — reconcile it before either number is used, per
 `AGENTS.md`, "measure with the key the shipped code uses".
 
 ---
+
+## Measuring the plan hash
+
+**Run from anywhere.** The script resolves the repository from its own location,
+so the only thing that has to be right is the absolute path to the script and to
+the catalog. Both are absolute below, and both are asserted by the script.
+
+```powershell
+node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-catalog-derive.js --plan-from=<ABSOLUTE path>/b9-settled-catalog.private.json
+```
+
+No cluster, no install, nothing hosted. It is a pure function of this repository
+plus the settled catalog, and takes seconds.
+
+**Worked when:** marker `B9_SETTLED_PLAN_MEASURED`, exit 0, and
+`initial_catalog_sha256` equal to `settled_catalog_sha256`. That last equality
+is the one that matters: it proves the plan was built against the settled
+picture and not against a stale contract.
+
+`settled_plan_sha256` is the value that gets pinned. `target_still_required`
+stays true, because the target is only derivable from a calibration run.
+
+> **This block was missing from this page until 2026-09-16, and that is why it
+> was wrong when it was first handed over.** It existed only in chat, so it was
+> never swept with the rest. A runnable block that lives outside the prepared
+> pages gets none of the checking the pages get.
 
 ## What happens after, and what is still owed
 

@@ -106,8 +106,15 @@ writes is also what the later database capture will consume, but not today —
 that wrapper refuses a receipt naming no profile, which is exactly what this
 one will name.
 
-**Worked when:** the receipt reports **`tls_verified: true`**, the identity
-matches, and it prints a catalog hash.
+**Worked when:** the receipt reports **`tls_verified: true`** and prints a
+catalog hash.
+
+> **CORRECTED 2026-09-16, a smaller one but the same shape.** The page said
+> "the identity matches", which reads as something the wrapper checks. **It does
+> not.** The wrapper only confirms its identity query returned one row; matching
+> that identity against the previous reads is **a comparison you make by eye**.
+> Compare it against the 2026-09-15 and 2026-09-14 receipts yourself, and treat
+> a difference as a stop.
 
 **Copy back four things:**
 
@@ -292,11 +299,20 @@ node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-databas
 Use the **same** `day-catalog-UNIQUE` from that sitting's read, and a **new**
 `day-database-UNIQUE`.
 
-**Worked when:** the output reports `DATABASE_CAPTURE_PASS`, the command exits
-zero, and the scratch server is reported stopped.
+**Worked when:** the output reports
+`DATABASE_CAPTURE_PASS; restore, private upload and downloaded-copy restore
+still required`, and the command exits zero.
 
-> **STOP if** it refuses for any reason, or if the scratch server is not
-> reported stopped. Preserve everything and report before retrying.
+> **CORRECTED 2026-09-16, and this one would have cost the sitting.** This block
+> used to add "and the scratch server is reported stopped", and to order a
+> **STOP** if it was not. **The capture wrapper starts no scratch server and
+> never mentions one.** Read literally, the page ordered a stop after a
+> *successful* capture, inside the one-hour clock. Found by reading the
+> wrapper's own output against the page, which is the check section 3 exists
+> for.
+
+> **STOP if** it refuses for any reason. Preserve everything and report before
+> retrying. Do not expect any mention of a scratch server here.
 
 These wrappers fetch the stored secret internally. **No password goes in a
 command argument, in a file you type, or in chat.** If anything ever asks you
@@ -308,8 +324,19 @@ Now verify the local restore before you upload anything:
 node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-UNIQUE
 ```
 
-**Worked when:** it reports `ISOLATED_DATABASE_RESTORE_PASS`, exits zero, and
-reports its scratch server stopped.
+**Worked when:** it reports `ISOLATED_DATABASE_RESTORE_PASS` and exits zero.
+
+> **CORRECTED 2026-09-16.** The page used to require that it "reports its
+> scratch server stopped". The wrapper does stop its cluster, in a `finally`,
+> but **prints nothing about it** — `ISOLATED_DATABASE_RESTORE_PASS` is the
+> whole success output. Waiting for a line that never comes is the same defect
+> as the capture block, one degree milder.
+
+> **Before you run it, two preconditions the page never stated.** The wrapper
+> owns a scratch cluster and refuses if it is already running
+> (`CLUSTER_NOT_STOPPED`) or if its port is occupied (`PORT_BUSY`). Both are
+> refusals, not warnings, and both are quicker to clear before the clock starts
+> than during it.
 
 > **Safe to stop here**, though custody is not yet complete. Nothing is at
 > risk; you simply have not finished proving the backup can come back from
@@ -333,7 +360,21 @@ this drill does not pass, there is no executable route back.
 3. **Compare** its full SHA-256 and file manifest against what was uploaded.
    They must match completely.
 4. **Restore the downloaded copy** using the same restore command as above,
-   with the downloaded package as input and a **new** output directory:
+   with the downloaded package as input and a **new** output directory.
+
+> **CORRECTED 2026-09-16, two constraints the page never stated and the wrapper
+> enforces.** The input path was written as an unconstrained
+> `<path-to-downloaded-package>`. In fact:
+>
+> - it must be **inside the private evidence directory**, or the wrapper
+>   refuses with `PRIVATE_NEW_PATHS_REQUIRED`. Downloading to `Downloads` and
+>   pointing at it there will not work;
+> - it must be the **unpacked package directory**, not the downloaded archive.
+>   That is how the 2026-09-14 drill actually ran.
+>
+> So: unpack the download into a new directory under the private evidence
+> directory first, then point the command at that.
+
 
 ```powershell
 node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs <path-to-downloaded-package> D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-UNIQUE
@@ -442,6 +483,28 @@ $fromGit = Join-Path $out "from-git"
 $served  = Join-Path $out "served"
 New-Item -ItemType Directory -Path $fromGit, $served -Force | Out-Null
 
+# --- REFUSE ON THE WRONG SHELL, LOUDLY. ---------------------------------
+# PowerShell 5.1 corrupts binary data in a pipeline: it decodes bytes to text
+# and re-encodes them. `git archive | tar` would still produce FILES, and
+# Get-FileHash would still produce a HASH, and that hash would be WRONG. A
+# wrong hash here is a confidently wrong record of what was served, which is
+# worse than no record. So this refuses rather than producing one.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw ("REFUSING: this block needs PowerShell 7 or later; this is " +
+         $PSVersionTable.PSVersion.ToString() + ". PowerShell 5.1 mangles bytes " +
+         "in a pipeline and would produce a WRONG hash rather than an error. " +
+         "Run it under pwsh.")
+}
+# tar moves the bytes, so its absence is a refusal too, not a fallback.
+if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+  throw "REFUSING: tar was not found on PATH. Do not substitute an extraction step; report it."
+}
+# --- FETCH BEFORE READING THE REF. --------------------------------------
+# origin/main is only as fresh as the last fetch. On 2026-09-16 a checkout that
+# had fetched only the prep branch read origin/main as 73d5fdc361 while main was
+# 1abdd1fa -- a wrong answer that looks exactly like a right one.
+git fetch --quiet origin main
+if ($LASTEXITCODE -ne 0) { throw "REFUSING: could not fetch origin/main; the ref would be stale." }
 $sha = (git rev-parse origin/main).Trim()
 $base = "https://syncview.synchrosocial.com"
 $files = @("index.html","404.html","CNAME","synchro-social-favicon.png","synchro-social-logo.png") +

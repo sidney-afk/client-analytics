@@ -118,6 +118,28 @@ anything as a capture.
 ```powershell
 $probe = "D:/Sidney/Codex/2026-09-13-final-review-repairs/b5-dryrun-UNIQUE"
 New-Item -ItemType Directory -Path $probe -Force | Out-Null
+# --- REFUSE ON THE WRONG SHELL, LOUDLY. ---------------------------------
+# PowerShell 5.1 corrupts binary data in a pipeline: it decodes bytes to text
+# and re-encodes them. `git archive | tar` would still produce FILES, and
+# Get-FileHash would still produce a HASH, and that hash would be WRONG. A
+# wrong hash here is a confidently wrong record of what was served, which is
+# worse than no record. So this refuses rather than producing one.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw ("REFUSING: this block needs PowerShell 7 or later; this is " +
+         $PSVersionTable.PSVersion.ToString() + ". PowerShell 5.1 mangles bytes " +
+         "in a pipeline and would produce a WRONG hash rather than an error. " +
+         "Run it under pwsh.")
+}
+# tar moves the bytes, so its absence is a refusal too, not a fallback.
+if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+  throw "REFUSING: tar was not found on PATH. Do not substitute an extraction step; report it."
+}
+# --- FETCH BEFORE READING THE REF. --------------------------------------
+# origin/main is only as fresh as the last fetch. On 2026-09-16 a checkout that
+# had fetched only the prep branch read origin/main as 73d5fdc361 while main was
+# 1abdd1fa -- a wrong answer that looks exactly like a right one.
+git fetch --quiet origin main
+if ($LASTEXITCODE -ne 0) { throw "REFUSING: could not fetch origin/main; the ref would be stale." }
 $sha = (git rev-parse origin/main).Trim()
 $files = @("index.html","404.html","CNAME","synchro-social-favicon.png","synchro-social-logo.png") +
          @(git ls-tree -r --name-only $sha -- nav-icons/)

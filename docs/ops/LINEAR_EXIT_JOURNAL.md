@@ -30,6 +30,114 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Session C fallout: runner proposal written, stale-reference sweep done, four page disagreements corrected from the wrappers, B5 shell guard added
+
+Four pieces, sequenced as the owner asked rather than bundled.
+
+### 1. Runner change — PROPOSED, NOT APPLIED
+
+[`LINEAR_EXIT_RUNNER_SETTLED_WORLD_PROPOSAL.md`](LINEAR_EXIT_RUNNER_SETTLED_WORLD_PROPOSAL.md).
+
+The refusal was the profile builder doing its job; **the runner is what is
+incomplete.** Line 10 applies the extra setup for `observed67_optout` only,
+there is no `settled68` branch, so the hiring migration is never applied and the
+builder correctly refuses a catalog that is not the settled world.
+
+The recipe does not need inventing — it is already proven in
+`scripts/linear-exit-b9-catalog-derive.js`, which built the catalog the owner
+byte-verified. **`settled68` is the opt-out world plus one migration.** The
+proposal makes line 10 a small per-profile table rather than a third `if`, for
+the same reason the guard counts stopped being literals: the next profile should
+be a row, not a branch.
+
+**Effect on the existing two paths: none**, and the proposal says how to confirm
+that rather than assert it — run both before and after and require identical
+results, which needs the private inputs and so belongs to whoever applies it.
+
+It also says what it does **not** fix: it does not make the calibration runnable
+in the cloud session, and it does not test the 91 derivation. It makes the test
+possible.
+
+### 2. Stale-reference sweep — three real defects, one of them worse than B5
+
+Two search shapes, as the rule now requires. Shape A named remote refs; shape B
+looked for **commands that read a ref** — `rev-parse`, `ls-tree`, `show`,
+`archive`, `cat-file`, `diff`, `log`, `merge-base`, `describe` — in a block or
+script with no `fetch` or `pull` anywhere in it. Fifteen hits, triaged, because
+a hit is not a defect.
+
+**Real, and of the class we have spent the day on — a wrong answer that looks
+right:**
+
+1. `LINEAR_EXIT_OWNER_SITTING_20260915.md`, the B5 capture block.
+2. `LINEAR_EXIT_SESSION_C_20260916.md`, the B5 dry run.
+3. **`LINEAR_EXIT_RECOVERY_PROCEDURE.md`, and it is worse than the other two.**
+   `git switch -c recovery/linear-exit-browser origin/main`. The other two
+   **read** a stale ref; this one **writes** from it. During a real recovery, on
+   a checkout that has not fetched, it branches from an old main and publishes
+   it — **silently reverting everything merged since**. It is also the one block
+   you reach for when things are already going wrong. Its prose says "from a
+   clean checkout of the current main", which is exactly the kind of sentence
+   that does not make a ref current.
+
+**Fail-closed, so not this class:** `scripts/f27-reconciler-closure.js` uses
+`origin/main` as an equality gate and a stale ref makes it **refuse**
+(`RELEASE_ORIGIN_MAIN_MISMATCH`), not approve. Five tests read it and would fail
+loudly.
+
+**Not applicable:** six CI workflows. `actions/checkout` performs the fetch as
+part of the checkout, so the ref is current by construction.
+
+**Fixed: 1 and 2**, since both blocks were already open for the shell guard.
+**Reported and NOT fixed: 3.** The recovery procedure is a reviewed recovery
+document and editing it unasked is the thing this session has been told not to
+do. **It wants a decision.**
+
+### 3. The four page-versus-wrapper disagreements — corrected from the wrappers
+
+All four, with the wrapper as the authority and the old wording quoted so the
+correction is visible rather than silent.
+
+1. **The capture block would have aborted the sitting on success.** The page
+   required "the scratch server is reported stopped" and ordered a **STOP** if
+   it was not. The capture wrapper **starts no scratch server**. Now it expects
+   the wrapper's real output and says plainly not to look for one.
+2. **Restore**: the page waited for a line the wrapper never prints. Corrected,
+   and the two preconditions it never stated — `CLUSTER_NOT_STOPPED` and
+   `PORT_BUSY` — are now in front of the command rather than discovered under
+   the clock.
+3. **Downloaded-copy restore**: the input must be **inside the private evidence
+   directory** (`PRIVATE_NEW_PATHS_REQUIRED`) and must be the **unpacked
+   directory, not the archive**. Neither was stated.
+4. **Catalog read**: "the identity matches" read as something the wrapper
+   checks. It does not — it confirms one row came back. The comparison is by
+   eye, and the page now says so.
+
+**Worth naming, because the owner asked for it:** none of this needed a new
+mechanism. The house already had the answer — *the wrapper's own usage line is
+the authority* — applied to the Storage operator and never to these. Reusing an
+existing pattern caught a page that would have ordered a stop after a success.
+
+### 4. B5 shell guard — refuses loudly rather than hashing wrongly
+
+The owner is installing PowerShell 7 and the local session is re-running the dry
+run under it. **That fixes one machine; the guard fixes the block.**
+
+Both B5 blocks now refuse before touching anything if
+`$PSVersionTable.PSVersion.Major -lt 7`, with a message saying why: 5.1 decodes
+and re-encodes bytes in a pipeline, so `git archive | tar` would still produce
+files and `Get-FileHash` would still produce a hash — **and that hash would be
+wrong.** A wrong hash here is a confidently wrong record of what was served,
+which is worse than no record. `tar` missing is a refusal too, not a fallback.
+
+Verified by execution, both directions: the guard refuses a simulated 5.1 and a
+missing tool, and the fully guarded block still runs end to end under PowerShell
+7.4.6 — fetch, 23 files expected, 23 extracted, `index.html` hash equal to
+main's tip.
+
+**Not touched, by instruction:** the decision about B5's shell on the owner's
+machine is his.
+
 ### 2026-09-16 — Session C on the owner's machine: calibration REFUSED before any count; B5 dry run FAILED on this shell; wrapper preflight found four page disagreements
 
 All three sections were run on the owner's Windows machine at branch head

@@ -30,6 +30,40 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — REPO_MAP corrected where today's work made it state the opposite of the truth
+
+A fresh session reads the map first, so a line there that confidently describes
+a world that no longer exists is the most expensive kind of stale document we
+keep. Three lines were plainly wrong and are corrected:
+
+- the runner settled-world proposal, described as "not applied — the operator
+  test runner has no settled68 branch". It was applied today; the runner carries
+  the per-profile table and `settled68` adds the hiring migration.
+- the settled contract, described as "NOT yet wired into the loader and nothing
+  is built on it until its bytes are confirmed". The bytes were confirmed and it
+  is the `settled68` contract in the loader. The replacement says the profile is
+  pinned on both values and points at D17 for the target pin still being
+  provisional, so the correction does not overstate in the other direction.
+- the byte-pinned line-ending check, described as 97 pins over 98 files.
+  Measured today: 98 pins, 99 files, the one addition being the settled
+  contract's own pin.
+
+**Reported rather than edited, because each describes a document's subject
+rather than the state of the code, and the distinction is exactly what a map
+gets wrong:**
+
+- the B9 re-derivation entry ends "the knock-on to the install operator's
+  hard-coded post-install table count". The operator no longer hard-codes it.
+  True of what the document discusses, false as a present-tense claim.
+- the guard-count sites entry calls them "the nine places the post-install
+  public table count is restated as a literal". Several are now derived.
+- the session C entry describes the two never-executed blocks it carries; both
+  have since been run.
+
+**Outside this file and left alone:** the `AGENTS.md` exemption-list rule quotes
+the same 97 and 98. The rule does not depend on the numbers, and its text is
+owner-ratified, so it is named here rather than edited.
+
 ### 2026-09-16 — `settled68` calibration RAN: post-install public tables 91, equal to the derivation; target measured, NOT pinned
 
 **The last untested number in the chain has been tested.** The derivation (the

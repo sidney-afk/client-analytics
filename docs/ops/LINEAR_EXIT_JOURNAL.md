@@ -30,6 +30,72 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — B5 dry run PASSED under PowerShell 7.6.6 after an owner-approved install; this fixes the machine, NOT the block
+
+**What was done, owner-approved, on the owner's machine.**
+
+- `winget install --id Microsoft.PowerShell --source winget` exited 0 and
+  reported version 7.6.6.0. That is the installer's claim. **Measured
+  separately**, in a fresh `pwsh` process: `$PSVersionTable.PSVersion` =
+  **7.6.6**. It installed as a Store/MSIX package
+  (`C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.6.0_x64__8wekyb3d8bbwe\pwsh.exe`,
+  launched through the `WindowsApps\pwsh.exe` alias), not under
+  `Program Files\PowerShell\7`.
+- **`main` fetched explicitly first.** `origin/main` moved from `73d5fdc3` to
+  `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`, equal to `ls-remote`.
+
+**The dry run, section 2's block verbatim except `UNIQUE`,** run from the
+repository checkout into a new directory:
+
+- First run (`b5-dryrun-20260916-2`): passed. But the shell-version line
+  prepended to it failed on the session's own inline quoting, so for that
+  process the version was inferred, not measured.
+- **Second run (`b5-dryrun-20260916-3`), which is the one that counts.** It ran
+  from a script file that prints the version in the same process as the block:
+
+```
+shell_PSVersion=7.6.6 edition=Core
+main 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052, 23 files expected
+extracted 23 files
+index.html sha256: 1d17a0f567071dd9a8ff70dd73244fc819614725c960fee95bbbb9b639979327
+```
+
+- **Expected hash checked independently, not taken from the page:**
+  `index.html` at `1abdd1fa`, written straight to a file without a PowerShell
+  pipe, hashes to `1d17a0f5…` (5,573,035 bytes, equal to git's blob size).
+
+**What is now proven, on this machine under PowerShell 7.6.6:**
+
+- `tar.exe` is present (bsdtar 3.8.8).
+- The `git archive … | tar` pipe carries bytes intact.
+- The file array reaches `git` as separate arguments: 23 expected, 23
+  extracted.
+- `git archive` reproduces main's `index.html` bytes exactly.
+
+**What is still NOT proven:**
+
+- **The real B5 capture has never run.** Its download from the live site and
+  the served-against-git comparison are unexercised, by design until
+  immediately before the exit merge.
+- **Nothing makes step 16 use PowerShell 7.** Opened in Windows PowerShell 5.1,
+  the block fails exactly as it did earlier today.
+- **The block does not fetch `main` itself.** It trusts the checkout's
+  `origin/main`, which was stale here until fetched by hand.
+
+**The distinction the owner asked to keep, and it is the whole point.
+Installing PowerShell 7 fixes THIS MACHINE, not THE BLOCK.** The block still
+runs under Windows PowerShell 5.1 anywhere else and mangles the byte stream it
+pipes. Here, under 5.1, it happened to fail loudly, because `tar` rejected the
+corrupted stream. The block has no check of its own that it is running in a
+shell that preserves bytes. So a machine that "has PowerShell" is not evidence
+that the block will work. The owner has asked the cloud session to make the
+block **refuse** under 5.1 rather than rely on the operator opening the right
+shell. Until that change lands, this pass is a fact about one machine and one
+shell, and it must not be quoted as the block being safe.
+
+The runner change for the calibration and the four sitting-page corrections are
+the cloud session's work. Nothing else was done tonight.
+
 ### 2026-09-16 — Session C on the owner's machine: calibration REFUSED before any count; B5 dry run FAILED on this shell; wrapper preflight found four page disagreements
 
 All three sections were run on the owner's Windows machine at branch head

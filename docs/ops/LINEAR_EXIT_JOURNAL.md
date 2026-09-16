@@ -30,6 +30,105 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Settled-state observed contract AUTHORED; awaiting the mandatory byte comparison before anything is built on it
+
+`docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260916.json`, 2,907
+bytes, file SHA-256
+`c8e934bcdfd0f43ffe8767f076bbc65e6aae803285ae380e3e552f302fb6778a`.
+
+**Nothing downstream has been built on it.** The loader still points at the
+2026-09-12 artifact, no profile has been written, and no pin has moved. The
+owner made the byte comparison mandatory rather than advisory, and that is the
+next thing that happens.
+
+**How transcription risk was removed rather than managed.** The fifteen section
+hashes were **parsed out of the part 3 journal table by script**, never retyped.
+The file was then assembled by Node using the same key order as
+`observation()` and the same `JSON.stringify(x, null, 2) + '\n'` serialization
+the derivation itself used, so a byte comparison against the private candidate
+is a fair test rather than a formatting argument.
+
+**Three independent checks passed before the file was written:**
+
+- All **nine** sections the derivation marked unchanged hash **byte-identical**
+  to the committed 2026-09-12 contract.
+- All **six** sections marked moved differ from it. Neither direction had an
+  exception.
+- Every reviewed count in the table agrees with the committed contract's counts,
+  and the catalog query's SHA-256 still equals the one the old contract pins,
+  so the query has not drifted underneath either artifact.
+
+Those checks constrain the parse and the arithmetic. **They do not verify the
+six moved hashes or `catalog_sha256`**, because nothing in this repository holds
+those values independently. Only the owner's private candidate does. That is
+exactly the gap the byte comparison closes, and it is why it is mandatory.
+
+The file is `-text` pinned in `.gitattributes`, the same way its predecessor is,
+because `linear-exit-observed-public-catalog.js` hashes the file bytes as
+`ARTIFACT_SHA256`. Pinned **before** the comparison deliberately: an unpinned
+file could be rewritten by a Windows checkout and fail the comparison for a
+reason that has nothing to do with its contents.
+
+### 2026-09-16 — CORRECTION from the owner: the locale-independent ordering fix is DEFERRED, and the earlier "cheapest moment" framing was wrong
+
+Recorded as the owner's own correction of guidance he had given earlier the same
+day, and worth keeping in that form.
+
+The earlier framing — mine and then his — was that the cheapest moment to make
+the catalog query's ordering locale-independent is while the reviewed picture is
+being re-authored anyway. **That was true before the derivation ran and is false
+now.** Changing the catalog SQL changes the hash live produces, which invalidates
+today's derivation and costs another keyboard sitting.
+
+**Deferred, with the condition attached, because the condition is the whole
+point:** the fix can only ever ride along with a future re-derivation that is
+happening for some other reason. It must never be made as a standalone change.
+A standalone change would invalidate whatever derivation is current and buy
+nothing until the next one.
+
+The fragility it addresses, restated so it is not rediscovered: the
+`dependencies` array is ordered by text columns only to make it deterministic
+for hashing, and nothing consumes that order. So the hash is sensitive to the
+server's collation, which means it conflates *a different sort locale* with *a
+different schema*. Making the ordering locale-independent would be a correctness
+fix, not silencing. It is still deferred.
+
+### 2026-09-16 — Rule: when a fact about live is knowable by reading live, read it rather than reasoning toward it
+
+The owner's line, from the ICU correction, and the third time today the same
+pattern showed. Kept as one rule because it is the general form of all three.
+
+> **When a fact about live is knowable by reading live, read it rather than
+> reasoning toward it.**
+
+The collation case is the clean example. Portability was a true argument and it
+pointed at the right answer. It was not the decisive one, and the decisive one —
+live's own `pg_database` row — was a single read-only query away. An argument
+that happens to land on the right answer is not a substitute for the fact, and
+the cost of confusing the two is that the next one lands the other way.
+
+This sits alongside the 2026-09-15 entry on verdicts reached through unchecked
+reasoning. That entry was about methods that were never run. This one is about
+methods that were run but were never the load-bearing thing.
+
+### 2026-09-16 — Scope note on the date correction: it is the ONLY in-place edit the append rule permits
+
+At the owner's instruction, so nobody generalises from it.
+
+Eleven date stamps were corrected in place earlier today rather than by
+appending a correction below them. That was right for one narrow reason: the
+stamps were **clerical metadata**, not claims, and leaving them would have
+inverted the record's order against this file's own newest-at-top rule, making
+the owner's sitting appear to precede the analysis it followed and cited.
+
+**That is the only in-place edit the append rule permits.** A wrong date is a
+label on the record. A wrong claim, number, hash, conclusion or piece of
+reasoning is part of the record, and it stays, with the correction below it.
+If a future session finds itself reasoning that some other edit is "clerical
+too", it is almost certainly about to delete evidence. The test is simple: if
+removing it would make the file's history read as though a mistake had never
+happened, it is not clerical.
+
 ### 2026-09-16 — CORRECTION to the collation entry: the right answer, reached by an argument that was not the decisive one
 
 The ICU recommendation was correct and the owner's retry confirmed it. The

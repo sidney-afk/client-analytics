@@ -113,6 +113,14 @@ scripts/linear-exit-observed-full-install-plan.js -text whitespace=cr-at-eol
 
 docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json -text
 
+# The settled-state observed contract, pinned the same way as its 2026-09-12
+# predecessor: linear-exit-observed-public-catalog.js hashes these FILE BYTES
+# as ARTIFACT_SHA256, so a checkout that rewrites line endings breaks the load.
+# Only the -text form is added; the older entry also carries a contradictory
+# `text eol=lf` line above, which -text overrides, and mirroring that confusion
+# would not help anyone.
+docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260916.json -text
+
 docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json -text
 docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json -text
 docs/independence/LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json -text

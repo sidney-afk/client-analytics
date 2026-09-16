@@ -30,6 +30,27 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Restore duration BOUNDED, not measured: at most 12 minutes; the rehearsal project is deleted
+
+The owner started the restore-to-new-project rehearsal at **09:38 local**
+(UTC-6) and ran the identity query at **09:50 local**. The restore was complete
+by then. So it completed in **at most 12 minutes**.
+
+**This is a ceiling, not a measured duration.** Nobody observed the moment the
+restored database first became usable. It may have been ready several minutes
+before 09:50 and simply waited until the query was run. "Twelve minutes" must
+not be quoted anywhere as how long a restore takes.
+
+What it does establish: B4's restore duration moves from **unknown** to
+**under a quarter of an hour, as an upper bound**. That rules out the
+hours-long case nobody could exclude before.
+
+The full statement, with what would make it exact and what it does not cover,
+is appended under B4's duration note.
+
+**The rehearsal project has been deleted** by the owner. Nothing of it remains
+to be cleaned up or paid for.
+
 ### 2026-09-16 — Identity: three of four fields measured across the restore; restore-to-new-project NOT adopted, and what it is proven for recorded
 
 The owner reported two more identity fields from the restore rehearsal. The
@@ -2506,6 +2527,30 @@ both settled.
 > database restore returns a database whose Storage references are only as good
 > as that separate package.
 
+**Duration UPDATE, 2026-09-16, owner: an upper bound, NOT a measurement. The
+note above is kept as written.** The approved restore-to-new-project rehearsal
+was started at 09:38 local and the restored project answered a query at 09:50
+local. **The restore therefore completed in at most 12 minutes.**
+
+- **It is a ceiling.** The moment the database first became usable was never
+  observed. It may have been ready several minutes earlier and simply waited
+  until the owner ran the query. Do not record or quote "12 minutes" as a
+  measured restore duration.
+- **What it replaces:** "unknown" becomes **"under a quarter of an hour, upper
+  bound"**. That excludes the hours-long outage that could not be ruled out
+  before.
+- **What would make it exact:** watch for the moment the restored database
+  **first answers a query**, for example by polling a trivial read on a short
+  interval from the moment the restore starts, rather than timing to whenever
+  someone happens to try. The first successful answer is the measured
+  duration.
+- **What it does not cover, so it is not over-read.** The bound was taken on a
+  **restore to a new project**. The recovery route is the **in-place** restore
+  (D13). Both restore the same daily PHYSICAL backups, so a similar duration is
+  plausible. But the in-place duration itself has not been observed and cannot
+  be observed without destroying live. It is also one observation, of one
+  backup, at the database's size on 2026-09-16.
+
 A route to close the duration unknown at no risk is proposed, not adopted, in
 [`LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md`](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md).
 It also names a question the recovery procedure currently assumes rather than
@@ -2740,6 +2785,13 @@ What it is **not** proven for, so the claim stays exact: repointing any consumer
 to the restored project, the time a restore to a new project takes during a
 real incident, and any automated or rehearsed reconciliation procedure. Those
 remain unrehearsed.
+
+**Note, 2026-09-16. The entry above is kept as written.** The rehearsal did
+bound one of those items: a restore to a new project completed in **at most 12
+minutes**, an upper bound and not a measurement (see B4's duration update).
+That was a rehearsal, not an incident. So "the time a restore to a new project
+takes during a real incident" remains **not proven**; it is now bounded by one
+rehearsal observation, not unknown.
 
 ## 4. Corrections the session made against itself
 

@@ -30,6 +30,59 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Short sitting, part 1: selfcheck OK; step 8 catalog read taken as observation only
+
+Run from the owner's Windows machine against the rewritten sitting page
+(`c399dc6`). The earlier page's back-to-back ordering was not used. Main is
+frozen at `1abdd1fa`.
+
+**Derivation selfcheck, run first as the owner asked:** `B9_DERIVE_SELFCHECK_OK`,
+`problems: []`, PostgreSQL **17.11**. Run with nothing set, it found PG17 on
+PATH at a second copy under the user's Documents folder. With
+`F42_REHEARSAL_PGBIN` set, it found the runbook's copy. Both report 17.11, and
+the runbook's copy is the one used.
+
+**Catalog read (step 8), observation only. It does not pass step 8 and was not
+meant to.**
+
+1. Catalog hash
+   `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`.
+   Recomputed from the catalog, it matches the receipt, and it is
+   **byte-identical to the 2026-09-15 read**, so nothing moved live overnight.
+2. `profile: null`, `matches_reviewed_baseline: false`, exit 2: the expected
+   result. `tls_verified: true`. Identity equal to both the 2026-09-15 read and
+   the last passing 2026-09-14 read.
+3. Section diff against the last passing `observed67_optout` catalog
+   (`f5ed8a38…`): tables 67 to 68 (4 entries added, 3 removed: one new table and
+   three changed hiring tables); indexes 177 to 181; triggers 28 to 30;
+   functions 115 to 122 (10 entries added, 3 removed: seven new and three
+   changed); dependencies 1,336 to 1,385; internal constraint triggers 120 to
+   124. Identical: rules, types, views, schema, policies, sequences, default
+   ACLs, publications and server major.
+4. **Live public tables: 68.** This is measured, not derived. It confirms the B9
+   page's reasoning that the operator's hard-coded post-install constant of 90
+   would now refuse at `GUARD_COUNT`. The constant is not touched here; it is
+   re-derived with the new target, per D8.
+
+**Two things found, recorded rather than edited:**
+
+- **The B9 page says the hiring migration "adds three" indexes. Live shows
+  four.** The migration creates two indexes explicitly
+  (`hiring_applications_role_slug_idx` and the dispatch index). The new table's
+  primary key and its unique `application_id` constraint each add a backing
+  index. The table on that page understates by one. The page is left for its
+  author to correct.
+- **The sitting page and the B9 page do not mention `F63_REQUIRE_POSTGRES=1`.**
+  The observed-schema loader asserts it, so the derivation fails at its first
+  real stage without it. They also do not say that the helper's self-managed
+  cluster cannot work on Windows: it listens on a Unix socket only, while the
+  derivation insists on `127.0.0.1`. The page's instruction to start a loopback
+  cluster yourself is the only route that works here.
+
+The four observed-schema inputs are at the top of the directory the checkpoint
+records, `2026-09-12-fast-finish-evidence`. Only their filenames and sizes were
+listed, not their contents.
+
 ### 2026-09-17 — MEASURED: a physical restore preserves `system_identifier`, a logical one cannot; the in-place recovery route's identity assumption is now supported rather than assumed
 
 The owner asked for this answered explicitly and journalled either way, because

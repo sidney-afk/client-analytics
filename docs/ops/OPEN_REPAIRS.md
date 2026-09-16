@@ -22124,3 +22124,64 @@ retiring, and the owner's two cards need linking to one of them. Six thumbnails
 on a third calendar were queued behind the outage itself, not this bug, and
 clear on their own.
 
+
+---
+
+## 212. [2026-09-16, LIVE AND UNFIXED IN PRODUCTION — owner ruling: do not dispatch tonight] Item 211's fix is merged and NOT deployed, and deploying it invalidates the Linear-exit fingerprint
+
+Item 211 is written `FIXED — DEPLOY REQUIRED (F27 §4)`. That is accurate about
+the repository and misleading about production, where the defect is still live:
+the mirror runs as a deployed Edge Function, so merging changed nothing for a
+person. This entry exists so the live state has a home of its own rather than
+living inside a header that reads FIXED.
+
+**Owner ruling, 2026-09-16:** do not dispatch the Section 4 lane tonight.
+Nothing is currently stuck. The deploy is the outstanding action; the defect is
+accepted as live in the meantime.
+
+**What the twice-daily check measured, 2026-09-16 01:02Z.** 48 outbound write
+failures on 2026-09-15 between 13:00Z and 15:59Z across 17
+`linear_outbound_summary` runs — `test_override: false`, `mode: live`, with the
+lane's own `alerts.failed_write` raised on every one and `oldest_pending_age` on
+30 of them. Part of that window is item 211's 84-minute Linear CREATE outage
+(13:49–15:13Z) rather than our defect; the escaping bug is the part that
+persists after service returned. The queue then drained on its own — 353
+written, 22 skipped, 1 stale, `mirror_outbox` pending 0 — and every scheduled
+drain run is green. So the correct reading is RECOVERED, NOT FIXED.
+
+**Re-flag condition.** Raise this again the moment `failed` goes nonzero on
+`linear_outbound_summary` outside the daily drill window, on a run with
+`test_override: false`. Quiet is not evidence the defect is gone; it is evidence
+nobody has created a post without a filming plan since.
+
+### The deploy has a cost that must not be paid silently
+
+**Dispatching `deploy-f27-section4-closures.yml` invalidates the Linear-exit
+fingerprint result, which will need re-running afterwards.** The owner raised
+this; the overlap that makes it true is verified here rather than taken on
+trust:
+
+- The Section 4 lane deploys four functions —
+  `--slugs=linear-outbound,production-write,deliverable-write,batch-write`
+  (`deploy-f27-section4-closures.yml:542`, `:758`).
+- The twelve the Linear-exit work fingerprinted to establish a rollback commit
+  are the eight push-safe closures plus the Track-B four
+  (`deploy-onboarding-edge-functions.yml:107-140`, and
+  `docs/independence/LINEAR_EXIT_BRIEF_D.md:51` — *"TWELVE functions, not
+  four"*).
+- **The intersection is exactly `linear-outbound` and `production-write`.**
+  Deploying Section 4 moves both, so any fingerprint taken across the twelve
+  stops describing what is live for those two.
+
+**This is an accepted cost, not a reason to delay** — the owner has said so.
+What it is not is optional bookkeeping: whoever dispatches owes the re-run
+afterwards, and a rollback commit established before the dispatch and not
+re-established after it is a rollback pointer that no longer points anywhere.
+The eleven-deploy-stale rollback pointer this ledger already records is the same
+failure with a longer fuse.
+
+**Not established here.** The fingerprint artifact itself — when it was taken,
+against which SHA, and where the result is recorded — was reported by the owner
+and is not cited above, because I did not find it in the tree. The MECHANISM is
+verified; the artifact is not. Anyone acting on this should locate it before
+assuming what needs re-running.

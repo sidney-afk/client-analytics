@@ -30,6 +30,50 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — CORRECTION to this session's own B10 report: it was NOT zero regressions. B10 broke three suites the unit lane never runs. Sweep pushed as its own document
+
+**The earlier claim stands above as written, per the append rule, and it is
+wrong.** When B10 landed this session reported **zero regressions**, on the
+evidence of the full 547-suite run plus the same 14 failures on a clean control
+worktree.
+
+**That was true of the 547 and false of the repository.** Measured today by
+running the deferred suites by hand against PostgreSQL 17 and controlling
+against the pre-B10 commit `9b6990d`:
+
+| Suite | pre-B10 `9b6990d` | post-B10 `8940583` | Cause |
+|---|---|---|---|
+| `test/linear-exit-application-dml-admission.js` | PASS | **FAIL** | `87 !== 86` |
+| `test/linear-exit-source-phases-postgres.js` | PASS | **FAIL** | table-name list is one short |
+| `test/linear-exit-source-baseline-catalog-postgres.js` | PASS | **FAIL** | same |
+
+**Why the verification missed them, which matters more than the miss.**
+`scripts/test-suite-routing.js` runs 547 suites and defers **61** as
+`NOT_RUN_BY_UNIT_LANE`. All three are in the 61. A full run plus a clean control
+is the right shape and still reports clean, because the control compares the
+same suite set that already excludes the affected suites. Setting
+`F63_REQUIRE_POSTGRES=1` does not change this; the routing is static.
+
+**Not fixed.** The sweep was read-only by instruction, and the fix for the
+second and third is not a number — see the document.
+
+**The sweep is pushed as its own document**, at the owner's instruction, not as
+a journal entry:
+[`LINEAR_EXIT_WORLD_LITERAL_SWEEP_20260916.md`](LINEAR_EXIT_WORLD_LITERAL_SWEEP_20260916.md).
+43 sites, 27 files, each classified as a deliberate frozen contract, a stale
+snapshot, correct-but-bound-to-one-world, or undetermined with what would settle
+it. Seven stale. Eleven one world from stale. Eighteen of the 61 deferred suites
+carry such a literal.
+
+It **extends** `LINEAR_EXIT_GUARD_COUNT_SITES.md` rather than replacing it, and
+records two things about that survey: three of its nine sites are now fixed and
+six still hold a literal; and **its site 9 predicted the §3.2 failure exactly**,
+naming both the table and the condition. The forecast was right and still did
+not prevent anything, because it named the settled *database* and what actually
+moved was the test *fixture*. Two of the sweep's eleven single-world sites are
+in the record only because that survey had already found them; no search shape
+in the sweep would have.
+
 ### 2026-09-16 — STOPPED: after B10, `observed67` and `observed67_optout` CANNOT INSTALL; the admission guard refuses a table only `settled68` has. `settled68`'s target re-derived. Pipeline proof NOT re-run
 
 Storage session, second of three jobs. Every value below was read from a run's

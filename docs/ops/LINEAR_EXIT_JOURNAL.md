@@ -30,6 +30,85 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Catch-up landed GREEN at `0c923169`; B10 reasoning done, one field blocked on PG17
+
+**Twelve of twelve green, confirmed on the exact commit after the revert**, not
+before it and not inferred. `Isolated PG17 retirement-switch` is green again,
+which confirms B10 was the sole cause of the red.
+
+**What was reverted**, six files, none of which main touched, so the revert
+could not undo any of main's work: the admission guard's table list; the source
+hash in both the schema contract and the release extension; the contract hash in
+both the release extension and `CONTRACT_SHA`; the extension hash in `PIN`; and
+the shared fixture's migration entry.
+
+The revert also undid something unintended. Rewriting the fixture with Python
+had silently converted the whole file from **CRLF to LF**, 168 lines of
+collateral change for a 4-line addition. That is a third instance of a tool
+doing more than intended without being checked, and it is the most insidious of
+the three: a whole-file line-ending flip changes the file's hash while looking
+like nothing in a rendered diff, so it can break a pin on that file for reasons
+no reviewer would see.
+
+---
+
+**B10's retirement-contract half, reasoned from the contract's own definition.**
+
+The check lives in `supabase/migrations/20260913062149_retirement_switch_preparation.sql`.
+It aggregates triggers with
+
+```
+where c.relnamespace='public'::regnamespace and not t.tgisinternal
+  and (c.relname in (...six named tables...) or t.tgname like 'aaa_application_dml_admission_%')
+```
+
+and compares that aggregate to a hardcoded `expected->'triggers'`, raising
+`retirement_trigger_contract` on any difference.
+
+The `like 'aaa_application_dml_admission_%'` arm matches across **all** public
+tables, not a fixed list. The admission guard creates exactly one
+`aaa_application_dml_admission_statement` trigger per table it guards. So adding
+`hiring_practical_test_jobs` to the guard list necessarily adds one trigger to
+this aggregate, and the expected array does not know about it. That is the whole
+mechanism; nothing about it is mysterious.
+
+**What the contract should therefore say** is one additional entry, and its
+shape is fully determined:
+
+| Field | Value | How it is known |
+|---|---|---|
+| `name` | `aaa_application_dml_admission_statement` | the guard's `create trigger` names every one identically |
+| `table` | `hiring_practical_test_jobs` | the table being added |
+| `internal` | false | `not t.tgisinternal` is in the filter |
+| `deferrable` | false | the guard creates a plain statement trigger |
+| `initially_deferred` | false | same |
+| `enabled` | same as the sibling admission triggers | no clause changes it |
+| position | between `hiring_invite_jobs` and the `kasper_*` tables | `order by c.relname, t.tgname` |
+| `definition_md5` | **NOT ESTABLISHABLE HERE** | see below |
+
+**The blocked field, and why I am not guessing it.** `definition_md5` is
+`md5(pg_get_triggerdef(t.oid))`, an MD5 of PostgreSQL's own rendering of the
+trigger definition. It differs per trigger because the rendering embeds the
+table name, so it cannot be copied from a sibling entry. It can only be obtained
+by asking a PostgreSQL server. This sandbox has **16**; the lane asserts on
+**17**. Deriving it on 16 and assuming the two render identically is an
+assumption I have no basis for, and writing an md5 I did not obtain in full from
+a command is precisely the failure recorded in the near-miss entry below.
+
+**The correct closure is not a hand-edited md5 at all.** That expected blob has
+generators in the repository (`scripts/linear-exit-control-companion.js` and
+`scripts/linear-exit-observed-schema.js` both produce `definition_md5`). The
+right closure regenerates the blob with the existing generator against PG17,
+which produces every field including the md5 from the real server, rather than
+hand-patching one value until the lane stops objecting. Hand-editing it would be
+the silencing that has been ruled out twice now.
+
+**So B10's remaining work, precisely:** re-apply the guard-list addition and its
+four pin re-derivations and the fixture migration entry, then regenerate the
+retirement expected blob on PG17 with the existing generator, then let CI
+confirm. Everything except the PG17 regeneration is already understood and was
+demonstrated working today.
+
 ### 2026-09-15 — B10 is not a catch-up-sized change: STOPPED after three CI rounds
 
 The catch-up to `1abdd1fa` is done and clean. **B10 is the only thing red**, and

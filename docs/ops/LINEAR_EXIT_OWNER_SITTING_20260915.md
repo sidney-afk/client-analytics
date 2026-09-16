@@ -27,20 +27,17 @@ finished.
 Do not begin until all five are true. The point of this list is that you never
 discover a missing piece halfway through.
 
-1. **The complete recovery record, open on your phone.** It lives in iOS Notes.
-   You are the sole keyholder; nobody can reconstruct it for you. It must
-   include **both independent secrets and the `keyId`**. A record missing the
-   `keyId` cannot decrypt the package.
-2. **Your phone or a second device**, able to reach the private Drive backup
-   folder. Step 10 is only real because the package comes back down onto a
-   *different* device than it went up from.
-3. **Access to the private Drive backup folder** already used for these
-   packages. Confirm you can open it before starting, not at upload time.
-4. **PostgreSQL 17 reachable**, for section 5. Prove it in advance with the
-   ten-second selfcheck in that section. Do not discover a missing binary
-   mid-sitting.
-5. **Roughly 90 minutes free.** See the timings below. If you have less, read
-   the safe stopping points first and plan where you will break.
+1. **PostgreSQL 17 reachable**, for section 2. Prove it in advance with the
+   ten-second selfcheck in that section. It is the only prerequisite that can
+   surprise you, and it is the only one worth checking the day before.
+2. **Your private observed-schema input directory**, the one recorded in the
+   checkpoint. Section 2 takes its path as an argument.
+3. **About 35 minutes.** You can also split it across two sittings; nothing
+   here expires against anything else.
+
+You do **not** need your phone, the recovery record or the private Drive folder
+today. Those belong to steps 9 and 10, which are not in this sitting. Have them
+ready for the later one.
 
 ### Directory naming
 
@@ -55,31 +52,44 @@ diagnosis and use a new number for the retry.
 **It does not matter.** Every path below is absolute. A fresh PowerShell window
 at the default `C:\Users\<name>` prompt is fine. There is no folder to find.
 
-### The order, and the one clock in it
+### The order, and what this sitting does NOT do
 
-| # | What | Step | Time | Clock? |
-|---|---|---|---|---|
-| 1 | Catalog read | 8 | a few minutes | **starts a 1-hour clock** |
-| 2 | Database capture and local restore | 9 | 20–30 min | **must follow 1 inside the hour** |
-| 3 | Upload, download on a second device, compare, restore | 10 | 10–20 min plus transfer | no |
-| 4 | Managed restore permission check (B4) | — | 2 minutes | no |
-| 5 | Settled-catalog derivation (B9) | — | 20–30 min | no |
-| 6 | Pre-state snapshot | 11 | ~15 min, **mine not yours** | no |
+**Steps 9 and 10 are not in this sitting.** Read this before you plan your day.
 
-Sections 1 and 2 are the only pair that must stay together. Everything from
-section 3 onward can happen later the same day, or the next day, with nothing
-lost. **If you have to break, break before section 1, not between 1 and 2.**
+The database capture wrapper consumes a catalog receipt and refuses one that
+names no profile, and today's catalog read cannot name a profile because the
+profile for the settled state does not exist yet (journal B9). So step 8 does
+not *pass* today either — it produces the observation the new profile is
+authored from. Steps 8, 9 and 10 then run **back to back in a later sitting**,
+which is what D12 says and has always said.
 
-Section 5 needs no keyboard time from you beyond starting it, but it is the one
-that unblocks the rest of the plan, so do not drop it if you are short on time
-— drop section 4 instead and do it whenever.
+An earlier version of this page had sections 1 to 4 running back to back today.
+That was wrong and would have wasted your sitting at the keyboard; it is
+corrected here.
+
+| # | What | Step | Time |
+|---|---|---|---|
+| 1 | Catalog read — **observation only, does not pass step 8** | 8 (partial) | a few minutes |
+| 2 | Settled-catalog derivation (B9) | — | 20–30 min |
+| 3 | Managed restore permission check (B4) | — | 2 min, **already done 2026-09-16** |
+
+**Budget about 35 minutes, not ninety.**
+
+There is **no clock in this sitting.** The one-hour catalog expiry only matters
+when the database capture has to follow the catalog read, and the capture is
+not happening today. Stop anywhere. Nothing here expires against anything else.
+
+If you would rather do it in two sittings of twenty minutes, that is fine too:
+the catalog read and the derivation do not depend on each other's timing.
 
 ---
 
-## 1. Catalog read (step 8), a few minutes — STARTS THE CLOCK
+## 1. Catalog read (step 8, observation only), a few minutes
 
-This produces the receipt that section 2 consumes, so it has to come before the
-database refresh and close to it in time.
+**This does not pass step 8 and is not meant to.** Step 8 passes when the live
+catalog matches a supported profile, and no profile exists for the settled
+state yet. What this run produces is the observation the new profile is
+authored from, plus the numbers below.
 
 ```powershell
 node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-UNIQUE
@@ -91,8 +101,10 @@ node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.pr
 > `observed67_optout`. Expect `profile: null` and a non-zero exit. See journal
 > B9 and [the B9 re-derivation page](LINEAR_EXIT_B9_CATALOG_REDERIVATION.md).
 
-**What you are running it for:** the receipt section 2 needs, plus three
-numbers the profile derivation is authored against.
+**What you are running it for:** four numbers, listed below. The receipt it
+writes is also what the later database capture will consume, but not today —
+that wrapper refuses a receipt naming no profile, which is exactly what this
+one will name.
 
 **Worked when:** the receipt reports **`tls_verified: true`**, the identity
 matches, and it prints a catalog hash.
@@ -115,134 +127,13 @@ matches, and it prints a catalog hash.
 > match. Those are real failures. A `profile: null` with TLS verified and
 > identity matched is the expected result today.
 
-> **Do not skip ahead to section 5 with this receipt.** The wrapper in section
-> 2 consumes a catalog receipt and the clock is running. Derivation is not
-> time-critical; the database capture is.
-
-> **The clock. This is the one that bites.** The catalog goes stale after **one
-> hour**. Run section 2 straight after this. If more than an hour passes, you
-> must re-run this command into a **new** directory before the database
-> refresh. That is the only reason the order on this page matters.
+> **No clock today.** The one-hour catalog expiry only bites when the database
+> capture has to follow this read. It does not today. You can stop here and do
+> section 2 tomorrow.
 
 ---
 
-## 2. Database capture and local restore (step 9), allow 20 to 30 minutes
-
-Run this immediately after section 1. It takes the catalog directory from
-section 1 as its first argument.
-
-```powershell
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-UNIQUE D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE
-```
-
-Use the **same** `day-catalog-UNIQUE` you just created, and a **new**
-`day-database-UNIQUE`.
-
-**Worked when:** the output reports `DATABASE_CAPTURE_PASS`, the command exits
-zero, and the scratch server is reported stopped.
-
-> **STOP if** it refuses for any reason, or if the scratch server is not
-> reported stopped. Preserve everything and report before retrying.
-
-These wrappers fetch the stored secret internally. **No password goes in a
-command argument, in a file you type, or in chat.** If anything ever asks you
-to paste a database password into a command line, that is wrong; stop.
-
-Now verify the local restore before you upload anything:
-
-```powershell
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-UNIQUE
-```
-
-**Worked when:** it reports `ISOLATED_DATABASE_RESTORE_PASS`, exits zero, and
-reports its scratch server stopped.
-
-> **Safe to stop here**, though custody is not yet complete. Nothing is at
-> risk; you simply have not finished proving the backup can come back from
-> Drive. Do not record custody as done at this point.
-
----
-
-## 3. Custody drill on a second device (step 10), 10 to 20 minutes
-
-This is the step that makes the backup real. A package that only ever existed
-on the machine that made it has not been proven recoverable.
-
-**This one is not optional and not a spare.** Point-in-time recovery was
-declined on cost (journal, 2026-09-15). That decision makes sections 2 and 3
-*the* recovery route for the hosted database, not a belt-and-braces extra. If
-this drill does not pass, there is no executable route back.
-
-1. **Upload** the encrypted package from `day-database-UNIQUE/encrypted` to the
-   existing private Drive backup folder.
-2. **Download that exact package** on your phone or second device.
-3. **Compare** its full SHA-256 and file manifest against what was uploaded.
-   They must match completely.
-4. **Restore the downloaded copy** using the same restore command as above,
-   with the downloaded package as input and a **new** output directory:
-
-```powershell
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs <path-to-downloaded-package> D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-UNIQUE
-```
-
-**Worked when:** the hashes and manifest match exactly, and the restore of the
-**downloaded** copy reports `ISOLATED_DATABASE_RESTORE_PASS` and exits zero.
-
-> **Custody is incomplete until this passes.** A hash match alone is not
-> enough, and a successful local restore in section 2 is not a substitute. The
-> downloaded copy has to actually restore.
-
-> **STOP if** the hash or manifest differs, or the downloaded-copy restore
-> fails. Do not delete anything. Report it.
-
-If you do this download on a genuinely different device, say so explicitly when
-you report back — it would be the first time any package has been retrieved on
-separate hardware, and it would narrow the permanent caveat under journal B1.
-
-One thing to keep straight: this proves **public-schema** recovery. It is not
-full platform recovery and not asset recovery. Existing Drive and Frame
-historical gaps stay as they are. The 14 inaccessible references have their own
-private decision sheet, nothing about them is authorized for replacement or
-deletion, and they do not block the dormant install.
-
-> **Safe to stop here.** This is the natural end of the time-critical part.
-
----
-
-## 4. Managed restore permission check (B4), 2 minutes
-
-Closes the part of B4 that no command can: whether the managed restore route is
-actually executable by you on the correct project. A browser click path, not a
-script. It changes nothing.
-
-1. Open [the Supabase dashboard](https://supabase.com/dashboard) and select the
-   project recorded privately. Its ref is in your private evidence directory;
-   it is deliberately not written here.
-2. In the left sidebar, open **Database**.
-3. Open **Backups** under it.
-4. Look at the **Scheduled backups** tab and write down what you see:
-   - can you see the backup list at all, and what is the timestamp of the
-     latest entry;
-   - is there a **Restore** control on a backup row, and is it **enabled** for
-     your account, as opposed to greyed out or absent entirely;
-   - what does the **Point in Time Recovery** tab say the current state is.
-5. **Do not start a restore.** This is a capability check only. If a
-   confirmation dialog opens, cancel it.
-
-**What each outcome means:**
-
-- **Restore control present and enabled** → the route is executable and B4's
-  mechanical half closes. The decision half is already made: no PITR, on cost.
-- **Absent or greyed out** → the route is not executable by you, and B4 cannot
-  close on this path. Report it. A different operator or a plan change is
-  needed before step 13, and sections 2 and 3 become the only route back.
-- **PITR disabled** was the state observed on 2026-09-14 and you have decided
-  against enabling it on cost. Nothing to do; just confirm it still reads
-  disabled, so the recovery procedure is describing the real configuration.
-
----
-
-## 5. Settled-catalog derivation (B9), 20 to 30 minutes
+## 2. Settled-catalog derivation (B9), 20 to 30 minutes
 
 This is the one that unblocks the rest of the plan. Steps 8, 9 and 10 cannot
 *pass* — as opposed to run — until a profile exists for the settled state, and
@@ -288,16 +179,160 @@ node scripts/linear-exit-b9-catalog-derive.js `
 
 ---
 
-## 6. Pre-state snapshot (step 11), about 15 minutes, mine not yours
+## 3. Managed restore permission check (B4) — DONE 2026-09-16
+
+**Already done, read-only, nothing clicked.** Kept here as the record of what
+was checked and what was seen, not as work.
+
+Result, 2026-09-16: eight daily PHYSICAL backups, 09 Sep through 16 Sep, newest
+16 Sep 11:19:55 +0000, each with a **Restore** control present and **enabled**.
+A Point in Time tab exists; PITR stays declined on cost. The page states that
+database backups **do not include Storage objects** and that restoring does not
+bring back deleted files — which is precisely why the separate Storage custody
+capture exists, and is now recorded under journal B4.
+
+B4's capability question is answered **yes**. The route is executable.
+
+The click path below is retained so the check is repeatable.
+
+1. Open [the Supabase dashboard](https://supabase.com/dashboard) and select the
+   project recorded privately. Its ref is in your private evidence directory;
+   it is deliberately not written here.
+2. In the left sidebar, open **Database**.
+3. Open **Backups** under it.
+4. Look at the **Scheduled backups** tab and write down what you see:
+   - can you see the backup list at all, and what is the timestamp of the
+     latest entry;
+   - is there a **Restore** control on a backup row, and is it **enabled** for
+     your account, as opposed to greyed out or absent entirely;
+   - what does the **Point in Time Recovery** tab say the current state is.
+5. **Do not start a restore.** This is a capability check only. If a
+   confirmation dialog opens, cancel it.
+
+**What each outcome means:**
+
+- **Restore control present and enabled** → the route is executable and B4's
+  mechanical half closes. The decision half is already made: no PITR, on cost.
+- **Absent or greyed out** → the route is not executable by you, and B4 cannot
+  close on this path. Report it. A different operator or a plan change is
+  needed before step 13, and sections 2 and 3 become the only route back.
+- **PITR disabled** was the state observed on 2026-09-14 and you have decided
+  against enabling it on cost. Nothing to do; just confirm it still reads
+  disabled, so the recovery procedure is describing the real configuration.
+
+---
+
+## The LATER sitting: steps 8, 9 and 10, back to back
+
+**Not today.** These cannot run until the settled-state profile exists and has
+been reviewed, because the capture wrapper refuses a catalog receipt that names
+no profile. That is D12's ordering and it has not changed.
+
+When that sitting happens it runs step 8 again — passing this time — then the
+two sections below, **and the one-hour clock applies to it**: the catalog goes
+stale after an hour, so the capture must follow the read with nothing in
+between. If you have to break, break before the catalog read, not after it.
+
+Have your phone, the recovery record and the private Drive folder ready for
+that one. You do not need them today.
+
+### Database capture and local restore (step 9), 20 to 30 minutes
+
+Run this immediately after that sitting's catalog read. It takes the catalog
+directory as its first argument.
+
+```powershell
+node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-UNIQUE D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE
+```
+
+Use the **same** `day-catalog-UNIQUE` from that sitting's read, and a **new**
+`day-database-UNIQUE`.
+
+**Worked when:** the output reports `DATABASE_CAPTURE_PASS`, the command exits
+zero, and the scratch server is reported stopped.
+
+> **STOP if** it refuses for any reason, or if the scratch server is not
+> reported stopped. Preserve everything and report before retrying.
+
+These wrappers fetch the stored secret internally. **No password goes in a
+command argument, in a file you type, or in chat.** If anything ever asks you
+to paste a database password into a command line, that is wrong; stop.
+
+Now verify the local restore before you upload anything:
+
+```powershell
+node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-UNIQUE/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-UNIQUE
+```
+
+**Worked when:** it reports `ISOLATED_DATABASE_RESTORE_PASS`, exits zero, and
+reports its scratch server stopped.
+
+> **Safe to stop here**, though custody is not yet complete. Nothing is at
+> risk; you simply have not finished proving the backup can come back from
+> Drive. Do not record custody as done at this point.
+
+---
+
+### Custody drill on a second device (step 10), 10 to 20 minutes
+
+This is the step that makes the backup real. A package that only ever existed
+on the machine that made it has not been proven recoverable.
+
+**This one is not optional and not a spare.** Point-in-time recovery was
+declined on cost (journal, 2026-09-15). That decision makes sections 2 and 3
+*the* recovery route for the hosted database, not a belt-and-braces extra. If
+this drill does not pass, there is no executable route back.
+
+1. **Upload** the encrypted package from `day-database-UNIQUE/encrypted` to the
+   existing private Drive backup folder.
+2. **Download that exact package** on your phone or second device.
+3. **Compare** its full SHA-256 and file manifest against what was uploaded.
+   They must match completely.
+4. **Restore the downloaded copy** using the same restore command as above,
+   with the downloaded package as input and a **new** output directory:
+
+```powershell
+node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs <path-to-downloaded-package> D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-UNIQUE
+```
+
+**Worked when:** the hashes and manifest match exactly, and the restore of the
+**downloaded** copy reports `ISOLATED_DATABASE_RESTORE_PASS` and exits zero.
+
+> **Custody is incomplete until this passes.** A hash match alone is not
+> enough, and a successful local restore in the previous section is not a substitute. The
+> downloaded copy has to actually restore.
+
+> **STOP if** the hash or manifest differs, or the downloaded-copy restore
+> fails. Do not delete anything. Report it.
+
+If you do this download on a genuinely different device, say so explicitly when
+you report back — it would be the first time any package has been retrieved on
+separate hardware, and it would narrow the permanent caveat under journal B1.
+
+One thing to keep straight: this proves **public-schema** recovery. It is not
+full platform recovery and not asset recovery. Existing Drive and Frame
+historical gaps stay as they are. The 14 inaccessible references have their own
+private decision sheet, nothing about them is authorized for replacement or
+deletion, and they do not block the dormant install.
+
+> **Safe to stop here.** This is the natural end of the time-critical part.
+
+---
+
+## Pre-state snapshot (step 11), about 15 minutes, mine not yours
 
 You do not need to be at the keyboard for this one. It is a session step: I
 write the snapshot that step 25 is compared against, recording current
 authority, the existing Linear inbound and outbound settings, the legacy
 capability settings and worker state.
 
-Much of it comes out of the private receipts your section 1 catalog run already
-recorded, which is the other reason that run has to happen. Tell me when
-sections 1 through 5 are done and I will produce it and show you.
+Much of it comes out of the private receipts your catalog run records, which is
+the other reason that run has to happen. **I cannot read those receipts and I
+have no SQL against production**, so this is not something I can simply go and
+do: you hand me the relevant fields from the receipt and I write the snapshot
+against them. Tell me when you are ready and I will say exactly which fields.
+
+It belongs with the later sitting, not this one.
 
 Nothing is changed by it. Existing live flags stay exactly as they are; nothing
 is blanket-disabled, the retired-epoch switch is not called, and no worker is
@@ -305,25 +340,14 @@ stopped.
 
 ---
 
-## Where you can stop, and where you should not
+## Where you can stop
 
-**Safe to stop, at any of these, with nothing at risk:**
+**Anywhere.** Nothing in today's sitting is time-critical and nothing expires
+against anything else. If you only have ten minutes, do section 1; the
+derivation in section 2 can be another day.
 
-- After the local restore passes (end of section 2).
-- After the downloaded-copy drill passes (end of section 3).
-- Before or after section 4 or 5 — neither is time-critical.
-
-**Do not stop in the middle of these:**
-
-- **Between section 1 and section 2.** Not because anything breaks, but because
-  the catalog expires after an hour and you will have to run it again into a
-  new directory. If you have to break, break *before* section 1, not after it.
-- **Between capture and the downloaded-copy restore, if you are going to call
-  custody done.** You can physically stop; just do not record it as complete.
-  Custody is only complete when the downloaded copy restores.
-
-**Never, on any failure:** re-run into a directory that already exists, delete
-a failed attempt's output, or retype a password into a command. Preserve the
+**Never, on any failure:** re-run into a directory that already exists, delete a
+failed attempt's output, or retype a password into a command. Preserve the
 directory and report it.
 
 ---

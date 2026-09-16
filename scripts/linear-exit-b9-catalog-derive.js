@@ -66,6 +66,7 @@ const assert = require('assert/strict');
 
 const ROOT = path.resolve(__dirname, '..');
 const HIRING_MIGRATION = 'migrations/2026-09-15-hiring-video-editor-role.sql';
+const OBSERVED_CONTRACT = 'docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json';
 const OPTOUT_PREREQUISITE_REF = '73d5fdc361';
 const OPTOUT_PREREQUISITE = 'migrations/2026-09-14-team-members-auto-assign-opt-out.sql';
 const OPTOUT_PREREQUISITE_SHA = 'fbd5ae8ecbef6e28cce913878791cb5f2a2a7fc70a7c930d3c0d3b508966fbaa';
@@ -73,11 +74,11 @@ const OPTOUT_PREREQUISITE_SHA = 'fbd5ae8ecbef6e28cce913878791cb5f2a2a7fc70a7c930
 /* The reviewed observed67 section counts, for a class-by-class delta rather
  * than one moved top-level hash. Source: the committed observed catalog. */
 function reviewedSections() {
-  const p = path.join(ROOT, 'docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json');
+  const p = path.join(ROOT, OBSERVED_CONTRACT);
   const d = JSON.parse(fs.readFileSync(p, 'utf8'));
   const by = new Map();
   for (const s of d.sections) by.set(s.name, s.count);
-  return { catalogSha256: d.catalog_sha256, counts: by, observedDate: d.observed_date };
+  return { catalogSha256: d.catalog_sha256, counts: by, sections: d.sections, observedDate: d.observed_date };
 }
 
 function gitShow(ref, file) {
@@ -103,6 +104,8 @@ function selfcheck() {
   const { Cluster } = require('./f42-apply-rehearsal');
   require('./linear-exit-observed-schema');
   require('./linear-exit-install-profiles');
+  const observedApi = require('./linear-exit-observed-public-catalog');
+  if (typeof observedApi.observation !== 'function') problems.push('observed catalog builder missing its observation() entry point');
 
   const reviewed = reviewedSections();
   const hiring = fs.readFileSync(path.join(ROOT, HIRING_MIGRATION));
@@ -184,12 +187,33 @@ function derive(opts) {
     const settledPath = path.join(opts.out, 'b9-settled-catalog.private.json');
     fs.writeFileSync(settledPath, JSON.stringify(settled, null, 2) + '\n', { flag: 'wx' });
 
+    /* Build the CANDIDATE observed contract with the repo's own builder, so
+     * the artifact that gets reviewed has exactly the shape the comparator
+     * expects rather than one assembled by hand. It is written privately; what
+     * gets committed is the owner's call after review. The project ref comes
+     * out of the existing contract rather than being typed again. */
+    const observedApi = require('./linear-exit-observed-public-catalog');
+    const existing = JSON.parse(fs.readFileSync(path.join(ROOT, OBSERVED_CONTRACT), 'utf8'));
+    const observedDate = new Date().toISOString().slice(0, 10);
+    const candidate = observedApi.observation(settled, { projectRef: existing.project_ref, observedDate });
+    const candidatePath = path.join(opts.out, 'b9-candidate-observed-catalog.private.json');
+    fs.writeFileSync(candidatePath, JSON.stringify(candidate, null, 2) + '\n', { flag: 'wx' });
+
+    /* Section hashes and counts are hashes and counts. They carry no schema
+     * content, so these ARE safe to paste back -- and they are all that is
+     * needed to author the contract. The catalog itself is not. */
     const reviewed = reviewedSections();
-    const sections = [];
-    for (const [name, count] of reviewed.counts) {
-      const actual = Array.isArray(settled[name]) ? settled[name].length : null;
-      sections.push({ section: name, reviewed_count: count, settled_count: actual, moved: actual !== null && count !== null && actual !== count });
-    }
+    const reviewedByName = new Map(reviewed.sections.map((x) => [x.name, x]));
+    const sections = candidate.sections.map((x) => {
+      const was = reviewedByName.get(x.name) || {};
+      return {
+        section: x.name,
+        reviewed_count: was.count ?? null,
+        settled_count: x.count ?? null,
+        settled_sha256: x.sha256,
+        moved: was.sha256 !== x.sha256,
+      };
+    });
 
     return {
       marker: 'B9_SETTLED_CATALOG_DERIVED',
@@ -202,6 +226,8 @@ function derive(opts) {
       operator_post_install_public_tables_constant: 90,
       sections,
       settled_catalog_written_to: settledPath,
+      candidate_observed_contract_written_to: candidatePath,
+      candidate_observed_date: observedDate,
       stages,
       installation_authorized: false,
       third_profile_written: false,

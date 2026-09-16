@@ -30,6 +30,107 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — CORRECTION: yesterday's sitting page put steps 9 and 10 in a sitting they cannot run in
+
+Caught by the owner asking the right question before clearing his day, which is
+the only reason it did not cost him the sitting.
+
+The page as rewritten on 2026-09-16 ran sections 1 to 4 back to back: catalog
+read, database capture, custody drill, with the one-hour catalog clock between
+the first two. The page it replaced said the opposite, in terms:
+
+> **Do not run step 3 after this one today.** Its wrapper consumes a catalog
+> receipt and will refuse one that names no profile. Steps 9 and 10 wait until
+> the new profile exists.
+
+That warning was dropped in the rewrite. It should not have been. D12 says the
+same thing — steps 8, 9 and 10 run back to back **after** the profile exists —
+and the B9 row says it again. Three independent places in the record, and the
+rewrite contradicted all three.
+
+The mechanism of the error is worth keeping, because it is not carelessness in
+the usual sense. The instruction was to put steps 8, 9, 10 and 11 into **one
+ordered pass**, and the page was built to satisfy that shape. The shape was
+wrong for the current state, and building to it silently discarded a constraint
+that was written down in the thing being rewritten. **A rewrite is not a
+refactor: every warning removed has to be removed on purpose.** Nothing in the
+rewrite was checked against the page it replaced.
+
+Corrected: the sitting is now the catalog read (observation only) and the B9
+derivation, about 35 minutes with no clock in it. Steps 9 and 10 live in a
+clearly-labelled later sitting, with the clock attached to that one. Step 11
+moves there too, and now says plainly that it needs fields from the owner's
+private receipt because this session has no route to read them.
+
+### 2026-09-17 — B4 CLOSED with the restore duration recorded as unknown; "restore to new project" evaluated and NOT adopted as the recovery route
+
+The owner ran the B4 dashboard check read-only on 2026-09-16, clicking nothing.
+Eight daily backups, 09 Sep through 16 Sep, newest 16 Sep 11:19:55 +0000, all
+PHYSICAL, each with a **Restore** control present and enabled. Point in Time tab
+present; PITR stays declined on cost. The page states that database backups do
+not include Storage objects and that restoring does not bring back deleted
+files.
+
+B4 closes. The capability question is answered yes, the decision half was
+already taken, and the only remaining piece — how long an outage a real restore
+would cost — is not measurable without performing one. **Recorded as unknown
+rather than estimated.** An estimate here would be a number with nothing behind
+it, and it would be treated as a fact by the next session.
+
+The Storage exclusion is recorded as part of the closure, not as a footnote: it
+is the reason the separate Storage custody capture exists, and it means a
+database restore returns a database whose Storage references are only as good as
+that separate package.
+
+The owner also found **Restore to new project (BETA)** and asked whether it is a
+better route. Evaluated in
+[`LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md`](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md).
+It is not, for one reason that the dashboard's framing hides: a new project is a
+different database with a different reference, URL and keys, and nothing points
+at it. The restore does not end the outage; it produces a healthy database with
+no consumers, and ending the outage then needs an unrehearsed repointing that is
+itself inside the freeze's scope.
+
+Verified rather than assumed: it would also fail the installer's identity check.
+`IDENTITY_SQL` includes `system_identifier` from `pg_control_system()`, which is
+a property of the cluster, so a new project carries a different one and
+`fail('IDENTITY')` follows.
+
+It is proposed instead as a **rehearsal** route, because it can close two things
+cheaply and at no risk: it measures the restore duration that B4 has just been
+closed calling unknown, and it answers a question the procedure currently
+assumes — whether `system_identifier` survives a restore at all. If it does not,
+an installation could not resume against its own recorded identity after a real
+recovery. Nobody has checked. **The reviewed procedure is unchanged**, as
+instructed.
+
+### 2026-09-17 — Corrections accepted and recorded: B10's "blocked on access" was wrong, and the branch was right
+
+Both at the owner's direction, recorded here so the file does not keep the wrong
+version as its only account.
+
+**B10 was never blocked on PostgreSQL 17 access.** The 2026-09-16 note
+concluded "the missing thing is a disposable PG17 server". That was wrong twice
+over: the PGDG repository was reachable and simply not configured, so a server
+was available for the asking; and B10's actual gate is D12's ordering, which
+puts it behind B9 regardless of what servers exist. The note stands above per
+the append rule. PostgreSQL 17.11 now runs in this sandbox.
+
+**The working branch is `prep/linear-exit-review-fixes-20260913`**, as the
+checkpoint says and as the owner confirmed, not the branch named in the session
+bootstrap. Recorded because a future session will meet the same contradiction
+and should resolve it the same way: the checkpoint and the owner win.
+
+**B9 and the 90 are both confirmed by the owner, 2026-09-17.** Derive a new
+reviewed picture at the settled state; do not attempt the six-class reversal.
+The operator's constant is re-derived from the measured table count, never
+edited to match. The owner read the constant himself and confirmed it is a hard
+`fail('GUARD_COUNT')` counting one guard trigger per public table, not a
+warning. He also named the trap directly, which is worth quoting because it is
+sharper than D8's general form: editing 90 to 91 is exactly the silencing D8
+forbids, **and it is more tempting here precisely because the right answer looks
+one digit away.**
+
 ### 2026-09-16 — B10 confirmed OFF the critical path from code; the guard installs open, and adding the table today would BREAK the install
 
 The owner's reading was that the admission guard installs open and only bites
@@ -1467,6 +1568,31 @@ where it bites and nowhere else — **immediately before the exit merge at step
 is that a capture taken at any other moment still looks complete. Verified here
 that the git side of the pipeline reproduces `1abdd1fa`'s `index.html` hash
 exactly.
+
+**B4 CLOSED, 2026-09-17, owner. Row kept above.** The managed restore route is
+executable: eight daily PHYSICAL backups, newest 16 Sep 2026 11:19:55 +0000,
+each with a Restore control present and enabled, checked read-only with nothing
+clicked. Combined with the accepted-loss decision of 2026-09-15 (no PITR, on
+cost, reconcile newer saves by hand), the mechanical and decision halves are
+both settled.
+
+**Recorded as part of the closure, not as a caveat to be dropped later:**
+
+> The outage duration a real restore would cost is **UNKNOWN**. It cannot be
+> measured without performing a restore, and performing one in place destroys
+> the live database. No estimate has been written down, deliberately.
+>
+> Database backups **do not include Storage objects**, and restoring does not
+> bring back deleted files. This is the platform's own statement on the Backups
+> page. It is why the separate Storage custody capture exists, and it means a
+> database restore returns a database whose Storage references are only as good
+> as that separate package.
+
+A route to close the duration unknown at no risk is proposed, not adopted, in
+[`LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md`](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md).
+It also names a question the recovery procedure currently assumes rather than
+establishes: whether `system_identifier`, which the installer's identity check
+is built on, survives a restore at all. The reviewed procedure is unchanged.
 
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a

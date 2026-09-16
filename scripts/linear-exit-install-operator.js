@@ -18,11 +18,16 @@ function load(c){
  if(target.plan_sha256!==PLAN||target.stage_id!==plan.stage_id)fail('TARGET_BINDING');
  const proof=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json')));
  for(const p of proof.source_pins)if(j.sha(fs.readFileSync(path.join(ROOT,p.file)))!==p.sha256)fail('SOURCE_PIN');
- return {ca,plan,target,targetBytes,planBytes:built.planBytes};
+ // Resolve the post-install table count HERE, in preflight, not at the
+ // comparison site. A starting catalog nothing can resolve is a refusal before
+ // the connection is opened; resolved later it would abort mid-install with the
+ // maintenance guards already written.
+ const expectedPostInstallTables=observedCatalog.postInstallPublicTables(plan.initial_catalog_sha256).expected;
+ return {ca,plan,target,targetBytes,planBytes:built.planBytes,expectedPostInstallTables};
 }
 function consent(c){if(!/^[a-f0-9]{64}$/.test(c.ownerWindowEvidenceSha256||''))fail('WINDOW_EVIDENCE');return 'APPLY:'+profiles.get(c.profile).plan+':'+j.sha(j.canonical(c.expectedDatabaseIdentity))+':'+c.ownerWindowEvidenceSha256;}
 async function execute(c,prepared,session,applyToken){
- const {plan:PLAN,target:TARGET}=profiles.get(c.profile);const {plan,planBytes,target,targetBytes}=prepared,q=(s,p=[])=>session.query(s,p);let locked=false,stage='read_only_observation';
+ const {plan:PLAN,target:TARGET}=profiles.get(c.profile);const {plan,planBytes,target,targetBytes,expectedPostInstallTables}=prepared,q=(s,p=[])=>session.query(s,p);let locked=false,stage='read_only_observation';
  const opts={session,planBytes,planSha256:PLAN,expectedStageId:plan.stage_id,expectedDatabaseIdentity:c.expectedDatabaseIdentity};
  try{
   await q('begin read only');try{await q('set local search_path=pg_catalog,public');const ids=await q(j.IDENTITY_SQL);if(ids.length!==1||j.canonical(ids[0].identity)!==j.canonical(c.expectedDatabaseIdentity))fail('IDENTITY');const tls=await q('select ssl from pg_stat_ssl where pid=pg_backend_pid()');if(tls.length!==1||tls[0].ssl!==true)fail('TLS');const rows=await q(plan.catalog_sql);if(rows.length!==1||!rows[0].catalog)fail('CATALOG');const namespaces=await q("select to_regnamespace('linear_exit_maintenance') is not null as maintenance, to_regnamespace('linear_exit_install') is not null as journal");if(namespaces.length!==1)fail('NAMESPACE');if(!namespaces[0].maintenance&&!namespaces[0].journal&&j.sha(j.canonical(rows[0].catalog))!==plan.initial_catalog_sha256)fail('BASELINE');if(!applyToken)return {status:'READ_ONLY_OBSERVATION',existing_install_state:namespaces[0],resume_validated:false,installation_authorized:false};}finally{await q('rollback');}
@@ -32,7 +37,7 @@ async function execute(c,prepared,session,applyToken){
   if(existing[0]?.present){const guards=await q("select count(*)::int as n from pg_trigger where tgname='linear_exit_maintenance_dml_v1' and tgrelid in(select oid from pg_class where relnamespace='public'::regnamespace)");alreadyFinal=guards[0]?.n===0;}
   stage='maintenance_install';if(!alreadyFinal)await maintenance.run(opts);stage='target_comparison';
   // Compare the independent bare target while rollback restores protection.
-  await q('begin');try{const guards=await q("select c.relname from pg_class c join pg_trigger t on t.tgrelid=c.oid where c.relnamespace='public'::regnamespace and t.tgname='linear_exit_maintenance_dml_v1' order by c.relname");const expectedGuards=observedCatalog.postInstallPublicTables(plan.initial_catalog_sha256).expected;if(guards.length!==(alreadyFinal?0:expectedGuards))fail('GUARD_COUNT');for(const g of guards)await q('drop trigger linear_exit_maintenance_dml_v1 on public."'+g.relname.replaceAll('"','""')+'"');await q('select public.production_retirement_contract_assert_v1()');const [pub]=await q(plan.catalog_sql),[priv]=await q('select ('+control.catalogSql()+') as catalog');targetApi.compare({targetBytes,targetSha256:TARGET,planBytes,planSha256:PLAN,catalog:pub.catalog,privateCatalog:priv.catalog});}finally{await q('rollback');}
+  await q('begin');try{const guards=await q("select c.relname from pg_class c join pg_trigger t on t.tgrelid=c.oid where c.relnamespace='public'::regnamespace and t.tgname='linear_exit_maintenance_dml_v1' order by c.relname");const expectedGuards=expectedPostInstallTables;if(guards.length!==(alreadyFinal?0:expectedGuards))fail('GUARD_COUNT');for(const g of guards)await q('drop trigger linear_exit_maintenance_dml_v1 on public."'+g.relname.replaceAll('"','""')+'"');await q('select public.production_retirement_contract_assert_v1()');const [pub]=await q(plan.catalog_sql),[priv]=await q('select ('+control.catalogSql()+') as catalog');targetApi.compare({targetBytes,targetSha256:TARGET,planBytes,planSha256:PLAN,catalog:pub.catalog,privateCatalog:priv.catalog});}finally{await q('rollback');}
   stage='finalization';const result=await finalize.run({...opts,expectedFinalCatalogSha256:target.catalog_sha256});
   await q('select public.production_retirement_contract_assert_v1()');const [pub]=await q(plan.catalog_sql),[priv]=await q('select ('+control.catalogSql()+') as catalog');targetApi.compare({targetBytes,targetSha256:TARGET,planBytes,planSha256:PLAN,catalog:pub.catalog,privateCatalog:priv.catalog});
   return {status:'INSTALLED_SCHEMA_TARGET_MATCH',runtime_dormancy_verified:false,plan_sha256:PLAN,target_sha256:TARGET,finalizer:result,external_fencing_attested:false,activation_performed:false};

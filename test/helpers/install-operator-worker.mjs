@@ -10,7 +10,7 @@ if(Deno.env.get('INSTALL_OPERATOR_CALIBRATE')==='1'){
 }
 const targetBytes=fs.readFileSync(Deno.env.get('INSTALL_OPERATOR_TARGET'));
 assert.equal(j.sha(targetBytes),require(ROOT+'/scripts/linear-exit-install-profiles').get(Deno.env.get('INSTALL_OPERATOR_PROFILE')||'observed67').target);
-const profile=Deno.env.get('INSTALL_OPERATOR_PROFILE')||'observed67',prepared={plan,planBytes,targetBytes,target:JSON.parse(targetBytes)},c={profile,expectedDatabaseIdentity:JSON.parse(Deno.env.get('JOURNAL_IDENTITY')),ownerWindowEvidenceSha256:'a'.repeat(64)};
+const profile=Deno.env.get('INSTALL_OPERATOR_PROFILE')||'observed67',prepared={plan,planBytes,targetBytes,target:JSON.parse(targetBytes),expectedPostInstallTables:require(ROOT+'/scripts/linear-exit-observed-public-catalog').postInstallPublicTables(plan.initial_catalog_sha256).expected},c={profile,expectedDatabaseIdentity:JSON.parse(Deno.env.get('JOURNAL_IDENTITY')),ownerWindowEvidenceSha256:'a'.repeat(64)};
 // Only transport attestation is shimmed; all installer SQL runs on real PG17.
 const session={query:(s,p=[])=>s==='select ssl from pg_stat_ssl where pid=pg_backend_pid()'?Promise.resolve([{ssl:true}]):conn.unsafe(s,p)};
 try{

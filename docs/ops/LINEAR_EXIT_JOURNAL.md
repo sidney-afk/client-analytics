@@ -4280,6 +4280,81 @@ That was a rehearsal, not an incident. So "the time a restore to a new project
 takes during a real incident" remains **not proven**; it is now bounded by one
 rehearsal observation, not unknown.
 
+
+### D15 — The opt-out world's post-install count resolves from its starting hash, to the observed67 contract's count (2026-09-16, supervisor decision, verified independently by the session before applying)
+
+**What broke, and when.** `8299108` replaced nine hard-coded `90`s with one
+derivation, `postInstallPublicTables(plan.initial_catalog_sha256)`. That
+function resolves the starting catalog against the named contract artifacts.
+The opt-out world's starting catalog `f5ed8a38…` **is not a contract artifact**
+— it is a world the builder reverses back to `observed67` — so the lookup found
+nothing and threw. Before `8299108` the literal `90` was simply correct for it,
+by coincidence of arithmetic rather than by anything checking.
+
+**The change was approved by the supervisor, and the approval rested on a claim
+that was true of one profile and stated of two.** The executor said the two
+existing profiles were unaffected. That held for `observed67`. It did not hold
+for `observed67_optout`, and nothing in the approval asked which of the two had
+been exercised. Recorded here because the shape recurs: a claim about a set,
+evidenced against one member of it.
+
+**The neutrality check that found it, and what it proved.** The `observed67`
+run was genuinely neutral across the runner change: exit 0 on both sides, plan
+`3c000b76…` and every artifact byte-identical, with the single expected
+difference being the runner's own self-hash pin — and that difference was named
+**before** the run rather than explained after it. That is the half that is
+worth keeping. The opt-out run failed identically on both sides, at the same
+APPLY, with an identical plan, which is what identified the defect as older than
+the runner change.
+
+**The generic catch cost a diagnostic cycle.** `execute()` converts every
+failure into `INSTALL_OPERATOR_EXECUTION_REFUSED` carrying only a stage, which
+is deliberate — it keeps private detail out of operator output. The price is
+that a failure whose cause is a plain missing lookup entry arrives as an
+unnamed refusal. Naming it needed a separate no-database probe written for the
+purpose. The catch is not being changed here; the cost is being recorded so the
+next session reaches for a probe sooner instead of re-reading the install path.
+
+**The defect was mid-install, not pre-install, and that is the second half of
+the fix.** The resolution sat at `stage='target_comparison'`, after
+`maintenance.run()`. So an unresolvable starting catalog aborted an install with
+the maintenance guards already written to every public table, rather than
+refusing before the connection was opened. The resolution now happens in the
+installer's preflight `load()`, which runs before the postgres driver is even
+required, and the comparison site reads the already-resolved value. A world
+nothing can resolve is now a refusal that touches nothing.
+
+**Why the mapping is a hash-to-contract entry and not a field.** The opt-out
+plan hash `0c889149…` is pinned and checked. Any field added to the plan to
+carry this would change the plan bytes and break that pin. The entry therefore
+resolves from the starting hash alone, in a frozen reviewed table beside the
+contracts, and carries its own provenance: the delta is one column and one ACL
+string on an existing table and **zero tables**, proven by the builder's own
+`assert.equal(j.sha(j.canonical(old)),OLD,…)` — a delta that added or dropped a
+table could not reverse that way and would fail that assert. What would make it
+wrong is stated in the same comment: any future opt-out delta that adds or drops
+a table.
+
+**Verified independently before applying**, by reading
+`linear-exit-install-profiles.js`, `linear-exit-observed-public-catalog.js` and
+`linear-exit-install-operator.js`, and by executing the resolution for all three
+starting catalogs: `observed67` 67+23=90, opt-out 67+23=90, `settled68` 68+23=91,
+with an unknown hash still refused. `INSTALL_CREATED_PUBLIC_TABLES` was not
+touched and no hash was re-pinned.
+
+**One companion change beyond the letter of the decision, flagged rather than
+folded in silently.** `test/helpers/install-operator-worker.mjs` builds its own
+`prepared` object instead of calling `load()`. Moving the resolution into
+`load()` would have left that object without the field, and the comparison site
+would then have failed `GUARD_COUNT` for **every** profile — the same class of
+misleading error this entry is about. The worker now resolves the value the same
+way `load()` does. It is not adjacent work; it is the second producer of the
+object whose contract changed.
+
+**The 91 remains untested, not contradicted.** Nothing here measured a
+post-install count. The calibration is still the test of the `settled68`
+arithmetic, and it does not run until both existing profiles pass neutrality.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

@@ -142,22 +142,66 @@ function load({readFile = fs.readFileSync, contract = DEFAULT_CONTRACT} = {}) {
   return expected;
 }
 
+/* STARTING CATALOGS THAT ARE NOT THEMSELVES A CONTRACT ARTIFACT.
+ *
+ * A world can differ from a contract's picture without differing in TABLE
+ * COUNT, and this arithmetic only ever needs the count. Such a world gets an
+ * entry here naming the contract whose table count governs it. The entry is
+ * reviewed, finite and resolved from the starting hash alone; nothing accepts
+ * a caller-supplied mapping.
+ *
+ * f5ed8a38... is the opt-out world. It is the observed67 picture with one
+ * column (`auto_assign_opt_out`) dropped from `team_members` and that table's
+ * ACL widened. ONE COLUMN AND AN ACL STRING; ZERO TABLES.
+ *
+ * WHERE THAT IS PROVEN -- by the builder, not by this comment.
+ * `linear-exit-install-profiles.js` build() reverses exactly that delta on a
+ * clone and then asserts
+ *   assert.equal(j.sha(j.canonical(old)),OLD,'only exact known source migration delta may be reversed for source planning')
+ * The reversal edits columns and an ACL on a table present in both worlds, so
+ * `tables.length` is untouched, and the result hashes to the observed67
+ * catalog. A delta that added or dropped a table could not reverse that way:
+ * the assert would fail and no plan would be built at all.
+ *
+ * WHY IT LIVES HERE AND NOT ON THE PROFILE OR THE PLAN. The opt-out plan hash
+ * 0c889149... is pinned and checked in the builder and in the installer's
+ * preflight. A field added to the plan to carry this would change the plan
+ * bytes and break that pin.
+ *
+ * WHAT WOULD MAKE IT WRONG: any future opt-out delta that ADDS OR DROPS A
+ * TABLE. Then the opt-out world no longer shares observed67's count, this
+ * entry is wrong, and the count must be re-derived from that world's own
+ * reviewed artifact -- never adjusted by hand to fit a run.
+ */
+const STARTING_CATALOG_TABLE_COUNT_SOURCE = Object.freeze({
+  'f5ed8a38a4454e62905192c49de9a6a790c1bb48e247884efed12562b1161c25': 'observed67',
+});
+
 /* Expected public table count AFTER installation, for whichever world the plan
  * starts from. The plan names its own starting catalog, so nothing has to be
  * told which profile it is serving -- which is the defect the nine literals
  * had: they asserted a number they had no way to be right about. */
 function postInstallPublicTables(initialCatalogSha256, {readFile = fs.readFileSync} = {}) {
   if (!/^[a-f0-9]{64}$/.test(initialCatalogSha256 || '')) throw Error('OBSERVED_CATALOG_STARTING_SHA_SHAPE');
-  for (const contract of Object.keys(ARTIFACTS)) {
-    const expected = load({readFile, contract});
-    if (expected.catalog_sha256 !== initialCatalogSha256) continue;
-    const tables = expected.sections.find(section => section.name === 'tables');
-    if (!tables || !Number.isInteger(tables.count)) throw Error('OBSERVED_CATALOG_TABLE_COUNT');
-    return {contract, pre_install: tables.count,
-      created: INSTALL_CREATED_PUBLIC_TABLES,
-      expected: tables.count + INSTALL_CREATED_PUBLIC_TABLES};
+  let contract = null, expected = null;
+  for (const name of Object.keys(ARTIFACTS)) {
+    const candidate = load({readFile, contract: name});
+    if (candidate.catalog_sha256 === initialCatalogSha256) { contract = name; expected = candidate; break; }
   }
-  throw Error('OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG');
+  if (!contract) {
+    // No artifact IS this starting catalog. A reviewed entry above may still
+    // name the contract whose table count governs it; nothing else may.
+    contract = STARTING_CATALOG_TABLE_COUNT_SOURCE[initialCatalogSha256] ?? null;
+    if (!contract) throw Error('OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG');
+    expected = load({readFile, contract});
+  }
+  const tables = expected.sections.find(section => section.name === 'tables');
+  if (!tables || !Number.isInteger(tables.count)) throw Error('OBSERVED_CATALOG_TABLE_COUNT');
+  // `contract` names where the COUNT came from. For an entry resolved above it
+  // is not a claim that the starting catalog's bytes equal that contract's.
+  return {contract, pre_install: tables.count,
+    created: INSTALL_CREATED_PUBLIC_TABLES,
+    expected: tables.count + INSTALL_CREATED_PUBLIC_TABLES};
 }
 
 async function verify(readOnlyQuery, {projectRef} = {}) {

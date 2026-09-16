@@ -163,8 +163,23 @@ PostgreSQL 17 binaries, which you set with `F42_REHEARSAL_PGBIN`.
 > `::1`, and the helper's own self-managed cluster listens on a Unix socket
 > only, which does not satisfy that and does not exist on Windows.
 
-Start a throwaway PostgreSQL 17 cluster listening on `127.0.0.1`, point
-`PGHOST` and `PGPORT` at it, set `F63_REQUIRE_POSTGRES=1`, and run:
+> **The cluster's collation matters and it is what stopped the first attempt.**
+> A `--locale=C` or `C.UTF-8` cluster sorts by byte value; live sorts
+> linguistically, and the rebuild will not match. Create it with ICU:
+>
+> ```
+> initdb -D <new data dir> -U postgres -A trust \
+>        --locale-provider=icu --icu-locale=en-US --encoding=UTF8
+> ```
+>
+> (If `initdb` complains about the libc locale alongside ICU, add `--locale=C`.
+> The ICU locale is the one that matters here; the libc one only covers ctype.)
+>
+> Then start it listening on loopback, and point `PGHOST`/`PGPORT` at it.
+
+With that cluster up, `F63_REQUIRE_POSTGRES=1` set and `PGHOST`/`PGPORT`
+pointed at it, run the selfcheck again — **it now probes the collation** and
+will refuse up front rather than twenty minutes in. Then run:
 
 ```powershell
 node scripts/linear-exit-b9-catalog-derive.js `

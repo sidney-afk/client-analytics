@@ -30,6 +30,108 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Collation settled by measurement: use ICU `en-US`; the selfcheck now probes it, which is the fix that matters
+
+Answering the choice the part 2 entry put to the owner. The diagnosis in that
+entry is correct and was not taken on trust; the ordering was reproduced here.
+
+**Measured on PostgreSQL 17.11**, on the exact two identities whose order
+differed:
+
+| Collation | order |
+|---|---|
+| `C` (byte order) | `…import(pg_catalog.jsonb)` then `…import_counts(x)` |
+| ICU `en-US` | `…import_counts(x)` then `…import(pg_catalog.jsonb)` |
+| ICU `unicode` | `…import_counts(x)` then `…import(pg_catalog.jsonb)` |
+
+Live's order is `_counts(` first. So a linguistic collation reproduces it and
+byte order does not, which is exactly what the failure showed.
+
+**Recommendation, and it is ICU rather than libc `en_US.UTF-8` for a specific
+reason.** The derivation runs on a Windows machine, and PostgreSQL on Windows
+does not support UTF-8 libc locales properly — ICU exists for this. ICU is also
+reproducible without generating OS locales, so it behaves the same on the
+Windows machine, in CI and in this sandbox. The command is on both pages:
+
+```
+initdb -D <new data dir> -U postgres -A trust \
+       --locale-provider=icu --icu-locale=en-US --encoding=UTF8
+```
+
+**The real fix is that the selfcheck now probes it.** It runs those same two
+strings against the cluster you are about to use and refuses up front. Verified
+both ways here: `B9_DERIVE_SELFCHECK_PROBLEMS` naming the collation against a
+`C.UTF-8` cluster, `B9_DERIVE_SELFCHECK_OK` against an ICU `en-US` one.
+
+This is the second time in one day the selfcheck missed something the owner then
+hit at the keyboard — first `F63_REQUIRE_POSTGRES` and the loopback host, now
+the collation. Both times the pattern was the same: **the check covered what
+this session imagined was fragile, not what the code path actually requires.**
+The preflight has now been rebuilt from the assertions themselves rather than
+from intuition, which is what it should have been to begin with.
+
+**One honest limit, stated on the page too.** ICU `en-US` matches live on the
+case we could check. It is not proven identical to live's own collation across
+all 1,336 dependency entries. The loader's exact-match comparison is the real
+test and it is self-verifying: if `dependencies` matches, the collation was
+compatible. If it refuses on `dependencies` again, that should be reported
+rather than answered by trying locales in a loop — the next step would be
+establishing live's actual collation, which is a read we have not done.
+
+**A durable fix exists and is deliberately NOT being done now.** If the catalog
+query sorted its text columns under an explicit `COLLATE`, reconstructions would
+be reproducible under any cluster locale and this class of failure would be
+gone. But the live captures were taken under live's collation and are pinned by
+hash, so changing the query re-pins every observed artifact that depends on it.
+That is a bigger change than the one in front of us and it belongs to whoever
+revisits the baseline, not to the middle of an install window. Recorded so it is
+not rediscovered as though it were new.
+
+### 2026-09-16 — Short sitting, part 2: B9 derivation FAILED on a collation the session chose; stopped, not retried
+
+**What happened.** A throwaway PostgreSQL 17.11 cluster was started on
+`127.0.0.1` only, with the runbook's binaries and a new data directory. The
+derivation ran with `F63_REQUIRE_POSTGRES=1` into a new private directory. It
+returned `B9_DERIVE_FAILED` with stages `["cluster_started"]`. The cluster was
+then stopped: `pg_ctl status` exit 3, nothing listening. The directory and its
+error log are preserved.
+
+**Where.** Inside the observed-schema reconstruction, before the opt-out
+prerequisite or the hiring migration was applied. The loader rebuilds the
+2026-09-12 observed schema and compares every catalog section with the capture.
+Exactly one section differed: **`dependencies`**.
+
+**Why, measured and not assumed.**
+
+- The rebuilt `dependencies` section holds **the same 1,336 entries** as the
+  capture: none missing, none extra. **Only their order differs.** 37 of 1,336
+  positions shift. The loader compares each section canonically, so array order
+  counts.
+- The pinned catalog query orders dependencies by
+  `o.type, o.identity, r.type, r.identity, d.deptype`. Those are text columns,
+  so the order follows the cluster's collation.
+- The first differing position shows the mechanism. Live sorts
+  `production_comment_card_import_counts(…)` **before**
+  `production_comment_card_import(pg_catalog.jsonb…)`, which is linguistic
+  ordering with punctuation weighted low. The rebuild sorts them the other way,
+  byte order, where `(` (0x28) precedes `_` (0x5F).
+- **The session initialised the cluster with `--locale=C`.** The sitting page
+  and the B9 page name no locale; C was the session's own choice, and it was the
+  wrong one. CI's PG17 lanes use the `postgres:17` image, whose default locale is
+  linguistic, which is why the same reconstruction passes there.
+
+**So this is an environment artifact introduced by the session, not a finding
+about the schema, the live database or the scripts.** No derivation numbers
+exist yet. Nothing was retried. A retry needs a new cluster, with a linguistic
+collation that reproduces live's sort order, and a new output directory. The
+choice of collation is put to the owner.
+
+**For whoever writes the next version of these pages:** a derivation or rebuild
+whose catalog query sorts text is only reproducible under a collation that
+matches live's. State the locale explicitly. "A throwaway PostgreSQL 17 cluster"
+is not a sufficient specification, and the `observed-schema` loader's
+exact-match check is what caught it.
+
 ### 2026-09-16 — CORRECTION: eleven date stamps in this session's work said 2026-09-17 and the date was 2026-09-16; plus the two page defects the sitting found, both fixed
 
 Three corrections, all from the same push.
@@ -78,6 +180,7 @@ The check was written to cover what this session thought was fragile — the
 PostgreSQL binaries — and not what the code actually asserts. **The right source
 for a preflight is the assertions in the code path, read one by one, not a guess
 at what usually goes wrong.**
+
 
 ### 2026-09-16 — Short sitting, part 1: selfcheck OK; step 8 catalog read taken as observation only
 

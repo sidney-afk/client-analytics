@@ -150,8 +150,44 @@ refusals, not warnings, and both were found at the keyboard on 2026-09-16.**
    `listen_addresses=''` and connects over a Unix socket, which is not a
    loopback address and does not exist on Windows at all.
 
-So: start a throwaway PostgreSQL 17 cluster listening on `127.0.0.1`, point
-`PGHOST` and `PGPORT` at it, set `F63_REQUIRE_POSTGRES=1`, then:
+> **THE COLLATION. This stopped the first attempt on 2026-09-16 and it is not
+> obvious.** The pinned catalog query orders several sections by text columns,
+> so a rebuild only reproduces the live capture under a collation that sorts the
+> way live sorts. A cluster made with `--locale=C` or `C.UTF-8` sorts by byte
+> value, which puts `(` (0x28) before `_` (0x5F). Live sorts linguistically and
+> puts `_` first. That one difference moved 37 of 1,336 dependency entries and
+> the loader's exact-match check refused — correctly — after the cluster was
+> already up and twenty minutes were gone.
+>
+> Measured here on PostgreSQL 17.11 against the two identities that actually
+> differed: byte order puts `…import(pg_catalog.jsonb)` first; **ICU `en-US`
+> and ICU `unicode` both put `…import_counts(` first, which is live's order.**
+>
+> So create the cluster with an ICU locale:
+
+```
+initdb -D <new data dir> -U postgres -A trust \
+       --locale-provider=icu --icu-locale=en-US --encoding=UTF8
+```
+
+(If `initdb` complains about the libc locale alongside ICU, add `--locale=C`.
+The ICU locale is the one that matters here; the libc one only covers ctype.)
+
+Then start it listening on loopback, and point `PGHOST`/`PGPORT` at it.
+
+> **The selfcheck now probes this**, using those same two strings, and refuses
+> before the long run rather than during it. Run it against the cluster you are
+> about to use, not just anywhere.
+>
+> One honest limit: ICU `en-US` matches live on the case we could check, and it
+> is not guaranteed identical to live's own collation across all 1,336 entries.
+> The loader's exact-match comparison is the real test and it is self-verifying
+> — if `dependencies` matches, the collation was compatible. If it still
+> refuses on `dependencies`, report it rather than trying other locales in a
+> loop; the next step is determining live's actual collation, not guessing.
+
+With that cluster up, `F63_REQUIRE_POSTGRES=1` set and `PGHOST`/`PGPORT`
+pointed at it:
 
 ```powershell
 node scripts/linear-exit-b9-catalog-derive.js `

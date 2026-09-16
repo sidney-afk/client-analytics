@@ -132,6 +132,39 @@ function selfcheck() {
   catch { problems.push('no postgres binary at ' + pgbin + ' -- set F42_REHEARSAL_PGBIN to a PostgreSQL 17 bin directory'); }
   if (serverVersion && !/\b17\./.test(serverVersion)) problems.push('server is not PostgreSQL 17: ' + serverVersion);
 
+  /* THE COLLATION PROBE. The pinned catalog query orders several sections by
+   * text columns, so a rebuild only reproduces the live capture under a
+   * collation that sorts the way live sorts. A cluster created with --locale=C
+   * (or C.UTF-8) sorts by byte value, which puts '(' 0x28 before '_' 0x5F; live
+   * sorts linguistically, weighting punctuation low, and puts '_' first. That
+   * single difference shifted 37 of 1,336 dependency entries and stopped the
+   * derivation on 2026-09-16 after the cluster was already up.
+   *
+   * These are the exact two identities whose order differed. If the cluster
+   * sorts them the byte way, the derivation WILL fail, so say so now rather
+   * than twenty minutes in. */
+  const probeHost = process.env.F42_REHEARSAL_SOCKET || process.env.F42_REHEARSAL_PGHOST || process.env.PGHOST || '';
+  if (probeHost && pgbin) {
+    const a = 'production_comment_card_import_counts(x)';
+    const b = 'production_comment_card_import(pg_catalog.jsonb)';
+    const sql = "select string_agg(v,'|' order by v) from (values ('" + a + "'),('" + b + "')) t(v)";
+    const r = cp.spawnSync(path.join(pgbin, 'psql'),
+      ['-X', '-q', '-t', '-A', '-h', probeHost, '-p', String(process.env.PGPORT || 55432),
+       '-U', process.env.PGUSER || 'postgres', '-d', 'postgres', '-c', sql],
+      { encoding: 'utf8', timeout: 20000 });
+    if (r.status === 0) {
+      const first = (r.stdout || '').trim().split('|')[0] || '';
+      if (first.startsWith(b)) {
+        problems.push('the target cluster sorts by BYTE order, not linguistically -- the observed-schema rebuild will not reproduce the live capture and the derivation will fail in its first real stage. Recreate the cluster with an ICU locale: initdb --locale-provider=icu --icu-locale=en-US --encoding=UTF8. See LINEAR_EXIT_B9_CATALOG_REDERIVATION.md.');
+      } else if (!first.startsWith(a)) {
+        problems.push('collation probe returned an unexpected result; could not establish the cluster\'s sort order');
+      }
+    } else {
+      problems.push('could not reach the cluster at ' + probeHost + ' to probe its collation (' + ((r.stderr || '').trim().split('\n')[0] || 'psql failed') + ')');
+    }
+  }
+
+
   return {
     marker: problems.length ? 'B9_DERIVE_SELFCHECK_PROBLEMS' : 'B9_DERIVE_SELFCHECK_OK',
     reviewed_observed_catalog_sha256: reviewed.catalogSha256,

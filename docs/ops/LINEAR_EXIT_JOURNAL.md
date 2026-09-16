@@ -4374,6 +4374,52 @@ synthetic world has zero tables, so it now carries
 one object, only one of which is `load()`, is the reason a missing field needed
 a name in the first place.
 
+### D16 — The calibration's derived target is written under a filename that names its profile (2026-09-16, supervisor, found on review of the lane)
+
+The calibrate path of `test/helpers/install-operator-worker.mjs` wrote its
+derived target to `optout-target.private.json` regardless of
+`INSTALL_OPERATOR_PROFILE`. The `settled68` calibration would therefore have
+written the settled world's target into a file named for the opt-out world.
+
+**Not cosmetic.** `profiles.settled68.target` is deliberately `null` so that no
+plausible-looking hash can be written there by accident, and the file this run
+produces is the only thing that will ever fill it. A target read out of a file
+named for a different world is precisely how a confidently wrong pin gets made,
+and the pin would then be checked against itself forever after. It is the same
+defect class as the nine literals and the masked catch: an artifact stating
+something it has no way to be right about.
+
+The name is now `<profile>-target.private.json`, built from the same env var and
+the same `observed67` default the worker's non-calibrate path already uses:
+`observed67-target.private.json`, `observed67_optout-target.private.json`,
+`settled68-target.private.json`.
+
+**What the reference check found, reported rather than renamed past.** Two
+references to the old name exist in the repository and only one is code.
+
+- `test/helpers/install-operator-worker.mjs` — the producer, changed here.
+- `docs/ops/LINEAR_EXIT_INSTALLATION_DAY_20260914.md` line 141 — **a historical
+  record, not a consumer.** It names
+  `linear-exit-install-operator-e7df95d7…/optout-target.private.json` as the
+  private target file of calibration receipt `e7df95d7…`, a run that already
+  happened on 2026-09-14. That file keeps its name; the line stays true and was
+  not touched. A future opt-out calibration writes into its own receipt
+  directory under the new name, so nothing is made ambiguous by the two
+  coexisting.
+
+Nothing reads the written file back by name: the postgres runner passes the
+target in through `INSTALL_OPERATOR_TARGET` and skips the hash assertion while
+calibrating, the CI workflow does not mention it, and no copy exists anywhere in
+the working tree. Checked by searching the tracked repository for both the exact
+name and the `*target.private.json` shape, and by searching the filesystem.
+
+**Left alone deliberately:** the sibling `operator-result.private.json`, written
+by the same branch, is also profile-neutral. It records a status and the hashes
+it just computed rather than a value anything will be pinned from, so it is not
+in the same class. Named here so the next reader knows it was considered.
+
+Nothing was run against a database.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

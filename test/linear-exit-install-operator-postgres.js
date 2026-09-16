@@ -7,7 +7,16 @@ const files=['scripts/linear-exit-install-operator.js','scripts/linear-exit-inst
 try{c.start();require('../scripts/linear-exit-observed-schema').applyObservedSchema(c,{inputDirectory:E,outputDirectory:out});c.exec('alter table storage.buckets alter column name set not null; alter table storage.buckets add column public boolean, add column file_size_limit bigint, add column allowed_mime_types text[];');
  const prerequisite=cp.execFileSync('git',['show','73d5fdc361:migrations/2026-09-14-team-members-auto-assign-opt-out.sql'],{cwd:ROOT});assert.equal(j.sha(prerequisite),'fbd5ae8ecbef6e28cce913878791cb5f2a2a7fc70a7c930d3c0d3b508966fbaa');const prerequisiteFile=path.join(out,'autoassign-prerequisite.private.sql');fs.writeFileSync(prerequisiteFile,prerequisite,{flag:'wx'});
  const profile=process.env.INSTALL_OPERATOR_PROFILE||'observed67';assert(['observed67','observed67_optout','settled68'].includes(profile));
- if(profile==='observed67_optout'){c.exec(prerequisite.toString('utf8'));c.exec("insert into public.team_members(id,name,role,auto_assign_opt_out) values('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','ISOLATED OPERATOR FIXTURE','editor',true)");}
+ // What each profile ADDS on top of the observed schema. A table rather than a
+ // chain of ifs, for the reason the guard counts stopped being literals: the
+ // next profile should be a row, not a branch. settled68 is not a separate
+ // construction -- it is the opt-out world plus the hiring migration, which is
+ // on main at 1abdd1fa. Recipe proven by scripts/linear-exit-b9-catalog-derive.js,
+ // which built the settled catalog the owner byte-confirmed on 2026-09-16.
+ const SETUP={observed67:{optout:false,hiring:false},observed67_optout:{optout:true,hiring:false},settled68:{optout:true,hiring:true}};
+ const setup=SETUP[profile];assert(setup,'no setup row for profile');
+ if(setup.optout){c.exec(prerequisite.toString('utf8'));c.exec("insert into public.team_members(id,name,role,auto_assign_opt_out) values('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','ISOLATED OPERATOR FIXTURE','editor',true)");}
+ if(setup.hiring){c.exec(fs.readFileSync(path.join(ROOT,'migrations/2026-09-15-hiring-video-editor-role.sql')).toString('utf8'));}
  const initial=c.scalarJson(catalog.query()),built=require('../scripts/linear-exit-install-profiles').build(initial,profile),plan=path.join(out,'operator-plan.private.json');fs.writeFileSync(plan,built.planBytes,{flag:'wx'});
  const target=profile==='observed67'?path.join(E,'linear-exit-observed-full-install-332df4aeaf7b48218006e705b9128ff7/full-target.private.json'):process.env.INSTALL_OPERATOR_TARGET;
  if(process.env.INSTALL_OPERATOR_CALIBRATE!=='1')assert.equal(j.sha(fs.readFileSync(target)),require('../scripts/linear-exit-install-profiles').get(profile).target);

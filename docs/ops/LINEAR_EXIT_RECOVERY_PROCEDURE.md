@@ -47,6 +47,18 @@ Use the existing private restore command to recover and inspect it locally; keep
 1. From a clean checkout of the current main create a recovery branch. Use the captured, hash-matched previous commit to restore only index.html and the reviewed browser-asset set. If the capture does not match a Git commit, restore the exact captured bytes instead. Do not revert the entire migration or unrelated owner's work.
 
 ```powershell
+# "the current main" is the reviewed requirement in the line above. origin/main
+# is only as current as the last fetch, so fetch it, and REFUSE rather than fall
+# back to a stale local ref -- during a recovery a network problem is exactly
+# when that would happen, and branching from an old main would publish it and
+# silently revert everything merged since.
+git fetch origin main
+if ($LASTEXITCODE -ne 0) {
+  throw "REFUSING: could not fetch origin/main. Do not continue on the local ref; it may be stale, and publishing from a stale main reverts every merge since it."
+}
+# Print what you are about to branch from, and look at it before continuing.
+"branching from: " + (git rev-parse origin/main).Trim() + "  " + (git log -1 --format='%ci %s' origin/main)
+
 git switch -c recovery/linear-exit-browser origin/main
 git restore --source=<verified-previous-browser-commit> -- index.html
 # Restore each changed browser asset from the same verified capture as well.

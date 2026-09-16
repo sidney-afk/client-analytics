@@ -30,6 +30,116 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Recovery command brought up to its own prose; runner table applied; PROPOSED rule on prose preconditions, with the sweep behind it
+
+### The recovery fix, and why it is not a change to a reviewed document
+
+The owner's reasoning, which is right and worth stating in his terms. The
+document already says, at line 47:
+
+> 1. **From a clean checkout of the current main** create a recovery branch.
+
+And the command underneath it said:
+
+```powershell
+git switch -c recovery/linear-exit-browser origin/main
+```
+
+**The reviewed decision is in the prose. The command simply does not do what the
+document says.** `origin/main` is only as current as the last fetch. Making it
+fetch is bringing the command up to an intent that was already reviewed, not
+changing the intent.
+
+Fail-closed, not merely fetching, because a recovery is exactly when a network
+problem is plausible and exactly when a silent fall back to a stale local ref
+would happen:
+
+```powershell
+git fetch origin main
+if ($LASTEXITCODE -ne 0) {
+  throw "REFUSING: could not fetch origin/main. Do not continue on the local ref; it may be stale, and publishing from a stale main reverts every merge since it."
+}
+"branching from: " + (git rev-parse origin/main).Trim() + "  " + (git log -1 --format='%ci %s' origin/main)
+```
+
+It prints the resolved commit and its subject, so whoever is running it can see
+what they are about to branch from. **Both paths verified by execution**: the
+happy path resolved `1abdd1fa…` with its commit line, and an unreachable remote
+produced the refusal at exit 128.
+
+### The runner change, applied
+
+Line 10's single `if` is now a per-profile table:
+
+```js
+const SETUP={observed67:{optout:false,hiring:false},observed67_optout:{optout:true,hiring:false},settled68:{optout:true,hiring:true}};
+```
+
+`observed67` false/false and `observed67_optout` true/false are exactly their
+existing behaviour, checked. `settled68` adds the hiring migration from main.
+**The before-and-after confirmation needs the private inputs and goes to the
+local session** with the calibration re-run, as the owner directed.
+
+### PROPOSED rule, not added: prose stating a precondition is not a check of it
+
+Three instances in one day, which is what makes it a pattern rather than three
+mistakes:
+
+1. The sitting page **asserted every path was absolute** and then used a
+   relative one.
+2. The capture section **ordered a STOP unless a scratch server reported
+   stopped**, for a wrapper that has none.
+3. The recovery procedure **named "the current main"** and then branched from
+   whatever `origin/main` happened to be.
+
+> **A sentence describing a property is not a check of that property.** Prose
+> stating a precondition is the most convincing possible way to fail to enforce
+> it: it reassures the reader and the author that the matter is handled, and it
+> reads exactly like a guarantee while guaranteeing nothing. When a document
+> names a precondition, either something must enforce it or the document must
+> say plainly that the reader is the enforcement.
+
+**The discriminator, which the sweep produced and which the rule needs to be
+usable.** "The block contains no check" is not the test — most blocks here call
+a wrapper or a lane that enforces its own preconditions, and that is fine. The
+test is whether **anything anywhere** enforces it:
+
+| | verdict |
+|---|---|
+| prose precondition + a callee that enforces it | fine |
+| prose precondition + a human decision nothing could check | fine, if the document says the reader is the check |
+| prose precondition + an unguarded primitive | **defect** |
+
+`git switch -c … origin/main` is the third row: git will branch from a stale ref
+without complaint, and there is no callee to catch it.
+
+### The sweep, two shapes, and an honest result
+
+**Shape A**: precondition language in the prose above a block, with no check in
+the block — 45 candidates. **Shape B**, deliberately different: blocks whose
+first act *mutates* with no validation anywhere in them — 15.
+
+Hand-checked every candidate on a live operational path. **One real defect, the
+one already fixed.** The rest fall in the first two rows above:
+
+- `LINEAR_EXIT_RECOVERY_PROCEDURE.md` block@101 — `gh workflow run … --ref main`
+  resolves the ref **server-side**, so staleness does not arise; its prose
+  preconditions ("verify all 13", "after explicit recovery authorization") are
+  human decisions with nothing machine-checkable.
+- `LINEAR_EXIT_INSTALLATION_DAY_20260914.md` block@51 — calls the same three
+  wrappers, and **the wrappers enforce their own preconditions.** Checked
+  specifically, and reported as a negative result: **it does not repeat the four
+  claims corrected on the sitting page today.** Those were the sitting page's
+  own invention, not inherited.
+- The F27 runbook's `gh workflow run` blocks — the deploy lanes **fail closed**
+  on a fingerprint mismatch.
+- Most of the remaining shape-A hits are ledger prose in `OPEN_REPAIRS.md`,
+  not instructions anyone runs.
+
+**So: swept, one found, and the reason the rest are not defects is written down
+rather than left as a count.** A sweep that reports "45 candidates" and stops
+has done the easy half.
+
 ### 2026-09-16 — B5 dry run PASSED under PowerShell 7.6.6 after an owner-approved install; this fixes the machine, NOT the block
 
 **What was done, owner-approved, on the owner's machine.**

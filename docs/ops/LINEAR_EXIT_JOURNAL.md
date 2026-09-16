@@ -30,6 +30,73 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Session C page written; both unproven blocks moved into it; and what CANNOT be proven about steps 9 and 10, said plainly
+
+Three things, all consequences of the sweep, all at the owner's direction.
+
+**The runnable-block rule is now in `AGENTS.md` and covers chat handover
+explicitly.** The sweep's most useful finding was not any single defect, it was
+that `--plan-from` had never been on a page. **Work handed over in a message
+skips every check that work in the repository gets** — not swept, not reviewed,
+not run. The rule says so, and says the same of relaying someone else's block:
+passing it along is not a reason to skip reading it. The supervisor relayed that
+block unchecked, which is the same failure one level up.
+
+**A session C page now exists**, which is itself the fix for the same problem:
+session C had only ever been described in chat messages, so it had exactly the
+status `--plan-from` had. The calibration command is deliberately **not** on it
+yet, with a box saying why: no session has executed it in this form, and writing
+it down now would reproduce the defect the sweep just found. It goes on the page
+after it has been run against an isolated cluster.
+
+**Both unproven blocks moved into session C**, because the owner's reasoning is
+better than "well before the merge":
+
+> **"Well before the merge" is how something ends up happening at the merge.**
+
+- **B5** is now a dry run in session C, section 2. It proves `tar` is present,
+  that PowerShell splats the file list into `git` correctly, and that
+  `git archive` reproduces main's bytes. **It downloads nothing and records no
+  capture**, because the real capture must be taken immediately before the exit
+  merge and at no other moment.
+- **Steps 9 and 10** get a preflight in section 3, run **before the one-hour
+  clock exists**. That ordering is the real fix: a failure discovered inside the
+  clock costs the catalog read and the sitting; the same failure discovered a
+  day earlier costs nothing.
+
+### What can be proven about the step 9 and 10 wrappers, and what cannot
+
+The owner asked for this without reaching, so: **the preflight proves less than
+it looks like it does, and one gap cannot be closed by any preflight.**
+
+Provable, and now checked: the wrappers exist at the paths the page names;
+`node --check` parses each one, executing nothing, so the files are readable and
+intact; node is on PATH. That catches the single most likely defect, a wrong
+path, which is the class that just bit us twice.
+
+**Not provable by any preflight, and not by this session at all: the argument
+lists.** Those wrappers are private. This session cannot read them, so the
+argument order and flags written on the sitting page have never been verified
+against the things they invoke. They are, precisely, guesses that happen to
+resemble what was run on 2026-09-14.
+
+**But the house already solved this, and the solution was simply never applied
+here.** The Storage operator's section said, in terms: *that file is the
+authority for the exact argument list. Do not guess flags from this page; read
+its usage line.* The database wrappers got no such instruction, and their
+argument lists were written out on the page as though they were known. So the
+gap is not a missing capability, it is an existing pattern applied to one
+wrapper and not the other two.
+
+Session C section 3 closes it the same way: read each wrapper's usage line and
+compare it against the page. **If they disagree, the wrapper is right and the
+page is wrong.** That is a minute of the owner's time and it converts three
+blocks from unverified to checked against their own authority.
+
+The honest summary: **path resolution and file integrity are provable and now
+proven; argument acceptance is not provable without either running the wrappers
+or reading them, and reading them is the cheap one.**
+
 ### 2026-09-16 — Settled plan hash MEASURED on the owner's machine: `e3dae746…`; recorded, NOT pinned
 
 **The value, copied whole from the printed output:**

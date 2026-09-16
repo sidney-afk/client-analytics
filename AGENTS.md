@@ -171,6 +171,25 @@ against the version it replaces and confirm each dropped constraint was dropped
 on purpose; say which, and why, in the commit message. Reasoning and the
 incident behind it are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A RUNNABLE BLOCK IS ONLY PREPARED IF IT HAS BEEN RUN AS WRITTEN. THAT INCLUDES ONE PASTED INTO CHAT.
+
+Owner-ratified 2026-09-16. The whole point of a prepared block is that it can be
+run at the keyboard **without reasoning**. One that needs a path corrected first
+has defeated its own purpose, in the place where reasoning is most expensive.
+
+So: execute it as written, from the place the instructions say to stand, before
+handing it over. Absolute paths to the script as well as to its arguments.
+
+**A block handed over in a message skips every check that work in the repository
+gets** — it is not swept, not reviewed, not run. Put it on the page, then hand
+over the page. **Relaying someone else's block unchecked is the same failure**;
+passing it along is not a reason to skip reading it.
+
+Where a script is private and cannot be read, its **own usage line is the
+authority** for its argument list. Do not restate flags from memory and do not
+guess them. Reasoning and the sweep behind it are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## A COMPOSITE CLAIM IS ONLY AS VERIFIED AS ITS WEAKEST PART.
 
 Owner-ratified 2026-09-16. Before calling a claim verified, split it and label

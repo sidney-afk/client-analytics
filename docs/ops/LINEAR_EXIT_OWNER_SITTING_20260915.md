@@ -265,8 +265,20 @@ that one. You do not need them today.
 > **The three blocks in this later sitting have not been executed in their
 > current form**, because steps 9 and 10 were deferred. They use absolute paths
 > to the owner's own wrappers, the same shape as the catalog read that ran
-> successfully on 2026-09-16, so there is no known defect in them. That is not
-> the same as proof, and it is recorded here rather than assumed.
+> successfully on 2026-09-16, so there is no known defect. That is not proof.
+>
+> **Everything checkable about them is checked in
+> [session C](LINEAR_EXIT_SESSION_C_20260916.md), section 3, before this
+> sitting's one-hour clock exists** — the wrappers are present, readable and
+> intact, and node is on PATH.
+>
+> **One thing a preflight cannot check**, and it matters here: the argument
+> lists below have never been verified against the wrappers themselves, which
+> are private. The Storage operator's section used to say its own file was the
+> authority for its argument list and that flags must not be guessed from this
+> page; **that was never done for these two.** Session C section 3 closes it by
+> reading each wrapper's usage line. If it disagrees with what is written
+> below, the wrapper is right and this page is wrong.
 
 ### Database capture and local restore (step 9), 20 to 30 minutes
 
@@ -413,15 +425,16 @@ hashes out of git rather than from a table, so it cannot go stale:
 **Run this from the repository checkout on this machine**, because it reads
 git. Everything else on this page runs from anywhere; this one does not.
 
-> **NEVER EXECUTED ON WINDOWS, stated rather than discovered.** Its git side was
-> verified on Linux, reproducing `1abdd1fa`'s `index.html` hash exactly, and
-> `git archive | tar` is deliberately used so PowerShell never touches the
-> bytes. But the block as a whole has not been run on this machine. It depends
-> on `tar` being present (Windows 10 and later ship it) and on PowerShell
-> splatting the `$files` array into the native `git` call. **Run it once, well
-> before the merge, purely to find out whether it works** — the one moment it
-> must not fail is the moment it is actually needed. A dry run costs nothing;
-> it downloads and hashes and writes only into its own output directory.
+> **Its dry run belongs to session C, not to "sometime before the merge".**
+> This block had never been executed on Windows: its git side was verified on
+> Linux, and `git archive | tar` is used so PowerShell never touches the bytes,
+> but `tar`'s presence and PowerShell's array splatting were untested there.
+> **"Well before the merge" is how something ends up happening at the merge**,
+> so the dry run is now section 2 of
+> [session C](LINEAR_EXIT_SESSION_C_20260916.md), which is a keyboard sitting
+> anyway. It proves the mechanics and downloads nothing.
+>
+> If session C's section 2 has not been done, do it before relying on this.
 
 ```powershell
 $out = "D:/Sidney/Codex/2026-09-13-final-review-repairs/browser-capture-UNIQUE"

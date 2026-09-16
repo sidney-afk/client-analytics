@@ -30,6 +30,115 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Owning the identity claim: I asserted what the rehearsal was for, and the rehearsal refuted it
+
+The storage session's entry below caught this and was right. Recorded here as
+the cloud session's own correction, because the mistake was mine and a record
+where someone else always catches me teaches the next session the wrong thing.
+
+The restore-to-new-project evaluation refused the route on two arguments. One
+was that it fails the installer's identity check, "and that is verifiable".
+**The rehearsal measured the opposite.** Live and the restored project both
+report `7642734024280108049`. The restore carries the control file and the
+identity check survives it. That section of the proposal is now retracted in
+place, with the original claim quoted rather than deleted.
+
+**The shape of the error, which is not "I got a fact wrong".** Half the claim
+was genuinely verified: `IDENTITY_SQL` really does read `system_identifier` from
+`pg_control_system()`, and I read that from the code. Bolted onto it was an
+inference about what Supabase does when it provisions a restore — a new cluster,
+therefore a new identifier — which was never checked and was entirely checkable.
+The verified half lent its credibility to the unverified half, and the whole
+thing got written down as "verifiable".
+
+**And the thing that makes it worse rather than excusable:** it was checkable by
+running the very rehearsal that document was proposing. The document asserted
+the answer to its own open question in one section while arguing for measuring
+it in another. That is the ratified rule failing at the moment it was most
+obviously applicable — *when a fact about live is knowable by reading live, read
+it rather than reasoning toward it* — and it went in the same push that recorded
+the rule.
+
+The refusal's other argument never depended on the identity claim and stands
+untouched: a restored new project has a different reference, URL and keys,
+nothing points at it, and the outage is not over until every consumer is
+repointed. The verdict on the route is unchanged and is the owner's; only the
+reasoning is corrected.
+
+Adopted from the storage session's entry, because it is more precise than what I
+wrote: `IDENTITY_SQL` checks **four** fields, and the rehearsal reported
+`system_identifier` alone. The database OID would be carried by the same
+physical-copy rule, but it was not measured, so it is expected and not
+established. My own entry said "the identity check would still pass" without
+that qualifier, which is the same over-claiming in the opposite direction.
+
+**A composite claim is only as verified as its weakest part.** Splitting one
+into "read from the code" and "assumed about the platform" would have caught
+this before it was written, and neither half was hard to label.
+
+### 2026-09-16 — MEASURED: `system_identifier` survives a Supabase restore; the B4 identity caveat is closed
+
+**Result of the approved restore-to-new-project rehearsal, reported by the
+owner:** the restored project's `system_identifier` is
+**`7642734024280108049`**, and live reads the same value.
+
+**Cross-checked independently on the owner's machine, with no new SQL.** The
+private identity records written by the three catalog reads on this machine all
+carry that value for live: 2026-09-14 (the last passing read), 2026-09-15, and
+today's step 8 observation. So live's value is stable across three days and
+three reads, and the restored project matches it.
+
+**What this settles.** The earlier entry recorded a *rule*, measured on an
+isolated cluster: a physical copy preserves `system_identifier`, a logical
+restore cannot. It left one thing outstanding: whether a managed Supabase
+restore actually carries the control file. **It does, observed on this
+project.** The restore behaved as a physical copy, and by implication so does
+the in-place restore of the same PHYSICAL backups. The recovery route B4 closed
+on no longer rests on an assumption at this point: after a restore, the
+installer's `IDENTITY_SQL` check keeps the identifier it expects.
+
+**Stated precisely, so nothing is over-claimed.** `IDENTITY_SQL` checks four
+fields: `current_database()`, the database OID, `session_user`, and
+`system_identifier`. The rehearsal result names `system_identifier` only. By
+the same physical-copy rule the database OID is carried too, but that was not
+reported, so it is recorded as expected, not measured.
+
+**Correction to the restore-to-new-project evaluation. The original entry is
+kept as written.** That entry refused the route partly by reading `IDENTITY_SQL`:
+"a new cluster carries a different identifier, so `fail('IDENTITY')` follows".
+**The rehearsal measured the opposite for `system_identifier`.** That half of
+the refusal's reasoning does not hold. Its other argument is untouched and
+stands on its own: a restored new project is a different reference, URL and
+keys, nothing points at it, and the outage is not over until every consumer is
+repointed or the data migrated back. Whether the route's adoption changes is
+**not decided here**. The reasoning is corrected; the verdict is left to the
+owner.
+
+### 2026-09-16 — Byte check PASSED on the authored contract; the directory named for it was the wrong one
+
+The cloud session authored the settled-state observed contract against a stated
+SHA-256, and nothing downstream was to be built until the bytes were confirmed.
+
+**Result**, reported as the full value rather than a verdict:
+
+- Candidate written by the successful derivation (`b9-derive-20260916-2`):
+  SHA-256
+  `c8e934bcdfd0f43ffe8767f076bbc65e6aae803285ae380e3e552f302fb6778a`,
+  2,907 bytes.
+- `docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260916.json` on the
+  branch (`46a60b81`): the same SHA-256, 2,907 bytes on disk, git blob 2,907.
+
+The owner compared the values and confirmed the check passed. No line diff was
+needed.
+
+**One line worth keeping.** The request named `b9-derive-20260916-1` as the
+directory. That was the **failed** first run, which stopped before writing any
+candidate, and the path came from the supervisor, not from the session's own
+record. The session showed that `-1` held no candidate, did not quietly
+substitute `-2`, and said so before running the command. Refusing to substitute
+kept the check honest: a comparison run against a silently swapped input is not
+the comparison that was asked for, however likely the swap is to be right.
+
 ### 2026-09-16 — RESTORE REHEARSAL ANSWERED BY MEASUREMENT: a Supabase restore preserves cluster identity, so the installer's identity check survives one
 
 The owner ran the rehearsal on his own project. **Measured, on live and on the
@@ -155,6 +264,7 @@ Two things worth keeping:
 Numbered attempt directories are exactly the setup for this: `-1` and `-2` look
 interchangeable in an instruction and are not. The sitting page's rule that a
 failed attempt keeps its directory is what made both exist at once.
+
 
 ### 2026-09-16 — Settled-state observed contract AUTHORED; awaiting the mandatory byte comparison before anything is built on it
 
@@ -2359,6 +2469,18 @@ A route to close the duration unknown at no risk is proposed, not adopted, in
 It also names a question the recovery procedure currently assumes rather than
 establishes: whether `system_identifier`, which the installer's identity check
 is built on, survives a restore at all. The reviewed procedure is unchanged.
+
+**B4 identity caveat CLOSED, 2026-09-16, by measurement. Row and notes kept
+above.** The question left open, whether `system_identifier` survives a
+restore, is answered **yes**, observed on this project. The approved
+restore-to-new-project rehearsal read `7642734024280108049` on the restored
+project, and live reads the same, cross-checked against three private reads
+on 2026-09-14, 2026-09-15 and 2026-09-16. B4 was already closed; this removes
+the one assumption its recovery route still carried. Two things are unchanged:
+the restore duration is still recorded as **unknown**, and database backups
+still exclude Storage objects. The rehearsal result names
+`system_identifier` only, so the database OID is expected to survive by the
+physical-copy rule but was not reported.
 
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a

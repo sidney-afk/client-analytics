@@ -37,28 +37,44 @@ and this one is the way that matters when the site is down.
 alternatives and the BETA option looks strictly safer. It is safer for the
 database and not safer for the recovery.
 
-### It also fails the installer's identity check, and that is verifiable
+### RETRACTED: it does NOT fail the installer's identity check
 
-`scripts/linear-exit-install-journal.js` builds the identity the install
-operator asserts:
+**This section originally claimed the opposite, and the claim was wrong. It is
+corrected here rather than quietly deleted, because the mistake is the useful
+part.**
 
-```sql
-select jsonb_build_object(
-  'database', current_database(),
-  'database_oid', (select oid::text from pg_database where datname=current_database()),
-  'system_identifier', (select system_identifier::text from pg_control_system()),
-  'session_user', session_user) as identity
-```
+What was written: `scripts/linear-exit-install-journal.js` builds the identity
+the operator asserts, from `current_database()`, the database OID,
+`session_user`, and `system_identifier` from `pg_control_system()`; and
+therefore "a new project is a new cluster, so it carries a different one", so
+`fail('IDENTITY')` follows.
 
-`system_identifier` comes from the cluster's control file and is generated when
-the cluster is created. A new project is a new cluster, so it carries a
-different one, and `database_oid` will differ too. The operator compares this
-against `expectedDatabaseIdentity` and calls `fail('IDENTITY')` on any
-difference.
+The first half is right and was read from the code. **The second half was an
+assumption about how Supabase provisions a restore, and the rehearsal measured
+the opposite.** Live and the restored project both report
+`7642734024280108049`. The restore carries the control file; it behaves as a
+physical copy. The identity check survives it.
 
-Consequence: a restored new project cannot be installed into, or resumed into,
-without re-deriving the identity expectation first. If a restore happened
-*during* the installation window, this route would not let the window continue.
+**Stated precisely, so this correction does not over-claim in the other
+direction.** `IDENTITY_SQL` checks four fields. The rehearsal reported
+`system_identifier` only. By the same physical-copy rule the database OID would
+be carried too, but that was **not** measured, so it is expected rather than
+established.
+
+**The refusal's other argument is untouched and stands on its own:** a restored
+new project has a different reference, URL and keys, nothing points at it, and
+the outage is not over until every consumer is repointed or the data migrated
+back. That is still why this is not a recovery route. It never depended on the
+identity claim.
+
+**Why this happened, which is the part worth keeping.** The identity claim was
+presented as verified because part of it was: the query really was read from the
+code. The inference bolted onto it — what Supabase does when it provisions a
+restore — was never checked, and it was checkable. That is precisely the rule
+ratified the same day: *when a fact about live is knowable by reading live, read
+it rather than reasoning toward it.* Here it was knowable by running the very
+rehearsal this document proposed, and the document asserted the answer instead
+of waiting for it.
 
 ---
 

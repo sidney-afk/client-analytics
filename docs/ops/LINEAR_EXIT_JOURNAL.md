@@ -30,6 +30,45 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-15 — Reduced Storage drill PASSED: same-machine Drive round trip and full decrypt
+
+Same owner sitting as the Storage capture below; placed at the top because it is
+the most recent event. The owner uploaded the packed Storage archive to the
+private Drive folder and downloaded it back onto **this same machine**, into
+their general Downloads folder. The session worked only from a clean directory
+of its own and never wrote into Downloads.
+
+Results, in order:
+
+- Downloaded archive: 2,346,184,452 bytes and SHA-256
+  `02bbd69b6a98fa8990a1a4dd7e2bab7b24b01284e1ca47e1eadadcdab7ef9a5a`, both
+  equal to the packed archive. Byte-for-byte identical after the round trip.
+- Transport verify: `DOWNLOADED_CIPHERTEXT_EXACT`, all 2,824 ciphertext files
+  present with matching size and hash, whole-archive hash checked before
+  extraction.
+- Full authenticated decrypt against the signed inventory (`c2867ecb…`):
+  `PASS_LOCAL_DOWNLOADED_RESTORE`, **1,085 objects, 2,343,907,896 bytes, every
+  object's bucket, path, SHA-256 and size verified.** Exit 0.
+- The restored tree holds 1,087 files. The two beyond the objects are the
+  package's own signed evidence, `coverage.hmac` and `storage-metadata.hmac`,
+  under `export-evidence`, which is not a bucket and is not in the inventory.
+  The two real buckets hold 1,061 and 24 objects, which is exactly the 1,085.
+- The receipt records, correctly and by design,
+  `other_device_retrieval_independently_proven: false` and
+  `independent_key_retrieval_proven: false`. Nothing set those true.
+
+**What this establishes:** the archive survives a round trip through private
+Drive unchanged, and the recovery record decrypts it with every object matching
+the capture. **What it does not:** retrieval on a separate device.
+
+**Step 1 remains incomplete** and B1 stays open, narrowed to the second-device
+gap alone. This was a reduced substitute the owner chose, not an equivalent;
+see the B1 note in the blocker section and the correction under the 2026-09-14
+entry.
+
+Decrypted plaintext is retained on the machine for the owner's review and later
+confined cleanup, as the operator procedure intends.
+
 ### 2026-09-16 — B10 blocked on the Windows machine: this sandbox has no route to PostgreSQL 17
 
 Answered concretely rather than assumed, because "regenerate on PG17" is only a
@@ -1129,6 +1168,18 @@ yet been retrieved on a separate device.**
 
 **Step 1 is not marked complete on this basis.** When the reduced drill passes,
 B1 narrows to the second-device gap alone, and stays open.
+
+**Reduced drill RESULT, 2026-09-15: PASSED.** Hash and size of the downloaded
+copy equalled the packed archive, all 2,824 ciphertext files verified exact,
+and the authenticated decrypt verified all 1,085 objects and 2,343,907,896
+bytes against the signed inventory. Receipt
+`downloaded-storage-readback-20260915-2.json`, which still records
+`other_device_retrieval_independently_proven: false`.
+
+**B1 is therefore narrowed to exactly one thing: no package has ever been
+retrieved on a separate device.** Step 1 is not complete. Whoever closes B1
+must either do that drill or record an explicit owner acceptance of the
+reduced substitute as sufficient for step 13.
 
 **B2 stays open, 2026-09-15.** Run 2 of the catalog read verified TLS and
 identity, which clears the TLS half of the original row. The profile half now

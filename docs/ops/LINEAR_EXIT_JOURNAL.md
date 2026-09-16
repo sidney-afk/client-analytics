@@ -30,6 +30,133 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — D24 and D25 landed together: the three suites re-based onto the settled world, the coupling asserted, and the assertion PROVEN TO BITE before landing
+
+One commit, as ruled. The corpus gains the table, the three suites are re-based,
+the guard-to-corpus equality is now a check in the **unit lane**, and that check
+was mutated and watched to fail before any of it was pushed.
+
+#### The mutation proof, all three steps, which is now the standard for every new check
+
+| Step | What was done | Result |
+|---|---|---|
+| **1. Baseline** | run the check unmutated | **PASS**, `guard_tables 87, corpus_tables 87, exceptions 0` |
+| **2. Mutate** | remove `hiring_practical_test_jobs` from `LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json`, **and re-pin `INVENTORY_SHA256` to match** | **FAIL, exit 1** |
+| **3. Restore** | put the byte-identical file back and restore the pin | **PASS**, and the restored file's SHA-256 equals the pre-mutation value exactly |
+
+**Step 2's second half is the part that makes the proof mean anything.** The
+corpus is hash-pinned, so simply deleting a name makes `expectedNames()` throw
+`COMPLETE_APPLICATION_INVENTORY_DRIFT` — the drift guard fires first and the
+coupling check never runs. That would have looked like a passing mutation test
+while proving nothing about the coupling. The pin was moved with the file so
+that the **coupling check itself** is what fires. A mutation that is caught by a
+different check than the one under test is not a proof of the check under test.
+
+The failure it produced, quoted because the message is the deliverable:
+
+```
+D25: these tables are admission-guarded but absent from the custody corpus, so
+their data is not backed up while a check makes them look protected. Add them to
+docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json, or record a
+reviewed exception in EXCEPTIONS.guardOnly with a reason:
+["hiring_practical_test_jobs"]
+```
+
+It names the table, the side it is missing from, the consequence, and the two
+permitted remedies. `87 !== 86` would have named none of those.
+
+#### The check
+
+`test/linear-exit-admission-custody-coupling.js`, **registered in the unit lane**
+(`test/suite-classification.json`, unit 547 → 548). It reads two files and
+compares two sorted arrays: no cluster, no private input, no network. Placing it
+in the deferred 61 would have reproduced the exact failure it exists to prevent.
+
+It parses the guard list out of the migration's own `foreach` array, so it reads
+what the database will actually be told rather than a copy, and it checks that
+list is sorted and duplicate-free on the way past. Divergence is **not** softened
+to a subset check: `EXCEPTIONS.guardOnly` / `EXCEPTIONS.corpusOnly` take a name
+with a reason and a date, per D25, and a **stale exception is itself a failure**,
+so an exception cannot outlive the divergence it was written for.
+
+#### What moved, and the one thing that deliberately did not
+
+| File | Change |
+|---|---|
+| `LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json` | 86 → **87** names, sorted position, one line added |
+| `LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json` | 90 → **91**, keeping v2 = v1 + the four `card_write_*` |
+| `INVENTORY_SHA256` and the v2 hash | re-derived |
+| release extension artifact + `PIN` | regenerated with its own `generate()`; `verify()` passes |
+| `LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json` `.sources[]` + its `PIN` | re-derived; exactly one entry drifted |
+
+**The three profile plan hashes did NOT move.** Measured before and after
+against the same harness:
+
+```
+observed67        7043637f90378244f445d588680709d67f16cee7ee43170b2254f0edb78b3f1f
+observed67_optout 92a4737ffd13b3634aad76ed8ceded28966a66a4de0b09fb503fdd4a4c5d4021
+settled68         508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd
+```
+
+Identical, byte for byte, on both sides of this change. **So the `settled68`
+target the storage session derived at `ff9b379f` stays valid and nothing has to
+be re-derived on the owner's machine.** That is the property §2.2 of the coupling
+proposal predicted for "assert" and is the decisive reason it was not "derive" —
+and it is measured here rather than assumed.
+
+#### The suites, re-based, and five more restated numbers found on the way
+
+The three D24 suites now pass, and each reports the settled world:
+
+| Suite | Before | Now |
+|---|---|---|
+| `linear-exit-application-dml-admission` | `87 !== 86` | PASS, `tables_guarded: 87` |
+| `linear-exit-source-phases-postgres` | name list one short | PASS, `pre_tables 68, post_tables 87` |
+| `linear-exit-source-baseline-catalog-postgres` | name list one short | PASS, `tables: 87` |
+
+**Five numbers in those suites were success-marker literals, not assertions**,
+so they would have printed false evidence while the suite passed:
+`pre_tables:67`, `post_tables:86`, `pre_admission_application_tables:86`,
+`tables:86` and `tables_guarded:86`. Four are now **derived** from the values
+they describe (`pre.length`, `all.length`, `names.length`,
+`contract.catalog.tables.length`) so they cannot drift again.
+`tables_guarded` is still a literal, because the count it reports is queried
+inline and never bound to a variable; it is correct at 87 and is recorded here
+as the one that stayed a restatement.
+
+#### Two suites this change broke, and the sweep called them in advance
+
+The full lane went to **16 of 548** before going back to 14.
+`linear-exit-complete-application-data` and
+`linear-exit-complete-application-custody` both failed `87 !== 86`.
+
+They are §5 of the world-literal sweep, where they are described as asserting
+"the pinned corpora against themselves. Correct, and it is the same 86 that §3.2
+shows has diverged from the live world — **so this suite will keep passing while
+the world is wrong**." The world moved and they fired, exactly on cue. All four
+of their counts are now **derived** from `expectedNames()` rather than restated,
+and two pass-message labels that printed `offline90` and `synthetic86` were
+carrying stale numbers into the evidence and now name the version instead.
+
+`linear-exit-complete-application-recovery.js:111` held `v2?89:86` from the same
+corpus. It is deferred and fails in this sandbox for an environment reason on
+both sides of the change, **so it could not be run here**. Rather than restate it
+as `90:87` on a guess, it now derives from `expectedNames()`, which is correct
+whether or not this session can execute it. Flagged as changed-but-unrun.
+
+#### Result, with its denominator, per D21
+
+**14 of 548 unit suites failed.** All 14 are the known sandbox failures that fail
+identically on a clean control worktree; none is new. The 61 deferred suites
+were **not** run as a set — that is D22, before the exit merge — but the three
+D24 suites among them were run individually against PostgreSQL 17 and pass.
+
+**Not done here:** the other three assertions proposed in §3.2 of the coupling
+proposal (v1 against the source-baseline set, v2 against v1 plus its four, the
+fixture as a subset) stay unimplemented. D25 ruled on the guard-to-corpus
+relation, and widening past the ruling is how a proposal becomes an
+implementation nobody approved.
+
 ### 2026-09-16 — Backup path, review finding fixed: with the synthetic override, the SERVER must now prove it is the caller's own local cluster. Forwarder refusal tested; mutation shows which parts bite and which one cannot here
 
 Storage session. It fixes the one finding in the independent review at
@@ -6141,6 +6268,30 @@ progress log above: PASS, with the synthetic override's loopback gate recorded
 as decorative. Implementation is not started in the same breath as the ruling;
 D24 also moves the custody corpus, and an assertion written against today's sets
 would have to be revisited the moment it lands.
+
+### D26 — Every new check must be seen to fire before it lands (2026-09-16, owner)
+
+**Binding on every session, for every check added from here on.** A check that
+has never been observed failing is not evidence that anything holds; it is a
+line of code that has only ever been seen agreeing.
+
+The standard, in three steps, all three recorded in the journal:
+
+1. run it unmutated and see it pass;
+2. break the thing it guards, run it, and **see it fail**;
+3. restore, run it again, and see it pass.
+
+And no red-on-arrival state: the fix and the check land in the **same commit**,
+so the repository is never knowingly left with a failing check waiting for a
+follow-up.
+
+**One refinement learned immediately, on the first application.** If the thing
+being mutated is hash-pinned, the mutation must move the pin too. Otherwise the
+drift guard fires first, the check under test never executes, and the "failure"
+proves only that a different check works. **A mutation caught by a check other
+than the one under test is not a proof of the check under test.** Recorded
+because it would be easy to do the weak version and believe the standard had
+been met.
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

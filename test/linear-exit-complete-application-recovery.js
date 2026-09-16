@@ -108,7 +108,7 @@ async function main(){try{
   if(source!=='[]')populated++;else emptyTables.push(table);
  }
  fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'complete-empty-tables.private.json'),JSON.stringify(emptyTables,null,2),{flag:'wx'});
- assert.equal(populated,applicationVersion==='v2'?89:86,'all application tables populated except V2 consumed context');
+ assert.equal(populated,applicationVersion==='v2'?complete.expectedNames('v2').length-1:complete.expectedNames().length,'all application tables populated except V2 consumed context');
  if(applicationVersion==='v2')assert.deepEqual(emptyTables,['card_write_transaction_context_v1']);
  const inventoryNow=require('./helpers/linear-exit-install-step').plan();assert.equal(inventoryNow.digest,inventory.inventory_sha256,'source inventory drift during recovery');
  console.log(JSON.stringify({marker:'LINEAR_EXIT_COMPLETE_APPLICATION_RECOVERY_OK',classification:'ISOLATED_POSTGRES',inventory_sha256:inventory.inventory_sha256,application_data_version:applicationVersion,encrypted_custody_reopened:encryptedCustodyReopened,encryption_key_operational_custody_proven:false,admission_sources:admissionSources,covered_tables:complete.expectedNames(applicationVersion).length,populated_tables:populated,remaining,artifact_sha256:require('node:crypto').createHash('sha256').update(reopened).digest('hex'),authenticated_tamper_refusal:true,late_omitted_row_corruption_refused:true,failed_restore_transaction_empty:true,independent_row_multiset_comparison:true,object_bytes_proven:false,hosted_restore_proven:false,off_device_custody_proven:false}));

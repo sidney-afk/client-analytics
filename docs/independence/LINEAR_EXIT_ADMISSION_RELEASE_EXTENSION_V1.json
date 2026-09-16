@@ -8,11 +8,11 @@
   "application_inventories": [
     {
       "path": "docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json",
-      "sha256": "fb24bcc7fce59194e92fa1b10e41909d46a9e87e305948273fd216f985d7a10f"
+      "sha256": "e89d83cc4b5ca7ea0dfc603abebfe3eddbdcce6eed6025b3641bc9ba17a5f247"
     },
     {
       "path": "docs/independence/LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json",
-      "sha256": "4436b3f6f663a974c5d02d67d81653e0cd14981b6ed0a860b47e32f3f81a10ac"
+      "sha256": "6c0b3801caaf52e71e153567af5beffe3eec862faa5699c2104b5704c98e3153"
     }
   ],
   "prerequisites": [

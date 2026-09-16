@@ -13,7 +13,7 @@ async function main(){try{
  c.runFile(path.join(root,'migrations/2026-06-18-atomic-comment-merge.sql'));
  const serving=path.join(root,'qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql');assert.equal(crypto.createHash('sha256').update(fs.readFileSync(serving)).digest('hex'),'31663a6b62bbc96efe85a8cdc8485c42f07f9455b5c043e2112ff07e36bba429');c.runFile(serving);
  c.runFile(path.join(root,'supabase/migrations/20260912174907_card_atomic_admission_preparation.sql'));c.runFile(path.join(root,'supabase/migrations/20260912183653_application_dml_admission_preparation.sql'));
- assert.equal(c.scalarJson("select count(*)::int from pg_trigger where tgname='aaa_application_dml_admission_statement'"),86);
+ assert.equal(c.scalarJson("select count(*)::int from pg_trigger where tgname='aaa_application_dml_admission_statement'"),87);
  let epoch=c.scalarJson('select to_jsonb(epoch) from card_write_admission_v1');
  const id='00000000-0000-4000-8000-000000009001';const payload={surface:'calendar',client:'fixture-client',sourceId:'global-card',patch:{},incoming:{},existing:{}};
  const request={surface:'calendar',client:'fixture-client',id:'global-card',expected_existing:null,row:{client:'fixture-client',id:'global-card',name:'Before'},events:[],followups:[{kind:'graphic_baseline',payload}]};
@@ -49,6 +49,6 @@ async function main(){try{
  const retired=raw(`begin;update syncview_retirement_admission set mode='retired',activated_at=now(),activated_reason='synthetic',high_water_outbox_id=0,high_water_created_at=now() where singleton;select production_card_admission_close_v1(${q(epoch)},'synthetic');select production_card_admission_reopen_v1(${q(epoch)},'actor','reason','REOPEN_PRESERVING_ACCEPTED_WORK');commit;`);assert.notEqual(retired.status,0);assert.match(retired.stderr,/admission_reopen_retired/);
  assert.equal(c.scalarJson('select count(*)::int from card_write_operations_v1'),1);assert.equal(c.scalarJson("select to_jsonb(state) from card_write_followups_v1"),'completed');
  assert.equal(require('./helpers/linear-exit-install-step').plan().digest,inventory.inventory_sha256);
- console.log(JSON.stringify({marker:'LINEAR_EXIT_APPLICATION_DML_ADMISSION_OK',tables_guarded:86,direct_write_cutoff_race:true,exact_flag_control:true,epoch_rotation_preserves_receipts:true,worker_transaction_scope:true,sql_derived_noop:true,global_freeze_proven:false,activation_proven:false}));
+ console.log(JSON.stringify({marker:'LINEAR_EXIT_APPLICATION_DML_ADMISSION_OK',tables_guarded:87,direct_write_cutoff_race:true,exact_flag_control:true,epoch_rotation_preserves_receipts:true,worker_transaction_scope:true,sql_derived_noop:true,global_freeze_proven:false,activation_proven:false}));
 }catch(e){if(process.env.PROOF_OUTPUT_ROOT)fs.writeFileSync(path.join(process.env.PROOF_OUTPUT_ROOT,'application-dml.private-error.log'),String(e.stack||e));console.error(JSON.stringify({marker:'LINEAR_EXIT_APPLICATION_DML_ADMISSION_FAILED',stage}));process.exitCode=1;}finally{if(child)child.kill();c.stop();}}
 main();

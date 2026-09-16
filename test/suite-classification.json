@@ -230,6 +230,7 @@
     "linear-deliverables-reconcile-bounded-reads.js",
     "linear-deliverables-reconcile.js",
     "linear-description-escape-orphan.js",
+    "linear-exit-admission-custody-coupling.js",
     "linear-exit-admission-preflight.js",
     "linear-exit-admission-release-extension.js",
     "linear-exit-asset-equality.js",

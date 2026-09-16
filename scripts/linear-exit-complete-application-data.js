@@ -5,8 +5,8 @@ const fs=require('fs'),os=require('os'),path=require('path'),crypto=require('cry
 const backup=require('./track-b-backup');
 const FORMAT='complete-application-data-v1';
 const MAGIC=Buffer.from('SYNCVIEW-COMPLETE-APPLICATION-DATA-V1\n');
-const INVENTORY_SHA256='fb24bcc7fce59194e92fa1b10e41909d46a9e87e305948273fd216f985d7a10f';
-const VERSIONS=Object.freeze({v1:{format:FORMAT,magic:MAGIC,hash:INVENTORY_SHA256,file:'LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json'},v2:{format:'complete-application-data-v2',magic:Buffer.from('SYNCVIEW-COMPLETE-APPLICATION-DATA-V2\n'),hash:'4436b3f6f663a974c5d02d67d81653e0cd14981b6ed0a860b47e32f3f81a10ac',file:'LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json'}});
+const INVENTORY_SHA256='e89d83cc4b5ca7ea0dfc603abebfe3eddbdcce6eed6025b3641bc9ba17a5f247';
+const VERSIONS=Object.freeze({v1:{format:FORMAT,magic:MAGIC,hash:INVENTORY_SHA256,file:'LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json'},v2:{format:'complete-application-data-v2',magic:Buffer.from('SYNCVIEW-COMPLETE-APPLICATION-DATA-V2\n'),hash:'6c0b3801caaf52e71e153567af5beffe3eec862faa5699c2104b5704c98e3153',file:'LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json'}});
 function version(name='v1'){const v=VERSIONS[name];if(!v)fail('VERSION');return v;}
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const canon=backup.canonicalJson;

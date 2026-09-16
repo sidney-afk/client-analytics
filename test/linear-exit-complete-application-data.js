@@ -18,7 +18,7 @@ const duplicate=manifest.omitted_data_tables[0];rows[duplicate].rows=[['syntheti
 const bounds={version:1,consumer_closure_proven:false,sequences:[]};
 const encode=r=>complete.encode(parent,r,key,bounds,[]);
 const bytes=encode(rows),read=complete.read(bytes,key);
-assert.equal(Object.keys(read.payload.tables).length,86);
+assert.equal(Object.keys(read.payload.tables).length,complete.expectedNames().length);
 assert.equal(read.payload.tables[duplicate].rows.length,2);
 assert.throws(()=>recovery.readRecoveryPackage(bytes,key),/format|magic|header|recovery package/i);
 assert.throws(()=>complete.read(bytes,crypto.randomBytes(32).toString('base64')),/AUTHENTICATION/);
@@ -36,14 +36,14 @@ const state={name:'synthetic_complete_seq',last_value:'9',is_called:true,increme
 const proof={version:1,consumer_closure_proven:false,sequences:[{name:state.name,increment:'1',minimum:'1',maximum:state.max_value,start:'1',cache:'1',cycle:false,type:'bigint',consumers:[{schema:'public',table:'hiring_application_events',column:'id',type:'bigint',identity:'',default:"nextval('synthetic_complete_seq'::regclass)",edge_kinds:['default_dependency'],maximum_value:'9'}]}]};
 sequence.validate(proof,[state]);
 for(const change of [p=>p.sequences[0].consumers[0].maximum_value='10',p=>p.sequences[0].consumers[0].schema='external',p=>p.sequences[0].consumers[0].default+='+1',p=>p.sequences[0].cycle=true,p=>p.sequences[0].consumers=[],p=>p.sequences.push(p.sequences[0])]){const bad=structuredClone(proof);change(bad);assert.throws(()=>sequence.validate(bad,[state]));}
-console.log('PASS complete-application-data-v1 offline authentication,86-table coverage,stored columns,duplicate multiset,COPY escaping,legacy refusal');
+console.log('PASS complete-application-data-v1 offline authentication,v1-table coverage,stored columns,duplicate multiset,COPY escaping,legacy refusal');
 // Separate V2 inventory; historical V1 bytes still decode under unchanged default.
-const names2=complete.expectedNames('v2'),added=names2.filter(n=>!names.includes(n));assert.equal(names2.length,90);assert.equal(added.length,4);
+const names2=complete.expectedNames('v2'),added=names2.filter(n=>!names.includes(n));assert.equal(names2.length,complete.expectedNames().length+added.length);assert.equal(added.length,4);
 const preData2=preData+'\n'+added.map(n=>`CREATE TABLE public.${n} (synthetic_value text);`).join('\n'),pre2=recovery.validateSchemaSection(preData2);
 const manifest2=structuredClone(manifest);manifest2.schema.pre_data={statements:pre2.statements.length,skipped_platform_statements:pre2.skipped};manifest2.omitted_data_tables=names2.filter(n=>!parentNames.includes(n));
 const parent2=recovery.packRecoveryPackage({preData:preData2,postData:'',data,manifest:manifest2},key).bytes;
 const rows2=Object.fromEntries(names2.map(n=>[n,rows[n]||{name:n,columns:[{name:'synthetic_value',type:'text',not_null:false,identity:'',generated:''}],primary_key:[],rows:n==='card_write_transaction_context_v1'?[]:[['retained synthetic operation/task/control']]}]));
-const bytes2=complete.encode(parent2,rows2,key,bounds,[],'v2');assert.equal(complete.read(bytes2,key).payload.format,'complete-application-data-v2');assert.equal(Object.keys(complete.read(bytes,key).payload.tables).length,86);assert.equal(complete.read(bytes2,key).payload.tables.card_write_followups_v1.rows.length,1);
+const bytes2=complete.encode(parent2,rows2,key,bounds,[],'v2');assert.equal(complete.read(bytes2,key).payload.format,'complete-application-data-v2');assert.equal(Object.keys(complete.read(bytes,key).payload.tables).length,complete.expectedNames().length);assert.equal(complete.read(bytes2,key).payload.tables.card_write_followups_v1.rows.length,1);
 assert.throws(()=>complete.encode(parent2,rows2,key,bounds,[]),/SHAPE|COVERAGE/);const active=structuredClone(rows2);active.card_write_transaction_context_v1.rows=[['active']];assert.throws(()=>complete.encode(parent2,active,key,bounds,[],'v2'),/ACTIVE_TRANSACTION_CONTEXT/);
 const payload2=structuredClone(complete.read(bytes2,key).payload);payload2.inventory_sha256=complete.INVENTORY_SHA256;const unsigned2=Buffer.concat([Buffer.from('SYNCVIEW-COMPLETE-APPLICATION-DATA-V2\n'),Buffer.from(backup.canonicalJson(payload2))]);const wrongInventory=Buffer.concat([unsigned2,crypto.createHmac('sha256',backup.parseHmacKey(key)).update(unsigned2).digest()]);assert.throws(()=>complete.read(wrongInventory,key),/VERSION/);
-assert(complete.reconstruct(bytes2,key).includes('card_write_followups_v1'));console.log('PASS complete-application-data-v2 offline90 retained tasks,empty context,wronginventory refusal,V1 preserved');
+assert(complete.reconstruct(bytes2,key).includes('card_write_followups_v1'));console.log('PASS complete-application-data-v2 offline v2 retained tasks,empty context,wronginventory refusal,V1 preserved');

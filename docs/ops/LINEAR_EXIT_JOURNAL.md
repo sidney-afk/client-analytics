@@ -30,6 +30,51 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Short sitting, part 2: B9 derivation FAILED on a collation the session chose; stopped, not retried
+
+**What happened.** A throwaway PostgreSQL 17.11 cluster was started on
+`127.0.0.1` only, with the runbook's binaries and a new data directory. The
+derivation ran with `F63_REQUIRE_POSTGRES=1` into a new private directory. It
+returned `B9_DERIVE_FAILED` with stages `["cluster_started"]`. The cluster was
+then stopped: `pg_ctl status` exit 3, nothing listening. The directory and its
+error log are preserved.
+
+**Where.** Inside the observed-schema reconstruction, before the opt-out
+prerequisite or the hiring migration was applied. The loader rebuilds the
+2026-09-12 observed schema and compares every catalog section with the capture.
+Exactly one section differed: **`dependencies`**.
+
+**Why, measured and not assumed.**
+
+- The rebuilt `dependencies` section holds **the same 1,336 entries** as the
+  capture: none missing, none extra. **Only their order differs.** 37 of 1,336
+  positions shift. The loader compares each section canonically, so array order
+  counts.
+- The pinned catalog query orders dependencies by
+  `o.type, o.identity, r.type, r.identity, d.deptype`. Those are text columns,
+  so the order follows the cluster's collation.
+- The first differing position shows the mechanism. Live sorts
+  `production_comment_card_import_counts(…)` **before**
+  `production_comment_card_import(pg_catalog.jsonb…)`, which is linguistic
+  ordering with punctuation weighted low. The rebuild sorts them the other way,
+  byte order, where `(` (0x28) precedes `_` (0x5F).
+- **The session initialised the cluster with `--locale=C`.** The sitting page
+  and the B9 page name no locale; C was the session's own choice, and it was the
+  wrong one. CI's PG17 lanes use the `postgres:17` image, whose default locale is
+  linguistic, which is why the same reconstruction passes there.
+
+**So this is an environment artifact introduced by the session, not a finding
+about the schema, the live database or the scripts.** No derivation numbers
+exist yet. Nothing was retried. A retry needs a new cluster, with a linguistic
+collation that reproduces live's sort order, and a new output directory. The
+choice of collation is put to the owner.
+
+**For whoever writes the next version of these pages:** a derivation or rebuild
+whose catalog query sorts text is only reproducible under a collation that
+matches live's. State the locale explicitly. "A throwaway PostgreSQL 17 cluster"
+is not a sufficient specification, and the `observed-schema` loader's
+exact-match check is what caught it.
+
 ### 2026-09-16 — Short sitting, part 1: selfcheck OK; step 8 catalog read taken as observation only
 
 Run from the owner's Windows machine against the rewritten sitting page

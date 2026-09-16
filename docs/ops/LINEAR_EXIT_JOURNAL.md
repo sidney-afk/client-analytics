@@ -30,6 +30,95 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Calibration rehearsal attempted; it found a SECOND hard-coded 90, in the calibrate path itself, which would have failed session C at the keyboard
+
+The owner asked for the calibration command to be rehearsed and then written on
+the page having actually been executed. The rehearsal did not get that far, and
+what stopped it is worth more than the command would have been.
+
+**There are two hard-coded guard counts, not one.** The known one is
+`scripts/linear-exit-install-operator.js` line 34,
+`if(guards.length!==(alreadyFinal?0:90))fail('GUARD_COUNT')`. The one nobody had
+looked at is **inside the calibrate branch**:
+`test/helpers/install-operator-worker.mjs` line 9,
+`assert.equal(guards.length,90)`. `scripts/linear-exit-install-finalize.js`
+derives its count and carries no literal, so those two are the whole set.
+
+**Consequence: the calibration aborts before it can derive a target.** The
+settled database has 68 public tables, so the install produces 91 guards, and
+the calibrate path asserts 90. Deriving the target is the entire purpose of
+session C, so section 1 would have consumed a keyboard sitting and produced
+nothing.
+
+### The derivation of the new constant, so it is not an edit from 90 to 91
+
+Stated in full because D8 requires the anchors be confirmed rather than the
+number be updated.
+
+- `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` records `public_tables: 90` and
+  `maintenance_guards_removed: 90`, built from `initial_public_catalog_sha256`
+  `809c5dc7…`, which is the **67**-table observed67 live read. So the
+  installation creates **23** public tables.
+- The maintenance guard is applied to every relation found with
+  `relnamespace='public' and relkind in ('r','p')`, not from a list, so the
+  count tracks the database rather than the plan.
+- The settled plan's **source list is identical** to observed67's. Verified by
+  reading the builder: the contract changes only `initial_catalog_sha256` and
+  the comparison target; the sources come from the pinned manifest and OWNERS
+  either way. So the same 23 tables are created.
+- Live is **68** public tables, measured by the owner on 2026-09-16, not
+  derived.
+
+68 + 23 = **91**. That is a re-derivation from two measured quantities and one
+verified structural fact, which is the thing D8 distinguishes from silencing.
+
+**NOT APPLIED. Both constants are left at 90 and this is deliberate.** The owner
+has twice named this specific number as the one most tempting to silence,
+precisely because the right answer looks one digit away. An unreviewed edit to a
+reviewed contract constant is exactly what the rules forbid, even when the
+derivation is sound, and especially when the derivation is sound. It waits for
+his go-ahead.
+
+There is also a genuine circularity worth naming: the calibration is what would
+*measure* the post-install count, and it cannot run until the constant it would
+verify is already changed. Nothing fixes that except deriving it first and
+letting the calibration confirm or refute it. If the calibration then reports a
+number other than 91, that is a finding and not a licence to adjust again.
+
+### What the rehearsal DID establish
+
+**PowerShell 7.4.6 was installed here**, so the two blocks that had never been
+executed were executed, not reasoned about.
+
+- **Section 2, the B5 dry run: runs clean.** `23 files expected`, `extracted 23
+  files`, `index.html` hash equal to main's tip. Array splatting into `git`, the
+  `git archive | tar` pipe and `Get-FileHash` all behave. Only the `$probe` path
+  was substituted.
+- **Section 3, the wrapper preflight: runs clean, and its failure paths work.**
+  Tested with an intact file, a deliberately broken one and an absent one; it
+  reported `ok`, `PARSE FAIL` and `MISSING` respectively, so the detection is
+  proven rather than just the happy path.
+- **A blocker fixed on the way:** the operator test's profile allowlist was
+  `['observed67','observed67_optout']` and would have refused `settled68`
+  outright. `settled68` added.
+
+**Residual, stated rather than glossed:** those runs were PowerShell on Linux.
+The Windows-specific unknown is `tar.exe` being on PATH, which is precisely what
+the dry run exists to discover, so it is the right thing to leave to the sitting.
+
+### Is session C runnable end to end? No, and here is the list
+
+Answering the owner's question in the form he asked for.
+
+| Section | State |
+|---|---|
+| 1, calibration | **BLOCKED.** Command not written and cannot be, until both guard constants are re-derived and reviewed. It would abort at 91 guards. |
+| 2, B5 dry run | **Proven** in PowerShell 7.4.6, path substituted. `tar.exe` on Windows is the remaining unknown and is the point of the run. |
+| 3, wrapper preflight | **Proven**, including failure detection. Its argument-list gap is closed by reading the wrappers' usage lines, not by the block. |
+
+So: **two of three sections are proven and worth doing; the third does not exist
+yet and must not be improvised at the keyboard.**
+
 ### 2026-09-16 — Session C page written; both unproven blocks moved into it; and what CANNOT be proven about steps 9 and 10, said plainly
 
 Three things, all consequences of the sweep, all at the owner's direction.

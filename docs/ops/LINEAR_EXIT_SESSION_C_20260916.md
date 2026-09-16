@@ -56,17 +56,37 @@ node D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes/scripts/linear-exit-b9-
 
 **Worked when:** `"marker": "B9_DERIVE_SELFCHECK_OK"` and `"problems": []`.
 
-> **The calibration command itself is NOT written on this page yet, deliberately.**
-> It runs the install operator against an isolated cluster with
-> `INSTALL_OPERATOR_CALIBRATE=1`, and no session has executed it in this form.
-> Writing it here now would be exactly the defect the 2026-09-16 sweep found:
-> a block handed over without ever being run. It is prepared and proven against
-> an isolated cluster first, then added here. **If you have reached this page and
-> this box is still present, ask before improvising a command.**
+> **SECTION 1 CANNOT RUN YET. Read this before you sit down.**
+>
+> The rehearsal was attempted on 2026-09-16 and stopped on a blocker in the
+> code, not in the command. **The calibrate path has its own hard-coded guard
+> count**, `assert.equal(guards.length,90)` in
+> `test/helpers/install-operator-worker.mjs`, separate from the one already
+> known about in `scripts/linear-exit-install-operator.js`. The settled database
+> has 68 public tables rather than 67, so the calibration would produce 91
+> guards and **abort before it could derive a target**.
+>
+> That is the entire purpose of this section, so section 1 would have failed at
+> the keyboard with nothing to show for it.
+>
+> **Both constants are re-derived and reviewed before this section is written
+> or run.** The derivation is recorded in the journal; it is not an edit from 90
+> to 91 to make a check pass. Until that is done and the command has actually
+> been executed, this box stays and **section 1 does not exist**.
+>
+> **Sections 2 and 3 below are unaffected and are worth doing on their own.**
 
 ---
 
 ## 2. B5 browser capture, DRY RUN ONLY, about 2 minutes
+
+> **Executed as written in PowerShell 7.4.6 on 2026-09-16**, with only the
+> `$probe` path substituted for a local one. Output: `23 files expected`,
+> `extracted 23 files`, and the `index.html` hash equal to main's tip. The array
+> splatting into `git`, the `git archive | tar` pipe and `Get-FileHash` all
+> behave. **Residual difference: that run was PowerShell on Linux, not Windows.**
+> What is still unproven there is `tar.exe` being on PATH, which is the one
+> thing this dry run exists to find out.
 
 **This is not the B5 capture.** It proves the capture block runs on this
 machine, and then stops. The real capture happens immediately before the exit
@@ -111,6 +131,13 @@ Delete `b5-dryrun-UNIQUE` afterwards, or leave it; it is a throwaway either way.
 ---
 
 ## 3. Step 9 and 10 preflight, about 5 minutes, and read the two usage lines
+
+> **Executed as written in PowerShell 7.4.6 on 2026-09-16**, with the `$dir`
+> path substituted and stand-in files in place of the private wrappers. It
+> correctly reported `ok` for intact files, `PARSE FAIL` for a deliberately
+> broken one and `MISSING` for an absent one, so its failure detection works
+> rather than just its happy path. `$LASTEXITCODE` from `node --check` is read
+> correctly.
 
 The three database blocks in the later sitting have never run in their current
 form, and they will run inside the one-hour clock. **Everything checkable is

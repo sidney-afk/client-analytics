@@ -72,22 +72,37 @@ measures exactly that number, on the real data volume, at no risk to anything.
 
 That is the single cheapest way to convert an accepted unknown into a fact.
 
-### 2. It answers a question nobody has asked yet: does identity survive a restore?
+### 2. It closes the last part of a question that is now MEASURED, not assumed
 
-We do not know whether an **in-place** managed restore preserves
-`system_identifier`. A physical restore from a base backup normally does, but
-the managed flow is not ours to read, and the install operator's identity check
-is built on that value.
+**Updated 2026-09-17. The general rule is no longer an assumption.** Measured on
+an isolated PostgreSQL 17.11 cluster in this sandbox:
 
-If it does not survive, the recovery procedure has a gap: after a real recovery,
-the installation could not resume against its own recorded identity. Nobody has
-checked, and the check is one query.
+| Restore kind | `system_identifier` |
+|---|---|
+| original cluster | `7686148391648556190` |
+| **physical** copy (`pg_basebackup`) | `7686148391648556190` — **preserved** |
+| **logical** restore into a fresh `initdb` cluster | `7686148429403448532` — **new** |
 
-A rehearsal restore answers it directly: restore to a new project, run
-`select system_identifier from pg_control_system()` against both, and compare
-with what the original records. It does not prove the in-place case, but it
-establishes whether the value is derived from the cluster or carried with the
-backup, which is most of the answer.
+So the rule is: **a physical restore carries the control file and preserves the
+identifier; a logical restore into a new cluster cannot.** The identifier is a
+property of the cluster, written at creation and copied verbatim by a physical
+copy.
+
+That matters directly, because the Backups page marks every one of the eight
+daily backups **PHYSICAL**. So the in-place route's identity assumption is now
+*supported* — by the platform's own label plus the PostgreSQL rule — rather than
+merely assumed. It is still not *observed*: nobody has watched a managed restore
+of this project and read the value afterwards.
+
+**What is left is therefore narrow, and it is exactly what the rehearsal
+observes:** does Supabase's restore-to-new-project carry the physical control
+file into the new instance, or re-provision and replay? If it carries it, the
+identity survives and the in-place case is settled by implication. If it does
+not, then restore-to-new-project is logical in effect, and the recovery
+procedure needs to say that a restored project must have its identity
+expectation re-derived before any installation can resume against it.
+
+Either answer is worth having, and the check is one query.
 
 ### 3. It is the right shape for the accepted-save boundary
 
@@ -117,7 +132,13 @@ available without changing the recovery route: it is what you would reach for
   and it should not be assumed benign.
 - **It is BETA.** Behaviour may change or be withdrawn. Fine for a rehearsal,
   not something to make a documented recovery route depend on.
-- **Cost.** A second project may bill for as long as it exists.
+- **Cost, confirmed 2026-09-17.** An additional project on this organization's
+  Pro plan is **$10/month recurring**, read from the organization's own cost
+  endpoint. Supabase bills compute by the hour, so a project that lives for an
+  afternoon should cost a small fraction of that — but **that proration is not
+  something this session verified**, so budget up to the full $10 and delete the
+  project the same day. Deleting it is the mitigation, and it is the last step
+  of the rehearsal below.
 - **It proves public-schema recovery only**, same as everything else here. Not
   full platform recovery, not asset recovery.
 
@@ -140,6 +161,56 @@ available without changing the recovery route: it is what you would reach for
 
 None of this is authorized by this file, and none of it is needed before the
 install gate.
+
+---
+
+## How to run the rehearsal
+
+**Cost first:** an extra project is **$10/month** on this Pro organization, and
+the mitigation is deleting it the same day. Nothing below starts until you are
+happy with that.
+
+Run it **during the offline authoring day**, so it costs you almost no attention:
+start it, leave it, come back for two numbers.
+
+1. Dashboard → the project → **Database** → **Backups** → **Scheduled backups**.
+2. On the **newest** backup row — 16 Sep 2026 11:19:55 +0000, or whatever is
+   newest when you do it — open its restore control and choose **Restore to new
+   project (BETA)**. Use the newest so the rehearsal's duration is
+   representative of a real recovery.
+3. Give the new project an obviously disposable name. Something like
+   `restore-rehearsal-<date>`, so nobody ever mistakes it for live.
+4. **Start a timer when you confirm.** The elapsed time until the new project is
+   usable is the number B4 currently records as unknown.
+5. When it is up, open the **SQL editor on the NEW project** and run exactly:
+
+```sql
+select system_identifier::text as system_identifier,
+       current_database(),
+       (select oid::text from pg_database where datname = current_database()) as database_oid
+from pg_control_system();
+```
+
+6. Report back three things: the elapsed time, that `system_identifier`, and
+   that `database_oid`.
+7. **Delete the rehearsal project.** This bounds the cost and stops a
+   live-looking second database existing.
+
+**What the answer means:**
+
+- **`system_identifier` matches the original** → the restore is physical
+  end to end, identity survives, and the in-place recovery route's assumption is
+  settled by implication. Record it and move on.
+- **It differs** → restore-to-new-project is logical in effect. That is a real
+  finding: it means a restored project cannot be installed into or resumed into
+  without re-deriving the identity expectation, and the recovery procedure
+  should say so. Report it and change nothing yourself.
+
+This runs against a throwaway project, never against live. It reads; it does not
+write. Nothing about it touches the frozen main, the installation or the exit
+plan.
+
+---
 
 Related: [recovery procedure](LINEAR_EXIT_RECOVERY_PROCEDURE.md) ·
 [journal](LINEAR_EXIT_JOURNAL.md) ·

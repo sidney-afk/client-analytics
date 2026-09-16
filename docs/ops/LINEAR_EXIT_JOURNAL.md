@@ -30,6 +30,154 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — MEASURED: a physical restore preserves `system_identifier`, a logical one cannot; the in-place recovery route's identity assumption is now supported rather than assumed
+
+The owner asked for this answered explicitly and journalled either way, because
+if the identity does not survive a restore then the recovery route B4 has just
+been closed on does not actually work.
+
+Measured on an isolated PostgreSQL 17.11 cluster in this sandbox, not reasoned
+from documentation:
+
+| Cluster | `system_identifier` |
+|---|---|
+| original | `7686148391648556190` |
+| physical copy via `pg_basebackup` | `7686148391648556190` — preserved |
+| logical restore into a fresh `initdb` cluster | `7686148429403448532` — new |
+
+The rule, stated once so it is not re-derived: **the identifier is a property of
+the cluster, written when the cluster is created. A physical copy carries the
+control file and preserves it. A logical restore into a new cluster cannot,
+because the new cluster wrote its own.**
+
+Applied to us: the Backups page marks all eight daily backups **PHYSICAL**. So
+an in-place restore should preserve the identifier, and the install operator's
+`IDENTITY_SQL` check would still pass after one. That moves the recovery route
+from *assumed sound* to *supported by the platform's own label plus a measured
+rule*.
+
+**It is still not observed.** Nobody has watched a managed restore of this
+project and read the value afterwards, and the managed flow is not ours to read.
+What remains is narrow and is exactly what the rehearsal will observe: whether
+restore-to-new-project carries the control file, or re-provisions and replays.
+If it carries it, the in-place case is settled by implication. If it does not,
+that route is logical in effect and a restored project would need its identity
+expectation re-derived before any installation could resume against it.
+
+Recorded as a partial answer rather than a full one, deliberately. The rule is
+established; the observation is outstanding.
+
+### 2026-09-17 — Restore-to-new-project rehearsal approved; cost confirmed at $10/month; the REASONING recorded, not just the verdict
+
+The owner approved the rehearsal and asked that the reasoning be kept, not only
+the conclusion, because the next person to open that Backups page will form the
+same first impression this session did.
+
+**The first impression, which is wrong.** The dashboard offers "Restore to new
+project (BETA)" beside the in-place restore, and it reads as the strictly safer
+of the two: it does not destroy the live database. Every instinct says take the
+one that cannot lose anything. That instinct is about the *database*, and the
+question is about the *recovery*.
+
+**What breaks it.** A new project is a different database with a different
+reference, URL and keys. The browser configuration, the Edge functions, the
+scheduled workers and the n8n workflows all still point at the old project and
+keep pointing there. So the restore produces a healthy database that nothing is
+talking to. **The outage is not over when the restore finishes.** Ending it
+needs a second operation — repointing every consumer, or migrating the data back
+— which is not written down, not rehearsed, and in the repointing case is a
+configuration change inside the scope of the current freeze.
+
+**How that was found, which is the part worth keeping.** Not by reasoning from
+the dashboard's framing, which would have produced "safer, therefore better",
+but by asking what the installer actually checks. `IDENTITY_SQL` in
+`linear-exit-install-journal.js` builds its identity from `current_database()`,
+the database OID, `session_user`, and `system_identifier` from
+`pg_control_system()`. Reading that query is what turned a plausible-sounding
+option into a verifiable refusal: a new cluster carries a different identifier,
+so `fail('IDENTITY')` follows. **The general lesson is the cheap one: when
+evaluating a route, read what the code asserts about it rather than what the
+interface says about itself.**
+
+**The Storage consequence, which nothing in the interface hints at.** The page
+says database backups exclude Storage objects, and that is true of both routes.
+But the two are not equally affected. In place, a database restore leaves the
+existing Storage bucket untouched, so Storage is merely not-restored. In a new
+project, Storage is **empty**. The separate Storage custody package stops being
+a backstop and becomes the only source. That asymmetry is invisible from the
+dashboard and only appears once you ask what the restored project *has*, rather
+than what the backup *contains*.
+
+**Cost, confirmed rather than guessed.** Read from this organization's own cost
+endpoint: an additional project on the Pro plan is **$10/month recurring**.
+Supabase bills compute hourly so a short-lived project should cost a fraction of
+that, but **that proration was not verified here**, so the recorded figure is up
+to $10 and the mitigation is deleting the rehearsal project the same day. That
+deletion is written into the rehearsal steps rather than left to memory.
+
+Scheduled to run during the offline authoring day, so it costs the owner almost
+no attention: start it, leave it, come back for the elapsed time and one query's
+output. Click path, the query, and what each answer means are in
+[`LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md`](LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md).
+**The reviewed recovery procedure remains unchanged.**
+
+### 2026-09-17 — The collapsed-sitting idea has a dependency problem, noticed not solved, recorded for whoever revisits it
+
+The owner declined the collapsed script on scheduling grounds — the offline
+authoring day is the long pole and cannot start until the sitting finishes, so
+time spent building and reviewing a collapse delays the thing that is actually
+slow. The session it would save is the following day's, which is not the
+constraint.
+
+He also pointed at something this session had not noticed, and it is the part
+worth keeping:
+
+> A collapse calibrates against a profile that does not exist yet.
+
+That is right, and it is a design question rather than a plumbing one. The
+second keyboard session exists **because** the third profile has to be in code
+before the installer can be pointed at it: `linear-exit-install-profiles.js`
+resolves a profile by name and the operator worker is driven from it. A script
+that derived the catalog and calibrated the target in one run would have to
+build a plan against a profile nobody had authored or reviewed, in the same
+breath as inventing it.
+
+There may be an answer — the existing `INSTALL_OPERATOR_CALIBRATE=1` path is
+already a way of deriving a target before its hash is pinned, so the shape is
+not unprecedented. But it has to be answered before any of the plumbing is
+written, not after. **Anyone revisiting the collapse should start there and not
+with the script.**
+
+### 2026-09-17 — PROPOSED house rule, not added: a rewrite is not a refactor
+
+Proposed at the owner's request, in the shape of the hash rule. **Not added to
+`AGENTS.md`.** It goes in only if he ratifies it.
+
+> ## A REWRITE IS NOT A REFACTOR. DIFF IT AGAINST WHAT IT REPLACES.
+>
+> When you rewrite a document or a file wholesale rather than editing it in
+> place, diff your version against the one it replaces before you ship it, and
+> confirm that **every warning, constraint and stop condition you dropped was
+> dropped on purpose.** Say which ones, and why, in the commit message.
+>
+> The failure this exists for is not carelessness. It is building to a
+> requested *shape*. On 2026-09-17 a sitting page was rebuilt as "one ordered
+> pass" because that was the shape asked for, and the shape silently discarded
+> a constraint written down in the page being replaced: that two of those steps
+> cannot run until a profile exists. Three separate places in the record said
+> so. The rewrite contradicted all three and was never compared against any of
+> them.
+>
+> A wholesale rewrite deletes everything by default and re-adds what the author
+> happens to remember. That is the opposite of an edit, where everything
+> survives by default. Treat the deletions as the risk, because they are the
+> part nobody reviews: a reader of the new version cannot see what is missing.
+
+One note on scope, for the ratification decision: the rule is cheap when the
+thing being rewritten is a document, and it is the same discipline the estate
+already applies to the journal through its append-only rule. The journal has
+that protection; nothing else in `docs/ops/` does.
+
 ### 2026-09-17 — CORRECTION: yesterday's sitting page put steps 9 and 10 in a sitting they cannot run in
 
 Caught by the owner asking the right question before clearing his day, which is
@@ -1570,6 +1718,14 @@ where it bites and nowhere else — **immediately before the exit merge at step
 is that a capture taken at any other moment still looks complete. Verified here
 that the git side of the pipeline reproduces `1abdd1fa`'s `index.html` hash
 exactly.
+
+**B4 identity assumption UPGRADED, 2026-09-17, closure unchanged.** The
+recovery route B4 closed on depends on the installer's identity check still
+passing after a restore. Measured here: a physical restore preserves
+`system_identifier`, a logical one cannot. All eight backups are marked
+PHYSICAL, so the assumption is now supported rather than assumed. It is not yet
+observed on this project; the approved rehearsal settles that. B4 stays closed
+either way — this narrows a caveat, it does not reopen the blocker.
 
 **B4 CLOSED, 2026-09-17, owner. Row kept above.** The managed restore route is
 executable: eight daily PHYSICAL backups, newest 16 Sep 2026 11:19:55 +0000,

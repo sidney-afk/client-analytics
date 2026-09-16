@@ -30,6 +30,114 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Runner-table neutrality check STOPPED on differences; the check exposed that `observed67_optout` has been broken since `8299108`; calibration NOT run
+
+**What was asked.** Confirm the runner change in `808bca20`, which turned line
+10's single `if` into a per-profile `SETUP` table, is behaviourally neutral for
+the two existing profiles. Run each profile before and after, and require
+identical results; if they differ in any way, stop and report. Only then run
+the `settled68` calibration.
+
+**How.** Both runs used the reviewed `run-portable.ps1 -Lane install-operator`
+on the owner's machine, with PostgreSQL 17, ICU `en-US` on loopback and the
+private observed inputs:
+
+- **Before:** a separate git worktree at `05bf19f6`, the parent of
+  `808bca20`, at `D:/Sidney/Codex/2026-09-16-runner-before-05bf19f6`.
+- **After:** the checkout at `808bca20`.
+- **Differences between the trees:** `git diff --stat` shows exactly one code
+  file, the runner. `run-portable.ps1` and the Deno worker are byte-identical.
+- **`observed67_optout`** was given `INSTALL_OPERATOR_TARGET` pointing at its
+  pinned target from calibration `e7df95d7…` (sha `79710a7f…`, verified).
+  `observed67` used the target in the observed inputs (`f3db4b7c…`, verified).
+- **Environment:** `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ACCESS_TOKEN` were
+  cleared in each run's own process only (names only).
+- **What "identical" meant, fixed before any run:** plan, operator result,
+  worker output, reconstruction report and catalog, prerequisite file,
+  `RESULT.txt` and log markers compared byte for byte. The source-pin record was
+  declared in advance to differ by construction, because it records the
+  runner's own hash.
+
+**`observed67`: exit 0 on both sides.**
+
+- **Identical:** plan `3c000b76…`, operator result, worker output,
+  reconstruction report and catalog, prerequisite, `RESULT.txt`, and markers
+  (`LINEAR_EXIT_OBSERVED_SCHEMA_OK`, `LINEAR_EXIT_INSTALL_OPERATOR_OK`).
+- **Different:** only `operator-source-pins.private.json`. The runner sha is
+  `0adb40d5…` before and `04948adb…` after, the declared by-construction
+  difference.
+
+**`observed67_optout`: exit 1 on BOTH sides, at the same point.**
+
+- **Identical:** plan `0c889149…`, which is the pinned opt-out plan, so the
+  prerequisite and the fixture row were applied in both. Also the
+  reconstruction files, the prerequisite and `RESULT.txt`.
+- **Different:** `operator-worker.private.json`, by 4 bytes. At its first
+  divergence the difference is the repository path inside the stack trace,
+  which appears twice and is two characters longer in the after tree. The rest
+  of the file was not checked beyond that point.
+- **Where both refused:** the worker's read-only observation and its
+  wrong-identity refusal both passed. The real APPLY at worker line 20 then
+  threw `INSTALL_OPERATOR_EXECUTION_REFUSED` from
+  `scripts/linear-exit-install-operator.js:39`.
+
+**Per the owner's rule, stopped on the differences and did not decide whether
+they matter.** Two differences: the by-construction source-pin record, and the
+environmental path in the worker's stack trace. **The calibration was NOT run.**
+
+**The finding the neutrality check exposed: `observed67_optout` is broken, and
+was broken before this runner change.** It passed on 2026-09-14 (verification
+`b2498e97`). Measured with no database, calling the pure function that reads
+only committed contracts:
+
+```
+ARTIFACTS ["observed67","settled68"]
+observed67         {"contract":"observed67","pre_install":67,"created":23,"expected":90}
+observed67_optout  THROWS OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG
+settled68          {"contract":"settled68","pre_install":68,"created":23,"expected":91}
+```
+
+The same throw was measured at `05bf19f6`, which contains `8299108`. The
+opt-out plan declares its starting catalog as `f5ed8a38…` (the profile builder
+sets it). `postInstallPublicTables()` looks that hash up among the contracts in
+`ARTIFACTS`, and there is **no contract for the opt-out catalog**. The installer
+calls it during the install: line 35 for the guard count, and through
+`targetApi.compare()` at line 37. **Line 39's `catch` then replaces the real
+error with the generic `INSTALL_OPERATOR_EXECUTION_REFUSED`**, which is why the
+failure did not name its cause. The worker does not record `operatorStage`, so
+whether line 35 or line 37 threw first is **read from the code, not observed**.
+
+**So `8299108` (Group 1, "sites 1, 2 and 3 derive the post-install count from
+the profile's contract") fixed `observed67` and `settled68` and silently broke
+`observed67_optout`.** That profile's starting catalog is not a contract, it is
+a reversed delta on top of one. Group 1's offline tests could not see this; the
+journal records that sites 1 and 3 were reachable only through a real install
+or calibration. This was the first real install of that profile since.
+
+**What this means for the gate, and what is still owed:**
+
+- The runner change is **shown neutral for `observed67`**, apart from the
+  declared pin difference.
+- For `observed67_optout` it is **shown identical up to and including the
+  plan**, and both runs fail after that on a pre-existing defect. Neutrality
+  past the APPLY cannot be shown until that defect is fixed.
+- **The `settled68` calibration has still never run.** The derived 91 is
+  untested. The probe shows the helper returns 91 for the settled catalog, but
+  that is the derivation, not its test.
+- **Owner decision needed:** whether `observed67_optout` gets a
+  `postInstallPublicTables()` answer (for example, a contract entry or an
+  explicit mapping to its 67-table base), and whether the calibration may
+  proceed before that fix or only after the neutrality check passes for both
+  profiles.
+
+Nothing was re-pinned or edited. The before worktree is left in place for any
+re-run. All four run directories are preserved under the private evidence
+directory:
+`linear-exit-install-operator-ec97f57dfa384994acc17008d180bda2` and
+`-f7c6984408f94612ae5d5ee0ef65dc0e` (`observed67`, before and after), and
+`-087dc40f11f94182808b6af75c62e90b` and `-83486a5cddcf4ad99601c15ffc8567e7`
+(opt-out, before and after).
+
 ### 2026-09-16 — The prose-precondition rule was ratified and added to AGENTS.md, discriminator intact
 
 The owner ratified the rule proposed earlier today (section below, headed

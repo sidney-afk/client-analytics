@@ -30,6 +30,171 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — B10 worked as far as this sandbox honestly allows: guard list, fixture, SEVEN pin sites, and the retirement blob regenerated on a real PostgreSQL 17. Lane GREEN, 46 checks
+
+The half that was blocked is done. What remains is named at the bottom, with the
+line stated plainly.
+
+**PostgreSQL 17.11 was installed here from PGDG, with the owner's go-ahead
+asked for and given before installing rather than after.** An isolated cluster
+runs on `127.0.0.1`, ICU `en-US`, which is the collation the B9 derivation
+settled on.
+
+**What landed.**
+
+1. `hiring_practical_test_jobs` added to the admission guard list in sorted
+   position, 86 names to 87.
+2. The shared fixture gained the hiring migration as an OWNERS entry, so the
+   table exists. Not a `TABLES` seed entry — that was the wrong half on
+   2026-09-15 and stays reverted; the guard needs the table to exist, not to be
+   populated.
+3. **Seven pin sites re-derived**, not four.
+4. The retirement trigger contract blob regenerated from a real PostgreSQL 17.
+
+**The retirement blob, regenerated rather than hand-patched.** The aggregate
+query was extracted from the contract function's OWN source rather than
+retyped, with `into actual` stripped, so nothing about it is a reimplementation.
+The world was stood up by the retirement lane's own setup: the test file copied
+with **exactly one line changed** (verified: 2 changed lines in a unified diff,
+one removed and one added), replacing the first contract assert with a dump.
+
+Result: **192 entries**, which is the number predicted before the run from
+86 × 2 + 18 + 2. Two entries added, **none removed, and no existing entry
+altered in any field** — checked by comparing on `(table, name)` both ways.
+The two added:
+
+| name | table | definition_md5 |
+|---|---|---|
+| `aaa_application_dml_admission_row` | `hiring_practical_test_jobs` | `b2e6546d40c6faa0d2503d5e2b546984` |
+| `aaa_application_dml_admission_statement` | `hiring_practical_test_jobs` | `2518cbc38bb9ecc46a70c8ec349abd57` |
+
+Both md5s came from the server, read whole from the command's output. Neither
+was copied from a sibling, guessed, or adjusted until something stopped
+objecting. The other five fields came out exactly as the 2026-09-16 entry
+predicted from the contract's own definition.
+
+**THE PROOF.** `test/linear-exit-retirement-switch-postgres.js` against that
+PostgreSQL 17: **`LINEAR_EXIT_RETIREMENT_SWITCH_OK`, 46 checks**. This is the
+lane that was red on `retirement_trigger_contract` and forced B10 out of the
+catch-up on 2026-09-15. It is green with the table present.
+
+**SEVEN pin sites, not four. The earlier estimate was short by three, and two
+of the three were missed by the 2026-09-15 attempt as well.** Recorded because
+"four pin re-derivations" is written into this file's own account of B10's
+remaining work and is wrong.
+
+| # | Site | Why |
+|---|---|---|
+| 1 | schema contract `.sources[]` | admission migration hash |
+| 2 | release extension `sql_owners[]` | same |
+| 3 | release extension `admission_preflight_contract` | schema contract hash |
+| 4 | `CONTRACT_SHA` in the preflight | same |
+| 5 | `PIN` in the release extension script | extension artifact hash |
+| 6 | `control-retirement-public-owners.js` | retirement migration hash |
+| 7 | `observed-full-install-plan.js` OWNERS | same |
+
+Plus two the earlier attempt never reached, both found by TEST FAILURE, not by
+reading:
+
+| # | Site | Why | How found |
+|---|---|---|---|
+| 8 | `LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json` `.sources[]` **and** the `PIN` in `linear-exit-source-baseline-catalog.js` | the FIXTURE is a pinned source there | `SOURCE_BASELINE_SOURCE_DRIFT` |
+| 9 | `test/linear-exit-complete-application-recovery.js` | pins the admission migration's hash inline | hash sweep |
+
+**How 8 was found is the lesson, and it is the search rule again.** A sweep for
+the two MIGRATION hashes found sites 6 and 7 and nothing else, and I believed
+the set was closed. It was not: site 8 pins the *fixture*, whose hash I had
+changed without ever sweeping for it. The suite caught it. **Neither of the two
+migration edits would have revealed site 8** — only changing the fixture does,
+and the 2026-09-15 attempt changed the fixture too and never hit it, because
+that suite was not among the lanes it got to. A search of one shape closes
+nothing; the second shape here was "run everything".
+
+The extension artifact was regenerated with its own `generate()` and `verify()`
+passes. Sites 1 to 5 reproduce the 2026-09-15 values byte for byte —
+`454cfa64…`, `3288b4b5…`, `9c198325…`, each equal to what commit `0c923169`
+removed — which is an independent confirmation of that work rather than a fresh
+guess at it.
+
+**Regression check, done properly rather than asserted.** Full suite with the
+Postgres lanes enabled: **14 of 547 failed**. The same 14 fail **identically on
+a clean control worktree** of the pushed branch head with the same environment
+and the same server, so none is mine. They are sandbox failures, mostly
+`git show <sha>:<file>` against history a shallow clone does not carry. Before
+site 8 was fixed the count was 15; the extra one was site 8 and it is gone.
+**Zero regressions.**
+
+**Line endings were CHECKED at every edit, byte counted before and after, not
+intended.**
+
+| File | Kind | Before → after |
+|---|---|---|
+| admission migration | LF | 0 CR → 0 CR |
+| fixture | **CRLF** | 82 → 86 CRLF, **0 lone LF** |
+| retirement migration | **CRLF** | 296 → 296 CRLF, 3 → 3 lone LF |
+| the four other code/JSON pins | LF | unchanged |
+
+The fixture is the file that was silently flipped CRLF→LF on 2026-09-15, 168
+lines of collateral change for a 4-line addition. This time the diff is **4
+insertions, 0 deletions.** The flip did not recur.
+
+---
+
+### Where the line fell, and why it is there
+
+**Everything below needs the private observed inputs, which only the storage
+session can read. It is not a reluctance and not an effort problem.**
+
+**1. The three profile pins are NOT re-pinned here, deliberately.** Measured,
+final, with both migrations edited:
+
+| Profile | Pinned in the file today | Measured after B10 |
+|---|---|---|
+| `observed67` | `3c000b76…` | `7043637f…` |
+| `observed67_optout` | `0c889149…` | `92a4737f…` |
+| `settled68` | `e3dae746…` | `508e6369…` |
+
+The control run on the clean worktree reproduced all three **pinned** values
+exactly, which is what makes these three trustworthy as measurements.
+
+They are left unpinned on purpose. Pinning is the owner's reviewed step after
+seeing the numbers — that is the precedent `settled68` itself set — and a new
+plan hash beside a stale target would look re-pinned while being half-updated.
+Left as they are, the operator refuses at `PLAN`, which is correct fail-closed
+behavior and an accurate signal that the profile needs re-deriving.
+
+**2. The three TARGET hashes cannot be derived here at all.** A target comes
+from a real install run of the new plan against the private observed inputs in
+`2026-09-12-fast-finish-evidence`. `settled68`'s `625430…` is superseded as the
+entry above predicted in advance.
+
+**3. A THIRD item, not previously recorded anywhere.**
+`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` is
+simultaneously a dated proof record and a **live gate**: the install operator
+runs `for(const p of proof.source_pins) if(sha(file)!==p.sha256) fail('SOURCE_PIN')`
+against the current files. Its `source_pins` carries the retirement migration's
+old hash, and its `plan_sha256` and `target_sha256` are the superseded
+`observed67` pair.
+
+**I did not edit it, and this needs the owner's decision.** Updating a dated
+proof record's pins would make the 2026-09-13 run claim a source hash it never
+saw, which is rewriting history, and this file's own account says historical
+pins keep their historical meaning. But left alone it fails `SOURCE_PIN` at
+step 14. Those are the two horns; I am not choosing between them unilaterally.
+My reading is that the 2026-09-13 pipeline proof is invalidated by B10 and
+wants re-running on the storage session rather than editing, but that is a
+recommendation, not a decision.
+
+The four other stale references — two in
+`LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json`, one in
+`LINEAR_EXIT_RETIREMENT_SWITCH_PG17_20260913.json`, one in
+`LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` — are dated evidence with no
+live consumer found, and were left for the same reason.
+
+**What B10 does NOT need, restated so it is not re-opened.** No hosted anything,
+no SQL against production, no deploy, no dispatch. Nothing here lifts the
+freeze; this lands on the branch.
+
 ### 2026-09-16 — B10 will supersede the `settled68` target pinned at `c34c7e31`, and both other profiles' plan pins. Recorded IN ADVANCE, by measurement, before the change is made
 
 Written before doing the work so the next reader meets an expected supersession
@@ -4290,6 +4455,35 @@ B2 stays open behind it, unchanged.
 operator's hard-coded `GUARD_COUNT` of 90 public tables was derived from a
 67-table live read, and the live database has gained one table. Derived from
 code, not measured — step 8's receipt settles it. See the progress entry.
+
+**B10 NARROWED, not closed, 2026-09-16. Row kept above.** The half that was
+blocked is done and proven: the table is in the admission guard list, the
+fixture creates it, seven pin sites are re-derived, and the retirement trigger
+contract blob was regenerated on a real PostgreSQL 17 in this sandbox with both
+`definition_md5` values read from the server. The lane that forced B10 out of
+the catch-up is green — `LINEAR_EXIT_RETIREMENT_SWITCH_OK`, 46 checks — and the
+full suite shows zero regressions against a clean control worktree.
+
+**B10 now reduces to exactly three things, all of which need the private
+observed inputs and therefore the storage session:**
+
+1. Re-pin the three profile plan hashes. Measured here and recorded in the
+   progress entry; deliberately NOT written, because pinning is the owner's
+   reviewed step and a new plan beside a stale target would read as re-pinned
+   while being half-updated.
+2. Re-derive the three profile TARGET hashes, which requires a real install run
+   of the new plan. `settled68`'s `625430…` is superseded, as recorded in
+   advance earlier today.
+3. Decide what happens to
+   `docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json`, which
+   is both a dated proof record and a live `SOURCE_PIN` gate in the install
+   operator. Not edited here; it is an owner decision, because editing a dated
+   proof record's pins rewrites history and leaving it fails step 14. Added
+   2026-09-16, not previously recorded anywhere.
+
+Nothing in 1 to 3 blocks the merge or the install any more than B10 already did:
+the admission guard still installs `open` and is inert until something closes
+it, which nothing in the install path does.
 
 **B4 mechanical half PREPARED, not closed, 2026-09-16.** The dashboard check is
 now a numbered click path in the sitting page, section 4, with what to write

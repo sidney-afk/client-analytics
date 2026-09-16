@@ -2,7 +2,7 @@
 // Reviewed additive source extension, not a complete hosted baseline or installer.
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const ROOT=path.resolve(__dirname,'..'),ARTIFACT='docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json';
-const PIN='7411fe784373a84a9682ec84ed183ebc6571ff06e6776605b5291aadee36f8c6';
+const PIN='9c198325d380d68292fdc49aacc84d61fc61fc6a2c098c316c688e5550ae639e';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const canonical=require('./track-b-backup').canonicalJson;
 const OWNERS=['20260912174907_card_atomic_admission_preparation.sql','20260912183653_application_dml_admission_preparation.sql','20260912184931_card_followup_outcome_proof.sql','20260912190717_provider_debt_disposition_preparation.sql','20260912193102_followup_transactional_retry_preparation.sql','20260912193957_provider_closed_snapshot_preparation.sql','20260912200637_thumbnail_parser_contract_alignment.sql'];

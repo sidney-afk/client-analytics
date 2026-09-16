@@ -27,6 +27,10 @@ const OWNERS=[
     "sha256": "24356a2835beeb685c09fc097c0653532cf1756546310105a2bf822ca107798a"
   },
   {
+    "path": "migrations/2026-09-15-hiring-video-editor-role.sql",
+    "sha256": "92af9c25e5b0c2846c58e62e596b3a68a5a6e3217a68efd4dabcb82fdd5024e0"
+  },
+  {
     "path": "migrations/2026-08-24-quiz-responses.sql",
     "sha256": "44cbf318e12876b667329acd5f1a84d94246f16157d0357ed9a89484b7b5ad0a"
   },

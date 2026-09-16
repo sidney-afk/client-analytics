@@ -40,7 +40,7 @@ async function main(){try{
   for(const [file,sha256] of [
    ['qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql','31663a6b62bbc96efe85a8cdc8485c42f07f9455b5c043e2112ff07e36bba429'],
    ['supabase/migrations/20260912174907_card_atomic_admission_preparation.sql','1699ab4a661558460eeb94b2c4b85244265bb9b890589efbc4876c6266107cea'],
-   ['supabase/migrations/20260912183653_application_dml_admission_preparation.sql','c3d1e93127156b316ae7baf2176baf7892d5523248c3bbe4ef32c19676a0998e'],
+   ['supabase/migrations/20260912183653_application_dml_admission_preparation.sql','454cfa64db33977021d42e48fc081016e44062ae06fa89afe2b602cbad4d165b'],
    ['supabase/migrations/20260912184931_card_followup_outcome_proof.sql','e9691f160a7bbac302067156f4a7c8eb6682e5a214a6126b88776eaa1541a46a'],
    ['supabase/migrations/20260912190717_provider_debt_disposition_preparation.sql','2d014bc26cb72d1e096d40a4c406dfd8f0c39fe430adc327e7d8e0abf4c1142f'],
    ['supabase/migrations/20260912193102_followup_transactional_retry_preparation.sql','95804e6978f98fa251fad73bfa9c009d4ec46e70d42b77f30cb965cc577cf33e'],

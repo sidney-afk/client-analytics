@@ -24,6 +24,42 @@ const ARTIFACTS = Object.freeze({
     sha256: 'c8e934bcdfd0f43ffe8767f076bbc65e6aae803285ae380e3e552f302fb6778a'}),
 });
 const DEFAULT_CONTRACT = 'observed67';
+
+/* THE TABLES THE INSTALLATION CREATES, as opposed to the ones it finds.
+ *
+ * DERIVED, NOT CHOSEN. `docs/independence/LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`
+ * records post-install `public_tables: 90` from
+ * `initial_public_catalog_sha256` 809c5dc7…, which is the observed67
+ * contract's 67-table live read. 90 - 67 = 23.
+ *
+ * It is a property of the PLAN'S SOURCE LIST, not of any one profile: a profile
+ * changes only `initial_catalog_sha256` and the contract the starting catalog
+ * is compared against, never the sources. So the same 23 tables are created
+ * whichever profile runs, and the post-install count moves only because the
+ * starting count does.
+ *
+ * WHY THIS IS NOT THE TENTH LITERAL. The nine it replaces each restated a
+ * finished number with no way to tell which world it belonged to. This is one
+ * input to an arithmetic that reads its other input from the profile's own
+ * reviewed contract, and it carries where it came from. If a future profile
+ * ever changes the plan's source list, this is wrong and must be re-derived
+ * from that profile's own target -- it is not a universal constant.
+ *
+ * VERIFICATION STATUS, recorded deliberately so a later reader knows which
+ * links in this chain were independently checked and which were not:
+ *   - the 90 and the 67 are READ from committed artifacts;
+ *   - "the source list is identical across profiles" was established by
+ *     reading the builder, by one party only;
+ *   - the related 86-plus-4 decomposition was NOT independently confirmed: two
+ *     attempts to extract it from compressed source failed. It was approved on
+ *     the structural argument plus the fact that the calibration can refute it.
+ *
+ * THE CALIBRATION IS THE TEST OF THIS NUMBER. If it reports a post-install
+ * count other than the one derived here, that is a FINDING: stop and report it.
+ * It is not a licence to adjust this a second time. Adjusting twice is fitting
+ * the number to the observation.
+ */
+const INSTALL_CREATED_PUBLIC_TABLES = 23;
 const ARTIFACT = ARTIFACTS[DEFAULT_CONTRACT].path;
 const ARTIFACT_SHA256 = ARTIFACTS[DEFAULT_CONTRACT].sha256;
 const SECTIONS = ['rules', 'types', 'views', 'schema', 'tables', 'indexes', 'policies',
@@ -106,6 +142,24 @@ function load({readFile = fs.readFileSync, contract = DEFAULT_CONTRACT} = {}) {
   return expected;
 }
 
+/* Expected public table count AFTER installation, for whichever world the plan
+ * starts from. The plan names its own starting catalog, so nothing has to be
+ * told which profile it is serving -- which is the defect the nine literals
+ * had: they asserted a number they had no way to be right about. */
+function postInstallPublicTables(initialCatalogSha256, {readFile = fs.readFileSync} = {}) {
+  if (!/^[a-f0-9]{64}$/.test(initialCatalogSha256 || '')) throw Error('OBSERVED_CATALOG_STARTING_SHA_SHAPE');
+  for (const contract of Object.keys(ARTIFACTS)) {
+    const expected = load({readFile, contract});
+    if (expected.catalog_sha256 !== initialCatalogSha256) continue;
+    const tables = expected.sections.find(section => section.name === 'tables');
+    if (!tables || !Number.isInteger(tables.count)) throw Error('OBSERVED_CATALOG_TABLE_COUNT');
+    return {contract, pre_install: tables.count,
+      created: INSTALL_CREATED_PUBLIC_TABLES,
+      expected: tables.count + INSTALL_CREATED_PUBLIC_TABLES};
+  }
+  throw Error('OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG');
+}
+
 async function verify(readOnlyQuery, {projectRef} = {}) {
   if (typeof readOnlyQuery !== 'function') throw Error('READ_ONLY_QUERY_REQUIRED');
   const expected = load();
@@ -115,4 +169,5 @@ async function verify(readOnlyQuery, {projectRef} = {}) {
   return compare(actual, expected, {projectRef, queryBytes: bytes});
 }
 
-module.exports = {observation, compare, summarize, load, verify, ARTIFACTS};
+module.exports = {observation, compare, summarize, load, verify, ARTIFACTS,
+  postInstallPublicTables, INSTALL_CREATED_PUBLIC_TABLES};

@@ -30,6 +30,82 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Group 1 BUILT: sites 1, 2 and 3 derive their count from the profile's own contract; four files, 67 added lines, 5 removed
+
+Scope exactly as approved. Sites 4, 5, 7 and 8 untouched, and **site 6 needed no
+edit at all** — it builds its plan through the default contract, so the derived
+answer for its world is 90, exactly what its synthetic fixture already provides.
+It follows site 2 by construction rather than by being changed, which is better
+than editing it.
+
+| File | + | − |
+|---|---|---|
+| `scripts/linear-exit-observed-public-catalog.js` | 56 | 1 |
+| `scripts/linear-exit-observed-full-target.js` | 8 | 2 |
+| `scripts/linear-exit-install-operator.js` | 2 | 1 |
+| `test/helpers/install-operator-worker.mjs` | 1 | 1 |
+
+Most of the 56 is the provenance comment, which is the point.
+
+### How it derives, and why nothing needed a new argument
+
+`postInstallPublicTables(initialCatalogSha256)` resolves the **plan's own
+declared starting catalog** to the contract that matches it, reads that
+contract's reviewed table count, and adds the install-created constant. Verified:
+observed67 resolves to 67 + 23 = **90**, settled68 to 68 + 23 = **91**, an
+unknown starting catalog raises `OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG` and
+a malformed one raises `OBSERVED_CATALOG_STARTING_SHA_SHAPE`.
+
+**No call signature changed.** The plan already names its starting catalog, so
+every site could answer the question from what it already held. That is what
+made the scope four files instead of a refactor: the information was never
+missing, it simply was not being read. Site 2 is the clearest case — `create()`
+takes no profile, and now reads the **validated** plan object `j.compile` had
+already produced rather than re-parsing raw bytes.
+
+### The 23 is pinned with its provenance, not as a bare number
+
+At the owner's condition. The comment beside it records that it is
+90 − 67 from the committed target artifact, that it is a property of the plan's
+**source list** rather than of any profile, and — explicitly — **why it is not
+the tenth literal**: the nine it replaces each restated a finished number with no
+way to tell which world it belonged to, whereas this is one input to an
+arithmetic whose other input comes from the profile's own reviewed contract. It
+also says what would make it wrong: a future profile that changes the plan's
+source list, in which case it is re-derived from that profile's target and is
+not a universal constant.
+
+### Verification status, recorded because a later reader needs to know which links were independently checked
+
+Written into the code comment as well as here, at the owner's instruction.
+
+- The **90** and the **67** are READ from committed artifacts.
+- "The plan's source list is identical across profiles" was established **by one
+  party, by reading the builder.** Not independently confirmed.
+- The related **86-plus-4 decomposition was NOT independently confirmed.** The
+  supervisor attempted it **twice** and both attempts failed to extract it from
+  compressed source. The owner recorded plainly that he did not treat those
+  failures as confirmation, and approved on the structural argument plus the
+  fact that the calibration can refute it.
+
+So the chain behind 91 is: two read facts, one single-party code reading, and
+one unconfirmed decomposition that the approval deliberately did not lean on.
+**That is weaker than "verified" and stronger than "assumed", and the difference
+matters enough to write down.**
+
+### What cannot be tested here, stated rather than glossed
+
+The helper's arithmetic is proven both ways. **Site 2's new assertion is not
+behaviourally tested in this sandbox**: `create()` validates the full plan shape
+before reaching the table count, and a synthetic plan cannot pass that
+validation, so the only real exercise is a run with private inputs. Sites 1 and
+3 are likewise reachable only through a real install or calibration. The offline
+tests that touch the changed modules pass.
+
+**The binding stands unchanged. The derivation has happened once. The
+calibration is its test. If it reports anything other than 91, that is a finding:
+stop and report it, and do not adjust a second time.**
+
 ### 2026-09-16 — The two groups ARE independently fixable, and the coupling I claimed does not exist; my "every 90 is that list's length" was wrong
 
 The owner asked the right question and named the trap in it: if every 90 really

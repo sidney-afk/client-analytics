@@ -30,6 +30,141 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — INDEPENDENT REVIEW of the backup-path fix `6da60581`: PASS on the change and on authentication; the synthetic override's loopback gate is DECORATIVE by the owner's own criterion
+
+Reviewed by the cloud session, against the code, with the commit's journal
+account read alongside rather than trusted. Three things the owner had already
+confirmed were not re-proved: no `67` literal remains in the script, `restore()`
+takes the count from the manifest and never from the resolver, and line endings
+are preserved.
+
+**Overall: PASS.** The change is correct and the reasoning behind it is right —
+the count never carried the protection, and removing it loosens nothing that
+the catalog-hash bind and the exact evidence comparison do not already hold.
+One finding below is a real weakness and it is **not** a reason to withhold the
+change; it is a reason to record what the gate actually does.
+
+#### Question 1 — how is "loopback" decided? FROM A CALLER-SUPPLIED STRING. The gate is decorative.
+
+**The line**, `scripts/linear-exit-native-preinstall-backup.js`, in
+`captureTableCount(o)`:
+
+```
+const local=['127.0.0.1','::1'].includes(o.connection.host);
+```
+
+`o.connection.host` is an **option the caller passes in**. It is not the
+server's observation of the connection. By the criterion the owner set, that
+makes the gate decorative, and this review says so plainly.
+
+**What genuinely narrows it, stated so the finding is not overstated:**
+
+- `config()` strips every inherited `PG*` and `SUPABASE*` variable from the
+  environment and then sets `PGHOST` from that same `c.host`. So a caller
+  cannot claim loopback and connect somewhere else through the environment.
+  The connection really does go to the host named.
+- The override additionally requires the catalog to be **unreviewed**
+  (`reviewed===null`), so it cannot be used against `observed67`,
+  `observed67_optout` or `settled68`.
+- `capture()` still refuses unless the live catalog's canonical hash equals
+  `o.expectedCatalogSha256`.
+
+**Why it is still decorative rather than merely imperfect.** `PGHOST=127.0.0.1`
+being true does not mean the server is an isolated test cluster. Any TCP
+forwarder listening on loopback — `ssh -L`, `socat`, `kubectl port-forward` —
+makes the claim literally true while the database at the other end is remote and
+live. That is not an exotic attack; it is the ordinary way people reach a
+managed database. The check cannot distinguish the two cases because it never
+asks the server anything.
+
+**The sharpest part of the finding: the server's own observation is already
+fetched, in the same function, and is not compared.** Eleven statements after
+the gate, `capture()` runs:
+
+```
+const identity=await s.json("select jsonb_build_object('database',current_database(),'user',current_user,'server_address',inet_server_addr()::text,'server_port',inet_server_port());");
+if(identity.database!==o.connection.database||identity.user!==o.connection.user)fail('IDENTITY');
+```
+
+It reads `server_address` and `server_port`, writes them into the manifest as
+`connection_observation`, and compares **only** `database` and `user`. The value
+that would make the gate real is measured, stored, and never checked against the
+claim.
+
+**And the strong version of this check already exists in the same file.**
+`localCluster()`, used by `restore()`, asks the server for
+`host(inet_server_addr())`, requires it to be loopback, requires the port to
+match, requires `data_directory` to resolve to the caller's own local path, and
+requires `pg_controldata`'s system identifier to equal the running server's. A
+forwarder cannot fake that last one, because `pg_controldata` reads local files.
+So the file contains both the weak pattern and the strong one, and the synthetic
+override got the weak one.
+
+**The ordering that explains it, which is not an excuse.**
+`captureTableCount(o)` is called **before** the `Session` is opened, so at that
+point there is no server to ask. The check could be deferred, or re-asserted
+after the session opens against `identity.server_address`. Neither was done.
+
+**How much it actually costs, bounded honestly.** To reach the override against
+a real world you would need a live catalog that is not any reviewed profile —
+which is exactly the state the live database was in this morning — plus a
+loopback-looking route, plus a correct `expectedCatalogSha256`, which still has
+to match the real catalog exactly. The loss in that case is that
+`evidence(s,expectedTables)` degrades to "the world has as many tables as I
+said", which checks nothing. The exact catalog-hash bind survives, and restore's
+exact evidence comparison survives. **So the blast radius is the crude count
+check only, and the commit is right that the count was never the protection.**
+That is why this is a finding and not a rejection.
+
+**One wording correction the record should carry.** The code comment says the
+override "is refused for any non-loopback connection", and the commit's journal
+account says it is "honored only on a loopback connection ... refused
+`SYNTHETIC_COUNT_LOOPBACK_ONLY` for any other host". Both say *connection*. The
+code tests a *claim*. The difference is the whole of this finding.
+
+#### Question 2 — is the manifest's evidence inside the authenticated part of the package? YES. Confirmed end to end.
+
+The count-equals-evidence check cannot be satisfied from outside the package.
+Traced through both modules:
+
+1. `restoreEncrypted()` reads `encrypted.json` and `encrypted.mac` and verifies
+   an HMAC-SHA256 over the whole outer file with `crypto.timingSafeEqual`
+   **before parsing anything**. A tampered package is rejected before its JSON
+   is read.
+2. The custody manifest is sealed with AES-256-GCM under AAD
+   `{format, manifest_sha256:'encrypted-manifest', key_id, file:'manifest'}`;
+   its auth tag is verified on decrypt.
+3. Every object chunk — and the backup's `manifest.json` **is** one of the two
+   packed objects, alongside `public.dump` — is sealed with AES-256-GCM under
+   AAD binding the **custody manifest's digest**, the `key_id` and the chunk's
+   **own filename**. A chunk therefore cannot be moved between files or between
+   packages.
+4. On restore the decrypted custody manifest is re-HMAC'd into a staging
+   directory, `readManifest()` verifies that HMAC and requires the bytes to be
+   canonical JSON, and `visitChunks()` verifies **each chunk's size and
+   SHA-256** and then the **whole object's SHA-256**.
+5. Only after all of that does `restore()` read
+   `unpacked/database/manifest.json`, after checking the unpacked layout is
+   exactly `['manifest.json','public.dump']`.
+
+Two keys are required, and `keys()` refuses if they are the same value
+(`KEY_REUSE`). So altering either side of
+`m.expected_public_tables === m.evidence.catalog.tables.length` requires both the
+AES key and the HMAC key. **The check is sound.**
+
+#### What was NOT reviewed
+
+- The five proof runs themselves. They ran on the owner's machine against
+  private inputs; this session read the account and checked the code against it,
+  and did not re-run them.
+- `scripts/linear-exit-observed-public-catalog.js`'s extracted
+  `startingPublicTables()` was read and its call sites checked, but the claim
+  that its behavior is unchanged was not independently re-measured by comparing
+  outputs.
+- The three things the owner had already confirmed, by instruction.
+
+**Nothing was fixed.** No file was changed by this review.
+
 ### 2026-09-16 — Backup path: the expected table count now comes from the world, not a literal 67. Steps 9 and 10 no longer refuse the settled world; old 67-table backups measured still restorable. NEEDS INDEPENDENT REVIEW before anything builds on it
 
 Storage session, on the owner's machine. The approach was proposed and approved
@@ -5835,6 +5970,42 @@ D18, which ruled that those two profiles need not be installable.
 Not started. It waits on the backup-path review and on D23's open question,
 because re-basing moves the custody corpus and an assertion written against
 today's sets would have to be revisited immediately.
+
+### D25 — The guard list and the custody corpus are EQUAL, and any divergence is named in the assertion (2026-09-16, owner)
+
+Answers the open question in
+[`LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md`](LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md) §4,
+which was the one thing blocking D23 from implementation.
+
+**The relation is equality, not containment.** The owner's reasoning, recorded
+because it is the part a future session needs and not the verdict:
+
+> A table worth guarding holds data worth backing up. A table that is guarded
+> but never backed up can lose its data behind a check that makes it look
+> protected.
+
+That is the worse bug named in the sweep, and it is ruled out by construction
+rather than left to be noticed.
+
+**Deliberate divergence stays possible, but only on the record.** The assertion
+does not become containment to accommodate a future exception. It stays
+equality, and any exception is **named inside the assertion together with its
+reason**. So a divergence cannot happen by accident, and can happen only as a
+reviewed, written statement.
+
+**Also approved in the same ruling:** the proposal's "assert, do not derive"
+recommendation, with **the plan-hash cost as the decisive argument** — the guard
+list is install-plan source #2, so generating it would make every custody-corpus
+edit move all three profile plan hashes and invalidate all three targets, which
+is the blast radius B10 measured. The check **lives in the unit lane**, not the
+deferred set.
+
+**Sequencing.** Implementation was gated on the independent review of the
+backup-path fix `6da60581` being done and reported. That review is in the
+progress log above: PASS, with the synthetic override's loopback gate recorded
+as decorative. Implementation is not started in the same breath as the ruling;
+D24 also moves the custody corpus, and an assertion written against today's sets
+would have to be revisited the moment it lands.
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

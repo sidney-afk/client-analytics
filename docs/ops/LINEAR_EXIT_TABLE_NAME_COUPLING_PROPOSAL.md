@@ -142,7 +142,31 @@ guard covers a table the custody corpus does not" tells them exactly.
 
 ---
 
-## 4. THE OPEN QUESTION, which is the owner's and which blocks implementation
+## 4. THE OPEN QUESTION — ANSWERED 2026-09-16: EQUALITY (D25)
+
+**The question below was answered by the owner and is no longer open.** The
+relation is **equality**. The section is kept as written, because the reasoning
+for asking rather than guessing is the part worth keeping.
+
+The ruling, and the reason given:
+
+> A table worth guarding holds data worth backing up. A table that is guarded
+> but never backed up can lose its data behind a check that makes it look
+> protected.
+
+So the assertion states `set(guard list) == set(custody corpus)`. It does **not**
+become containment to accommodate a future exception: it stays equality, and any
+deliberate divergence is **named inside the assertion with its reason**, so
+divergence is impossible by accident and possible only on the record. Under that
+ruling today's `guard = corpus + 1` is a divergence to close, which is what D24
+does when the three broken suites are re-based onto the settled world.
+
+Recorded as **D25**. "Assert, do not derive" is approved, with §2.2's plan-hash
+cost named as the decisive argument, and the check lives in the unit lane.
+
+---
+
+### The question as it was asked, kept for the record
 
 **Is the intended relation between the admission guard list and the custody
 corpus EQUALITY, or CONTAINMENT?**
@@ -175,14 +199,20 @@ of this proposal.
 
 ## 5. Sequencing, and what this is blocked behind
 
-Nothing here is implemented, and nothing should be until:
+Nothing here is implemented. Updated 2026-09-16:
 
-1. the owner answers §4;
-2. the storage session's backup-path fix (`6da6058`) has been reviewed, which is
-   this session's next task and comes first when called;
-3. ruling 4 lands — re-basing the three broken suites onto the settled world
-   will itself move set(2), and an assertion written against today's sets would
-   have to be revisited immediately.
+1. ~~the owner answers §4~~ — **answered, D25, equality.**
+2. ~~the backup-path fix is reviewed~~ — **done and reported: PASS, with the
+   synthetic override's loopback gate recorded as decorative.** See the journal.
+3. **ruling D24 still stands between this and implementation.** Re-basing the
+   three broken suites onto the settled world moves set(2) by one name, and an
+   assertion written against today's sets would have to be revisited the moment
+   it lands. Writing the check first and the corpus second would mean landing a
+   check that is red on arrival.
+
+So the remaining question is one of order, not of substance: whether the
+assertion is written before D24 and expected to go green as D24 lands, or after
+D24 against the settled sets. That is the owner's call and is not assumed here.
 
 Written against branch `prep/linear-exit-review-fixes-20260913`. Every count and
 relation in §1 was measured from the files on that branch, not recalled.

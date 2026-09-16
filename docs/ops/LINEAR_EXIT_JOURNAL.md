@@ -30,6 +30,135 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Session C on the owner's machine: calibration REFUSED before any count; B5 dry run FAILED on this shell; wrapper preflight found four page disagreements
+
+All three sections were run on the owner's Windows machine at branch head
+`e6835ae1`, which contains `8299108`. Main is still `1abdd1fa`. Nothing was
+re-pinned, nothing past step 8 ran, nothing hosted was touched.
+
+#### Section 1, calibration: REFUSED at the plan build; no target and no post-install count exist
+
+**What was run, and every difference from what was written.** The page has no
+command for section 1, and its box says to ask rather than improvise. The owner
+explicitly authorised the session to execute it instead. So the invocation was
+constructed from reviewed parts and reported before running:
+
+- **Route:** `qa/linear-exit-rehearsal/run-portable.ps1 -Lane install-operator`,
+  the runbook's own command for this adapter's proof. It builds a PG17 cluster
+  on `127.0.0.1` with ICU `en-US`, scrubs routing environment variables, and
+  stops the server in `finally`.
+  - Difference from the derivation cluster: its libc locale is `--locale=C`,
+    where the derivation used `--locale=en-US`. Collation follows the ICU
+    provider either way.
+  - Difference: password authentication instead of trust.
+- **Calibration flags:** this lane refuses `-CalibrateTarget`, so
+  `INSTALL_OPERATOR_PROFILE=settled68` and `INSTALL_OPERATOR_CALIBRATE=1` were
+  set as process environment variables. The runner reads them directly.
+- **Environment:** the script refuses inherited routing variables. Two were
+  present, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ACCESS_TOKEN` (names
+  only), and were cleared from that one PowerShell process. The user
+  environment was not touched.
+- Observed inputs: `2026-09-12-fast-finish-evidence`. Output root: the
+  private final-review evidence directory.
+
+**Result, from the preserved error log**
+(`linear-exit-install-operator-9da3b590abe94a319915567344fe3773`):
+
+```
+AssertionError [ERR_ASSERTION]: exact settled observed baseline required
++ '809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd'
+- 'ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c'
+    at Object.build (scripts/linear-exit-install-profiles.js:34:10)
+    at test/linear-exit-install-operator-postgres.js:11:103
+```
+
+| Stage | State |
+|---|---|
+| Environment assertions, PG17 ICU loopback cluster | **passed, executed** |
+| Observed-schema reconstruction | **passed, executed**: `exact_captured_catalog_match: true`, 67 tables, 115 routines, 14 identity sequences |
+| `settled68` plan build | **REFUSED** |
+| Plan, derived guard count, target creation | **not reached** |
+| Cluster | stopped (`stop.log` present, no `postmaster.pid`) |
+
+**Why, read before running and then confirmed by running.** The `settled68`
+builder asserts that the starting catalog is the settled `ddfa4c4f…`. The
+runner `test/linear-exit-install-operator-postgres.js` rebuilds the 67-table
+observed schema. It applies the opt-out prerequisite **only** for
+`observed67_optout` (line 10) and **never** applies the hiring migration, so
+the starting catalog is `809c5dc7…`. The runner cannot produce the world
+`settled68` is defined against. The cloud session's attempt stopped earlier, on
+missing inputs, so no one had reached this line. It was predicted from the code
+and then run anyway, per the rule that a fact which can be measured is measured.
+
+**The 91 binding is untouched.** The calibration reported no count, so there is
+nothing to compare with 91 and nothing was adjusted. The fix is a **runner
+change**: build the settled world (opt-out prerequisite plus the hiring
+migration from main) before `build(initial, 'settled68')`. That is outside what
+this sitting was authorised to change, so it is left for review, not made here.
+
+#### Section 2, B5 dry run: FAILED on this machine's shell; two findings
+
+Run as written, from the repository checkout, in **Windows PowerShell
+5.1.26100**. PowerShell 7 (`pwsh`) is **not installed** on this machine.
+
+1. **`tar.exe` is on PATH**: `C:\Windows\system32\tar.exe`, bsdtar 3.8.8. The
+   residual question the page named is answered **yes**.
+2. **The `git archive … | tar` pipe fails in PowerShell 5.1:**
+   `tar.exe: Error opening archive: Unrecognized archive format`. PowerShell
+   5.1 is known to re-encode the bytes piped between two native programs as
+   text; PowerShell 7.4 does not. That cause is **inferred from the symptom,
+   not measured** here. The earlier successful execution was PowerShell 7.4.6
+   on Linux, which does not exercise this path. As the page instructs, no
+   alternative extraction was improvised.
+3. **Stale `origin/main`:** the block printed `main 73d5fdc361…`, while main is
+   `1abdd1fa` (confirmed with `ls-remote`). The block trusts the local
+   remote-tracking ref, and this checkout had only fetched the prep branch. Even
+   with a working pipe, the hash would have been compared against the wrong
+   commit. The real capture block has the same dependency, and at step 16 that
+   would matter.
+
+Throwaway directory `b5-dryrun-20260916-1` left in place.
+
+#### Section 3, wrapper preflight: parse OK; four disagreements with the later sitting page
+
+`node --check` printed `ok` for all three wrappers (Node v22.12.0).
+
+Each wrapper's argument checks and printed output were read against the later
+sitting page (last changed `829638d5`). **Argument order and count agree** for
+the catalog read, the capture and the local restore. **Where they disagree, the
+wrapper is right; reported, not edited:**
+
+1. **Capture, the worst of the four.** The page says the capture works when
+   "the scratch server is reported stopped" and to **STOP** if it is not. The
+   capture wrapper starts no scratch server and on success prints only
+   `DATABASE_CAPTURE_PASS; restore, private upload and downloaded-copy restore
+   still required`. Read literally, the page would order a STOP after a
+   successful capture, **inside the one-hour clock**.
+2. **Restore.** The page says it "reports its scratch server stopped". The
+   wrapper stops its cluster in `finally` but prints only
+   `ISOLATED_DATABASE_RESTORE_PASS`.
+3. **Downloaded-copy restore.** The page gives `<path-to-downloaded-package>`
+   with no constraint. The wrapper refuses any package not inside the private
+   evidence directory (`PRIVATE_NEW_PATHS_REQUIRED`), and it needs the unpacked
+   package directory, not the downloaded zip. That is how the 2026-09-14 drill
+   worked. The page states neither requirement.
+4. **Restore preconditions the page does not state.** The wrapper's owned
+   scratch cluster, `native-preinstall-scratch-d307…`, must be stopped
+   (`CLUSTER_NOT_STOPPED`) and its port free (`PORT_BUSY`).
+
+Minor: the page's "identity matches" for the catalog read is a human
+comparison. The wrapper checks only that its identity query returned one row.
+
+#### What this leaves
+
+- Section 1 needs a reviewed runner change before any calibration can produce
+  a target or a count. The 91 derivation stays untested.
+- The B5 capture block needs a decision for Windows: PowerShell 7, or an
+  extraction step that does not pipe bytes through PowerShell 5.1. It also needs
+  an explicit fetch of main.
+- The later sitting page needs the four wrapper disagreements corrected before
+  it is used under the clock.
+
 ### 2026-09-16 — Calibration handed to the local session; the two-step collapses; standing instruction for both outcomes
 
 The owner is giving the calibration to the local session directly rather than

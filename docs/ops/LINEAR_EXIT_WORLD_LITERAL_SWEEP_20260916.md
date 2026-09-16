@@ -359,6 +359,36 @@ offered as material for that decision, not as a plan:
   something asserted the couplings between the four places the table-name set
   is written down. Which of those is worth doing is the owner's call.
 
+## 8. Amendment: three owner decisions landed while this was being written
+
+Recorded because two of them change what a reader should DO with sections above,
+though neither changes a fact in them. Read from commit `c234fee`, which landed
+during the sweep.
+
+- **D18 — the two 67-table profiles no longer need to be installable.** Their
+  post-B10 install refusal is ruled *not a regression*, and a future session
+  must not fix it. **§3.4 still stands as fact:** their pinned plans are stale.
+  It is not a call to act, and under D18 the pins may not need re-deriving at
+  all. What happens to those profiles and their pins was explicitly not decided.
+- **D19 — the pipeline proof moves to the settled 68-table world.** This
+  promotes most of §5 from hypothetical to scheduled. Survey sites 4, 5 and 6
+  (`observed-full-pipeline-worker.mjs:11`, `observed-full-pipeline.js:33`,
+  `observed-full-install.js:11`) are correct *only* because that lane has so far
+  been observed67-only. Re-basing it on the settled world makes the
+  post-install count 91 and those three literals wrong **by the act of carrying
+  out D19**. They are the first things that re-run will hit.
+  D19 also defers any repointing of the install operator's `source_pins`
+  until this sweep and the backup-path fix are done, so §6.2's three
+  unexplained fingerprints stay unsettled for now by decision, not by oversight.
+- **D20 — the admission guard stays strict.** Confirms that the §3.2 and §3.3
+  divergences are to be closed by correcting the stale side, never by relaxing
+  the check.
+
+**No section above was rewritten in the light of these.** The findings were
+measured before the decisions landed and are left as measured.
+
+---
+
 ---
 
 *Sweep performed 2026-09-16 by the cloud execution session, read-only, against

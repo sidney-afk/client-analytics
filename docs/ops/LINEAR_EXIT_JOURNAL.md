@@ -30,6 +30,132 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — RESTORE REHEARSAL ANSWERED BY MEASUREMENT: a Supabase restore preserves cluster identity, so the installer's identity check survives one
+
+The owner ran the rehearsal on his own project. **Measured, on live and on the
+restored copy:**
+
+| | `system_identifier` |
+|---|---|
+| live | `7642734024280108049` |
+| restored copy | `7642734024280108049` |
+
+**Identical.** A Supabase restore preserves the cluster identity. The
+installer's `IDENTITY_SQL` check, which is built on `system_identifier` from
+`pg_control_system()`, would still pass against a restored database. By the
+reasoning recorded earlier the same day — physical copies carry the control
+file, logical restores into a new cluster cannot — **the in-place case is
+settled by implication**, and the recovery route B4 closed on works on this
+point.
+
+That closes the question this file recorded on 2026-09-16 as "supported but not
+observed". It is now observed, on the real project, and no longer rests on the
+platform's PHYSICAL label plus a rule measured elsewhere.
+
+**Clarification, at the owner's instruction, so a number in this file is never
+misread as live's.** The earlier entry's table gave
+`7686148391648556190` for the "original" cluster and
+`7686148429403448532` for a logical restore. **Both were throwaway clusters in
+the cloud session's sandbox**, created to establish the general rule about
+physical versus logical restores. **Neither is live's value.** Live's is
+`7642734024280108049`, above, and it is the only value in this file that
+describes the real project. The earlier entry stands as written per the append
+rule; this is its correction.
+
+Worth naming why the mix-up was possible at all: the sandbox measurement and the
+live measurement answer two different questions — *what does PostgreSQL do* and
+*what does our project do* — and they were reported in the same units, one day
+apart, in the same file. The general rule was the right thing to measure
+locally, and it was never a substitute for the project's own number. This is the
+same lesson the ICU correction produced, arriving from the other side: **a
+measurement of the mechanism is not a measurement of the instance.**
+
+### 2026-09-16 — Contract byte-confirmed and WIRED; settled68 profile added, fail-closed on two hashes that must be measured
+
+The byte comparison passed: `c8e934bcdfd0f43ffe8767f076bbc65e6aae803285ae380e3e552f302fb6778a`,
+2,907 bytes, on the private candidate and on the file on the branch. Downstream
+work was unblocked by that result and not before it.
+
+**The loader now holds a named registry rather than one pinned artifact.**
+`linear-exit-observed-public-catalog.js` carries `ARTIFACTS` with `observed67`
+(2026-09-12, 67 tables) and `settled68` (2026-09-16, 68 tables). A caller selects
+**by name**; nothing accepts a caller-supplied path or hash, so a new starting
+picture stays a reviewed addition to that table and can never be an argument.
+The default is still `observed67`, so every existing caller is unchanged, and an
+unknown name raises `OBSERVED_CATALOG_UNKNOWN_CONTRACT`. The contract selection
+threads through `linear-exit-observed-install-plan.js` and
+`linear-exit-observed-full-install-plan.js` as an optional argument, again
+defaulting to the old behaviour.
+
+**Route B, as decided, means no delta is reversed.** `settled68`'s build asserts
+the catalog hashes to `ddfa4c4f…` and then builds the plan **directly** from it,
+because the contract it is compared against is the settled one. That is the
+whole reason Route B was chosen over reversing a six-class delta. The build also
+asserts that the resulting plan declares `initial_catalog_sha256` equal to the
+settled hash, so a contract and a profile can never be wired to different
+pictures without the build noticing.
+
+**Both of the profile's hashes are `null` and neither was guessed.** `get()`
+refuses `settled68` until they are pinned, so it cannot be used by accident;
+`build()` still works, because building is how the plan hash is obtained in the
+first place. A plausible-looking hash written into that table would be exactly
+the silencing D8 forbids, and the temptation is real because the slot is right
+there. The refusal message says so in the code, not just here.
+
+- **plan** is measured with `scripts/linear-exit-b9-catalog-derive.js
+  --plan-from=<private settled catalog>`. Pure function of this repository plus
+  the settled catalog: no cluster, no install, nothing hosted, seconds to run.
+- **target** is not derivable anywhere but a calibration run of the installer,
+  and that needs the private observed-schema inputs. It stays with session C.
+
+**Verified offline:** both contracts load and report their own table counts, the
+default is still `observed67`, an unknown contract is refused, `get()` refuses
+the unpinned profile, both existing profiles still return their original pins,
+and `settled68` refuses a catalog that is not the settled one.
+
+**Not verified offline, and stated rather than glossed:**
+`test/linear-exit-observed-full-install.js` and
+`test/linear-exit-atomic-writer-bound-bundle.js` both fail here with "explicit
+private observed catalog path required". They fail identically at the parent
+commit, so this is the sandbox lacking the private inputs, not a regression —
+the same class as `test/ef-deploy-provenance.js`. The settled profile's real
+proof is the `--plan-from` run on the owner's machine.
+
+### 2026-09-16 — NEAR MISS: the byte comparison was nearly run against the failed run's directory, and a refusal is what stopped it
+
+Recorded at the owner's instruction, and it belongs in this section rather than
+being softened into a footnote.
+
+The directory named for the byte comparison was the **`-1`** output directory.
+`-1` was the run that FAILED on the collation; `-2` was the successful
+derivation. The candidate file in `-1` either does not exist or is not the one
+that produced the published numbers. Comparing against it would have produced a
+mismatch, or worse a false match against the wrong artifact, at the exact moment
+the check existed to be trusted.
+
+**The supervisor's instruction was wrong, and the storage session refused to
+substitute rather than quietly picking the directory that looked right.** That
+refusal is the whole reason this is a near miss and not an incident. A session
+that had "helpfully" corrected `-1` to `-2` on its own would have produced the
+right answer this time and taught everyone that the instruction did not need to
+be right.
+
+Two things worth keeping:
+
+- **A mandatory check is only as good as the thing it points at.** The check
+  itself was correctly specified and would still have been worthless. When a
+  comparison is made mandatory, the identity of BOTH sides has to be as
+  carefully established as the comparison.
+- **Refusing to substitute is correct behaviour even when the substitution
+  would have been right.** This file already records the same shape from the
+  other direction, in D8: a permission system blocked an edit, the session
+  stopped rather than routing around it, and the owner later judged the refusal
+  correct on the merits.
+
+Numbered attempt directories are exactly the setup for this: `-1` and `-2` look
+interchangeable in an instruction and are not. The sitting page's rule that a
+failed attempt keeps its directory is what made both exist at once.
+
 ### 2026-09-16 — Settled-state observed contract AUTHORED; awaiting the mandatory byte comparison before anything is built on it
 
 `docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260916.json`, 2,907
@@ -2192,6 +2318,14 @@ where it bites and nowhere else — **immediately before the exit merge at step
 is that a capture taken at any other moment still looks complete. Verified here
 that the git side of the pipeline reproduces `1abdd1fa`'s `index.html` hash
 exactly.
+
+**B4 identity question CLOSED BY MEASUREMENT, 2026-09-16, owner's rehearsal.**
+Live and the restored copy both report `system_identifier`
+`7642734024280108049`. A Supabase restore preserves cluster identity, so the
+installer's identity check survives a restore and the recovery route works on
+this point. This supersedes the "supported but not observed" note below. What
+remains unmeasured under B4 is only the restore's outage DURATION, which is
+recorded as unknown by deliberate choice.
 
 **B4 identity assumption UPGRADED, 2026-09-16, closure unchanged.** The
 recovery route B4 closed on depends on the installer's identity check still

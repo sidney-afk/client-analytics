@@ -21,8 +21,8 @@ function sqlTransport(sql){
  // this psql client directive; preserve every remaining source byte.
  return sql.replace(/^\\set ON_ERROR_STOP on\r?\n/,'');
 }
-function build(catalog){
- const expected=observed.load(),queryBytes=fs.readFileSync(path.join(ROOT,expected.query.path));
+function build(catalog,{contract}={}){
+ const expected=observed.load(contract?{contract}:undefined),queryBytes=fs.readFileSync(path.join(ROOT,expected.query.path));
  assert.equal(observed.compare(catalog,expected,{projectRef:expected.project_ref,queryBytes}).status,'MATCHED_OBSERVED_PUBLIC_CATALOG','exact starting public catalog required');
  const manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json')));inventory.verify(manifest);
  const added=extension.verify(),sources=[],decisions=[];

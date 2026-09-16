@@ -23,8 +23,8 @@ Object.freeze(OWNERS);
 // Journal statement parsing normalizes line endings. Encode CR-bearing routine bodies
 // before parsing, preserving their actual PostgreSQL text without changing old plans.
 function routineTransport(sql){return sql.replace(/(^create\s+(?:or\s+replace\s+)?function\s+[\s\S]*?\bas\s+)(\$[a-zA-Z_0-9]*\$)([\s\S]*?)\2/gim,(whole,head,delimiter,body)=>body.includes('\r')?head+"E'"+body.replace(/\\/g,'\\\\').replace(/'/g,"''").replace(/\r/g,'\\r').replace(/\n/g,'\\n')+"'":whole);}
-function build(catalog){
- const base=previous.build(catalog),plan=JSON.parse(base.planBytes);
+function build(catalog,opts){
+ const base=previous.build(catalog,opts),plan=JSON.parse(base.planBytes);
  assert.equal(plan.sources.length,35,'review historical profile changes explicitly');
  for(const owner of OWNERS){
   assert(!plan.sources.some(s=>s.id===owner.path),'duplicate owner');

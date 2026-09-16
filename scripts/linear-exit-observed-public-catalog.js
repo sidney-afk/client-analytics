@@ -6,8 +6,26 @@ const crypto = require('node:crypto');
 const {canonicalJson} = require('./track-b-backup');
 const ROOT = path.resolve(__dirname, '..');
 const QUERY = 'scripts/linear-exit-source-baseline-catalog.sql';
-const ARTIFACT = 'docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json';
-const ARTIFACT_SHA256 = '824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5';
+// Finite, named observed contracts. A caller selects one BY NAME; nothing here
+// accepts a caller-supplied path or hash, so a new starting picture is a
+// reviewed addition to this table and never an argument.
+//
+// observed67 is the 2026-09-12 live read, 67 public tables. settled68 is the
+// 2026-09-16 settled state: the same picture plus the owner's hiring migration
+// as merged on main at 1abdd1fa, 68 public tables, derived offline against an
+// isolated PostgreSQL 17 and byte-confirmed against the derivation's private
+// candidate before being wired here.
+const ARTIFACTS = Object.freeze({
+  observed67: Object.freeze({
+    path: 'docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json',
+    sha256: '824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5'}),
+  settled68: Object.freeze({
+    path: 'docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260916.json',
+    sha256: 'c8e934bcdfd0f43ffe8767f076bbc65e6aae803285ae380e3e552f302fb6778a'}),
+});
+const DEFAULT_CONTRACT = 'observed67';
+const ARTIFACT = ARTIFACTS[DEFAULT_CONTRACT].path;
+const ARTIFACT_SHA256 = ARTIFACTS[DEFAULT_CONTRACT].sha256;
 const SECTIONS = ['rules', 'types', 'views', 'schema', 'tables', 'indexes', 'policies',
   'triggers', 'functions', 'sequences', 'default_acls', 'dependencies',
   'publications', 'server_major', 'internal_constraint_triggers'].sort();
@@ -78,9 +96,11 @@ function compare(catalog, expected, {projectRef, queryBytes = fs.readFileSync(pa
     external_platform_configuration_proven: false};
 }
 
-function load({readFile = fs.readFileSync} = {}) {
-  const bytes = readFile(path.join(ROOT, ARTIFACT));
-  if (sha(bytes) !== ARTIFACT_SHA256) throw Error('OBSERVED_CATALOG_ARTIFACT_DRIFT');
+function load({readFile = fs.readFileSync, contract = DEFAULT_CONTRACT} = {}) {
+  if (!Object.hasOwn(ARTIFACTS, contract)) throw Error('OBSERVED_CATALOG_UNKNOWN_CONTRACT');
+  const {path: artifact, sha256: expectedSha} = ARTIFACTS[contract];
+  const bytes = readFile(path.join(ROOT, artifact));
+  if (sha(bytes) !== expectedSha) throw Error('OBSERVED_CATALOG_ARTIFACT_DRIFT');
   const expected = JSON.parse(bytes);
   if (sha(readFile(path.join(ROOT, QUERY))) !== expected.query.sha256) throw Error('CATALOG_QUERY_DRIFT');
   return expected;
@@ -95,4 +115,4 @@ async function verify(readOnlyQuery, {projectRef} = {}) {
   return compare(actual, expected, {projectRef, queryBytes: bytes});
 }
 
-module.exports = {observation, compare, summarize, load, verify};
+module.exports = {observation, compare, summarize, load, verify, ARTIFACTS};

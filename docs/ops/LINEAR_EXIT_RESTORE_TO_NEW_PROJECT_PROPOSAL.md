@@ -72,6 +72,26 @@ measures exactly that number, on the real data volume, at no risk to anything.
 
 That is the single cheapest way to convert an accepted unknown into a fact.
 
+### 2. ANSWERED, 2026-09-16, by a rehearsal on the real project
+
+**The rehearsal ran and the question is closed.** Live and the restored copy
+both report `system_identifier` `7642734024280108049`. **Identical.**
+
+A Supabase restore preserves cluster identity. The installer's identity check,
+which is built on that value, would still pass against a restored database, and
+by the physical-versus-logical rule below the in-place case follows by
+implication. The recovery route B4 closed on works on this point.
+
+The section below is kept as written, because it is the reasoning that made the
+rehearsal worth an hour and $10, and because its measurements are still the rule
+this conclusion rests on. **One thing in it must not be misread:** the
+`7686148391648556190` and `7686148429403448532` values there are throwaway
+clusters in a sandbox, created to establish the general rule. **Neither is
+live's.** Live's is `7642734024280108049`.
+
+What is still unmeasured under B4 is only the restore's outage **duration**,
+recorded as unknown by deliberate choice.
+
 ### 2. It closes the last part of a question that is now MEASURED, not assumed
 
 **Updated 2026-09-16. The general rule is no longer an assumption.** Measured on

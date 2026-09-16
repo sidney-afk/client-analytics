@@ -86,9 +86,10 @@ function gitShow(ref, file) {
 }
 
 function parseArgs(argv) {
-  const out = { selfcheck: false, observedInput: null, out: null, json: false };
+  const out = { selfcheck: false, observedInput: null, out: null, json: false, planFrom: null };
   for (const a of argv) {
     if (a === '--selfcheck') out.selfcheck = true;
+    else if (a.startsWith('--plan-from=')) out.planFrom = a.slice(12);
     else if (a === '--json') out.json = true;
     else if (a.startsWith('--observed-input=')) out.observedInput = a.slice(17);
     else if (a.startsWith('--out=')) out.out = a.slice(6);
@@ -282,9 +283,35 @@ function derive(opts) {
   }
 }
 
+/* Measure the settled profile's plan hash. It is a pure function of this
+ * repository plus the settled catalog -- no cluster, no install, nothing
+ * hosted. It exists so the pin in linear-exit-install-profiles.js is READ from
+ * a run rather than chosen, which is the whole point of D8. Seconds to run.
+ *
+ * Takes the private settled catalog the derivation already wrote
+ * (<out>/b9-settled-catalog.private.json). Prints hashes only. */
+function planFrom(file) {
+  const assert = require('assert/strict');
+  assert(file && path.isAbsolute(file), '--plan-from must be an absolute path to b9-settled-catalog.private.json');
+  const catalog = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const j = require('./linear-exit-install-journal');
+  const catalogSha = j.sha(j.canonical(catalog));
+  const built = require('./linear-exit-install-profiles').build(catalog, 'settled68');
+  return {
+    marker: 'B9_SETTLED_PLAN_MEASURED',
+    settled_catalog_sha256: catalogSha,
+    settled_plan_sha256: built.planSha256,
+    plan_bytes: built.planBytes.length,
+    stage_id: JSON.parse(built.planBytes).stage_id,
+    initial_catalog_sha256: JSON.parse(built.planBytes).initial_catalog_sha256,
+    target_still_required: true,
+    note: 'the target is NOT derivable here; it comes from a calibration run of the installer',
+  };
+}
+
 function main(argv) {
   const opts = parseArgs(argv);
-  const result = opts.selfcheck ? selfcheck() : derive(opts);
+  const result = opts.planFrom ? planFrom(opts.planFrom) : opts.selfcheck ? selfcheck() : derive(opts);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   if (result.marker === 'B9_DERIVE_FAILED') return 1;
   if (result.marker === 'B9_DERIVE_SELFCHECK_PROBLEMS') return 1;
@@ -292,4 +319,4 @@ function main(argv) {
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
-module.exports = { selfcheck, derive, reviewedSections, HIRING_MIGRATION };
+module.exports = { selfcheck, derive, planFrom, reviewedSections, HIRING_MIGRATION };

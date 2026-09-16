@@ -30,6 +30,113 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Backup path, review finding fixed: with the synthetic override, the SERVER must now prove it is the caller's own local cluster. Forwarder refusal tested; mutation shows which parts bite and which one cannot here
+
+Storage session. It fixes the one finding in the independent review at
+`3dc70acb` and nothing else. The correction to the earlier account is below that
+account, in the entry "Backup path: the expected table count now comes from the
+world".
+
+#### The change
+
+`scripts/linear-exit-native-preinstall-backup.js`, `e0b27b37…` → `328eb1772222b27a1071469307b82a2bc7886490f24d5e511c7045d437b46ac2`,
+17,269 → 18,212 bytes, CRLF kept (65 lines, 65 CR). The owner specified the
+change, and it is exactly this:
+
+1. **In `capture()`, immediately after the existing identity check**, which is
+   after the session is open and before any evidence is read:
+   `if(o.syntheticPublicTables!==undefined)verifySyntheticServer(o,env,identity);`
+2. **`verifySyntheticServer(o,env,identity)`** runs three checks in order:
+   - the capturing session's **own** `inet_server_addr()` must be `127.0.0.1` or
+     `::1`, after stripping the `/32` or `/128` that `inet::text` carries.
+     Otherwise it refuses `SYNTHETIC_COUNT_SERVER_NOT_LOOPBACK`.
+   - that session's `inet_server_port()` must equal the claimed port, or it
+     refuses `SYNTHETIC_COUNT_SERVER_PORT`.
+   - then it calls **`localCluster(o,env)`, the same function `restore()` already
+     uses, unchanged.** That function asks the server for `host(inet_server_addr())`,
+     port, `data_directory` and `pg_control_system().system_identifier`. It
+     requires loopback, the claimed port, a `data_directory` resolving to
+     `o.localDataDirectory`, and `pg_controldata` of that **local directory**
+     reporting the same system identifier. A forwarder can relay the first three
+     but cannot supply local files.
+3. The pre-connection check on the claimed host stays, as a cheap early refusal.
+   It is no longer described as the protection. The code comment now says what
+   each stage checks.
+4. `identity.server_address` and `server_port` were already fetched and written
+   into the manifest as `connection_observation`. The query and the manifest are
+   unchanged, so old manifests are unaffected and no manifest bytes change for
+   captures without the override.
+
+**Scope unchanged:** captures without the override (every reviewed catalog,
+which includes the live path) do not run this verification. It only closes the
+door the override opened.
+
+#### The test
+
+`test/linear-exit-native-preinstall-backup.js`, `443fea8f…` → `80c1f39290b7ab58057e7cfaf2a93f624411bbf46ea26b240cad0ce5f5c65859`,
+18,368 → 20,818 bytes, CRLF kept (78 lines, 78 CR). Three cases were added. They
+run in both the synthetic and observed modes, each with the override and an
+unreviewed catalog so the override is honored before connecting:
+
+| # | Setup | Must refuse with | And |
+|---|---|---|---|
+| 1 | **A real TCP forwarder**: a separate Node process listening on `127.0.0.1` on an ephemeral port and piping to the test cluster. The capture claims `127.0.0.1` and the forwarder's port | `NATIVE_BACKUP_SYNTHETIC_COUNT_SERVER_PORT` | no target created. The forwarder's port is asserted different from the cluster's first. It runs as a separate process because `localCluster()` calls `psql` synchronously and would deadlock on an in-process forwarder |
+| 2 | Direct connection, but `localDataDirectory` is the run's output directory, not the cluster's data directory | `NATIVE_BACKUP_LOCAL_CLUSTER_IDENTITY` | no target |
+| 3 | Direct connection, no `localDataDirectory` | `NATIVE_BACKUP_LOCAL_DATA_DIRECTORY` | no target |
+
+The forwarder is the attack the review named, not a stand-in for it.
+
+#### What ran, what it produced, what would have made it fail
+
+All on the owner's machine, from a Windows PowerShell 5.1 host, with the
+reviewed `run-portable.ps1 -Lane native-preinstall-backup`. Predictions were
+stated before the runs.
+
+| Run | Directory (`linear-exit-native-preinstall-backup-…`) | Predicted | Produced |
+|---|---|---|---|
+| Synthetic | `f7dbcb65…` | 25 → 28 checks | **exit 0, 28 checks**, 67 / 67 tables |
+| Observed `settled68` | `145af6d5…` | 15 → 18 checks | **exit 0, 18 checks**, 68 / 68 tables |
+
+Every legitimate capture that uses the override passed the new verification.
+That includes the concurrent-writer captures and the changed-catalog refusal
+cases, all over direct connections. So the check does not refuse the case it
+must allow. *Would have failed on* the `inet::text` mask not being stripped, a
+port-type mismatch, or `localCluster()` rejecting the test's own cluster.
+
+**Mutation.** Eight mutants of the module, each run through the synthetic lane.
+After each, the original bytes were restored and verified at `328eb177…`, and
+again at the end:
+
+| Mutant | Predicted | Lane | What the test saw |
+|---|---|---|---|
+| M1 claimed-host check removed | detected | exit 1 | `SESSION_FAILED` where `SYNTHETIC_COUNT_LOOPBACK_ONLY` was expected |
+| M2 reviewed-catalog guard removed | detected | exit 1 | `CATALOG_MISMATCH` |
+| M3 unreviewed refusal removed | detected | exit 1 | `EXPECTED_TABLES_ARGUMENT` |
+| M4 manifest-versus-evidence equality removed | detected | exit 1 | `EXPECTED_ORDINARY_TABLES` |
+| **M5 server-port check removed** | detected | **exit 1** | the forwarder case got `LOCAL_CLUSTER_PORT`: `localCluster()` caught it one step later |
+| **M6 `localCluster()` call removed** | detected | **exit 1** | the wrong-directory case got through to `CATALOG_MISMATCH` |
+| **M7 server-address check removed** | **NOT detected** | **exit 0, 28 checks** | nothing |
+| **M8 the whole verification call removed** | detected | **exit 1** | the forwarder capture got through to `CATALOG_MISMATCH` |
+
+**M7 is stated plainly, because it is the same kind of guard the review
+criticised.** The lane's cluster listens on `127.0.0.1` only (`run-portable.ps1`
+line 125 writes `listen_addresses = '127.0.0.1'`), so every connection to it,
+direct or forwarded, reports a loopback server address. **No test in this lane
+can make the address check fail**, so its presence is not proven by a test.
+
+What does cover that case, by construction rather than by the address check:
+a forwarder reaching a remote server makes that server's own port and
+`data_directory` visible, and `pg_controldata` on the caller's local directory
+cannot report the remote cluster's system identifier. M5 and M6 show those layers
+bite. Proving M7 would need a test cluster listening on a non-loopback interface.
+That was not done: it means changing the reviewed runner's listen address or
+opening a LAN listener on this machine, and neither was asked for.
+
+**Also re-run: nothing else.** The observed `observed67` and opt-out lanes, the
+old-package restores and the resolver probe were not repeated, because this
+change touches neither the resolver, restore, nor any path without the override.
+Main is unchanged.
+
 ### 2026-09-16 — INDEPENDENT REVIEW of the backup-path fix `6da60581`: PASS on the change and on authentication; the synthetic override's loopback gate is DECORATIVE by the owner's own criterion
 
 Reviewed by the cloud session, against the code, with the commit's journal
@@ -385,6 +492,34 @@ refusal earlier and explicit.
 **Independent review asked for before anything builds on this**, per the owner.
 No plan or target was pinned, the install operator's proof read was not
 repointed, the sweep was not touched, and main is unchanged.
+
+#### CORRECTION, added 2026-09-16 after the independent review at `3dc70acb`. The account above is kept as written.
+
+**The account above overstated what the synthetic override's loopback check
+did.** It says the override is "honored only on a loopback connection" and
+refused `SYNTHETIC_COUNT_LOOPBACK_ONLY` "for any other host". The code comment
+at `6da60581` said it "is refused for any non-loopback connection".
+
+**What the code actually did** was test `o.connection.host`, a string the caller
+supplies. It never asked the server. A TCP forwarder listening on loopback makes
+that string true while the database is somewhere else. The review called the
+gate decorative, and that is correct. The claim was about a *connection*; the
+check was of a *claim*.
+
+**Proof B's first case did not prove what the account said.** It sent
+`example.invalid` and saw the refusal. That shows a non-loopback **claim** is
+refused. It says nothing about a loopback claim routed to a remote server, which
+is the case that matters. The M1 mutation showed the claim check is
+load-bearing for the claim, and nothing more.
+
+**Unaffected, per the review:** the reason for the change (the count was never
+the protection), the catalog-hash bind, restore's exact evidence comparison, the
+reviewed-catalog refusal and the manifest authentication. So was the blast radius
+the review bounded: the crude count check only.
+
+**Fixed** in the entry "Backup path, review finding fixed" above. The code
+comment was corrected in the code itself, since a source comment is not an
+append-only record.
 
 ### 2026-09-16 — CORRECTION to this session's own B10 report: it was NOT zero regressions. B10 broke three suites the unit lane never runs. Sweep pushed as its own document
 

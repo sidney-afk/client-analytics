@@ -20,6 +20,19 @@ for(const name of Object.keys(catalogs.ARTIFACTS)){await assert.rejects(api.capt
 if(observed){await assert.rejects(api.capture({...config,target:guardTarget,syntheticPublicTables:catalog.tables.length}),/NATIVE_BACKUP_SYNTHETIC_COUNT_FOR_REVIEWED_CATALOG/);assert(!fs.existsSync(guardTarget));checks++;}
 // An unreviewed catalog with no override is refused before connecting.
 await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:'0'.repeat(64),syntheticPublicTables:undefined}),/NATIVE_BACKUP_UNREVIEWED_CATALOG/);assert(!fs.existsSync(guardTarget));checks++;
+// The loopback CLAIM is not trusted: with the override, the server itself must be the caller's own local cluster.
+// (1) A real TCP forwarder on loopback, run as a separate process so this process's synchronous psql calls cannot
+// deadlock on it: the claimed host is true, the server's own port is not the claimed one. (2) A wrong local data
+// directory: address and port are true, the cluster identity is not the caller's. (3) No local data directory at all.
+// Each must refuse AFTER connecting and create no target. The server-address test itself cannot be made to fail here,
+// because this lane's cluster listens on 127.0.0.1 only, so every connection to it reports a loopback address.
+{const forwarderReady=path.join(out,'forwarder-port'),forwarderJs=`const net=require('net'),fs=require('fs');const server=net.createServer(client=>{const upstream=net.connect(${Number(c.port)},'127.0.0.1');client.pipe(upstream).pipe(client);const end=()=>{client.destroy();upstream.destroy();};client.on('error',end);upstream.on('error',end);client.on('close',end);upstream.on('close',end);});server.listen(0,'127.0.0.1',()=>fs.writeFileSync(${JSON.stringify(forwarderReady)},String(server.address().port)));`;
+const forwarder=require('node:child_process').spawn(process.execPath,['-e',forwarderJs],{stdio:'ignore',windowsHide:true});
+try{for(let i=0;i<500&&!fs.existsSync(forwarderReady);i++)await new Promise(r=>setTimeout(r,10));assert(fs.existsSync(forwarderReady),'forwarder did not start');const forwardedPort=fs.readFileSync(forwarderReady,'utf8');assert.notEqual(forwardedPort,config.connection.port);
+await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:'0'.repeat(64),syntheticPublicTables:catalog.tables.length,connection:{...config.connection,port:forwardedPort}}),/NATIVE_BACKUP_SYNTHETIC_COUNT_SERVER_PORT/);assert(!fs.existsSync(guardTarget));checks++;
+}finally{forwarder.kill();}
+await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:'0'.repeat(64),syntheticPublicTables:catalog.tables.length,localDataDirectory:out}),/NATIVE_BACKUP_LOCAL_CLUSTER_IDENTITY/);assert(!fs.existsSync(guardTarget));checks++;
+await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:'0'.repeat(64),syntheticPublicTables:catalog.tables.length,localDataDirectory:undefined}),/NATIVE_BACKUP_LOCAL_DATA_DIRECTORY/);assert(!fs.existsSync(guardTarget));checks++;}
 // The count is enforced against the real database: a declared size one too large, and (observed) a reviewed catalog of a different size.
 await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:'0'.repeat(64),syntheticPublicTables:catalog.tables.length+1}),/NATIVE_BACKUP_EXPECTED_ORDINARY_TABLES/);assert(!fs.existsSync(guardTarget));checks++;
 if(observed){const other=Object.keys(catalogs.ARTIFACTS).map(name=>catalogs.load({contract:name})).find(x=>x.sections.find(s=>s.name==='tables').count!==catalog.tables.length);assert(other,'no reviewed catalog of a different size to test against');await assert.rejects(api.capture({...config,target:guardTarget,expectedCatalogSha256:other.catalog_sha256}),/NATIVE_BACKUP_EXPECTED_ORDINARY_TABLES/);assert(!fs.existsSync(guardTarget));checks++;}

@@ -157,6 +157,18 @@ matches. **Measured:** on 2026-09-15 and 2026-09-16, live `ddfa4c4f…` gave
 > `matches_reviewed_baseline: false`, and the capture wrapper refuses that
 > receipt (4.3). The wrapper's SHA-256 at last check was `5b44cf99…`.
 
+> **Update 2026-09-16, storage session, measured.** The wrapper now maps
+> `ddfa4c4f…` to `settled68`: one inserted entry, SHA-256 `5b44cf99…` →
+> `6b6e2fe7…`, 3,248 → 3,327 bytes. The before-state is kept beside it as
+> `….pre-settled68-20260916.bak`. The live read `day-catalog-20260916-4`
+> returned `profile: "settled68"`, `matches_reviewed_baseline: true`, exit 0.
+> **Run it from a Windows PowerShell 5.1 host, not pwsh 7** (section 6, last
+> row). **Steps 9 and 10 still cannot pass:** public
+> `linear-exit-native-preinstall-backup.js` `evidence()` asserts exactly 67
+> tables, and the settled world has 68. The full record, including how to check
+> the private change without seeing it, is in the journal entry of the same
+> date headed "Storage session".
+
 ### 4.3 Database capture and restore (steps 9 and 10)
 
 **These have NOT run in this project's current state.** The commands as the
@@ -403,6 +415,7 @@ the evidence, in an order where the quoted value cannot steer the check.
 | Drive connector | `get_file_metadata` returned "not found" for the backup folder | The connector is signed into a different account. Ask the owner. |
 | Cross-session channel | Messages to and from the supervisor session did not arrive in either direction | Report in the owner's chat window. |
 | Enclosing-function heuristics on compressed source | A regex named `captureRows` as `run` | Print the surrounding source and judge by eye; state when a claim rests on reading. |
+| **Added 2026-09-16 by the storage session.** A private wrapper launched from a **PowerShell 7** host | `READ_ONLY_CATALOG_REFUSED` (catch-all) and no output directory. Underneath: `ConvertTo-SecureString` "found in the module 'Microsoft.PowerShell.Security', but the module could not be loaded", because Node hands pwsh 7's `PSModulePath` to the 5.1 child that reads the secret | Launch the wrapper from a **Windows PowerShell 5.1** host (`powershell.exe -NoProfile -Command "node …"`). Ten private scripts read secrets this way. A 5.1 child started *directly* by pwsh 7 works, so a direct test misleads. |
 
 ---
 

@@ -30,6 +30,189 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Storage session: the private catalog wrapper now names `settled68`, PROVEN by a live read; plus three findings, one of them a step 9 and 10 refusal nobody had listed
+
+Written by the storage and custody session on the owner's machine, at branch
+head `5b93cf57`. Of three jobs, this is the first. The other two follow as
+their own entries.
+
+#### What changed in the private file, described so it can be checked without seeing it
+
+`D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs`
+maps a live catalog's canonical hash to a profile name. On line 18 it held a
+two-entry object literal, `observed67` (`809c5dc7…`) and `observed67_optout`
+(`f5ed8a38…`), and nothing else.
+
+**The change is exactly one inserted string, and no other byte.** It was placed
+immediately before the `}` that closes that literal:
+
+```
+,'ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c':'settled68'
+```
+
+| | Before | After |
+|---|---|---|
+| SHA-256 | `5b44cf99ce601e877f89f249a90d8779d183378865afb3223558fc0904eea937` | `6b6e2fe7248d08f627dbf91319211ed11a9a5e1743a66b2fd327f9d595e9bb56` |
+| Bytes | 3,248 | 3,327 |
+| Line endings | LF, 0 CR, 21 LF | LF, 0 CR, 21 LF |
+
+A reader can check the accounting: 3,248 plus the 79 bytes of the string above
+is 3,327. A comma-split `diff` of the two files showed exactly one changed
+token group, the closing entry gaining the new pair. `node --check` passes. The
+before-state is kept byte-identical beside it as
+`read-install-day-catalog.private.cjs.pre-settled68-20260916.bak` (SHA-256
+`5b44cf99…`, the same value as the original). The file also contains the
+project host in plain text, so its body is not reproduced here.
+
+**Where the hash came from, so nobody typed it.** The edit ran as a script.
+The script read `const SETTLED='…'` from `git show HEAD:scripts/linear-exit-install-profiles.js`
+with a pattern bound to that declaration, required it to be unique, and then
+asserted it equal to a fresh canonical hash of the private derived catalog
+`b9-derive-20260916-2/b9-settled-catalog.private.json`. It refused to write
+unless the wrapper was still exactly `5b44cf99…`, the anchor appeared exactly
+once, the length accounting held and no CR had been introduced.
+
+**Section 5 of the handover, applied before the edit.** HEAD `5b93cf57`. Pin
+commit `03d18fb3` is an ancestor. `SETTLED` read from git at `03d18fb3` and at
+HEAD: both `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`,
+so the pin has not moved. Fresh canonical hashes from disk, all equal to it:
+the B9 derived catalog (941,914 bytes, written 2026-09-16T15:13:40Z, 68
+tables), and both earlier live reads, `day-catalog-20260915-2` and
+`day-catalog-20260916-1` (941,913 bytes each, 68 tables). No value from chat
+entered the comparison.
+
+**Why this is not what D12 forbids.** D12 refused adding `ddfa4c4f…` as a
+third profile *until* the hiring migration was on main and the profile had
+been derived once against the settled state. Both happened: main `1abdd1fa`,
+then B9 and D17. This entry names the already-reviewed `settled68` for the
+catalog it starts from. It does not create a profile and it pins nothing.
+
+**What it does NOT mean.** The catalog wrapper now says "this live catalog is
+the `settled68` starting catalog". It does not say `settled68` is installable.
+After B10 the profile's plan and target pins are stale, and the operator
+refuses at `PLAN` until they are re-derived (the next two entries).
+
+#### The proof: the read was run, not reasoned about
+
+| Run | Directory | Result |
+|---|---|---|
+| Before, 2026-09-15 | `day-catalog-20260915-2` | `ddfa4c4f…`, `profile: null`, `matches_reviewed_baseline: false`, TLS verified (receipt re-read from file today) |
+| Before, 2026-09-16 | `day-catalog-20260916-1` | same |
+| After, attempt 1, 22:31:28Z | `day-catalog-20260916-2` (never created) | `READ_ONLY_CATALOG_REFUSED`, exit 1. Cause below |
+| After, attempt 2, 22:33:01Z, with a watch-only preload | `day-catalog-20260916-3` (never created) | same refusal. The preload named the cause |
+| **After, attempt 3, 22:33:34Z** | **`day-catalog-20260916-4`** | **`catalog_sha256` `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`, `profile: "settled68"`, `matches_reviewed_baseline: true`, `tls_verified: true`, `installation_authorized: false`, exit 0** |
+
+The wrapper's SHA-256 was hashed in the same process just before each after-run:
+`6b6e2fe7…` all three times. The attempt-3 receipt and catalog were then
+re-read from the files, not the console: canonical catalog hash `ddfa4c4f…`,
+68 tables, and the receipt fields as in the table. Read-only; step 9 was not
+run. That receipt's one-hour window closes at 23:33:37Z today and it will not be
+used.
+
+#### Finding 1 — a trap on this machine: private wrappers cannot read their secret when launched from a PowerShell 7 host
+
+This is **why attempts 1 and 2 failed**, and it would fail steps 8, 9 and 10
+the same way. **MEASURED.**
+
+- This session's PowerShell tool runs **PowerShell 7.6.6**, installed on
+  2026-09-16 for B5. Every earlier successful catalog read ran from Windows
+  PowerShell 5.1.
+- The wrappers start `powershell.exe` (5.1) from Node to run
+  `read-private-secret.private.ps1`, which needs `ConvertTo-SecureString`.
+  Node passes pwsh 7's `PSModulePath` to that child unchanged, and 5.1 then
+  fails with: *The 'ConvertTo-SecureString' command was found in the module
+  'Microsoft.PowerShell.Security', but the module could not be loaded.*
+- The watch-only preload recorded that as the only stage reached: the
+  `execFileSync` of the secret helper, status 1, 309 ms, no stdout. No
+  connection was attempted. The preload recorded stdout **length** only, never
+  content.
+- Confirmed with a dummy plaintext, no secret involved. Node launched from
+  pwsh 7 into a 5.1 child: fails. The same with `PSModulePath` removed:
+  works. Node launched from a 5.1 host: works. A 5.1 child launched **directly**
+  by pwsh 7 also works, because pwsh 7 cleans that variable itself; that is
+  why a direct test misleads.
+- **Affected, found by search, not run:** ten scripts in the private evidence
+  directory start `powershell.exe` to run `read-private-secret`. They are the
+  catalog read, refresh and restore; `run-storage-quiet-window`,
+  `verify-downloaded-storage`, `hash-historical-storage-local`,
+  `run-real-capture`, `run-real-restore`, `run-real-storage-export` and
+  `run-real-storage-export-only`. Only the catalog read was run from a pwsh 7
+  host. The others are expected to fail the same way, on reading, not
+  measurement.
+- **Handling:** the command was not changed. It was run from a Windows
+  PowerShell 5.1 host, the host the handover's measurements were taken in,
+  which is attempt 3. No workaround was applied to the wrapper.
+
+#### Finding 2 — NOT FIXED, reported: steps 9 and 10 still refuse on the settled world, in PUBLIC code, on a 67 nobody listed
+
+`scripts/linear-exit-native-preinstall-backup.js` line 21, `evidence()`, fails
+`EXPECTED_67_ORDINARY_TABLES` unless `catalog.tables.length === 67`.
+`capture()` calls `evidence()` before and after the dump, and `restore()` calls
+it on the restored copy. The catalog it counts comes from the **same**
+`linear-exit-source-baseline-catalog.sql` that attempt 3 just ran, which
+returned **68** tables.
+
+- **Evidence class:** the input (68) is MEASURED. The call path and the
+  assertion are READ. Nothing was executed against a database.
+- **So:** with the wrapper fixed, the step 8 receipt now satisfies the refresh
+  wrapper's own gate. But `capture()` would then refuse at its first
+  `evidence()`, before any dump. Step 10 cannot get further than step 9 does.
+- **Why it was missed:** the 2026-09-16 reachability trace asked whether step 9
+  reaches the fixed table-*list* check (`captureRows()`), and correctly
+  answered no. This is a different check, a table *count*, in a module that
+  trace measured as loaded. The nine-site survey was about the post-install
+  90/91, not a pre-install 67. It appears in no journal entry, no ops page
+  and no survey row. Searched for `native-preinstall-backup`,
+  `EXPECTED_67_ORDINARY_TABLES` and `tables.length!==67` across `docs/`: the
+  only mentions of the module are its own preparation page and two proof
+  manifests. The recovery procedure does state "the package covers 67 public
+  tables" as a limit.
+- **Not fixed here**, deliberately. It is public code on the custody and
+  recovery path that B4 closed on, and it is the same shape as the nine-site
+  count problem. It wants the cloud session and a review, not a storage-session
+  patch.
+
+#### Finding 3 — the "same defect fixed in public code this morning" could not be found as described
+
+The instruction to this session said a public fingerprint-to-profile lookup had
+never learned the third profile and was fixed this morning. **Searched, two
+shapes:** `git grep` for the three catalog hashes outside `docs/`, and a read of
+every hit. Public code has exactly two catalog-hash lookups.
+`linear-exit-install-profiles.js` `build()` has handled `settled68` since
+`03d18fb3`. `STARTING_CATALOG_TABLE_COUNT_SOURCE` in
+`linear-exit-observed-public-catalog.js` maps only the opt-out hash, by design.
+The nearest public fix is `87611aa2`/`b600a747`, which taught a table-*count*
+lookup the *opt-out* world. That is similar in shape, but it is not the third
+profile. Recorded as not found rather than as refuted; the chat description may
+refer to something this session did not locate.
+
+#### The sweep of the other private wrappers, as asked
+
+**Result: the hash-to-profile map exists in exactly one private file.** Two
+search shapes, reconciled:
+
+1. **Names and known hashes** (`809c5dc7`, `f5ed8a38`, `ddfa4c4f`,
+   `observed67`, `settled68`, `profile`) over every script at the top level of
+   both private evidence directories. Hits: the catalog wrapper, which has the
+   map; `profile-edit.private.cjs` and `control-final-edit.private.cjs` in
+   `2026-09-12-fast-finish-evidence`, where "profile" means the control
+   companion's `core`/`core+diagnostics` variant, not an install profile; and
+   `frame-owner-login-launch.private.cjs`, where it means a Chromium profile
+   directory.
+2. **Every 64-hex literal** in 971 script files under both directories, two
+   levels deep, skipping `node_modules`, the PostgreSQL copy and data
+   directories. The three catalog hashes occur only in the catalog wrapper. A
+   `storage-concurrency-worktree` subdirectory is an old repository copy, not a
+   wrapper; none of its literals is a catalog hash.
+
+The two downstream wrappers were read in full. `refresh-install-day-database`
+gates on `matches_reviewed_baseline === true`, freshness and the receipt's
+catalog hash, and never reads the profile name. `restore-install-day-database`
+has no catalog check. So neither needed the same change. The step 9 and 10
+blocker is Finding 2, which is in public code.
+
+**Not checked:** private scripts deeper than two levels.
+
 ### 2026-09-16 — Pipeline proof: DECIDED re-run, never edit, and the re-run NEEDS the private inputs, so it is the storage session's. Also: it was already stale before B10, on two pins B10 never touched
 
 **The owner's decision, recorded as given.** The 2026-09-13 pipeline proof is

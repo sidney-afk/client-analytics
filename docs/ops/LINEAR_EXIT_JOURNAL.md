@@ -30,6 +30,28 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Identity: three of four fields measured across the restore; restore-to-new-project NOT adopted, and what it is proven for recorded
+
+The owner reported two more identity fields from the restore rehearsal. The
+restored project returned `current_database = postgres` and
+`database_oid = 5`, and live returns the same. **Cross-checked on the owner's
+machine with no new SQL:** the private identity records of the 2026-09-14,
+2026-09-15 and 2026-09-16 catalog reads all show `postgres` and `5` for live.
+
+So three of the installer's four `IDENTITY_SQL` fields now match across a
+Supabase restore **by measurement**: `system_identifier`, `current_database`
+and the database OID. The fourth, `session_user`, was **not measured** on the
+restored side and stays unmeasured.
+
+The owner then decided the route question. It is recorded as two decisions,
+kept apart so the second can be found on its own:
+
+- **D13**: restore-to-new-project is **not adopted** as the recovery route.
+  In-place restore remains the route.
+- **D14**: what restore-to-new-project **is** proven for. It can produce a
+  restored copy beside the live database without touching it, which improves
+  the accepted-loss position of 2026-09-15.
+
 ### 2026-09-16 — Owning the identity claim: I asserted what the rehearsal was for, and the rehearsal refuted it
 
 The storage session's entry below caught this and was right. Recorded here as
@@ -76,6 +98,7 @@ that qualifier, which is the same over-claiming in the opposite direction.
 into "read from the code" and "assumed about the platform" would have caught
 this before it was written, and neither half was hard to label.
 
+
 ### 2026-09-16 — MEASURED: `system_identifier` survives a Supabase restore; the B4 identity caveat is closed
 
 **Result of the approved restore-to-new-project rehearsal, reported by the
@@ -103,6 +126,13 @@ fields: `current_database()`, the database OID, `session_user`, and
 the same physical-copy rule the database OID is carried too, but that was not
 reported, so it is recorded as expected, not measured.
 
+**Update, 2026-09-16, owner. Measured, no longer expected. The sentence above
+is kept as written.** The restored project also returned
+`current_database = postgres` and `database_oid = 5`. Live returns the same,
+confirmed against three private reads. Three of four identity fields are now
+measured to match: `system_identifier`, `current_database` and the database
+OID. **`session_user` remains unmeasured** on the restored side.
+
 **Correction to the restore-to-new-project evaluation. The original entry is
 kept as written.** That entry refused the route partly by reading `IDENTITY_SQL`:
 "a new cluster carries a different identifier, so `fail('IDENTITY')` follows".
@@ -113,6 +143,11 @@ keys, nothing points at it, and the outage is not over until every consumer is
 repointed or the data migrated back. Whether the route's adoption changes is
 **not decided here**. The reasoning is corrected; the verdict is left to the
 owner.
+
+**Decided, 2026-09-16, owner: NOT adopted.** The identity objection is gone,
+but the decisive objection stands: the consumer repointing has never been
+rehearsed. In-place restore remains the route. See D13, and D14 for what the
+route is nevertheless proven for.
 
 ### 2026-09-16 — Byte check PASSED on the authored contract; the directory named for it was the wrong one
 
@@ -2227,6 +2262,13 @@ steps 9 and 10 are now the recovery route that actually matters, not a spare.
 What remains open is the mechanical half, whether the managed Restore control is
 enabled at all, which is the click path in the sitting page appendix.
 
+**Accepted-loss position IMPROVED, 2026-09-16, owner. The note above is kept as
+written.** In a real incident, "reconcile newer saves by hand" no longer has to
+mean reconstructing them from memory. Restore-to-new-project can produce a
+restored copy beside the live database without touching it, so newer saves can
+be reconciled against a real source. See **D14**. The route itself is unchanged:
+in-place restore (D13).
+
 **B5 browser baseline re-derived, 2026-09-15, still open.** Recomputed against
 `1abdd1fa`; the `0aa5954` values are stale and removed from the sitting page. The
 framing was also corrected: the capture must be taken immediately before the
@@ -2482,6 +2524,13 @@ still exclude Storage objects. The rehearsal result names
 `system_identifier` only, so the database OID is expected to survive by the
 physical-copy rule but was not reported.
 
+**Update, 2026-09-16, owner. The sentence above is kept as written.** The
+database OID and the database name are now **measured**, not expected: the
+restored project returned `database_oid = 5` and `current_database = postgres`,
+equal to live, confirmed against three private reads. Three of the four
+`IDENTITY_SQL` fields match across a restore by measurement. `session_user`
+remains unmeasured. The route is unchanged: in-place restore (D13).
+
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a
 session's addition.
@@ -2642,6 +2691,55 @@ state, after the hiring change is on main.
 Consequence: steps 8, 9 and 10 do not run until then. They are day-of work
 anyway, so little is lost. A future session must not "fix" the catalog refusal
 by adding the `ddfa4c4f…` hash as a third profile.
+
+### D13 — Restore-to-new-project is NOT the recovery route; in-place restore remains it (2026-09-16, owner)
+
+The rehearsal removed one objection to restore-to-new-project. Three of the
+installer's four identity fields, `system_identifier`, `current_database` and
+the database OID, survived the restore by measurement. So a restored project
+does not fail the identity check for the reason the original evaluation gave.
+
+**The decisive objection stands, and it is why the route is not adopted.** A
+new project is a different reference, URL and set of keys. Nothing points at
+it: not the browser configuration, the Edge functions, the scheduled workers or
+the n8n workflows. A restore to a new project produces a healthy database that
+nothing is talking to. **The outage is not over until every consumer is
+repointed, or the data is migrated back, and that repointing has never been
+rehearsed.** In the repointing case it is also a configuration change inside the
+current freeze.
+
+**In-place restore of the managed PHYSICAL backups remains the recovery route**,
+as B4 closed on.
+
+A future session must not read the identity measurement as having made
+restore-to-new-project the preferred route. It removed one argument against it,
+not the argument that decided it.
+
+### D14 — What restore-to-new-project IS proven for: a restored copy beside live, to reconcile newer saves against (2026-09-16, owner)
+
+**Recorded as its own decision because it improves one the owner already made,
+and it must be findable.**
+
+On 2026-09-15 the owner accepted a recovery position: no PITR, on cost, and
+**accept the loss of newer saves and reconcile by hand**. Read plainly, a
+reconcile "by hand" after an in-place restore meant reconstructing lost saves
+from memory, messages and whatever else survived. The restore itself overwrote
+the only database that held them.
+
+**The rehearsal showed a better position is available.** In a real incident,
+restore-to-new-project can produce a restored copy of a backup **beside** the
+live database without touching live. That copy is a real, queryable source. So
+reconciliation becomes a comparison against actual data, not a reconstruction
+from memory.
+
+This does **not** change the recovery route; that is D13. It changes how well
+the accepted loss can be recovered from. It is a better position than the one
+accepted on 2026-09-15, and the owner has named it as such.
+
+What it is **not** proven for, so the claim stays exact: repointing any consumer
+to the restored project, the time a restore to a new project takes during a
+real incident, and any automated or rehearsed reconciliation procedure. Those
+remain unrehearsed.
 
 ## 4. Corrections the session made against itself
 

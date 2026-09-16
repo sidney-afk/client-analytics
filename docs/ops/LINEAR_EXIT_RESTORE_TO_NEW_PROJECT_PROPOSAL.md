@@ -1,9 +1,22 @@
-# Proposal: "Restore to new project" (BETA) as a rehearsal route, not a recovery route
+# Restore-to-new-project (BETA): decided, and what it is actually for
 
-**Proposal only. The reviewed recovery procedure is unchanged by this file** and
-must not be edited on the strength of it.
+**DECIDED 2026-09-16. See journal D13 and D14.** This started as a proposal and
+is kept as the reasoning behind two recorded decisions. It is no longer awaiting
+a verdict.
+
+- **D13 — it is NOT the recovery route.** In-place restore of the managed
+  PHYSICAL backups remains it, as B4 closed on.
+- **D14 — it IS proven as a way to stand a restored copy beside live**, so the
+  owner's accepted "reconcile newer saves by hand" has an actual source on both
+  sides instead of reconstruction from memory.
+
+**The reviewed recovery procedure is unchanged by this file.**
 [`LINEAR_EXIT_RECOVERY_PROCEDURE.md`](LINEAR_EXIT_RECOVERY_PROCEDURE.md) still
 describes an in-place restore, and that is still the recovery route.
+
+> **A future session must not read the identity measurement as having made
+> restore-to-new-project the preferred route.** It removed one argument against
+> it. It did not touch the argument that decided it.
 
 Raised by the owner on 2026-09-16 after the B4 dashboard check: the managed
 Backups page offers **Restore to new project (BETA)**, restoring a backup into a
@@ -55,11 +68,12 @@ the opposite.** Live and the restored project both report
 `7642734024280108049`. The restore carries the control file; it behaves as a
 physical copy. The identity check survives it.
 
-**Stated precisely, so this correction does not over-claim in the other
-direction.** `IDENTITY_SQL` checks four fields. The rehearsal reported
-`system_identifier` only. By the same physical-copy rule the database OID would
-be carried too, but that was **not** measured, so it is expected rather than
-established.
+**Stated precisely, updated 2026-09-16.** `IDENTITY_SQL` checks four fields.
+**Three of them were measured across the restore** — `system_identifier`,
+`current_database` and the database OID — and all three survived. An earlier
+version of this paragraph recorded the OID as expected-by-rule rather than
+measured; the owner measured it. `session_user` is a property of the connection,
+not of the restore.
 
 **The refusal's other argument is untouched and stands on its own:** a restored
 new project has a different reference, URL and keys, nothing points at it, and

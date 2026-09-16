@@ -246,6 +246,32 @@ drifts silently, which is the same failure again one level up.
 `git check-attr`, so it is correct the day someone adds a pin without thinking
 about it.
 
+## A SENTENCE DESCRIBING A PRECONDITION IS NOT A CHECK OF IT.
+
+Owner-ratified 2026-09-16. Prose stating a precondition is the most convincing
+possible way to fail to enforce it: it reassures the reader *and* the author
+that the matter is handled, and it reads exactly like a guarantee while
+guaranteeing nothing. When a document names a precondition, either something
+must enforce it, or the document must say plainly that the reader is the
+enforcement.
+
+The discriminator matters as much as the rule — without it this flags every
+sentence in `docs/ops/` and gets ignored:
+
+| | verdict |
+|---|---|
+| prose precondition + a callee that enforces it | fine |
+| prose precondition + a human decision nothing could check | fine, if the document says the reader is the check |
+| prose precondition + an unguarded primitive | **defect** |
+
+The incident: `LINEAR_EXIT_RECOVERY_PROCEDURE.md` said to branch from "the
+current main" and then handed over a bare `git switch -c … origin/main`, which
+uses whatever the local ref happens to hold. The fix added a guard **in front
+of** the reviewed command rather than replacing it, and printed the resolved
+commit so the reader can see what they actually branched from. Reasoning, the
+two-shape sweep and its per-candidate verdicts are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## Two working rules learned the expensive way (2026-09-05)
 
 Both cost a real defect on the same day, on the post-level asset work

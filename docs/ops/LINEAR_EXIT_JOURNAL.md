@@ -30,6 +30,40 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — The prose-precondition rule was ratified and added to AGENTS.md, discriminator intact
+
+The owner ratified the rule proposed earlier today (section below, headed
+PROPOSED rule, not added — left as written; this entry supersedes its status
+rather than editing it). His words on why it was accepted in the shape it was
+delivered:
+
+> Adding the guard in front of the reviewed command rather than replacing it was
+> the right shape.
+
+And on what makes the rule usable:
+
+> the discriminator is the reason. Add it to AGENTS.md with the three rows
+> intact, because the rule without them flags everything and gets ignored.
+
+So the AGENTS.md entry carries the three-row table verbatim, not a summary of
+it. A rule that says "prose is not a check" with no test for when that matters
+condemns every sentence in `docs/ops/` that describes what a step needs, which
+is most of them, and a rule that fires on everything is a rule nobody runs.
+The discriminator is the half that took the sweep to find: the question is not
+whether *this block* checks the precondition — most blocks call a wrapper or a
+lane that enforces its own — but whether **anything anywhere** enforces it.
+
+Kept here rather than in AGENTS.md, per the owner's instruction: the sweep's
+per-candidate reasoning, already recorded below at full length for both shapes
+(45 and 15 candidates) including the negative results. A sweep that reports a
+count has done the easy half. The count is not the evidence; the per-candidate
+verdicts are, and they are what a later session needs in order to disagree with
+one of them.
+
+Nothing else moved in this pass. The calibration and the runner
+before-and-after confirmation are the local session's, and are still outstanding
+at the time of writing.
+
 ### 2026-09-16 — Recovery command brought up to its own prose; runner table applied; PROPOSED rule on prose preconditions, with the sweep behind it
 
 ### The recovery fix, and why it is not a change to a reviewed document

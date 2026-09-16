@@ -5471,6 +5471,44 @@ earlier today and that file now carries the per-profile table including
 
 Nothing was run against a database.
 
+### D18 — The two 67-table profiles no longer need to be installable (2026-09-16, owner)
+
+Given in response to the storage session's report at `ff9b379f`. After B10,
+`observed67` and `observed67_optout` refuse at install with
+`application_admission_missing_owner:hiring_practical_test_jobs`. **The owner
+ruled that this is not a regression.**
+
+- Neither profile is named in any numbered step of the execution map.
+- Step 14 installs against the live world, which is the 68-table settled world
+  (`ddfa4c4f…`, `settled68`).
+- So their failed installs at `957db6c8…` and `8f40b44d…` are the expected
+  consequence of B10, not a defect to chase. **A future session must not treat
+  them as a regression, and must not "fix" them.**
+
+What this does not decide: whether the two profiles are removed from the code,
+and what happens to their existing pins. Neither was ruled on here, and nothing
+was removed.
+
+### D19 — The pipeline proof moves to the settled world (2026-09-16, owner)
+
+The observed full pipeline proof is re-based on the settled 68-table world
+instead of the 2026-09-12 67-table capture. This supersedes the plan in the
+entry "Pipeline proof: DECIDED re-run, never edit" only as to **which world**
+the re-run proves. The re-run-never-edit rule stands:
+`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` stays byte-identical, and a
+re-run writes a new dated file.
+
+**Explicitly deferred by the owner:** no plan or target pin, and no repointing
+of the install operator's `source_pins` read, until the backup-path fix and the
+hard-coded world-description sweep are done.
+
+### D20 — The admission guard is NOT made tolerant of a missing table (2026-09-16, owner)
+
+The guard's refusal when a guarded table does not exist is the check working
+correctly. This rules out, finally, the third option the storage session listed
+at `ff9b379f`. A future session must not relax
+`application_admission_missing_owner` to make a pre-hiring world install.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

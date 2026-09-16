@@ -30,6 +30,81 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — `settled68` calibration RAN: post-install public tables 91, equal to the derivation; target measured, NOT pinned
+
+**The last untested number in the chain has been tested.** The derivation (the
+measured live 68 plus an install-created 23) was made once. This run is its
+test, and it reports **91**. Nothing was adjusted before or after:
+`INSTALL_CREATED_PUBLIC_TABLES` and the mapping were untouched, there was no
+re-derivation, and the run was not repeated.
+
+**What was run.** The reviewed `run-portable.ps1 -Lane install-operator`, from
+the checkout at exactly
+**`cd6f1808dc23141ce1bd3298a5f8ccd6ec608905`**, on the owner's machine.
+
+- Cluster: PostgreSQL 17, ICU `en-US`, on `127.0.0.1`, libc `--locale=C`,
+  password auth.
+- Private observed inputs from `2026-09-12-fast-finish-evidence`.
+- `INSTALL_OPERATOR_PROFILE=settled68` and `INSTALL_OPERATOR_CALIBRATE=1` as
+  process environment, and no `INSTALL_OPERATOR_TARGET`.
+- `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ACCESS_TOKEN` cleared in that
+  process only.
+- The only code change since the neutrality check at `b600a747` is one line
+  inside the calibrate branch of the worker, naming the target file after its
+  profile. It was read before running.
+
+**The chain, stage by stage, all executed.**
+
+1. Observed-schema reconstruction: `exact_captured_catalog_match: true`.
+2. The runner's `SETUP` row applied the opt-out prerequisite, the fixture and
+   the hiring migration from main.
+3. The `settled68` builder accepted the starting catalog as `ddfa4c4f…`.
+4. Install under maintenance.
+5. **The worker's assertion that the maintenance guard count equals
+   `postInstallPublicTables(...).expected` passed.** The derived value it
+   asserted against, measured by calling the same function:
+   `{"contract":"settled68","pre_install":68,"created":23,"expected":91}`.
+6. `targetApi.create()`'s table-count assertion passed.
+7. Finalization ran.
+8. The runner printed `LINEAR_EXIT_INSTALL_OPERATOR_OK`, exit 0, and the
+   cluster stopped (no `postmaster.pid`).
+
+**The measured values, each copied whole from the files, not from the run's
+own report:**
+
+| Item | Value |
+|---|---|
+| File written | **`settled68-target.private.json`**, named after the profile, so the profile reached the writer |
+| **Post-install public table count** | **91** (`target.catalog.tables.length`) |
+| **Target SHA-256** | **`625430979c5508f2a87b18bfa9d7135806273c909c3f5baf9f5a5fe835f97356`** |
+| **Target byte length** | **1,613,093** |
+| **Plan it ran under** | **`e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54`**: the plan file, `operator-result.plan_sha256`, `target.plan_sha256` and the pinned `settled68` plan all equal |
+| Plan's starting catalog | `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c` |
+| Stage | `OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1` |
+| Installed public catalog SHA-256 | `0d4eb7dc7993f48cdc86131893443b0ba7eea3ddd9ca50da8bcb89b167e3d91e` |
+| Installed private catalog SHA-256 | `fccae16ac7200ac82369f73449512d21f762b86b53bdb306fba172388bbc2401` |
+| Operator result | `CALIBRATION_ONLY`, `target_sha256` equal to the file's measured SHA-256, `activation_performed: false` |
+| Target flags | `installation_authorized: false`, `hosted_target_verified: false` |
+
+**Not pinned.** `profiles.settled68.target` remains `null`; pinning is the
+owner's reviewed step after seeing these numbers. The target file stays in the
+private evidence directory
+(`linear-exit-install-operator-38a3b52acf654a87b2b55ac63fd5b4d4`) and is not
+committed.
+
+**How the chain behind 91 now stands.** The 90 was measured by the opt-out
+neutrality pair against `d3cbca7f`'s literal. The 91 is now measured by a real
+settled install. The chain's earlier weak links were the single-party reading
+that the plan's source list is identical across profiles, and the unconfirmed
+86-plus-4 decomposition. **Both are now bounded by observation:** a settled
+install created exactly 23 tables on top of 68. That is a measurement for this
+plan and this world. It does not make 23 a universal constant, and the comment
+in the code already says so.
+
+**Isolated, not hosted.** This is a PostgreSQL 17 install reconstructed from the
+private inputs. It is not a hosted installation and not an authorization. Steps
+9 onward have not run.
+
 ### 2026-09-16 — Neutrality check PASSED for both profiles at `b600a747`; the fix changed what gets checked, not what gets built; calibration still not run
 
 **What was run.** Four runs of the reviewed

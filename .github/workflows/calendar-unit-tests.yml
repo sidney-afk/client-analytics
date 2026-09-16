@@ -107,6 +107,26 @@ jobs:
           fi
           exit 0
 
+      # `git diff --check` is the whitespace gate, and .gitattributes makes it
+      # blind to every `-text` pinned path -- 98 files on this branch, most of
+      # them the exit installer's own executable code. Reproduced 2026-09-16: a
+      # CRLF-to-LF flip on a pinned capture passed `git diff --check` with
+      # exit 0 and no output. This closes that hole using the same pin list.
+      - name: Did a byte-pinned file quietly change its line endings?
+        run: |
+          set +e
+          node scripts/byte-pinned-line-ending-check.js --diff="origin/${{ github.base_ref }}"
+          code=$?
+          set -e
+          if [[ $code -eq 1 ]]; then
+            echo "::error::A byte-pinned (.gitattributes -text) file changed its line-ending composition. If the capture was deliberately re-taken, re-run with --accept-recapture=<path> and say so in the PR."
+            exit 1
+          fi
+          if [[ $code -ne 0 ]]; then
+            echo "::warning::byte-pinned line-ending check could not run (exit $code) — not a finding."
+          fi
+          exit 0
+
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

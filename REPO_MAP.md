@@ -461,4 +461,8 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 
 - `docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md`: bounded catch-up rehearsal and remaining day-of work.
 
+- `docs/ops/LINEAR_EXIT_B9_CATALOG_REDERIVATION.md`: why B9 is a reviewed-artifact change rather than a re-pin, the two routes, and the knock-on to the install operator's hard-coded post-install table count.
+- `scripts/linear-exit-b9-catalog-derive.js`: rebuilds the settled state in an isolated PostgreSQL 17 and reads the catalog the third profile is authored against; `--selfcheck` proves the plumbing with no private inputs.
+- `scripts/byte-pinned-line-ending-check.js`: `git diff --check` honours `.gitattributes`, so 97 `-text` pins turn the whitespace gate off for 98 files — most of them the exit installer's own executable code. This resolves that set with `git check-attr` and fails when a byte-pinned file's CRLF/LF composition changes across a diff.
+
 - `docs/ops/LINEAR_EXIT_RECOVERY_PROCEDURE.md`: owner recovery decision tree, hosted tooling limits and previous-function pin prerequisites.

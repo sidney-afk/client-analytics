@@ -163,6 +163,42 @@ Owner-ratified 2026-09-16. A truncated or prefixed hash is for reading, never
 for authoring. Reasoning and the incident behind it are in
 `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A GATE WITH AN EXEMPTION LIST IS OFF FOR EVERYTHING ON THAT LIST. COUNT THE LIST.
+
+Owner-approved 2026-09-16, from the line-ending finding in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+`git diff --check` is this repo's whitespace gate, and it honours
+`.gitattributes`. That is normally the point. But `.gitattributes` now carries
+**97 `-text` pins**, so the gate is silently off for **98 files**, and most of
+them are not inert evidence — they are the exit installer's own executable
+code (`scripts/linear-exit-install-operator.js` and its siblings, their tests,
+their workers). A CRLF-to-LF flip on a pinned file was reproduced against this
+branch: 13 lines changed, 13 bytes lost, `git diff --check` printed nothing and
+exited 0.
+
+Nobody decided to turn the gate off for 98 files. Each pin was added for a good
+local reason, one at a time, and the exemption grew underneath the gate without
+ever being the subject of a decision.
+
+So, whenever you rely on a gate:
+
+1. **Find its exemption mechanism.** Almost every gate has one — an attributes
+   file, an ignore file, a skip list, an `if:` condition, a `// eslint-disable`.
+2. **Count what it currently exempts, and look at what is in there.** A pin
+   added for an evidence file and a pin added for live executable code look
+   identical in the file.
+3. **If the exempt set is not empty, the gate does not cover the repo.** Either
+   the exemption is small enough to read in full, or there is a second check
+   driven off the exemption list itself.
+
+The second check must be **driven off the exemption list, never off a copy of
+it.** A hand-maintained shadow list drifts from the thing it shadows, and it
+drifts silently, which is the same failure again one level up.
+`scripts/byte-pinned-line-ending-check.js` resolves its scope with
+`git check-attr`, so it is correct the day someone adds a pin without thinking
+about it.
+
 ## Two working rules learned the expensive way (2026-09-05)
 
 Both cost a real defect on the same day, on the post-level asset work

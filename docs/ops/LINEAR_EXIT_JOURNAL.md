@@ -30,6 +30,159 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — B10 confirmed OFF the critical path from code; the guard installs open, and adding the table today would BREAK the install
+
+The owner's reading was that the admission guard installs open and only bites
+once admission is closed. Confirmed against the code rather than the briefing,
+in `supabase/migrations/20260912174907_card_atomic_admission_preparation.sql`
+and `20260912183653_application_dml_admission_preparation.sql`:
+
+- `card_write_admission_v1.mode` is `text not null default 'open'`, and the
+  singleton row is inserted naming only `singleton`, so it takes that default.
+- `production_application_dml_guard_v1` opens with
+  `if gate.mode='open' and context.kind is distinct from 'followup' then` and
+  returns straight through for statement, row and delete. At `open` the guard
+  is inert on every table it is attached to.
+- Closing is a separate explicit call. Nothing in the install path makes it.
+
+So B10 does not block the install or the merge. **Recorded as not blocking.**
+
+The check turned up something stronger, which is worth stating plainly because
+it inverts the intuition: **doing B10 today would break step 14.**
+`production_retirement_contract_assert_v1` compares the live set of
+`aaa_application_dml_admission_%` triggers, across all public tables, against a
+frozen expected blob, and `scripts/linear-exit-install-operator.js` asserts that
+contract **twice** — once at target comparison, once after finalization. Adding
+`hiring_practical_test_jobs` to the guard list adds two triggers, the actual set
+stops matching the blob, and the operator refuses. Not adding it is what keeps
+the install able to run.
+
+That also explains the red lane B10 recorded: with the addition reverted out of
+the catch-up, the contract matches again. Verified by running
+`test/linear-exit-retirement-switch-postgres.js` against an isolated PostgreSQL
+17 in this sandbox: `LINEAR_EXIT_RETIREMENT_SWITCH_OK`, 46 checks.
+
+D12's ordering stands unchanged: hiring migration on main (done), profile
+re-derived (B9), and only then the guard list.
+
+### 2026-09-16 — PG17 IS available in this sandbox; the recorded B10 blocker was a missing repo, not a missing server
+
+The 2026-09-16 B10 note says this sandbox has "only 16, no PGDG repo and no
+docker daemon", and concludes "the missing thing is a disposable PG17 server".
+Two of the three facts are still true — the daemon is down, the base image is
+PostgreSQL 16 — but the conclusion was wrong. The PGDG repository was not
+*unreachable*, it was *not configured*. It was reachable on the first try.
+
+PostgreSQL 17.11 is now installed here from PGDG and an isolated cluster runs
+on `127.0.0.1`. The existing harness finds it through `F42_REHEARSAL_PGBIN`.
+
+Consequence: PG17-dependent work is no longer gated on the owner's machine for
+sessions in this environment. It does **not** move B10 forward, because B10 is
+gated on D12's ordering, not on a server. It does mean the B9 derivation and
+the target calibration can be rehearsed here before they are asked of him.
+
+Recorded because the original note would otherwise send the next session to the
+owner's keyboard for something it can do itself. The narrower lesson is the one
+already in this file: check whether a missing thing was ever configured before
+concluding it is unavailable.
+
+### 2026-09-16 — B9 is not a re-pin: the plan builder REFUSES any catalog but the reviewed one, and the hiring delta cannot be reversed the way the opt-out one was
+
+B9 is written as "re-derive the catalog profile once". Reading the builder, that
+understates it, and the difference is the freeze-lift date.
+
+`linear-exit-observed-install-plan.js` `build()` begins by asserting
+`observed.compare(catalog, expected, …).status === 'MATCHED_OBSERVED_PUBLIC_CATALOG'`
+against the reviewed observed contract
+(`LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json`, 67 public tables,
+`809c5dc7…`). The plan's SQL sources are pinned and do not vary with the
+catalog; the **gate** does. That is why `observed67_optout` reverses its delta —
+one column and one ACL string — back to `809c5dc7…` before building.
+
+The hiring delta will not reverse that cheaply. Read off
+`migrations/2026-09-15-hiring-video-editor-role.sql` on main: one new public
+table, two added columns with comments, three indexes, two triggers, ten
+`create or replace function`, RLS plus revokes and grants on the table and six
+functions, and alters to two further hiring tables. Six object classes.
+
+So the routes are: reverse all of that exactly (fragile), or derive and review a
+**new observed public catalog contract** at the settled state and let the plan
+build from it. The second is the recommendation. Either way this is a reviewed
+artifact change that must land on the branch before the exit merge, not a
+number swapped in place.
+
+Written up with the runnable derivation at
+[`LINEAR_EXIT_B9_CATALOG_REDERIVATION.md`](LINEAR_EXIT_B9_CATALOG_REDERIVATION.md),
+with `scripts/linear-exit-b9-catalog-derive.js --selfcheck` passing here.
+
+### 2026-09-16 — A hard-coded 90 in the install operator, and one new live table, predict `GUARD_COUNT` stopping step 14
+
+Found while confirming B10. Not measured against the live database — this
+session is read-only with no SQL — so it is stated as derived, and the step-8
+receipt is what settles it.
+
+`scripts/linear-exit-install-operator.js` has
+`if(guards.length!==(alreadyFinal?0:90))fail('GUARD_COUNT')`. The maintenance
+guard is not applied from a reviewed list; `linear-exit-install-maintenance.js`
+applies it to every relation it finds with
+`relnamespace='public' and relkind in ('r','p')`. So the count tracks the
+database, not the plan.
+
+Provenance of the 90: `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json` records
+`public_tables: 90` and `maintenance_guards_removed: 90`, derived from
+`initial_public_catalog_sha256` `809c5dc7…` — the 67-table live read of
+2026-09-12. The hiring migration adds exactly one public table.
+
+If the live count is now 68, the post-install count is 91 and the operator
+refuses **before installing anything**. Nothing is lost when it does; it is a
+fail-closed refusal, not a partial install. But it would end a window that cost
+an owner sitting to reach.
+
+Consequence for B9: the constant is re-derived **with** the new target, not
+edited to match whatever comes back. D8's distinction applies exactly —
+confirming the anchors, understanding the change, then updating the number is
+re-derivation; updating the number is silencing.
+
+The step-8 instruction on the sitting page now asks for the public table count
+as a fourth thing to copy back.
+
+### 2026-09-16 — The whitespace gate is blind to 98 files, most of them the installer's own code
+
+Approved in principle by the supervisor last night; the finding was confirmed
+here before the guard was written, by reproduction rather than by argument.
+
+`.gitattributes` carries **97 `-text` pins**, which resolve to **98 tracked
+files**. `git diff --check` — the repo's whitespace gate — honours those pins,
+so it does not examine any of them. The reproduction, on this branch:
+flipping every CRLF to LF in
+`qa/linear-exit-rehearsal/serving/sql/calendar-merge-comments.sql` changed 13
+lines and dropped 13 bytes; `git diff --check` printed nothing and exited 0.
+Only `git diff --stat` showed anything, and what it showed reads like an
+ordinary edit.
+
+The part that makes this more than a tidy-up: the exempt set is **not** just
+captured evidence. It includes `scripts/linear-exit-install-operator.js`,
+`linear-exit-install-profiles.js`, `linear-exit-install-maintenance.js`,
+`linear-exit-install-finalize.js`, their tests and their workers — the
+installation's own executable code — on a plan whose operator machine is
+Windows, where `core.autocrlf=true` is the default. Nobody decided to exempt
+98 files; each pin had a good local reason and the exemption accumulated
+underneath the gate.
+
+Fixed with `scripts/byte-pinned-line-ending-check.js`, wired into the existing
+pull-request job in `.github/workflows/calendar-unit-tests.yml`. It resolves its
+scope with `git check-attr` — **driven off the pins themselves, never off a copy
+of the list** — and fails when a byte-pinned file's CRLF/LF composition changes
+across the diff, naming the file and saying whether the content was otherwise
+identical. A deliberate re-capture is acknowledged per path with
+`--accept-recapture=<path>`. Verified both ways on this branch: it fails the
+reproduction the old gate passed, and it is clean against `origin/main`.
+
+The general rule went into `AGENTS.md` as the second house rule: a gate with an
+exemption list is off for everything on that list, so count the list, and any
+second check must be driven off the exemption itself rather than a shadow copy
+that will drift.
+
 ### 2026-09-16 — Step 1 COMPLETE on the owner's explicit decision; count 7 of 28; B1 closed with a permanent caveat
 
 The owner accepted the reduced Storage drill as sufficient for step 1, and asked
@@ -1259,6 +1412,61 @@ as a merge freeze. It did not cover live schema changes, and one was applied the
 same day through a separate session. Freezing merges does not freeze the
 database the plan was reviewed against. A future freeze for this work should
 say whether it also freezes live DDL.
+
+**B3 DEFERRED past the merge, 2026-09-16, owner. Row kept above, still open.**
+The fourteen inaccessible Drive file references are decided after the merge.
+The row already recorded that they do not block the dormant install; the owner
+has now also taken them off the pre-merge path. Nothing else changes: no
+replacement, deletion or link change is authorized, and the private decision
+sheet stands.
+
+**B10 RECORDED AS NOT BLOCKING the install or the merge, 2026-09-16, owner
+decision, confirmed from code by this session. Row kept above, still open.**
+The admission guard installs with `mode='open'` and is a pass-through at that
+mode; closing is a separate explicit call that nothing in the install path
+makes. See the progress entry for the two files and the exact lines.
+
+The confirmation went further than the decision needed: **adding the table to
+the guard list today would make step 14 refuse**, because the retirement trigger
+contract compares the whole `aaa_application_dml_admission_%` trigger set
+against a frozen blob and the install operator asserts it twice. So deferring
+B10 is not merely safe, it is required. D12's ordering is unchanged, and B10
+stays gated on B9 rather than on PG17 access — that access now exists in this
+sandbox, which the 2026-09-16 note above assumed it did not.
+
+**B9 RE-SIZED, 2026-09-16, still open, and this is the freeze-lift dependency.**
+Not a re-pin. The plan builder refuses any starting catalog that is not
+byte-exact against the reviewed observed contract, and the hiring delta spans
+six object classes, so it will not reverse the way the opt-out delta did. The
+route is to derive and review a new observed catalog contract at the settled
+state, then a new install target, then the operator's post-install table
+constant. Runnable derivation and both routes:
+[`LINEAR_EXIT_B9_CATALOG_REDERIVATION.md`](LINEAR_EXIT_B9_CATALOG_REDERIVATION.md).
+B2 stays open behind it, unchanged.
+
+**New, carried under B9 rather than as its own row, 2026-09-16.** The install
+operator's hard-coded `GUARD_COUNT` of 90 public tables was derived from a
+67-table live read, and the live database has gained one table. Derived from
+code, not measured — step 8's receipt settles it. See the progress entry.
+
+**B4 mechanical half PREPARED, not closed, 2026-09-16.** The dashboard check is
+now a numbered click path in the sitting page, section 4, with what to write
+down and what each outcome means. It is two minutes and changes nothing. It
+stays open until the owner runs it, because no command can answer it. The
+decision half was already made: no PITR, on cost, which is what makes steps 9
+and 10 the recovery route rather than a spare — the sitting page now says that
+where the drill is, not only here.
+
+**B5 browser capture PREPARED, not closed, 2026-09-16. Row kept above.** The
+capture block on the sitting page no longer carries written-down baselines to
+go stale: it reads the expected hashes out of git at capture time, covers all
+23 published files rather than the five that were listed, and moves bytes with
+`git archive` and `tar` so it is binary-safe. The timing constraint is stated
+where it bites and nowhere else — **immediately before the exit merge at step
+17, and not before any other merge**, with the failure mode spelled out, which
+is that a capture taken at any other moment still looks complete. Verified here
+that the git side of the pipeline reproduces `1abdd1fa`'s `index.html` hash
+exactly.
 
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a

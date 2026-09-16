@@ -30,6 +30,97 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Does any install-day step reach the fixed table-list check? NO for every step with a named script; checked by measurement where it could be run
+
+**The question.** The cloud session found that `captureRows()` in
+`scripts/linear-exit-complete-application-data.js` compares live table names
+against a fixed versioned list as an exact set, and fails
+`UNCLASSIFIED_OR_MISSING_TABLE` on any difference. On the settled 68-table
+database it refuses. It is not a count, so no guard-count fix touches it. If any
+install-day step reached it, that step would refuse on the day, and if it were
+step 9, inside the one-hour catalog clock.
+
+**Answer: no install-day step with a named script reaches a caller of
+`captureRows()`**, and none reaches the list's other consumer outside
+custody lanes, `isFixedPublicTrigger()`. Checked on the owner's machine at
+branch head `38052694`, working from the steps in
+`LINEAR_EXIT_INSTALLATION_DAY_20260914.md`.
+
+**How it was established.** Two methods, reported separately because they
+prove different things.
+
+1. **Load measurement: run, not reasoned.** Each entry script's repository
+   modules were loaded in a fresh Node process under a preload guard. The guard
+   makes every network module, child-process launch and file write throw and
+   record the attempt. The report is which repository modules Node actually
+   loaded. Wrappers whose file runs `main()` on load were never loaded
+   themselves; only the modules they require were. **Every run recorded zero
+   guarded attempts and no load errors.**
+2. **Call-site search over the modules that actually loaded.** A function runs
+   only if loaded code calls it. So for each loaded set, the sources were
+   searched for `captureRows(`, for `.capture(`, for computed-name calls
+   (`x[name](`), and for the other callers of the fixed list. This rests on
+   reading, applied to a measured set of modules.
+
+**Step by step:**
+
+| Step | What runs | Result |
+|---|---|---|
+| 0, Storage | private quiet-window operator, downloaded-copy verify | Watched modules absent from the static tree. That tree can only over-include, so absence is reliable |
+| 1, catch-up | `linear-exit-main-catchup.js` and what it launches: `ef-fingerprint.js`, `repo-identity-exposure-check.js`, `test/f27-section4-deploy-lane.js`, `test/workload-capacity-placement.js`, `test/workload-plan-source.js`, `test/workload-tweak-exclusive-bucket.js` | Catch-up and fingerprint **measured**: one module each, nothing watched. The identity check and the four tests have no `main()` guard, so they were checked statically: one-file trees, none mentions the watched modules |
+| 2, database | the three private wrappers: catalog read, capture, restore | **Measured.** Capture set loads 10 modules, restore set loads 5. Neither loads `linear-exit-complete-application-data`, `linear-exit-control-companion`, `linear-exit-complete-application-custody` or `linear-exit-asset-reference-coverage` |
+| 3, install | `linear-exit-install-operator.js` | **Measured: it DOES load the data module and the control companion** (19 modules in total), because it calls `require('./linear-exit-control-companion').forProfile(...)` at top level. Its only use is `control.catalogSql()`, twice, which is a pure SQL string builder. Across all 19 loaded modules, `captureRows(` appears only inside the data module's own `capture()` and the companion's own `capture()`. Nothing outside those functions calls them. There are no computed-name calls. `isFixedPublicTrigger()` is reached only through `validateSchemaSection()`, which is called only by `readRecoveryPackage()` and `captureRecoveryPackage()`. Those in turn are called only inside the custody modules' own functions and the recovery package's command-line `main()` |
+| 4, release | `deploy-onboarding-edge-functions.yml`: `ef-fingerprint.js`, `linear-exit-deploy-preflight.js` | Preflight **measured**: one module, nothing watched |
+| 5, n8n | `prepare-urgent-editor-website-only.js` | No `main()` guard, so checked statically: one-file tree, nothing watched |
+
+**Not checked, stated plainly:**
+
+- **Steps 6 and 7** name no scripts. The TEST saves and the separately accepted
+  capability components (the Calendar/Samples composers, the follow-up
+  supervisor and others) were not identified to trace. They are not covered by
+  this answer.
+- **Call-time, as opposed to load-time.** Nothing here executed `capture()`,
+  the installer's APPLY, or any function against a database. For steps 3 and 2
+  the "not called" conclusion is a search of the measured loaded set. The
+  strongest remaining measurement would wrap `captureRows()` and
+  `isFixedPublicTrigger()` to record any call, then run the installer's
+  existing isolated PG17 proof lane. It was not run.
+- The deploy workflow runs in CI at the deployment commit. It was measured
+  locally at this head, not at a future deploy SHA.
+- Recovery-procedure routes are not install-day steps and were not traced.
+
+**Where the check does live, so its scope is not lost.** The fixed list is
+consumed by custody lanes, not by the install-day path:
+`linear-exit-complete-application-data.js` `capture()`,
+`linear-exit-control-companion.js` `capture()`, and the modules that drive
+them: `linear-exit-complete-application-custody.js`,
+`linear-exit-control-custody.js`, `linear-exit-credential-capture.js`,
+`linear-exit-priority-capture.js`, and a reference in
+`linear-exit-asset-reference-coverage.js`. **Any of those lanes would refuse on
+the 68-table database.** If one is ever added to an install-day step, this
+answer no longer holds for that step.
+
+**Measurement confirmed the narrower step 9 answer and corrected its method.**
+The earlier static reading said step 9's capture never runs the check. The load
+measurement **confirmed** it: the data module is not even loaded. But it showed
+the static dependency walk was **over-inclusive**, listing 20 and 17 files where
+only 10 and 5 load, because it counted requires that sit inside functions.
+That over-inclusion is what makes "absent from the static tree" safe to rely on
+for scripts that could not be loaded.
+
+**Widening the question found the thing the narrow one could not.** Step 3, not
+step 9, is the step that loads the data module. It does not call the check. But
+it is the step closest to the risk, and a narrow answer about step 9 would never
+have looked at it.
+
+**The reporting note the owner asked to keep.** Partway through, the session
+reported **"points to no, two hops unread"** before it had the answer, instead
+of stating a conclusion early. Today three sessions in a row closed a set at
+whatever their first method returned. Stating the lean together with the unread
+hops, then reading them before concluding, is the practice to keep. It is also
+the rule ratified today: a fact that can be measured is measured before it is
+stated.
+
 ### 2026-09-16 — Step 9 does NOT reach site 9 on static reading; v3 stays held for the wider question; and my own consumer list was over-reporting
 
 **The local session's trace: no.** Step 9's capture never calls the exact-set

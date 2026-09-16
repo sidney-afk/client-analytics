@@ -28,6 +28,10 @@ function load(c){
 function consent(c){if(!/^[a-f0-9]{64}$/.test(c.ownerWindowEvidenceSha256||''))fail('WINDOW_EVIDENCE');return 'APPLY:'+profiles.get(c.profile).plan+':'+j.sha(j.canonical(c.expectedDatabaseIdentity))+':'+c.ownerWindowEvidenceSha256;}
 async function execute(c,prepared,session,applyToken){
  const {plan:PLAN,target:TARGET}=profiles.get(c.profile);const {plan,planBytes,target,targetBytes,expectedPostInstallTables}=prepared,q=(s,p=[])=>session.query(s,p);let locked=false,stage='read_only_observation';
+ // Outside the try on purpose. Inside it, the catch below would rewrite this as
+ // a generic EXECUTION_REFUSED at whatever stage was current, which is exactly
+ // the masking that made the original defect take a separate probe to name.
+ if(!Number.isInteger(expectedPostInstallTables))fail('PREPARED_SHAPE');
  const opts={session,planBytes,planSha256:PLAN,expectedStageId:plan.stage_id,expectedDatabaseIdentity:c.expectedDatabaseIdentity};
  try{
   await q('begin read only');try{await q('set local search_path=pg_catalog,public');const ids=await q(j.IDENTITY_SQL);if(ids.length!==1||j.canonical(ids[0].identity)!==j.canonical(c.expectedDatabaseIdentity))fail('IDENTITY');const tls=await q('select ssl from pg_stat_ssl where pid=pg_backend_pid()');if(tls.length!==1||tls[0].ssl!==true)fail('TLS');const rows=await q(plan.catalog_sql);if(rows.length!==1||!rows[0].catalog)fail('CATALOG');const namespaces=await q("select to_regnamespace('linear_exit_maintenance') is not null as maintenance, to_regnamespace('linear_exit_install') is not null as journal");if(namespaces.length!==1)fail('NAMESPACE');if(!namespaces[0].maintenance&&!namespaces[0].journal&&j.sha(j.canonical(rows[0].catalog))!==plan.initial_catalog_sha256)fail('BASELINE');if(!applyToken)return {status:'READ_ONLY_OBSERVATION',existing_install_state:namespaces[0],resume_validated:false,installation_authorized:false};}finally{await q('rollback');}

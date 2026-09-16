@@ -4355,6 +4355,25 @@ object whose contract changed.
 post-install count. The calibration is still the test of the `settled68`
 arithmetic, and it does not run until both existing profiles pass neutrality.
 
+**Addendum, same day, on approval of the above.** The session proposed a
+`PREPARED_SHAPE` refusal so that a `prepared` object missing the resolved count
+would be named rather than surfacing as a misleading `GUARD_COUNT`. It was
+proposed at the comparison site. The supervisor ruled it in at **preflight
+instead**, on the line after the destructuring and outside the try, for a reason
+worth keeping: inside the try, the same catch that masked the original defect
+would have rewritten it as `INSTALL_OPERATOR_EXECUTION_REFUSED` at stage
+`target_comparison`, making the new guard exactly as uninformative as the
+`GUARD_COUNT` it was meant to replace. Outside the try it throws under its own
+name. **That catch has now cost clarity three times in one day**, and each time
+the fix has been to keep the failure out of its reach rather than to change it.
+
+Moving the guard ahead of the try also brought the offline operator test's
+fixture into scope: it is the third producer of a `prepared` object and its
+synthetic world has zero tables, so it now carries
+`INSTALL_CREATED_PUBLIC_TABLES` rather than a fresh literal. Three producers of
+one object, only one of which is `load()`, is the reason a missing field needed
+a name in the first place.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

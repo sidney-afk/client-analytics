@@ -177,21 +177,25 @@ const STARTING_CATALOG_TABLE_COUNT_SOURCE = Object.freeze({
   'f5ed8a38a4454e62905192c49de9a6a790c1bb48e247884efed12562b1161c25': 'observed67',
 });
 
-/* Expected public table count AFTER installation, for whichever world the plan
- * starts from. The plan names its own starting catalog, so nothing has to be
- * told which profile it is serving -- which is the defect the nine literals
- * had: they asserted a number they had no way to be right about. */
-function postInstallPublicTables(initialCatalogSha256, {readFile = fs.readFileSync} = {}) {
-  if (!/^[a-f0-9]{64}$/.test(initialCatalogSha256 || '')) throw Error('OBSERVED_CATALOG_STARTING_SHA_SHAPE');
+/* Public table count of a STARTING world, resolved from its catalog hash
+ * alone: a reviewed contract whose catalog IS that hash, or a reviewed entry
+ * above naming the contract whose count governs it. Nothing else resolves.
+ *
+ * Extracted from postInstallPublicTables() on 2026-09-16, unchanged in
+ * behaviour: same checks, same order, same error messages. It exists so the
+ * pre-installation backup (scripts/linear-exit-native-preinstall-backup.js)
+ * asks this one reviewed question instead of restating a table count. */
+function startingPublicTables(catalogSha256, {readFile = fs.readFileSync} = {}) {
+  if (!/^[a-f0-9]{64}$/.test(catalogSha256 || '')) throw Error('OBSERVED_CATALOG_STARTING_SHA_SHAPE');
   let contract = null, expected = null;
   for (const name of Object.keys(ARTIFACTS)) {
     const candidate = load({readFile, contract: name});
-    if (candidate.catalog_sha256 === initialCatalogSha256) { contract = name; expected = candidate; break; }
+    if (candidate.catalog_sha256 === catalogSha256) { contract = name; expected = candidate; break; }
   }
   if (!contract) {
     // No artifact IS this starting catalog. A reviewed entry above may still
     // name the contract whose table count governs it; nothing else may.
-    contract = STARTING_CATALOG_TABLE_COUNT_SOURCE[initialCatalogSha256] ?? null;
+    contract = STARTING_CATALOG_TABLE_COUNT_SOURCE[catalogSha256] ?? null;
     if (!contract) throw Error('OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG');
     expected = load({readFile, contract});
   }
@@ -199,9 +203,18 @@ function postInstallPublicTables(initialCatalogSha256, {readFile = fs.readFileSy
   if (!tables || !Number.isInteger(tables.count)) throw Error('OBSERVED_CATALOG_TABLE_COUNT');
   // `contract` names where the COUNT came from. For an entry resolved above it
   // is not a claim that the starting catalog's bytes equal that contract's.
-  return {contract, pre_install: tables.count,
+  return {contract, count: tables.count};
+}
+
+/* Expected public table count AFTER installation, for whichever world the plan
+ * starts from. The plan names its own starting catalog, so nothing has to be
+ * told which profile it is serving -- which is the defect the nine literals
+ * had: they asserted a number they had no way to be right about. */
+function postInstallPublicTables(initialCatalogSha256, {readFile = fs.readFileSync} = {}) {
+  const {contract, count} = startingPublicTables(initialCatalogSha256, {readFile});
+  return {contract, pre_install: count,
     created: INSTALL_CREATED_PUBLIC_TABLES,
-    expected: tables.count + INSTALL_CREATED_PUBLIC_TABLES};
+    expected: count + INSTALL_CREATED_PUBLIC_TABLES};
 }
 
 async function verify(readOnlyQuery, {projectRef} = {}) {
@@ -214,4 +227,4 @@ async function verify(readOnlyQuery, {projectRef} = {}) {
 }
 
 module.exports = {observation, compare, summarize, load, verify, ARTIFACTS,
-  postInstallPublicTables, INSTALL_CREATED_PUBLIC_TABLES};
+  postInstallPublicTables, startingPublicTables, INSTALL_CREATED_PUBLIC_TABLES};

@@ -30,6 +30,227 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Backup path: the expected table count now comes from the world, not a literal 67. Steps 9 and 10 no longer refuse the settled world; old 67-table backups measured still restorable. NEEDS INDEPENDENT REVIEW before anything builds on it
+
+Storage session, on the owner's machine. The approach was proposed and approved
+by the owner before anything was written. Option A for the synthetic override,
+with its two refusals as test cases, and the test extension rather than a
+one-off harness. **This is public code that only this machine can run against
+the private inputs and the real packages.** So each proof below says what ran,
+what it produced, and what would have made it fail, in enough detail to judge
+the change without this machine.
+
+#### The observation that makes this safe, stated first because otherwise it reads as a loosened check
+
+**The literal 67 was never the protection.** Two checks already do that work,
+and neither is touched by this change:
+
+1. `capture()` refuses unless the live catalog's canonical hash equals
+   `o.expectedCatalogSha256`, which the caller takes from a fresh reviewed
+   catalog read.
+2. `restore()` compares the restored catalog, the per-table row multisets and
+   the sequences **exactly** with the evidence in the backup's manifest. That
+   manifest is inside the authenticated encrypted package.
+
+The count was a second, cruder statement of the world those two checks already
+pin. Deriving it instead of writing it loosens nothing those checks do not
+already hold. The owner confirmed this reading when approving.
+
+#### What was wrong, measured
+
+`scripts/linear-exit-native-preinstall-backup.js` had **five** `67` literals,
+not four:
+
+| # | Site | Role |
+|---|---|---|
+| 1 | `evidence()` | refuse unless exactly 67 ordinary tables (`EXPECTED_67_ORDINARY_TABLES`); runs twice in `capture()`, once in `restore()` |
+| 2 | `capture()` manifest | writes `expected_public_tables: 67` |
+| 3 | `capture()` return | reports `public_tables: 67` |
+| 4 | `restore()` | refuses any manifest whose `expected_public_tables` is not 67 |
+| 5 | `restore()` return | reports `public_tables: 67` |
+
+Plus `test/linear-exit-native-preinstall-backup.js`'s
+`captured.public_tables === 67`. That is the row the world-literal sweep lists at
+`:9`, warning that fixing the module without it "moves the failure". The sweep's
+§3.3 names site 1 only; **this change covers all five and that test row.**
+
+#### What changed, file by file
+
+| File | Before SHA-256 | After SHA-256 | Bytes | Line endings |
+|---|---|---|---|---|
+| `scripts/linear-exit-observed-public-catalog.js` | `03c9aabdef22ff28f1b6c6219a52939a253aa58c4f7637a850925b7d6b41b59b` | `b472731b84f39ce839dcbcb0771d6db75f864f7c47e6d58ea88d535fa000a7ec` | 11,662 → 12,391 | LF, 0 CR before and after |
+| `scripts/linear-exit-native-preinstall-backup.js` | `cb78569c31b3dd7bda0f2ae943371ff72b924e771fa6e43cdb75fe8bd911528f` | `e0b27b370ac12deb903b011e96f9914fab603558d5cf9b27a7e9387a58e30880` | 14,272 → 17,269 | CRLF, CR count equals line count before (28) and after (57) |
+| `test/linear-exit-native-preinstall-backup.js` | `e8affbe798ca43c858ada7b120a83ee346e0e6ca0a665b345cbf59087aaa0eac` | `443fea8f86b0fd1c8a7becadbbe9c05f8916a867a538a8cdfe171db693768aea` | 11,458 → 18,368 | CRLF, 40 → 65, CR equals lines |
+
+The edit was applied by a script. Each replacement had to match its anchor an
+exact number of times, and each file had to be at its baseline hash first. Those
+hashes were read from the baseline run's own output, not retyped.
+
+1. **Resolver, pure extraction.** The starting-world half of
+   `postInstallPublicTables()` becomes an exported
+   `startingPublicTables(catalogSha256)` returning `{contract, count}`, with the
+   same checks, order and error messages. `postInstallPublicTables()` now calls
+   it. No other file's behavior depends on the extraction except the backup
+   module.
+2. **`capture()`** calls a new `captureTableCount(o)` **before** creating any
+   directory or session:
+   - A reviewed catalog resolves through `startingPublicTables()`.
+   - An unreviewed one is refused `NATIVE_BACKUP_UNREVIEWED_CATALOG`.
+   - `o.syntheticPublicTables` is honored only on a loopback connection for an
+     unreviewed catalog. It is refused `SYNTHETIC_COUNT_LOOPBACK_ONLY` for any
+     other host, `SYNTHETIC_COUNT_FOR_REVIEWED_CATALOG` for any catalog the
+     resolver knows, and `SYNTHETIC_COUNT` if it is not a positive integer.
+   - Only the resolver's "unknown catalog" error is turned into that decision.
+     Any other resolver failure, such as a tampered contract file, propagates.
+
+   `evidence(s, expectedTables)` takes the count and refuses
+   `EXPECTED_ORDINARY_TABLES`. The manifest records the resolved count, under the
+   same field name and the same `format` strings.
+3. **`restore()`** takes the count from the backup's **own** manifest and never
+   from the current reviewed set, so a backup stays restorable after the code
+   moves on. It requires `expected_public_tables` to be a positive integer equal
+   to `m.evidence.catalog.tables.length`. It then asserts the restored database
+   has that many tables, and then runs the unchanged exact comparison. Every
+   manifest written before today says 67 with a 67-table evidence catalog, so it
+   passes as it did.
+4. **Test extension.**
+   - A per-profile setup table taken from the install runner's recipe, selected
+     by `PREINSTALL_BACKUP_PROFILE`. The name was chosen so the runner's
+     `NATIVE_` environment refusal does not reject it. The opt-out prerequisite's
+     git ref and SHA-256, and the hiring migration path, were copied from
+     `test/linear-exit-install-operator-postgres.js` by the edit script, not
+     typed.
+   - After reconstruction the test asserts the world **resolves**, and by the
+     **expected route**: `observed67` and `settled68` through their own contract,
+     meaning the catalog hash equals the contract's; opt-out through the reviewed
+     mapping. So a setup that silently built the wrong world fails before any
+     capture. **No table count or catalog hash for any profile is written in the
+     test.** `SYNTHETIC_TABLES = 67` is the synthetic world's own size, used both
+     to build it and to declare it.
+   - New refusal cases are listed under proof B.
+   - The test's pin list gains the settled contract JSON and the hiring
+     migration, which the run now depends on.
+
+**Private wrappers: unchanged.** Read, not run: `refresh-install-day-database`
+passes `expectedCatalogSha256` from the receipt and no count, so a settled
+receipt resolves to 68. `restore-install-day-database` passes a package path
+only.
+
+#### The proofs. Each: what ran, what it produced, what would have made it fail
+
+All runs used the reviewed `run-portable.ps1 -Lane native-preinstall-backup` on
+PostgreSQL 17 from a Windows PowerShell 5.1 host, with `SUPABASE_*` cleared per
+process. **Baselines were taken on the unchanged code at `c234fee8` first**, so
+every "after" has a "before". Run directories are under the private evidence
+directory, prefix `linear-exit-native-preinstall-backup-`.
+
+**Proof A — the resolver extraction changes no answer.** Ran: one script
+calling `postInstallPublicTables()` for the `observed67` and `settled68`
+contract hashes, the opt-out mapping key, an all-zero hash and a malformed
+string, before and after. Produced: all five outputs byte-identical as JSON:
+67/23/90, 68/23/91, 67/23/90, `OBSERVED_CATALOG_UNKNOWN_STARTING_CATALOG`,
+`OBSERVED_CATALOG_STARTING_SHA_SHAPE`. `startingPublicTables()` returns counts
+67, 68 and 67 and the same two refusals. Exports: one added, none removed.
+*Would have failed on* any change to resolution order, contract lookup, mapping
+or error text. Also run after, all exit 0:
+`test/linear-exit-observed-public-catalog.js` (13 checks),
+`test/linear-exit-install-operator.js` (offline pass) and
+`test/linear-exit-observed-schema.js` (7 checks).
+
+**Proof B — the synthetic lane, before and after.** Before, `ea2a78e9…`: exit 0,
+**20 checks**. After, `0155e76c…`: exit 0, **25 checks**, source and restored
+tables 67, 12 pinned files unchanged across the run. The five added checks,
+predicted before the run from the edit:
+
+1. a non-loopback connection (`example.invalid`, `verify-full`) with the
+   override is refused `SYNTHETIC_COUNT_LOOPBACK_ONLY`, and the target is not
+   created;
+2. the override with **each** reviewed contract hash is refused
+   `SYNTHETIC_COUNT_FOR_REVIEWED_CATALOG`, target not created;
+3. an unreviewed catalog with no override is refused `UNREVIEWED_CATALOG`;
+4. a declared count one too high is refused `EXPECTED_ORDINARY_TABLES` **by the
+   real database**;
+5. restore's manifest checks. The first backup is decrypted with the test keys
+   and repacked from the same dump. The **unmodified** repack must restore
+   exactly: that is the control proving the repack path works. Manifests
+   claiming count+1, count−1 and the count as a string must each be refused
+   `NATIVE_BACKUP_MANIFEST`, with the output directory removed.
+
+*Would have failed on* any guard missing, a refusal arriving later than
+pre-connection, or a repack artifact.
+
+**Proof C — the observed worlds, including the settled forward proof.** Before,
+`observed67` `968a3a6e…`: exit 0, **8 checks**, 67 tables. After, predicted
+before running as 8 + 7 = 15, since observed mode adds two cases that need a
+reviewed world:
+
+| Profile | Run | Exit | Checks | Captured / restored tables | Resolution route asserted |
+|---|---|---|---|---|---|
+| `observed67` | `ff27689c…` | 0 | 15 | 67 / 67 | own contract |
+| `observed67_optout` | `f1d1b978…` | 0 | 15 | 67 / 67 | reviewed mapping |
+| **`settled68`** | **`af4f27c8…`** | **0** | **15** | **68 / 68** | **own contract, so the rebuilt catalog equals the `settled68` contract's hash** |
+
+The two observed-only cases: the config's own reviewed hash with the override
+is refused `SYNTHETIC_COUNT_FOR_REVIEWED_CATALOG`; and a **reviewed catalog of a
+different size** is refused `EXPECTED_ORDINARY_TABLES` by the real database.
+For `settled68` that is the 67-table contract against the 68-table world, and
+vice versa for the others. *Would have failed on* the setup building the wrong
+world, the count not reaching `evidence()`, or a 68-table world failing to
+capture, restore or compare exactly. **The settled run is the first time the
+backup path has captured and restored a 68-table world.**
+
+**Proof D — backups written before this change still restore, by measurement.**
+Ran: the private `restore-install-day-database.private.cjs`, unchanged, into its
+owned loopback scratch cluster (stopped before and after). The two real
+2026-09-14 packages were restored, `real-preinstall-encrypted` and
+`drive-downloaded-database-encrypted`, 44 files each and unmodified, **once on
+the old code and once on the new**. Produced: all four
+`ISOLATED_DATABASE_RESTORE_PASS`, exit 0. The receipts are identical before and
+after apart from the random database name: `public_tables: 67`,
+`exact_catalog_and_rows_and_sequences: true`, `hosted_restore_proven: false`.
+Output directories are named `restore-compat-before-…` and
+`restore-compat-after-…`. *Would have failed on* any manifest-compatibility
+break for real custody packages, which is exactly the risk the owner named.
+
+**Proof E — the new guards are load-bearing, by mutation.** Ran: four mutants of
+the backup module, each removing one guard, each run through the synthetic
+lane. The original bytes were restored after each one and verified at
+`e0b27b37…` every time, and at the end.
+
+| Mutation | Lane | What the test saw instead of the expected refusal |
+|---|---|---|
+| M1 loopback guard removed | exit 1 | `NATIVE_BACKUP_SESSION_FAILED`. The mutant went on and tried to connect to `example.invalid`, a reserved name that cannot resolve |
+| M2 reviewed-catalog guard removed | exit 1 | `NATIVE_BACKUP_CATALOG_MISMATCH` |
+| M3 unreviewed refusal removed | exit 1 | `NATIVE_BACKUP_EXPECTED_TABLES_ARGUMENT` |
+| M4 manifest-versus-evidence equality removed | exit 1 | `NATIVE_BACKUP_EXPECTED_ORDINARY_TABLES` |
+
+M4 also shows the equality is not the only barrier. Without it, restore still
+refuses one step later, at the restored table count. The equality makes the
+refusal earlier and explicit.
+
+#### Not run, and not claimed
+
+- **No live capture.** Step 9 with the new code is day-of work and was not
+  authorised. Its path is established only by reading the refresh wrapper, plus
+  proof C's capture of a reconstructed settled world.
+- **GitHub CI** on the pushed head has not been looked at by this session.
+- **Dated proof manifests now record old hashes.**
+  `LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PG17_20260913.json` and
+  `LINEAR_EXIT_NATIVE_ONLINE_SEQUENCE_PG17_20260914.json` pin the pre-change
+  script and test. Both are dated receipts with **no code consumer** (searched),
+  so they were left byte-identical per the re-run-never-edit rule. No new dated
+  backup proof file was written; the owner can ask for one from these runs.
+- **Side effect, pre-existing behavior:** each private restore run leaves its
+  `native_restore_…` database inside the owned scratch cluster. Four were added
+  today.
+- **Mistakes of this session's own, none of which ran anything:** a launcher
+  step passed an empty `-Profile` and was refused at parameter binding before
+  any cluster started; it was fixed and re-run.
+
+**Independent review asked for before anything builds on this**, per the owner.
+No plan or target was pinned, the install operator's proof read was not
+repointed, the sweep was not touched, and main is unchanged.
+
 ### 2026-09-16 — CORRECTION to this session's own B10 report: it was NOT zero regressions. B10 broke three suites the unit lane never runs. Sweep pushed as its own document
 
 **The earlier claim stands above as written, per the append rule, and it is

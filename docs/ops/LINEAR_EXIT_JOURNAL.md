@@ -30,6 +30,38 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — B10 blocked on the Windows machine: this sandbox has no route to PostgreSQL 17
+
+Answered concretely rather than assumed, because "regenerate on PG17" is only a
+plan if someone can actually reach a PG17 server.
+
+**This sandbox cannot provide one.** Checked, not guessed:
+
+- Locally installed: PostgreSQL **16** only (`/usr/lib/postgresql/16`).
+- `apt` offers `postgresql-16` and nothing higher; no PGDG repository is
+  configured, so 17 is not installable from here.
+- Docker is present as a binary but its **daemon is not running** (no
+  `/var/run/docker.sock`), so `postgres:17` cannot be pulled or run.
+- The live Supabase project *is* PostgreSQL 17, but it is production. It is
+  read-only here, and the generator needs the admission schema with the new
+  trigger installed, which is not on live and could not be put there.
+- CI runs PG17 lanes, but running a *generator* there is not the same as a lane
+  running: it would need a workflow change and a dispatch, both out of scope.
+
+**The missing thing, named:** a disposable PostgreSQL 17 server that the
+existing generator can be pointed at.
+
+**It is not missing from the project, only from here.** The owner's machine has
+PG17 at `D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`, which
+the installation runbook already uses, and the portable runner accepts it via
+`-PgBin`. So B10 is blocked on **the Windows machine**, not on effort and not on
+a capability nobody has.
+
+Recorded so nobody re-attempts the regeneration from a session and quietly
+substitutes a PG16-derived value, which is the failure this blocker exists to
+prevent. A `definition_md5` produced on 16 and asserted on 17 is a guess wearing
+a hash's clothing.
+
 ### 2026-09-16 — Catch-up landed GREEN at `0c923169`; B10 reasoning done, one field blocked on PG17
 
 **Twelve of twelve green, confirmed on the exact commit after the revert**, not
@@ -966,6 +998,15 @@ Live list. Items come off with a date and a note, never by deletion.
 
 | B7 | Whether one older main commit matches all **twelve** functions that have deployed versions is UNPROVEN, so C1 is neither confirmed nor ruled out | Owner or CI, before step 13 | One authenticated `ef-fingerprint` live read plus an offline walk back through main. Recipe in the 2026-09-15 correction entry. Added 2026-09-15, superseding B6 |
 | B8 | The recovery procedure does not say what rollback means for a brand-new function | Owner, before step 16 | For `notify` there is no previous version, so rollback means removing it or leaving it inert, not restoring. The procedure should state which. Added 2026-09-15 |
+
+**B10 blocked on PG17 access, 2026-09-16.** Reverted out of the catch-up by owner
+decision so the catch-up could land green, which it did at `0c923169`. The
+remaining work is understood and was demonstrated today: re-apply the guard-list
+addition, its four pin re-derivations and the fixture migration entry, then
+regenerate the retirement expected blob with the existing generator against a
+real PostgreSQL 17 server. This sandbox has only 16, no PGDG repo and no docker
+daemon; the owner's machine has PG17 at the path the runbook already uses. The
+missing thing is a disposable PG17 server, not effort.
 
 **B10 NOT closed, corrected 2026-09-15 later the same day. The note below stands
 as written per the append rule and is wrong.** The guard-list addition and its

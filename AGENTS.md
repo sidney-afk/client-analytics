@@ -157,6 +157,12 @@ is reading straight from its JSON output (`sealed_bundle_sha256`,
 `rollback_bundle_byte_length` for the Section 4 dispatch — no re-derivation,
 no re-explaining the naming convention.
 
+## NEVER WRITE A HASH YOU DID NOT JUST READ IN FULL FROM A COMMAND'S OUTPUT
+
+Owner-ratified 2026-09-16. A truncated or prefixed hash is for reading, never
+for authoring. Reasoning and the incident behind it are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## Two working rules learned the expensive way (2026-09-05)
 
 Both cost a real defect on the same day, on the post-level asset work

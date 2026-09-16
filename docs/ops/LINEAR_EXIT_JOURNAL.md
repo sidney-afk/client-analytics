@@ -30,6 +30,62 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Search rule ratified; per-site survey written with evidence labels; v3 held pending the site-9 trace
+
+**The rule is in `AGENTS.md`.** Both halves, as ratified:
+
+> A search proves what it found. It never proves what it did not find.
+
+and the practical half, which is the part that changes behaviour:
+
+> When a search closes a set, run a second search of a different shape and
+> reconcile the two.
+
+The concrete number is kept because it is more persuasive than the principle:
+**the clever regex found one site; the dumb search for the bare number found
+nine.** The clever one was written to match the two forms already expected, so
+it matched exactly those and nothing else. It was not a bad regex. It was a
+regex answering the question "where are the sites I already know about", while
+being read as an answer to "where are all the sites".
+
+**The supervisor failed the same way at one remove**, and the owner named it:
+it found one more than this session had and stopped there. Three positions in a
+row — session, supervisor, and the session's own second pass — each closed the
+set at whatever their first method returned. That is worth keeping, because it
+shows the defect is not carelessness in one place. It is the default behaviour
+of looking for something and finding it.
+
+### The survey
+
+`docs/ops/LINEAR_EXIT_GUARD_COUNT_SITES.md` now carries all nine, each with what
+it serves and what it should read instead. **Every row is labelled READ or
+INDICATED**, because the whole reason this survey exists is that a claim looked
+checked and was not.
+
+Two rows are **INDICATED and not traced**, and are marked as such rather than
+rounded up: #7 and #8, the control-companion proofs. Their 90 matches
+`expectedNames('v2').length` exactly and they reach `captureRows`, but the set
+of tables their OWNERS files create was not enumerated, so the coupling is
+inferred from a matching number. What would settle it is written on the row.
+Saying "indicated" costs a sentence; saying "read" and being wrong costs what
+today already cost.
+
+**The row that settles the design question is #2.**
+`linear-exit-observed-full-target.js`'s `create({planBytes,planSha256,catalog,privateCatalog})`
+**takes no profile argument at all** and asserts `catalog.tables.length===90`. It
+asserts a number it has no way to be right about. And `compare` calls `create`,
+so it fires on the operator's comparison path as well as the calibrate worker's
+creation path. A function that cannot see which world it is in should be handed
+that, not left to assume it.
+
+**Held, at the owner's instruction:** the v3 proposal is not detailed further
+until the local session reports whether step 9's private capture wrapper reaches
+site 9. If it does, this is a blocker in the install-day path and gets scoped as
+one. If it does not, it is a latent defect to fix properly rather than urgently.
+The sequencing reason is the owner's and it is right: this now touches custody
+and recovery, which B4 closed on, and this session said itself that it wants its
+own review rather than riding in as a fix to a number.
+
 ### 2026-09-16 — The guard-count set is NINE sites, not two and not three; and the literal is the wrong shape because the real object is a NAMED SET, not a number
 
 The owner declined the go-ahead and was right to. The supervisor found a third

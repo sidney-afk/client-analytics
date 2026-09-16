@@ -190,6 +190,18 @@ authority** for its argument list. Do not restate flags from memory and do not
 guess them. Reasoning and the sweep behind it are in
 `docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
+## A SEARCH PROVES WHAT IT FOUND. IT NEVER PROVES WHAT IT DID NOT FIND.
+
+Owner-ratified 2026-09-16. "And that is all of them" is a separate claim from
+"here is what I found", and it is usually the one part of a careful piece of
+work that nobody checks.
+
+Practical half: **when a search closes a set, run a second search of a different
+shape and reconcile the two.** A clever pattern that matches the forms you
+expect will find exactly those forms. On the guard-count sweep the clever regex
+found one site; a dumb search for the bare number found nine. Reasoning and the
+sweep are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
 ## A COMPOSITE CLAIM IS ONLY AS VERIFIED AS ITS WEAKEST PART.
 
 Owner-ratified 2026-09-16. Before calling a claim verified, split it and label

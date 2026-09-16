@@ -135,11 +135,34 @@ list as an **exact set**. On the settled database, with
 `hiring_practical_test_jobs` present and absent from v2, it refuses. **Changing
 90 to 91 anywhere does not touch this**, because it is not counting.
 
-Consumers, **READ** by grep: `scripts/track-b-recovery-package.js`,
-`scripts/linear-exit-complete-application-custody.js`,
-`scripts/linear-exit-control-companion.js`,
-`scripts/linear-exit-complete-sequence-bounds.js`,
-`scripts/linear-exit-asset-reference-coverage.js`.
+**CORRECTED 2026-09-16. The consumer list first written here over-reported,
+and the way it did is the same defect this document exists for.** It listed five
+files as consumers; that grep measured *which files reference the module*, not
+*which reach the check*. Four of the five use only `read`, `sections` or
+`expectedNames`, none of which is site 9.
+
+**Exactly one repo-side caller of site 9 exists: `scripts/linear-exit-control-companion.js`**,
+which calls `complete.captureRows`. **READ**, by listing the exports each
+consumer actually uses.
+
+And a trap worth naming: **three different modules export a function called
+`captureRows`** — this one, `linear-exit-credential-capture.js:9` and
+`linear-exit-priority-capture.js:9`. Only this one carries the exact-set check.
+A search on the name alone over-reports by two.
+
+Repo-side reach into the install path, **static reading only**: the install
+operator and the calibrate worker use exactly one thing from the control
+companion, `control.catalogSql`, and **not** its `capture`. `control.capture` is
+called only from `test/helpers/control-recovery-proof.js`. So **no install-day
+path to site 9 was found in this repository.**
+
+Stated as "not found" rather than "does not exist", deliberately. A second
+search of a different shape turned up five **lazy requires** of the control
+companion inside `track-b-recovery-package.js` (lines 538, 544, 911, 1053, 1409)
+and a file whose name deserves the wider trace's attention,
+`scripts/linear-exit-control-custody.js`. None of them is on the operator's
+path, but lazy requires are exactly what static reading is worst at, which is
+why runtime confirmation was asked for.
 
 **Should read:** the version appropriate to the database in front of it. This is
 the row that makes the fix a reviewed-list change rather than a number change,

@@ -30,6 +30,70 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Step 9 does NOT reach site 9 on static reading; v3 stays held for the wider question; and my own consumer list was over-reporting
+
+**The local session's trace: no.** Step 9's capture never calls the exact-set
+check. The module is in its dependency tree only through **lazy requires inside
+functions step 9 never reaches.**
+
+**Two limits, stated by the owner when he passed it on, and they are the
+substance rather than hedging.** It is static reading, so a runtime
+confirmation has been asked for — lazy requires and dynamic dispatch are exactly
+what static reading is worst at, and a lazy require is precisely what this
+answer turns on. And it is narrow: it answers *step 9*, which does not settle
+whether any **other** install-day step reaches a caller.
+
+**On current evidence v3 is not a day-of blocker**, so it gets done properly
+rather than urgently. **Held** until the wider answer, because a yes there would
+change the scoping.
+
+### The repo-side half, and a correction to my own survey
+
+The survey doc listed five "consumers" of site 9. **That was over-reporting, and
+the way it over-reported is the defect this whole thread is about.** The grep
+measured *which files reference the module*, not *which reach the check*. Four
+of the five use only `read`, `sections` or `expectedNames`.
+
+**There is exactly one repo-side caller of site 9:**
+`scripts/linear-exit-control-companion.js`, calling `complete.captureRows`.
+
+A trap found on the way, worth keeping because it would mislead the wider trace:
+**three different modules export a function named `captureRows`** — the
+complete-application-data one, `linear-exit-credential-capture.js:9` and
+`linear-exit-priority-capture.js:9`. Only the first carries the exact-set check.
+A search on the name over-reports by two. The name matched; the thing did not.
+
+Repo-side reach into the install path, **static reading, same evidence class as
+the local session's answer and no substitute for the runtime confirmation**: the
+operator and the calibrate worker use exactly one export from the control
+companion, `control.catalogSql`, not its `capture`. `control.capture` is called
+only from a test helper. **No install-day path to site 9 was found here.**
+
+Recorded as "not found", not "does not exist". A second search of a different
+shape — required in this file since this morning — turned up five **lazy
+requires** of the control companion inside `track-b-recovery-package.js` and a
+file the wider trace should look at by name,
+`scripts/linear-exit-control-custody.js`. Neither is on the operator's path.
+Both are the kind of thing the first search shape could not have seen.
+
+### Kept because the owner asked for it, and it is more useful than the rule
+
+> The first search failed because it answered **"where are the sites I already
+> know about"** while being read as **"where are all of them"**. The output
+> looks identical either way.
+
+That is the thing to look for next time, and it is more actionable than the rule
+it produced. A search written from the examples in front of you inherits their
+shape, and the result set it returns is indistinguishable from a complete one:
+same format, same confidence, no marker saying which question was answered. The
+only defence is asking, before believing a set is closed, **which of the two
+questions the search actually asked** — and then asking the other one a
+different way.
+
+It has now happened three times in one day on the same investigation, twice to
+this session and once to the supervisor, which is what makes it a property of
+the method rather than a lapse.
+
 ### 2026-09-16 — Search rule ratified; per-site survey written with evidence labels; v3 held pending the site-9 trace
 
 **The rule is in `AGENTS.md`.** Both halves, as ratified:

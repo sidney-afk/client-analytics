@@ -30,6 +30,85 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Neutrality check PASSED for both profiles at `b600a747`; the fix changed what gets checked, not what gets built; calibration still not run
+
+**What was run.** Four runs of the reviewed
+`run-portable.ps1 -Lane install-operator` on the owner's machine, with
+PostgreSQL 17, ICU `en-US` on loopback and the private observed inputs. The
+after tree was the checkout at exactly `b600a747`.
+
+| Profile | Before | After |
+|---|---|---|
+| `observed67` | worktree at `05bf19f6` | `b600a747` |
+| `observed67_optout` | worktree at **`d3cbca7f`**, the parent of `8299108` and the last clean opt-out state | `b600a747` |
+
+The opt-out baseline was corrected by the owner. `05bf19f6` already carries the
+`8299108` regression, so comparing against it could only show that the fix
+unbroke something, not whether the artifacts moved. Same pinned opt-out target
+(`79710a7f…`) and the same per-process environment clearing as before.
+
+**Flagged BEFORE the runs, not after: the pin record differs in three entries,
+not one.** `operator-source-pins.private.json` records the SHA-256 of four
+files. By git blob ID, in **both** pairs the installer
+(`scripts/linear-exit-install-operator.js`), the runner and the worker changed,
+and `scripts/linear-exit-install-profiles.js` did not. So the whole pin record
+was declared the known exception, reported entry by entry, and any other
+differing byte was declared a stop.
+
+**Result: `UNEXPECTED_DIFFERENCES=false`. All four runs exit 0.**
+
+`observed67`, `05bf19f6` against `b600a747`:
+
+- File sets identical.
+- **Plan
+  `3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb`, identical.**
+- Operator result byte-identical: `PASS`, `exact_final_target: true`,
+  `exact_finalized_replay: true`, `zero_guards: true`.
+- Worker output, reconstruction report and catalog, prerequisite file,
+  `RESULT.txt` and markers byte-identical.
+- Pin record: installer `1228be2b…` to `55f0cd6e…`, runner `0adb40d5…` to
+  `04948adb…`, worker `6d8de859…` to `049c3a1c…`. `install-profiles.js`
+  unchanged at `64296f5f…`.
+
+`observed67_optout`, `d3cbca7f` against `b600a747`: **it completes again.**
+
+- File sets identical.
+- **Plan
+  `0c88914972800f8268a9a5857535ca8cb624f6b25460b19b34091ea4b58ced57`, identical.**
+- Operator result byte-identical: `PASS`, `exact_final_target: true`,
+  `exact_finalized_replay: true`, `zero_guards: true`,
+  `populated_optout_preserved: true`.
+- Worker output, reconstruction report and catalog, prerequisite file,
+  `RESULT.txt` and markers byte-identical.
+- Pin record: installer `d8cafa56…` to `55f0cd6e…`, runner `0adb40d5…` to
+  `04948adb…`, worker `c83daaba…` to `049c3a1c…`. `install-profiles.js`
+  unchanged.
+
+**What this establishes.** `87611aa2` and `b600a747` resolve the opt-out
+world's count from its starting hash to the `observed67` contract's 90. They
+move that resolution into `load()`, and add the `PREPARED_SHAPE` guard. Those
+changes plus the `808bca20` runner table leave **everything the installer
+builds and emits byte-identical**, including the target match, for both
+existing profiles, measured against a real PostgreSQL 17 install from the
+private inputs. **The fix changed what gets checked, not what gets built.**
+
+**What it does not establish.**
+
+- The `settled68` calibration has still not run, and the derived **91** is
+  still untested. By instruction, the calibration runs only after both profiles
+  pass, and it was not started in this sitting.
+- The early refusal in `load()` and the `PREPARED_SHAPE` guard were not
+  exercised on a failing input here. Every run was a passing profile. The
+  supervisor verified them offline.
+
+Run directories, all under the private evidence directory:
+`linear-exit-install-operator-525619b9ddb24ce8abef7f36fe5631ad` and
+`-fbc02a0cfe9c488aada27ee3ac767110` (`observed67`, before and after), and
+`-734325f8adb142feb1f54fa66fc2ca04` and `-ede25d0b14ee46c681e09b18bc234ae2`
+(opt-out, before and after). Worktrees are left at
+`2026-09-16-runner-before-05bf19f6` and `2026-09-16-optout-before-d3cbca7f`.
+Nothing was re-pinned or edited.
+
 ### 2026-09-16 — Runner-table neutrality check STOPPED on differences; the check exposed that `observed67_optout` has been broken since `8299108`; calibration NOT run
 
 **What was asked.** Confirm the runner change in `808bca20`, which turned line

@@ -30,6 +30,118 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — B10 will supersede the `settled68` target pinned at `c34c7e31`, and both other profiles' plan pins. Recorded IN ADVANCE, by measurement, before the change is made
+
+Written before doing the work so the next reader meets an expected supersession
+rather than an unexplained mismatch. **Nothing in the existing pin entry is
+edited or removed**; this stands below it, per the append rule.
+
+**The finding.** Both files B10 must edit are install-plan SOURCES. So B10 does
+not merely add a table to a guard list: it moves the plan SHA-256 of **all
+three** profiles, and with it every derived target.
+
+- `20260912183653_application_dml_admission_preparation.sql` is `sql_owners`
+  order 2 in the admission release extension, which
+  `linear-exit-observed-install-plan.js` reads into `plan.sources`.
+- `20260913062149_retirement_switch_preparation.sql` is the last entry in
+  `linear-exit-observed-full-install-plan.js` `OWNERS`, read into the same
+  `plan.sources`.
+
+Both files' full SQL text is embedded in `planBytes`, so `planSha256` is a
+function of their bytes.
+
+**Measured, not read off the builders.** The real builder was run; the only
+thing stubbed was the starting-catalog gate, which needs a private artifact
+this sandbox does not hold. The same stub was applied to every run, so it
+cancels out of a before/after comparison. The stub's honesty is checkable:
+with the pre-B10 bytes the builder reproduced **all three pinned plan hashes
+exactly**, which it could only do if everything except the gate was real.
+
+| Profile | Pinned today | After B10's guard-list edit alone |
+|---|---|---|
+| `observed67` | `3c000b76…` | `9207e685…` |
+| `observed67_optout` | `0c889149…` | `4d1879c8…` |
+| `settled68` | `e3dae746…` | `fed2d004…` |
+
+That is from the guard-list edit **alone**. The regenerated retirement trigger
+blob edits the second plan source and will move all three again.
+
+**The target moves with the plan**, also measured rather than inferred.
+`linear-exit-observed-full-target.js` `create()` writes `plan_sha256` into the
+target object, so the target bytes carry the plan hash. Building the real
+target from each plan with an identical synthetic catalog: target
+`78275009…` before, `265a7a20…` after. Plan moved true, target moved true.
+
+**So `profiles.settled68.target` `625430…`, pinned at `c34c7e31`, is stale the
+moment B10 lands.** It is not wrong today and it was not wrongly derived. It
+was measured correctly against the plan that existed when it was measured, and
+B10 changes that plan. This is supersession, not a defect, and the pin above
+should be read that way.
+
+**The re-measurement cannot happen in this sandbox, and this is not a
+reluctance.** The target is produced by a real install run of the new plan, and
+that run needs the private observed inputs from
+`2026-09-12-fast-finish-evidence`. Those live on the owner's Windows machine
+and only the **storage session** can read them. The cloud session can re-derive
+every PLAN hash here — it just did — but the three TARGET hashes must be
+re-measured there, by the storage session, on PostgreSQL 17, and read whole
+from the run. Writing a plausible target here would be exactly the silencing
+D8 forbids.
+
+**One thing B10 does NOT invalidate, stated so nobody re-opens it.** The
+post-install public table count of **91** survives. Measured in the same pair
+of runs: 90 before and 90 after for `observed67`, unchanged, because B10 adds
+no table to what the installation CREATES. It adds a name to a guard list over
+tables that already exist. The derivation behind 91 stands.
+
+**A correction to this file's own B10 reasoning, kept below the original per
+the append rule.** The 2026-09-16 entry "B10's retirement-contract half"
+states the guard "creates exactly one `aaa_application_dml_admission_statement`
+trigger per table it guards", and gives the shape of ONE new contract entry.
+That is wrong. The loop issues **two** `create trigger` statements per table,
+`_statement` and `_row`, and the frozen blob confirms it. The checkpoint's
+"adds two triggers" is the correct version.
+
+The blob's numbers, counted and reconciled from both directions before anything
+was touched, because a regeneration cannot be verified against a count nobody
+is sure of:
+
+| | |
+|---|---|
+| Guard list tables | 86, unique, sorted |
+| `create trigger` per table | 2 |
+| Admission triggers in the blob | 172 |
+| Non-admission triggers in the blob | 18 |
+| **Blob total** | **190** |
+
+86 × 2 + 18 = 190. The 18 are not admission triggers at all: the contract's
+aggregate has a second arm, `relname in (six named tables)`, contributing 14 on
+`mirror_outbox`, 2 on `production_label_catalog_versions`, 1 on
+`production_intake_manifests` and 1 on `card_write_transaction_context_v1`.
+Closed from the other direction too: every table in the blob is either in the
+guard list or one of the six named, with no strays, and the guard list's 86
+names equal the blob's 86 admission tables exactly.
+
+**So the regeneration target is 192 entries, not 191.** That is the number the
+regenerated blob is checked against.
+
+**Line endings were CHECKED, not merely intended.** Measured with `file` and a
+CR count before editing: `20260912183653_…admission_preparation.sql` is **LF**
+and was edited with a single in-place substitution that left the CR count at 0;
+`20260913062149_retirement_switch_preparation.sql` and
+`test/helpers/remaining-application-fixture.js` are both **CRLF** and any edit
+to them preserves that. This is the trap recorded on 2026-09-15, when a Python
+rewrite silently flipped the fixture to LF, 168 lines of collateral change for
+a 4-line addition, invisible in a rendered diff and capable of breaking a hash
+pin on the file.
+
+**Independent cross-check of the edit itself.** The guard-list addition made
+here reproduces the reverted 2026-09-15 work byte for byte: migration
+`454cfa64…`, schema contract `3288b4b5…`, release extension `9c198325…` —
+each equal to the value commit `0c923169` removed. The extension was
+regenerated with its own `generate()`, never hand-edited, and `verify()`
+passes.
+
 ### 2026-09-16 — The checkpoint was brought up to date so a session that has never seen this conversation can take over from the file alone
 
 Written from this record and the execution map rather than from anyone's summary

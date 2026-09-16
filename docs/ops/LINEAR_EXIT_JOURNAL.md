@@ -30,6 +30,76 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Settled plan hash MEASURED on the owner's machine: `e3dae746…`; recorded, NOT pinned
+
+**The value, copied whole from the printed output:**
+
+```
+settled_plan_sha256 = e3dae746b148fe18839209445e8b2142372335b18127430ba2d827f13cd27d54
+```
+
+**Where it came from, exactly.**
+
+- Script `scripts/linear-exit-b9-catalog-derive.js` at repository head
+  `0c35a3c8`. The `--plan-from` mode was added in `03d18fb3`.
+- Working directory: the successful derivation's private output directory,
+  `b9-derive-20260916-2`, not the failed `-1`.
+- Input: that directory's `b9-settled-catalog.private.json`. File SHA-256
+  `ab7d33e5d254b79e9714e05f08e4b6837789713653d1f4ac14d9d1dbf56dce27`; canonical
+  catalog hash `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`,
+  equal to the derivation's settled hash and to today's live read.
+- Profile built: `settled68`. No cluster, nothing hosted, nothing written.
+
+Full printed result: marker `B9_SETTLED_PLAN_MEASURED`; `settled_catalog_sha256`
+and `initial_catalog_sha256` both
+`ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`;
+`plan_bytes` 945060; `stage_id`
+`OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1`;
+`target_still_required: true`, with the note that the target comes from a
+calibration run of the installer. Exit 0.
+
+**Not pinned.** Pinning is the cloud session's job, by owner decision. This
+entry is the measured value and its provenance, nothing more.
+
+**The deviation: the command could not run as written, and what was done
+instead.**
+
+The instruction was
+`node scripts/linear-exit-b9-catalog-derive.js --plan-from=".\b9-settled-catalog.private.json"`,
+run from `b9-derive-20260916-2`. It fails in two independent ways, and both
+were **established by reading, not guessed**:
+
+1. The script path is relative. The private output directory has no `scripts`
+   folder, which was checked, so Node would not have found the module.
+2. The `--plan-from` path is relative, and the script's `planFrom()` asserts
+   `path.isAbsolute(file)` (line 295), which was read, so the input would have
+   been refused.
+
+Before running anything, the session **read `planFrom()` in full and confirmed
+it is read-only**: it parses the catalog file, hashes it, and builds the
+`settled68` plan in memory. It writes nothing, starts no cluster and connects
+to nothing.
+
+What was then run changed **only how the two paths were written**. The working
+directory stayed the one named. The input stayed the exact file named. The
+script was called by its absolute path in the checkout, and `--plan-from` was
+given that same file's absolute path. **The substitution was reported to the
+owner with the reasons, in the same message as the result**, not made silently.
+
+That is the standard: when an instruction cannot run as written, establish why
+from the code, verify that the adjusted action is safe, then report the
+substitution. Do not quietly correct the instruction and present the result as
+if it had run verbatim. **It is the second time today that declining to quietly
+correct an instruction kept a check honest.** The first was the byte check
+aimed at the failed `-1` directory.
+
+**Where the flawed command originated.** The command was written by **the cloud
+session** and **relayed by the supervisor without being checked** against the
+script or the directory layout. It was not a local error on the owner's
+machine. It is recorded so the trail shows its origin. Like the `-1` directory
+earlier today, it was a relayed instruction that nobody between its author and
+the machine checked.
+
 ### 2026-09-16 — Composite-claim rule RATIFIED and added; the recursion is the point, not an embarrassment
 
 Short form is now in `AGENTS.md`, in the hash rule's shape. The owner asked that

@@ -30,6 +30,38 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Calibration handed to the local session; the two-step collapses; standing instruction for both outcomes
+
+The owner is giving the calibration to the local session directly rather than
+having this one prepare a block for it, on the reasoning this session gave:
+**the local session has the private inputs, so its executing the command IS the
+preparation.** The two-step only ever existed because this session cannot reach
+those inputs. Removing a step that exists solely to work around a limitation is
+the right call and it shortens the path by a whole round trip.
+
+**Standing instruction, recorded so a replacement session does not have to ask.**
+When the target hash and post-install count come back:
+
+- **If the count is 91** — the derived value — pin the target and re-derive the
+  constant from the measured number. That is the one derivation, and it has
+  already happened; the calibration was its test and it passed.
+- **If the count is anything else** — **nobody touches anything.** Not the
+  constant, not the target, not the profile. Stop and put it to the owner. A
+  second adjustment would be fitting the number to the observation, which is the
+  thing this file records agreeing not to do, twice.
+
+Nothing is pinned and nothing is prepared in the meantime. `settled68.target`
+stays `null`, so `get()` still refuses the profile and it cannot be used by
+accident while this is outstanding.
+
+**Noted for the record on the method rather than the work.** The allowlist
+correction earlier today was the fourth of its class — a claim caught **before**
+being stated rather than after. The three before it were caught by the owner, by
+the supervisor, and by this session's own second pass, in each case after the
+claim had already been made. The difference is not that the error rate changed;
+it is where in the sequence the check happens. Worth keeping because it is the
+only one of the four that cost nothing.
+
 ### 2026-09-16 — Calibration rehearsal ATTEMPTED and executed; it stops at the private inputs, so the command still cannot be written
 
 The owner asked for the rehearsal that was deferred, and for the box to come off

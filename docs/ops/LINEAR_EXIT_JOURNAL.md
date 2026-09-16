@@ -30,6 +30,120 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-16 — Pipeline proof: DECIDED re-run, never edit, and the re-run NEEDS the private inputs, so it is the storage session's. Also: it was already stale before B10, on two pins B10 never touched
+
+**The owner's decision, recorded as given.** The 2026-09-13 pipeline proof is
+**re-run, not edited**. The re-run writes a **NEW dated proof file** for the day
+it runs and leaves
+`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json`
+**byte-identical**. The install operator's `source_pins` read is then pointed at
+the new file. The owner's addition to the recommendation was exactly this last
+point, and it is the part that matters: **overwriting the dated file would be
+the same falsification with extra steps.** A dated receipt is evidence of one
+run; a second run is a second receipt.
+
+**Does the re-run need the private inputs? YES. It is not close, and nothing
+here was stubbed to find out.**
+
+`test/linear-exit-observed-full-pipeline.js` refuses on its fourth line without
+`OBSERVED_INPUT_DIRECTORY`, and hands it to
+`scripts/linear-exit-observed-schema.js` `applyObservedSchema`, which
+reconstructs the observed world from **four private capture files** named in
+that script: the live full catalog, the live routine definitions, the live
+structural definitions and the live sequence ownership, all the 2026-09-12
+capture. They are not in this repository and never will be. The lane then
+asserts the reconstruction is exact: 67 tables, 115 functions, 14 sequences, 14
+ownership rows, `server_major` 17, and a public schema that was empty before it
+started.
+
+**So the re-run joins the storage session's list.** It cannot be done in this
+sandbox. Stubbing the reconstruction to get a green would produce a proof of
+nothing while looking like a proof of something, which is precisely what the
+decision above exists to prevent.
+
+**An ordering constraint the lane imposes, which is separate from the one the
+owner ruled out.** The owner is right that `linear-exit-install-profiles.js` is
+**not** in the pinned set — confirmed by reading all 26 pins — so profile
+re-pinning cannot invalidate this proof, and there is no ordering constraint in
+that direction. But the lane's `--verify` mode takes **a private target path and
+that target's SHA-256 as arguments**. So the re-run in verify mode is downstream
+of the target re-derivation: derive the targets first, then re-run this. The
+`--calibrate` mode takes neither and can go first.
+
+**A correction to the count, offered because the record's own rule says a
+correction is a hypothesis until it is checked against the code.** The owner's
+note says two of the 26 pins are stale, the retirement migration and the full
+install plan builder. **Measured: three.** The third is
+`scripts/linear-exit-observed-full-target.js`.
+
+| Stale pin | Last changed by | Is it B10's? |
+|---|---|---|
+| `supabase/migrations/20260913062149_retirement_switch_preparation.sql` | B10, `8940583` | **Yes** |
+| `scripts/linear-exit-observed-full-install-plan.js` | `03d18fb` (settled68 wiring), then B10 | **No, B10 was second** |
+| `scripts/linear-exit-observed-full-target.js` | `8299108` (the post-install count derivation) | **No** |
+
+**The consequence is the useful part, and it is not a quibble about a number.
+Two of the three stale pins predate B10 entirely, and both came from
+2026-09-16's own work.** This proof has been failing its own `SOURCE_PIN` gate
+since the settled-contract and count-derivation commits landed today, before
+B10 began. B10 did not create this deadlock; it added a third pin to one that
+already existed and was not noticed. Anyone re-running the proof should expect
+to be re-proving today's earlier work as well, not just B10's.
+
+Also confirmed while counting: the admission migration and the shared fixture
+are **not** in the pinned set, so of B10's edits only the retirement migration
+is. And `calibration_source_pins`, the other 26-entry list in the same file, has
+**no code consumer** — the only live read is
+`for(const p of proof.source_pins)` in `scripts/linear-exit-install-operator.js`.
+
+**Nothing was changed by this entry.** The 2026-09-13 file is untouched and
+stays untouched.
+
+### 2026-09-16 — STRUCTURAL FINDING, deliberately not fixed: a file that is both a dated receipt and a live gate deadlocks every time a pinned file changes
+
+Recorded as an observed problem with a direction, at the owner's instruction.
+**This is not B10 work, nothing here is implemented, and B10 is not widened by
+it.**
+
+**The problem, stated generally.** A document that serves two roles at once —
+a **dated historical receipt** of a run that happened, and a **live source gate**
+enforced against the current tree — has no correct state once any file it pins
+changes. Editing it falsifies the receipt: the run it records never saw that
+hash. Not editing it fails the gate. The two roles want opposite things from the
+same bytes, and the conflict is guaranteed, not accidental: the gate's whole
+purpose is to notice change, and the receipt's whole purpose is to not.
+
+**This is not hypothetical and not only about this file.** It has now fired
+three times on one file in one day, twice from work that had nothing to do with
+B10. Every future change to any of those 26 pinned files reproduces it.
+
+**Why it is worth writing down rather than absorbing.** The deadlock is silent
+until an install is attempted, it surfaces as `fail('SOURCE_PIN')` with no
+indication that the real cause is a role collision, and the tempting fix —
+quietly updating the dated file — is the one that destroys the evidence. The
+cost of the wrong move is not a failed run, it is a proof record that lies.
+
+**Proposed direction, NOT implemented and not reviewed.** Separate the two
+roles into two files:
+
+- a **receipt** per run, dated, immutable once written, never read by any gate;
+- a **current-source-pin list**, undated, explicitly a live gate, regenerated
+  whenever a pinned file legitimately changes, carrying no claim about any past
+  run.
+
+The operator would read the second. The first would accumulate, one per run,
+which is what evidence is supposed to do. The owner's decision above already
+produces the first half of this shape by hand for one file: a new dated proof
+plus a repointed read. The direction is to make that the general arrangement
+rather than a per-incident manoeuvre.
+
+**Open questions this direction does not answer, listed so nobody mistakes it
+for a plan.** Which of the other dated proof manifests carry live gates as well,
+and whether any of them is read by something this session did not find; whether
+a repointed `source_pins` read should be pinned itself, and by what; and whether
+the undated list wants review on each regeneration or is trusted as derived.
+None of these were investigated. **No file was changed.**
+
 ### 2026-09-16 — B10 worked as far as this sandbox honestly allows: guard list, fixture, SEVEN pin sites, and the retirement blob regenerated on a real PostgreSQL 17. Lane GREEN, 46 checks
 
 The half that was blocked is done. What remains is named at the bottom, with the
@@ -4484,6 +4598,29 @@ observed inputs and therefore the storage session:**
 Nothing in 1 to 3 blocks the merge or the install any more than B10 already did:
 the admission guard still installs `open` and is inert until something closes
 it, which nothing in the install path does.
+
+**B10 item 3 DECIDED, 2026-09-16, owner. The note above stands as written.**
+The pipeline proof is **re-run, never edited**. The re-run writes a NEW dated
+proof file and leaves the 2026-09-13 file byte-identical; the install operator's
+`source_pins` read is then pointed at the new file. Confirmed by this session
+that the re-run **requires the private observed inputs** — four private capture
+files the lane refuses to start without — so it is the storage session's, not
+this one's. Its `--verify` mode also takes a private target path and SHA, which
+puts it downstream of item 2; `--calibrate` does not and can go first.
+
+So all three of B10's remaining items are now the storage session's, and item 3
+is no longer an open question, only unexecuted work.
+
+**Correction to item 3's scope, same day.** Three of the 26 pins are stale, not
+the two named when the decision was taken, and **only one of the three is
+B10's**. The other two, the full install plan builder and the observed full
+target, went stale earlier on 2026-09-16 from the settled-contract and
+count-derivation work. The proof has therefore been failing its own gate since
+before B10 started. Whoever re-runs it is re-proving today's earlier work too.
+
+**Separately, not a blocker and not B10.** The dual role of that file — dated
+receipt and live gate in one document — is recorded as a structural finding with
+a proposed direction in the progress log. Deliberately not fixed.
 
 **B4 mechanical half PREPARED, not closed, 2026-09-16.** The dashboard check is
 now a numbered click path in the sitting page, section 4, with what to write

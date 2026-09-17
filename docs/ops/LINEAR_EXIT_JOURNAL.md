@@ -30,6 +30,167 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 11 CLOSED: pre-state snapshot written, private, machine-diffable. Database half restore-derived; Edge env as name and SHA-256 only; workers from the GitHub Actions API; 19 gates recorded ABSENT. 11 of 28
+
+Storage session, on the owner's authorisation. **Read-only everywhere; nothing
+was changed.** No production connection was made. No flag, variable, secret,
+workflow or worker was touched.
+
+#### Where it lives, and its hash
+
+| Item | Value |
+|---|---|
+| **Snapshot** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json` |
+| **SHA-256** | **`ad3bdf6a3d6c61f14f20725a5c0b7ed7247352bb1c6abf02c328d1796dc43033`** |
+| Bytes | 161,316 |
+| SHA-256 of its `compare` section alone | `eea5512f3395e7b96104b955d80dee3eb21ddcf91d89f614ae4f565adf18c27c` |
+| Written | 2026-09-17T03:19:29Z, from a Windows PowerShell 5.1 host |
+| Collector kept beside it, for step 25 to re-run | `collector.private.cjs`, SHA-256 `e160cb85f9a5df457813ca89ff9add2a58c5d44154645c4988842c6ba5e9b4b4` |
+| Verifier kept beside it | `verify.private.cjs`, SHA-256 `629b60e6800f5c6d1fe278809d9c5d505dd574ee7a80905943d1e35c0e0a5ea7` |
+
+**Shape, so a later session can diff it mechanically.**
+
+- One JSON document with **recursively sorted keys**, 2-space indented, one
+  trailing newline. Arrays are in a defined order: by key, id, name or path.
+- Verified from disk: re-serialising with sorted keys reproduces the file byte
+  for byte.
+- **Top level:**
+  - `format` (`linear-exit-step11-pre-state-v1`), `written_at`, `written_by`,
+    `how_to_diff`;
+  - **`compare`**, the part step 25 diffs;
+  - **`context_not_for_diff`**, volatile observations only: each scheduled
+    workflow's latest run.
+- **`compare` has four sections:**
+  - `database_restore_derived`
+  - `edge_function_environment`
+  - `github_actions`
+  - `gates`
+- **Step 25 method:** produce the same shapes from the same sources with the
+  kept collector, then diff the `compare` sections. The database source is then
+  live rather than a restore: step 12's observation, or a step 25 reader. Any
+  shape change is itself a finding.
+
+#### Sources, by the owner's ruling
+
+**1. Database half: RESTORE-DERIVED, NOT a live read.**
+
+- Read from tonight's **step 10 restore** of the Drive-downloaded package, on the
+  owned scratch cluster (loopback), one read-only transaction per query. The
+  cluster was started detached and stopped afterwards (`pg_ctl status` 3).
+- **Corresponds to:** capture receipt `captured_at` `2026-09-17T01:11:49.970Z`
+  (the dump ran inside 01:07:52Z–01:11:50Z) and catalog `ddfa4c4f…`, with catalog
+  receipt `observed_at` `2026-09-17T01:07:52.167Z`.
+- The collector recomputed the restored catalog hash and refused to continue
+  unless it equalled `ddfa4c4f…`. It did.
+- **Staleness:** the rows are as of that capture. Step 12's live observation
+  checks the same fields and closes the gap.
+
+| Recorded | How |
+|---|---|
+| Public table and function names | full sorted lists: 68 tables, 122 function names |
+| `syncview_runtime_flags` | **all 20 rows, key and value**, raw |
+| `flag_flips` | all 90 rows, raw |
+| `linear_archive_asset_rescue_config` | all rows, raw except `approved_folder_id`, recorded as SHA-256. It has 0 rows |
+| `settings_events` | **not copied** (per-client history). Count 355, maximum id, maximum `event_at`, and SHA-256 of every row's JSON in id order, which detects any change |
+| Gate tables | `linear_outbound_cutoff_control` and `production_notification_config`: **ABSENT** in the live world (step 14 installs them) |
+
+**The existing Linear and authority settings (values that matter, and they are
+not secrets):**
+
+| Flag | Value |
+|---|---|
+| `prod_authority` | `{"graphics":"syncview","video":"syncview"}` |
+| `linear_inbound_enabled` | `{"enabled":true}` |
+| `linear_outbound_enabled` | `{"mode":"live"}` |
+| `linear_legacy_parity_enabled` | `{"enabled":true}` |
+| `linear_outbound_pending_age_alert` | `{"minutes":30}` |
+
+The other 15 runtime flags are recorded in the snapshot. Several hold client
+lists, so they are not reproduced here.
+
+**2. Edge Function environment: key names and SHA-256 of values, every key
+without exception, no value written or printed anywhere.**
+
+- **Source:** the Supabase Management API project-secrets list, read-only, with
+  the token already in the environment.
+- **29 keys**, all recorded as `{name, value_sha256}`.
+- **How it is known that the recorded digest is SHA-256 of the value, without
+  seeing a secret.** The API returns 64-hex values. `SUPABASE_URL` is set by the
+  platform to `https://<ref>.supabase.co`, a value known without reading any
+  secret, and its API value **equals SHA-256 of that string**. So the API returns
+  SHA-256 digests, recorded as `API_RETURNS_SHA256_DIGEST`. The comparison was
+  made in memory; only the boolean was printed.
+- **No Edge key ends in `_ENABLED`.** `NOTIFY_WAKE_ENABLED`,
+  `WRITE_DIAGNOSTICS_ENABLED` and the three `LINEAR_EXIT_SUPERVISOR_*` keys are
+  all **ABSENT**.
+- **Checked after writing,** in memory, printing booleans only: the snapshot
+  bytes contain **none** of the service-role key, the access token, the project
+  ref or the scratch database password.
+
+**3. Worker state: GitHub Actions API, read-only, plus frozen main's workflow
+files.**
+
+- Frozen main `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`.
+- **46 registered workflows, all `active`.** 15 carry a schedule in frozen
+  main's file. 6 are registered but have **no file on frozen main**, so they are
+  unable to run on a schedule (schedules run from the default branch).
+- **The three Linear workers** named in the checkpoint's dependency table, all
+  active and on main:
+
+  | Workflow | Schedule on main |
+  |---|---|
+  | `b1-linear-incremental-refresh.yml` | `*/30 * * * *` |
+  | `linear-deliverables-reconcile.yml` | `*/10 * * * *` |
+  | `linear-outbound-drain.yml` | `*/10 * * * *` |
+
+- **Repository variables:** 8, recorded as name and SHA-256 of value. Two hold
+  private identifiers. Checked in memory: no value appears in the snapshot, and
+  every recorded digest equals SHA-256 of the live value.
+- **Repository secrets:** 13, names only; the API returns no values.
+
+#### The gates step 25 compares, 25 recorded explicitly
+
+**ABSENT (19),** so step 25 can tell "absent before and after" from "absent
+before, present after":
+
+| Host | Gates |
+|---|---|
+| GitHub Actions repository variable | `NATIVE_NOTIFICATION_SENDER_ENABLED`, `NATIVE_NOTIFICATION_MONITOR_ENABLED`, `SYNCVIEW_RETIREMENT_CENSUS_ENABLED`, `OUTBOX_DEBT_CENSUS_ENABLED`, `NATIVE_INTAKE_COMPLETION_ENABLED`, `LINEAR_EXIT_SUPERVISOR_ENABLED` |
+| Edge Function environment | `NOTIFY_WAKE_ENABLED`, `WRITE_DIAGNOSTICS_ENABLED`, `LINEAR_EXIT_SUPERVISOR_ENABLED`, `LINEAR_EXIT_SUPERVISOR_PROJECT_REF`, `LINEAR_EXIT_SUPERVISOR_CONCURRENCY` |
+| Workflow file on frozen main | `native-notification-sender.yml`, `native-notification-monitor.yml`, `syncview-retirement-census.yml`, `outbox-debt-census.yml`, `native-intake-completion.yml`, `native-intake-completion-monitor.yml` |
+| Database table (restore-derived) | `linear_outbound_cutoff_control`, `production_notification_config` |
+
+**PRESENT (6):**
+
+- `THUMBNAIL_REVISION_SCAN_ENABLED`, a repository variable whose **digest matches
+  the known value `"true"`**;
+- `thumbnail-revision-scan.yml` on frozen main, registered `active`;
+- the runtime flags `prod_authority`, `linear_inbound_enabled`,
+  `linear_outbound_enabled` and `linear_legacy_parity_enabled`, values above.
+
+**`RECONCILE_NATIVE_INTAKE_APPLY` is not a switch.** It is a literal confirmation
+token inside `native-intake-completion.yml`, which is absent from frozen main, so
+its gate is covered by that workflow's absence and
+`NATIVE_INTAKE_COMPLETION_ENABLED`. **The follow-up supervisor** is a portable
+Node process with no deployment host. Its enable switch was checked in both
+readable hosts and is absent from both.
+
+#### Attempts, so nothing is hidden
+
+- `pre-state-snapshot-20260916-1`: **refused, and kept.** Its database half ran
+  all six read-only queries and stopped the cluster. The Edge half then refused
+  by design with `EDGE_VALUE_REPRESENTATION_UNDETERMINED`: all values were 64-hex,
+  but the first version decided the representation from `*_ENABLED` keys only,
+  and there are none. The collector was changed to anchor on `SUPABASE_URL`, as
+  above, and re-run into `-2`. No snapshot file was written in `-1`.
+- One collector bug was fixed before any run: `gh api --paginate` was applied to
+  the per-workflow latest-run lookup, which would have walked every run in the
+  repository's history.
+
+**Count: 11 of 28**, Phase 2 of 7 complete, 39%. **Next: step 12 (install
+operator, read-only observation), NOT started. It waits on the pipeline proof
+re-run, which the owner will signal.**
+
 ### 2026-09-17 — D22 FIRST PASS: all 61 deferred suites run. 37 pass, 17 fail, 7 cannot run here. Two failures are new, and one of them is the third instance of the class
 
 Not the authoritative run — files will move again before the merge — and

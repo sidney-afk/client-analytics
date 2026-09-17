@@ -163,6 +163,27 @@ CLOSED".
 **Progress:** Phase 2 of 7 · step 10 of 28 · 36% complete · next: 11 (record
 the pre-state). **Step 11 is not started and not authorised.**
 
+### Step 11 CLOSED — 2026-09-17T03:19Z (2026-09-16 21:19 on the owner's machine)
+
+Authorised by the owner. Read-only, and nothing was changed.
+
+- **Snapshot:**
+  `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json`,
+  SHA-256 **`ad3bdf6a3d6c61f14f20725a5c0b7ed7247352bb1c6abf02c328d1796dc43033`**.
+  Private JSON with sorted keys; diff its `compare` section at step 25. The
+  collector used is kept beside it.
+- **Database half:** restore-derived from the step 10 copy, as of capture
+  2026-09-17T01:11:49Z, catalog `ddfa4c4f…`.
+- **Edge Function env:** every key as name and SHA-256 of value.
+- **Workers:** GitHub Actions API, with frozen main `1abdd1fa`.
+- **Gates:** 25 recorded, 19 of them explicitly **ABSENT**.
+
+Full detail is in the journal entry "STEP 11 CLOSED".
+
+**Progress:** Phase 2 of 7 complete · step 11 of 28 · 39% complete · next: 12
+(install operator, read-only observation). **Step 12 is not started; it waits
+on the pipeline proof re-run.**
+
 ## Phase 3 — Install the SQL, dormant
 
 | # | Step | Who | Done when |

@@ -30,6 +30,89 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — OPERATOR REPOINTED at the second 2026-09-17 proof, and the SOURCE_PIN gate EXECUTED in BOTH directions. The owner's premise about what I can run here needs one correction
+
+Storage session's re-run at `4044217f`, proving checkout `4a1b594d`.
+
+#### The file was verified before it was trusted, against expectations written yesterday
+
+All four preconditions from the previous entry, measured:
+
+```
+1. own sha256        df3bdebed5ad8ac382a408d4f0dd0457a2a28fac0476384daa923333a19d561a
+   owner stated      df3bdebe…                      MATCHES
+2. source_pins       26  (expected 26)               ok
+3. stale vs tree     0 of 26                         all match
+4. reconstruction pin c5e6a4e4683c0deb…
+   current bytes      c5e6a4e4683c0deb…             the run proved THIS version
+   pre-fix value      7b70becf48f5c3da…             not the old one, good
+```
+
+The file also states its own world and checkout: `status: PASS`, profile
+`settled68`, starting catalog `ddfa4c4f…`, 68 starting public tables, 91
+post-install, `checkout_sha 4a1b594d890e17e86c4aea2a2bb8a95bbe15310a`, and it
+names the two earlier FAIL receipts it supersedes. None of my stop conditions
+fired.
+
+#### The change, one commit
+
+`scripts/linear-exit-install-operator.js` line 23, one path:
+`…FULL_PIPELINE_20260917.json` → `…FULL_PIPELINE_20260917_2.json`, plus the
+matching `-text` line in `.gitattributes`. **`20260917` is byte-identical**,
+still `4417b029547f9ac0…` — re-run, never edit, per D19. No pin was hand-edited,
+per D32; every value came from the storage session's run.
+
+#### MUTATION PROOF, both directions, executed
+
+```
+operator SOURCE_PIN currently reads the 20260917_2 proof
+that proof pins 26 files; 0 stale right now
+
+  OK  preflight PASSES (all pins match)   PASSED all preflight stages incl. SOURCE_PIN
+  OK  MUTATION: a pinned file +1 comment  REFUSED INSTALL_OPERATOR_SOURCE_PIN
+  OK  restored byte-identical             yes
+```
+
+The same probe returned `REFUSED INSTALL_OPERATOR_SOURCE_PIN` before the repoint
+and `PASSED` after it, with nothing changed but the path. Both directions, on the
+real gate.
+
+#### CORRECTION to the instruction I was given, because accepting it would have understated what was proven
+
+The task said I cannot execute the load proof without private inputs, and that
+was my own earlier finding — but it is now **half right, and I should not let it
+stand as a reason to hand over more than necessary.**
+
+- **What I CAN and DID execute:** the operator's real `load()`, reaching and
+  running the real SOURCE_PIN loop at step 7, which reads the dated proof file
+  and hashes the repository files with the untouched implementation. That is the
+  gate this task is about, and it is proven in both directions above.
+- **The two stubs, named:** `observedCatalog.compare` forced to
+  `MATCHED_OBSERVED_PUBLIC_CATALOG`, because the private starting catalog it
+  compares against is not here; and `j.sha` remapped **for exactly one value**,
+  the synthetic catalog's canonical form, so every real file hashed by the gate
+  is hashed normally. `profiles.get` returns the synthetic plan/target hashes so
+  execution can reach step 7.
+- **What genuinely still needs the storage session:** the UNSTUBBED preflight —
+  real private baseline catalog through `profiles.build`, the real reviewed
+  target file, and the real starting-catalog comparison, i.e. steps 4 to 6 as
+  they will run against the live database. **That, and only that, is handed
+  over.** Expected there: `load()` returns without refusing, and the settled68
+  preflight passes for the second time.
+
+D27 is why the distinction matters: a stubbed gate is an untested gate, and the
+gate here is not the stubbed part. Saying "I cannot run it" when I can run the
+part under test would have been the same error in the opposite direction —
+handing over a proof I had already obtained.
+
+#### Recorded, not fixed
+
+Lines 17 and 48 of `install-operator-worker.mjs` are the last two profile-name
+literals and are now **D33**, post-merge. Line 17 is a conditional assertion
+that is silent in every world but one; line 48 is a reported field derived from
+the profile's name rather than from anything observed. Neither refuses a correct
+world, which is why they waited and why they would otherwise never be found.
+
 ### 2026-09-17 — PIPELINE PROOF PASSED AGAIN at `4a1b594d`, the reconstruction-compare fix: calibrate and verify both exit 0, every count equals the expectations written before the run. Second dated proof file of the day. INSTALL-OPERATOR settled68 now PASSES at `41a93b89`. Two more profile-name literals found in the same worker, reported not fixed
 
 Storage session, Windows PowerShell 5.1 host, private observed inputs,
@@ -10184,6 +10267,34 @@ function.
 Dated receipts are not in scope for "enforce or remove": a receipt records a past
 tree and is allowed to go stale. What it is not allowed to do is be re-pinned,
 which would make it a receipt for a run that never happened.
+
+### D33 — The last two profile-name literals in the operator worker (2026-09-17, owner)
+
+**Post-merge, same family as the line 33 fix.**
+`test/helpers/install-operator-worker.mjs` still keys two things on the
+profile's NAME rather than on the world:
+
+- **line 17** — `if(profile==='observed67_optout'){assert.equal(seedBefore.length,1);assert.equal(seedBefore[0].row.auto_assign_opt_out,true);}`
+  A conditional assertion: it checks the seeded opt-out row only in the
+  `observed67_optout` world and is **silent everywhere else**, including in the
+  settled world, which carries the same column and could carry the same row. A
+  check that only runs under one name is not weaker than a wrong check — it is a
+  check that does not exist for the other worlds.
+- **line 48** — `populated_optout_preserved:profile==='observed67_optout'`
+  A **reported** field whose value is derived from the profile's name rather than
+  from anything observed. It will read `true` in the opt-out world whether or not
+  the row was preserved, and `false` in the settled world whether or not it was.
+  A receipt that restates its own input is worse than no field, because it looks
+  like evidence.
+
+Line 33 was the one that *refused a correct world*, so it was fixed on
+2026-09-17 by measuring the column before the transaction and asserting it
+unchanged after the rollback. These two do not refuse anything, which is exactly
+why they can wait — and exactly why they would otherwise never be found.
+
+Both derive from the world when they are done: the seed row's presence and its
+flag are readable, and `populated_optout_preserved` becomes a comparison of what
+was read before and after, not a restatement of `profile`.
 
 ## 4. Corrections the session made against itself
 

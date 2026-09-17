@@ -20,7 +20,7 @@ function load(c){
  // proved the settled world. The 20260913 file stays byte-identical: a dated proof is
  // evidence of one run, so a later run writes a NEW file and this read moves to it.
  // Editing the old file's pins would have been the same falsification with extra steps.
- const proof=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json')));
+ const proof=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917_2.json')));
  for(const p of proof.source_pins)if(j.sha(fs.readFileSync(path.join(ROOT,p.file)))!==p.sha256)fail('SOURCE_PIN');
  // Resolve the post-install table count HERE, in preflight, not at the
  // comparison site. A starting catalog nothing can resolve is a refusal before

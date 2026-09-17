@@ -30,6 +30,106 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — D22 AUTHORITATIVE RESULT: 49 pass, 4 fail, 8 cannot run here, of 61. All four failures fail IDENTICALLY at pre-B10. Five attempts were needed and four were thrown away
+
+Full report: [`LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md`](LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md).
+Head `a236572`, control `d3cbca7f`, denominator 61 on every line.
+
+```
+PASS              49 of 61
+FAIL               4 of 61   all four identical at d3cbca7f -- no regression
+CANNOT RUN HERE    8 of 61   4 Windows-only by construction, 4 need private inputs
+```
+
+#### The four failures, and the pre-B10 answer for each
+
+| suite | signature | at `d3cbca7f` |
+|---|---|---|
+| `atomic-writer-bound-bundle` | refuses with `WRITER_BINDING_BUILDER_DRIFT` where the suite expects a catalog message | identical |
+| `complete-application-recovery` | `gateway_acceptance_failed: 503 assignee_lookup_unavailable` | identical |
+| `control-recovery-postgres` | same, it delegates to the same `main` | identical |
+| `priority-application-schema` | `SCHEMA_INCOMPLETE`: 3 tables missing, 1 with key/order mismatch | identical |
+
+The second and third are one cause, not two. The 503 comes from
+`production-write/index.ts`, four sites of the shape `if (error) throw new
+GatewayError(503, 'assignee_lookup_unavailable')` — a query against the
+rehearsal cluster erroring, not an absent network route. What the lookup
+actually needs is NOT established here and I am not guessing at it.
+
+#### The eight that did not run, and why it matters that four of them never can
+
+Four fail on `pg_dump.exe`, and the `.exe` is **in the suites' own source**, not
+in the runner: `priority-snapshot:22`, `priority-application-recovery:30`,
+`complete-application-recovery:70`, `credential-recovery:41`,
+`control-recovery-proof:34`, each as
+`pgDump: path.join(path.dirname(cluster.psql),'pg_dump.exe')`.
+`track-b-recovery-package.js` defaults to plain `pg_dump` and takes the path as
+a parameter, so the platform assumption sits entirely in test code. These four
+cannot pass on any non-Windows machine however good the environment is. That is
+a finding about the suites, not an excuse about the sandbox.
+
+The other four refuse immediately and by name on missing private inputs
+(`control-restore-only`, `install-operator`, `observed-full-install`,
+`observed-full-pipeline`). They go to the storage session.
+
+#### CORRECTION to my own first pass, and the lesson is the useful part
+
+The first pass said 37/17/7 and, of the 17, *"15 of 61 fail identically at
+`d3cbca7f`, so they are not this month's work."* True, and misleading.
+
+**At least six of those 15 failed only because the environment was broken.**
+They pass now: the four `install-*` suites, `followup-worker`,
+`followup-outcome-matrix`, and alongside them `card-atomic-handlers`,
+`track-b-recovery-deferred-defaults` and `workload-native`.
+
+The general rule, which is worth more than the number: **"fails identically at
+the pre-B10 commit" controls for regression and for nothing else.** A suite
+broken by the harness fails identically at every commit in history, so that
+control waves it straight through. It is not a validity control and I used it as
+one.
+
+Both of the first pass's NEW failures now pass: `observed-routines-postgres`,
+whose cross-suite byte pin was cut and whose contract was regenerated to 122,
+and `admission-preflight-postgres`, which reported `ADMISSION_INSTALLED_MISMATCH`
+then. **I have not established which change made the second one pass and am not
+claiming one.**
+
+#### Four harness defects, each caught by a verdict moving for the wrong reason
+
+| # | defect | presented as | wrongly judged |
+|---|---|---|---|
+| 1 | cluster ports inside `ip_local_port_range` 32768-60999 | `could not bind 127.0.0.1: Address already in use` | 3 as "cannot run here" |
+| 2 | `PROOF_OUTPUT_ROOT` split from the cluster directory | `ENOENT lstat <root>/data` | 1 as a failure |
+| 3 | `/usr/local/bin/node` v20 shadowing Node 22 | `node: bad option: --experimental-strip-types` | 2 as failures |
+| 4 | shallow clone | `path exists on disk, but not in <commit>` | 1 as a content mismatch |
+
+Defect 3 was self-inflicted while fixing the Deno gap: prepending
+`/usr/local/bin` so the suites could find `deno` also put a v20 `node` ahead of
+the v22 the runner requires. Defect 4 is the same shallow-clone trap recorded on
+2026-09-15, in a new costume — it read as a content mismatch rather than a
+missing object.
+
+Runs 1 to 4 are NOT reported. A run spanning two harnesses is not authoritative,
+and I said so about my own first pass before it applied to me. Run 4 and run 5
+differ only by the unshallowed clone, which moved exactly one suite, so the
+harness is settled.
+
+#### CORRECTION, same day, to something I said an hour ago
+
+I flagged `write-diagnostics-postgres` as a possible stubbed-gate finding —
+green while Deno was missing, red once it was installed. **Wrong.** The variable
+was Node 20, not Deno. On Node 22 it passes whether or not Deno is installed. I
+raised it before isolating the variable, which is the same mistake as asserting
+a state that had not been observed.
+
+#### Tools added to the sandbox, recorded so the next session does not rediscover them
+
+Deno 2.9.7 with `deno cache --lock=qa/linear-exit-rehearsal/followup-deno.lock
+--frozen` run over `test/helpers/*.mjs` (six suites spawn Deno workers under
+`--frozen --cached-only`, so an empty cache is a hard stop); `npm install` for
+Playwright, since the repository had no `node_modules` at all and Chromium was
+already at `/opt/pw-browsers`; `git fetch --unshallow`. None of this touches the
+repository.
 ### 2026-09-17 — D22 PRIVATE-INPUT SUITES, storage side: 6 of the 7 deferred suites run on the Windows box. 3 pass, 3 fail, 0 cannot run. Two failures fail identically at pre-B10 `d3cbca7f`, one fails differently. Nothing fixed
 
 Asked for while the execution session runs the authoritative D22 pass on the

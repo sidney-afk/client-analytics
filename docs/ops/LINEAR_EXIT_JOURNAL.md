@@ -30,6 +30,87 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Step 12 TOOL RECORDED BEFORE IT RUNS: `run-install-operator.private.cjs`, for steps 12 and 14
+
+Storage session. Built on the owner's approval, with the owner's condition that
+it is also the step 14 tool. **It has not run.** After the run, its hash is
+re-checked against the value below, so what ran is what was recorded.
+
+| Item | Value |
+|---|---|
+| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs` |
+| **SHA-256** | **`ddec698855b672677018fe6ceaf68e83718de50a23c75e46c7f83aaa5b765b45`** |
+| Bytes | 8,952 |
+| Operator it drives | `scripts/linear-exit-install-operator.js` from checkout `D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes` |
+| Driver | `operator-runtime/node_modules/postgres`, version 3.4.7, as the runbook specifies |
+
+#### Behaviour: the only difference from the operator's `main()` is where the config comes from
+
+`main()` reads a JSON file that holds the password. **The wrapper builds the same
+config in memory:**
+
+- the password is read through `read-private-secret.private.ps1 -Name database-password`
+  inside the process, the same pattern as the ten existing private wrappers, and
+  never written or printed;
+- the project ref is read from the catalog wrapper;
+- the profile, baseline catalog and expected identity come from a **fresh
+  catalog-read directory**, refused unless its receipt is `LIVE_READ`,
+  `settled68`, `matches_reviewed_baseline`, `tls_verified`, **under one hour
+  old**, and its catalog file's canonical hash equals the receipt's;
+- the CA is `%APPDATA%\postgresql\root.crt`;
+- the target file is the one given on the command line;
+- `ownerWindowEvidenceSha256` is set only if supplied.
+
+**It then does exactly what `main()` does, with the same arguments:**
+
+1. `api.load(c)`.
+2. `if (token && token !== api.consent(c))` refuse, which is `main()`'s check.
+3. One connection with `main()`'s options: TLS against the pinned CA,
+   `rejectUnauthorized: true`, `servername` the host, `max: 1`,
+   `prepare: false`, `connect_timeout: 20`.
+4. `api.execute(c, prepared, session, token)`.
+
+**The session passes every query through unchanged** (`conn.unsafe(s, p)`). It
+keeps copies of the results of three of the operator's own reads: the identity
+query, `plan.catalog_sql`, and the install-namespace query. It issues no query
+of its own.
+
+**Inputs:** `--catalog-dir`, `--target`, `--out` (a new directory) and optionally
+`--snapshot`, which enables drift checks. **For step 14:** `--window-evidence`
+and `--apply-token`, accepted **only together**, and never together with
+`--snapshot`. **Step 12 supplies neither**, so `execute()` receives no token and
+can only return `READ_ONLY_OBSERVATION`.
+
+**Output:** `operator-observation.private.json` in `--out`, also printed. It
+holds the wrapper's own SHA-256, the mode, the catalog receipt's hash and time,
+the prepared plan, target and post-install count, **the operator's result
+verbatim**, and for read-only runs with a snapshot, the drift checks:
+
+1. the live catalog's canonical hash against `ddfa4c4f…`, the snapshot's recorded
+   catalog;
+2. the live table-name and function-name lists against the snapshot's
+   `public_table_names` and `public_function_names`;
+3. the live identity row against the expected identity, and against the step 8
+   closure read `day-catalog-20260916-5`;
+4. no prior installation state: both `linear_exit_maintenance` and
+   `linear_exit_install` namespaces absent, and both gate tables
+   (`linear_outbound_cutoff_control`, `production_notification_config`) absent
+   from the live catalog.
+
+Identity values are compared, never printed. On any refusal it writes a
+`refusal-<uuid>.private.json` with a fixed code and stage only, exits 1, and
+never retries.
+
+#### The step 12 invocation, as it will run from a Windows PowerShell 5.1 host
+
+```powershell
+node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
+node D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/Sidney/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/Sidney/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
+```
+
+The first line is a fresh catalog read for the wrapper's one-hour window. **It is
+not a re-close of step 8.**
+
 ### 2026-09-17 — Operator `load()` PROVEN for `settled68` against the 2026-09-17 proof, and the SOURCE_PIN gate PROVEN to bite by mutation. Step 12 NOT run: the CLI cannot take an in-memory config, reported before any workaround
 
 Storage session, on the owner's machine. These are the two proofs the execution

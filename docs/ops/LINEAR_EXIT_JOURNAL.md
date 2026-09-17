@@ -30,6 +30,90 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Step 9, IN PROGRESS: live capture PASSED first time with the new backup code, 68 tables; local restore PASSED and confirmed independently on the scratch cluster; archive made. Awaiting the owner's upload
+
+Storage session. The method is the entry "Steps 9 and 10: METHOD RECORDED BEFORE RUNNING"
+below, recorded before any of this ran. Every value here was read back from files on disk.
+
+#### Fresh catalog read: a refresh for step 9's one-hour clock, NOT a re-close of step 8
+
+`day-catalog-20260916-6`, read at 2026-09-17T01:07:52.167Z from a Windows
+PowerShell 5.1 host, exit 0.
+
+| Item | Value |
+|---|---|
+| Receipt SHA-256 | `ce616a0f1ae846b525c5530140e17ea4ae088c1f7f1b1a5365597e39af91fa3e` |
+| Receipt fields | `catalog_sha256` `ddfa4c4f…`, `profile: settled68`, `matches_reviewed_baseline: true`, `tls_verified: true` |
+| Catalog | canonical hash recomputed `ddfa4c4f…`, 68 tables; raw file `9424cb81…`, byte-identical to every read since 2026-09-15 |
+
+**Wrappers hashed in the same process before the read:** catalog read
+`6b6e2fe7…`; refresh
+`d8078728822e979e8afe83f3dc039a995aac693d451842f33d6ca716394398e6`; restore
+`5fb32adea00b21a918ec8aa03542e7d256d54e9fd44fe674c20ff6140803e86e`. The last two
+are unchanged since 2026-09-14. Repository backup module
+`328eb1772222b27a1071469307b82a2bc7886490f24d5e511c7045d437b46ac2`: the code
+re-reviewed at `e4eb40b`, checkout at `a514b0fd`.
+
+#### Capture — FIRST LIVE USE of the new backup code
+
+- **Command:** the refresh wrapper, as recorded below, started 0.004 s after the
+  read finished, in the same process.
+- **Result:** `DATABASE_CAPTURE_PASS`, exit 0, 01:07:52Z → 01:11:50Z.
+- **`SOURCE_CHANGED`:** not hit. **No retry was needed.**
+
+| Item | Value |
+|---|---|
+| Capture receipt | `day-database-20260916-1/capture-receipt.private.json`, SHA-256 `8afd292fe3645705ebd701c71fd0a551737ff528b318944d019d21d527dc591d` |
+| `public_tables` | **68**. The same variable `capture()` writes into the sealed manifest as `expected_public_tables` |
+| `manifest_sha256` | `3bb378107b261ba51f2bc502dabed61b1a14a160af93d084446d2bacf9ef17ab` |
+| `archive_sha256` (the dump) | `c36fae4aa07864094839c6d8c761f51df8967f8db9ae49ff9910d28f0c4cfdb4` |
+| Encrypted package | `day-database-20260916-1/encrypted`: **45 files**, 43 chunks plus `encrypted.json` (`edc65fc91ad46fb31c67a46d5391b5f904ecbc29ae0775fd86ecfb3a3976abdc`) and `encrypted.mac` (`0c503552215a0a96c5880683e49152d66f630b65cbb3cae276b84e334ae71eba`); 44,053,109 bytes |
+| Receipt read to capture finish | 237.8 s, inside the one-hour window |
+
+#### Local restore, before any upload: PASSED
+
+The restore wrapper was run on `day-database-20260916-1/encrypted` into
+`day-database-restore-20260916-1`: `ISOLATED_DATABASE_RESTORE_PASS`, exit 0,
+01:12:22Z → 01:12:43Z. The scratch cluster was stopped before and after.
+
+**Manifest confirmation, by the owner's ruling (the manifest stays sealed):**
+
+| Evidence | Value |
+|---|---|
+| Restore receipt, SHA-256 `58fdef12e38a8944a203e137b9b94c7e56c96c1cdfe93afa5dfaa4218ef96968` | **`public_tables: 68`**, read by `restore()` from the decrypted manifest; `exact_catalog_and_rows_and_sequences: true` |
+| **Independent query of the restored database** (the receipt's `native_restore_…` database, confirmed by name, served on `127.0.0.1`) on the scratch cluster, one read-only transaction rolled back | catalog canonical hash **`ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`**, **68** ordinary tables, 14 sequences. Cluster stopped afterwards (`pg_ctl status` 3) |
+
+So the sealed manifest records 68 tables and the settled catalog.
+`restore()` refuses unless the manifest's count equals its own evidence and the
+restored evidence equals the manifest's evidence exactly, and the restored world
+is measured to be 68 tables at `ddfa4c4f…`.
+
+**Own mistake in that check, recorded.** The first attempt started the scratch
+cluster with `pg_ctl start` through a pipe-attached `spawnSync`. On Windows the
+postmaster inherits the pipes, so the call never returned. The cluster was up
+and idle, and no query had run. The session stopped it normally
+(`pg_ctl stop -m fast`), which released the call; the check then failed its query
+harmlessly and exited. It was re-run with the start detached from stdio, which is
+how the restore wrapper does it, into a new log directory. Nothing in any
+evidence directory was altered by the failed attempt.
+
+#### Archive: the owner's fixed method, exactly as recorded
+
+`Compress-Archive -Path '…\day-database-20260916-1\encrypted\*' -DestinationPath '…\day-database-20260916-1.encrypted.zip'`,
+run from Windows PowerShell 5.1, 01:19:01Z → 01:19:03Z.
+
+| Item | Value |
+|---|---|
+| **UPLOAD HASH** (SHA-256, taken once, when made) | **`228fe177b0b6dbef316c82dde5df1f6d2b697eb41301eb9b509021498b2841cb`** |
+| Bytes | 44,067,359 |
+| Members | 45, flat. Name set identical to the package, checked by listing names only |
+
+#### Not yet done, so step 9 is NOT closed
+
+Step 9's "Done when" is *encrypted package uploaded, hash recorded*. **The upload
+is the owner's and has not happened.** Step 10 has not started. Step 11 is not
+authorised.
+
 ### 2026-09-17 — Profiles retired in place; `settled68`'s plan pinned and its target NOT pinned, because eight files in the target-producing chain moved after it was measured
 
 The chain check was the point of the exercise and it came back dirty, so the

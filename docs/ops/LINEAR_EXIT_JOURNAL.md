@@ -30,6 +30,47 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — RECONCILIATION: `complete-application-recovery` was listed under two causes. It has one
+
+Correction to the D22 authoritative entry earlier today, which under "the eight
+that did not run" wrote *"Four fail on `pg_dump.exe`… `priority-snapshot:22`,
+`priority-application-recovery:30`, **`complete-application-recovery:70`**,
+`credential-recovery:41`, **`control-recovery-proof:34`**"*.
+
+Two of those five lines belong to suites I had already counted, correctly, as
+**failures** in the other bucket. Listing them again under the Windows-only
+finding made one suite appear under two causes and inflated the apparent reach of
+the `.exe` problem from four suites to a vaguer five-file sprawl.
+
+**The single accurate statement.** `complete-application-recovery` and
+`control-recovery-postgres` fail at
+`gateway_acceptance_failed: 503 assignee_lookup_unavailable`, in the
+`native-source-seed` phase, which runs **before** any dump. The `.exe` on their
+later lines is never executed and is not why they fail. One cause, recorded
+once, in the failures section. They are not Windows-only; they are broken on
+Windows too, for the reason D30 now addresses.
+
+The four that genuinely cannot run for the `.exe` are unchanged —
+`credential-recovery`, `priority-application-recovery`, `priority-restore`,
+`priority-snapshot` — and three source lines account for all four, because
+`priority-restore` runs `priority-snapshot`'s `main`:
+
+```
+test/linear-exit-priority-snapshot-postgres.js:22      priority-snapshot + priority-restore
+test/linear-exit-priority-application-recovery.js:30   priority-application-recovery
+test/linear-exit-credential-recovery.js:41             credential-recovery
+```
+
+`complete-application-recovery.js:70` and `control-recovery-proof.js:34` still
+carry the same `pg_dump.exe` and still need the same repair. **A latent line is
+not a verdict**, which is the distinction I lost: a suite is classified by what
+stops it, not by every defect it contains.
+
+Counts are unaffected — **49 pass / 3 fail / 9 cannot run, of 61** — and the
+report document is amended in place with the same reconciliation. The storage
+session's `d6c83ab4` confirms the finding from the other side: run on Windows,
+those suites pass, 3 of 3.
+
 ### 2026-09-17 — THE DEFERRED FIX LANDED: the reconstruction compare now walks the union. And it BREAKS THE OPERATOR'S SOURCE_PIN — 1 of 26 pins is now stale and the pipeline proof must be re-run before step 16
 
 Third and last instance of the one-directional comparison. `scripts/linear-exit-observed-schema.js`, the `compare` stage.
@@ -9856,6 +9897,83 @@ So, when a suite fails:
 
 "Identical at the baseline" may be reported. It may never be used to close an
 item, and it is never a reason not to read the error.
+
+### D30 — The recovery fixture re-bases to the settled world (2026-09-17, owner)
+
+**Same principle as D19, and it happens AFTER THE MERGE.**
+
+The recovery rehearsal's world is composed from the source inventory pinned at
+2026-09-10, which has no path to
+`migrations/2026-09-14-team-members-auto-assign-opt-out.sql`. The gateway it
+exercises reads `public.team_members.auto_assign_opt_out` at
+`production-write/index.ts:3101`, so `complete-application-recovery` and
+`control-recovery-postgres` fail with `503 assignee_lookup_unavailable`. Two
+readings were open — the world is short, or the gateway depends on a migration
+the fixture deliberately predates. **The owner has ruled: the world is short.**
+The fixture re-bases onto the settled world, exactly as D19 re-based the pipeline
+proof, rather than the gateway being taught to tolerate a missing column.
+
+D19's other half carries over unchanged: **re-run, never edit.** Any receipt a
+re-based run invalidates is superseded by a new dated file, and the old one stays
+byte-identical.
+
+Not now. `test/helpers/remaining-application-fixture.js` is byte-pinned into
+`docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json`, itself pinned by
+`PIN='87848097…'`, and reached by 25 test files. Doing it before the merge means
+regenerating a reviewed artifact and moving a constant in the middle of the exit
+sequence.
+
+### D31 — The schema suite's lane, the August backup table, and its swallowed error (2026-09-17, owner)
+
+**Three repairs to `linear-exit-priority-application-schema.js`, all AFTER THE
+MERGE.**
+
+1. **The routing row gains its flag.** The row's `reproduce` names
+   `-Lane priority-application-schema`, the bare lane, in which four of nine
+   tables are absent by construction and the suite can never pass. The row gains
+   the flag the suite actually needs.
+2. **`batches_parent_claim_backup_20260824` gets a declaration.** It is currently
+   declared by nothing in the repository — `source_declarations: []` — so no
+   amount of source replay can make it "exact", and nine-of-nine is unreachable
+   in every lane. It gets a source, or it leaves the expectation; it does not
+   stay as an undeclared table a release gate demands.
+3. **The `catch` stops discarding the error.** Line 33 is
+   `catch(error){console.error('…EXECUTION_FAILED');process.exitCode=1;}`. The
+   error object is thrown away, so one lane variant's failure could not be named
+   from its output at all. Every other suite in this family writes a
+   `.private-error.log`; this one will too.
+
+The third is the one with reach beyond this suite: a diagnostic that exists
+everywhere except where it was needed is the same shape as OPEN_REPAIRS 101 —
+a refused write leaving no server-side trace.
+
+### D32 — The 46 stale pins are enforced or removed, and NEVER re-pinned by hand (2026-09-17, owner)
+
+**After the merge. The prohibition is binding immediately.**
+
+The pin sweep found 46 stale file-hash pins of 497, and **every one of them sits
+where nothing running enforces it** — 174 of the 437 resolvable pins have no
+checker any suite reaches. Each stale pin gets one of exactly two outcomes:
+
+- **enforced** — something CI runs checks it, so it cannot rot silently again; or
+- **removed** — the pin is deleted, because a pin nothing checks is not a
+  safeguard, it is a claim that looks like one.
+
+**What must never happen is the third option: quietly typing the current digest
+into the old slot.** That converts a detected drift into an undetected one and
+destroys the only evidence that the pinned thing moved. The prohibition holds
+from today, before the merge, for every pin in the repository — the same rule
+already stated for fingerprints in `CLAUDE.md` ("regenerate with
+`scripts/ef-fingerprint.js` — never by hand") generalised to every file-hash pin.
+
+Where a value legitimately has to move, it is re-derived **through the mechanism
+that enforces it**, as `BUILDER_SHA256` was on 2026-09-17: one function both
+checks the pin and produces it, and the new value comes from calling that
+function.
+
+Dated receipts are not in scope for "enforce or remove": a receipt records a past
+tree and is allowed to go stale. What it is not allowed to do is be re-pinned,
+which would make it a receipt for a run that never happened.
 
 ## 4. Corrections the session made against itself
 

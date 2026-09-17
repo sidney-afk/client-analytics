@@ -106,24 +106,33 @@ printed the reason outright:
 Error: spawnSync /usr/lib/postgresql/17/bin/pg_dump.exe ENOENT
 ```
 
-**The `.exe` is hard-coded in the suites' own source, not in the runner:**
+**The `.exe` is hard-coded in the suites' own source, not in the runner.** The
+three source lines that stop *these four* suites:
 
-| file | line |
-|---|---|
-| `test/linear-exit-priority-snapshot-postgres.js` | 22 |
-| `test/linear-exit-priority-application-recovery.js` | 30 |
-| `test/linear-exit-complete-application-recovery.js` | 70 |
-| `test/linear-exit-credential-recovery.js` | 41 |
-| `test/helpers/control-recovery-proof.js` | 34 |
+| file | line | stops |
+|---|---|---|
+| `test/linear-exit-priority-snapshot-postgres.js` | 22 | `priority-snapshot`, and `priority-restore` through the same `main` |
+| `test/linear-exit-priority-application-recovery.js` | 30 | `priority-application-recovery` |
+| `test/linear-exit-credential-recovery.js` | 41 | `credential-recovery` |
 
 each as `pgDump: path.join(path.dirname(cluster.psql),'pg_dump.exe')`.
 `track-b-recovery-package.js` itself defaults to plain `pg_dump` and takes the
 path as a parameter, so the platform assumption lives entirely in test code.
 These four cannot pass on any non-Windows machine, whatever the environment
-supplies. **This is a finding, not an environment excuse.**
+supplies. **This is a finding, not an environment excuse.** Confirmed from the
+other side by the storage session at `d6c83ab4`: run on Windows they pass, 3 of 3.
 
-(The two suites in §1 also carry the `.exe`, but they fail earlier and never
-reach the dump, which is why they are counted as failures rather than here.)
+**AMENDED 2026-09-17 — two suites were listed here and in §1, and only §1 is
+right.** `test/linear-exit-complete-application-recovery.js:70` and
+`test/helpers/control-recovery-proof.js:34` carry the same `.exe`, and this
+table used to name them, with a parenthetical explaining they were counted
+elsewhere. That was double-listing a suite under two causes. **The single
+accurate statement: `complete-application-recovery` and
+`control-recovery-postgres` fail at `503 assignee_lookup_unavailable` in the
+`native-source-seed` phase and never reach the dump, so the `.exe` on their
+later lines is never executed and is not why they fail.** They are failures, on
+one cause, recorded once, in §1. Their `.exe` lines still need the same repair as
+the three above — but a latent line is not a verdict.
 
 ### Need private inputs — 4 of 61 — for the storage session
 

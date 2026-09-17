@@ -30,6 +30,77 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — LOAD PROOF at the repoint `d4fc10de`, unstubbed and with the real private inputs: PREPARED on plan `508e6369…` and target `24c833c0…`, refused on a one-comment mutation, restored byte-identical
+
+Storage session, on the owner's machine. Branch head `d4fc10de`, tree clean.
+This re-takes against the committed repoint what was previously only shown
+against an uncommitted edit.
+
+#### What was NOT stubbed
+
+The execution session's earlier probe reached the same gate with synthetic
+prerequisites and two disclosed stubs, because the private inputs are not there.
+This run has them, so nothing is substituted:
+
+| Input | Real value used |
+|---|---|
+| Baseline catalog | `day-catalog-20260916-6/catalog.private.json`, SHA-256 `9424cb813caf96d0c9cf1a563caba82dc157e810133d885e8e5c0bf69dfe6b2e`, run through `profiles.build(baseline,'settled68')` |
+| Target file | the calibrate run `4b7dd8fd…`'s `full-target.private.json`, SHA-256 `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187` |
+| Expected identity | `day-catalog-20260916-6/identity.private.json`, SHA-256 `c6d9fde3317ead6c068eaa71cf0f31c588408dedd2e8d15cd3c30175e069db71` |
+| CA | the real `root.crt`; `ca_loaded true`, a PEM certificate |
+| Profile | `settled68`, through `profiles.get`, not a supplied hash |
+
+`observedCatalog.postInstallPublicTables` resolved the starting catalog for
+real: `expected_post_install_tables 91`. The password is a placeholder string
+and no connection is opened: `load()` never connects.
+
+**What `load()` does and does not compare, stated exactly.** It rebuilds the
+settled world from the private baseline and checks the built plan against the
+profile's pinned plan; compiles it and checks 55 chunks; hashes the target file
+against the profile's pinned target and checks the target binds to that plan and
+stage; resolves the post-install table count from the plan's starting catalog;
+and hashes all 26 pinned repository files. It does **not** compare against the
+live database's catalog — that comparison lives in `execute()`, behind a
+connection and an apply token, and was not run.
+
+#### Result
+
+```
+operator_reads=LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917_2.json
+proof_sha256=df3bdebed5ad8ac382a408d4f0dd0457a2a28fac0476384daa923333a19d561a source_pins=26
+pins_matching_tree=26/26
+
+RUN1_UNMUTATED  PREPARED  plan 508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd
+                          55 steps, initial catalog ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c
+                          target 24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187
+                          target plan 508e6369…, expected post-install tables 91, ca_loaded true
+RUN2_MUTATED    REFUSED   INSTALL_OPERATOR_SOURCE_PIN
+RUN3_RESTORED   PREPARED  byte-for-byte the same JSON as RUN1
+```
+
+The mutation was one appended comment line to
+`test/linear-exit-observed-full-pipeline.js`, one of the 26 pinned files,
+7,340 → 7,424 bytes. Restored byte-identical, hash equal to its pin, and
+`git diff` clean for that path afterwards. Both directions, in one run, each in
+a fresh Node process so every pinned file is re-read.
+
+The proof script names no file: it parses the proof path out of the operator's
+own source, so it tests whatever the operator actually reads.
+
+#### One line for the record, so the scratchpad draft is explained
+
+The same two-line change — the `SOURCE_PIN` repoint and the `.gitattributes`
+`-text` line — was made on this machine earlier today on the owner's
+instruction, then reverted on the owner's instruction when the work was
+reassigned to the execution session; a drafted journal entry for it remains in
+this session's scratchpad, was never pushed, and describes that reverted edit,
+not `d4fc10de`.
+
+#### Not done
+
+- The B5 browser capture was not run. It waits for the owner's go at step 16.
+- Nothing was fixed, pinned or repointed here; this entry is evidence only.
+
 ### 2026-09-17 — OPERATOR REPOINTED at the second 2026-09-17 proof, and the SOURCE_PIN gate EXECUTED in BOTH directions. The owner's premise about what I can run here needs one correction
 
 Storage session's re-run at `4044217f`, proving checkout `4a1b594d`.

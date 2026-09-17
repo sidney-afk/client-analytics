@@ -30,6 +30,78 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 23 ADDENDUM: the `key-verify` 401 was the owner's mis-selected name, not a site fault. But opening Calendar WRITES: two `calendar-upsert` POSTs carrying a post patch, and one test-client row's `updated_at` moved during the browse window with no event row
+
+Storage session, read-only except for what the page itself did.
+
+#### The 401, corrected
+
+Recorded on the owner's word: the `key-verify` 401 on the Calendar load was **the
+owner selecting the wrong name on the access screen once before the successful
+login**. It is an owner action, not a defect in the site, and the earlier entry's
+"open question" is closed on that basis. The measurement stands — one 401, one
+later success — and the cause is now attributed.
+
+#### What the write gateways were actually doing
+
+Captured by instrumenting the page's own `fetch` and re-triggering each surface.
+
+**Calendar — two writes per load, measured twice:**
+
+| | Method | Top-level body keys | `action` / `operation` | Post patch | Status |
+|---|---|---|---|---|---|
+| Call 1 | **POST** | `client`, `post` | none — neither field present | **yes**: `{id, linear_issue_id}` | **200** |
+| Call 2 | **POST** | `client`, `post` | none | **yes**: `{id, graphic_linear_issue_id}` | **200** |
+
+Both target the same row, `p_native_1420288e488f9066bea78d00a79f_1`, on the test
+client. So loading the Calendar surface sends two link-field patches through the
+write gateway. There is no `action` or `operation` key: this is the ordinary
+upsert shape, the same shape my step 24 test save used.
+
+**Production — not captured, and I am not guessing.** Its five
+`production-write` calls happen during the initial full page load, before any
+in-page hook can exist with these tools; a hash-driven re-render does not repeat
+them. Method, body keys, action and whether a patch was carried are therefore
+**unmeasured**. What is known from the earlier pass: five calls, none returning
+400 or above.
+
+#### What moved in the database during the browse window
+
+Read-only over the direct connection, window **2026-09-17T23:02:00Z → 23:18:36Z**,
+which starts after the last of my own step 24 saves.
+
+| Measure | Count |
+|---|---|
+| `calendar_posts` rows updated for the test client | **1** |
+| …of those, beyond the rows my own saves touched | **1** — `p_native_1420288e488f9066bea78d00a79f_1` |
+| `deliverables` rows updated for the test client | **0** |
+| `calendar_post_events` rows created in the window | **0** |
+
+**So browsing wrote.** The one row that moved is exactly the row the page's two
+`calendar-upsert` POSTs patched, and its `updated_at` advanced. No event row was
+created, which fits the code: an event fires only when a link value *changes*, so
+a patch that rewrites the same values leaves `updated_at` churn and no audit
+trail.
+
+This is a finding about the page, not about the migration, and it is recorded
+rather than acted on:
+
+- A read-only surface performs writes on load.
+- Those writes touch `updated_at`, which is the column the freeze checks, the
+  reconcile lanes and my own step 25 comparisons read as "something changed here".
+- They leave no event, so nothing in the event log says who or why.
+
+Whether that backfill is deliberate (healing a missing link) or accidental is
+**not established here**, and it should be settled before anything treats
+`updated_at` on `calendar_posts` as evidence of human activity.
+
+#### Not done
+
+- No write of any kind from the session in this addendum; the only writes were
+  the page's own, on loads the owner asked me to perform.
+- Production's gateway bodies were not measured, and no attempt was made to
+  reconstruct them from source and present that as a measurement.
+
 ### 2026-09-17 — STEP 23 BROWSER HALF MEASURED: all three staff surfaces render and request their own tables. Samples and Production show zero failed requests; Calendar's full load shows ONE, a `key-verify` 401, which misses the zero-errors bar and is reported rather than waved through
 
 Storage session. The owner applied the admin key to the served page's access

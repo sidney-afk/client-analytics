@@ -163,8 +163,10 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   old/new value plus actor/time; read both after every change. Canonical `prod_authority` sides are
   only `linear`/`syncview`. F55 remains open because several backends also accept legacy `supabase`
   while the browser rejects it; do not use that alias. Two additional live flags:
-  `write_ui_reroute_clients` (Phase-2 write-UI dark-launch allowlist, TEST-only; missing/unreadable
-  reads fail to the LEGACY lane — opposite of the Track-A fail direction) and `pto_v1` (staff PTO
+  `write_ui_reroute_clients` (write-UI reroute allowlist; measured 2026-09-07 as the FULL roster —
+  43 enrolled slugs against 43 `active=true` clients, exact 1:1, no ghosts. A missing/unreadable read
+  now routes a live write NATIVE rather than to the legacy lane, owner decision 2026-09-07, LX-C /
+  OPEN_REPAIRS 175; the allowlist still answers factually for the outbox drain) and `pto_v1` (staff PTO
   tracker, live ON since 2026-07-15, owner decision D-36).
   Added 2026-09-10: `kasper_urgent_ping_enabled`, the Kasper-approval URGENT ping switch.
   It takes EITHER shape — `{"clients": […]}` for a roster or `{"enabled": true}` for

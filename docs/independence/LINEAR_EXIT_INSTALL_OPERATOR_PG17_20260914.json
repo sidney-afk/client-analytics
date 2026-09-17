@@ -1,0 +1,308 @@
+{
+  "format": "linear-exit-install-operator-proof-v2",
+  "classification": "ISOLATED_POSTGRES",
+  "status": "PASS",
+  "date": "2026-09-14",
+  "receipt": "cdbf6fed120744039665ce4aef2d3f1a",
+  "exit_code": 0,
+  "server_stopped": true,
+  "sources": 48,
+  "chunks": 55,
+  "plan_sha256": "3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb",
+  "target_sha256": "f3db4b7cd0649800e4811d1c4b32cf3f37e5c2bf951d4b12d22009faf08aa28f",
+  "results": {
+    "status": "PASS",
+    "profile": "observed67",
+    "actual_sql_apply": true,
+    "exact_final_target": true,
+    "exact_finalized_replay": true,
+    "wrong_identity_refused": true,
+    "wrong_consent_refused": true,
+    "zero_guards": true,
+    "separate_main_prerequisite_rollback": true,
+    "populated_optout_preserved": false,
+    "hosted_tls_transport_proven": false,
+    "activation_performed": false
+  },
+  "source_pins": [
+    {
+      "file": "scripts/linear-exit-install-operator.js",
+      "sha256": "d8cafa56ada4bf1fbecbfa8e62fb0dba95f16b2b536bf201f121083d06f143fe"
+    },
+    {
+      "file": "test/linear-exit-install-operator-postgres.js",
+      "sha256": "99cb809b1d0edfffb74902ad6b8bb0cf5ef58dff4d98b9c0000b5c3bb1ad9496"
+    },
+    {
+      "file": "test/helpers/install-operator-worker.mjs",
+      "sha256": "c83daaba3e395ae4f1843870cc076428cd2e4f759ac0389d161261d28ddacd39"
+    },
+    {
+      "file": "test/linear-exit-observed-full-pipeline.js",
+      "sha256": "fb03bf3b0fee4cb66bf7b5caba9d0ab87ffd0c2c7488c34c3df4639ef8b17926"
+    },
+    {
+      "file": "test/helpers/observed-full-pipeline-worker.mjs",
+      "sha256": "48d84a3305f6e4eacb5aa33184f0312374849559ad243e21e650ea423247da8b"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-install-plan.js",
+      "sha256": "1312cdf339c1f71db0cead3619975b2eb9e199192a5dc800de5dd79c04406b63"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-target.js",
+      "sha256": "c4d7051e0e3b90f31c4e82b29b00d231e4de5c98d81c78f2136417a54bf01e07"
+    },
+    {
+      "file": "scripts/linear-exit-observed-schema.js",
+      "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
+    },
+    {
+      "file": "qa/linear-exit-rehearsal/run-portable.ps1",
+      "sha256": "58a879ed3f451ad59483df8e7f5eeafdd201d5c6d397f3c0d3f14441cc838992"
+    },
+    {
+      "file": "scripts/linear-exit-install-profiles.js",
+      "sha256": "4a67cdb86164b13f162395c2c7b351f239b521c635a14221b15b79cdbed6c661"
+    }
+  ],
+  "separate_prerequisite": {
+    "source": "migrations/2026-09-14-team-members-auto-assign-opt-out.sql",
+    "source_git_ref": "73d5fdc361",
+    "sha256": "fbd5ae8ecbef6e28cce913878791cb5f2a2a7fc70a7c930d3c0d3b508966fbaa",
+    "transaction_rolled_back": true,
+    "column_and_role_access_verified": true,
+    "populated_existing_values_proven": false,
+    "note": "Populated true preservation is proved by the new-profile installation and finalized replay, separately from this rolled-back migration check."
+  },
+  "limits": [
+    "TLS status is shimmed only in isolated adapter sessions; hosted TLS transport not proved.",
+    "No hosted execution, runtime dormancy observation or website capability activation.",
+    "Original profile uses empty roster; optout profile preserves one synthetic opted-out row across installation and finalized replay.",
+    "Calibration is separate from fresh target verification; original baseline and target remain unchanged."
+  ],
+  "runs": [
+    {
+      "receipt": "cdbf6fed120744039665ce4aef2d3f1a",
+      "exit_code": 0,
+      "server_stopped": true,
+      "results": {
+        "status": "PASS",
+        "profile": "observed67",
+        "actual_sql_apply": true,
+        "exact_final_target": true,
+        "exact_finalized_replay": true,
+        "wrong_identity_refused": true,
+        "wrong_consent_refused": true,
+        "zero_guards": true,
+        "separate_main_prerequisite_rollback": true,
+        "populated_optout_preserved": false,
+        "hosted_tls_transport_proven": false,
+        "activation_performed": false
+      },
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-install-operator.js",
+          "sha256": "d8cafa56ada4bf1fbecbfa8e62fb0dba95f16b2b536bf201f121083d06f143fe"
+        },
+        {
+          "file": "scripts/linear-exit-install-profiles.js",
+          "sha256": "4a67cdb86164b13f162395c2c7b351f239b521c635a14221b15b79cdbed6c661"
+        },
+        {
+          "file": "test/linear-exit-install-operator-postgres.js",
+          "sha256": "99cb809b1d0edfffb74902ad6b8bb0cf5ef58dff4d98b9c0000b5c3bb1ad9496"
+        },
+        {
+          "file": "test/helpers/install-operator-worker.mjs",
+          "sha256": "c83daaba3e395ae4f1843870cc076428cd2e4f759ac0389d161261d28ddacd39"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "operator-result.private.json",
+          "sha256": "4cca08a56889297959f58cbb2c4b794262d4d22ddeb0a322704e3e807e371374"
+        },
+        {
+          "file": "operator-worker.private.json",
+          "sha256": "80aef3e15ddf8dcedc1c6cce8432b76479ae30bb044cb308dd65b99cf9c22613"
+        },
+        {
+          "file": "operator-source-pins.private.json",
+          "sha256": "189bad8697904d8c102f081b197ef71efde0b0fd39d9f3f83def282728020334"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "70c06028e876e253b1cb4794b59bbdd277010e55ed4b064a00c1071bf6972550"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        }
+      ]
+    },
+    {
+      "receipt": "b2498e97f5764e308467fbf9c07f675c",
+      "exit_code": 0,
+      "server_stopped": true,
+      "results": {
+        "status": "PASS",
+        "profile": "observed67_optout",
+        "actual_sql_apply": true,
+        "exact_final_target": true,
+        "exact_finalized_replay": true,
+        "wrong_identity_refused": true,
+        "wrong_consent_refused": true,
+        "zero_guards": true,
+        "separate_main_prerequisite_rollback": true,
+        "populated_optout_preserved": true,
+        "hosted_tls_transport_proven": false,
+        "activation_performed": false
+      },
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-install-operator.js",
+          "sha256": "d8cafa56ada4bf1fbecbfa8e62fb0dba95f16b2b536bf201f121083d06f143fe"
+        },
+        {
+          "file": "scripts/linear-exit-install-profiles.js",
+          "sha256": "4a67cdb86164b13f162395c2c7b351f239b521c635a14221b15b79cdbed6c661"
+        },
+        {
+          "file": "test/linear-exit-install-operator-postgres.js",
+          "sha256": "99cb809b1d0edfffb74902ad6b8bb0cf5ef58dff4d98b9c0000b5c3bb1ad9496"
+        },
+        {
+          "file": "test/helpers/install-operator-worker.mjs",
+          "sha256": "c83daaba3e395ae4f1843870cc076428cd2e4f759ac0389d161261d28ddacd39"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "operator-result.private.json",
+          "sha256": "bbf8d34ecab17f2db8b32f84a49b7dd27cdb7c20262b17b5967d8d53dc3af63b"
+        },
+        {
+          "file": "operator-worker.private.json",
+          "sha256": "578a476a5b0dd5de1126755cc764499ef5071d0327bcff0f38f96e9ed019ccda"
+        },
+        {
+          "file": "operator-source-pins.private.json",
+          "sha256": "189bad8697904d8c102f081b197ef71efde0b0fd39d9f3f83def282728020334"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "1d0beb05218b4f418a0c53393c9db00e4bc6e16e7348425aa5facd60ccd4e87a"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        }
+      ]
+    }
+  ],
+  "historical_receipts": [
+    "e46217b38b6a480393f40b2a9414fbc2"
+  ],
+  "profiles": [
+    {
+      "name": "observed67",
+      "baseline_sha256": "809c5dc72a629d1c240631ca34e1050ac3ad559091b8c0127b8d5fab8cbf7edd",
+      "plan_sha256": "3c000b76db5cf6dc31a90b61ad7dc7751d6ce02c74b6d40939dbbcccbe6acbfb",
+      "target_sha256": "f3db4b7cd0649800e4811d1c4b32cf3f37e5c2bf951d4b12d22009faf08aa28f"
+    },
+    {
+      "name": "observed67_optout",
+      "baseline_sha256": "f5ed8a38a4454e62905192c49de9a6a790c1bb48e247884efed12562b1161c25",
+      "plan_sha256": "0c88914972800f8268a9a5857535ca8cb624f6b25460b19b34091ea4b58ced57",
+      "target_sha256": "79710a7f96855c6f3975ab88558e9c6f3b51ffc01a7b7d56a2508982955456f0",
+      "calibration_receipt": "e7df95d7435141cd8511ab3de749082e",
+      "calibration_only": true,
+      "fresh_verification_receipt": "b2498e97f5764e308467fbf9c07f675c"
+    }
+  ]
+}

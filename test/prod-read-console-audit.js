@@ -33,7 +33,7 @@ function respond(page, req, status, withConsole = false) {
   page.emit('requestfinished', req);
 }
 
-async function auditCase(build) {
+async function auditCase(build, options = {}) {
   const page = new EventEmitter();
   const frame = {};
   const timers = [];
@@ -78,7 +78,7 @@ async function auditCase(build) {
   };
 
   try {
-    const audit = installReadConsoleAudit(page);
+    const audit = installReadConsoleAudit(page, options);
     build(page, frame);
     const result = await audit.settle(2500);
     // Simulated wall clock, so a case can assert what the audit waited for.
@@ -90,6 +90,48 @@ async function auditCase(build) {
 }
 
 async function main() {
+  const smokeSilentNetwork = await auditCase(page => {
+    const r = request(readUrl, {failure:'net::ERR_FAILED'}); page.emit('request',r); page.emit('requestfailed',r);
+  }, {schemaOnly:true,consoleOnly:true});
+  assert.equal(smokeSilentNetwork.ok,true,'smoke retains its prior console-only scope');
+  const smokeConsoleNetwork = await auditCase(page => {
+    const r = request(readUrl, {failure:'net::ERR_FAILED'}); page.emit('request',r); page.emit('requestfailed',r); page.emit('console',resourceError(readUrl));
+  }, {schemaOnly:true,consoleOnly:true});
+  assert.equal(smokeConsoleNetwork.ok,false,'smoke still rejects unrelated resource-console failure');
+
+  const schemaOnlyOrdinaryFailure = await auditCase(page => {
+    const failed = request(); page.emit('request', failed); respond(page, failed, 500, true);
+    const success = request(); page.emit('request', success); respond(page, success, 200);
+  }, {schemaOnly: true});
+  assert.equal(schemaOnlyOrdinaryFailure.ok, false, 'schema-only consumer retains ordinary recovered failure');
+
+  for (const scenario of ['exact', 'projection-project', 'projection-epoch', 'wrong-body', 'no-success', 'changed-filter', 'duplicate-console', 'wrong-origin']) {
+    const result = await auditCase(page => {
+      const origin = scenario === 'wrong-origin' ? 'https://other.invalid' : "https://uzltbbrjidmjwwfakwve.supabase.co";
+      const projection = scenario.startsWith('projection-');
+      const table = projection ? 'production_deliverables_browser_v1' : 'clients';
+      const missing = projection ? (scenario === 'projection-project' ? 'raw_attribution_project_id' : 'raw_attribution_native_epoch') : 'native_project_ids';
+      const u = new URL('/rest/v1/' + table, origin);
+      u.searchParams.set('select', projection ? 'slug,raw_attribution_project_id,raw_attribution_native_epoch' : 'slug,native_project_ids');
+      u.searchParams.set('order', 'display_name.asc');
+      const failed = request(u.href);
+      page.emit('request', failed);
+      page.emit('response', { request: () => failed, status: () => 400, json: async () => ({ code: '42703', message: scenario === 'wrong-body' ? 'unrelated failure' : 'column ' + table + '.' + missing + ' does not exist' }) });
+      page.emit('console', resourceError(failed.url()));
+      if (scenario === 'duplicate-console') page.emit('console', resourceError(failed.url()));
+      page.emit('requestfinished', failed);
+      if (scenario === 'no-success') return;
+      page.at(1100);
+      u.searchParams.set('select', 'slug');
+      if (scenario === 'changed-filter') u.searchParams.set('order', 'slug.asc');
+      const success = request(u.href);
+      page.emit('request', success);
+      page.emit('response', {request: () => success, status: () => 200, json: async () => []});
+      page.emit('requestfinished', success);
+    });
+    assert.equal(result.ok, scenario === 'exact' || scenario.startsWith('projection-'), 'shared schema audit: ' + scenario);
+  }
+
   const exactRecovery = await auditCase(page => {
     const failed = request();
     const recovered = request();
@@ -332,6 +374,10 @@ async function main() {
       `${file} must evaluate zero-write requests after the bounded settle`);
   }
 
+  const a11ySource = fs.readFileSync(path.join(__dirname, '..', 'docs', 'syncview-design', 'tests', 'prod-a11y-focus.js'), 'utf8');
+  assert.ok(a11ySource.indexOf('const initialReadConsole = await readConsoleAudit.settle()') < a11ySource.indexOf('new AxeBuilder'), 'initial reads settle before the CPU-heavy accessibility scan');
+  assert.ok(a11ySource.includes('if (!initialReadConsole.ok) throw new Error'), 'initial audit failure is asserted, not discarded');
+  assert.ok(a11ySource.indexOf('const readConsole = await readConsoleAudit.settle()') > a11ySource.indexOf('new AxeBuilder'), 'final accessibility audit remains in place');
   console.log('Production read/console audit fail-closed matrix passed');
 }
 

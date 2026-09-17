@@ -1,0 +1,142 @@
+{
+  "format": "linear-exit-retirement-switch-pg17-proof-v1",
+  "date": "2026-09-14",
+  "status": "PASS",
+  "classification": "ISOLATED_POSTGRES",
+  "receipt": "c598282f1fc842dea84794f904fff3ce",
+  "exit_code": 0,
+  "server_stopped": true,
+  "stderr_bytes": 0,
+  "postgres_version": "17.11",
+  "lane": "retirement-switch",
+  "checks": 46,
+  "source_binding": {
+    "commit": "3ae2f573037f31b9dfb40880ef0999402863a232",
+    "git_tree": "67af0317519f3f9057589c0b6ba24e7ec131ed70",
+    "tracked_worktree_clean_before": false,
+    "tracked_worktree_clean_after": false,
+    "scope": "Exact per-file runtime and supporting disk hashes below verified unchanged during isolated proof; final operator runner lane was uncommitted at execution. Whole-checkout or then-HEAD exactness is not claimed; verify final published Git blobs against pins."
+  },
+  "source_pins": [
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "27b6207c2c9ebccbe0ac0f36cac9049507daac758267efc98d99398ec8a65587"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "docs/independence/LINEAR_EXIT_RETIREMENT_SWITCH_DEPENDENCIES_20260913.json",
+      "sha256": "bfea80a7423e2ffebd1e4fff7b87478b0fe19105f8fbd1f1d3533e24c5ba1a17"
+    },
+    {
+      "file": "test/linear-exit-retirement-switch-postgres.js",
+      "sha256": "549f60423ac8423376b7ffc2c73a88ceeeba2ebe794cdd975523d38461349f98"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "test/helpers/native-ordinary-business-assertions.js",
+      "sha256": "34edd56259be15d56a0977ea37213636fbac94244fb19caa29fbc70a80e8c3c0"
+    },
+    {
+      "file": "test/helpers/native-capability-post-reopen.js",
+      "sha256": "6a829daa9a0f45c6cb8252f82b16072f8f390508215e1e8e92e05b1c118b43e6"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    }
+  ],
+  "supporting_source_pins": [
+    {
+      "file": "qa/linear-exit-rehearsal/run-portable.ps1",
+      "sha256": "58a879ed3f451ad59483df8e7f5eeafdd201d5c6d397f3c0d3f14441cc838992"
+    },
+    {
+      "file": "scripts/f42-apply-rehearsal.js",
+      "sha256": "2d9f79994ecab69172c5b2bfdb61f1029eea31037f7d800075675147a4d63259"
+    },
+    {
+      "file": "scripts/linear-exit-composition/recovery-ordered.js",
+      "sha256": "973153398920d7d0eb633c2807b08e3ac9d01aba8bdbc78538a752b7afaec325"
+    },
+    {
+      "file": "scripts/linear-exit-composition/harness.js",
+      "sha256": "9c13602a4ef30896f0b62745ed0595ed4f3513027a4201f973b86fd11502d423"
+    },
+    {
+      "file": "test/helpers/linear-exit-install-step.js",
+      "sha256": "9db3c3384071ca77213b7c3e612208ddb2b29fc256f977cc8a3a370534a19b0c"
+    },
+    {
+      "file": "scripts/linear-exit-install-manifest.js",
+      "sha256": "9691ea22f3e140ed85a9d60346ad38c2fcfc0f986e46ddbbd9b83ee630f58669"
+    },
+    {
+      "file": "scripts/linear-exit-priority-schema-supplement.js",
+      "sha256": "5932df654a6b47a9b0b87dba65ef336d553b5de47b56b68a82d6cb50cd35175f"
+    },
+    {
+      "file": "scripts/linear-exit-credential-schema-supplement.js",
+      "sha256": "67697abb0793c8dc4ed12ea652ed6fe06ea6b872d4fb8284d3eafb4a064cad4b"
+    },
+    {
+      "file": "scripts/linear-exit-backup-observed-baseline.js",
+      "sha256": "5a057174fc9a90936ef1c86d5f772b04feec706199be19d10c1561dcd885c392"
+    },
+    {
+      "file": "test/helpers/remaining-application-fixture.js",
+      "sha256": "8fc57379935cebeee85e1429974c3b9fdee21d0b91d1ce7282a8772a0ce427f1"
+    },
+    {
+      "file": "scripts/linear-label-catalog-export.js",
+      "sha256": "9ae5c3d0813eb587b7d5c65a41234ace6fd290c1fa5631e881c0e08af426ddd1"
+    }
+  ],
+  "evidence_file_pins": [
+    {
+      "file": "RESULT.txt",
+      "sha256": "ef02a1a37c65635fbacc78d5c76ec8ef911769ad7f1de45738051108c74d85c7"
+    },
+    {
+      "file": "unit.log",
+      "sha256": "ff96d5754c193a69dbdddcaba86d8483720cbc8a3bceae9ab504ccbaff37ef08"
+    },
+    {
+      "file": "unit-error.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "stop.log",
+      "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+    }
+  ],
+  "current_acl_owner_executed": true,
+  "closed_activation": true,
+  "separate_native_reopen": true,
+  "scope": [
+    "Exact current test includes190840 explicitly; no post-test source-delta reconstruction is needed.",
+    "Selected real SQL scalar, artifact, comment lifecycle, intake, assignment and label writes run after guarded native reopen with replay/refusal checks."
+  ],
+  "limits": {
+    "hosted_activation_authorized": false,
+    "external_evidence_truth_verified": false,
+    "hosted_writes_performed": false,
+    "deployment_performed": false,
+    "complete_browser_gateway_matrix_proven": false
+  },
+  "supersedes_current_code_gap_from_receipt": "870e686ac23d4b029daf9322dd999066",
+  "previous_exact_source_proof": {
+    "receipt": "b12e6429e24c4abdb69e266bf08f2bbb",
+    "manifest_sha256": "20d437c5ddbea340f7c1a28fe2c853d26d7c6b955f2596816323b3cc1f79e3e2",
+    "scope": "Historical passing refresh before final isolated operator lane was added to shared runner."
+  }
+}

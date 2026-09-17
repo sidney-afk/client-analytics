@@ -1,0 +1,9 @@
+'use strict';
+const assert=require('assert/strict'),fs=require('fs');const api=require('../scripts/linear-exit-source-baseline-catalog');const contract=api.load();let checks=0;
+assert.equal(contract.stage,'POST_64_OWNER_PRE_ADMISSION');assert.equal(contract.coverage.source_inventory_entries_applied,64);assert.equal(contract.catalog.tables.length,86);assert.equal(contract.sources.length,99);checks++;
+const match=api.compare(contract.catalog,contract.catalog);assert.equal(match.status,'SOURCE_PRE_ADMISSION_CHECKPOINT_MATCH');assert.equal(match.installation_authorized,false);assert.equal(match.pre_64_install_gate_satisfied,false);checks++;
+for(const group of Object.keys(contract.catalog)){const changed=structuredClone(contract.catalog);if(Array.isArray(changed[group]))changed[group].push({unexpected:true});else changed[group]=null;assert.equal(api.compare(changed,contract.catalog).status,'REFUSE');checks++;}
+const changed=structuredClone(contract.catalog);changed.functions[0].body_raw_md5='0'.repeat(32);assert.equal(changed.functions[0].body_lf_md5,contract.catalog.functions[0].body_lf_md5);assert.equal(api.compare(changed,contract.catalog).status,'REFUSE');checks++;
+assert.throws(()=>api.load({readFile:p=>String(p).endsWith('LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json')?Buffer.from('{}'):fs.readFileSync(p)}),/ARTIFACT_DRIFT/);checks++;
+const source=contract.sources.find(x=>x.path.endsWith('linear-exit-source-baseline-catalog.sql')).path;assert.throws(()=>api.load({readFile:p=>String(p).replaceAll('\\','/').endsWith(source)?Buffer.concat([fs.readFileSync(p),Buffer.from('\n')]):fs.readFileSync(p)}),/SOURCE_DRIFT/);checks++;
+console.log(JSON.stringify({marker:'LINEAR_EXIT_SOURCE_CHECKPOINT_OFFLINE_OK',checks,stage:contract.stage,installation_authorized:false,pre_64_install_gate_satisfied:false}));

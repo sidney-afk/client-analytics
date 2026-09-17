@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {supervise} from '../scripts/linear-exit-followup-supervisor.mjs';
+const secret='synthetic-private-'.repeat(4),base={enabled:true,projectRef:'a'.repeat(20),runnerKey:secret,maxCycles:2};let active=0,peak=0,clock=0;const waits=[],events=[];
+const fetch=async(url,o)=>{assert.equal(url,'https://'+'a'.repeat(20)+'.supabase.co/functions/v1/card-followup-worker');assert.equal(o.redirect,'error');assert.equal(o.headers['x-followup-runner-key'],secret);if(JSON.parse(o.body).action==='health')return Response.json({ok:true,enabled:true,pending:3,pending_stale:0,unresolved:0});active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,1));active--;return Response.json({ok:true,processed:1,status:'completed'});};
+assert.deepEqual(await supervise({fetch:()=>{throw Error('must not dispatch');}}),{status:'DISABLED',dispatched:0});
+assert.deepEqual(await supervise({enabled:'false',fetch:()=>{throw Error('must not dispatch');}}),{status:'DISABLED',dispatched:0});
+const result=await supervise({...base,fetch,now:()=>clock,sleep:async ms=>{waits.push(ms);clock+=ms;},observe:e=>events.push(e)});assert.equal(result.dispatched,4);assert.equal(peak,2);assert(!JSON.stringify(events).includes(secret));
+for(const status of ['failed','unknown']){const delays=[];const r=await supervise({...base,maxCycles:1,fetch:async(u,o)=>JSON.parse(o.body).action==='health'?Response.json({ok:true,enabled:true,pending:0,pending_stale:0,unresolved:0}):Response.json({ok:false,processed:1,status},{status:503}),sleep:async ms=>delays.push(ms)});assert.equal(r.attention_required,true);assert.deepEqual(delays,[30000]);}
+const auth=await supervise({...base,fetch:async()=>new Response(secret,{status:401})});assert.equal(auth.dispatched,0);assert(!JSON.stringify(auth).includes(secret));
+const stop=new AbortController();let requests=0;const stopped=await supervise({...base,signal:stop.signal,fetch:async(u,o)=>{requests++;stop.abort();throw Error(secret);},sleep:async()=>{}});assert.equal(stopped.dispatched,0);assert.equal(requests,1);
+const idle=[];await supervise({...base,maxCycles:1,fetch:async(u,o)=>JSON.parse(o.body).action==='health'?Response.json({ok:true,enabled:true,pending:0,pending_stale:0,unresolved:0}):Response.json({ok:true,processed:0}),sleep:async ms=>idle.push(ms)});assert.deepEqual(idle,[15000]);
+await assert.rejects(supervise({...base,concurrency:5}),/CONFIGURATION/);await assert.rejects(supervise({...base,projectRef:'evil.example'}),/CONFIGURATION/);
+console.log('FOLLOWUP_SUPERVISOR_OFFLINE_PASS disabled, canonical binding, concurrency2, idle/backoff, failed/unknown red, auth stop, cancellation, sanitized observer');

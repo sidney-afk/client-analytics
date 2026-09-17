@@ -50,7 +50,13 @@ async function waitStatus(id, comp, status, ms = 20000) {
     up({ id: idA, name: 'LIN deep A ' + ts, order_index: 1, video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval', linear_issue_id: LINK_A, graphic_linear_issue_id: 'https://linear.app/x/GRA-DEEP-A' + ts });
     up({ id: idB, name: 'LIN deep B ' + ts, order_index: 2, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' });
     await sleep(1500);
-    const page = await smm(browser);
+  // THIS LANE'S SUBJECT IS THE LEGACY WRITE PATH, so it asks for the explicit
+  // legacy roster rather than the production one. Before this PR it received
+  // `[]`, which meant legacy; after the item-175 fail-closed repair `[]` routes
+  // NATIVE, so an explicit usable-roster-without-this-client is now the only
+  // honest way to ask. Codex finding on d6e26c3. It stays on the owed-migration
+  // list in test/probes-assert-native-write-lane.js.
+    const page = await smm(browser, 'sidneylaruel', { writeUiRerouteLegacy: true });
 
     // ---------- 1. inbound-echo suppression (single-shot) ----------
     resetLinearCalls();
@@ -258,16 +264,18 @@ async function waitStatus(id, comp, status, ms = 20000) {
     // for a gate-less staff legacy status entry is QUARANTINE
     // ('legacy_actor_unverifiable') — the drain re-derives the lane from
     // enrollment and blocks enrolled staff writes from the legacy path.
-    // Simulate enrollment by adding the slug to the in-page roster (the
-    // harness stubs the flag dark), then assert the quarantine ledger takes
-    // the entry and nothing reaches the webhook.
+    // The harness now serves the PRODUCTION roster, so the slug arrives
+    // enrolled already (qa/write_ui_reroute_fixture.js); the add below is
+    // belt-and-braces and restores whatever membership it found. Assert the
+    // quarantine ledger takes the entry and nothing reaches the webhook.
     resetLinearCalls();
     const quar = await page.evaluate(async (slug) => {
+      const wasEnrolled = _writeUiRerouteClients.has(slug);
       _writeUiRerouteClients.add(slug);
       try {
         await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-424242', status: 'Kasper Approval' }, 'probe-injected', slug);
         await _sxrLinearOutboxFlush();
-      } finally { _writeUiRerouteClients.delete(slug); }
+      } finally { if (!wasEnrolled) _writeUiRerouteClients.delete(slug); }
       const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
       const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
         .filter(r => r && r.surface === 'sxr' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-424242'));

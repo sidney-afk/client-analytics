@@ -1,0 +1,201 @@
+{
+  "format": "native-preinstall-backup-pg17-proof-v1",
+  "classification": "ISOLATED_POSTGRES",
+  "status": "PASS",
+  "date": "2026-09-13",
+  "runs": [
+    {
+      "profile": "populated_synthetic_67",
+      "receipt": "390c6f261f91431284a1a0e144576fed",
+      "exit_code": 0,
+      "server_stopped": true,
+      "checks": 8,
+      "public_tables": 67,
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-native-preinstall-backup.js",
+          "sha256": "78b88cdf50e2243504c65a0bd0864ef118c530e04ef97ba62349a6616e886664"
+        },
+        {
+          "file": "test/linear-exit-native-preinstall-backup.js",
+          "sha256": "e2d3449310902276f0877c04f3bf2a9206e85a7cda7152af04262e4867ad8f8f"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody-encrypted.js",
+          "sha256": "bbaeec554a0cf808879d207989782f3b41f5cc84dcf1aa365ee8728d692c1d0b"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody.js",
+          "sha256": "6f4636d3f6252d8f4cc60684ca0f0631db786213c80f6653a7d1b456f8bfcc54"
+        },
+        {
+          "file": "scripts/track-b-backup.js",
+          "sha256": "a84804464325bcc9a7d97437ff8a8a26344077265e1d4eb50b3620bf8696bf3f"
+        },
+        {
+          "file": "scripts/linear-exit-source-baseline-catalog.sql",
+          "sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8"
+        },
+        {
+          "file": "scripts/linear-exit-observed-schema.js",
+          "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+        },
+        {
+          "file": "scripts/linear-exit-observed-public-catalog.js",
+          "sha256": "f7fc36ca7afe610b0cfd1c7cf6ad8e2638a1cc859ba3ac8e89766dd3f47cecfd"
+        },
+        {
+          "file": "docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json",
+          "sha256": "824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "RESULT.txt",
+          "sha256": "5bdac69fecf3a2c3a8ba40ef8f810ed111f3734e0f4d6046f1af2b39e0df13a2"
+        },
+        {
+          "file": "native-backup-proof.private.json",
+          "sha256": "8d22592b8d5b938ed2caff9070c911824aacc6c3f392f3209c247cb93db2609b"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "ed61b8c5b430fac1bf676d466a5c7b075df6e864728626830cae91618e66d925"
+        },
+        {
+          "file": "unit-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        },
+        {
+          "file": "stop-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "profile": "observed_schema_67",
+      "receipt": "a00008a48e20449bb8c6301478dcbd76",
+      "exit_code": 0,
+      "server_stopped": true,
+      "checks": 8,
+      "public_tables": 67,
+      "source_pins": [
+        {
+          "file": "scripts/linear-exit-native-preinstall-backup.js",
+          "sha256": "78b88cdf50e2243504c65a0bd0864ef118c530e04ef97ba62349a6616e886664"
+        },
+        {
+          "file": "test/linear-exit-native-preinstall-backup.js",
+          "sha256": "e2d3449310902276f0877c04f3bf2a9206e85a7cda7152af04262e4867ad8f8f"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody-encrypted.js",
+          "sha256": "bbaeec554a0cf808879d207989782f3b41f5cc84dcf1aa365ee8728d692c1d0b"
+        },
+        {
+          "file": "scripts/linear-exit-object-custody.js",
+          "sha256": "6f4636d3f6252d8f4cc60684ca0f0631db786213c80f6653a7d1b456f8bfcc54"
+        },
+        {
+          "file": "scripts/track-b-backup.js",
+          "sha256": "a84804464325bcc9a7d97437ff8a8a26344077265e1d4eb50b3620bf8696bf3f"
+        },
+        {
+          "file": "scripts/linear-exit-source-baseline-catalog.sql",
+          "sha256": "7828ee49fc574f6f488e908e87f8a49e1acb2613807f2beefc384cb5b22660f8"
+        },
+        {
+          "file": "scripts/linear-exit-observed-schema.js",
+          "sha256": "7b70becf48f5c3dafc5d22914102d1a1b7ad3499428774fa374b3dce177da318"
+        },
+        {
+          "file": "scripts/linear-exit-observed-public-catalog.js",
+          "sha256": "f7fc36ca7afe610b0cfd1c7cf6ad8e2638a1cc859ba3ac8e89766dd3f47cecfd"
+        },
+        {
+          "file": "docs/independence/LINEAR_EXIT_OBSERVED_PUBLIC_CATALOG_20260912.json",
+          "sha256": "824a39b43491fef2d9289c9bcdc1f3665e26ad8fca992e76b1a9f77ecaa872d5"
+        }
+      ],
+      "evidence_files": [
+        {
+          "file": "RESULT.txt",
+          "sha256": "5bdac69fecf3a2c3a8ba40ef8f810ed111f3734e0f4d6046f1af2b39e0df13a2"
+        },
+        {
+          "file": "native-backup-proof.private.json",
+          "sha256": "36c08d06ac4af35d0fbc682d251994b4928cf0907a46ff88bc03b0ea7eca054d"
+        },
+        {
+          "file": "unit.log",
+          "sha256": "fab2532cb46773ab0e02d9de2c6f66c7c14bfaac66ff2d9f7deabc27ceb187b5"
+        },
+        {
+          "file": "unit-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "stop.log",
+          "sha256": "3589d2bd01f8295cc7c9ec3f5e07625fcd347ccb6f33f2d80edafe5f5217c1fb"
+        },
+        {
+          "file": "stop-error.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "file": "observed-schema-after.private.json",
+          "sha256": "73e43111cb4c3712b2d59b0e5ba61f3cc28b4b61f1f131afa3e929d0624b2694"
+        },
+        {
+          "file": "observed-schema-report.private.json",
+          "sha256": "5bede899d73b3d4a71b0a947649e6cdc0b0d245281c7bb94d8063669604a28d4"
+        }
+      ]
+    }
+  ],
+  "checks": [
+    "wrong source catalog refuses",
+    "native public archive captured and encrypted",
+    "existing encrypted target refuses overwrite",
+    "non-loopback restore refuses",
+    "wrong encryption key refuses and removes owned output",
+    "wrong local cluster directory refuses before output creation",
+    "fresh local database exact catalog/row multiset/sequence comparison",
+    "ciphertext corruption refuses and removes owned output"
+  ],
+  "supported_metadata_reconstruction": {
+    "publication": "supabase_realtime public unfiltered table membership and flags",
+    "acl": "exact explicit postgres-owner-only table ACL",
+    "raw_archive_unchanged": true,
+    "catalog_comparison_relaxed": false
+  },
+  "limits": {
+    "live_capture_proven": false,
+    "off_device_custody_proven": false,
+    "operational_keys_generated": false,
+    "sole_user_keyholder_supported": true,
+    "observed_schema_fixture_contains_hosted_rows": false,
+    "full_platform_equivalence_proven": false,
+    "nonpublic_data_covered": false,
+    "storage_object_bytes_covered": false,
+    "external_assets_covered": false,
+    "atomic_database_storage_boundary_proven": false,
+    "concurrent_sequence_fence_proven": false,
+    "failed_scratch_database_may_remain": true
+  },
+  "retained_diagnostic_receipts": [
+    "19f97553a8cf453da61ad85cbbd92946",
+    "d54caf52e93843a798b5ed73fc5e9458",
+    "6eb67b7582604889a1d5f03a59c98594",
+    "9f2d5367abdc46ce840378d54b1d273f",
+    "51c0e83739814a4fb3726b6f48d089a0",
+    "41b4343ce38249199de45448ec4df851",
+    "2c9023b297c946ca879443fe6d1d55c9",
+    "55335942609242269fb50ea8e5c53b14",
+    "85b8077cc8794229b4551538aa7ef5e4"
+  ]
+}

@@ -96,7 +96,11 @@ for (const column of selected) {
 // Filters need the same privilege as a select, and are the exact way this bug
 // reached production -- the dialog filtered on a column it had not been granted.
 const filtered = [];
-for (const m of reader.matchAll(/([a-z_][a-z0-9_]*)=eq\./gi)) filtered.push(m[1].toLowerCase());
+// Scope filters to batches. The reader also fetches the native capability
+// from syncview_runtime_flags; its `key` column is not a batches column.
+const batchRead = /_prodRestRows\(\s*'batches',[\s\S]*?\);/.exec(reader);
+ok(!!batchRead, 'the complete batches query was located');
+for (const m of (batchRead ? batchRead[0] : '').matchAll(/([a-z_][a-z0-9_]*)=eq\./gi)) filtered.push(m[1].toLowerCase());
 ok(filtered.length > 0, 'the reader applies at least one column filter');
 for (const column of new Set(filtered)) {
   ok(granted.has(column), 'FILTERED column `' + column + '` is inside the anon allowlist');

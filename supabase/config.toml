@@ -143,3 +143,8 @@ verify_jwt = false
 # read.
 [functions.quiz-leads-list]
 verify_jwt = false
+
+# Manual-only Slack notification sender. SQL writes durable intents first; this
+# endpoint requires NOTIFY_RUNNER_KEY and has no schedule or browser caller.
+[functions.notify]
+verify_jwt = false

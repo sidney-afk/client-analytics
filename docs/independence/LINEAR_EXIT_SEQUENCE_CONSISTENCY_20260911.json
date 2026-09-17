@@ -1,0 +1,15 @@
+{
+  "marker": "LINEAR_EXIT_SEQUENCE_CONSISTENCY_OK",
+  "checks": 7,
+  "exported_snapshot_rows_frozen": true,
+  "sequence_state_non_mvcc": true,
+  "rollback_nextval_not_rolled_back": true,
+  "cache_highwater_exceeds_issued_value": true,
+  "monotonic_later_highwater_safe_for_frozen_rows": true,
+  "reset_and_manual_id_collisions_demonstrated": true,
+  "application_writer_contract_proven": false,
+  "global_sequence_fence_proven": false,
+  "hosted_operations": false,
+  "receipt": "linear-exit-sequence-consistency-4a7304fbfc0645eca747ad36c4a636cd",
+  "status": "PASS"
+}

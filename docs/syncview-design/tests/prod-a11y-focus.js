@@ -25,6 +25,11 @@ const {
   try {
     await openProduction(page, port);
     const failures = [];
+    // Axe occupies the browser main thread. Finish the initial read/retry chain
+    // before scanning so it cannot delay an otherwise valid schema fallback.
+    // The same bounded audit and unchanged final audit still reject failures.
+    const initialReadConsole = await readConsoleAudit.settle();
+    if (!initialReadConsole.ok) throw new Error(formatFailures('prod-a11y-focus initial read failures', [initialReadConsole.error]));
 
     const axe = await new AxeBuilder({ page })
       .include('#prodRoot')

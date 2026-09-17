@@ -1,5 +1,36 @@
 # Agent Guide
 
+> **Owner clarification, 2026-09-14: PRESERVE NORMAL WORKFLOWS; REMOVE WEBSITE RELIANCE ON LINEAR.** Preserve existing expected Slack notifications, including urgent editor and urgent review requests. The owner did NOT request a blanket notification ban. Do not introduce migration announcements, new recipients/triggers, duplicate sends or unexpected messages. Approvals, comments and urgent actions must preserve normal behavior and save correctly without relying on Linear. The owner believes existing urgent messages already link to the SyncView/SyncLinear website instead of Linear; verify that behavior rather than treating it as unbuilt or already proven. During preparation, do not send live/test client messages, merge, deploy or activate services. Remove website-side Linear dependencies as needed while leaving everything inside Linear unchanged: account, data, credentials, billing and Linear-side integrations/webhooks. Do not alter n8n or unrelated external automations in this preparation. Identify website-side sync connections and any backend work necessary to preserve behavior; do not confuse disconnecting those with shutting down Linear. Earlier assistant-authored blanket notification prohibitions and blanket bans on disconnecting website-side sync were overinterpretations and are superseded. No file substitutions, deletion or link changes are authorized by treating access exceptions as lower priority.
+
+> **Owner directive, 2026-09-14:** do not send anything to client Slack channels,
+> including test messages. Reading the owner-designated roster and preparing
+> destination mappings does not authorize sending. Do not infer permission to
+> send from a later database-installation authorization. Delivery testing needs
+> a separately approved internal TEST destination.
+
+> **Scoped owner exception, 2026-09-14, browser verification only:** the owner
+> approved recognizing the three expected missing native-field responses when
+> the corresponding safe reduced-select read demonstrably succeeds. This is
+> the sole exception to the identical-URL recovery rule below. Require the exact
+> GET/400/42703 response and field message, configured backend origin, unchanged
+> safe view/filters/pagination, a completed 2xx JSON-array fallback started after
+> the failure within the bounded recovery window, and one-to-one failed-response
+> to resource-console URL/time correlation. The fields are
+> `clients.native_project_ids` and
+> `production_deliverables_browser_v1.raw_attribution_project_id` /
+> `raw_attribution_native_epoch`. Unknown, unrelated, malformed, pending or failed
+> reads remain failures. Page errors and mutation guards remain unchanged.
+> This authorizes no merge, deployment, production write or activation.
+
+> **Scoped owner exception, 2026-09-12, preparation only:** the owner approved
+> preparing narrow atomic-persistence changes inside Calendar/Samples, preserving
+> existing URLs, payload compatibility, review links and tokenless access. Keep
+> the original serving captures and repository 401 controls as immutable evidence.
+> This permits no new authentication gate, merge, deployment, installation,
+> production write or n8n execution. The owner also approved retaining verified
+> native completion receipts while requiring zero work destined for Linear;
+> see `docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md` and canonical B5.
+
 > ## ⛔ FROZEN — client write gate (owner directive, 2026-07-15). READ BEFORE TOUCHING WRITERS.
 > The Edge Functions **`calendar-upsert`** and **`sample-review-upsert`** are **INTENTIONALLY
 > UN-GATED** (open / tokenless) right now, by explicit owner decision, so that clients' existing
@@ -125,6 +156,121 @@ is reading straight from its JSON output (`sealed_bundle_sha256`,
 `sealed_bundle_byte_length`); use those directly as `rollback_bundle_sha256` /
 `rollback_bundle_byte_length` for the Section 4 dispatch — no re-derivation,
 no re-explaining the naming convention.
+
+## NEVER WRITE A HASH YOU DID NOT JUST READ IN FULL FROM A COMMAND'S OUTPUT
+
+Owner-ratified 2026-09-16. A truncated or prefixed hash is for reading, never
+for authoring. Reasoning and the incident behind it are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+## A REWRITE IS NOT A REFACTOR. DIFF IT AGAINST WHAT IT REPLACES.
+
+Owner-ratified 2026-09-16. Rewriting a file wholesale deletes every warning in
+it by default and re-adds only what you remembered. Before shipping one, diff it
+against the version it replaces and confirm each dropped constraint was dropped
+on purpose; say which, and why, in the commit message. Reasoning and the
+incident behind it are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+## A RUNNABLE BLOCK IS ONLY PREPARED IF IT HAS BEEN RUN AS WRITTEN. THAT INCLUDES ONE PASTED INTO CHAT.
+
+Owner-ratified 2026-09-16. The whole point of a prepared block is that it can be
+run at the keyboard **without reasoning**. One that needs a path corrected first
+has defeated its own purpose, in the place where reasoning is most expensive.
+
+So: execute it as written, from the place the instructions say to stand, before
+handing it over. Absolute paths to the script as well as to its arguments.
+
+**A block handed over in a message skips every check that work in the repository
+gets** — it is not swept, not reviewed, not run. Put it on the page, then hand
+over the page. **Relaying someone else's block unchecked is the same failure**;
+passing it along is not a reason to skip reading it.
+
+Where a script is private and cannot be read, its **own usage line is the
+authority** for its argument list. Do not restate flags from memory and do not
+guess them. Reasoning and the sweep behind it are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+## A SEARCH PROVES WHAT IT FOUND. IT NEVER PROVES WHAT IT DID NOT FIND.
+
+Owner-ratified 2026-09-16. "And that is all of them" is a separate claim from
+"here is what I found", and it is usually the one part of a careful piece of
+work that nobody checks.
+
+Practical half: **when a search closes a set, run a second search of a different
+shape and reconcile the two.** A clever pattern that matches the forms you
+expect will find exactly those forms. On the guard-count sweep the clever regex
+found one site; a dumb search for the bare number found nine. Reasoning and the
+sweep are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+## A COMPOSITE CLAIM IS ONLY AS VERIFIED AS ITS WEAKEST PART.
+
+Owner-ratified 2026-09-16. Before calling a claim verified, split it and label
+each part: **read from the code**, or **assumed about the platform**. A verified
+half lends its credibility to an unverified half bolted onto it, and the whole
+thing then gets written down as checked. Reasoning and the incident behind it
+are in `docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+## A GATE WITH AN EXEMPTION LIST IS OFF FOR EVERYTHING ON THAT LIST. COUNT THE LIST.
+
+Owner-approved 2026-09-16, from the line-ending finding in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
+
+`git diff --check` is this repo's whitespace gate, and it honours
+`.gitattributes`. That is normally the point. But `.gitattributes` now carries
+**97 `-text` pins**, so the gate is silently off for **98 files**, and most of
+them are not inert evidence — they are the exit installer's own executable
+code (`scripts/linear-exit-install-operator.js` and its siblings, their tests,
+their workers). A CRLF-to-LF flip on a pinned file was reproduced against this
+branch: 13 lines changed, 13 bytes lost, `git diff --check` printed nothing and
+exited 0.
+
+Nobody decided to turn the gate off for 98 files. Each pin was added for a good
+local reason, one at a time, and the exemption grew underneath the gate without
+ever being the subject of a decision.
+
+So, whenever you rely on a gate:
+
+1. **Find its exemption mechanism.** Almost every gate has one — an attributes
+   file, an ignore file, a skip list, an `if:` condition, a `// eslint-disable`.
+2. **Count what it currently exempts, and look at what is in there.** A pin
+   added for an evidence file and a pin added for live executable code look
+   identical in the file.
+3. **If the exempt set is not empty, the gate does not cover the repo.** Either
+   the exemption is small enough to read in full, or there is a second check
+   driven off the exemption list itself.
+
+The second check must be **driven off the exemption list, never off a copy of
+it.** A hand-maintained shadow list drifts from the thing it shadows, and it
+drifts silently, which is the same failure again one level up.
+`scripts/byte-pinned-line-ending-check.js` resolves its scope with
+`git check-attr`, so it is correct the day someone adds a pin without thinking
+about it.
+
+## A SENTENCE DESCRIBING A PRECONDITION IS NOT A CHECK OF IT.
+
+Owner-ratified 2026-09-16. Prose stating a precondition is the most convincing
+possible way to fail to enforce it: it reassures the reader *and* the author
+that the matter is handled, and it reads exactly like a guarantee while
+guaranteeing nothing. When a document names a precondition, either something
+must enforce it, or the document must say plainly that the reader is the
+enforcement.
+
+The discriminator matters as much as the rule — without it this flags every
+sentence in `docs/ops/` and gets ignored:
+
+| | verdict |
+|---|---|
+| prose precondition + a callee that enforces it | fine |
+| prose precondition + a human decision nothing could check | fine, if the document says the reader is the check |
+| prose precondition + an unguarded primitive | **defect** |
+
+The incident: `LINEAR_EXIT_RECOVERY_PROCEDURE.md` said to branch from "the
+current main" and then handed over a bare `git switch -c … origin/main`, which
+uses whatever the local ref happens to hold. The fix added a guard **in front
+of** the reviewed command rather than replacing it, and printed the resolved
+commit so the reader can see what they actually branched from. Reasoning, the
+two-shape sweep and its per-candidate verdicts are in
+`docs/ops/LINEAR_EXIT_JOURNAL.md`.
 
 ## Two working rules learned the expensive way (2026-09-05)
 

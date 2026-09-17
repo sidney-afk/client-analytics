@@ -84,11 +84,17 @@ const projectionLoader = extract('_prodLoadDeliverableProjection');
 ok(/\{ keysetColumn: 'id' \}/.test(projectionLoader)
   && !/order=team\.asc/.test(projectionLoader),
 'the deliverable projection walks the primary key instead of the old three-column sort');
-ok((projectionLoader.match(/\{ keysetColumn: 'id' \}/g) || []).length === 2,
+ok((projectionLoader.match(/\{ keysetColumn: 'id' \}/g) || []).length === 1
+  && (extract('_prodBrowserProjectionRows').match(/\{ keysetColumn: 'id' \}/g) || []).length === 2,
   'the release-transition legacy fallback uses the same keyset walk');
 
 // ---- F95: the delta loop ---------------------------------------------------
 const deltaRefresh = extract('_prodDeltaRefresh');
+ok(/await _prodBrowserProjectionRows\(\s*PROD_DELIVERABLE_SELECT,\s*'updated_at=gte\.' \+ encodeURIComponent\(watermark\)\s*\)/.test(deltaRefresh)
+  && !/production_deliverables_browser_v1/.test(deltaRefresh),
+  'delta reads use the same schema-compatible safe view without changing the watermark');
+ok(/1000, 50, \{ keysetColumn: 'id' \}/.test(extract('_prodBrowserProjectionRows')),
+  'delta delegation preserves its page size, cap, and primary-key cursor');
 ok(/updated_at=gte\.' \+ encodeURIComponent\(watermark\)/.test(deltaRefresh),
   'the tick asks only for rows at or after the watermark it already holds');
 ok(/if \(_prodState\.writes && _prodState\.writes\.size\) return null/.test(deltaRefresh),

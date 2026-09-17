@@ -1,0 +1,68 @@
+name: Linear exit isolated preparation
+
+# No production credentials, deployment, dispatch, or provider calls.
+# Each matrix job receives a separate disposable PG17 service.
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'test/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'index.html'
+      - '.gitattributes'
+      - 'migrations/**'
+      - 'docs/independence/**'
+      - 'qa/linear-exit-rehearsal/**'
+      - '.github/workflows/linear-exit-preparation-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-preparation:
+    name: Isolated PG17 ${{ matrix.lane }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [card-atomic-admission, retirement-switch]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: disposable-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: '127.0.0.1'
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: postgres
+      PGSSLMODE: disable
+      F63_REQUIRE_POSTGRES: '1'
+      PROOF_REPO_ROOT: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify explicit routing and profile guard
+        run: node test/test-suite-routing.js
+      - name: Run the isolated profile
+        env:
+          PROOF_OUTPUT_ROOT: ${{ runner.temp }}/linear-exit-preparation
+        run: node scripts/test-suite-routing.js --run-ci-profile '${{ matrix.lane }}'
+      - name: State remaining proof scope
+        if: always()
+        run: echo 'Only this named isolated profile ran. Private-catalog and other release-required profiles remain separately required; this is not full installation or hosted acceptance.' >> "$GITHUB_STEP_SUMMARY"

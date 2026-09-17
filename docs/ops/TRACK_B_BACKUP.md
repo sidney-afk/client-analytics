@@ -1,5 +1,153 @@
 # Track-B private backup and restore rehearsal
 
+## Current preparation status
+
+Current isolated evidence is recorded in the linked result artifacts on draft PR #1382. The prepared source
+includes the reviewed upstream patch through `fcebb856`; nothing is merged or
+deployed by this work.
+
+Isolated PostgreSQL evidence now covers the 52-table parent plus the nine-table
+authenticated companion, using application source owners and an explicitly
+observed backup-table baseline. Authenticated local pair storage and selected
+restored budget, audit, thumbnail and access-control behavior also pass. A
+separate three-table credential companion now has stored/reopened triple recovery
+evidence at LINEAR_EXIT_CREDENTIAL_STORAGE_20260911.json; encryption and off-device
+custody remain unproven. These
+are synthetic local recovery results, not hosted recovery or full workflow proof.
+An opt-in proof-bearing capture and restore now passes six sequence checks
+for 15 catalog-mapped sequences, with populated audit/conflict consumers and
+independent target mapping/maxima verification. See
+LINEAR_EXIT_SEQUENCE_BOUNDS_20260911.json; external/manual consumer closure
+and source cutover remain unproven.
+
+Installation remains **HOLD**. The other 25 tables have no approved exclusion;
+complete platform/schema equivalence, referenced object/document custody,
+hosted recovery/configuration, notification handover and final source cutover
+coordination remain open. WR-101 requires a separate future Edge Function release.
+Only preparation code, sanitized evidence and strategy belong on GitHub; private
+recovery packages remain private. No merge, deployment, workflow dispatch,
+production writes or n8n execution/edit is authorized.
+
+The milestone sections below retain their original evidence and limitations.
+Their old "next" and "unproven" statements describe that milestone, not the
+current status above. Original failing receipts remain failures.
+
+## Latest verified recovery with upstream ledger
+
+The supported `recovery-upstream-ledger` lane **PASSES31 checks across52
+tables**, preserving all25 baseline recovery checks plus six checks for exact
+ledger history and restored insert/update triggers on Calendar and Samples.
+Ordinary saves and same-marker retries create no duplicate ping events. Both
+upstream SQL owners are hash-pinned to `fcebb856` and included before capture.
+The local server stopped. This closes the isolated reconstructed-trigger gap;
+full upstream source integration and hosted recovery remain unproven.
+
+Execution used working-tree rehearsal changes over `d5d1aa54`. An earlier
+run failed because fixture snapshots preceded the new marker columns; schema
+setup now precedes snapshots, and all original assertions remain. The failed
+receipt is retained. This is synthetic schema/data proof, not real Storage
+custody, hosted installation, or deployment authorization. Installation HOLD.
+
+A non-mutating patch check found upstream source applies except two document
+conflicts: `REPO_MAP.md` and `docs/truth/SUPABASE.md`. No upstream patch has
+been applied. Reconcile those documents while preserving the prepared additions
+when preparing combined source; keep frozen writer authentication unchanged.
+
+
+## Latest verified local recovery
+
+The full isolated history-v11 rehearsal now **PASSES all 25 checks for 52
+tables**. It verifies authenticated capture, exact reconstructed rows/sequences,
+unchanged tokens/defaults, retained receipt replay, restricted grants, rollback
+on late failure and post-commit quarantine behavior. The owned server stopped.
+Classification: `ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY`. This uses a
+synthetic source; hosted reconstruction, real Storage bytes/configuration and
+private receipt custody remain UNPROVEN. Installation remains HOLD.
+
+The last prerequisite repair aligns all five v11 trigger-helper names with
+the restore renderer; 32 offline contract checks also pass. Execution used
+working-tree changes over `677a1c4e`, not a clean-checkout attestation. The
+earlier five-, 16- and 21-check failures below are historical and preserved.
+The 65-check source composition and separate deferred-generator proof retain
+their own scopes. Next: integrate and rehearse upstream `fcebb856`, then close
+remaining installation/configuration/custody/notification handover gates.
+
+
+## Previous preparation: 65 schema checks, recovery still held
+
+Composition passes 65 assertions and contains all 52 corpus table names; this
+is table-presence evidence, not complete installation proof. The supported
+`deferred-defaults` lane passes real PostgreSQL generator non-execution,
+value/default preservation, omission refusal and late rollback checks.
+
+The full recovery journey now completes 21 checks, including exact reconstructed
+row images and sequences, token preservation, canonical replay and quarantine
+handling. It then FAILS because the history-v11 backup prerequisite references
+an absent `id` column on `production_native_ordinary_receipt_admissions`.
+A prepared prerequisite correction now uses the actual token/key columns and
+retains required notification identity sequences. Its full recovery rerun is
+still pending; the 21-check failure remains the latest full-run result.
+The previous 16-check failure was a fixture actor-key/name mismatch: the gateway
+uses the same actor name in both envelopes. The fixture now mirrors that mapping
+and proves source replay before capture. Inconsistent direct service RPC input
+remains a separate contract limitation; this fixture correction does not fix it.
+
+All three owned local servers stopped. Results bind to working-tree changes
+over `8616df22`; no full recovery or hosted readiness is claimed. Upstream
+`fcebb856` remains pending integration. Installation HOLD.
+
+
+## Earlier deferred-default preparation evidence
+
+The deferred-default contract is now implemented and independently source
+reviewed. Its version-1 authenticated section pins supported direct volatile
+invoker defaults and exact stored COPY columns; SQL wrappers require a configured
+search path to prevent inlining. The actual prior reader at `8616df22` refuses
+the new package in the offline compatibility test (that test requires the Git
+object to be available). Evaluated expressions retain strict callable checks.
+
+The first full run with this implementation completes 16 checks, including
+restricted reconstruction of the 52-table corpus, unchanged row images and
+sequences, and unchanged token bytes with the original default restored. It
+then fails at canonical comment replay with `idempotency_conflict`. This is
+an overall FAIL, not full recovery proof. The historical five-check failure
+and design below describe the prior revision. Generator non-execution still
+requires its dedicated runtime proof; hosted recovery and Storage custody
+remain unproven. Installation remains HOLD.
+
+## Linear-exit preparation checkpoint — 2026-09-10
+
+The new isolated `history-v11` schema/data rehearsal **fails after five checks**.
+Capture rejects `client_access_mint_review_token()`, the volatile default of
+`client_access.review_token` installed by
+`2026-08-04-client-access-auto-provision.sql`. Its random-byte generation does
+not satisfy the recovery engine's immutable public-callable contract. The
+catalog-race assertion therefore never reaches its intended boundary. Preserve
+this failure; removing the default/table or relaxing that assertion would not
+prove recovery. The owned local server stopped; no hosted backup or restore
+was attempted. Historical scheduled-backup facts below were not refreshed.
+
+The proposed next engine change is a **versioned, authenticated deferred-default
+section**, not an exception allowing arbitrary volatile callables. Recognized
+default expressions would be restored after explicit-column COPY and sequence
+restoration, before final schema/data/ACL verification in the same transaction.
+Require every applicable stored column, especially `review_token`, in COPY;
+omission must refuse rather than mint replacement values. Preserve strict
+callable checks for CHECK/generated/index/materialized-view expressions that
+can execute while restoring. Deferred expressions still require parsing and
+dependency review, including unsafe immutable subexpressions that planning
+might evaluate. Unsupported forms must refuse.
+
+Required proof: captured token bytes unchanged; generator never invoked during
+restore; omitted COPY column refused; malicious evaluated expression refused;
+exact default and ACL restored; late failure rolls back to an empty target;
+and the existing catalog-race test reaches its intended rejection. This design
+is **not implemented**. The 52-table corpus and current recovery package format
+retain their existing meanings. Local schema composition or a table count is
+not installation or full data/Storage recovery proof. Run the prepared lane
+using `qa/linear-exit-rehearsal/run-portable.ps1 -Lane recovery` with the required
+local PostgreSQL binary path; see that package's README.
+
 > **Status: MERGED & ACTIVE since 2026-07-15 (PR #840, merge `4f9d919`).** The recurring 6-hourly
 > schedule is live on `main`; all repository configuration below is provisioned. Proof run
 > `29444939853` uploaded and independently re-read a real 14-table Shared Drive package, and a 229 s
@@ -32,6 +180,59 @@ compressed payload. The complete manifest and payload are authenticated with a
 required HMAC-SHA-256 key that is not stored in Drive. A missing/extra table,
 changed byte, wrong HMAC, row-count mismatch, or checksum mismatch fails the
 run. The existing weekly full backup remains independent and unchanged.
+
+## Prepared schema recovery successor (uninstalled)
+
+The active six-hour lane still follows the corpus selected by the protected
+`TRACK_B_BACKUP_CORPUS` repository variable. The legacy 14-table format remains
+its current authenticated value until the matching schema, restricted-role
+grants, and disposable recovery rehearsal are approved together. The workflow
+accepts explicit manual `history-v7`, `history-v8`, `history-v9`, `history-v10`, and `history-v11` package
+runs; each version has its own signed format and prior versions refuse a newer
+owner instead of claiming empty coverage.
+
+`.github/workflows/track-b-recovery-rehearsal.yml` is dispatch-only. It captures
+an authenticated full `public` schema plus the explicitly selected data corpus,
+then reconstructs it only into a pre-provisioned empty scratch target. It has no
+schedule, Drive upload, alert, flag, n8n, or provider action. The recovery
+package verifies target identity, role restrictions, schema fingerprint,
+selected-table content digests, sequence state, callable dependencies, and
+post-commit state; an unknown or committed-but-unverified target is quarantined
+rather than retried in place.
+
+`history-v9` is a prepared 42-table successor: it includes Calendar, Samples,
+Workload, manifests, card/journal/provenance/feedback recovery evidence, F27
+state, native label catalog, cutoff, public intake provenance, native triage,
+and brief-media occurrence records.
+
+`history-v10` is the prepared 47-table successor. It additionally captures the
+immutable `production_native_client_provisions` receipt keyed by caller-owned
+text `request_id`. The existing `clients` member retains its full live row,
+including `native_project_ids`; `syncview_runtime_flags` retains routing flags,
+and `deliverable_events` retains the Editors event-time columns because the
+package carries the exact `pg_dump` COPY column list rather than a fixed list.
+It also retains the Boolean-singleton `syncview_retirement_admission` census state, the native identifier mint/grant owners, and the service-only `description_images` ledger. The v10 prerequisite rejects an identity sequence on every new owner.
+
+`history-v11` is a prepared 52-table successor. It adds the immutable ordinary native receipt admission ledger, notification config, notification intents, delivery receipts, and the operator reconciliation journal. The two notification journals use generated identity sequences; the ordinary admission's mirror-outbox foreign key must be `DEFERRABLE INITIALLY DEFERRED`, so restore begins by deferring constraints and validates all source references before commit. The v11 prerequisite also requires the ordinary receipt guard, all notification source observers, RLS, and their service-only ACL boundaries. It remains preparation for future hosted use. Disposable v11 restore has since passed; see the current preparation status and scoped receipts above.
+
+Neither version restores Storage bucket configuration or object bytes, signed/Linear-hosted asset availability, provider state, n8n configuration, secrets, or client-facing tokens outside the selected database rows. The restored description ledger is evidence only; its referenced objects require separately verified custody before activation. The receipt
+and data corpus must be advanced again when a new authoritative table is
+introduced; never relabel an older package as complete.
+
+### Ordered v11 activation (deployment owner)
+
+Keep the schedule on its current protected corpus until the finalized ordinary-receipt recognizer and notification migration are installed in the exact source order, `scripts/track-b-history-v11-backup-prerequisites.sql` succeeds for both restricted roles, and a disposable empty-target v11 rehearsal captures then restores nonempty ordinary and notification records while proving the deferred receipt edge, notification source FKs, identities, trigger functions, and ACLs. Only then may the ordered activation manifest set `TRACK_B_BACKUP_CORPUS=history-v11`. GitHub schedule delivery remains best effort; this source change does not activate a scheduler, notification sender, runtime flag, n8n workflow, or provider call.
+
+### Ordered v10 activation (deployment owner)
+
+Keep the schedule on its current protected corpus until all of the following
+release-local evidence exists: install the exact native provisioning migration,
+apply `scripts/track-b-history-v10-backup-prerequisites.sql` separately to the
+restricted source and disposable target roles, and complete the dispatch-only
+empty-target schema recovery rehearsal with a nonempty provision receipt. Then
+set the protected `TRACK_B_BACKUP_CORPUS` repository variable to `history-v10`
+in the ordered activation manifest. Do not activate the retirement-admission
+candidate through this lane: its durable state is captured, while activation remains blocked pending its reviewed replacement.
 
 ## Repository configuration
 

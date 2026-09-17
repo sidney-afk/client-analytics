@@ -1,5 +1,14 @@
 # Wired Production Parity Ledger
 
+Draft source addition, 2026-09-05: the existing comment panel becomes **Feedback
+& tweaks**, preserving canonical rows and adding authorized exact-component
+read-only Calendar/Samples notes. Incomplete sources stay explicit. This is not
+live history/zero-loss proof; contract and finite evidence are in
+`docs/features/COMPONENT_FEEDBACK.md`.
+The bounded follow-up classifies Project's absent submenu arrow as an existing
+unsupported-action contract, preserves exact icon/submenu/refusal assertions, and
+passes the actual pixel suite in light/dark. It changes tests only.
+
 Source of visual truth: `docs/syncview-design/SyncView.html`. Runtime authority and native-write
 truth come from the current source, gateway contract, and an immediate `prod_authority` readback;
 the static artifact cannot authorize a write. Current status values:
@@ -1083,6 +1092,18 @@ that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
     `test/prod-deep-link-linear-identifier.js` (resolver, executed) and
     `test/identifier-team-move-repair.js` (the repair's shape).
 
+
+### Uninstalled Linear-exit attribution candidate — 2026-09-09
+
+Native-epoch intake for clients retaining existing project mappings must remain
+editable without a Linear mirror. The candidate carries
+`native_intake_legacy_project` through the bounded projection and validates
+active roster/project/team ownership in the browser. Provider-era unresolved
+stamps do not gain a stored-slug fallback. P7 now requires editing the newly
+created card and reloading with Linear unavailable, on both teams and both
+mapping routes. Actual browser and database journeys remain owed; see the
+repair installation contract. No visible control layout changes are intended.
+
 ## A native card waiting on the Linear mirror says so (2026-09-09)
 
 An SMM filed a thumbnail from the content calendar, and the card refused every
@@ -1116,3 +1137,7 @@ OPEN_REPAIRS 187.
     it has always had. Pinned by
     `test/prod-attribution-sync-pending-copy.js`, which executes the shipped
     functions and asserts each of the six ways out of the syncing shape.
+
+## September 13 review follow-up: staged-schema reads
+
+The prepared Production page tolerates only the exact missing-column responses for clients.native_project_ids and the two planned raw attribution fields in production_deliverables_browser_v1. It retries the same safe projection without those additions, preserving absent native proof and existing write gates. Other errors remain visible. This is staged-schema compatibility, not a new visual design or hosted deployment; final review evidence is in docs/ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md.

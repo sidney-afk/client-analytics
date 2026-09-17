@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('assert/strict'),fs=require('fs'),path=require('path'),api=require('../scripts/test-suite-routing');
+const registry=api.load(),all=[...registry.unit,...registry.profiles.map(p=>p.file)];let checks=0;
+assert.equal(new Set(all).size,all.length);checks++;
+assert(registry.unit.includes('native-notifications-postgres.js'));assert(registry.unit.includes('editors-event-assignee-postgres.js'));assert(registry.unit.includes('f42-card-comment-apply.js'));checks++;
+for(const bad of [()=>api.validate(registry,[...all,'new-unclassified.js']),()=>api.validate({...registry,unit:[...registry.unit,registry.unit[0]]},all),()=>api.validate({...registry,profiles:registry.profiles.map((p,i)=>i? p:{...p,required_for_release:false})},all),()=>api.validate({...registry,unit:registry.unit.slice(1)},all)]){assert.throws(bad);checks++;}
+const plan=api.unitPlan();assert(plan.deferred.every(x=>x.status==='NOT_RUN_BY_UNIT_LANE'));assert(!plan.files.includes('linear-exit-provider-issue-observation.js'));assert(!plan.files.includes('linear-exit-atomic-writer-bound-bundle.js'));assert(plan.files.includes('linear-exit-provider-issue-observation-transport.mjs'));assert(!plan.files.includes('linear-exit-write-diagnostics-browser.js'));assert.equal(registry.profiles.find(p=>p.file==='linear-exit-write-diagnostics-browser.js').route,'isolated_browser');checks++;
+const profile=registry.profiles.find(p=>p.portable_lane==='retirement-switch'),env={PGHOST:'127.0.0.1',PGPORT:'5432',F63_REQUIRE_POSTGRES:'1'};api.assertCiEnvironment(profile,env);checks++;
+for(const change of [{PGHOST:'hosted.invalid'},{PGHOSTADDR:'192.0.2.1'},{PGSERVICE:'remote'},{PGOPTIONS:'-c search_path=bad'},{SUPABASE_SERVICE_ROLE_KEY:'synthetic'},{LINEAR_API_KEY:'synthetic'}]){assert.throws(()=>api.assertCiEnvironment(profile,{...env,...change}));checks++;}
+const yaml=fs.readFileSync(path.join(__dirname,'../.github/workflows/linear-exit-preparation-ci.yml'),'utf8');assert(!yaml.includes('secrets.')&&!yaml.includes('workflow_dispatch')&&!yaml.includes('pull_request_target'));assert(yaml.includes('contents: read')&&yaml.includes('persist-credentials: false'));assert(yaml.includes('postgres:17'));assert(yaml.includes("'scripts/**'")&&yaml.includes("'test/**'"));checks++;
+
+for(const file of ['linear-exit-preparation-ci.yml','track-b-recovery-rehearsal.yml'])api.assertJobEnvironmentContexts(fs.readFileSync(path.join(__dirname,'../.github/workflows',file),'utf8'));
+assert.throws(()=>api.assertJobEnvironmentContexts('jobs:\n  proof:\n    env:\n      TEMP: ${{ runner.temp }}/proof\n    steps: []'),/unavailable job.env context runner/);
+api.assertJobEnvironmentContexts('jobs:\n  proof:\n    env:\n      ROOT: ${{ github.event.repository.name }}\n    steps:\n      - env:\n          TEMP: ${{ runner.temp }}');checks++;
+
+// Exercise the real unit orchestrator with child execution replaced. This proves
+// dispatch coverage, not the behavior of the mocked child suites.
+const os=require('os'),cp=require('child_process'),temp=fs.mkdtempSync(path.join(os.tmpdir(),'routing-orchestrator-'));
+try{const preload=path.join(temp,'preload.cjs'),output=path.join(temp,'calls.json');fs.writeFileSync(preload,"const cp=require('child_process'),fs=require('fs'),p=require('path'),calls=[];cp.spawnSync=(exe,args)=>{calls.push(p.basename(args[0]));return {status:0}};process.on('exit',()=>fs.writeFileSync(process.env.ROUTING_CALLS,JSON.stringify(calls)));",{flag:'wx'});const r=cp.spawnSync(process.execPath,['--require',preload,path.join(__dirname,'run-all.js')],{encoding:'utf8',env:{...process.env,ROUTING_CALLS:output},windowsHide:true});assert.equal(r.status,0);assert.deepEqual(JSON.parse(fs.readFileSync(output)),registry.unit);assert.equal((r.stdout.match(/NOT_RUN_BY_UNIT_LANE/g)||[]).length,registry.profiles.length);assert(r.stdout.includes('required profiles NOT_RUN'));checks++;}finally{fs.rmSync(temp,{recursive:true,force:true});}
+console.log(JSON.stringify({marker:'TEST_SUITE_ROUTING_OK',checks,unit_count:registry.unit.length,required_not_run_by_unit:registry.profiles.length,coverage_implicit_skips:0}));

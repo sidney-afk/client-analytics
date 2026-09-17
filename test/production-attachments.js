@@ -1121,7 +1121,8 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
   const projectionLoader = extractFunction(ui, '_prodLoadDeliverableProjection');
   const descriptionLoader = extractFunction(ui, '_prodEnsureDescription');
   const refreshSource = extractFunction(ui, '_prodRefresh');
-  ok(/production_deliverables_browser_v1/.test(projectionLoader)
+  ok(/_prodBrowserProjectionRows/.test(projectionLoader)
+      && /production_deliverables_browser_v1/.test(extractFunction(ui, '_prodBrowserProjectionRows'))
       && /if \(!_prodBrowserProjectionMissing\(error\)\) throw error/.test(projectionLoader)
       && /PGRST205/.test(extractFunction(ui, '_prodBrowserProjectionMissing'))
       && /production_deliverables_browser_v1/.test(

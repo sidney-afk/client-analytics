@@ -1,0 +1,38 @@
+{
+  "marker": "LINEAR_EXIT_GLOBAL_FREEZE_UNPROVEN",
+  "batch_description_lock_coverage_proven": true,
+  "global_freeze_proven": false,
+  "activation_authorized": false,
+  "source_owner": "migrations/2026-09-01-batch-description-cas-timestamptz.sql",
+  "source_sha256": "e276e82b5c2fb7b8a65c62ec92294e8fa749f175f1c180e87916524b6a72dc36",
+  "inventory_sha256": "871eab0953b93af650ec963f6cb3a0831543cf0478ab7f8f809f2abc0267a175",
+  "scope": "ISOLATED_POSTGRES",
+  "blocked_write_left_row_and_events_unchanged": true,
+  "released_lock_control_committed": true,
+  "result": "PASS_BOUNDED_LOCK_COVERAGE",
+  "installation": "HOLD",
+  "receipt_directory": "linear-exit-retirement-freeze-3229b64ed0544984ac7dd56cb1167df4",
+  "unit_log_sha256": "100896cb402bb9a9fd80d927eae74a3568c45a1b2e2f90b68f9e4c91b10564ce",
+  "test_working_file_sha256": "dfa07a45ce02a8a752b98acca3afecafbe52602551deadcb3a48c24fced95c31",
+  "server_stopped": true,
+  "earlier_runs": [
+    {
+      "id": "878a39ae996a446190f1f6838a48c026",
+      "result": "FAIL_PROBE_JSON_PARSE"
+    },
+    {
+      "id": "df4385a6a59b4831b19a9e9bbc4509d7",
+      "result": "FAIL_PROBE_SQL_SYNTAX"
+    },
+    {
+      "id": "930a5627ae584700a1b6fa507906dade",
+      "result": "FAIL_COUNTEREXAMPLE_ASSUMPTION",
+      "finding": "Actual authority guard blocked the write; no crossing proven."
+    }
+  ],
+  "limits": [
+    "One batch-description RPC, not complete caller census or global freeze.",
+    "Source owner supplement is separate from the pinned 63-entry inventory.",
+    "No hosted writes, activation, deployment or merge."
+  ]
+}

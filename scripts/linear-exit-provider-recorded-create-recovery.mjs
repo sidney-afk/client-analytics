@@ -1,0 +1,5 @@
+// Preparation-only recorded batch/non-F203 recovery. No mutation transport.
+import {deterministicLinearCreateId} from '../supabase/functions/_shared/linear-create-id.mjs';
+import {CREATE_READ_QUERY} from './linear-exit-provider-create-observation.mjs';
+export async function recoverRecordedCreate(db,{epoch,attemptId,expectedOutbox}){const {data,error}=await db.rpc('production_provider_recorded_create_recover_v1',{p_epoch:epoch,p_attempt_id:attemptId,p_expected_outbox:expectedOutbox});if(error)throw error;return data;}
+export async function observeRecordedCreate(db,request,readGraphql){const variables={id:await deterministicLinearCreateId(request.expectedOutbox?.dedup_key)};const response=await readGraphql(CREATE_READ_QUERY,variables);const {data,error}=await db.rpc('production_provider_recorded_create_observe_v1',{p_epoch:request.epoch,p_attempt_id:request.attemptId,p_expected_outbox:request.expectedOutbox,p_expected_observation:request.expectedObservation??null,p_query:CREATE_READ_QUERY,p_variables:variables,p_response:response});if(error)throw error;return data;}

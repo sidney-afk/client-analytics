@@ -1,10 +1,10 @@
+const { seedStaffGate } = require('../staff-gate-seed.js');
 // p32 — caption-generation RACE tests (audit-flagged), via DELAYED interception so the job is
 // "running" while we act mid-flight.
 //   F. edit-during-generation → the user's typed caption is PRESERVED (not clobbered)   [audit#2]
 //   G. cancel-then-late-caption → does a late 'done' still land after cancel?            [audit#1]
 //   H. archive-mid-generation → the late caption must NOT resurrect the archived card    [audit#4]
 const Q = require('./lib.js');
-const { seedStaffGate } = require('../staff-gate-seed.js');
 const TS = Math.floor(Date.now() / 1000);
 const EDIT = 'p_cr_edit_' + TS, CANCEL = 'p_cr_cancel_' + TS, ARCH = 'p_cr_arch_' + TS;
 const FRAME = 'https://frame.io/test/' + TS;
@@ -15,7 +15,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   const S = Q.makeOk('P32 caption-races');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await seedStaffGate(ctx);
   const respFor = {};
   const cancelledJobs = new Set();   // jobIds the user requested cancel on (production-accurate: backend then returns cancelled)

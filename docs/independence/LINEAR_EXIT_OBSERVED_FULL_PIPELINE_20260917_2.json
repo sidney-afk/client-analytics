@@ -1,0 +1,294 @@
+{
+  "format": "linear-exit-observed-full-pipeline-proof-v1",
+  "classification": "ISOLATED_POSTGRES",
+  "date": "2026-09-17",
+  "status": "PASS",
+  "world": {
+    "profile": "settled68",
+    "starting_catalog_sha256": "ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c",
+    "starting_public_tables": 68,
+    "construction": "observed 2026-09-12 capture reconstructed (67 tables), then scripts/linear-exit-b9-catalog-derive.js applySettledWorld: storage supplement, opt-out prerequisite, hiring migration identical to frozen main 1abdd1fa",
+    "supersedes_world_of": "LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json (observed67), per journal D18 and D19"
+  },
+  "checkout_sha": "4a1b594d890e17e86c4aea2a2bb8a95bbe15310a",
+  "sources": 48,
+  "chunks": 55,
+  "public_tables": 91,
+  "exact_final_public_owner_bodies": 39,
+  "plan_sha256": "508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd",
+  "target_sha256": "24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187",
+  "target_bytes": 1613689,
+  "final_catalog_sha256": "331aabb2b51067b1b07d444e39e010c1c8ed18349f2f0ab3a0426cab0f5ff84d",
+  "calibration": {
+    "receipt": "172db2c0f98a4e34a3fd580885989ee8",
+    "status": "PASS",
+    "server_stopped": true,
+    "classification": "TARGET_CALIBRATION_ONLY"
+  },
+  "fresh_replay": {
+    "receipt": "92121e7da5da493c8799e8cce535c6ed",
+    "status": "PASS",
+    "server_stopped": true,
+    "classification": "FRESH_TARGET_REPLAY",
+    "comparison": "MATCHED_SOURCE_DERIVED_TARGET",
+    "finalization": "PREPARED_MAINTENANCE_FINALIZED",
+    "guards_removed": 91,
+    "retirement_contract_after_finalization": true
+  },
+  "interruption": {
+    "classification": "ISOLATED_POSTGRES",
+    "backend_terminated": true,
+    "backend_absent": true,
+    "before_final_owner_commit": true,
+    "interrupted_worker_exit": 86,
+    "exact_prefix": true,
+    "completed_chunks": 54,
+    "final_owner_effects_absent": true,
+    "maintenance_refused": true,
+    "current_catalog_matches_prefix": true,
+    "same_database_identity": true,
+    "fresh_same_identity_resume": true,
+    "final_completed_chunks": 55
+  },
+  "source_pins": [
+    {
+      "file": "test/linear-exit-observed-full-pipeline.js",
+      "sha256": "597fc02007e5f1f73cfe29d3bff8955477e71d0bd7b02e11db9745cad9d6ce82"
+    },
+    {
+      "file": "test/helpers/observed-full-pipeline-worker.mjs",
+      "sha256": "8e7a5beb40b0605f527963668f16ec34282d7b1eac0ec041b3af9c9a07c9716c"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-install-plan.js",
+      "sha256": "5b67fe972eb15af8293045f09e386f587285c3af074a37f30acc795b563d93c8"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-target.js",
+      "sha256": "52de43f1087505a3703cb0802b653dd8bec2d825d85d21d1874423a2ec9b9ba6"
+    },
+    {
+      "file": "scripts/linear-exit-observed-schema.js",
+      "sha256": "c5e6a4e4683c0debe274ac0ef7976d35ece0c40213ac2e4c098454d8078a785a"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "f6e7e24e4aef631e3e9a702ed53486dc9fa6cdcb27e45b2bf37675e3ee475821"
+    }
+  ],
+  "calibration_source_pins": [
+    {
+      "file": "test/linear-exit-observed-full-pipeline.js",
+      "sha256": "597fc02007e5f1f73cfe29d3bff8955477e71d0bd7b02e11db9745cad9d6ce82"
+    },
+    {
+      "file": "test/helpers/observed-full-pipeline-worker.mjs",
+      "sha256": "8e7a5beb40b0605f527963668f16ec34282d7b1eac0ec041b3af9c9a07c9716c"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-install-plan.js",
+      "sha256": "5b67fe972eb15af8293045f09e386f587285c3af074a37f30acc795b563d93c8"
+    },
+    {
+      "file": "scripts/linear-exit-observed-full-target.js",
+      "sha256": "52de43f1087505a3703cb0802b653dd8bec2d825d85d21d1874423a2ec9b9ba6"
+    },
+    {
+      "file": "scripts/linear-exit-observed-schema.js",
+      "sha256": "c5e6a4e4683c0debe274ac0ef7976d35ece0c40213ac2e4c098454d8078a785a"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal.js",
+      "sha256": "20bfc508a1bff9b8c5fe83d822175d0667e8f5477aa94c6c53317dfebb8e6a08"
+    },
+    {
+      "file": "scripts/linear-exit-install-journal-catalog.js",
+      "sha256": "802c730176ab7de554a0e38c99a2da1e7b21f6f07053d2ae44602f5ae88ad074"
+    },
+    {
+      "file": "scripts/linear-exit-install-bootstrap.js",
+      "sha256": "82337ce3ed9876a1927b30f094403596ceab723a951dc676567a3f013c976e60"
+    },
+    {
+      "file": "scripts/linear-exit-install-maintenance.js",
+      "sha256": "b72d6640acd990e238f450385ac22998759b59cb1f2b06f12069370371cb35cd"
+    },
+    {
+      "file": "scripts/linear-exit-install-finalize.js",
+      "sha256": "9cc307694bd0675d94b97977eee99ce835ff09c30a993a47de52f946366bad09"
+    },
+    {
+      "file": "scripts/linear-exit-control-companion.js",
+      "sha256": "e1317607ffe01eb49d007be1e0bba46d4c19259915715b033fb84012ddbe2931"
+    },
+    {
+      "file": "supabase/migrations/20260913035202_installation_maintenance_gate_preparation.sql",
+      "sha256": "933d94473aa6c751ae751ab44217d5c8524dfa71d8257e1f1aa63db365d0b33f"
+    },
+    {
+      "file": "supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql",
+      "sha256": "9ecca800529af9b153d83b488f3b05a5e7ac5e1a53fb93483f3d0d1f4cd6c406"
+    },
+    {
+      "file": "supabase/migrations/20260913034324_provider_send_admission_preparation.sql",
+      "sha256": "a9e2783a504581a6005340fa98f727e36997dd7b2a28cb5631850bc592227e87"
+    },
+    {
+      "file": "supabase/migrations/20260913043506_provider_checkpoint_recovery_preparation.sql",
+      "sha256": "b9193ac99bf6efa2f36667951247458f63fbe056488c81f005ddb9900483581c"
+    },
+    {
+      "file": "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
+      "sha256": "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
+    },
+    {
+      "file": "supabase/migrations/20260913044939_provider_ack_receipt_recovery_preparation.sql",
+      "sha256": "7371fa1e0e4e2d1a3123d77d3f4f59a61b4e1bdecf0136257e0e60e0dc781cf2"
+    },
+    {
+      "file": "supabase/migrations/20260913045704_provider_comment_recovery_preparation.sql",
+      "sha256": "7b89ab00540e9cdf2cd4d0ce7bc1ac033f7b6510f8cf2b72619ff8a5e275da99"
+    },
+    {
+      "file": "supabase/migrations/20260913051511_provider_create_recovery_preparation.sql",
+      "sha256": "196b6a2c92a5e9f20920960e52bc41471730b020a47ef7f703bebd6c7327446a"
+    },
+    {
+      "file": "supabase/migrations/20260913054339_provider_create_observation_recovery_preparation.sql",
+      "sha256": "f2c9a80e6bc4871c81f01e8659d587d23aa16dfc90ffa3ef388069ebc5066ee5"
+    },
+    {
+      "file": "supabase/migrations/20260913055621_provider_recorded_create_linkage_recovery_preparation.sql",
+      "sha256": "f9a5a1915c4adb96cc3c0ef90f8c4cfe769ce8b46ec989c9c1250a0bb532414e"
+    },
+    {
+      "file": "supabase/migrations/20260913062741_provider_terminal_history_preparation.sql",
+      "sha256": "e06124eb54b7920cab8b1a14d6c7ce8bcb08b4f14a8393c5552191095ea43ea0"
+    },
+    {
+      "file": "supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql",
+      "sha256": "439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942"
+    },
+    {
+      "file": "supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql",
+      "sha256": "b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b"
+    },
+    {
+      "file": "supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql",
+      "sha256": "5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2"
+    },
+    {
+      "file": "supabase/migrations/20260913062149_retirement_switch_preparation.sql",
+      "sha256": "f6e7e24e4aef631e3e9a702ed53486dc9fa6cdcb27e45b2bf37675e3ee475821"
+    }
+  ],
+  "retained_failures": [
+    {
+      "receipt": "2450417d253347579388a2447ace82a9",
+      "status": "FAIL",
+      "cause": "Lane at e4eb40b applied the hiring migration but not the opt-out prerequisite, building catalog 5864a28f instead of settled68; install-profiles.build refused. Fixed at 2e8ff92 by sharing applySettledWorld."
+    },
+    {
+      "receipt": "b2662bd92a51466389ddc6188881924a",
+      "status": "FAIL",
+      "cause": "applySettledWorld at 2e8ff92 referenced j outside its scope (ReferenceError) and threw before the opt-out prerequisite. Fixed at 7b0b98b."
+    }
+  ],
+  "limits": {
+    "activation_executed": false,
+    "installation_authorized": false,
+    "hosted_target_verified": false,
+    "external_worker_fence_proven": false,
+    "nontransactional_external_rollback_proven": false,
+    "current_hosted_baseline_rechecked": false,
+    "full_data_or_object_custody_proven_by_this_lane": false
+  },
+  "notes": [
+    "Settled 68-table world built from the private 2026-09-12 observed capture plus the reviewed settled construction; not a hosted installation.",
+    "Calibration and fresh replay ran on the same checkout with identical plan, starting catalog, target bytes and source pins.",
+    "Guard counts derive from postInstallPublicTables for the plan starting catalog: 91 installed, 91 at the interruption boundary, 91 removed at finalization.",
+    "LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json is unchanged and keeps its historical meaning for the observed67 world.",
+    "Second proof of 2026-09-17. It re-runs the same settled68 pipeline at 4a1b594d, where the reconstruction compare walks the union of both catalogs instead of the live side alone. LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json (7b0b98b) is unchanged and remains the proof for that checkout; the only source pin that differs between the two is scripts/linear-exit-observed-schema.js.",
+    "The reconstruction reported an exact captured catalog match under the union comparison: 67 tables, 115 routines, 14 identity sequences."
+  ]
+}

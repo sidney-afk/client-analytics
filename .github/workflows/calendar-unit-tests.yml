@@ -19,7 +19,9 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The expanded classified suite completed close to the ten-minute limit.
+    # Keep a bounded margin for runner variance without changing any assertions.
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -102,6 +104,26 @@ jobs:
           fi
           if [[ $code -ne 0 ]]; then
             echo "::warning::identity exposure check could not run (exit $code) — not a finding, and not a reason to block. The tree-mode baseline in PRE_FLIP_HEALTH_CHECK.md still covers this."
+          fi
+          exit 0
+
+      # `git diff --check` is the whitespace gate, and .gitattributes makes it
+      # blind to every `-text` pinned path -- 98 files on this branch, most of
+      # them the exit installer's own executable code. Reproduced 2026-09-16: a
+      # CRLF-to-LF flip on a pinned capture passed `git diff --check` with
+      # exit 0 and no output. This closes that hole using the same pin list.
+      - name: Did a byte-pinned file quietly change its line endings?
+        run: |
+          set +e
+          node scripts/byte-pinned-line-ending-check.js --diff="origin/${{ github.base_ref }}"
+          code=$?
+          set -e
+          if [[ $code -eq 1 ]]; then
+            echo "::error::A byte-pinned (.gitattributes -text) file changed its line-ending composition. If the capture was deliberately re-taken, re-run with --accept-recapture=<path> and say so in the PR."
+            exit 1
+          fi
+          if [[ $code -ne 0 ]]; then
+            echo "::warning::byte-pinned line-ending check could not run (exit $code) — not a finding."
           fi
           exit 0
 

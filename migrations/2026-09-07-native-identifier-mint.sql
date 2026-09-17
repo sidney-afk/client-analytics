@@ -5,12 +5,13 @@
 -- `deliverables.linear_identifier` is the human-readable name on a card
 -- (`VID-13553`, `GRA-7197`). It has three writers and all three are Linear:
 -- `supabase/functions/linear-inbound/index.ts:810` refreshes it, and
--- `supabase/functions/linear-outbound/index.ts:857` and `:868` MINT it for
+-- `supabase/functions/linear-outbound/index.ts:852` and `:868` MINT it for
 -- SyncView-native cards — production-write writes `identifier: null`, the row
 -- goes to `mirror_outbox`, the outbound worker creates the Linear issue and
 -- writes the minted name straight back.
 --
--- `index.html:51816` resolves `displayId: linear_identifier || identifier || id`,
+-- `index.html`, in `_prodAdapter()`, resolves
+-- `displayId: linear_identifier || identifier || id`,
 -- so a card created with no mint displays as its raw row id (`b1_d_188ba4ad…`)
 -- in the Production list, the command palette, the Workload loose-strip header
 -- and every deep link. Nothing errors. The estate simply stops producing names.
@@ -18,6 +19,13 @@
 -- The deadline is NOT 2026-09-15. It is the moment `linear_outbound_enabled` is
 -- set to `{"mode":"off"}`, which is earlier and under our own hand. Lane F's
 -- outbound-off step is gated on this landing.
+--
+-- (The `index.html` reference is by SYMBOL and the two Edge Function references
+-- are by LINE, on purpose. `index.html` is 65,000 lines and every browser PR
+-- moves it; this citation drifted three times in one day, twice inside the PR
+-- that corrected it. The Edge Functions are ~1,500 lines and change rarely, so
+-- there the precision is worth the upkeep. `test/mint-migration-line-citations.js`
+-- holds both against the source by content.)
 --
 -- ADDITIVE ONLY. Two new tables, four new functions, one new trigger, one new
 -- runtime flag row. No DROP, no RENAME, no type change, no change to any
@@ -199,7 +207,7 @@ $fn$;
 --
 -- UPDATE: a name that has been handed out MUST NOT CHANGE UNDER A READER. Once
 -- a row carries a name from `production_native_identifier_grants`, a later
--- write that would replace it — `linear-outbound:857/868` minting, or
+-- write that would replace it — `linear-outbound:852/868` minting, or
 -- `linear-inbound:810` refreshing — keeps the native name and records the
 -- provider one it refused. Note this branch is NOT flag-gated: allocation is a
 -- policy choice, but stability of an already-published name is not, so flipping

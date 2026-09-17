@@ -17,10 +17,11 @@
 // links, intake, onboarding, hiring, PTO administration. This seed is an admin
 // by default, so a suite using it sees all of them.
 //
-// What it cannot do is the part that protects real data: every outbound staff
-// call carries this stub key to the REAL backend, which rejects it, so no
-// harness can write anything, and no server-gated read returns. Seed a
-// narrower role than admin when a suite does not need one.
+// This helper does not isolate transport or prevent writes. Staff endpoints
+// that validate the stub key should refuse it, but the intentionally tokenless
+// Calendar/Samples writers do not provide that protection. Each isolated suite
+// must independently refuse or mock external mutations. Seed a narrower role
+// than admin when a suite does not need one.
 //
 // Probes that need verified state keep doing what they already did (seed their
 // own identity, then call _syncviewAcceptStaffVerification() in-page).

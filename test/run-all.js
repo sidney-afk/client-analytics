@@ -1,8 +1,9 @@
 'use strict';
 /*
- * Unit / wiring suite runner. Runs every top-level test/*.js (the fast,
+ * Unit / wiring suite runner. Runs the explicitly classified unit suites (the fast,
  * dependency-free checks that extract and exercise repository contracts) and
- * exits non-zero if any fails — so CI gets a clean signal. Most suites are
+ * exits non-zero if any fails — so CI gets a clean signal for this lane only. Required isolated and private-input
+ * profiles are reported NOT_RUN and are never counted as passing unit suites. Most suites are
  * fully offline; the F63 gate may use only an explicitly required disposable
  * PostgreSQL 16 service and never a live backend. Headless end-to-end probes
  * live in qa/probes/ and run separately (npm run test:e2e / nightly CI).
@@ -12,9 +13,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const dir = __dirname;
-const files = fs.readdirSync(dir)
-  .filter(f => f.endsWith('.js') && f !== 'run-all.js')
-  .sort();
+const plan = require('../scripts/test-suite-routing').unitPlan();
+const files = plan.files;
+for (const proof of plan.deferred) console.log(JSON.stringify({required_test:proof.file,status:proof.status,reason:proof.required_inputs,reproduce:proof.reproduce}));
 
 const failures = [];
 for (const f of files) {
@@ -38,6 +39,6 @@ if (failures.length) {
   console.error(`\n${failures.length} of ${files.length} unit suite(s) failed ❌`);
   console.error('failed suites: ' + failures.map(f => 'test/' + f).join(', '));
 } else {
-  console.log(`\nAll ${files.length} unit suites passed ✅`);
+  console.log(`\nAll ${files.length} classified unit suites passed; ${plan.deferred.length} required profiles NOT_RUN in this lane ✅`);
 }
 process.exit(failures.length ? 1 : 0);

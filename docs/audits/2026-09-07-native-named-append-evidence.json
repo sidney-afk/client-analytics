@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "classification": "ACTUAL_RESTORED_TARGET_SQL_WITH_PINNED_NAMING_POLICY",
+  "passed": 8,
+  "checks": [
+    "restored native-only predecessor rejects named append without changing work",
+    "main naming predecessor alone refuses native parent route",
+    "hybrid accepts paired named native append with terminal native receipts",
+    "exact retry keeps IDs titles receipt count and original identity; changed identity refuses",
+    "next named pair consumes the previous named ordinal and preserves team kinds",
+    "unnamed single-component append retains bare title and next ordinal",
+    "wrong ordinal wrong kind and empty name suffix are refused atomically",
+    "named missing component keeps the sibling name and native route on fill and retry"
+  ],
+  "provider_attempts": 0,
+  "policy_sha256": "1ecd7bbaab33ed5b44d7d1ce251e2ec065e92e3ab0cb39e8b7357fa74599e946",
+  "migration_sha256": "2b26c56fbbefa70e06e16aab4feb652aa2a83f81a4dd4ffade18f23f780e0c52",
+  "limits": [
+    "Separate subsequent schema/append proof; older authenticated v9 package does not include these accepted appends or final hybrid",
+    "Actual merged policy and SQL; gateway route fixture predates merged named-handler behavior",
+    "No live install provider call or object recovery"
+  ],
+  "atomic_composition": {
+    "status": "OFFLINE_PASS",
+    "groups": 7,
+    "contract": "native-intake-named-atomic-v1",
+    "native_sha256": "3c0cac06bcae41928f1c99d0359dea6562f1ec2f9b0546123f1548eac48746e4",
+    "hybrid_sha256": "2b26c56fbbefa70e06e16aab4feb652aa2a83f81a4dd4ffade18f23f780e0c52",
+    "composed_sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
+    "outer_transactions": 1,
+    "executed": false,
+    "first_install_execution": "UNPROVEN_existing_target_already_has_native_columns"
+  },
+  "failed_prior_attempt": "sql-YjOnFL: first named pair committed before cross-realm array assertion failure; preserved, authenticated restricted target reset before corrected run",
+  "private_receipt_basename": "sql-hhAMn2/REPORT.private.json"
+}

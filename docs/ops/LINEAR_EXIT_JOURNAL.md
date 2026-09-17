@@ -30,6 +30,58 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PR description refreshed to head `20c4d70c`, and a defect in MY OWN watcher recorded
+
+Two small things, both caught by a background task finishing rather than by
+anyone looking.
+
+#### 1. The description I wrote to fix staleness had itself gone stale
+
+I rewrote the PR body naming head `d4fc10de`. Two commits landed after that —
+`36f94cff` (storage session's unstubbed load proof) and my own `ea99b3cf` —
+and then `20c4d70c`. So the body I wrote **specifically because the owner will
+read it at the gate** was two commits out of date within the hour, by my own
+pushes.
+
+Refreshed to `20c4d70c`, and the block is now explicitly **"as of"** that SHA
+with a line telling the reader to trust the Checks tab over the body if the head
+has moved. A hard-coded head in a description on a branch still being worked is
+a stale fact waiting to happen; naming the commit it was true for is the only
+form that does not silently rot. CI on `20c4d70c`: **14 runs, 12 success, 2
+skipped, 0 failures**, all concluded — the same shape as `d4fc10de`.
+
+Also folded in the storage session's live edge check, because it settles the one
+caveat I had flagged as uncheckable from here: **11 PASS, 0 FAIL, 0 ERROR**
+against the live deployed bodies at frozen `main`, so the merge's redeploy
+overwrites no hot-fix. My pre-gate entry said "neither is checkable from here";
+the correct version is "not checkable from here, and the storage session checked
+it".
+
+#### 2. My proof-file watcher could never have fired
+
+The background poll I set to wait for the new dated proof file ran its full ~90
+minutes and reported **"no new proof file"** — while
+`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917_2.json` had been sitting in the
+tree the whole time. The filter was:
+
+```
+grep -E "OBSERVED_FULL_PIPELINE_[0-9]{8}\.json" | grep -v "20260913\|20260917"
+```
+
+`20260917_2` **contains** the substring `20260917`, so the exclusion removed the
+very file being waited for. Nothing was lost — the owner told me directly — but
+the watcher was structurally incapable of succeeding, and it reported a
+confident negative rather than an error.
+
+**Same class, third time today.** The probe regex
+`FULL_PIPELINE_(\d{8})\.json` failed to match `20260917_2` and crashed the
+SOURCE_PIN proof until I widened it; the enforcement sweep credited a gate on
+the strength of a path appearing in a *comment*. All three are **substring or
+shape matching standing in for identity**, and all three failed silently in the
+permissive direction: a false negative on the watcher, a false positive on the
+sweep. A filter that cannot distinguish `X` from `X_2` is not a filter, and one
+that reports "nothing found" is indistinguishable from one that found nothing.
+
 ### 2026-09-17 — PRE-MERGE EDGE CHECK: all ELEVEN auto-deployed functions match `main` at `1abdd1fa`. 11 PASS, 0 FAIL, 0 ERROR. No hot-fix exists for the merge to overwrite. Read-only
 
 Storage session, on the owner's machine, at branch head `ea99b3cf`. The question

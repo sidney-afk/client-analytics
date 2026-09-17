@@ -3,11 +3,19 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const ROOT=path.resolve(__dirname,'..');
 const BUILDER='scripts/linear-exit-observed-full-install-plan.js';
-const BUILDER_SHA256='1312cdf339c1f71db0cead3619975b2eb9e199192a5dc800de5dd79c04406b63';
+const BUILDER_SHA256='5b67fe972eb15af8293045f09e386f587285c3af074a37f30acc795b563d93c8';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
+/* ONE function both enforces the builder pin and re-derives it, so the value
+ * above can only ever be produced by the same code path that checks it.
+ * `BUILDER_SHA256` had been stale since 03d18fb3 and moved again at B10, and
+ * nothing running noticed: the only gate is the throw below, inside a
+ * function only a DEFERRED suite calls. Re-pin with
+ *   node -e "console.log(require('./scripts/linear-exit-atomic-writer-bound-bundle').builderSha256())"
+ * and never by pasting a shell digest. */
+function builderSha256(){return sha(fs.readFileSync(path.join(ROOT,BUILDER)));}
 function bindInstallationPlan({observedCatalogBytes,observedCatalogSha256}){
  if(!Buffer.isBuffer(observedCatalogBytes)||observedCatalogBytes.length>67108864||typeof observedCatalogSha256!=='string'||sha(observedCatalogBytes)!==observedCatalogSha256)throw Error('WRITER_BINDING_CATALOG_BYTES');
- if(sha(fs.readFileSync(path.join(ROOT,BUILDER)))!==BUILDER_SHA256)throw Error('WRITER_BINDING_BUILDER_DRIFT');
+ if(builderSha256()!==BUILDER_SHA256)throw Error('WRITER_BINDING_BUILDER_DRIFT');
  const api=require('./linear-exit-observed-full-install-plan');
  // The existing builder verifies every baseline/extension/additional owner and
  // requires the exact reviewed observed catalog before producing the plan.
@@ -26,4 +34,4 @@ function buildBoundBundle(outputDirectory,options){
  return {manifest,binding,binding_sha256:sha(bytes)};
 }
 if(require.main===module){if(process.argv.length!==5)throw Error('Usage: node scripts/linear-exit-atomic-writer-bound-bundle.js ABSOLUTE_NEW_DIRECTORY OBSERVED_CATALOG_JSON SHA256');const result=buildBoundBundle(process.argv[2],{observedCatalogBytes:fs.readFileSync(process.argv[3]),observedCatalogSha256:process.argv[4]});console.log(JSON.stringify({format:result.binding.format,binding_sha256:result.binding_sha256,plan_sha256:result.binding.plan_sha256,source_count:result.binding.sources.length,deployment_authorized:false}));}
-module.exports={bindInstallationPlan,buildBoundBundle};
+module.exports={bindInstallationPlan,buildBoundBundle,builderSha256,BUILDER};

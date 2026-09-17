@@ -414,6 +414,60 @@ the dual-role proof file.
 
 ---
 
+## 7d. Amendment 2026-09-17: a pin over ANOTHER FILE's bytes that no running gate enforces
+
+Found by the D22 authoritative run, and it is the sixth member of the
+undeclared-coupling family.
+
+`scripts/linear-exit-atomic-writer-bound-bundle.js:6`
+
+```js
+const BUILDER='scripts/linear-exit-observed-full-install-plan.js';
+const BUILDER_SHA256='1312cdf3…';   // the bytes of a DIFFERENT file
+```
+
+**Classification: a byte pin over another file, with no running gate enforcing
+it.** The only thing that checks it is a `throw` inside `bindInstallationPlan`,
+and the only caller is `test/linear-exit-atomic-writer-bound-bundle.js` — a
+**deferred** suite. So the pin can go stale for as long as nobody runs the
+deferred lane, which is exactly what happened.
+
+Measured history of the pinned file:
+
+| commit | sha256 of the builder | pin matches |
+|---|---|---|
+| `87283f92` | `1312cdf339c1f71d…` | yes |
+| `03d18fb3` | `7222dfb69025e9ab…` | **no** |
+| `d3cbca7f` (pre-B10 baseline) | `7222dfb69025e9ab…` | **no** |
+| `89405832` (B10) | `5b67fe972eb15af8…` | **no** |
+| head | `5b67fe972eb15af8…` | **no** |
+
+So it went stale at `03d18fb3`, **before** B10, and B10 moved the file again.
+Two moves, no update either time.
+
+**The damage was not the stale pin itself — it was what the stale pin hid.** The
+suite's line 5 asserts that binding an invalid catalog refuses *about the
+catalog*. The drift throw fires first, so for two commits that assertion was
+testing the drift gate instead of the thing it names, and the suite's failure
+read as a broken catalog check. This is the D27 shape — a gate standing in front
+of the gate under test — arriving through a pin rather than a stub.
+
+Fixed by giving the enforcement and the re-derivation **one function**, so the
+pinned value can only ever be produced by the code path that checks it:
+
+```js
+function builderSha256(){return sha(fs.readFileSync(path.join(ROOT,BUILDER)));}
+…
+if(builderSha256()!==BUILDER_SHA256)throw Error('WRITER_BINDING_BUILDER_DRIFT');
+```
+
+The value was then re-derived by calling that exported function and written in
+by script — never a pasted shell digest.
+
+**What is still not fixed, and belongs to §7c's class:** nothing running enforces
+this pin. It is enforced only when a deferred suite runs. The general sweep of
+every such pin is the task after this one.
+
 ## 8. Amendment: three owner decisions landed while this was being written
 
 Recorded because two of them change what a reader should DO with sections above,

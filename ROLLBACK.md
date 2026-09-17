@@ -200,6 +200,48 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 | Workload automatic placement — earliest-fit (**browser only, no deploy**) | Cards without a manual `plan_date` are placed on the EARLIEST working day with room: `wlComputeAutoPlacements` starts at the first working day from today and walks forward, stopping at the ideal day (one working day before the deadline, floored to today), so nothing is ever planned late. Pins stay absolute and reserve first; per-editor/per-team capacity (4 video, 15 graphics) and weights are unchanged; a saturated window still lands on the ideal day with the visible over-capacity badge. Replaced the 2026-08-10 late-as-possible walk on owner ruling 2026-09-14. A bounded last-resort reshuffle runs only when an item would otherwise land over capacity: same editor, inside that item's own window, pins never moved, nothing pushed past its own deadline, one level deep, candidates tried as bounded SETS smallest-first, failed days rolled back. Separately, each item soft-anchors to the day it held in the previous pass, so a newcomer cannot rearrange a settled board just by sorting ahead of it; the anchor is in-memory only, dropped as soon as it stops fitting, and purged with the pins. | **Revert the merge commit and push** — the whole surface is `index.html`, served statically by Pages, so the previous rule is live again on the next deploy. Nothing is persisted either way: placement is re-derived from (issues, pins, weights, today) on every snapshot and `workload_plan` still stores manual pins only, so no data has to be repaired. No migration, no flag, no Edge Function. | 2026-09-14, unit 27/27 capacity-placement + plan-source + linear-browser |
 | TikTok Upload photo carousel mode | TikTok Upload gained a Photo carousel mode alongside the existing Video mode: 1-35 images, minted and PUT to Post For Me storage individually, then one `tiktok-upload-direct` call carrying `mediaUrls` (a JSON array) instead of the legacy singular `mediaUrl`. The n8n workflow `tiktok-upload-direct` (`qGJ7mUjml98DSiGo`) now branches on which field is present; a request that sends only `mediaUrl` (every existing caller — the in-band `tiktok-upload` video workflow is untouched and never sends either field to this workflow) builds the exact same single-item Post For Me `media[]` array and configuration object as before this feature, proven by full-object comparison in `test/tiktok-carousel-transport.js`. Nothing but this feature's own new browser code ever sends `mediaUrls`. | **No new kill switch — a Pages-only revert is already a complete one-step kill for new carousel submissions**, matching this table's own precedent for comparable additive, non-cutover changes (e.g. "Staff UI theme", "Canonical comment surface link validity" above): revert the carousel-enabling `index.html` commit through the normal reviewed path and require the resulting Pages deployment. `mediaUrls` has no other caller anywhere in this codebase, so once the reverted frontend is live, nothing constructs or sends it again — the additive n8n branch is simply never reached and is harmless to leave in place. The one caveat this table's rule 1 already names for every browser-only rollback applies equally here: a stale tab that already has the un-reverted page loaded can keep submitting carousels until it reloads. Given this is an internal tool for a small staff roster (not a client-facing or payments/PII surface), and a bad post is recoverable by hand in TikTok/Post For Me afterward, that residual window was judged disproportionate to guard with a dedicated `syncview_runtime_flags` row and a matching n8n conditional read — which would itself be new, untested surface on a live workflow — rather than the existing, already-adequate revert path. Legacy single-video uploads (both the ≤100MB in-band and >100MB direct lanes) are unaffected either way; there is nothing to roll back in them. | 2026-09-08, `test/tiktok-carousel-transport.js` full suite passing (static source + n8n Code node checks); `docs/syncview-design/tests/tiktok-carousel-browser-journey.js` full suite passing, now 5 scenarios (real headless-browser runs of `_tkSubmitPhotoCarousel`/`_tkFinishPhotoSubmit` against a fully mocked network — mint/PUT ordering, the exact `mediaUrls` FormData emitted, mid-upload cancellation, a storage-PUT-failure path, a 200-response-with-`ok:false` logical failure leaving the draft intact, and keyboard focus surviving photo reorder/remove), wired into CI via `.github/workflows/tiktok-carousel-browser-journey.yml` (not an npm script — `package.json` is fingerprinted by `test/leave-evidence-fingerprint-coupling.js` for an unrelated feature) so a future regression here cannot merge silently; live `tiktok-upload-direct` re-verified via `test_workflow` against both request shapes after every edit |
 
+## 2026-09-17 — inverse for the notification ACL revokes (REHEARSED, NOT APPLIED)
+
+`migrations/2026-09-17-notification-service-role-revokes.sql` removes ten privileges so the
+Linear-exit deploy preflight stops refusing step 19. It is revokes only, so its inverse is
+grants only, and it is written out here rather than left to be reconstructed under pressure.
+
+**When you would run this.** Only if applying the revokes exposes a caller nobody found — a
+`permission denied` from the gateway or a worker on one of the seven routines, the notification
+config table, or the two notification sequences — while the release is still stopped. It restores
+the pre-migration posture exactly; it does not re-open the deploy, because the preflight will
+refuse the same ten keys again, by design.
+
+```sql
+begin;
+grant execute on function public.production_assignment_epoch(text) to service_role;
+grant execute on function public.production_notification_intent_guard() to service_role;
+grant execute on function public.production_notification_plain_text(text,integer) to service_role;
+grant execute on function public.production_notification_actor_valid(uuid,text,text) to service_role;
+grant execute on function public.production_notification_status_intent_after() to service_role;
+grant execute on function public.production_notification_comment_intent_after() to service_role;
+grant execute on function public.production_notification_client_comment_event_after() to service_role;
+grant truncate, references, trigger on table public.production_notification_config to service_role;
+grant update on sequence public.production_notification_delivery_receipts_id_seq,
+                          public.production_notification_reconciliations_id_seq to service_role;
+grant usage on sequence public.production_notification_delivery_receipts_id_seq,
+                         public.production_notification_reconciliations_id_seq to anon;
+grant usage, select, update on sequence public.production_notification_delivery_receipts_id_seq,
+                                        public.production_notification_reconciliations_id_seq to authenticated;
+commit;
+```
+
+**Rehearsed 2026-09-17, on an isolated PostgreSQL 17 built by the source-phases lane**, against
+the live privilege posture: the migration takes the preflight's unsatisfied keys from ten to
+zero; this inverse brings back **exactly those ten, no more and no fewer**; re-applying the
+migration returns to zero. A documented rollback nobody has run is the same class of claim as an
+unrun gate (D34) — if the inverse is incomplete, the operator finds out mid-incident.
+
+**Note on the asymmetry.** The revoke names `public, anon, authenticated` on the sequences while
+this inverse grants `usage` to `anon` and `usage, select, update` to `authenticated`. That is
+deliberate: the inverse restores what was measured to be held, not what the revoke was permitted
+to remove. Restoring more than was there would be a new grant wearing a rollback's clothes.
+
 ## 3. Emergency full rollback (worst case, any time during Track A)
 
 1. Flip the affected server-side authority/kill flag to its documented safe stance first. Then

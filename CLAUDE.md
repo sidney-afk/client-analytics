@@ -147,3 +147,16 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 - A refused write leaves no server-side trace — only a 50-row `localStorage` ring
   in the browser it happened in (OPEN_REPAIRS 101). This is why client-reported
   bugs are hard to diagnose here, and it is the highest-value thing left to build.
+- **A gate that has never run against its real target is untested.** The
+  Linear-exit deploy preflight first executed live on 2026-09-17, inside a
+  dispatch, and refused **10 of 156 keys** — so the release stopped at the
+  gate instead of at a plan. Run a lane's read-only preflight from the owner's
+  machine BEFORE dispatching, never for the first time inside the dispatch.
+- **Supabase grants `service_role`, `anon` and `authenticated` full rights on
+  every new object by default**, so a `revoke` must name every role it means.
+  A list that omits a role has not revoked from that role, and "we revoked it"
+  is not the same claim as "that role cannot do it". Two migrations revoked
+  `from public, anon, authenticated` and left `service_role` holding EXECUTE
+  and sequence UPDATE; a first repair named only `anon` on the sequences and
+  left `authenticated` holding USAGE, SELECT and UPDATE. Name all four, or
+  measure the ones you left out.

@@ -30,6 +30,730 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 GATE PASSES: the urgent destination row inserted, 0 rows → 1, and the deploy preflight returns `PASS`, 156 objects, `read_only: true`. CORRECTION to my previous entry: the ten privilege keys WERE evaluated and passed
+
+Storage session, on the owner's machine, over the direct database connection.
+Live production write: exactly one row inserted into
+`public.production_notification_config`.
+
+#### CORRECTION, to the entry immediately below this one
+
+I wrote that `validateRows` throws on absent rows **before** evaluating privilege
+compatibility, and therefore that the run "did not evaluate the ten, and does not
+confirm that the revokes closed them". **That is wrong**, and the owner's
+correction is right. Read from `scripts/linear-exit-deploy-preflight.js` at
+`7e97b140` rather than from the claim:
+
+```
+const metadata = await read(contractQuery('metadata'));
+validateRows(metadata, keys.filter(key => !key.startsWith('config:')));
+const configuration = await read(contractQuery('configuration'));
+validateRows(configuration, keys.filter(key => key.startsWith('config:')));
+```
+
+Two separate reads, and the metadata set — the routines, triggers, columns,
+schemas and the ten privilege keys — is validated **before** the configuration
+read happens at all. The previous run reached
+`CONTRACT_ABSENT:config:urgent_video_destination`, which is thrown by the
+**second** `validateRows`. So the metadata validation had already passed:
+**the revokes did close the ten keys**, and my run proved it while I said it
+had not. I read the error and inferred the order instead of reading the order.
+
+#### The insert
+
+| Item | Value |
+|---|---|
+| Table | `public.production_notification_config` |
+| Key | `urgent_video_destination` |
+| Value | a JSON object with exactly one member, `channel_id`, whose value is **the legacy urgent n8n workflow's destination channel**, confirmed by the owner as the channel that workflow posts to today |
+| Rows before → after | **0 → 1** |
+| Evidence | `step19-config-20260917-1/` (`config-before`, `config-after`, `insert-result`, and the value file) |
+
+**The channel id itself is deliberately not in this journal.** It lives only in
+the private evidence directory. What is recorded publicly is its shape, which is
+what the gate checks: an object, exactly one key, `channel_id` matching
+`^[CG][A-Z0-9]{8,}$`.
+
+Tool: `insert-notification-config.private.cjs`, SHA-256
+`8064c6addde8a56ac63260f4bcd731ba3e726c0cc23556db422db6a5d3634b87`. It reads the
+value from a private file rather than a command line, refuses unless the table
+has **0** rows, does the insert inside its own transaction, reads the stored row
+back **before committing** and refuses on anything but an object with one key
+whose `channel_id` equals the input. Password in memory from the 5.1 helper,
+never written. Identity and TLS asserted first.
+
+#### A defect of mine, and the database caught it
+
+The first insert attempt was **refused by the table**:
+
+```
+new row for relation "production_notification_config" violates check constraint
+"production_notification_config_value_check"
+```
+
+The constraint is `CHECK (jsonb_typeof(value) = 'object')`, read live from
+`pg_constraint`, and it was right to refuse. **The fault was in my tool, not in
+the migration, the table or the value.** I passed the JSON *text* as a bound
+parameter with `$2::jsonb`; `postgres.js` serialised that JS string as a JSON
+**string**, so the cast produced a string, not an object. Probed read-only
+afterwards to confirm rather than assume:
+
+```
+string binding    -> jsonb_typeof = string   (length 41, the quoted text)
+object param      -> jsonb_typeof = object
+json_build_object -> jsonb_typeof = object, has_key = true
+```
+
+The tool now builds the value **in SQL**, `json_build_object($2::text,$3::text)::jsonb`,
+so the shape cannot be double-encoded and the channel id stays a bound parameter.
+**Nothing was written by the refused attempt**: it was inside a transaction that
+rolled back, and the measurement taken straight afterwards showed 0 rows. That
+file is kept as `config-after-refused-binding.private.json`, named so it cannot
+be mistaken for the real after-state.
+
+#### The gate
+
+From the detached worktree at `7e97b140`, with the machine's own credentials and
+`PROJECT_REF` supplied in memory; neither printed nor written.
+
+```json
+{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":156,"read_only":true}
+```
+
+| Field | Value |
+|---|---|
+| `status` | **PASS** |
+| `checked_objects` | **156** |
+| `read_only` | **true** |
+| Exit code | 0 |
+
+Step 19's read-only contract gate is satisfied: the privilege repair applied
+earlier and this configuration row together close everything it refused on.
+
+#### Not done
+
+- **No deploy was dispatched.** The gate passing is not the release; the
+  13-function lane is still a manual dispatch and was not run.
+- Nothing else was written to the database: one row, one key, one value.
+- No second row is possible without noticing: the tool refuses unless the table
+  is empty.
+
+### 2026-09-17 — STEP 19 REPAIR APPLIED LIVE: the PR #1408 revokes ran on the hosted database, delta exactly the 24 expected rows and nothing else. The deploy preflight still does NOT pass: it refuses earlier, on `CONTRACT_ABSENT:config:urgent_video_destination`, so the ten privilege keys were never evaluated. STOPPED there
+
+Storage session, on the owner's machine, over the direct database connection.
+This is a **live production change**, owner-instructed, applied at
+2026-09-17T21:18:02Z and taking 118 ms.
+
+#### 1. The pin, by the §5 procedure, in the prescribed order
+
+| Reading | Value |
+|---|---|
+| Committed blob at `9b3ecb21` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+| Committed blob at `7e97b140` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+| Fresh from disk, new detached worktree at `7e97b140` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, 4,063 bytes |
+| Quoted in chat | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+
+The two committed readings were compared with each other first, then against the
+file, then against the quoted value. All four agree. `9b3ecb21` is an ancestor of
+`7e97b140`. The file carries `text eol=lf`, so the checkout cannot have changed
+its bytes.
+
+**What was not compared:** only this file. The rest of `7e97b140`'s diff was not
+reviewed, and `ROLLBACK.md` was read for its existence as the rehearsed inverse,
+not executed.
+
+#### 2. No backup before the apply — recorded as the supervisor's decision
+
+The instruction states it and the reason: the migration changes privilege
+metadata only, and its inverse is rehearsed in `ROLLBACK.md` at that commit. I
+read the file in full before sending it and confirm the shape: **REVOKE only**,
+no DDL, no DML, no GRANT, inside its own `begin`/`commit`. Recording the decision
+as the supervisor's, not as a measurement of mine.
+
+#### 3. Measurement before, all four roles and every other grantee
+
+Evidence: `step19-revokes-20260917-2/privileges-before.private.json`, taken
+read-only. Tool: `apply-notification-revokes.private.cjs` (SHA-256
+`55b00e14e6ce98a3648d4a78b8f1caefd4a67a1dc05637ad178b8daf67e02fcb`), config built
+in memory, password read from the 5.1 helper and never written, identity and TLS
+asserted before anything else.
+
+The query explodes `coalesce(acl, acldefault(...))` on the ten objects and
+captures **every** grantee, not only the four named roles, so "nothing else
+changed" is checkable rather than assumed.
+
+**Before: 54 rows** — postgres 21, service_role 21, anon 6, authenticated 6, and
+**no PUBLIC grants at all** on these ten objects.
+
+#### 4. Expectations, written before the apply
+
+`step19-revokes-20260917-2/expected-delta.private.md`, SHA-256 `ebef051e…`:
+24 rows removed, 0 added, 30 remaining (postgres 21, service_role 9).
+
+Recorded there and worth keeping: **the migration's own comment understates what
+`anon` held.** It says "anon holds USAGE, and authenticated holds USAGE, SELECT
+and UPDATE". Live, `anon` held USAGE, SELECT **and** UPDATE on both sequences.
+The revoke lists all three for both roles, so the statement covers it; the
+comment does not describe what was there.
+
+#### 5. The apply
+
+The file was sent **exactly as committed, unedited**, its SHA-256 re-verified in
+the same process immediately before sending. It carries its own transaction.
+
+```
+started  2026-09-17T21:18:02.598Z
+finished 2026-09-17T21:18:02.716Z
+bytes    4063   sha256 e50d8b2a…
+```
+
+#### 6. Delta: exactly the gaps closed, nothing else
+
+**After: 30 rows** — postgres 21, service_role 9, anon 0, authenticated 0.
+**24 removed, 0 added**, matching the written expectation row for row:
+
+| Removed | Count |
+|---|---|
+| EXECUTE from `service_role` on the seven functions | 7 |
+| TRUNCATE, REFERENCES, TRIGGER from `service_role` on `production_notification_config` | 3 |
+| UPDATE from `service_role` on the two sequences | 2 |
+| USAGE, SELECT, UPDATE from `anon` on the two sequences | 6 |
+| USAGE, SELECT, UPDATE from `authenticated` on the two sequences | 6 |
+
+Retained, as the migration intends: `service_role` keeps SELECT, INSERT, UPDATE,
+DELETE and MAINTAIN on the config table and USAGE, SELECT on both sequences;
+every `postgres` row is untouched. No grantee outside the four appears in the
+delta, and nothing was added.
+
+#### 7. The preflight does NOT pass, and it is not the privileges
+
+From the detached worktree at `7e97b140`, `node scripts/linear-exit-deploy-preflight.js`.
+The Management API token came from the machine environment and `PROJECT_REF` was
+supplied in memory from the private wrapper; neither was printed or written.
+
+```
+linear-exit-deploy-preflight: CONTRACT_ABSENT:config:urgent_video_destination
+```
+
+- **Status: not PASS.** No receipt was produced, so there is no `status`,
+  `checked_objects` or `read_only` to report; the gate throws before building one.
+- **The mismatched key: `config:urgent_video_destination`**, one key, reported
+  absent rather than incompatible. The gate expects a row with that key in
+  `public.production_notification_config`; `present` came back false.
+- **This is a different refusal from the one PR #1408 addresses.** The ten keys
+  in the migration's header are a relation, seven routines and two sequences.
+  This one is a **configuration row**, and `validateRows` throws on absent rows
+  **before** it evaluates privilege compatibility — so **this run did not
+  evaluate the ten, and therefore does not confirm that the revokes closed
+  them.** That confirmation needs a run that gets past the absent check.
+- **The apply did not cause it.** The file contains no DML of any kind; it
+  cannot have removed a configuration row. The delta above is privilege metadata
+  only.
+
+**Stopped here, as instructed.** Nothing was inserted, no configuration was
+written, the gate was not loosened, and no deploy was dispatched.
+
+#### Not done
+
+- No Edge Function was released; step 19's lane was not dispatched.
+- `ROLLBACK.md`'s inverse was not run: the apply did what it was meant to.
+- The empty directory `step19-revokes-20260917-1` was created by a first attempt
+  that refused on a SQL cast error before connecting; it was removed, and the
+  evidence directory in use is `-2`.
+
+### 2026-09-17 — Codex's two P1 findings on #1408 were both right, and verifying the first one found the FOURTH instance of the one-directional comparison class — in the guard that is supposed to enforce it
+
+Both findings verified before anything was pushed, neither taken on the badge.
+
+#### Finding 1 — register the migration in `REPO_MAP.md`. CORRECT, and its own citation is half wrong
+
+`AGENTS.md:99-100` says, and I read it rather than trusting the quote:
+
+> Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
+> update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
+
+The rule applies: the change adds a file and the map did not name it. Fixed, with
+a bullet in the trailing list's own style. `repo-map-sync` now reports
+**688 passed, 0 failed**, up from 687.
+
+**But the parenthetical is wrong, and that is the more interesting half.** I ran
+`test/repo-map-sync.js` against the unregistered tree first, expecting a red
+test to reproduce. It passed: **687 passed, 0 failed.** Every assertion it makes
+has the shape
+
+```
+OK  REPO_MAP.md path `…` exists
+```
+
+It walks the MAP and checks each path exists in the tree. It never walks the
+tree and checks each path is in the map. **So it cannot detect a file added
+without a map entry — the exact violation AGENTS.md cites it as enforcing.**
+
+That is the **fourth instance today** of a comparison driven by one side's key
+set:
+
+| site | walks | blind to |
+|---|---|---|
+| `linear-exit-observed-routines.js` `applyAndCompare` | the contract's functions | functions the world gained |
+| `linear-exit-observed-schema.js` `compare` | the capture's sections | sections the reconstruction gained |
+| my own repair proof, this morning | the supervisor's measured roles | the role the measurement omitted |
+| **`test/repo-map-sync.js`** | **the map's paths** | **files the tree gained** |
+
+And this one is the worst of the four in one respect: it is the guard a house
+rule points at, so the rule reads as enforced when it is enforced in one
+direction only. A reviewer citing `AGENTS.md:99-100` is entitled to believe CI
+would have caught it. CI would not. **Recorded, NOT fixed** — the fix is a
+tree-walk with an ignore list, that is a change to a CI guard on a release
+branch, and it is not in this PR's scope. It belongs with D32's "enforced or
+removed" sweep.
+
+#### Finding 2 — a rehearsed inverse for the ACL revokes. CORRECT, and now rehearsed
+
+The migration removes privileges and shipped with no documented way back.
+`ROLLBACK.md` already carries a "Kill switch / rollback" column for every live
+surface, so the convention existed and this change had not met it.
+
+Added to `ROLLBACK.md` as a dated section: the grants-only inverse in full, when
+an operator would run it, and what it does not do — it restores the pre-migration
+posture and deliberately does **not** re-open the deploy, because the preflight
+will refuse the same ten keys again by design.
+
+**Rehearsed, not just written**, on an isolated PostgreSQL 17 built by the
+source-phases lane at the live privilege posture:
+
+```
+AFTER the migration                          keys NOT satisfied : 1   (local-only config row)
+AFTER the inverse                            keys NOT satisfied : 11  (the ten are back)
+  the inverse restores EXACTLY what the migration removed: YES
+AFTER re-applying the migration              keys NOT satisfied : 1   (round trip clean)
+```
+
+A documented rollback nobody has run is D34's class exactly — an unrun claim with
+a runbook heading. If the inverse had been incomplete, the operator would have
+found out mid-incident.
+
+One asymmetry, deliberate and stated in the file: the revoke names
+`public, anon, authenticated` on the sequences, while the inverse grants `usage`
+to `anon` and `usage, select, update` to `authenticated`. **The inverse restores
+what was measured to be held, not what the revoke was permitted to remove.**
+Restoring more than was there would be a new grant wearing a rollback's clothes.
+
+#### What the findings did not touch
+
+The migration file itself is unchanged by this round: still
+`e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, still
+revokes only. Neither finding asked for a fourth statement and I did not add one.
+Not merged; step 20 still not started.
+
+### 2026-09-17 — THE REPAIR WAS ITSELF INCOMPLETE: the supervisor's live measurement omitted `authenticated`, my proof inherited the omission and agreed with a migration that left 2 of 10 keys red. Amended, and the 2-red state is now measured rather than asserted
+
+#### What went wrong, and it is not the supervisor's alone
+
+The supervisor measured the live posture and reported: service_role holds
+EXECUTE on the seven, TRUNCATE/REFERENCES/TRIGGER on the config table, UPDATE on
+both sequences; **anon** holds USAGE on both sequences. I built the local
+reproduction from exactly that list, wrote a migration that closes exactly those
+gaps, and proved ten-to-zero against it.
+
+**The list did not cover `authenticated` on the sequences.** The second
+measurement found authenticated holding **USAGE, SELECT and UPDATE** on both.
+The gate checks authenticated as well as anon, so the migration as first written
+would have left **2 of the 10 keys red** and step 19 would have refused a second
+time.
+
+The propagation is the part worth keeping. My proof did not fail to catch this —
+**it could not**, by construction:
+
+1. the supervisor measured live and produced a list;
+2. I built the local world *from that list*;
+3. I wrote the migration to close *that list*;
+4. I proved the migration closes *that list*.
+
+Steps 2 and 3 share their only input, so step 4 can only ever agree. **A proof
+whose expected state is derived from the same measurement as the fix under test
+cannot detect an incomplete measurement.** I wrote in the previous entry that
+zero-after was "partly true by construction" and treated that as a caveat about
+rigour. It was not a caveat; it was the failure mode, and it had already
+happened by the time I wrote the sentence.
+
+What would have caught it: enumerating the roles the *gate* checks, and
+measuring every one of them, rather than reproducing the roles the measurement
+happened to mention. The gate's own predicates name `service_role`, `anon` and
+`authenticated` on the sequences. Reading the gate would have produced the
+complete role list without any measurement at all.
+
+#### The amendment
+
+The sequence revoke now names all three explicitly:
+
+```sql
+revoke usage, select, update on sequence public.production_notification_delivery_receipts_id_seq,
+                                         public.production_notification_reconciliations_id_seq
+  from public, anon, authenticated;
+```
+
+`public` joins them because a revoke list that omits a role has not revoked from
+it, and PUBLIC is a role like any other here. Everything else in the file is
+byte for byte as reviewed; the only other change is the comment above those
+lines, which said "anon was never revoked at all" and would otherwise have
+described a statement that no longer matches it.
+
+`daf4bc1760c5ccd1…` → **`e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`**,
+3789 → 4063 bytes.
+
+#### Re-proof, with `authenticated` in the local posture
+
+```
+### BEFORE the migration                    ### AFTER the amended migration
+    contract keys evaluated : 156               contract keys evaluated : 156
+    keys NOT satisfied      : 11                keys NOT satisfied      : 1
+        config:urgent_video_destination             config:urgent_video_destination
+        relation:production_notification_config
+        routine:production_assignment_epoch(text)
+        routine:…actor_valid(uuid,text,text)
+        routine:…client_comment_event_after()
+        routine:…comment_intent_after()
+        routine:…intent_guard()
+        routine:…plain_text(text,integer)
+        routine:…status_intent_after()
+        sequence:…delivery_receipts_id_seq
+        sequence:…reconciliations_id_seq
+```
+
+Ten before, **zero of the ten after**, with the authenticated grants present.
+`config:urgent_video_destination` is the same local-only configuration ROW as
+before: absent locally, present live, untouched by this migration.
+
+#### And the 2-red state MEASURED, not accepted
+
+The supervisor said the first version would leave two keys red. Rather than take
+that on assertion, the **pre-amendment file was re-applied to the same world**:
+
+```
+### AFTER the migration (pre-amendment file, from git)
+    keys NOT satisfied      : 3
+        config:urgent_video_destination
+        sequence:production_notification_delivery_receipts_id_seq
+        sequence:production_notification_reconciliations_id_seq
+```
+
+Exactly the two sequence keys, exactly as the supervisor said. The finding is now
+a measurement in the record rather than a claim I agreed with.
+
+The trigger proofs re-ran unchanged and all pass: service_role holds EXECUTE on
+none of the seven, the status trigger function's call count still goes 0 → 1 for
+a service-role write, the schema-independent control still fires, service_role
+still cannot insert an intent directly, and the guard still raises
+`production_notification_intent_insert_forbidden` by name.
+
+#### Recorded as decisions
+
+**D34** — a gate that has never run against its real target is untested; run a
+lane's read-only preflight from the owner's machine before dispatching.
+**D35** — a revoke must name every role it means; Supabase grants
+service_role/anon/authenticated everything by default, and an omitted role has
+not been revoked from. Both also added to `CLAUDE.md` under "Things that will
+waste a cycle", with no name or slug in either.
+
+### 2026-09-17 — STEP 19 REFUSED, and the refusal was RIGHT. One revokes-only migration written, proven ten-to-zero locally, PR opened and NOT merged. Also: the prediction named the wrong gate
+
+Run [35272220909](https://github.com/sidney-afk/client-analytics/actions/runs/35272220909),
+`workflow_dispatch` on `302de4a4`, **conclusion: failure**, 31 seconds,
+**nothing deployed**.
+
+#### The prediction named ancestry or fingerprints. It was neither
+
+The supervisor's prompt, and my own step 19 description, led with the lane's
+ancestry check and its per-function fingerprints. **The refusal came from the
+read-only SQL preflight instead** — step 6 of 10, before any Supabase CLI was
+even installed. Recorded because the shape matters more than the miss: I
+described the gate I had read the most carefully, not the one most likely to
+fire. The lane has four barriers and I ranked them by my own familiarity.
+
+Step-by-step evidence that nothing was deployed, from the job's own step list:
+
+```
+3  Validate the dispatched commit is on main .......... success
+5  Verify the validated commit is checked out ......... success
+6  Assert the Linear-exit SQL contract ................ FAILURE
+7  Run supabase/setup-cli@v1 .......................... skipped
+8  Deploy push-safe staff-sensitive functions ......... skipped
+9  Deploy pinned Track-B write/read functions ......... skipped
+10 Attest pinned manual release ....................... skipped
+```
+
+The lane failed closed. The ancestry and checkout checks passed, so the merge
+commit is a valid deploy target; only the database was not ready.
+
+#### The ten keys, and why the gate is right
+
+```
+linear-exit-deploy-preflight: CONTRACT_MISMATCH:
+  relation:production_notification_config,
+  routine:production_assignment_epoch(text),
+  routine:production_notification_actor_valid(uuid,text,text),
+  routine:production_notification_client_comment_event_after(),
+  routine:production_notification_comment_intent_after(),
+  routine:production_notification_intent_guard(),
+  routine:production_notification_plain_text(text,integer),
+  routine:production_notification_status_intent_after(),
+  sequence:production_notification_delivery_receipts_id_seq,
+  sequence:production_notification_reconciliations_id_seq
+```
+
+The supervisor measured the live posture read-only: service_role still holds
+EXECUTE on all seven routines, TRUNCATE/REFERENCES/TRIGGER on the config table,
+and UPDATE on both sequences, while anon still holds USAGE on both sequences.
+
+Cause, confirmed in the source: `migrations/2026-09-06-native-existing-assignment.sql:179`
+reads `revoke all on function public.production_assignment_epoch(text) from
+public,anon,authenticated;` and the 2026-09-09 outbox migration revokes its
+tables `from public, anon, authenticated` — **neither lists `service_role`**,
+and neither revokes on the sequences at all. The 2026-09-05 guards that pass do
+list it: `from public, anon, authenticated, service_role`. On a hosted project
+service_role starts with the platform's blanket grants, so "never revoked" means
+"still held". **Owner's decision: tighten the database to the gate, not the gate
+to the database.**
+
+#### Callers: 0 of 7 are called as service_role
+
+Asked before writing a single revoke, because revoking EXECUTE on something the
+gateway calls would break it:
+
+```
+routine                                              edge functions   scripts/tests
+production_assignment_epoch                                0               3
+production_notification_intent_guard                       0               4
+production_notification_plain_text                         0               2
+production_notification_actor_valid                        0               3
+production_notification_client_comment_event_after         0               3
+production_notification_comment_intent_after               0               3
+production_notification_status_intent_after                0               5
+                                                    TOTAL  0
+```
+
+**Zero references under `supabase/functions/`, and zero invocation-shaped
+matches there.** Every scripts/tests hit is the preflight contract itself, the
+retirement-switch and notification suites, or the 2026-09-10 evidence file —
+none is a runtime caller. Every real caller is either another SECURITY DEFINER
+routine in the same migrations, which executes as its definer, or a trigger.
+
+#### The migration
+
+`migrations/2026-09-17-notification-service-role-revokes.sql`,
+**sha256 `daf4bc1760c5ccd13d1c10febf284656d9b3b1cda78a5841aeebbde6bcb046c3`**,
+3789 bytes, LF. **Revokes only** — it creates nothing, alters no definition,
+grants nothing, and touches no object outside the ten keys. Seven
+`revoke execute … from service_role`, one `revoke truncate, references, trigger
+… from service_role` on the config table, and on the two sequences
+`revoke update … from service_role` plus `revoke usage, select, update … from
+anon`.
+
+#### Proof on the local settled world: ten before, zero after
+
+**First measurement, which changed the design of the proof.** Run against the
+source-phases world as built, the contract query reported **zero of the ten**.
+The gaps are *held privileges*, and the composition's roles do not carry the
+hosted project's blanket grants, so locally there was nothing to close. The
+world was therefore first brought to **exactly the posture the supervisor
+measured live** — those grants and nothing else — before the ten were expected
+to appear. Stated plainly because it makes the "after" weaker than it looks: I
+granted what I then revoked, so zero-after is partly by construction. What it
+does prove is that **those ten keys correspond precisely to those privileges and
+to nothing else**, and that the revoke wording is valid SQL that removes them.
+
+```
+### BEFORE the migration
+    contract keys evaluated : 156
+    keys NOT satisfied      : 11
+        config:urgent_video_destination            <- local-only, see below
+        relation:production_notification_config
+        routine:production_assignment_epoch(text)
+        routine:production_notification_actor_valid(uuid,text,text)
+        routine:production_notification_client_comment_event_after()
+        routine:production_notification_comment_intent_after()
+        routine:production_notification_intent_guard()
+        routine:production_notification_plain_text(text,integer)
+        routine:production_notification_status_intent_after()
+        sequence:production_notification_delivery_receipts_id_seq
+        sequence:production_notification_reconciliations_id_seq
+
+### AFTER the migration
+    contract keys evaluated : 156
+    keys NOT satisfied      : 1
+        config:urgent_video_destination
+```
+
+**Ten of ten closed, of 156 contract keys evaluated.** The residual
+`config:urgent_video_destination` is a configuration ROW absent from the local
+world and present live — the live run named only the ten, so it is a property of
+the local reproduction, not of this change, and the migration does not touch
+configuration rows.
+
+#### Proof that the affected triggers still fire
+
+```
+  OK  service_role holds EXECUTE on none of the seven          bool_and = true
+  OK  the deliverable_events triggers are attached here        production_notification_status_intent_after, …
+  OK  a deliverable row exists to hang an event on             deliverables = 1
+  OK  CONTROL: no EXECUTE for service_role, trigger still ran  log rows = 1
+  OK  a service-role status write succeeds                     deliverable_events rows = 3
+  OK  the status trigger function was CALLED by that write     calls 0 -> 1
+  OK  service_role still cannot insert an intent directly      permission denied for table …
+  OK  the intent guard still raises by name                    production_notification_intent_insert_forbidden
+
+TRIGGERS_STILL_FIRE_AFTER_THE_REVOKE_OK
+```
+
+Two things about how this was measured, both of which changed after a first
+attempt failed honestly:
+
+1. **Counting intent rows proves nothing here.** The status trigger's predicate
+   needs `source='ui'`, `action='status_change'`, a native attribution, a status
+   pair in `{smm_approval,tweak}`, `auth_kind='staff'`, a `member:<uuid>` actor,
+   a live target, a `prod_authority` row and an active client. This world
+   satisfies almost none of it, so the body correctly returns early and writes
+   nothing — and a test that read "0 intents" as failure, or as success, would
+   be reading noise either way. The observable used instead is
+   `pg_stat_user_functions` with `track_functions='all'` and an explicit
+   `pg_stat_force_next_flush()`: **the function's call count went 0 → 1 for a
+   statement issued as service_role, which holds no EXECUTE on it.**
+2. **A mechanism control, independent of this schema.** A throwaway table,
+   trigger function and trigger in the same cluster, with EXECUTE revoked from
+   `public, anon, authenticated, service_role`, then an insert as service_role:
+   the trigger still ran and wrote its log row. So the claim does not rest on
+   the seeded chain.
+
+Also proven, because it is the posture the 2026-09-09 migration intends:
+service_role still cannot insert an intent directly (`permission denied`), and
+the guard still raises `production_notification_intent_insert_forbidden` by name
+when exercised as the owner with the write flag off.
+
+#### State
+
+Identity-exposure check run. PR opened against `main` and **NOT merged**;
+numbers in the reply. Nothing deployed, no SQL applied anywhere but a disposable
+local cluster, which was destroyed. Step 20 NOT started.
+
+### 2026-09-17 — STEPS 17 AND 18 CLOSED. Merged at `302de4a4`, Pages published in ~40s, 8 of 8 safe reads answered. And a CORRECTION: the client-comment gateway is NOT new, so the blocker condition I raised never applied
+
+#### Step 17 — the merge
+
+CI on the final head `493eb9c7`: **14 check runs, 12 success, 2 skipped, 0
+failures**, all concluded. The bar the owner set, met exactly. PR #1391 marked
+ready and merged.
+
+**Merge commit on main: `302de4a4679132ded15cc462312c88ad20062a9b`.**
+
+**Method: a merge commit, not a squash, and the reasoning is in the commit
+message.** The repository's history is mixed — roughly five merge commits to
+seven squashes in the last twelve first-parent commits — so the majority does
+not decide it. What decides it: the proof artifacts pin `checkout_sha` values
+(the current pipeline proof pins `4a1b594d`), and **step 19's lane validates its
+dispatched SHA by ancestry on main**. A squash would have collapsed ~150 commits
+into one and broken exactly the property the next step depends on.
+
+#### The auto-deploy prediction, checked against what actually ran
+
+The pre-gate analysis said the merge **will** fire three deploy workflows and
+eleven functions. Measured on `302de4a4`:
+
+| workflow | conclusion |
+|---|---|
+| Deploy staff-sensitive edge functions | **success** |
+| Deploy thumbnail edge functions | **success** |
+| Deploy description image upload | **success** |
+
+Three, exactly the three named, and no other deploy lane. All eleven function
+sources were byte-identical to `main` and the storage session's B7 re-take had
+already shown no live body had drifted, so nothing was overwritten.
+
+#### Step 18 — served browser matches the merged commit
+
+```
+merged main (302de4a4) index.html   f3330147d5530ca0b6ee2338f95ce30132bf3ab320c1371fe98ca85374e36cf0
+served, immediately after merge     1d17a0f5…   == PRE-merge main 1abdd1fa, byte for byte
+served, ~40s later                  f3330147d5530ca0b6ee2338f95ce30132bf3ab320c1371fe98ca85374e36cf0   MATCH
+```
+
+The interval was observed rather than assumed: the first read caught the old
+bytes still being served and was recorded as such instead of being retried
+quietly until it agreed.
+
+#### Step 18 — safe existing reads, 8 of 8
+
+GET only, browser publishable key, counts and status codes only — no row, name
+or slug printed.
+
+```
+  read                               http   rows
+  clients                            206    49
+  team_members                       206    22
+  deliverables                       206    6632
+  calendar_posts                     206    11852
+  sample_reviews                     206    7100
+  batches                            206    1736
+  deliverable_events + the two install-added columns
+                                     206    110343
+  syncview_runtime_flags             206    27
+```
+
+The seventh is the one worth noting: `deliverable_events` selected **with**
+`event_assignee_id` and `event_assignee_attribution`, the columns the dormant
+install added. It answers 206, so the install's schema is live and readable from
+the browser exactly as the served page expects.
+
+#### ⚠ CORRECTION — the client-comment gateway is NOT a new route, and the flag is ON
+
+While checking dormancy I found `client_comment_gateway_enabled` present with
+**`enabled = true`**. That is the exact condition my pre-gate entry named as the
+one thing that would turn a note into a blocker.
+
+**It is not a blocker, because the premise was wrong.** Measured before saying
+anything:
+
+```
+                                       pre-merge main   merged main
+_prodClientCommentGatewayContext              6              6
+_clientCommentGatewayOn                       3              3
+client_comment_gateway_enabled                4              4
+```
+
+and the diff of `index.html` between `1abdd1fa` and `302de4a4` contains **no
+change** to `_writeUiUseGatewayWhenReady` or `clientGatewaySurface` in the client
+comment path. The carve-out is identical before and after — it came in earlier,
+with the PR 1064 behaviour its own comment cites.
+
+So:
+
+- the flag being on is **pre-existing production state**, not something this
+  merge created or enabled;
+- the client comment path is **byte-identical** across the merge, so the merge
+  added no client-facing exposure at all;
+- and my pre-gate claim that this was "the one client-triggerable **new** route"
+  was wrong. I reached it because `_clientCommentGatewayOn` was the enclosing
+  function of an added line — something near it moved, the function itself did
+  not. **Enclosing-function attribution is not authorship**, which is the same
+  shape as the three matching defects recorded earlier today: a proxy standing
+  in for identity.
+
+The PR description carries that same wrong claim, including the sentence that
+the page keeps client comments on the existing lane "until the flag is
+deliberately enabled" — when the flag was already enabled. The PR is merged and
+its body is now a historical document; **flagged to the owner rather than
+quietly rewritten.**
+
+#### State at stop
+
+Main is at `302de4a4`. Everything new remains dormant; no activation, no runtime
+enablement, no client delivery, nothing inside Linear touched, and no SQL or
+write of any kind was issued from this session — the step 18 reads were GET only.
+
+**Nothing further merges to main until the owner dispatches step 19 with
+`302de4a4679132ded15cc462312c88ad20062a9b`.** This entry is on a branch
+restarted from main, because the previous branch's pull request is merged and a
+merged pull request cannot carry follow-up work.
+
 ### 2026-09-17 — B5 BROWSER CAPTURE CLOSED: version 2 of the block, three changes, `mismatches = 0` over 22 files. `matched_git_sha = 1abdd1fa…`. The browser half of B5 is closed
 
 Storage session, on the owner's machine, minutes before the merge, after the
@@ -10780,6 +11504,53 @@ why they can wait — and exactly why they would otherwise never be found.
 Both derive from the world when they are done: the seed row's presence and its
 flag are readable, and `populated_optout_preserved` becomes a comparison of what
 was read before and after, not a restatement of `profile`.
+
+### D34 — A gate that has never run against its real target is untested (2026-09-17, owner)
+
+**Binding, and it generalises past this preflight.**
+
+`scripts/linear-exit-deploy-preflight.js` had been written, reviewed, pinned
+into a workflow and reasoned about for days. It executed against the live
+database for the **first time on 2026-09-17, inside the step 19 dispatch**, and
+refused **10 of 156 keys**. The release stopped at the gate rather than at a
+plan, which is the gate working — and also the most expensive possible moment to
+learn what it would say.
+
+So: **run a lane's read-only preflight from the owner's machine before
+dispatching**, never for the first time inside the dispatch. A read-only check
+costs a minute outside the window and a whole authorized window inside it.
+
+This is the same family as D27 (a stubbed gate is an untested gate) and D28 (the
+code you changed executes before you push), one level up: those two are about
+proving a change, this one is about proving a *check*. A check nobody has run
+against the thing it checks is a hypothesis with a workflow step number.
+
+### D35 — A revoke must name every role it means (2026-09-17, owner)
+
+**Binding for every migration in this repository.**
+
+Supabase grants `service_role`, `anon` and `authenticated` full rights on every
+new object by default. Therefore:
+
+- **a `revoke` list that omits a role has not revoked from that role**, and
+- **"we revoked it" is not the same claim as "that role cannot do it"**.
+
+Measured twice in one day, in both directions:
+
+| migration | revoked from | left holding |
+|---|---|---|
+| 2026-09-06 native existing assignment | `public, anon, authenticated` | `service_role` EXECUTE |
+| 2026-09-09 notification outbox (tables) | `public, anon, authenticated` | `service_role` TRUNCATE/REFERENCES/TRIGGER |
+| 2026-09-09 notification outbox (sequences) | **nothing** | `service_role` UPDATE, `anon` USAGE, `authenticated` USAGE/SELECT/UPDATE |
+| the first repair, 2026-09-17 | `service_role`, and `anon` on the sequences | **`authenticated`** USAGE/SELECT/UPDATE |
+
+The 2026-09-05 guards that pass all read
+`from public, anon, authenticated, service_role`. **Name all four, or measure
+the ones you left out** — and prefer naming them, because a measurement is a
+claim about one moment and a revoke is a claim about the object.
+
+Both entries are also in `CLAUDE.md` under "Things that will waste a cycle",
+where a session reads them in its first minute rather than on its fourth day.
 
 ## 4. Corrections the session made against itself
 

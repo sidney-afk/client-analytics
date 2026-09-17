@@ -30,6 +30,82 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — D22 AUTHORITATIVE RUN: method recorded before the results, including the harness defect that spoiled the first attempt at it
+
+The first pass ran the 61 in a shared environment and reported 37/17/7. This
+one reproduces the portable runner properly. Written down before the numbers so
+the numbers can be judged against the method rather than the other way round.
+
+#### What the portable runner actually sets, read out of `run-portable.ps1`
+
+One **fresh disposable cluster per lane**, then this environment, reproduced
+exactly on Linux:
+
+```
+initdb -D <data> -U postgres --auth=scram-sha-256 --pwfile=<file>
+       --encoding=UTF8 --locale=C
+       [--locale-provider=icu --icu-locale=en-US]   <- observed-full-install,
+                                                       install-operator ONLY
+listen_addresses = '127.0.0.1'   port = <private port>
+
+PGHOST=127.0.0.1 PGPORT=<port> PGUSER=postgres PGPASSWORD=<random>
+PGDATABASE=postgres PGSSLMODE=disable PGCLIENTENCODING=UTF8
+NATIVE_CARD_TEST_PSQL / NATIVE_LABEL_TEST_PSQL / NATIVE_IDENTIFIER_MINT_PSQL
+F63_REQUIRE_POSTGRES=1  ARTIFACT_REQUIRE_POSTGRES=1
+WORKLOAD_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY  WORKLOAD_TEST_REQUIRE=1
+WORKLOAD_TEST_PSQL  WORKLOAD_TEST_PORT  WORKLOAD_TEST_PASSWORD
+PROOF_REPO_ROOT  PROOF_OUTPUT_ROOT (private, outside the repo)  PROOF_HARNESS_ROOT
+```
+
+Per-lane details carried over rather than ignored: `calendar-freeze` and
+`card-atomic-handlers` run under `node --experimental-strip-types`; the two
+recovery lanes get the `TRACK_B_RECOVERY_TEST_*` block and a different entry
+point; PostgreSQL **16** for the 13 suites whose routing row says 16 and **17**
+for the 45 that say 17.
+
+Deviations, stated rather than hidden:
+
+1. Linux, not Windows. The runner refuses `$env:OS -ne 'Windows_NT'`; the
+   environment it builds is what is reproduced, not the runner itself.
+2. Each suite is invoked as its own entry point, which is what the runner does
+   for every lane in the list — the `run-all.js` fallback is explicitly refused
+   there for any lane but `unit` and `f27`.
+3. Auth is scram-sha-256 over loopback TCP with a per-cluster random password,
+   as the runner does. No trust sockets.
+
+#### Denominator, fixed in advance
+
+**61**, from `unitPlan().deferred` at branch head `a236572`. Every count below
+is out of 61. The suite LIST is always read from branch head even when the RUN
+is at an older commit, so a pre-B10 comparison measures the same 61 files
+rather than whatever that commit happened to defer.
+
+#### CORRECTION, against my own first attempt at this run an hour ago
+
+The first launch reported three suites as `CANNOT_RUN_HERE` with
+`pg_ctl: could not start server`. **None of them deserved it.** The cluster
+logs said:
+
+```
+could not bind IPv4 address "127.0.0.1": Address already in use
+HINT: Is another postmaster already running on port 55502?
+```
+
+This box's `/proc/sys/net/ipv4/ip_local_port_range` is `32768 60999`, and I had
+put the cluster ports at 55500+. That band is inside the kernel's ephemeral
+range, so an outbound `psql` client socket from one suite could and did take the
+port the next suite's cluster was about to bind. A harness defect wearing the
+costume of a suite that cannot run.
+
+The run was killed, the clusters were torn down, the band was moved to 6400+
+(below the ephemeral range, where a client socket cannot land) and the whole
+thing restarted from suite 1. No partial results from the first attempt are
+carried forward — a run that mixes two harnesses is not an authoritative run.
+
+Recording it because the class matters more than the incident: **"cannot run
+here" is a claim about the environment, and an environment I built myself is
+the first thing to suspect before I write it next to a suite's name.**
+
 ### 2026-09-17 — STEPS 14 AND 15 CLOSED: the journal's and the gate's plan hash both read `18697ad2…`, the derived maintenance plan. The 33 minutes are UNEXPLAINED by the journal. 15 of 28; stop at step 16, the owner's gate
 
 Storage session. The owner authorised **one read-only read** of

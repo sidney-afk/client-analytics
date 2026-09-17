@@ -30,6 +30,129 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 REPAIR APPLIED LIVE: the PR #1408 revokes ran on the hosted database, delta exactly the 24 expected rows and nothing else. The deploy preflight still does NOT pass: it refuses earlier, on `CONTRACT_ABSENT:config:urgent_video_destination`, so the ten privilege keys were never evaluated. STOPPED there
+
+Storage session, on the owner's machine, over the direct database connection.
+This is a **live production change**, owner-instructed, applied at
+2026-09-17T21:18:02Z and taking 118 ms.
+
+#### 1. The pin, by the §5 procedure, in the prescribed order
+
+| Reading | Value |
+|---|---|
+| Committed blob at `9b3ecb21` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+| Committed blob at `7e97b140` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+| Fresh from disk, new detached worktree at `7e97b140` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, 4,063 bytes |
+| Quoted in chat | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734` |
+
+The two committed readings were compared with each other first, then against the
+file, then against the quoted value. All four agree. `9b3ecb21` is an ancestor of
+`7e97b140`. The file carries `text eol=lf`, so the checkout cannot have changed
+its bytes.
+
+**What was not compared:** only this file. The rest of `7e97b140`'s diff was not
+reviewed, and `ROLLBACK.md` was read for its existence as the rehearsed inverse,
+not executed.
+
+#### 2. No backup before the apply — recorded as the supervisor's decision
+
+The instruction states it and the reason: the migration changes privilege
+metadata only, and its inverse is rehearsed in `ROLLBACK.md` at that commit. I
+read the file in full before sending it and confirm the shape: **REVOKE only**,
+no DDL, no DML, no GRANT, inside its own `begin`/`commit`. Recording the decision
+as the supervisor's, not as a measurement of mine.
+
+#### 3. Measurement before, all four roles and every other grantee
+
+Evidence: `step19-revokes-20260917-2/privileges-before.private.json`, taken
+read-only. Tool: `apply-notification-revokes.private.cjs` (SHA-256
+`55b00e14e6ce98a3648d4a78b8f1caefd4a67a1dc05637ad178b8daf67e02fcb`), config built
+in memory, password read from the 5.1 helper and never written, identity and TLS
+asserted before anything else.
+
+The query explodes `coalesce(acl, acldefault(...))` on the ten objects and
+captures **every** grantee, not only the four named roles, so "nothing else
+changed" is checkable rather than assumed.
+
+**Before: 54 rows** — postgres 21, service_role 21, anon 6, authenticated 6, and
+**no PUBLIC grants at all** on these ten objects.
+
+#### 4. Expectations, written before the apply
+
+`step19-revokes-20260917-2/expected-delta.private.md`, SHA-256 `ebef051e…`:
+24 rows removed, 0 added, 30 remaining (postgres 21, service_role 9).
+
+Recorded there and worth keeping: **the migration's own comment understates what
+`anon` held.** It says "anon holds USAGE, and authenticated holds USAGE, SELECT
+and UPDATE". Live, `anon` held USAGE, SELECT **and** UPDATE on both sequences.
+The revoke lists all three for both roles, so the statement covers it; the
+comment does not describe what was there.
+
+#### 5. The apply
+
+The file was sent **exactly as committed, unedited**, its SHA-256 re-verified in
+the same process immediately before sending. It carries its own transaction.
+
+```
+started  2026-09-17T21:18:02.598Z
+finished 2026-09-17T21:18:02.716Z
+bytes    4063   sha256 e50d8b2a…
+```
+
+#### 6. Delta: exactly the gaps closed, nothing else
+
+**After: 30 rows** — postgres 21, service_role 9, anon 0, authenticated 0.
+**24 removed, 0 added**, matching the written expectation row for row:
+
+| Removed | Count |
+|---|---|
+| EXECUTE from `service_role` on the seven functions | 7 |
+| TRUNCATE, REFERENCES, TRIGGER from `service_role` on `production_notification_config` | 3 |
+| UPDATE from `service_role` on the two sequences | 2 |
+| USAGE, SELECT, UPDATE from `anon` on the two sequences | 6 |
+| USAGE, SELECT, UPDATE from `authenticated` on the two sequences | 6 |
+
+Retained, as the migration intends: `service_role` keeps SELECT, INSERT, UPDATE,
+DELETE and MAINTAIN on the config table and USAGE, SELECT on both sequences;
+every `postgres` row is untouched. No grantee outside the four appears in the
+delta, and nothing was added.
+
+#### 7. The preflight does NOT pass, and it is not the privileges
+
+From the detached worktree at `7e97b140`, `node scripts/linear-exit-deploy-preflight.js`.
+The Management API token came from the machine environment and `PROJECT_REF` was
+supplied in memory from the private wrapper; neither was printed or written.
+
+```
+linear-exit-deploy-preflight: CONTRACT_ABSENT:config:urgent_video_destination
+```
+
+- **Status: not PASS.** No receipt was produced, so there is no `status`,
+  `checked_objects` or `read_only` to report; the gate throws before building one.
+- **The mismatched key: `config:urgent_video_destination`**, one key, reported
+  absent rather than incompatible. The gate expects a row with that key in
+  `public.production_notification_config`; `present` came back false.
+- **This is a different refusal from the one PR #1408 addresses.** The ten keys
+  in the migration's header are a relation, seven routines and two sequences.
+  This one is a **configuration row**, and `validateRows` throws on absent rows
+  **before** it evaluates privilege compatibility — so **this run did not
+  evaluate the ten, and therefore does not confirm that the revokes closed
+  them.** That confirmation needs a run that gets past the absent check.
+- **The apply did not cause it.** The file contains no DML of any kind; it
+  cannot have removed a configuration row. The delta above is privilege metadata
+  only.
+
+**Stopped here, as instructed.** Nothing was inserted, no configuration was
+written, the gate was not loosened, and no deploy was dispatched.
+
+#### Not done
+
+- No Edge Function was released; step 19's lane was not dispatched.
+- `ROLLBACK.md`'s inverse was not run: the apply did what it was meant to.
+- The empty directory `step19-revokes-20260917-1` was created by a first attempt
+  that refused on a SQL cast error before connecting; it was removed, and the
+  evidence directory in use is `-2`.
+
 ### 2026-09-17 — Codex's two P1 findings on #1408 were both right, and verifying the first one found the FOURTH instance of the one-directional comparison class — in the guard that is supposed to enforce it
 
 Both findings verified before anything was pushed, neither taken on the badge.

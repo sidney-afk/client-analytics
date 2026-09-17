@@ -147,6 +147,26 @@ step 8 closure and stating that no profile currently passes the install gate.
 sandbox failures, none new. It was 15 before the operator suite was re-based.
 The 61 deferred suites were not run as a set; that remains D22.
 
+**CORRECTION, same day, minutes later. The entry above says eight files in the
+chain moved. Re-measured after rebasing onto the storage session's steps 9 and
+10 commit: it is NINE.** The entry stands as written; it was accurate when
+measured.
+
+The ninth is **`scripts/linear-exit-install-profiles.js` itself, moved by this
+very commit** (`6c09659`) — the act of retiring the profiles put another chain
+file out of step with the measurement. It is in the chain by reachability, and
+unlike the other eight its change provably cannot move the target: the plan
+bytes do not embed this module's content, and all three plan hashes reproduce
+unchanged.
+
+**The conclusion is unchanged** — the target was already not being pinned — but
+the number is, and a count in a record should not be left wrong because the
+conclusion survived it. It also makes the rule sharper than the entry stated:
+**the chain includes the file that holds the pin**, so a chain can never be
+byte-identical to a past measurement at the moment you write a pin into it. What
+matters is whether a moved file can reach the measured value, which is why the
+two reachable ones named above are the finding and this one is not.
+
 ### 2026-09-17 — Steps 9 and 10: METHOD RECORDED BEFORE RUNNING. Packaging command, verification commands and names, fixed by the owner, so the next drill does not have to rediscover them
 
 Written before the clock starts, at 2026-09-17T01:06Z (2026-09-16 19:06 on the

@@ -22,6 +22,19 @@ try{
  await assert.rejects(api.execute(c,prepared,session,'wrong-consent'));
  const [guards]=await conn.unsafe("select count(*)::int as n from pg_trigger where tgname='linear_exit_maintenance_dml_v1'");assert.equal(guards.n,0);
  const prerequisite=fs.readFileSync(Deno.env.get('INSTALL_OPERATOR_PREREQUISITE'));assert.equal(j.sha(prerequisite),'fbd5ae8ecbef6e28cce913878791cb5f2a2a7fc70a7c930d3c0d3b508966fbaa');
+ /* WHETHER THE OPT-OUT COLUMN EXISTS IS A PROPERTY OF THE WORLD'S
+  * CONSTRUCTION, NOT OF THE PROFILE'S NAME. observed67 does not have it,
+  * observed67_optout IS that world, and the SETTLED world has it too --
+  * applySettledWorld applies this same prerequisite, at this same pinned
+  * sha256, before the hiring migration. The check below used to read
+  * `profile==='observed67_optout'?1:0`, so on settled68 it expected 0 and
+  * refused a perfectly correct world.
+  * Measured here, before the transaction, and asserted unchanged after the
+  * rollback. That is what the step is actually for -- the prerequisite must
+  * leave the world as it found it -- and it now tests that in EVERY world
+  * instead of in one. */
+ const OPT_OUT_COLUMN="select count(*)::int as n from pg_attribute where attrelid='public.team_members'::regclass and attname='auto_assign_opt_out' and not attisdropped";
+ const [optOutBefore]=await conn.unsafe(OPT_OUT_COLUMN);
  await conn.unsafe('begin');try{
   const before=await conn.unsafe("select to_jsonb(t)-'auto_assign_opt_out' as row from public.team_members t order by id");
   for(const chunk of j.chunks(prerequisite.toString('utf8')))for(const sql of chunk.statements)await conn.unsafe(sql);
@@ -30,7 +43,7 @@ try{
   for(const role of ['anon','authenticated']){const [r]=await conn.unsafe("select has_column_privilege($1,'public.team_members','auto_assign_opt_out','SELECT') as flag, has_column_privilege($1,'public.team_members','name','SELECT') as old",[role]);assert.equal(r.flag,false);assert.equal(r.old,true);}
   const [service]=await conn.unsafe("select has_column_privilege('service_role','public.team_members','auto_assign_opt_out','SELECT') as readable");assert.equal(service.readable,true);
  }finally{await conn.unsafe('rollback');}
- const [absent]=await conn.unsafe("select count(*)::int as n from pg_attribute where attrelid='public.team_members'::regclass and attname='auto_assign_opt_out' and not attisdropped");assert.equal(absent.n,profile==='observed67_optout'?1:0);
+ const [absent]=await conn.unsafe(OPT_OUT_COLUMN);assert.equal(absent.n,optOutBefore.n,'prerequisite rollback must leave the opt-out column exactly as the world had it');
  assert.deepEqual(await conn.unsafe("select to_jsonb(t) as row from public.team_members t where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'"),seedBefore);
  fs.writeFileSync(path.join(Deno.env.get('PROOF_OUTPUT_ROOT'),'operator-result.private.json'),JSON.stringify({status:'PASS',profile,actual_sql_apply:true,exact_final_target:true,exact_finalized_replay:true,wrong_identity_refused:true,wrong_consent_refused:true,zero_guards:true,separate_main_prerequisite_rollback:true,populated_optout_preserved:profile==='observed67_optout',hosted_tls_transport_proven:false,activation_performed:false}));
 }finally{conn.release();await db.end({timeout:5});}

@@ -30,6 +30,121 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 24 NOT RUN: the staff credential the browser uses is not on this machine, and I did not substitute another. STEP 25 DONE: every flag difference against `pre-state-flags-20260917-1` is explained, and no flag value changed
+
+Storage session. **No save was attempted**, and the step 25 work is read-only.
+
+#### Step 24: stopped before the first request, and why
+
+The three saves go through `calendar-upsert`, `sample-review-upsert` and
+`production-comments`. All three authorise on the header `x-syncview-key`
+(`_shared/browser-write-auth.ts` and `_shared/staff-role-auth.ts`), which carries
+a **staff role key**. The instruction says to use the staff credentials already on
+this machine. **They are not here.** Measured, names only:
+
+- The private secret helper accepts exactly two names, `database-password` and
+  `recovery-record`. There is no staff key among them.
+- The process and user environments hold `LINEAR_API_KEY`,
+  `SUPABASE_ACCESS_TOKEN` and `SUPABASE_SERVICE_ROLE_KEY`, and nothing matching
+  syncview, staff or key.
+- No `.env`, no local config and no credential-manager entry holds one.
+- The repository references the header name only, in test code.
+
+**What I did not do, deliberately.** I did not send the saves with
+`SUPABASE_SERVICE_ROLE_KEY`, and I did not read the staff key out of the Edge
+Function secrets through the Management API. Either would be a different
+credential from the one the browser uses, so it would not answer the question the
+step asks, and fetching a secret to hold it is exactly what the custody rules
+forbid. The rule that applies is the recorded one: **report the missing
+credential, do not work around it.**
+
+So steps 24's four checks — HTTP status and body, the stored row read back, the
+receipt or event row, and the absence of a `production_notification_intents` row
+and any Slack message — were not performed. Nothing was written to the test
+client `sidneylaruel`.
+
+#### Step 25: the flags half, re-run against the live database
+
+Reference: `pre-state-flags-20260917-1/pre-state-flags.private.json`, SHA-256
+verified from disk as
+`7346703619777aeba94c426d8ce19243da70f5a43e8bddfbf3e2e51a528ed63a` before
+anything was compared. Evidence: `step25-live-flags-20260917-1/`.
+
+The four queries were **read out of the reference collector's own `sql/` files**
+rather than retyped, and run in one read-only transaction over the direct
+connection, with identity and TLS asserted first.
+
+**A property of the reference that shapes every comparison:** it is
+**restore-derived** — the collector ran against the local restore of the
+pre-install backup, and it passes its output through a recursive key-sorting
+function. The live re-run does neither. Both facts produce presentation
+differences that are not changes.
+
+| Measure | Reference | Live | Verdict |
+|---|---|---|---|
+| `syncview_runtime_flags` rows | 20 | **27** | +7, explained below |
+| The original 20, `value` | — | — | **equal**, once JSON key order is normalised as the reference itself does |
+| The original 20, `updated_by` | — | — | **equal**, 0 differences |
+| The original 20, `updated_at` | 20 shown as differing | — | **the same instants**, 20 of 20; the reference renders `-06:00`, live renders `+00:00` |
+| `flag_flips` | 90 | 90 | **equal**; 12 rows differed only by jsonb key order |
+| `linear_archive_asset_rescue_config` | 0 | 0 | identical |
+| `settings_events` count / max_id | 355 / 374 | 355 / 374 | identical |
+| `settings_events` max_event_at | `…10:10:08.587642-06:00` | `…16:10:08.587642+00:00` | same instant |
+| `settings_events` rows_sha256 | `51458773…` | `888bce08…` | differs **because the hashed row text embeds timestamps rendered in the session's timezone**; the count, the max id and the latest instant all agree |
+
+**No flag value changed. No flag was removed.**
+
+#### The seven extra flag rows, with their cause
+
+| Key | Written at (UTC) | `updated_by` |
+|---|---|---|
+| `native_intake_epochs` | 2026-09-17T16:10:05.683457Z | `native-intake-draft` |
+| `native_card_materialization` | 2026-09-17T16:11:37.255692Z | null |
+| `native_brief_media` | 2026-09-17T16:12:42.878284Z | `native-brief-media-preparation` |
+| `native_assignment_epochs` | 2026-09-17T16:13:49.547911Z | `native-assignment-draft` |
+| `production_native_label_catalog` | 2026-09-17T16:14:22.344897Z | `native-labels-draft` |
+| `production_native_identifier_mint` | 2026-09-17T16:14:54.956097Z | `native-identifier-mint` |
+| `production_native_ordinary_receipts` | 2026-09-17T16:20:00.029315Z | `native-ordinary-receipts-draft` |
+
+All seven were written in a ten-minute band this morning by named migration
+drafts, which is the **step 14 installation**. The reference cannot contain them:
+it is derived from the backup taken **before** that install. Their values are all
+dormant — `provider` mode, `off`, `hold`, epochs null, intake `enabled:false` —
+so the installed world is present and idle, which is what the install was for.
+**This is an explained difference, not an unexplained one.**
+
+**Today's two deliberate changes are not flags, and the flags half confirms it:**
+the ten privilege revokes moved `pg_proc`/`pg_class` ACLs, and the configuration
+row went into `production_notification_config`. Neither table is in this half,
+and no flag value moved.
+
+#### The gates
+
+They are GitHub Actions repository variables, absent by default and read as
+`false`. Measured read-only from the Actions API; the full variable list holds
+**one** `*_ENABLED` entry, `THUMBNAIL_REVISION_SCAN_ENABLED=true`.
+
+| Gate | Variable | State |
+|---|---|---|
+| Notification sender | `NATIVE_NOTIFICATION_SENDER_ENABLED` | **absent → off** |
+| Notification monitor (the wake) | `NATIVE_NOTIFICATION_MONITOR_ENABLED` | **absent → off** |
+| Outbox debt census | `OUTBOX_DEBT_CENSUS_ENABLED` | **absent → off** |
+| Retirement admission census | `SYNCVIEW_RETIREMENT_CENSUS_ENABLED` | **absent → off** |
+| Native intake completion | `NATIVE_INTAKE_COMPLETION_ENABLED` | **absent → off** |
+
+**Two of the five names in the instruction I could not place**, and I am not
+reporting them as off on that basis: there is no workflow, variable or script in
+the repository named for a **follow-up supervisor** gate or a **reconcile apply**
+gate. The reconcile workflows exist and are enabled at the GitHub level, but
+their apply behaviour is not gated by a `*_ENABLED` variable I can find. If those
+two gates live somewhere else — a database row, an Edge Function secret, an n8n
+switch — say where and I will measure them.
+
+#### Not done
+
+- No save, no write, no Slack message, no execution of anything.
+- Step 24 remains open, waiting on the staff credential.
+
 ### 2026-09-17 — STEP 22 APPLIED: the urgent editor message no longer carries the Linear line. Published version `fa9320fe…` is active and equals the draft; against the capture exactly one line in one node differs and everything else is byte-identical. Nothing was executed, tested or sent
 
 Storage session, on the owner's instruction. Two writes to n8n — one update, one

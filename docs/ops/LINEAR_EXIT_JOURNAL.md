@@ -30,6 +30,125 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEPS 17 AND 18 CLOSED. Merged at `302de4a4`, Pages published in ~40s, 8 of 8 safe reads answered. And a CORRECTION: the client-comment gateway is NOT new, so the blocker condition I raised never applied
+
+#### Step 17 — the merge
+
+CI on the final head `493eb9c7`: **14 check runs, 12 success, 2 skipped, 0
+failures**, all concluded. The bar the owner set, met exactly. PR #1391 marked
+ready and merged.
+
+**Merge commit on main: `302de4a4679132ded15cc462312c88ad20062a9b`.**
+
+**Method: a merge commit, not a squash, and the reasoning is in the commit
+message.** The repository's history is mixed — roughly five merge commits to
+seven squashes in the last twelve first-parent commits — so the majority does
+not decide it. What decides it: the proof artifacts pin `checkout_sha` values
+(the current pipeline proof pins `4a1b594d`), and **step 19's lane validates its
+dispatched SHA by ancestry on main**. A squash would have collapsed ~150 commits
+into one and broken exactly the property the next step depends on.
+
+#### The auto-deploy prediction, checked against what actually ran
+
+The pre-gate analysis said the merge **will** fire three deploy workflows and
+eleven functions. Measured on `302de4a4`:
+
+| workflow | conclusion |
+|---|---|
+| Deploy staff-sensitive edge functions | **success** |
+| Deploy thumbnail edge functions | **success** |
+| Deploy description image upload | **success** |
+
+Three, exactly the three named, and no other deploy lane. All eleven function
+sources were byte-identical to `main` and the storage session's B7 re-take had
+already shown no live body had drifted, so nothing was overwritten.
+
+#### Step 18 — served browser matches the merged commit
+
+```
+merged main (302de4a4) index.html   f3330147d5530ca0b6ee2338f95ce30132bf3ab320c1371fe98ca85374e36cf0
+served, immediately after merge     1d17a0f5…   == PRE-merge main 1abdd1fa, byte for byte
+served, ~40s later                  f3330147d5530ca0b6ee2338f95ce30132bf3ab320c1371fe98ca85374e36cf0   MATCH
+```
+
+The interval was observed rather than assumed: the first read caught the old
+bytes still being served and was recorded as such instead of being retried
+quietly until it agreed.
+
+#### Step 18 — safe existing reads, 8 of 8
+
+GET only, browser publishable key, counts and status codes only — no row, name
+or slug printed.
+
+```
+  read                               http   rows
+  clients                            206    49
+  team_members                       206    22
+  deliverables                       206    6632
+  calendar_posts                     206    11852
+  sample_reviews                     206    7100
+  batches                            206    1736
+  deliverable_events + the two install-added columns
+                                     206    110343
+  syncview_runtime_flags             206    27
+```
+
+The seventh is the one worth noting: `deliverable_events` selected **with**
+`event_assignee_id` and `event_assignee_attribution`, the columns the dormant
+install added. It answers 206, so the install's schema is live and readable from
+the browser exactly as the served page expects.
+
+#### ⚠ CORRECTION — the client-comment gateway is NOT a new route, and the flag is ON
+
+While checking dormancy I found `client_comment_gateway_enabled` present with
+**`enabled = true`**. That is the exact condition my pre-gate entry named as the
+one thing that would turn a note into a blocker.
+
+**It is not a blocker, because the premise was wrong.** Measured before saying
+anything:
+
+```
+                                       pre-merge main   merged main
+_prodClientCommentGatewayContext              6              6
+_clientCommentGatewayOn                       3              3
+client_comment_gateway_enabled                4              4
+```
+
+and the diff of `index.html` between `1abdd1fa` and `302de4a4` contains **no
+change** to `_writeUiUseGatewayWhenReady` or `clientGatewaySurface` in the client
+comment path. The carve-out is identical before and after — it came in earlier,
+with the PR 1064 behaviour its own comment cites.
+
+So:
+
+- the flag being on is **pre-existing production state**, not something this
+  merge created or enabled;
+- the client comment path is **byte-identical** across the merge, so the merge
+  added no client-facing exposure at all;
+- and my pre-gate claim that this was "the one client-triggerable **new** route"
+  was wrong. I reached it because `_clientCommentGatewayOn` was the enclosing
+  function of an added line — something near it moved, the function itself did
+  not. **Enclosing-function attribution is not authorship**, which is the same
+  shape as the three matching defects recorded earlier today: a proxy standing
+  in for identity.
+
+The PR description carries that same wrong claim, including the sentence that
+the page keeps client comments on the existing lane "until the flag is
+deliberately enabled" — when the flag was already enabled. The PR is merged and
+its body is now a historical document; **flagged to the owner rather than
+quietly rewritten.**
+
+#### State at stop
+
+Main is at `302de4a4`. Everything new remains dormant; no activation, no runtime
+enablement, no client delivery, nothing inside Linear touched, and no SQL or
+write of any kind was issued from this session — the step 18 reads were GET only.
+
+**Nothing further merges to main until the owner dispatches step 19 with
+`302de4a4679132ded15cc462312c88ad20062a9b`.** This entry is on a branch
+restarted from main, because the previous branch's pull request is merged and a
+merged pull request cannot carry follow-up work.
+
 ### 2026-09-17 — B5 BROWSER CAPTURE CLOSED: version 2 of the block, three changes, `mismatches = 0` over 22 files. `matched_git_sha = 1abdd1fa…`. The browser half of B5 is closed
 
 Storage session, on the owner's machine, minutes before the merge, after the

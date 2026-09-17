@@ -12,25 +12,27 @@ const assert=require('node:assert/strict'),api=require('../scripts/linear-exit-i
   * resolves the profile on its first line.
   *
   * So this suite now proves the gate itself, by name, for all three profiles.
-  * SUSPENDED COVERAGE, stated rather than quietly dropped: the read-only
-  * observation, the TLS / identity / catalog drift refusals, and the
-  * consent-token distinctness below are NOT exercised while no profile is
-  * gettable. Whoever pins settled68's measured target restores them by
-  * deleting the early return under RESTORE_WHEN_PINNED. */
+  * COVERAGE RESTORED 2026-09-17, when settled68's re-measured target was
+  * pinned. Everything below runs again -- the read-only observation, the TLS /
+  * identity / catalog drift refusals and the consent-token distinctness -- now
+  * against an explicitly named profile instead of the module default, which is
+  * a retired one and must never be relied on again. The gate checks above stay:
+  * they are what proves the retirement, and they cost nothing. */
  const profiles=require('../scripts/linear-exit-install-profiles');
- for(const [name,pattern] of [['observed67',/is RETIRED \(journal D18/],['observed67_optout',/is RETIRED \(journal D18/],['settled68',/has no pinned target/]]){
+ for(const [name,pattern] of [['observed67',/is RETIRED \(journal D18/],['observed67_optout',/is RETIRED \(journal D18/]]){
   assert.throws(()=>profiles.get(name),pattern,'profile gate must refuse '+name+' by name');
   await assert.rejects(api.execute({expectedDatabaseIdentity:identity,profile:name},prepared,fake()),pattern,'execute must refuse '+name+' by name');
   assert.throws(()=>api.consent({expectedDatabaseIdentity:identity,ownerWindowEvidenceSha256:'a'.repeat(64),profile:name}),pattern,'consent must refuse '+name+' by name');
-  // A plan must still BUILD for a profile that can never install again.
-  if(name!=='settled68')assert.ok(profiles.build.length>=1);
  }
- console.log('INSTALL_OPERATOR_OFFLINE_PASS profile gate refuses all three by name; downstream coverage suspended until settled68 target is pinned');
- return; // RESTORE_WHEN_PINNED
- const good=fake();assert.equal((await api.execute({expectedDatabaseIdentity:identity},prepared,good)).status,'READ_ONLY_OBSERVATION');assert.equal(good.calls.at(-1),'rollback');assert(!good.calls.some(s=>/^(insert|update|delete|create|alter|drop|commit)/i.test(s)));
- for(const over of [{identity:{...identity,database_oid:'7'}},{ssl:false},{catalog:{tables:['drift']}}]){const session=fake(over);await assert.rejects(api.execute({expectedDatabaseIdentity:identity},prepared,session));assert.equal(session.calls.at(-1),'rollback');assert(!session.calls.some(s=>s.includes('pg_try_advisory_lock')));}
- const denied=fake();await assert.rejects(api.execute({expectedDatabaseIdentity:identity},prepared,denied,'APPLY'),/EXECUTION_REFUSED/);assert(!denied.calls.some(s=>s.includes('pg_try_advisory_lock')));
+ // settled68 is pinned again as of 2026-09-17, so the gate must now LET IT THROUGH.
+ // Asserting that is what keeps this suite honest: it proved the refusal while the
+ // target was pending, and it proves the acceptance now, rather than only ever
+ // having seen one side.
+ {const g=profiles.get('settled68');assert.match(g.plan,/^[a-f0-9]{64}$/);assert.match(g.target,/^[a-f0-9]{64}$/);}
+  const good=fake();assert.equal((await api.execute({expectedDatabaseIdentity:identity,profile:'settled68'},prepared,good)).status,'READ_ONLY_OBSERVATION');assert.equal(good.calls.at(-1),'rollback');assert(!good.calls.some(s=>/^(insert|update|delete|create|alter|drop|commit)/i.test(s)));
+ for(const over of [{identity:{...identity,database_oid:'7'}},{ssl:false},{catalog:{tables:['drift']}}]){const session=fake(over);await assert.rejects(api.execute({expectedDatabaseIdentity:identity,profile:'settled68'},prepared,session));assert.equal(session.calls.at(-1),'rollback');assert(!session.calls.some(s=>s.includes('pg_try_advisory_lock')));}
+ const denied=fake();await assert.rejects(api.execute({expectedDatabaseIdentity:identity,profile:'settled68'},prepared,denied,'APPLY'),/EXECUTION_REFUSED/);assert(!denied.calls.some(s=>s.includes('pg_try_advisory_lock')));
  for(const c of [{},{projectRef:'a'.repeat(20),host:'127.0.0.1'},{projectRef:'a'.repeat(20),host:'db.'+'a'.repeat(20)+'.supabase.co',port:6543}])assert.throws(()=>api.load(c),/CONNECTION/);
- const c={expectedDatabaseIdentity:identity,ownerWindowEvidenceSha256:'a'.repeat(64)};assert.notEqual(api.consent(c),api.consent({...c,ownerWindowEvidenceSha256:'b'.repeat(64)}));assert.notEqual(api.consent(c),api.consent({...c,expectedDatabaseIdentity:{...identity,database_oid:'6'}}));
+ const c={expectedDatabaseIdentity:identity,ownerWindowEvidenceSha256:'a'.repeat(64),profile:'settled68'};assert.notEqual(api.consent(c),api.consent({...c,ownerWindowEvidenceSha256:'b'.repeat(64)}));assert.notEqual(api.consent(c),api.consent({...c,expectedDatabaseIdentity:{...identity,database_oid:'6'}}));
  console.log('INSTALL_OPERATOR_OFFLINE_PASS read-only, TLS/identity/catalog and consent refusals; actual apply unproven');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -3,7 +3,7 @@
   "provenance": "LIVE_READ schema-only observed definitions 2026-09-12; no inferred historical source owner",
   "scope": "REHEARSAL_ONLY_PRE67_NOT_INSTALLER",
   "sql_sha256": "79f1903193f684c0ac3e0560f07ad3bd371f6a87c1d07443280ee5f9a74b7bde",
-  "pre_test_sha256": "16551aa890e7c5af1ffda6e84c94fa8a37ec375d1fa2fe1736c038b491e57708",
+  "pre_test_region_sha256": "f2e9a9e7787176437385cbea9f608773fb33bc016dde79e018cdb973f07daeb5",
   "definitions": [
     {
       "name": "_calmerge_comment_cell",

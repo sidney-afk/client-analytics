@@ -819,6 +819,22 @@
     },
     {
       "name": "aaa_application_dml_admission_row",
+      "table": "hiring_practical_test_jobs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_row BEFORE INSERT OR DELETE OR UPDATE ON public.hiring_practical_test_jobs FOR EACH ROW EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_statement",
+      "table": "hiring_practical_test_jobs",
+      "enabled": "O",
+      "deferrable": false,
+      "definition": "CREATE TRIGGER aaa_application_dml_admission_statement BEFORE INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.hiring_practical_test_jobs FOR EACH STATEMENT EXECUTE FUNCTION production_application_dml_guard_v1()",
+      "initially_deferred": false
+    },
+    {
+      "name": "aaa_application_dml_admission_row",
       "table": "kasper_ad_campaign_daily",
       "enabled": "O",
       "deferrable": false,

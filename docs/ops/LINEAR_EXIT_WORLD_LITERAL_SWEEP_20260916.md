@@ -365,6 +365,55 @@ offered as material for that decision, not as a plan:
   something asserted the couplings between the four places the table-name set
   is written down. Which of those is worth doing is the owner's call.
 
+## 7b. Amendment 2026-09-17: two more sites, both found by running the deferred suites
+
+Neither was in the original 43, and both are the same class. They are added here
+rather than in a new document, because a sweep that does not absorb what it
+missed is a snapshot, not a register.
+
+**`docs/independence/LINEAR_EXIT_ADMISSION_SCHEMA_CONTRACT_20260912.json`
+`triggers[]` — STALE, now corrected.** The contract enumerated **173** triggers,
+the installed world has **175**, and the difference is exactly the two B10 added
+on `hiring_practical_test_jobs`. **Proven, not inferred:** the preflight's own
+mismatch artifact reports `failures: ["ADMISSION_TRIGGERS_COUNT"]` and a
+set-difference names the two entries. The expectation was updated with the two
+entries **as the server reported them**, not composed by hand, and
+`linear-exit-admission-preflight-postgres.js` now passes. It is the same shape as
+§3.2: an enumerated set that had to move with the world and did not.
+
+**`scripts/linear-exit-observed-routines.js:11` — STALE, now derived.** It held
+`assert.equal(count of public ordinary relations, 67)`, the pre-admission count
+of the 2026-09-12 world. D24 made the caller's world 68 and it refused
+`68 !== 67`. The count now comes in from the caller as an argument, because it
+belongs to the world the caller just built. **This one was hidden behind another
+failure** — the byte pin in §7c refused first — so it took two fixes before it
+could be seen at all.
+
+## 7c. Amendment 2026-09-17: a class the sweep did not look for
+
+`qa/linear-exit-rehearsal/observed-baseline/routines-contract.json` held
+`pre_test_sha256`, a pin over **the bytes of an unrelated test file**
+(`test/linear-exit-source-phases-postgres.js`, which one suite uses as a
+template and splices into). D24 edited a table count near the top of that
+template and broke a different suite entirely.
+
+**The sweep's search shapes could not have found this.** It looked for counts,
+fingerprints and world-size literals. This is a **file-content pin pointing at a
+test file**, which §1 explicitly set aside as "self-checking, fail loudly, and
+re-derived as part of any change" — true of a pin on a *source* file, false of a
+pin on a *template* whose unrelated regions change for unrelated reasons.
+
+Ruled by the owner on 2026-09-17: it stops gating on the test file's bytes. It
+now pins **the spliced region alone**, which is what the contract actually
+depends on, with the anchors resolved first so the pin describes what was found.
+
+**A future sweep should add a shape for it:** a pin held by file A over file B
+where B is a test. That is an undeclared coupling by construction, and it is the
+**fourth** of that family after the table-name coupling, the world literals and
+the dual-role proof file.
+
+---
+
 ## 8. Amendment: three owner decisions landed while this was being written
 
 Recorded because two of them change what a reader should DO with sections above,

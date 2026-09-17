@@ -30,6 +30,94 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Target pinned, pipeline lane fixed at both findings, routines coupling cut, preflight divergence proven. Four tasks, four mutation proofs, one of them through a gate that is no longer stubbed
+
+**1. Target pinned.** `settled68.target` is
+`24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`, the storage
+session's re-measurement on the current head, byte-identical to `ff9b379f` and
+compared from disk. Pinned as a **re-measurement, not a transcription that
+happened to be lucky** — the distinction the nine-moved-files check existed to
+enforce. `profiles.get('settled68')` returns both hashes again; the two retired
+profiles still refuse by name.
+
+**Suspended coverage restored.** `RESTORE_WHEN_PINNED` is gone from
+`test/linear-exit-install-operator.js` and the read-only observation, the TLS /
+identity / catalog-drift refusals and the consent-token distinctness all run
+again — now against an **explicitly named profile**, never the module default,
+which is a retired one. The gate checks stay: the suite proved the refusal while
+the target was pending and proves the acceptance now, so it has seen both sides
+rather than only one.
+
+**2. The pipeline lane, both findings.**
+
+The construction defect was real and mine. The lane had grown **its own copy** of
+the settled-world construction, applying the hiring migration and skipping the
+opt-out prerequisite. Fixed by extracting `applySettledWorld()` into
+`scripts/linear-exit-b9-catalog-derive.js` and having **both callers share it** —
+storage supplement, then opt-out, then hiring, in that order, which is
+load-bearing because the hiring migration is authored on top of the opt-out
+world, not beside it. The lane's private copies of the hiring exec and the
+storage supplement are gone.
+
+The interruption check at the verify path required exactly **90** maintenance
+guards. It now derives from `postInstallPublicTables(plan.initial_catalog_sha256)`,
+which is 91 for the settled world.
+
+**The mutation proof ran through the REAL, unstubbed catalog gate**, per D27
+recorded above: `observed.compare()` refuses a wrong-shaped catalog, an empty one
+and a null one. **What it still cannot do, said plainly:** it cannot prove the
+lane builds `ddfa4c4f…` end to end, because that needs the private observed
+inputs. That proof is the storage session's calibrate run. `--calibrate` takes no
+target and can go first. **The lane is ready to re-run.**
+
+**3. The routines contract no longer gates on a test file's bytes.**
+`pre_test_sha256` became `pre_test_region_sha256`, over the **spliced region
+alone**, with the anchors resolved before the pin so it describes what was found.
+Contract re-pinned, `CONTRACT_SHA256` re-derived.
+
+**Proven through the real check**, by error signature rather than by exit code:
+editing the template **outside** the region now reaches the routine comparison
+where it used to refuse, and editing **inside** it refuses on
+`spliced template region drift`. Template restored byte-identical afterwards.
+
+**Two things underneath it, both new, both reported not fixed.** Cutting the byte
+pin revealed `scripts/linear-exit-observed-routines.js:11` holding its own
+`67` — the pre-admission count — which now takes the count from its caller,
+because it belongs to the world the caller just built. And underneath *that*, the
+routines contract's enumerated routine bodies do not match the settled world:
+the diff names `hiring_capture_application_v1` and siblings. **That is a reviewed
+artifact describing a pre-hiring world and re-deriving it is not this session's
+call** — it is the D8 silencing risk in its purest form. The suite still fails
+there, for that reason, and the reason is now legible instead of hidden behind a
+byte pin.
+
+**4. The preflight divergence is PROVEN, not inferred.** The suite's own mismatch
+artifact reports `failures: ["ADMISSION_TRIGGERS_COUNT"]`, a single failure.
+Contract **173** triggers, installed world **175**, set-difference exactly
+`hiring_practical_test_jobs / aaa_application_dml_admission_row` and
+`…_statement` — the two B10 added. The expectation was updated with the two
+entries **as the server reported them**, not composed, and the pin chain
+re-derived. `linear-exit-admission-preflight-postgres.js` now **passes**.
+
+Both are classified in the sweep document, at §7b and §7c. §7c also records that
+the sweep's shapes **could not have found** the routines coupling: it looked for
+counts and fingerprints, and a pin held by one file over a *test* file was
+explicitly set aside in §1 as self-checking. A future sweep gets that shape.
+
+**Recorded separately, not fixed, per instruction:** the preflight suite reports
+failure **only into a private file**. A console reader sees exit 1 and no reason.
+Every other failing suite in the deferred set prints a marker. That is a
+diagnosability defect and it cost this session a detour before the artifact was
+found.
+
+**Results, with denominators.** Full unit lane: **14 of 548 failed**, all 14 the
+known sandbox failures, none new. Deferred suites touched and re-run
+individually: `linear-exit-admission-preflight-postgres.js` **passes** (was 1 of
+the 2 new failures in the D22 first pass); `linear-exit-observed-routines-postgres.js`
+gets past both pins and now fails on the routine-body contract described above.
+The three profile plan hashes are **unmoved**, so the target pinned in task 1
+stays valid. The 61 were not re-run as a set; that remains D22's authoritative
+run.
 ### 2026-09-17 — STEP 11 CLOSED: pre-state snapshot written, private, machine-diffable. Database half restore-derived; Edge env as name and SHA-256 only; workers from the GitHub Actions API; 19 gates recorded ABSENT. 11 of 28
 
 Storage session, on the owner's authorisation. **Read-only everywhere; nothing
@@ -7300,6 +7388,28 @@ proves only that a different check works. **A mutation caught by a check other
 than the one under test is not a proof of the check under test.** Recorded
 because it would be easy to do the weak version and believe the standard had
 been met.
+
+### D27 — A stubbed gate is an untested gate (2026-09-17, owner)
+
+**Binding, and it is the sharp edge of D26.** A mutation proof that stubs a
+check has not tested that check. It has tested everything except it.
+
+Given after the D19 mutation proof stubbed `observed.compare()`, the starting-
+catalog gate, in order to build a plan without the private inputs. The proof
+passed six cases and reported the lane correct. The gate it stubbed is **exactly
+the one that would have caught** the real defect: the re-based lane applied the
+hiring migration without the opt-out prerequisite, built catalog `5864a28f…`
+instead of `ddfa4c4f…`, and the storage session's calibrate run refused. The
+proof could not see it because the proof had switched off the thing that sees it.
+
+So: a mutation proof runs **through the real gate**, or it says plainly, in the
+record, that it could not and what that leaves unproven. "It passed" is not a
+result when the gate was off.
+
+**The narrower lesson, which is the one that will recur:** a stub added to get
+past a missing input quietly relocates itself into the middle of the proof. The
+stub for the private catalog was reasonable; using the same run to certify the
+lane was not.
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

@@ -50,15 +50,15 @@ const profiles={
  // The offline reproduction is trustworthy because the same harness reproduces
  // every previously pinned plan hash exactly.
  //
- // TARGET IS NOT PINNED, deliberately. The storage session measured
- // 24c833c0... at ff9b379f, and that number is almost certainly still right.
- // It is not written here because EIGHT files in the target-producing chain
- // have changed since that run, two of them reachable from the calibration
- // itself: linear-exit-observed-public-catalog.js, whose postInstallPublicTables
- // the worker calls twice, and the custody corpus the control companion reads.
- // A target is a measurement of a chain, so a target measured on a different
- // chain is not this profile's target. It is re-measured, not transcribed.
- settled68:{plan:'508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd',target:PENDING,contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
+ // TARGET 24c833c0... PINNED 2026-09-17, and the way it got here is the point.
+ // It was first measured at ff9b379f. Nine files in the target-producing chain
+ // then moved, two of them reachable from the calibration itself, so it was
+ // deliberately NOT transcribed: a target is a measurement of a chain, and one
+ // measured on a different chain is not this profile's target. The storage
+ // session re-measured it on the current head and got the SAME value, compared
+ // from disk rather than from a console. So it is pinned as a re-measurement,
+ // not as a transcription that happened to be lucky.
+ settled68:{plan:'508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd',target:'24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187',contract:'settled68',stage_id:'OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1'}};
 function has(name){return Object.hasOwn(profiles,name);}
 /* A dead target is stated, never left as a plausible hash or a bare null.
  *

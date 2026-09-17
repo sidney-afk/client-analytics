@@ -81,6 +81,37 @@ function reviewedSections() {
   return { catalogSha256: d.catalog_sha256, counts: by, sections: d.sections, observedDate: d.observed_date };
 }
 
+/* THE SETTLED WORLD, BUILT IN ONE PLACE.
+ *
+ * observed67 reconstructed + the storage-column supplement + the opt-out
+ * prerequisite + the owner's hiring migration = settled68, catalog ddfa4c4f...
+ *
+ * This used to live only inside derive(). On 2026-09-17 the re-based pipeline
+ * proof lane grew its own copy and got it WRONG: it applied the hiring
+ * migration and skipped the opt-out prerequisite, so it built 5864a28f...
+ * instead of ddfa4c4f... and the storage session's calibrate run refused. Two
+ * constructions of one world is one too many, so both callers now share this.
+ *
+ * The order is load-bearing. Opt-out FIRST: it is the delta that takes
+ * observed67 to the opt-out world, and the hiring migration is authored on top
+ * of that, not beside it.
+ */
+function applySettledWorld(c, { onStage = () => {}, stopBeforeHiring = false, hiringOnly = false } = {}) {
+  if (!hiringOnly) {
+    /* Same storage-column supplement the operator proof uses. */
+    c.exec('alter table storage.buckets alter column name set not null; alter table storage.buckets add column public boolean, add column file_size_limit bigint, add column allowed_mime_types text[];');
+    onStage('storage_supplement_applied');
+    const prerequisite = gitShow(OPTOUT_PREREQUISITE_REF, OPTOUT_PREREQUISITE);
+    assert.equal(j.sha(prerequisite), OPTOUT_PREREQUISITE_SHA, 'opt-out prerequisite source drift');
+    c.exec(prerequisite.toString('utf8'));
+    onStage('optout_prerequisite_applied');
+    if (stopBeforeHiring) return;
+  }
+  const hiring = fs.readFileSync(path.join(ROOT, HIRING_MIGRATION));
+  c.exec(hiring.toString('utf8'));
+  onStage('hiring_migration_applied');
+}
+
 function gitShow(ref, file) {
   return cp.execFileSync('git', ['show', ref + ':' + file], { cwd: ROOT, maxBuffer: 1 << 28 });
 }
@@ -203,22 +234,13 @@ function derive(opts) {
     observed.applyObservedSchema(c, { inputDirectory: opts.observedInput, outputDirectory: opts.out });
     stages.push('observed_schema_applied');
 
-    /* Same storage-column supplement the operator proof uses. */
-    c.exec('alter table storage.buckets alter column name set not null; alter table storage.buckets add column public boolean, add column file_size_limit bigint, add column allowed_mime_types text[];');
-    stages.push('storage_supplement_applied');
-
-    const prerequisite = gitShow(OPTOUT_PREREQUISITE_REF, OPTOUT_PREREQUISITE);
-    assert.equal(j.sha(prerequisite), OPTOUT_PREREQUISITE_SHA, 'opt-out prerequisite source drift');
-    c.exec(prerequisite.toString('utf8'));
-    stages.push('optout_prerequisite_applied');
+    applySettledWorld(c, { onStage: (s) => stages.push(s), stopBeforeHiring: true });
 
     const beforeHiring = c.scalarJson(catalog.query());
     const beforeSha = j.sha(j.canonical(beforeHiring));
     stages.push('pre_hiring_catalog_read');
 
-    const hiring = fs.readFileSync(path.join(ROOT, HIRING_MIGRATION));
-    c.exec(hiring.toString('utf8'));
-    stages.push('hiring_migration_applied');
+    applySettledWorld(c, { onStage: (s) => stages.push(s), hiringOnly: true });
 
     const settled = c.scalarJson(catalog.query());
     const settledSha = j.sha(j.canonical(settled));
@@ -319,4 +341,4 @@ function main(argv) {
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
-module.exports = { selfcheck, derive, planFrom, reviewedSections, HIRING_MIGRATION };
+module.exports = { selfcheck, derive, planFrom, reviewedSections, HIRING_MIGRATION, applySettledWorld };

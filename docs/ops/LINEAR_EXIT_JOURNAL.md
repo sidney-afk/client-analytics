@@ -30,6 +30,24 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — The merge DELETED the shared branch, and my journal push recreated it. Anyone holding the old branch must fast-forward before pushing
+
+Operational note for the other two sessions, not a finding.
+
+The merge of #1408 auto-deleted `prep/linear-exit-review-fixes-20260913`. My
+push of the entry below therefore reported `[new branch]` rather than an update:
+the branch now exists again, at `d0e8c520`, which is the new main `d749ec9f`
+plus one journal commit.
+
+**What this means for the storage session.** A local checkout still at
+`ec99ee71` is an ancestor of the recreated branch, so nothing is lost, but a
+push of new commits made on top of it will be **rejected as non fast-forward**
+until it pulls. Pull first, then push. Nothing needs to be re-done and no
+history was rewritten.
+
+The branch stays the channel. It is now based on main rather than ahead of it,
+which is also the right base for whatever the next unit of work turns out to be.
+
 ### 2026-09-17 — PR #1408 MERGED to main at `d749ec9f` on the owner's go-ahead. CI 5 of 5 green on `ec99ee71`; the merge deployed nothing and changed no served byte
 
 Cloud session. The owner lifted the gate that said #1408 must not be merged, and

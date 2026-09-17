@@ -1,9 +1,14 @@
 {
   "format": "observed-pre-routines-v1",
-  "provenance": "LIVE_READ schema-only observed definitions 2026-09-12; no inferred historical source owner",
+  "provenance": "Rehearsal-world server read 2026-09-17 on the source-phases PRE_CANDIDATE world, at the same anchor the routines suite splices into; supersedes the 2026-09-12 LIVE_READ set, which it reproduces field for field and extends by the seven functions that only migrations/2026-09-15-hiring-video-editor-role.sql defines",
   "scope": "REHEARSAL_ONLY_PRE67_NOT_INSTALLER",
   "sql_sha256": "79f1903193f684c0ac3e0560f07ad3bd371f6a87c1d07443280ee5f9a74b7bde",
   "pre_test_region_sha256": "f2e9a9e7787176437385cbea9f608773fb33bc016dde79e018cdb973f07daeb5",
+  "limits": [
+    "SOURCE_WORLD_OWNER_MIGRATIONS_APPLIED_SCHEMA_DDL_ONLY",
+    "SOURCE_WORLD_EXCLUDES_TOP_LEVEL_DO_BLOCKS_AND_DATA_OPERATIONS",
+    "REHEARSAL_WORLD_NOT_A_HOSTED_CATALOG_EQUIVALENCE_CLAIM"
+  ],
   "definitions": [
     {
       "name": "_calmerge_comment_cell",
@@ -1329,6 +1334,30 @@
     {
       "acl": "{postgres=X/postgres,service_role=X/postgres}",
       "kind": "f",
+      "name": "hiring_authorize_practical_test_send_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(authorized boolean, application_id uuid, recipient_email text, subject text, body text, raw_footage_url text, reference_edit_url text)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_job_id uuid, p_claim_token uuid",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "02cd7314b5b77374f5e43322a2fa01d9",
+      "anon_execute": false,
+      "body_raw_md5": "02cd7314b5b77374f5e43322a2fa01d9",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "cb3f4073cf82adcb44c7f389179628a4",
+      "definition_raw_md5": "cb3f4073cf82adcb44c7f389179628a4",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
       "name": "hiring_capture_application_v1",
       "owner": "postgres",
       "config": [
@@ -1377,6 +1406,30 @@
     {
       "acl": "{postgres=X/postgres,service_role=X/postgres}",
       "kind": "f",
+      "name": "hiring_claim_next_practical_test_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(job_id uuid, claim_token uuid, application_id uuid, recipient_email text, subject text, body text, raw_footage_url text, reference_edit_url text)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_worker_id text",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "d0e38fc5d859c9dd3ab129499cfeb183",
+      "anon_execute": false,
+      "body_raw_md5": "d0e38fc5d859c9dd3ab129499cfeb183",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "7063456929651520758efc4544f9e973",
+      "definition_raw_md5": "7063456929651520758efc4544f9e973",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
       "name": "hiring_queue_interview_invite_v1",
       "owner": "postgres",
       "config": [
@@ -1396,6 +1449,30 @@
       "security_definer": true,
       "definition_lf_md5": "070cb3df4028fca5a7f5fd78873c7029",
       "definition_raw_md5": "070cb3df4028fca5a7f5fd78873c7029",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "hiring_queue_practical_test_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(job_id uuid, job_state text, existing boolean)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_application_id uuid, p_expected_state_version bigint, p_recipient_email text, p_subject text, p_body text, p_raw_footage_url text, p_reference_edit_url text, p_actor text",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "b9ba7f6087a8722635f64368c521ecd1",
+      "anon_execute": false,
+      "body_raw_md5": "b9ba7f6087a8722635f64368c521ecd1",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "b5cafee0066740f96901958749175201",
+      "definition_raw_md5": "b5cafee0066740f96901958749175201",
       "authenticated_execute": false
     },
     {
@@ -1449,6 +1526,30 @@
     {
       "acl": "{postgres=X/postgres,service_role=X/postgres}",
       "kind": "f",
+      "name": "hiring_record_practical_test_result_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(application_id uuid, job_state text, application_status text)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_job_id uuid, p_claim_token uuid, p_result text, p_provider_message_id text, p_failure_code text",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "6dec3e44afac515670b41fde18dfeec6",
+      "anon_execute": false,
+      "body_raw_md5": "6dec3e44afac515670b41fde18dfeec6",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "7b9df9fbf6b2f7e98192c95782a8fa1d",
+      "definition_raw_md5": "7b9df9fbf6b2f7e98192c95782a8fa1d",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
       "name": "hiring_require_invite_send_authorization",
       "owner": "postgres",
       "config": [
@@ -1469,6 +1570,30 @@
       "definition_lf_md5": "afa547fc81861c81ddff982410404e1d",
       "definition_raw_md5": "afa547fc81861c81ddff982410404e1d",
       "authenticated_execute": false
+    },
+    {
+      "acl": null,
+      "kind": "f",
+      "name": "hiring_require_practical_test_send_authorization",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "580f9a7744ecd2a0cc4d2ecc4b07a64b",
+      "anon_execute": true,
+      "body_raw_md5": "580f9a7744ecd2a0cc4d2ecc4b07a64b",
+      "service_execute": true,
+      "security_definer": false,
+      "definition_lf_md5": "2d4ad17fe2a15ee9634bddbbe2f37517",
+      "definition_raw_md5": "2d4ad17fe2a15ee9634bddbbe2f37517",
+      "authenticated_execute": true
     },
     {
       "acl": "{postgres=X/postgres,service_role=X/postgres}",
@@ -1497,6 +1622,30 @@
     {
       "acl": "{postgres=X/postgres,service_role=X/postgres}",
       "kind": "f",
+      "name": "hiring_retry_failed_practical_test_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(job_id uuid, job_state text, state_version bigint)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_application_id uuid, p_expected_state_version bigint, p_actor text",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "3c38790b49629a47d0dcf6f010620b45",
+      "anon_execute": false,
+      "body_raw_md5": "3c38790b49629a47d0dcf6f010620b45",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "2447c7b471e41b3659bbc0ade0b0c458",
+      "definition_raw_md5": "2447c7b471e41b3659bbc0ade0b0c458",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
       "name": "hiring_set_application_status_v1",
       "owner": "postgres",
       "config": [
@@ -1516,6 +1665,30 @@
       "security_definer": true,
       "definition_lf_md5": "66d3a2f58fa54866576f4eac377d1b59",
       "definition_raw_md5": "66d3a2f58fa54866576f4eac377d1b59",
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "kind": "f",
+      "name": "hiring_set_practical_test_verdict_v1",
+      "owner": "postgres",
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "result": "TABLE(application_id uuid, status text, state_version bigint)",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "arguments": "p_application_id uuid, p_expected_state_version bigint, p_verdict text, p_actor text",
+      "leakproof": false,
+      "volatility": "v",
+      "body_lf_md5": "540dafbbe95635bb3b8f504cd154069f",
+      "anon_execute": false,
+      "body_raw_md5": "540dafbbe95635bb3b8f504cd154069f",
+      "service_execute": true,
+      "security_definer": true,
+      "definition_lf_md5": "237b963c39302f349758abb5aa985a83",
+      "definition_raw_md5": "237b963c39302f349758abb5aa985a83",
       "authenticated_execute": false
     },
     {

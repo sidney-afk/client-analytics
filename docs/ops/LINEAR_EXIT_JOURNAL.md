@@ -30,6 +30,217 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — TASK TWO: routines contract regenerated to 122 by server read, the one-directional loop in `applyAndCompare` closed over the union, and the old loop shown to pass on the exact data the new one refuses
+
+Four things in one change, each executed. Contract `4ed53749…` → `ee21a7a9…`.
+
+#### Precondition, checked first as instructed
+
+None of the files this change touches is in the operator's 26 `source_pins`
+(`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json`):
+
+```
+  not pinned  test/helpers/remaining-application-fixture.js
+  not pinned  qa/linear-exit-rehearsal/observed-baseline/routines-contract.json
+  not pinned  scripts/linear-exit-observed-routines.js
+  not pinned  test/linear-exit-observed-routines-postgres.js
+  not pinned  qa/linear-exit-rehearsal/observed-baseline/routines-64.sql
+```
+
+The 26 are the pipeline suite, its worker, six installer scripts and eighteen
+`supabase/migrations/*.sql`. Nothing here overlaps, so the sequence is safe and
+the deferral of the reconstruction-compare fix until after step 15 is untouched.
+
+#### 1. Which world, and why not `applySettledWorld` after all
+
+The instruction said regenerate against `applySettledWorld`. Measured first:
+the routines suite does not build its world that way. It splices its call into
+`test/linear-exit-source-phases-postgres.js` at the `PRE_CANDIDATE` anchor, so
+the world is the source-phases pre-candidate world — which already applies
+`migrations/2026-09-15-hiring-video-editor-role.sql` through the fixture's
+owner list. Regenerating against a different lane's world would have produced a
+contract this suite could never satisfy.
+
+So I measured before writing anything, at the suite's own anchor:
+
+```
+REGEN_MEASUREMENT {"world":"source-phases PRE_CANDIDATE, spliced at the same anchor
+ the routines suite uses","expected_public_tables":68,"measured_public_tables":68,
+ "functions_before_applying_the_64":93,"functions_after_applying_the_64":122,
+ "contract_functions_today":115,"contract_definitions_today":64}
+```
+
+**122.** The two readings converge on the same number the owner named, so the
+regeneration went ahead against the suite's own world. If it had come back
+anything other than 122 I would have stopped and reported instead.
+
+#### 2. The regeneration, and what it is allowed to do
+
+By server read at that anchor, never by editing routine bodies. The writer
+refuses outright if a regeneration would LOSE or CHANGE anything — it may only
+add:
+
+```
+IN CAPTURE, NOT IN CONTRACT (7):   the seven practical-test functions
+IN CONTRACT, NOT IN CAPTURE (0)
+shared with differing fields: 0
+```
+
+Zero of the 115 moved by a single field. That is the strongest available
+evidence that the earlier regeneration got the bodies right and only the world
+was short. `routines-64.sql` is untouched (`sql_sha256` unchanged), and so is
+`pre_test_region_sha256`.
+
+#### 3. A thing the regeneration found: one of the seven has no explicit ACL
+
+`hiring_require_practical_test_send_authorization()` is a trigger function the
+migration never grants on, so its `acl` is `null`, and `aclSql` refuses a null
+ACL by design — `test/linear-exit-observed-routines.js` asserts that refusal.
+
+Rather than soften `aclSql` (which would have let a real ACL gap through
+silently), `load()` now skips null-ACL functions when building the permission
+statements **and asserts that a skipped function is never one of the 64
+definitions the rehearsal applies**:
+
+```js
+const applied=new Set(contract.definitions.map(d=>d.name+'('+d.arguments+')'));
+const permissions=contract.functions.filter(f=>{
+  if(f.acl!==null&&f.acl!==undefined)return true;
+  assert(!applied.has(f.name+'('+f.arguments+')'),
+    'a definition this rehearsal applies must carry an explicit ACL: '+f.name);
+  return false;}).map(aclSql);
+```
+
+122 functions, 121 permission blocks. A function we apply and then fail to
+grant on would still be a hard refusal.
+
+#### 4. The one-directional loop, closed
+
+Was:
+
+```js
+for(const expected of snapshot.contract.functions){
+  const found=actual.functions.find(f=>f.name===expected.name&&f.arguments===expected.arguments);
+  assert(found); ... }
+```
+
+Now both maps are built, both sizes asserted against their array lengths (so a
+duplicate signature cannot hide), and the walk covers the union: a contract
+entry missing from the world reports `ABSENT_FROM_WORLD`, a world function
+missing from the contract reports `ABSENT_FROM_CONTRACT`. A missing function is
+now a reported difference rather than a bare `assert(found)` throw, which is
+strictly more informative and still fails.
+
+#### 5. The literals, derived rather than restated
+
+`load()` asserted `definitions.length===64` and `functions.length===115`, and
+the task was explicit that 122 and 64 must not become the next two literals.
+They are gone, and nothing is weaker for it:
+
+- the 64 was already pinned twice over — `sql_sha256` pins `routines-64.sql`'s
+  bytes, and the offset walk ends with `assert.equal(end,sql.length)`, so the
+  definition count is a property of bytes that are hashed. It now reads
+  `new Set(names).size === contract.definitions.length`, which pins uniqueness,
+  which the literal never did.
+- the 115 was pinned by `CONTRACT_SHA256` over the whole contract file. It now
+  reads `new Set(signatures).size === contract.functions.length`.
+- the report's `functions:115` and `full_record_matches:115-differences.length`
+  now derive from the two sets, and the report carries both counts:
+  `functions` (the world) and `contract_functions`.
+
+A literal that restates a hashed fact adds nothing and goes stale silently;
+that is the whole world-literal class. Two fewer.
+
+#### 6. The named limitation, declared in the artifact rather than in a comment
+
+The contract now carries a `limits` array, and `load()` refuses a contract that
+drops the first token:
+
+```
+SOURCE_WORLD_OWNER_MIGRATIONS_APPLIED_SCHEMA_DDL_ONLY
+SOURCE_WORLD_EXCLUDES_TOP_LEVEL_DO_BLOCKS_AND_DATA_OPERATIONS
+REHEARSAL_WORLD_NOT_A_HOSTED_CATALOG_EQUIVALENCE_CLAIM
+```
+
+The filter is real and measured (60 of 63 statements from the 08-24 migration,
+38 of 44 from the 09-15 one; all twenty function definitions survive). It is
+declared because the world is built that way, not because it caused this defect
+— it did not.
+
+#### 7. MUTATION PROOF, on a real cluster, through the real suite
+
+Control, the real suite unmodified:
+
+```
+{"marker":"LINEAR_EXIT_OBSERVED_ROUTINES_OK","functions":122,"contract_functions":122,
+ "full_record_matches":122,"differences":[],"contract_sha256":"ee21a7a9e404…"}
+```
+
+Mutation, one extra `create function` executed immediately before
+`applyAndCompare`, same splice, same lane:
+
+```
+{"marker":"LINEAR_EXIT_SOURCE_PHASES_FAILED","entry":"PRE_CANDIDATE"}
+
+AssertionError: Expected values to be strictly deep-equal:
++ [ { fields: [ 'ABSENT_FROM_CONTRACT' ],
++     name: 'zz_probe_one_extra_function_v1(a integer)' } ]
+- []
+
+report: {"functions":123,"contract_functions":122,"full_record_matches":122,
+ "differences":[{"name":"zz_probe_one_extra_function_v1(a integer)",
+ "fields":["ABSENT_FROM_CONTRACT"]}]}
+```
+
+A world with one more function than the contract now refuses. D28 satisfied:
+the changed function was executed, on a real cluster, before the push.
+
+#### 8. And the counter-control — the old loop on the same data
+
+A check that fires proves it can fire. It does not prove the old one could not.
+Both algorithms, run over the same two inputs:
+
+```
+A  OLD one-directional loop, contract 122 vs world 123  -> PASSES (defect)
+B  OLD loop, contract 115 vs the real world 122         -> PASSES (the bug that shipped)
+C  NEW union, contract 122 vs world 123                 -> REFUSES, 1 difference
+D  NEW union, contract 115 vs the real world 122        -> REFUSES, 7 differences
+      hiring_authorize_practical_test_send_v1(…)      ABSENT_FROM_CONTRACT
+      hiring_claim_next_practical_test_v1(…)          ABSENT_FROM_CONTRACT
+      hiring_queue_practical_test_v1(…)               ABSENT_FROM_CONTRACT
+      hiring_record_practical_test_result_v1(…)       ABSENT_FROM_CONTRACT
+      hiring_require_practical_test_send_authorization()  ABSENT_FROM_CONTRACT
+      hiring_retry_failed_practical_test_v1(…)        ABSENT_FROM_CONTRACT
+      hiring_set_practical_test_verdict_v1(…)         ABSENT_FROM_CONTRACT
+```
+
+Row B is the one worth keeping: the contract that shipped, against the world the
+suite actually builds, passed. Row D is the same pair under the new comparison
+and names all seven. The suite was green for exactly as long as it was blind.
+
+#### 9. Two proof artifacts that this leaves stale — already stale, not newly so
+
+`docs/independence/LINEAR_EXIT_CONTROL_CURRENT_PUBLIC_PROOF_20260913.json` and
+`LINEAR_EXIT_CONTROL_RETIREMENT_PROOF_20260913.json` both pin
+`scripts/linear-exit-observed-routines.js` and the routines contract by sha256.
+Measured **before** this change: both pins were already stale from the earlier
+regeneration, while their pins on `routines-64.sql` and
+`test/helpers/control-current-public-owners.js` still match and still do. So
+this change does not newly break them; they need re-running before the exit
+merge, and that is the storage session's lane, not mine. Recorded rather than
+touched.
+
+#### What this does NOT do
+
+It does not fix the reconstruction compare in
+`scripts/linear-exit-observed-schema.js` line 57, which has the same shape and
+whose file **is** in the operator's pinned set. That stays deferred until after
+step 15, with its exact fix already recorded. Its neighbouring literals
+(`tables:67, routines:115, identity_sequences:14`, and the matching
+`assert.equal(live.functions.length,115)` at line 28) belong to the 2026-09-12
+observed world and are a separate question from this contract's 122; they are
+not touched here and must not be edited on the strength of this entry.
+
 ### 2026-09-17 — CORRECTION, before task two starts: there is NO divergent copy of the hiring migration. The fixture is already pinned to main's bytes, and the real cause of the 115-versus-122 gap is a migration that was never applied
 
 I reported the routines contract's missing functions as coming from "the

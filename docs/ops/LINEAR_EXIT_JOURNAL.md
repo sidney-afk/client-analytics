@@ -30,6 +30,96 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — TRACE: the 67-table reconstruction's "exact match" is one-directional, and so is the routines comparison. Same defect, two places, and it explains both observations
+
+Task 3 answered, and it turned out to answer half of task 2 as well.
+
+#### What the reconstruction check actually compares
+
+`scripts/linear-exit-observed-schema.js`, the `compare` stage:
+
+```js
+const actual = c.scalarJson(api.query());
+const differences = Object.keys(live).filter(k => canon(live[k]) !== canon(actual[k]));
+... exact_captured_catalog_match: differences.length === 0
+```
+
+- `live` is the **four private captured input files**, the 2026-09-12 observation.
+- `actual` is a fresh catalog read of the reconstruction.
+- It iterates **`Object.keys(live)` only**.
+
+**Executed, with the real `canonicalJson` and the real expression:**
+
+| Case | `differences` | reports exact match |
+|---|---|---|
+| a section present **only in `actual`** | `[]` | **true** |
+| a section in `live` that differs | `["tables"]` | false |
+| a section in `live` missing from `actual` | `["functions"]` | false |
+
+**So `exact_captured_catalog_match: true` means "every captured section matched",
+not "the catalogs are equal."** Anything the reconstruction has that the capture
+did not is invisible to it, by construction.
+
+**And on the owner's premise:** this check **never reads the routines contract**.
+`live` comes from the private capture files; `routines-contract.json` is a
+different artifact read by a different suite. The two describe overlapping
+reality and **nothing reconciles them**, which is why changing two contract
+entries could not move this check either way. That absent relation is the
+finding — the same family as the table-name coupling and the template byte pin,
+now the **fifth**.
+
+One clarification so the report is not over-read: `tables: 67, routines: 115,
+identity_sequences: 14` in that report are asserted at the top of the module
+against `live`, so they are true **of the captured input**. They are not
+measurements of the rebuilt world, and a reader could easily take them as such.
+
+#### The same shape in `applyAndCompare`, which explains task 2's numbers
+
+`scripts/linear-exit-observed-routines.js` iterates
+`snapshot.contract.functions` and looks each up in `actual`. **Executed** with
+the real loop shape: a world holding 3 functions against a contract listing 2
+reports `differences: []` and `full_record_matches: 2 of 2`.
+
+**So a function present in the world but absent from the contract is never
+examined.** That is why my regeneration reported a clean `115 of 115` while the
+settled world has **122**: the seven extra functions were never in scope. The
+check did not disagree with its inputs — it never looked at them.
+
+Two places, one defect: **a comparison driven by the expectation's key set
+rather than the union of both.** It passes whenever reality has *more* than the
+expectation, which is exactly the direction a growing world moves.
+
+#### Task 2: measured, and a proposal, not yet implemented
+
+Measured on the fixture's application of the hiring migration: of **44
+statements**, the schema-only filter keeps **38** and drops **6** — the `begin`
+and `commit` wrapper and four `do $$ … $$` blocks. All **10**
+`create or replace function` statements are kept, so my measurement **does not
+by itself explain** the seven absent practical-test functions the storage
+session observed. I am not asserting a mechanism I have not confirmed; what is
+confirmed is the one-directional loop above, which is sufficient to explain the
+`115` and makes the contract's count untrustworthy either way.
+
+**PROPOSAL, one line, not yet done:** *pin it to main's* — keep the fixture's
+entry, regenerate the contract against `applySettledWorld` (main's whole
+migration, the construction the pipeline lane now uses) rather than against the
+fixture's filtered application, and declare the fixture's schema-only filter as
+a named limitation instead of eliminating it, because the filter is deliberate
+for the other twelve owners and the fixture genuinely needs those tables to
+exist.
+
+**Not implemented**, pending that proposal being accepted, and it carries a
+knock-on that should be decided with it: a settled-world contract is **122**
+functions, so `load()`'s hard-coded `contract.functions.length === 115` and
+`contract.definitions.length === 64` move too, and the one-directional loop
+should be closed at the same time or the regenerated contract will be just as
+unable to notice the next seven.
+
+**Results, with denominators:** full unit lane **14 of 548 failed** with the
+cluster up, all 14 the known sandbox failures, none new. An earlier run in this
+turn reported 6 of 548 and is **not comparable** — it ran without the PostgreSQL
+environment, which changes which suites can execute at all.
+
 ### 2026-09-17 — Operator SOURCE_PIN repointed at the 2026-09-17 proof, with a `-text` guard; the mutation and the settled68 preflight CANNOT execute here, measured
 
 **Repointed.** `scripts/linear-exit-install-operator.js` now reads

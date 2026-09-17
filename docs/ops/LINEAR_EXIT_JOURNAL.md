@@ -30,6 +30,123 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — D22 PRIVATE-INPUT SUITES, storage side: 6 of the 7 deferred suites run on the Windows box. 3 pass, 3 fail, 0 cannot run. Two failures fail identically at pre-B10 `d3cbca7f`, one fails differently. Nothing fixed
+
+Asked for while the execution session runs the authoritative D22 pass on the
+cloud side. The first-pass document lists seven suites it cannot run. This entry
+covers six of them. The seventh, `observed-full-pipeline`, was left out as
+instructed: it re-runs after a pending fix lands.
+
+#### Method
+
+- Host: Windows PowerShell Desktop 5.1.26100.9444, portable PG17, one fresh
+  disposable cluster per suite through `run-portable.ps1`, as the handover records.
+- Launchers clear the process environment of
+  `PG*|F42_*|NIR_*|WORKLOAD_TEST_*|TRACK_B_RECOVERY_TEST_*|SUPABASE*|DATABASE_URL|NATIVE_*|F63_*|ARTIFACT_*|INTAKE_MANIFEST_*|PROOF_*|*_DATABASE_URL`
+  before handing over to the runner or to node.
+- Head run at `a236572` (clean tree). Pre-B10 runs at `d3cbca7f` (clean worktree
+  `2026-09-16-optout-before-d3cbca7f`), for the failing suites only.
+- Suite-to-lane mapping. `control-restore-only-postgres` has no lane of its own,
+  so it runs inside the `control-recovery` lane, which is where the runner calls it.
+  `native-preinstall-backup` ran twice: the generic synthetic mode, and observed
+  mode with profile `settled68`.
+- Profile choice. `install-operator-postgres` ran with `settled68` only.
+  `observed67` and `observed67_optout` are retired under D18, so they were not run.
+- Private inputs, by name only:
+  - `observed-full-install` takes `live-full-catalog-20260912.private.json`.
+  - `atomic-writer-bound-bundle` takes `writer-binding-observed-catalog.private.json`.
+  - Both come from the 09-12 fast-finish evidence directory, which is where the
+    handover names each suite's input.
+
+#### CORRECTION, against my own harness
+
+The first head batch reported `observed-full-install` as failing with
+`explicit private observed catalog path required`. The suite did not deserve
+that. My node launcher declared a parameter named `$Input`, which is an
+automatic variable in PowerShell, so the path never reached node. I renamed the
+parameter to `$InputPath` and re-ran both input-taking node suites.
+`observed-full-install` then passed. `atomic-writer-bound-bundle` failed exactly
+as before, because that failure happens before the input is read (see below).
+Only the re-run results are counted.
+
+#### Results (head `a236572`)
+
+| Suite | Result | Evidence |
+|---|---|---|
+| `install-operator-postgres` [settled68] | **FAIL** | run `linear-exit-install-operator-757e121c77b64d31b4178a7873f323c5`, exit 1 |
+| `native-preinstall-backup` [generic] | **PASS** | run `linear-exit-native-preinstall-backup-3a11e7e982614f58b7f971d61a4239cf`, exit 0 |
+| `native-preinstall-backup` [observed settled68] | **PASS** | run `linear-exit-native-preinstall-backup-7900aad095eb449584d4b08800c48ef7`, exit 0 |
+| `control-restore-only-postgres` [control-recovery lane] | **FAIL** | run `linear-exit-control-recovery-b3a4067ec4834c2ab4d9bd6690ab4b25`, exit 1 |
+| `observed-full-install` | **PASS** | `OBSERVED_FULL_INSTALL_OFFLINE_OK 9`, exit 0 (re-run) |
+| `atomic-writer-bound-bundle` | **FAIL** | exit 1 (head batch and re-run) |
+| `write-diagnostics-browser` | **PASS** | `LINEAR_EXIT_WRITE_DIAGNOSTICS_BROWSER_OK`, 20 reports, 0 external escapes, exit 0 |
+
+Counted by suite, that is 6 suites: 3 pass, 3 fail, 0 cannot run.
+`native-preinstall-backup` counts once, as a pass in both modes, so there were
+7 runs in total.
+
+#### Each failure, and whether it fails identically at `d3cbca7f`
+
+**1. `install-operator-postgres` [settled68]. Fails DIFFERENTLY at `d3cbca7f`.**
+
+- **Head:** the operator ran, then the worker assertion at
+  `test/helpers/install-operator-worker.mjs:33:191` failed, strictly-equal,
+  actual `1`, expected `0`. That statement is
+  `assert.equal(absent.n, profile==='observed67_optout'?1:0)`. It is a world
+  literal: it expects the opt-out-related object to be present only under the
+  retired optout profile, and the settled world has it. Statement 17.2 seeds the
+  matching check only for optout as well. This belongs to the same class as the
+  67 literal in the backup module.
+- **At `d3cbca7f`:** the run refused before any operator work, at
+  `scripts/linear-exit-install-profiles.js:34` (`build`), with
+  `exact settled observed baseline required`. The settled68 profile cannot be
+  built there. Run: `linear-exit-install-operator-7aa83131a3054262b6d3b2c3d81843d3`.
+- **Verdict:** not comparable as the same failure. Before B10 the suite never
+  reached statement 33 under this profile.
+
+**2. `control-restore-only-postgres` [control-recovery lane]. Fails IDENTICALLY at `d3cbca7f`.**
+
+- **Head:** the lane failed in the driver's phase called
+  `actual gateway/browser/SQL phase`, with `gateway_acceptance_failed`. The
+  gateway answered `status 503`, `error assignee_lookup_unavailable`, thrown at
+  `scripts/native-card-materialization/fixture.mjs:25`, which requires a 201.
+  The restore-only suite was not reached, so it has no pass/fail of its own in
+  this run.
+- **At `d3cbca7f`:** the same phase, error, status and error code. Run:
+  `linear-exit-control-recovery-735f3940964b46269abdbe1961a59aa2`.
+- **Caveat:** the `d3cbca7f` worktree has no `node_modules` of its own. The
+  failure is at the same point with the same response, so the comparison stands,
+  but the dependency tree was not the same directory.
+
+**3. `atomic-writer-bound-bundle`. Fails IDENTICALLY at `d3cbca7f`.**
+
+- **Head:** the test at line 5 expects `/exact starting public catalog|catalog/i`.
+  Instead, `bindInstallationPlan` throws `WRITER_BINDING_BUILDER_DRIFT` at
+  `scripts/linear-exit-atomic-writer-bound-bundle.js:10:74`. The stack is
+  `:10:74`, then the test at `:5:40` and `:5:51`.
+- **At `d3cbca7f`:** the same message, the same three stack positions. Neither
+  file changed between the two commits (`git diff --stat` is empty).
+- **What the drift is (read-only, not fixed):**
+  - The bundle pins its builder, `scripts/linear-exit-observed-full-install-plan.js`,
+    at `BUILDER_SHA256 = 1312cdf339c1…`. That is the builder's hash at
+    `87283f92`.
+  - `03d18fb3` ("Wire the settled contract and add the settled68 profile…")
+    changed the builder to `7222dfb69025…`. `03d18fb3` is an ancestor of
+    `d3cbca7f`.
+  - B10 (`89405832`) changed it again, to `5b67fe972eb1…` at head.
+  - The pin was never moved, so the hash check fires before any input is read.
+    The failure is therefore input-independent, and it predates B10.
+- This is a stale pin found in passing. Other pinned hashes in the project may
+  be in the same state. It is recorded here, not repaired.
+
+#### Not done
+
+- No failure was fixed.
+- No pin, literal or test was edited.
+- `observed-full-pipeline` was not run.
+- The retired 67-table profiles were not run.
+- Step 16 was not started: it is the owner's gate. Progress remains 15 of 28.
+
 ### 2026-09-17 — D22 AUTHORITATIVE RUN: method recorded before the results, including the harness defect that spoiled the first attempt at it
 
 The first pass ran the 61 in a shared environment and reported 37/17/7. This

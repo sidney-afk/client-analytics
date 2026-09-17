@@ -353,8 +353,8 @@ untouched.
 
 | # | Step | Who | Done when |
 |---|---|---|---|
-| 23 | Verify safe existing reads across Calendar, Samples and Production | Session | Reads succeed; no page errors |
-| 24 | **GATE** approve TEST saves, then run them | Owner + session | Status, stored row, receipt and event all verified. An HTTP 200 alone is not enough. No client Slack delivery |
+| 23 | Verify safe existing reads across Calendar, Samples and Production | Session | **CLOSED 2026-09-17**, browser half not measured by the session — see the note below |
+| 24 | **GATE** approve TEST saves, then run them | Owner + session | **CLOSED 2026-09-17**: three surfaces saved, event path exercised and reverted, 0 intents and 0 Slack deliveries throughout |
 | 25 | Confirm every new control is still dormant and pre-state settings are unchanged | Session | Compared against step 11 snapshot; notification sender, wake, follow-up supervisor, reconcile apply and census gates all still off |
 
 At the end of phase 6 the install is live and inert. Existing behavior is
@@ -377,6 +377,26 @@ qualifications belong with it rather than under it:
   `calendar-upsert` and `sample-review-upsert` emit events for status changes,
   link set/clear and comment add/delete only; a content-field edit emits none.
   The event path is therefore still unexercised by a test save.
+
+**Updated later the same day, after the owner supplied the admin role key and
+named the actor to use. Steps 23 and 24 are CLOSED, with these qualifications:**
+
+- **Step 24 now covers all three surfaces.** The production comment went through
+  `production-write` with the owner's own roster identity as actor: stored row
+  present and matching, one mutation receipt, zero notification intents, zero
+  Slack deliveries.
+- **The event path was exercised and put back.** One status change on the test
+  client's calendar post produced a `status_change` event; restoring the original
+  status produced an `archive` event; the stored status is the original one
+  again, and neither save created an intent or a delivery.
+- **Step 23's browser half was NOT measured by this session.** The served page
+  takes the staff key on its access screen and keeps it in
+  `localStorage['syncview_staff_identity_v1']`. Entering a credential into a web
+  page is outside what this session does, so the three staff surfaces were not
+  driven from a browser here. What was measured, unauthenticated: the site loads,
+  0 console errors, every asset 200. The remaining check needs the key typed into
+  the page by the owner, after which the surfaces can be driven and measured
+  without the session handling the credential.
 
 ## Phase 7 — Turn on capabilities, one at a time
 

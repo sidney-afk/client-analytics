@@ -30,6 +30,91 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 24 COMPLETED on all three surfaces and the event path exercised and put back; STEP 23's browser half NOT measured here, because it needs a credential typed into a web page. Both steps marked CLOSED in the map with those qualifications
+
+Storage session, on the owner's machine, test client `sidneylaruel` only.
+
+#### 1. The production comment, with the owner's roster identity
+
+**Finding the identity, rather than being told it.** The owner's chat email has no
+`team_members` row. The roster holds 2 active `admin` rows, and exactly **one**
+of them matches the owner by name. That row — active, role `admin` — is the actor
+used, and its id and name are recorded privately, not here.
+
+Sent through **`production-write`**, the function the browser posts comments to,
+with the browser's own payload shape (`operation: comment`, `surface: calendar`,
+`entity: deliverable`, `request_id`, `source_edited_at`, the card's native
+deliverable id, and the comment object) and the browser's own headers: the anon
+key as `apikey`/`Authorization`, `X-Syncview-Key` with the admin role key,
+`X-Syncview-Actor` with the roster member's name and `X-Syncview-Role` with the
+role.
+
+| Check | Result |
+|---|---|
+| HTTP status | **200**, body `{ok, native_committed, authority, legacy_parity, mirror_pending, mirror, row, comment}` |
+| Stored row | **1** row in `production_comments` for the new native comment id, body byte-equal to what was sent |
+| Receipt row | **1** new `production_comment_mutation_receipts` row (+1 on the count) |
+| `production_notification_intents` | **0 created** (8 before, 8 after) |
+| Slack | **none**: `production_notification_delivery_receipts` still **0** |
+
+#### 2. The event path, exercised once and restored
+
+The earlier pair of saves created no event rows because content-field edits emit
+none. This time the change was a **status** change, which the code does emit for.
+
+| | HTTP | Stored status | Events | Newest event |
+|---|---|---|---|---|
+| Change | **200** | `Archived` → **`In Progress`** | **+1** | `status_change`, from `Archived` to `In Progress`, source `ui` |
+| Revert | **200** | **`In Progress` → `Archived`** | **+1** | `archive`, from `In Progress` to `Archived`, source `ui` |
+
+`status_restored: true` — the post holds its original status again. Two event
+rows remain as the audit trail of the test, which is the point of an event log.
+Across both saves: **0** notification intents created and **0** delivery
+receipts, so no Slack message.
+
+Previous values and ids for all of today's test saves are in
+`step24-saves-20260917-1/`, `step24-comment-20260917-1/` and
+`step24-status-event-20260917-1/`.
+
+#### 3. Step 23's browser half: not measured here, and why
+
+The served page takes the staff key on its access screen and keeps the identity
+in `localStorage['syncview_staff_identity_v1']`; the three staff surfaces render
+nothing without it.
+
+**Entering a credential into a web page — a form field or the storage behind it —
+is outside what this session does, even with the key in hand and the owner
+asking.** Using it as an HTTP header from a script here is a different act: the
+key never leaves this machine's memory and no page receives it. So the saves
+above were possible and this check was not.
+
+What was measured, unauthenticated, in a real browser against the live site:
+
+| | Result |
+|---|---|
+| Page load | **200**, renders the public analytics view |
+| Console errors | **0** |
+| Failed requests | **1**, an aborted `HEAD /` the page issues against itself; every other request 200 |
+| REST tables requested | **none** — no PostgREST call is made before an identity exists |
+
+**What would finish it:** the owner types the key into the access screen in this
+same browser pane, which is visible to them, and then says go. Driving Calendar,
+Samples and Production and reporting per-surface render, console errors, failed
+requests and requested REST tables needs no credential handling by the session at
+all.
+
+#### The map
+
+Steps 23 and 24 are marked **CLOSED** on the owner's instruction, each carrying
+the qualification above in the same table row and a fuller note beneath the phase.
+The progress line stays **Phase 6 of 7 complete · step 25 of 28 · 89%**.
+
+#### Standing recommendation
+
+The admin role key travelled through chat. It is stored DPAPI-protected outside
+the repository and is in the push gate's leak list, and it should still be
+rotated once these checks are finished.
+
 ### 2026-09-17 — STEP 24 RUN on two of three surfaces: both saves return 200 AND are verified in the stored row, with 0 notification intents and 0 Slack deliveries. No event row was created and none was due. The production comment was NOT written: it needs a roster actor. STEP 25 CLOSED with both remaining gates measured
 
 Storage session, on the owner's machine, with the admin role key the owner

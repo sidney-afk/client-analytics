@@ -30,6 +30,148 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PIPELINE PROOF PASSED AGAIN at `4a1b594d`, the reconstruction-compare fix: calibrate and verify both exit 0, every count equals the expectations written before the run. Second dated proof file of the day. INSTALL-OPERATOR settled68 now PASSES at `41a93b89`. Two more profile-name literals found in the same worker, reported not fixed
+
+Storage session, Windows PowerShell 5.1 host, private observed inputs,
+`SUPABASE_*` cleared per process. Both pipeline runs and the operator run used
+checkout `4a1b594d890e17e86c4aea2a2bb8a95bbe15310a`.
+
+#### Expectations, written before the run
+
+`D22`-style, recorded in the scratch file
+`pipeline-expectations-4a1b594d.md` before any cluster started. They are the
+`f76efbf3` expectations unchanged, plus one predicted difference: of the 26
+source pins, exactly one is stale against this head,
+`scripts/linear-exit-observed-schema.js`, moving `7b70becf…` →
+`c5e6a4e4683c0debe274ac0ef7976d35ece0c40213ac2e4c098454d8078a785a`. That was
+measured from the tree before running, not after.
+
+It was also written down in advance that a reconstruction failure here would be
+a **finding about the world**, not a regression: the fix makes the compare walk
+the union of both catalogs, so a section present in the rebuilt world and absent
+from the capture can now be reported for the first time.
+
+#### Runs
+
+| Run | Directory (`linear-exit-observed-full-install-…`) | Exit | Marker |
+|---|---|---|---|
+| Calibrate | `172db2c0f98a4e34a3fd580885989ee8` | 0 | `LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_OK` |
+| Verify | `92121e7da5da493c8799e8cce535c6ed` | 0 | `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_OK` |
+
+Both clusters stopped with `server stopped` and no `postmaster.pid`. The verify
+run was given the calibrate run's `full-target.private.json` and that file's
+SHA-256, read from the file.
+
+#### Every count beside the expectation, read from the runs' own files
+
+| Quantity | Expected | Calibrate | Verify |
+|---|---|---|---|
+| Starting catalog | `ddfa4c4f…` | `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`, 68 tables | same |
+| Plan SHA-256 | `508e6369…` | `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` | same |
+| Derived maintenance plan | `18697ad2…` | `18697ad2dc54b685fac7ba9a16e3d0b19abd9faa0b6a4b7c1ce46f23d48061b6` | same |
+| Plan sources | 48 | 48 | 48 |
+| Chunks, last source | 55, `…062149_retirement_switch_preparation.sql` | 55, as expected | 55, as expected |
+| Post-install public tables | 91 | 91 | 91 |
+| Guards removed at finalization | 91 | — | 91 |
+| Target SHA-256 | `24c833c0…` | `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`, 1,613,689 bytes | same; comparison `MATCHED_SOURCE_DERIVED_TARGET` |
+| Final catalog SHA-256 | `331aabb2…` | `331aabb2b51067b1b07d444e39e010c1c8ed18349f2f0ab3a0426cab0f5ff84d` | same |
+| Exact final public owner bodies | 39 | 39 | 39 |
+| Interruption prefix / worker exit / resume | 54 of 55 / 86 / 55 | — | 54, exit 86, backend terminated and absent, resume `PREPARED_JOURNALED_PLAN_COMPLETE`, 55 |
+| Reconstruction | 67 tables, 115 routines, 14 identity sequences, exact capture match | `LINEAR_EXIT_OBSERVED_SCHEMA_OK`, exactly those, `gap_slots` 0 | same |
+| Source pins | 26, one changed | 26 | 26, identical to the calibrate run's |
+| Exit | 0 | 0 | 0 |
+
+**No quantity differed from its written expectation.** The union comparison
+reported an exact captured catalog match, so the rebuilt world has nothing the
+capture did not record: the fix opens that question and the answer here is clean.
+
+Of the 26 pins, 25 equal the `20260917` proof file and one is
+`scripts/linear-exit-observed-schema.js` at `c5e6a4e4…`, exactly as predicted.
+All 26 match the current tree.
+
+#### The second dated proof file of the day
+
+| Item | Value |
+|---|---|
+| **File** | **`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917_2.json`** |
+| **SHA-256** | **`df3bdebed5ad8ac382a408d4f0dd0457a2a28fac0476384daa923333a19d561a`** |
+| Bytes | 13,491, LF |
+| `status` | `PASS`, `checkout_sha` `4a1b594d…` |
+| Receipts | calibration `172db2c0…`, replay `92121e7d…` |
+
+Named `_2` because it is the second proof written today and the first,
+`…20260917.json`, belongs to checkout `7b0b98b`. The writer is the same script as
+that one with the output path and the two before/after checks changed; it reads
+every value from the run directories and refuses to overwrite an existing file.
+Its six consistency checks all held.
+
+**Both earlier proof files are byte-identical**, hashed before and after the
+write:
+
+| File | SHA-256 | Unchanged |
+|---|---|---|
+| `…_20260913.json` | `73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb` | yes |
+| `…_20260917.json` | `4417b029547f9ac096bce5da01d9cf03549a60df38d0b1f04238e2dae8da1ad0` | yes |
+
+**Where the operator's `SOURCE_PIN` points, read from the code and not from a
+record.** `scripts/linear-exit-install-operator.js:23` reads
+`…_20260917.json`, repointed there at `c828bb58`. My entry earlier today said it
+still read the `20260913` file; that was true when written and is now stale, and
+this line is the correction. The `20260917` file's
+`scripts/linear-exit-observed-schema.js` pin is the one `4a1b594d` made stale,
+which is why the operator refuses with `INSTALL_OPERATOR_SOURCE_PIN` at this
+head. The new `_2` file carries the current digest for that pin, measured by the
+run rather than typed.
+
+**I did not repoint anything.** The repoint is the execution session's, and its
+method and expectations are written in its own entry below.
+
+#### Install-operator lane, settled68, at `41a93b89`'s fix: PASS
+
+Run `linear-exit-install-operator-ff56e3e96354457083e08c18cf5633ee`, exit 0,
+`unit-error.log` empty, markers `LINEAR_EXIT_OBSERVED_SCHEMA_OK` (67, 115, 14,
+exact capture match) and `LINEAR_EXIT_INSTALL_OPERATOR_OK`.
+
+`operator-result.private.json`: `status PASS`, `profile settled68`,
+`actual_sql_apply true`, `exact_final_target true`, `exact_finalized_replay true`,
+`wrong_identity_refused true`, `wrong_consent_refused true`, `zero_guards true`,
+`separate_main_prerequisite_rollback true`. Limits as always:
+`hosted_tls_transport_proven false`, `activation_performed false`.
+
+This is the D22 failure closed. It failed at the worker's statement 33 because
+the expected opt-out column count was `profile==='observed67_optout'?1:0`; the
+fix measures the column before the transaction and asserts it unchanged after
+the rollback, in every world. Target used: the `4b7dd8fd…` calibrate run's
+`full-target.private.json`, the same one the D22 attempt used, so only the fix
+differs. Its SHA-256 is the same `24c833c0…` this pipeline run re-derived.
+
+#### Two more of the same family in the same file, reported and NOT fixed
+
+Both in `test/helpers/install-operator-worker.mjs`, both asking the profile's
+name rather than the world:
+
+1. **Line 17.** The seeded opt-out row check (`assert` that the seed row exists
+   and is `true`) runs only `if(profile==='observed67_optout')`. In a world that
+   has the column but no seeded row this is correct by luck, not by measurement.
+   The world-derived form is to look for the row and assert preservation when it
+   is there.
+2. **Line 48.** The reported field is literally
+   `populated_optout_preserved: profile==='observed67_optout'`. It is a restatement
+   of the profile name written into the proof as if it were an observation. Under
+   settled68 this run reports `false` having measured nothing. Of the nine
+   operator runs on this box that wrote the field, it tracks the name exactly:
+   `true` for the three `observed67_optout` runs, `false` for the five
+   `observed67` runs and for this settled68 one.
+
+Neither was changed, and neither affects the PASS above.
+
+#### Not done
+
+- Nothing was fixed.
+- No plan, target or pin was repointed by me. The operator still reads the
+  `20260917` proof and still refuses on its stale pin.
+- Step 16 was not started: it is the owner's gate. Progress remains 15 of 28.
+
 ### 2026-09-17 — REPOINT BLOCKED, AND THE BLOCK IS PROVEN BY EXECUTION: the operator refuses today with `INSTALL_OPERATOR_SOURCE_PIN`. Method and expectations for the repoint, written BEFORE the new proof file exists
 
 Waiting on the storage session. The new dated proof file is not in the tree:

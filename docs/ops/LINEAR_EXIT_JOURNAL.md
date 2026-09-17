@@ -30,6 +30,103 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — CORRECTION, before task two starts: there is NO divergent copy of the hiring migration. The fixture is already pinned to main's bytes, and the real cause of the 115-versus-122 gap is a migration that was never applied
+
+I reported the routines contract's missing functions as coming from "the
+fixture's divergent copy of the hiring migration", and proposed to "either
+eliminate it or pin it to main's". The owner approved pinning it to main's.
+
+**That premise is wrong.** It is already pinned to main's, and the divergence
+is somewhere else. Both statements below are measured, not read.
+
+#### 1. The fixture holds no copy. It reads main's file and hash-pins it
+
+`test/helpers/remaining-application-fixture.js` carries a list of 14 owner
+migrations as `{path, sha256}`, reads each from disk and asserts the hash before
+executing it. For the two hiring migrations:
+
+```
+24356a2835beeb685c09fc097c0653532cf1756546310105a2bf822ca107798a  migrations/2026-08-24-hiring-applications.sql
+92af9c25e5b0c2846c58e62e596b3a68a5a6e3217a68efd4dabcb82fdd5024e0  migrations/2026-09-15-hiring-video-editor-role.sql
+```
+
+Those are byte-for-byte the pins written in the fixture, **and** the sha256 of
+the same two paths at `origin/main`. All four hashes agree. "Pin the fixture to
+main's" is already true and there is nothing to change. I am not manufacturing
+a change to satisfy an approved task whose premise turned out to be false.
+
+#### 2. What the fixture DOES do to those files is filter, and it is not the cause
+
+The fixture keeps only statements beginning `create|alter|grant|revoke|comment|
+drop policy|drop trigger`. Measured on both files:
+
+| file | statements | kept | dropped | function statements kept |
+|---|---|---|---|---|
+| `2026-08-24-hiring-applications.sql` | 63 | 60 | 3 | 10 of 10 |
+| `2026-09-15-hiring-video-editor-role.sql` | 44 | 38 | 6 | 10 of 10 |
+
+Everything dropped is a `begin`, a `commit`, or a `do $$ … $$` block (three
+constraint renames and a settings upsert). **Every function definition survives
+the filter, in both files, and so does `create table if not exists
+public.hiring_practical_test_jobs`.** The filter cannot be why routines are
+missing.
+
+#### 3. The actual cause: the 2026-09-15 migration was never applied to the world the contract was read from
+
+`migrations/2026-09-15-hiring-video-editor-role.sql` defines ten functions.
+Seven of them exist **only** in that file; the other three
+(`hiring_capture_application_v1`, `hiring_queue_interview_invite_v1`,
+`hiring_record_interview_booking_v1`) are also defined, with older bodies, in
+`2026-08-24-hiring-applications.sql`.
+
+Read straight out of the committed contract:
+
+```
+functions: 115   definitions: 64
+  ABSENT   hiring_require_practical_test_send_authorization_v1
+  ABSENT   hiring_queue_practical_test_v1
+  ABSENT   hiring_claim_next_practical_test_v1
+  ABSENT   hiring_authorize_practical_test_send_v1
+  ABSENT   hiring_record_practical_test_result_v1
+  ABSENT   hiring_retry_failed_practical_test_v1
+  ABSENT   hiring_set_practical_test_verdict_v1
+  present  hiring_queue_interview_invite_v1
+  present  hiring_capture_application_v1
+  present  hiring_record_interview_booking_v1
+```
+
+Exactly the seven that exist only in the 09-15 file are missing, and exactly the
+three that also exist in the 08-24 file are present — which is why
+`hiring_queue_interview_invite_v1` carries the old body rather than being
+absent. That is not a filter dropping statements; a filter would have taken all
+ten or none. It is the 09-15 migration never having run.
+
+`applySettledWorld` applies `HIRING_MIGRATION =
+'migrations/2026-09-15-hiring-video-editor-role.sql'` **in full and unfiltered**.
+The world the contract was regenerated against was built with the 08-24 file
+only. 115 + 7 = 122, which is the settled world's function count.
+
+#### What changes in task two
+
+- **"Pin the fixture to main's" is a no-op and I am doing nothing for it.**
+  Recorded here rather than silently skipped.
+- Regenerating against `applySettledWorld` is still exactly right, and it is now
+  known to be the fix for the 115/122 gap rather than a hopeful one.
+- The schema-only filter is still worth declaring as a named limitation — it is
+  real, it is measured in the table above, and it applies wherever the fixture
+  builds a world. It is just not this defect.
+
+#### One thing the owner should know before anything touches that fixture
+
+`test/helpers/remaining-application-fixture.js` is **byte-pinned into**
+`docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json` (its sha256
+`ff4819ff95b2…` appears there), and that artifact is in turn byte-pinned by
+`PIN='87848097…'` inside `scripts/linear-exit-source-baseline-catalog.js`. So a
+one-character edit to the fixture refuses at `SOURCE_BASELINE_SOURCE_DRIFT`
+until that artifact is regenerated on a cluster and the constant moved. Twenty-five
+test files reach the fixture. This is the sixth member of the undeclared-coupling
+family and the reason the no-op above is a relief rather than a disappointment.
+
 ### 2026-09-17 — ANSWER, the other half: the CAPTURE enumerates the schema. Three objects the plan never heard of were created on a real cluster and all three came back in the catalog
 
 The caveat I attached to the step 15 answer, put to the same test. A symmetric

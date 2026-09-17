@@ -30,6 +30,47 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Pipeline proof re-run at `2e8ff92`: EXPECTATIONS, written before either run
+
+Storage session. **Nothing below has run yet.** The results follow as their own
+entry, and each is compared against this list.
+
+**What changed at `2e8ff92`, read from the diff.**
+
+- The lane now calls the shared `applySettledWorld()` in
+  `scripts/linear-exit-b9-catalog-derive.js`. That applies the storage
+  supplement, then the opt-out prerequisite (hash-checked), then the hiring
+  migration. This is Finding A.
+- Verify's interruption-boundary guard count now derives from
+  `postInstallPublicTables(plan.initial_catalog_sha256).expected` instead of
+  `90`. This is Finding B.
+- The same commit pins `settled68`'s target at `24c833c0…`.
+
+**Expected, calibrate and verify both unless marked:**
+
+| Quantity | Expected | Why |
+|---|---|---|
+| **Starting catalog the lane builds** | **`ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`** | `settled68`; `install-profiles.build` refuses anything else |
+| Plan SHA-256 | `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` | pinned `settled68` plan at `2e8ff92`, and measured by both calibrations yesterday |
+| Plan sources | 48 | `35 + OWNERS.length`, as in 2026-09-13 |
+| Chunks | 55 | as in 2026-09-13; the last is `…062149_retirement_switch_preparation.sql` |
+| **Maintenance guards installed** (worker's derive-target stage) | **91** | `postInstallPublicTables(ddfa4c4f…).expected`: 68 + 23 |
+| **Guards enabled at the interruption boundary** (verify) | **91** | same derivation, the site fixed at `2e8ff92` |
+| Post-install public tables | 91 | same |
+| Target SHA-256 | `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187` | the pipeline worker builds the target with the same `targetApi.create` inputs and the same `core+diagnostics+retirement` control profile as the install-operator calibration that measured it twice. **A different value would be a finding, not a failure** |
+| Interruption prefix (verify) | 54 of 55 chunks; resume completes 55 | as in 2026-09-13 |
+| Guards remaining after finalization (verify) | 0 | the worker asserts it |
+| Exit code, each run | 0 | |
+
+**Not predicted, to be reported as observed:** the final catalog SHA-256 and the
+count of exactly compared final owner bodies (39 on 2026-09-13; the plan's owner
+list is unchanged, but the world is not).
+
+The new proof file will be
+`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json`.
+`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` stays byte-identical at SHA-256
+`73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb`.
+
 ### 2026-09-17 — Target pinned, pipeline lane fixed at both findings, routines coupling cut, preflight divergence proven. Four tasks, four mutation proofs, one of them through a gate that is no longer stubbed
 
 **1. Target pinned.** `settled68.target` is

@@ -30,6 +30,98 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 22 APPLIED: the urgent editor message no longer carries the Linear line. Published version `fa9320fe…` is active and equals the draft; against the capture exactly one line in one node differs and everything else is byte-identical. Nothing was executed, tested or sent
+
+Storage session, on the owner's instruction. Two writes to n8n — one update, one
+publish — and two read-only reads around them. **No execution, no test run, no
+trigger, no Slack message.**
+
+**On the numbering:** the previous instruction said the capture would wait for
+"the owner's step 21 go-ahead"; the instruction that authorised this work calls
+it step 22. Recorded as given rather than renumbered by me.
+
+#### What was applied
+
+One operation: `setNodeParameter` on `Build Slack Message`, path `/jsCode`, with
+the value produced offline at step 20 by
+`scripts/prepare-urgent-editor-website-only.js` at main `043369b5`. Then
+`publish_workflow`, so the edited version is the published, active one rather
+than a draft.
+
+| | Before | After |
+|---|---|---|
+| `versionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` | **`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`** |
+| `activeVersionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` | **`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`** |
+| `versionId == activeVersionId` | yes | **yes** |
+| `activeVersion.sameAsDraft` | true | **true** |
+| `active` | true | **true** |
+| Nodes | 9 | **9** |
+| `updatedAt` | 2026-09-09T17:40:22.398Z | 2026-09-17T22:31:34.325Z |
+
+The version is named "Urgent tweak message: drop the Linear line" in n8n's
+history, with a description recording what changed, what prepared it and from
+which capture.
+
+#### The read-back, compared against the capture mechanically
+
+`workflow-after-publish.private.json` in the step 20 evidence directory, compared
+by script against `workflow-TJVMyfwl85qrFGeK.private.json`:
+
+```
+differing_paths_ignoring_version_fields : 1   -> /nodes/5/parameters/jsCode
+version_fields_changed                  : /versionId, /activeVersionId, /updatedAt
+nodes_differing                         : ["Build Slack Message"]
+jscode_lines before/after               : 26 / 26
+jscode_changed_lines                    : 1   -> line 24
+other_nodes_identical                   : true
+connections_identical                   : true
+settings_identical                      : true
+description_identical                   : true
+live_jscode_equals_prepared             : true
+```
+
+**The one line, as published:**
+
+```
+before  let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl + '\nLinear: ' + issue;
+after   let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl;
+```
+
+The live node's code hashes to
+`7d655612649d409073975235c16bca6ccc82dfbb201d4933cfb9062dae98a16e`, **equal to
+the offline-prepared copy** — so what is published is what was reviewed at step
+20, not a retyping of it. The mention line, the fallback map, the comment block,
+the SyncView deep link, the channel, the webhook, the validation, the Linear
+assignee resolve, the sheet read and both responses are unchanged.
+
+#### The restore record
+
+`capture-metadata.private.json` now carries both ids: the previous
+`10335825-e86c-45cf-89d5-fe16e29f5a35` and the new
+`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`, with the rollback spelled out —
+`restore_workflow_version` to the previous id, then publish, which returns the
+message to the version that still carried the Linear line.
+
+#### Observed, not changed
+
+The node's comment block still says *"Linear stays underneath as a demoted
+fallback"*. That sentence is now stale: there is no Linear line left to fall back
+to. The instruction was one line and nothing else, so the comment was left
+exactly as it was. It is a wording repair for whenever that node is next touched,
+not a behaviour defect: comments do not run.
+
+The `Linear: Resolve Assignee` node still runs, because the assignee lookup is
+what produces the Slack mention. Only the link in the message text was removed.
+
+#### Not done
+
+- The workflow was not executed, tested or triggered, and no message was sent to
+  anyone.
+- No other node, connection, credential, setting, tag or the workflow
+  description was touched.
+- Nothing was deleted: the previous version remains in n8n's history and the
+  full capture remains in private evidence.
+
 ### 2026-09-17 — STEP 20: the legacy urgent editor workflow captured read-only, and main's preparation script produces EXACTLY one changed line in exactly one node. Nothing was edited, executed, published or sent
 
 Storage session. Two read-only n8n reads, one offline comparison, and no write of

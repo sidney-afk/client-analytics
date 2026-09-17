@@ -30,6 +30,84 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PHASE 7 ORDER PROPOSAL, reading only. Eight dormant capabilities measured against their own docs and their live flag values, with a recommended order and one recommended first. Also D36: the admin role key is not being rotated
+
+Cloud session, no write of any kind. Flag values below were read live, read-only,
+with the browser publishable key. Nothing was enabled, and nothing here is
+approval to enable anything: steps 26 and 27 remain the owner's.
+
+#### What "on" even means here, measured rather than assumed
+
+Before ordering anything, one thing decides most of it: **which of these flags
+has a reader that is actually deployed today.** Measured across `index.html`,
+`supabase/functions/` and the migrations:
+
+| Capability flag | Read by the browser | Read by a deployed Edge Function | Read only by SQL / offline scripts |
+|---|:--:|---|---|
+| `native_intake_epochs` | **yes** | `production-write` (index + policy) | — |
+| `native_assignment_epochs` | no | `production-write` | — |
+| `production_native_label_catalog` | no | `production-write` | — |
+| `native_brief_media` | no | `production-write`, via `_shared/native-brief-media.mjs` | — |
+| `production_native_identifier_mint` | no | **none** | SQL allocator only |
+| `production_native_ordinary_receipts` | no | **none** | SQL receipt path only |
+| `native_card_materialization` | no | **none** | migration + recovery-phase scripts only |
+
+`production-write` is in the thirteen-function lane and is live from
+`043369b5`, so the first four need **no deployment outside that lane**. The last
+three do not have a serving path to switch on at all today.
+
+#### The eight capabilities
+
+| Capability | What the flag switches, in one sentence | Now → on | Prerequisites NOT yet met | Step 27 acceptance checks, from its own doc | Rollback | Checkpoint dependency row it closes | Depended on by |
+|---|---|---|---|---|---|---|---|
+| **`native_intake_epochs`** (`2026-09-05-native-only-intake.sql`) | Lets Create Post file a new post through the native intake manifest instead of the legacy provider intake workflow, per team. | `{"video":{"enabled":false,"epoch":null},"graphics":{"enabled":false,"epoch":null}}` → per team `enabled:true` with an epoch string matching `^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$` | **None found.** Manifest migration installed, `production-write` deployed, browser wired. Needs only an owner SQL operator to set the epoch. | Accepted native intake routes plus durable follow-up cover supported submissions with no fall back to the legacy provider workflow; a stale or malformed flag read must authorize nothing and must not touch provider rows (the browser already enforces this). | Set `enabled:false`. Accepted manifests and terminal receipts are **retained on behavior rollback** by the migration's own contract. Per team, so one team can revert alone. | **Intake: `VIDEO_FORM_WEBHOOK` and legacy dispatch selection** | Nothing depends on it; it is a leaf. |
+| **`native_assignment_epochs`** (`2026-09-06-native-existing-assignment.sql`, `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`) | Lets an assignment or null-clear on an existing card be admitted natively, with an atomic terminal receipt, instead of going through provider eligibility and the pending mirror. | `{"video":{"mode":"provider","epoch":null},"graphics":{…}}` → per team `mode:"native"` with a nonempty versioned epoch | Schema **and** restore integration are called mandatory before activation even though no table is added: capture and reconstruct five functions, two triggers, service-only grants and the seeded row, with a restore path that preserves terminal receipt payload and state. Not yet evidenced. | Per-team contract holds: new assignment admitted natively with an atomic terminal receipt; exact accepted native retry returns the original epoch and receipt; entity, client, team, actor, role, scope and fingerprint all match or the receipt is not adopted; missing or malformed capability holds rather than falling back. | The safe kill is **`hold`**, not provider. `hold` is a visible refusal with no mutation. **Returning to `provider` is a separate explicit pre-cutoff decision**, never implicit, and a blind inverse that drops the flag, functions, triggers or receipts is unsafe. | **`production-write` provider label/metadata branches and Linear credential reads** (assignment half) | Ordinary receipts inherits its receipt identity rules. |
+| **`production_native_label_catalog`** (`2026-09-06-native-label-writes.sql`, `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md`) | Lets staff read and save labels from one immutable operator-attested catalog version instead of a provider request. | `{"mode":"provider","version_id":null,"schema_version":1}` → `mode:"native"` with an exact catalog version UUID | **A real catalog capture and the owner's independent verification.** The doc requires the owner to verify the authenticated original export, archived-inclusive pagination, terminal and count evidence, workspace and team mapping, original UUIDs and taxonomy stability before any real attestation; a self-consistent truncated file or an invented zero count is explicitly insufficient. Serving and release are marked HELD/UNPROVEN. | Authorized staff read and save labels with no provider request and no new provider intent in the admitted path; exact native replay returns the current scoped row with `read_only:true` and `authority_source:accepted_native_receipt`; malformed installed configuration is refused, never fallen back. | `mode:"hold"` **with the compatible gateway retained**; blocks fresh labels while keeping replay. Never delete the flag to mimic pre-install absence. Returning to provider is a separate reviewed reconciliation. | **`production-write` provider label/metadata branches** (label half) | — |
+| **`native_brief_media`** (`2026-09-07-native-brief-media.sql`) | Copies brief images out of provider-hosted URLs into the private `syncview-native-brief-media` bucket so a brief renders without fetching from the provider. | `{"mode":"off","contract":"native_brief_media_v1"}` → an on mode | **The on value is not defined in the installed source.** The migration seeds the flag and the bucket and installs the occurrence table; no installed SQL reads `mode`, and the only reader is the shared module `production-write` imports. Its intended non-off value needs to be named before anyone can set it. | None stated as step 27 checks in the migration; the contract it does state is occurrence history preserved when source rows are deleted, and never using the public or thumbnail bucket. | Set `mode:"off"`. Occurrence rows and verified objects are retained by design. | **Historical Linear import/link UI and retained URL fields** (the media half of it) | — |
+| **`production_native_identifier_mint`** (`2026-09-07-native-identifier-mint.sql`, `docs/ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md`) | Mints the human card identifier natively from a locked per-team cursor instead of taking the provider's. | `{"video":{"mode":"provider"},"graphics":{"mode":"provider"},"schema_version":1}` → per team `mode:"native"` | The doc's own status line: **"proposed acceptance contract; not implemented for the complete recovery inventory. Installation remains HOLD."** Capture must still bind complete sequence and consumer definitions and snapshot extrema. No Edge Function reads this flag. | Allocation advances a locked team cursor and checks both deliverables and grants before reserving a name; after authenticated capture and isolated restore, cursor, grant and deliverable rows compare exactly, new work skips existing and reserved identifiers, and a provider overwrite of a granted name is caught. | Per team back to `mode:"provider"`; identifiers already minted stay minted. | **`production-write` provider label/metadata branches** (identifier half) | Ordinary receipts and card materialization both assume a stable identifier. |
+| **`production_native_ordinary_receipts`** (`2026-09-09-native-ordinary-receipts.sql`, `docs/ops/NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md`) | Issues a server-owned typed terminal native receipt in the same transaction as an ordinary business mutation, so the write survives once the provider outbox is refused. | `{"video":{"mode":"provider","epoch":null},"graphics":{…},"schema_version":1}` → per team `mode:"native"` with an epoch equal to the server-issued marker | **A reviewed code change first.** The doc says the blocked activation RPC may only be replaced after every owner row in the allowlist has its proof, and that the same commit must update the retirement runbook and add operation-specific tests. Disposable-cluster tests and identity/replay tests are required first. This is not a flag flip today. | Each allowed operation commits one native row, one event and one terminal typed receipt together; injected event, journal, outbox, flag-read, CAS and F27 failures leave all three unchanged; exact retries return the current scoped row with no extra row or event; existing provider receipts keep payload, generation, status and replay identity. | Per team `mode:"provider"`, with existing provider receipts untouched through native, hold and retired transitions. | **`linear-inbound` / `linear-outbound` and the three schedules** (the receipt half) | This is the capability that makes provider-outbox refusal survivable, so retirement-adjacent work depends on it. |
+| **`native_card_materialization`** (`2026-09-06-native-card-materialization-boundary.sql`) | Admits a card created outside the app into the calendar or samples surface through a receipted, evidence-keeping ingress boundary. | `{"mode":"hold","epoch":null,"covered_from":"2026-09-17T16:11:38Z"}` → `mode:"native"` with an epoch | **No HTTP writer is rerouted by this file**, in its own words, and nothing deployed reads the flag. Installation additionally requires versioned schema **and** data recovery for both new owners. | None yet: with no serving reader there is no real work to watch, so step 27 cannot be satisfied as written. | `mode:"hold"`. Receipts and ingress evidence are deliberately FK-free so no deletion elsewhere can erase them. | None on its own; it is a prerequisite for a future ingress route. | — |
+| **Native notifications** (`docs/ops/NATIVE_NOTIFICATIONS.md`, `production_notification_*`) | Turns the native notification outbox into an actual sender, so status and comment events produce the Slack messages the team already expects. | Gated by service-only configuration, not by a `syncview_runtime_flags` row; the browser role is correctly refused a read of `production_notification_config` (42501). | A **service-only `NOTIFY_RUNNER_KEY`**, the same key configured in `production-write`, `NOTIFY_WAKE_ENABLED`, and two dormant five-minute GitHub Actions jobs whose repository variables must be literally `true` with their shared service-only URL and key secrets set after review. The privilege repair and the urgent destination row are already done (step 19). | Preserve existing expected Slack notifications including urgent editor and urgent review requests; no migration announcements, no new recipients or triggers, no duplicates, no unexpected messages; the monitor's health call must not report stale pending, blocked, unknown, expired-lease or overdue retry debt. | Unset the runner key or set the repository variables away from `true`; the sender stops and intents stay pending rather than being lost. | **Legacy urgent editor assignee lookup** | — |
+
+#### Recommended order, with the reason for each position
+
+1. **`native_intake_epochs`** — the only one with every prerequisite already met, a serving path deployed on both sides, and a rollback the migration itself promises keeps accepted work.
+2. **Native notifications** — its blockers are configuration the owner can set, not code or capture, and it is the one whose absence people would actually feel. It goes second rather than first only because setting secrets and flipping two workflow variables is more surface than one SQL update.
+3. **`native_assignment_epochs`** — the serving path is deployed, but its rollback is `hold`, not "back to how it was", so it should follow a capability that has already proved the receipt machinery in real use.
+4. **`production_native_label_catalog`** — deployed reader, but gated behind a capture the owner must personally verify. Its position is set by that verification, not by any technical risk.
+5. **`native_brief_media`** — cheap and low-blast-radius, but nobody has named its on value yet; that is a five-minute answer, after which it could move earlier.
+6. **`production_native_identifier_mint`** — its own doc says installation is HOLD and the acceptance contract is proposed, not implemented.
+7. **`production_native_ordinary_receipts`** — needs a reviewed code change to replace a deliberately blocked activation RPC, plus tests in the same commit. Not a phase 7 flag flip at all yet.
+8. **`native_card_materialization`** — nothing deployed reads it, so there is no real work to watch and step 27 cannot be satisfied. It should wait for the ingress route it exists to protect.
+
+#### The single best first capability
+
+**`native_intake_epochs`, one team at a time.**
+
+- **Prerequisites already met.** The manifest migration is installed, `production-write` is live from `043369b5`, and the browser already reads the flag at runtime and filters to teams where `enabled === true` and the epoch is a string. No secret, no config row, no deployment outside the thirteen-function lane. The only action is an owner SQL operator setting one epoch.
+- **Clean flag-off rollback.** `enabled:false` returns the team to provider intake, and the migration states that accepted manifests and terminal receipts are retained on behavior rollback. Per team, so one team can go back alone while the other stays.
+- **Real staff work on a normal morning.** Intake is Create Post. It runs every day, it is observable within minutes, and a failure shows up as a refused submission rather than as silent drift.
+- It also closes a whole checkpoint row on its own, the intake one, rather than half of a shared row.
+
+The honest caveat, stated because it is the thing that would bite: the browser
+reads this flag directly, so an epoch typed into the flag row in the wrong shape
+is refused by the capability function with `authority_unavailable` and the option
+simply will not appear. That is the failure mode to expect, and it fails closed.
+
+#### D36 — the admin role key is not being rotated
+
+**Owner decision, recorded so no session raises it again.** The admin role key
+stays as it is. This sits beside the existing standing decision not to rotate the
+Supabase publishable key. A session that thinks rotation is indicated may record
+the observation in this journal; it does not reopen the question with the owner.
+
+#### Not done
+
+- Nothing was enabled, configured, deployed or written. This entry is a proposal.
+- Steps 26 and 27 stay the owner's, one capability at a time.
+- No client slug, staff name or flag value containing a roster list is recorded
+  here; three flags in that table hold client lists and were read but not copied.
+
 ### 2026-09-17 — STEP 23 CLOSED: the Calendar load-time writes are pre-existing link adoption, verified byte-identical at frozen main. Two findings carried forward to phase 7: timestamp churn on read, and a Linear-shaped path that reads our own database
 
 Supervisor's verdict, and the parts of it this session checked rather than

@@ -30,6 +30,78 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Pipeline proof re-run at `2e8ff92`: CALIBRATE REFUSED again, on a new defect the fix introduced: `applySettledWorld` references `j`, which is not in its scope. Verify NOT run; no proof file written
+
+Storage session. The expectations were written and pushed before the run, in the
+entry directly below (`f76efbf3`).
+
+#### What ran
+
+- `run-portable.ps1 -Lane observed-full-install -ObservedInputDirectory … -CalibrateTarget`,
+  from a Windows PowerShell 5.1 host, `SUPABASE_*` cleared per process.
+- Checkout at `f76efbf3`, whose code is identical to `2e8ff92`; only the journal
+  differs. Lane file SHA-256
+  `597fc02007e5f1f73cfe29d3bff8955477e71d0bd7b02e11db9745cad9d6ce82`;
+  `scripts/linear-exit-b9-catalog-derive.js` SHA-256
+  `35a41608897dfd9a9790f47d1f85a93adc97586a9e53375466e036251d312fff`.
+- Run directory `linear-exit-observed-full-install-b2662bd92a51466389ddc6188881924a`:
+  **exit 1**, `{"marker":"TRANSITION_FAILED","stage":"reconstruct"}`, cluster
+  stopped, no `postmaster.pid`.
+
+#### Every expected count beside what was produced
+
+| Quantity | Expected | Produced |
+|---|---|---|
+| Observed reconstruction | 67 tables, exact capture match | **67 tables, 115 routines, 14 sequences, `exact_captured_catalog_match: true`** (`LINEAR_EXIT_OBSERVED_SCHEMA_OK`) |
+| Starting catalog | `ddfa4c4f…` | **not reached**: the lane threw while building the world, before the catalog read |
+| Plan SHA-256 / sources / chunks | `508e6369…` / 48 / 55 | **not produced** |
+| Guards installed | 91 | **not produced** |
+| Post-install public tables | 91 | **not produced** |
+| Target SHA-256 | `24c833c0…` | **not produced**; no `full-target.private.json` |
+| Exit | 0 | **1** |
+
+#### The refusal, and its cause, confirmed from code
+
+From `transition-error.private.log`:
+
+```
+ReferenceError: j is not defined
+    at Object.applySettledWorld (scripts/linear-exit-b9-catalog-derive.js:105:18)
+    at test/linear-exit-observed-full-pipeline.js:27:56
+```
+
+**FINDING C: `applySettledWorld()` is a module-level function that calls
+`j.sha(...)`, and `j` is not in its scope.**
+
+- In `scripts/linear-exit-b9-catalog-derive.js` at `2e8ff92`, `j` is declared
+  **only inside three other functions**, at lines 134, 222 and 319
+  (`const j = require('./linear-exit-install-journal')`).
+- Module scope declares `fs`, `path`, `cp` and `assert`, but not `j`.
+- `applySettledWorld` (line 99) uses `j.sha(prerequisite)` on its opt-out branch
+  (line 105). **It therefore throws on every call that applies the opt-out
+  prerequisite, on any cluster, with or without private inputs.**
+
+**It also breaks the B9 derivation tool itself (read, not run).** `derive()` now
+calls `applySettledWorld` at line 237 (`stopBeforeHiring: true`, which takes the
+opt-out branch) and at line 243. A closure inside `derive()` cannot lend its `j`
+to a function declared outside it, so `derive()` is expected to throw the same
+way.
+
+**Why a review could not see it.** It is a scope error in code that runs only
+when a real cluster is built. The offline mutation proofs stub or bypass world
+construction. It needs no private inputs to surface, only a call.
+
+**Not fixed.** It is the other session's change, and a one-line fix is exactly
+the kind of silent repair the standing instruction rules out. **Verify was not
+run**, because it needs a target from a passing calibrate. **No new dated proof
+file was written.** `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` is
+byte-identical at SHA-256
+`73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb`.
+
+**Findings A and B are not tested by this run.** The code for both changes is
+present in the diff, but execution stopped before the opt-out prerequisite was
+applied, which is before either could be exercised.
+
 ### 2026-09-17 — Pipeline proof re-run at `2e8ff92`: EXPECTATIONS, written before either run
 
 Storage session. **Nothing below has run yet.** The results follow as their own

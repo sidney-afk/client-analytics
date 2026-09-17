@@ -30,6 +30,88 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 8 CLOSED on the owner's authorisation: live catalog `ddfa4c4f…`, 68 tables, resolved to `settled68`, TLS verified, identity unchanged. 8 of 28. Step 9 NOT started
+
+**Date.** 2026-09-17T00:10:37Z UTC, which was 2026-09-16 18:10 on the owner's
+machine. The private directory is named by the machine's local date.
+
+**Authorised by the owner** for step 8 only, with the instruction not to proceed
+to step 9. Performed by the storage session. It used the same wrapper and the
+same host arrangement as the proof read `day-catalog-20260916-4`.
+
+#### What ran
+
+- **Command**, from a **Windows PowerShell 5.1** host (5.1.26100.9444), the
+  reviewed command from the handover section 4.2:
+  `node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-5`
+- **Wrapper SHA-256**, hashed in the same process immediately before the run:
+  `6b6e2fe7248d08f627dbf91319211ed11a9a5e1743a66b2fd327f9d595e9bb56`. That is the
+  version recorded in the entry "Storage session: the private catalog wrapper now
+  names `settled68`". Its last write is that edit; nothing has touched it since.
+- **CA file** `%APPDATA%\postgresql\root.crt`: present, SHA-256
+  `700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`, unchanged
+  since the owner re-supplied it on 2026-09-15.
+- **Read-only:** a single `begin read only` transaction, rolled back. Started
+  00:10:34.5Z, ended 00:10:37.3Z, exit 0.
+- **Directory name:** `-5`, not `-2` or `-3`. Those names were used today by
+  attempts that created no directory, and names are never reused.
+
+#### Evidence, read back from the files on disk, not from the console
+
+| Item | Value |
+|---|---|
+| **Receipt file** | `day-catalog-20260916-5/receipt.private.json`, 291 bytes |
+| **Receipt SHA-256** | **`685482e88f490d3e81235cbf2126b539d112c8d352bd27b3eaf073fbca45ec41`** |
+| `classification` | `LIVE_READ` |
+| `observed_at` | `2026-09-17T00:10:37.196Z` |
+| `catalog_sha256` | `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c` |
+| **`profile`** | **`settled68`** |
+| `matches_reviewed_baseline` | `true` |
+| `tls_verified` | `true` |
+| `installation_authorized` | `false` |
+| **Public table count** | **68**, all ordinary tables; 14 sequences (counted from `catalog.private.json`) |
+
+**Cross-checks, each independent of the receipt's own claims:**
+
+1. **The catalog file's canonical hash was recomputed** with
+   `linear-exit-install-journal`'s `sha(canonical(...))`: `ddfa4c4f…`, equal to
+   the receipt.
+2. **The public resolver names the same world without the wrapper's map:**
+   `startingPublicTables('ddfa4c4f…')` returns `{"contract":"settled68","count":68}`,
+   and the hash equals the `settled68` contract's own `catalog_sha256`. So the
+   private wrapper and the reviewed public contract agree.
+3. **The catalog has not changed since yesterday.** The catalog file's raw bytes,
+   SHA-256 `9424cb813caf96d0c9cf1a563caba82dc157e810133d885e8e5c0bf69dfe6b2e`,
+   941,913 bytes, are identical to the reads `day-catalog-20260915-2` and
+   `day-catalog-20260916-1`.
+4. **Project identity confirmed.** `identity.private.json` holds `database`,
+   `database_oid`, `session_user` and `system_identifier`. Compared in canonical
+   form, it is **identical** to the identity file of each of the three earlier
+   reads: `day-catalog-20260916-4`, `-20260916-1` and `-20260915-2`. The values
+   are private and are not written here.
+
+#### Step 8's "Done when", item by item
+
+| Execution map says | Evidence |
+|---|---|
+| Exact supported baseline matched | `matches_reviewed_baseline: true`, profile `settled68`, canonical hash recomputed and equal, public resolver agrees |
+| Project identity confirmed | four identity fields identical to three earlier reads of the same project |
+| TLS verified | `tls_verified: true`. The wrapper connects with `rejectUnauthorized: true` against the pinned CA and refuses unless `pg_stat_ssl.ssl` is true for its own backend |
+
+**Step 8 is complete. Count: 8 of 28**, Phase 2 of 7, 29%. **Next: step 9, NOT
+started, not authorised.**
+
+**The receipt's one-hour window.** The refresh wrapper refuses a receipt older
+than one hour, so this receipt stops being usable by step 9 at
+2026-09-17T01:10:37Z. That is intended: step 9 was not authorised, and when it
+is, it needs a fresh step 8 read immediately before it, per the sitting page's
+one clock. This read closes step 8 as a verification of the live world. It is
+not a ticket for step 9.
+
+**Not done, by instruction:** no step 9, no pins, no other file. The checkpoint's
+"step 7 of 28" line was not edited here and is now one behind; noted, not
+changed.
+
 ### 2026-09-17 — RE-REVIEW of the loopback fix `1eb6eaf8`, delta only: PASS on all four points, with two refinements to the M7 reasoning
 
 Delta only, against the code. The four points the owner named, each answered
@@ -5807,6 +5889,19 @@ remains unmeasured. The route is unchanged: in-place restore (D13).
 B4 and B5 are recorded here because a blocker list that omits known
 prerequisites is worse than no list. They are the checkpoint's own words, not a
 session's addition.
+
+**B2 CLOSED, 2026-09-17T00:10Z (2026-09-16 18:10 on the owner's machine), storage
+session, on the owner's authorisation of step 8. Row kept above.** The row asked
+for a receipt with the supported-baseline and TLS checks passing, naming
+`observed67_optout`. The naming half was superseded, not failed. D12 held the
+re-pin until the hiring migration reached main, B9 derived `settled68` against
+that settled state, and D17 and D18 made it the world step 14 installs against.
+Receipt `day-catalog-20260916-5/receipt.private.json`, SHA-256
+`685482e88f490d3e81235cbf2126b539d112c8d352bd27b3eaf073fbca45ec41`:
+`catalog_sha256` `ddfa4c4f…`, `profile: settled68`,
+`matches_reviewed_baseline: true`, `tls_verified: true`, 68 tables. Identity is
+identical to three earlier reads. Full evidence is in the progress entry "STEP 8
+CLOSED". **B9 is not closed by this note.**
 
 ---
 

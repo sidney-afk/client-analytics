@@ -116,6 +116,26 @@ the mechanism for any future catch-up whose conflicts are its three known files.
 If Storage custody was not completed in step 1, it is done here, before the
 freeze holds any longer. Do not start it while files are being changed.
 
+### Step 8 CLOSED — 2026-09-17T00:10Z (2026-09-16 18:10 on the owner's machine)
+
+Authorised by the owner. A read-only live catalog read through the private
+wrapper, run from a Windows PowerShell 5.1 host, with the receipt read back from
+disk:
+
+- **Receipt:** `day-catalog-20260916-5/receipt.private.json`, SHA-256
+  `685482e88f490d3e81235cbf2126b539d112c8d352bd27b3eaf073fbca45ec41`.
+- **Baseline matched:** catalog `ddfa4c4f…` (supported baseline `settled68`),
+  68 public tables.
+- **TLS verified.**
+- **Project identity** identical to three earlier reads.
+
+Evidence and cross-checks are in the journal entry "STEP 8 CLOSED".
+
+**Progress:** Phase 2 of 7 · step 8 of 28 · 29% complete · next: 9 (refresh
+the database backup). **Step 9 is not started and not authorised.** It will need
+a fresh step 8 read immediately before it, because a receipt older than one
+hour is refused.
+
 ## Phase 3 — Install the SQL, dormant
 
 | # | Step | Who | Done when |

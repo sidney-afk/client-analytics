@@ -30,6 +30,74 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 15 verifier RAN: all four owner-named checks PASS. One extra field the session added reads `false` because its expectation was wrong; steps 14 and 15 are NOT closed pending the owner. The journal records no per-chunk timestamps
+
+Storage session, on the owner's instruction. **Read-only:** one `begin read only`
+transaction, rolled back. **No corrective action of any kind.**
+
+#### What ran
+
+`verify-install-state.private.cjs`, **SHA-256 `b1a2cdbd1c94a00cbf5a9b53c78ae9b533333be08abeff2210ad10cb34837b32`
+before and after**, exactly as recorded at `f26f38f1`. From a Windows PowerShell
+5.1 host, 16:48:14Z → 16:48:21Z, exit 0, with
+`--catalog-dir=day-catalog-20260917-3`, the pinned target file, and
+`--out=install-verification-20260917-1`.
+
+| Output file | SHA-256 | Bytes |
+|---|---|---|
+| **`install-verification-20260917-1/install-verification.private.json`** (the verifier's result) | **`1227392aa28f3eee13a4c26853e48d69d07dac78afa6a3f5f231c4bfe79a5544`** | 1,262 |
+| `install-verification-20260917-1/chunks.private.json` (expected and completed lists) | `c47eccfa7996e245eae306604f09a2da6ea586305864cfd9743ed41d7f61134e` | — |
+
+#### Results
+
+| Check | Result |
+|---|---|
+| **Every journaled chunk against the plan's 55, in order** | **PASS**: 55 expected, 55 completed, `chunks_exact_in_order: true`, no mismatches. Each entry's `source_id`, `source_sha256`, `chunk_index` and `chunk_sha256` equals the compiled plan's step |
+| **Guards remaining** | **PASS**: `linear_exit_maintenance_dml_v1` triggers, **0** on public tables, 0 in total |
+| **Live catalogs against target `24c833c0…`** | **PASS**: public catalog `331aabb2b51067b1b07d444e39e010c1c8ed18349f2f0ab3a0426cab0f5ff84d`, equal to the target's, **91** public tables; `targetApi.compare` over public **and** private catalogs returned **`MATCHED_SOURCE_DERIVED_TARGET`** |
+| **Retirement contract assertion** | **PASS**: `production_retirement_contract_assert_v1()` returned without error |
+| Identity / TLS | equal to expected / true |
+| Install namespaces | `linear_exit_maintenance` present, `linear_exit_install` present, as expected after an install |
+| **Extra field, not one the owner named: `journal_plan_sha256_matches`** | **`[["plan_sha256", false]]`** |
+
+#### The `false`: the session's own check had the wrong expectation. Read from code, not confirmed by reading the value
+
+The verifier compared the journal's `plan_sha256` with the **pinned** plan
+`508e6369…`. The installer never writes that value there:
+
+- `scripts/linear-exit-install-maintenance.js` derives a **maintenance-wrapped
+  plan** from the pinned one, records both hashes in
+  `linear_exit_maintenance.gate_v1` (`original_plan_sha256`,
+  `derived_plan_sha256`), and runs the journal with
+  `bootstrap.run({…, planBytes: derivedBytes, planSha256: derivedSha})`
+  (statement 18.1);
+- it then refuses (`JOURNAL_BINDING`) unless `state.plan_sha256 === derivedSha`
+  (statement 16.18);
+- in both 2026-09-17 pipeline runs the derived plan measured
+  **`18697ad2dc54b685fac7ba9a16e3d0b19abd9faa0b6a4b7c1ce46f23d48061b6`**, with
+  original `508e6369…`.
+
+So `false` is what a correct install produces. The 55 chunks matching the
+pinned plan's steps exactly is consistent with this: the check compared
+`source_id`, `source_sha256`, `chunk_index` and `chunk_sha256`, which the
+derivation carries unchanged. **Not confirmed:** the live journal's
+`plan_sha256` value itself was not printed, so "it equals `18697ad2…`" is
+inferred from code and the rehearsal, not read. **Per the owner's rule, a
+`false` in the result means stop and report. Steps 14 and 15 are therefore not
+closed** until the owner rules.
+
+#### Where the 33 minutes went: NOT answerable from the journal
+
+`linear_exit_install.journal_v1`
+(`supabase/migrations/20260912203454_installation_transaction_journal_preparation.sql`)
+has only `singleton`, `plan_sha256`, `stage_id`, `database_identity`,
+`initial_catalog_sha256`, `completed` and `after_catalog_sha256`. **No
+timestamp column.** Each `completed` entry is exactly
+`{source_id, source_sha256, chunk_index, chunk_sha256}`, built at
+`scripts/linear-exit-install-journal.js` line 56. **No per-chunk time exists in
+the journal.** No other source (database logs, statement statistics) was
+queried; that would be a different read, not authorised.
+
 ### 2026-09-17 — STEP 14 RAN AND RETURNED `INSTALLED_SCHEMA_TARGET_MATCH`, after about 33 minutes. The owner's read-only inspection was authorised but became moot before it ran. Step 15 verifier written, NOT run. Stopped on the owner's instruction
 
 Storage session. The plan was recorded before the run, in the entry "STEP 13 GATE

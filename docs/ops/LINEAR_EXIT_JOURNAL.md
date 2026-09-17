@@ -30,6 +30,74 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — REPOINT BLOCKED, AND THE BLOCK IS PROVEN BY EXECUTION: the operator refuses today with `INSTALL_OPERATOR_SOURCE_PIN`. Method and expectations for the repoint, written BEFORE the new proof file exists
+
+Waiting on the storage session. The new dated proof file is not in the tree:
+`docs/independence/` holds `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json`
+and `…_20260917.json`, and nothing newer.
+
+#### The consequence of the reconstruction fix, executed rather than predicted
+
+`scratchpad/sourcepin2.js` reaches and runs the operator's **real** SOURCE_PIN
+loop — step 7 of `load()`. Steps 1 to 6 need private inputs and are satisfied
+synthetically; **the gate under test is not stubbed**: it reads the dated proof
+file and hashes the real repository files with the real implementation. The two
+stubs are named below.
+
+```
+synthetic prerequisites: plan 508e63699a… (55 steps), target for N=91 objects
+operator SOURCE_PIN currently reads the 20260917 proof
+that proof pins 26 files; 1 stale right now: linear-exit-observed-schema.js
+
+  OK  preflight REFUSES on the stale pin      REFUSED INSTALL_OPERATOR_SOURCE_PIN
+  OK  MUTATION: observed-full-pipeline.js +1 comment
+                                              REFUSED INSTALL_OPERATOR_SOURCE_PIN
+  OK  restored byte-identical                 yes
+
+SOURCEPIN_PROBE_OK
+```
+
+So the warning in the previous entry is not a prediction: **the operator refuses
+right now, by name, for exactly the file I changed.** Denominator 26 pins, 1
+stale, 25 matching.
+
+**The two stubs, disclosed.** `observedCatalog.compare` is forced to
+`MATCHED_OBSERVED_PUBLIC_CATALOG`, because the private starting-catalog it
+compares against is not here; and `j.sha` is remapped **for exactly one value**,
+the synthetic catalog's canonical form, so every real file the SOURCE_PIN loop
+hashes is hashed by the untouched implementation. `profiles.get` returns the
+synthetic plan/target hashes so execution can reach step 7. Nothing downstream
+of step 6 is stubbed.
+
+#### EXPECTATIONS FOR THE REPOINT, fixed now so they cannot be fitted to the result
+
+When `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_<newdate>.json` lands I will, in order:
+
+1. **Verify the file before trusting it.** Record its own sha256; assert it holds
+   **26** `source_pins`; assert **all 26 match the tree** at that moment; and
+   assert its pin for `scripts/linear-exit-observed-schema.js` equals the current
+   bytes, `c5e6a4e4683c0deb…`. If any of those fails I stop and report rather
+   than repointing at a file that does not describe this tree.
+2. **Repoint one read**, the path in `scripts/linear-exit-install-operator.js`,
+   and add the matching `-text` line to `.gitattributes`. The `20260917` file
+   stays **byte-identical** — re-run, never edit, per D19.
+3. **Never hand-edit a pin**, per D32. The new values come from the storage
+   session's run, not from me typing digests.
+4. **Mutation proof, executed**, with the same probe: after the repoint the
+   preflight must PASS, and perturbing any one of the 26 pinned files by a single
+   comment must return it to `REFUSED INSTALL_OPERATOR_SOURCE_PIN`, with the file
+   restored byte-identical afterwards. Both directions, or it is not a proof.
+
+**What would make me stop instead of proceed:** a new file with a pin count
+other than 26; any pin stale against the tree on arrival; a pin for
+`linear-exit-observed-schema.js` that is neither the pre-fix
+`7b70becf48f5c3da…` nor the current `c5e6a4e4683c0deb…` (which would mean the
+run proved a third version of that file); or the preflight still refusing after
+the repoint.
+
+The probe is written and validated against the current, failing state, so the
+repoint itself is a few minutes' work once the file exists.
+
 ### 2026-09-17 — RECONCILIATION: `complete-application-recovery` was listed under two causes. It has one
 
 Correction to the D22 authoritative entry earlier today, which under "the eight

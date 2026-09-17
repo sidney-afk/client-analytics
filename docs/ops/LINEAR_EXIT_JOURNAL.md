@@ -30,6 +30,113 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — `settled68` target RE-MEASURED on the moved chain: UNCHANGED, `24c833c0…`, byte-identical. Pipeline proof lane CALIBRATE REFUSED at reconstruct: the D19 re-base builds the wrong world. Not fixed; no proof file written
+
+Storage session, the two items the owner listed after steps 9 and 10, in order.
+Both ran on the owner's machine from a Windows PowerShell 5.1 host, at checkout
+`756015e60dbdd65ca1d9cf82b828c97279b20755`, against the private observed inputs.
+Nothing was pinned or edited.
+
+#### 1. `settled68` install-operator calibration, re-run because the target chain moved
+
+**Why:** the execution session found that 9 of the 63 files in the
+target-producing chain changed after the `ff9b379f` measurement, two of them
+reachable from the calibration (`postInstallPublicTables`' module, and the
+custody corpus via the control companion). So it did not pin `24c833c0…`.
+
+**Ran:** the reviewed `run-portable.ps1 -Lane install-operator`, through the
+handover section 4.6 launcher, `INSTALL_OPERATOR_PROFILE=settled68`,
+`INSTALL_OPERATOR_CALIBRATE=1`, `SUPABASE_*` cleared per process. Run directory
+`linear-exit-install-operator-0bdf4c955139408aa02bd9a60afb06aa`, exit 0,
+`LINEAR_EXIT_OBSERVED_SCHEMA_OK` and `LINEAR_EXIT_INSTALL_OPERATOR_OK`, cluster
+stopped.
+
+**Expectations stated before the run:** plan `508e6369…` (pinned by the execution
+session), post-install 91, and the target reported whatever it came out.
+
+| Item, read from the run's files | Value |
+|---|---|
+| **Target SHA-256** | **`24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`** |
+| Target bytes | 1,613,689 |
+| Post-install public tables | 91 |
+| Plan (file, `target.plan_sha256`, `operator-result.plan_sha256`) | all `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` |
+| Starting catalog | `ddfa4c4f…` |
+| Installed public / private catalog | `331aabb2…` / `fccae16a…`, both as at `ff9b379f` |
+| Operator result | `CALIBRATION_ONLY`, `activation_performed: false` |
+
+**Compared with the `ff9b379f` measurement by re-reading that file from disk,
+not by transcription.** `sha256sum` of both target files gives `24c833c0…` each,
+and **`cmp` reports them byte-identical.**
+
+**Finding: the chain moved and the target did not.** Two reachable changes were
+the backup fix's resolver extraction, which claimed behavioural equivalence, and
+D24's corpus change. Neither changed a byte of the post-install target. That is a
+measurement on the current chain, so the execution session's precondition for
+pinning is now met by a run, not by "very probably". **Not pinned here**; pinning
+is the owner's reviewed step.
+
+#### 2. Pipeline proof lane, re-based at `e4eb40b`: CALIBRATE REFUSED; verify NOT run; no proof file written
+
+**Ran:** `run-portable.ps1 -Lane observed-full-install -ObservedInputDirectory … -CalibrateTarget`,
+launched with the same process-only environment clearing. Run directory
+`linear-exit-observed-full-install-2450417d253347579388a2447ace82a9`,
+**exit 1**. The reconstruction printed `LINEAR_EXIT_OBSERVED_SCHEMA_OK`, 67 tables,
+exact capture match; the lane then printed
+`{"marker":"TRANSITION_FAILED","stage":"reconstruct"}`. Cluster stopped.
+
+**The refusal**, from `transition-error.private.log`:
+
+```
+AssertionError [ERR_ASSERTION]: exact settled observed baseline required
++ '5864a28f204f61856982b8f53cb2d7f301e9c6ae91fd60673846861ddcdadb8d'
+- 'ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c'
+    at Object.build (scripts/linear-exit-install-profiles.js:92)
+    at test/linear-exit-observed-full-pipeline.js:27
+```
+
+**FINDING A, the cause, read from code: the re-based lane skips the opt-out
+prerequisite.** `settled68` is the **opt-out world plus the hiring migration**:
+
+- `test/linear-exit-install-operator-postgres.js`' `SETUP` row is
+  `settled68:{optout:true,hiring:true}`;
+- `scripts/linear-exit-b9-catalog-derive.js` applies the opt-out prerequisite
+  (`git show` of the pinned ref, hash-checked, stage
+  `optout_prerequisite_applied`) **before** the hiring migration, and records
+  `pre_hiring_matches_optout_profile`.
+
+The lane at `e4eb40b` (file SHA-256
+`4bc8e88574ff2d17e00e9a0415e3062c01f3d25a74c060389496a401879a7523`) applies
+**only** the hiring migration on top of the 67-table reconstruction. Its comment
+says it builds the world "the same way `scripts/linear-exit-b9-catalog-derive.js`
+applies it", which is true of the hiring step and not of the world. The world it
+builds is observed67 plus hiring, `5864a28f…`, and `install-profiles.build()`
+refuses it, correctly.
+
+**Why the D19 mutation proof could not see this.** It ran against `targetApi`
+with the starting-catalog gate stubbed, "applied identically to every case so it
+cancels". The stubbed gate is exactly the one that fired here.
+
+**FINDING B, predicted from code, NOT measured, because the lane never got that
+far.** Verify mode's interruption boundary,
+`test/linear-exit-observed-full-pipeline.js` line 35, still asserts
+`count(*) … tgname='linear_exit_maintenance_dml_v1' and tgenabled='A'` **`=== 90`**.
+D19 converted four count sites to derive from `postInstallPublicTables()`, and
+this fifth is not among them. The worker's own derived guard count for the
+settled world is 91, and `observed67` is the only world in which it was 90. So
+once Finding A is fixed, verify is expected to refuse at stage
+`interrupt-final-owner`. **That is a prediction.**
+
+**Neither was fixed.** Both are in public code that the other session owns and
+that D19's review covered. Per the standing instruction, they are reported, not
+quietly repaired. **`verify` was not run**, since it needs a target from a
+passing calibrate. **No new dated proof file was written**, because there is no
+passing result to record. `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` is
+byte-identical: SHA-256
+`73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb`, unchanged.
+
+**Not run as a substitute:** a hand-patched copy of the lane. It would prove a
+lane nobody reviewed.
+
 ### 2026-09-17 — STEPS 9 AND 10 CLOSED: package uploaded; downloaded on a second device with a matching hash (owner-reported); fresh Drive download on this machine verified member by member and RESTORED, 68 tables at `ddfa4c4f…`. 10 of 28
 
 Storage session, on the owner's authorisation. The capture, local restore and

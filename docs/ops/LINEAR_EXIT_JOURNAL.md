@@ -30,6 +30,48 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — D22 FIRST PASS: all 61 deferred suites run. 37 pass, 17 fail, 7 cannot run here. Two failures are new, and one of them is the third instance of the class
+
+Not the authoritative run — files will move again before the merge — and
+nothing was fixed. Full result, with the denominator on every line, in
+[`LINEAR_EXIT_D22_DEFERRED_FIRST_PASS_20260917.md`](LINEAR_EXIT_D22_DEFERRED_FIRST_PASS_20260917.md).
+
+**37 of 61 pass. 17 of 61 fail. 7 of 61 cannot run here** — 6 need private
+inputs and are the storage session's, 1 needs Playwright and Chromium, both
+absent. **15 of the 17 failures fail identically at the pre-B10 commit
+`d3cbca7f`**, run with the identical environment on the identical cluster, so
+they are older than this month's work.
+
+**The two that are new.**
+
+`linear-exit-observed-routines-postgres.js` fails because
+`qa/linear-exit-rehearsal/observed-baseline/routines-contract.json` holds
+`pre_test_sha256`, which pins the **bytes of a different suite's file**,
+`test/linear-exit-source-phases-postgres.js`. I changed that file at `dc3d789`
+when D24 moved its `pre.length` from 67 to 68. **One suite's contract pins
+another suite's source and nothing declares the relation** — the same shape as
+the table-name coupling and the world literals, inside a suite nothing runs.
+That is the **third** silent break of this shape in a fortnight, and all three
+were found by accident. Not fixed: whether a routines contract should pin a test
+file's bytes at all is a decision, not a re-pin.
+
+`linear-exit-admission-preflight-postgres.js` fails `ADMISSION_INSTALLED_MISMATCH`.
+B10 added two triggers to the admission set, so an installed-state comparison
+moving is the expected shape, but **this session did not prove which field
+diverges** and says so rather than guessing. Worth noting separately: that suite
+reports its failure **only into a private file**, so a console reader sees exit
+1 and no reason, unlike every other failing suite here.
+
+**Three caveats are recorded in the document and each could move a number:** all
+61 ran against one shared cluster rather than one per suite; the portable runner
+supplies more than this session reproduced, which the sixteen "portable runner
+supplies isolated environment" failures depend on; and timeouts were counted as
+failures rather than separated, though none was observed.
+
+**What it is worth:** a baseline the authoritative run can diff against instead
+of rediscovering the 15, and one real defect nobody knew about — which is the
+point of running the 61, and which was invisible for exactly the reason D22
+exists.
 ### 2026-09-17 — `settled68` target RE-MEASURED on the moved chain: UNCHANGED, `24c833c0…`, byte-identical. Pipeline proof lane CALIBRATE REFUSED at reconstruct: the D19 re-base builds the wrong world. Not fixed; no proof file written
 
 Storage session, the two items the owner listed after steps 9 and 10, in order.

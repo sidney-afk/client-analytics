@@ -21,7 +21,7 @@ Count completed steps out of 28. Report it like this at the start of every
 execution session and after every completed step:
 
 ```
-Phase 4 of 7 · step 19 of 28 · 68% complete · next: 20 (capture the legacy editor workflow)
+Phase 6 of 7 · step 25 of 28 · 89% complete · next: 26 (the first capability gate)
 ```
 
 A step is complete only when its **Done when** column is satisfied and its
@@ -359,6 +359,24 @@ untouched.
 
 At the end of phase 6 the install is live and inert. Existing behavior is
 unchanged. This is a safe place to stop for days.
+
+**Progress:** Phase 6 of 7 complete · step 25 of 28 · 89% complete · next: 26,
+the first capability gate, which is the **owner's**. **Not started.**
+
+Recorded 2026-09-17 by the storage session on the owner's instruction. Two
+qualifications belong with it rather than under it:
+
+- **Step 24 ran on two surfaces, not three.** The calendar post upsert and the
+  sample review upsert went through their own Edge Functions with the staff role
+  key and were verified on status, body and stored row. The production comment
+  was **not** written: `production-write` requires a roster actor
+  (`x-syncview-actor`, refused as `roster_actor_required` without one), and
+  authoring a comment under a named person's identity is the owner's call, not
+  the session's.
+- **No event or receipt row was created by either save, and none was expected.**
+  `calendar-upsert` and `sample-review-upsert` emit events for status changes,
+  link set/clear and comment add/delete only; a content-field edit emits none.
+  The event path is therefore still unexercised by a test save.
 
 ## Phase 7 — Turn on capabilities, one at a time
 

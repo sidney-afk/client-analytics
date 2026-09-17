@@ -30,6 +30,96 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 24 RUN on two of three surfaces: both saves return 200 AND are verified in the stored row, with 0 notification intents and 0 Slack deliveries. No event row was created and none was due. The production comment was NOT written: it needs a roster actor. STEP 25 CLOSED with both remaining gates measured
+
+Storage session, on the owner's machine, with the admin role key the owner
+supplied for this purpose.
+
+#### The key
+
+Stored the same way the database password is: DPAPI-protected under the current
+Windows user, in the private evidence directory as
+`staff-role-key-admin.dpapi`, outside the repository. The secret helper's
+`ValidateSet` now accepts that third name, and reads it into memory only. The
+key was never printed, echoed into a command line, written to a log, or placed
+in any file other than its protected store. The push gate's leak list now
+carries it, so it cannot reach the journal or any pushed file.
+
+**Recommendation, and it is the session's not the owner's:** the key travelled
+through chat to get here, so it should be rotated once these checks are done.
+Anything that reaches a transcript should be treated as disclosed.
+
+#### What ran, and the four checks
+
+Client `sidneylaruel` only. Each request went to the same Edge Function the
+browser posts to, with the browser's own headers — `apikey` and `Authorization`
+carrying the public anon key, and `X-Syncview-Key` carrying the staff role key —
+read from `index.html` rather than retyped.
+
+| Check | `calendar-upsert` | `sample-review-upsert` |
+|---|---|---|
+| HTTP status | **200** | **200** |
+| Body | `{ok, post}`, `ok: true` | `{ok, sample}`, `ok: true` |
+| Stored row read back over the direct connection | **changed**: `cta` null → the step-24 marker, `updated_at` moved | **changed**: `creative_direction` null → the step-24 marker, `updated_at` moved |
+| Event row created | **0** | **0** |
+| `production_notification_intents` created | **0** (8 before, 8 after, same latest timestamp) | **0** |
+| Slack delivery | **none**: `production_notification_delivery_receipts` holds **0** rows | same |
+
+Ids, previous values and the full bodies are in
+`step24-saves-20260917-1/` (`before`, `save-results`, `after`). The previous
+values are recorded so the two fields can be put back.
+
+**The zero event rows are correct, not a miss.** Read from the functions: both
+emit events for status changes, link set/clear and comment add/delete. A
+content-field edit emits none. So this pair of saves verifies the write path and
+the absence of notification, and leaves the **event path unexercised**. Exercising
+it needs a status-change save, which is a larger change to test-client data and
+was not authorised here.
+
+#### The third surface was not written, and why
+
+The browser posts a production comment through **`production-write`**, not
+through `production-comments`, which is a protected reader. `production-write`
+requires a roster actor header: `normalizeActor(req.headers.get("x-syncview-actor"))`,
+and without it throws `403 roster_actor_required`. The owner supplied a role key,
+not an actor identity. Writing a comment would mean authoring it as a named
+person in the audit trail, which is the owner's decision to make. **No request
+was sent to that function.** Name the actor identity to use and it is one call.
+
+#### Step 25, the two gates that were open
+
+**Follow-up supervisor — off, measured three ways.**
+`scripts/linear-exit-followup-supervisor.mjs` dispatches nothing unless its
+arguments are exactly `--run` **and** `LINEAR_EXIT_SUPERVISOR_ENABLED` is true.
+
+- The repository variable `LINEAR_EXIT_SUPERVISOR_ENABLED` does not exist: 0 of
+  the Actions variables match it.
+- No workflow references the script: 0 files under `.github/workflows` mention it.
+- No scheduled process runs it: no Windows scheduled task matches, and the
+  variable is unset in this machine's environment.
+
+**Reconcile apply — unchanged, measured.** `git diff --name-only 1abdd1fa origin/main`
+over `.github/workflows` lists **0** files matching `reconcil`. The reconcile
+workflows keep their own defaults from frozen main; nothing in the merge touched
+them.
+
+With these two, step 25's comparison is closed: no flag value changed, the seven
+added rows are the step 14 install's dormant natives, and every gate named is
+off or unchanged.
+
+#### The map
+
+Updated on the owner's instruction to **Phase 6 of 7 complete · step 25 of 28 ·
+89%**, with the two qualifications above recorded beside it rather than hidden:
+step 24 covered two surfaces, and neither save created an event row because
+neither was due one.
+
+#### Not done
+
+- No production comment, no status change, no Slack message, nothing on any
+  client other than the test client.
+- The key was not printed and is not recoverable from anything pushed.
+
 ### 2026-09-17 — STEP 23 NOT CLOSED. The REST reads are clean, 13 of 13, but the three surfaces never rendered from this session: all three stop at the same pre-access state, and the console errors that remain are this sandbox's proxy, not the site
 
 Cloud session. The owner's condition was explicit: anything other than zero

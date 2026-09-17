@@ -3,7 +3,7 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto'),assert=require('assert/strict');
 const recovery=require('./track-b-recovery-package'),catalog=require('./linear-exit-source-baseline-catalog');
 const DIR=path.resolve(__dirname,'../qa/linear-exit-rehearsal/observed-baseline'),sha=b=>crypto.createHash('sha256').update(b).digest('hex'),md5=b=>crypto.createHash('md5').update(b).digest('hex');
-const CONTRACT_SHA256='e34456a26d7cf282919a4beddc38b5e0ef19fd27838200c162fc622cd94020d2';
+const CONTRACT_SHA256='4ed53749cfd92aa67203b47dc082b746c7342cf433d2bc48d4db3bb3bd90b737';
 function parseContract(bytes){assert.equal(sha(bytes),CONTRACT_SHA256,'observed contract byte pin');return JSON.parse(bytes);}
 const ROLES=['PUBLIC','postgres','anon','authenticated','service_role'];
 function aclSql(f){assert.equal(f.owner,'postgres');assert.equal(f.kind,'f');assert(/^[a-z_][a-z_0-9]*$/.test(f.name));assert(typeof f.arguments==='string'&&/^[a-z_0-9 ,\[\]]*$/.test(f.arguments),'restricted signature');assert(typeof f.acl==='string'&&/^\{[^{}]+\}$/.test(f.acl));const roles=f.acl.slice(1,-1).split(',').map(s=>{const m=/^(postgres|anon|authenticated|service_role|)=X\/postgres$/.exec(s);assert(m,'unsupported ACL');return m[1]||'PUBLIC';});assert.equal(new Set(roles).size,roles.length);const sig='public.'+f.name+'('+f.arguments+')';return ['ALTER FUNCTION '+sig+' OWNER TO postgres;',...ROLES.map(r=>'REVOKE ALL ON FUNCTION '+sig+' FROM '+r+';'),...roles.map(r=>'GRANT EXECUTE ON FUNCTION '+sig+' TO '+r+';')].join('\n');}

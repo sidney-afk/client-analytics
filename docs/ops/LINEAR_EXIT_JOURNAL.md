@@ -30,6 +30,101 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 20: the legacy urgent editor workflow captured read-only, and main's preparation script produces EXACTLY one changed line in exactly one node. Nothing was edited, executed, published or sent
+
+Storage session. Two read-only n8n reads, one offline comparison, and no write of
+any kind to n8n. The n8n tool is available on this machine and was used in read
+mode only.
+
+#### The capture
+
+| Item | Value |
+|---|---|
+| Workflow id | `TJVMyfwl85qrFGeK` |
+| Name | `SyncView — Urgent Tweak → Slack` |
+| Active | true, not archived |
+| `versionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` |
+| `activeVersionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` — **the same**, and `activeVersion.sameAsDraft` is true |
+| Nodes | 9, trigger count 1 |
+| Created / updated | 2026-06-04T19:22:57.786Z / 2026-09-09T17:40:22.398Z |
+| Evidence | `step20-n8n-20260917-1/` |
+| Captured payload | `workflow-TJVMyfwl85qrFGeK.private.json`, SHA-256 `63b3c458146c4fceb356128b6fe4255fcc887fad8f89e114686a9fb9fbc4f502`, 8,855 bytes |
+
+Its description, recorded in full privately, says in public-safe terms: a POST
+webhook that validates a Linear issue URL, resolves the sub-issue assignee
+through Linear, maps the assignee's email to a Slack id from a sheet with a
+fallback map, and posts `URGENT TWEAKS NEEDED` to the video-editing channel as
+the SyncView bot.
+
+**Kept private, not in this journal:** the Slack channel id, the editor emails
+and Slack user ids in the fallback map, the n8n credential ids, the Google Sheet
+id and the webhook ids. They are in the evidence directory.
+
+The nine nodes, in order: `Receive POST`, `Parse & Validate`, `Valid?`,
+`Linear: Resolve Assignee`, `Read Video Editors`, `Build Slack Message`,
+`Post to #video-editing`, `Respond OK`, `Respond Error`.
+
+#### Enough to restore this exact version
+
+`capture-metadata.private.json` records the published version id, the two-entry
+history at capture time, and the route: `restore_workflow_version` to
+`10335825-e86c-45cf-89d5-fe16e29f5a35` and publish, or, failing that, an update
+from the captured payload followed by a re-read compared against its SHA-256.
+Because the draft and the published version were identical at capture, restoring
+that version restores what was live.
+
+The previous version is `d639de4a-6387-492c-a050-b1aca4f87943` (2026-09-02, "Urgent
+tweak link now points at SyncView"), which is the change that introduced the
+SyncView deep link; the current one added a fifth editor to the fallback map.
+
+#### The preparation, run offline against the capture
+
+`scripts/prepare-urgent-editor-website-only.js` at **main `043369b5`**, SHA-256
+`cab41bb23209e027354296e5ad1c93a724ec8129c244f420ade4469b21c4d642`, read out of
+git rather than from a working tree. It is preparation only: it deep-copies,
+changes one string and returns; it makes no n8n call.
+
+**Result: one differing path in the whole workflow.**
+
+```
+differing_paths : 1        -> /nodes/5/parameters/jsCode
+nodes_differing : 1        -> "Build Slack Message"
+changed_lines   : 1 of 26  -> line 24
+other_nodes_identical : true
+top_level_identical   : true
+input_mutated_by_prepare : false
+```
+
+**The single line, before and after:**
+
+```
+before  let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl + '\nLinear: ' + issue;
+after   let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl;
+```
+
+The message keeps its heading, the client, the deadline and the SyncView deep
+link, and loses only the trailing `Linear:` line. The `if (mention)` line below
+it, the fallback map, the comment block, the channel, the webhook, the
+validation, the Linear assignee resolve, the sheet read and both responses are
+byte-identical. Node count 9 before and after.
+
+The prepared payload is `a77d474c4ee1ec504aaf848a0ab43b0d3e794bac623aca909a4b43fbbad1ed20`
+and exists only in the private evidence directory.
+
+#### A check of mine that was wrong, and how it was settled
+
+A first verification script reported the target line as absent. The line is
+present: the fault was the escaping in my own check, not the capture. Settled by
+printing the stored line raw and as JSON, and then by the preparation script
+itself, which refuses with `EXACT_EDITOR_TEMPLATE_REQUIRED` unless it matches
+exactly one node — it matched one and made the change.
+
+#### Not done
+
+- Nothing was edited, executed, published, activated or sent. No Slack message.
+- The prepared workflow was **not** written back to n8n.
+- Waiting on the owner's step 21 go-ahead in this session.
+
 ### 2026-09-17 — STEP 19 CLOSED on the third dispatch: 13 PASS, 0 FAIL, 0 ERROR, and the redeploy provably changed nothing. Steps 16 to 19 marked CLOSED in the execution map, progress now 68%
 
 Cloud session. The owner reported the result; the run was then found by its SHA

@@ -30,6 +30,138 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PRE-GATE ANALYSIS: the merge WILL auto-deploy 11 Edge Functions, "may" was wrong. No client-triggerable blocker; the one client route is flag-dormant. Step 19's lane takes NO sealed bundle
+
+Four tasks. Three read-only, the fourth rewrote the PR description. Denominators
+on every line.
+
+#### 1. What changes in the served browser — 1 executable file of 699 changed
+
+Pages serves the repository root from `main` and there is **no Pages workflow**,
+so the merge commit is served with no workflow run. Of **699** changed files,
+exactly **one** is executed by a browser: `index.html`, **+2459 / −257**. The
+other changed root files are documentation and repository config
+(`AGENTS.md`, `EXECUTION_LOG.md`, `REPO_MAP.md`, `ROLLBACK.md`, `.gitattributes`,
+`.gitignore`) and no browser request targets them.
+
+**9 new request sites** in `index.html`, each resolved to its target and its
+enclosing function:
+
+| call site | target | needs | today? | trigger |
+|---|---|---|---|---|
+| `wlFetchNativeSnapshot` | `workload-plan` | action `native_snapshot` | **step 19** | staff |
+| `_wlNativeTweakComments` | `production-comments` | field `include_feedback` | **step 19** | staff |
+| `_calCheckQueuedUrgent` | `production-write` | action `native_urgent_status` | **step 19** | staff |
+| `_calUrgentSlackDispatch` | `production-write` | action `native_urgent_dispatch` | **step 19**, degrades | staff |
+| `_calNativeVideoEditorPool` | `production-write` | action `intake_editor_options` | **step 19** | staff |
+| `_wlLegacyFetchTweakComments` | existing webhook | — | today | staff |
+| `_calUrgentSlackDispatch` fallback | existing webhook | — | today | staff |
+| `_kedRestPage` / `_kedRestIn` | `rest/v1`: `deliverable_events` (+ `event_assignee_id`, `event_assignee_attribution`), `deliverables`, `clients`, `team_members` | install-created columns | **today, because the install ran** | staff |
+
+Checked by comparing each action literal against `main`'s function sources:
+`native_snapshot`, `native_urgent_status`, `native_urgent_dispatch` and
+`intake_editor_options` appear **nowhere** on `main` and only in this branch;
+`include_feedback` likewise. **All five are staff surfaces, so all five are
+notes, not blockers.**
+
+`_calUrgentSlackDispatch` deserves its own line: the added code **already
+handles the undeployed case**, detecting the old handler's
+`400 unsupported_action` with no `delivery` field and falling back to the
+existing webhook. Someone thought about the interval.
+
+**The one client-triggerable new route, and why it is not a blocker.**
+`_prodClientCommentGatewayContext` opens with `if (!_isClientLink) return null`
+— it is the client comment path. It returns null unless **both** a runtime flag
+row reads `enabled === true` **and** the client-entry capability is verified and
+bound for that view and slug. The page initialises the flag to `false` at line
+27500 and only sets it from a database read. So client comments stay on the
+existing lane until the flag is deliberately enabled.
+
+**The condition that would make it a blocker, stated so it is not discovered
+later: enabling that flag before step 19.** Then client commenting routes to a
+`production-comments` version that is not deployed. Nothing in the merge does
+that; a person would have to.
+
+`notify` is new on this branch and has **no browser caller** — `0` occurrences of
+`functions/v1/notify` in `index.html`, consistent with its config comment.
+
+**Executed versus read.** Executed: the diff extraction, the enclosing-function
+resolution, the URL-constant resolution, and the action-existence comparison
+against `main`'s sources, all repo-derived and reproducible. **Not executed:** no
+live deployed function body and no live database was read. "Exists today" for
+the DB columns rests on the owner's step 15 verification against target
+`24c833c0…`, not on a fresh read; for functions it means "present in `main`'s
+tree".
+
+#### 2. "may auto-deploy staff functions" replaced with what the workflows do
+
+**The merge WILL deploy eleven functions.** Measured: this branch touches **2**
+auto-deploy trigger paths of the 4 push-deploy workflows.
+
+| trigger path touched | workflow | deploys |
+|---|---|---|
+| `.github/workflows/deploy-onboarding-edge-functions.yml` | Deploy staff-sensitive edge functions | 8: `onboarding-list`, `ai-onboarding-list`, `legacy-onboarding-list`, `onboarding-full`, `client-credentials`, `filming-plans`, `smm-weekly-reports`, `key-verify` |
+| `supabase/config.toml` | Deploy description image upload | 1: `description-image-upload` |
+| `supabase/config.toml` | Deploy thumbnail edge functions | 2: `thumbnail-revision-read`, `thumbnail-revision-scan` |
+
+The deploy steps are **unconditional on push** — I read them: the onboarding
+workflow's `Deploy push-safe staff-sensitive functions` step carries no `if:`,
+while its `Deploy pinned Track-B write/read functions` step is
+`if: github.event_name == 'workflow_dispatch'`.
+
+Three things bound it, one does not:
+
+- **All 11 sources are byte-identical to `main`** — `0` changed files each — so
+  the redeploy republishes the same code.
+- The merge therefore does **not** deploy `linear-outbound`, `notify`,
+  `production-write`, `production-comments` or `production-archive`.
+- Nothing applies a migration or writes to the database on push.
+- **Not bounded:** that workflow's `Assert the Linear-exit SQL contract` step is
+  also dispatch-only, so a merge-triggered run **skips the preflight**. And if a
+  live deployed body has drifted from `main`, the redeploy overwrites it with
+  `main`'s. Neither is checkable from here.
+
+Pages: **publishes, with no workflow at all.** `supabase/config.toml`'s change is
+additive — one `[functions.notify] verify_jwt = false` stanza.
+
+#### 3. What step 19 needs from the owner
+
+Step 19 is *"Run the 13-function Edge release lane and verify fingerprints"*. The
+lane is `deploy-onboarding-edge-functions.yml` by **manual dispatch**,
+`environment: production`. **13 = 8 push-safe + 5 pinned** (`linear-outbound`,
+`notify`, `production-write`, `production-comments`, `production-archive`, in
+that order: provider, then sender, then gateway, then readers).
+
+**The owner supplies exactly one input:** `commit_sha`, an exact 40-character
+commit SHA already on `main`. Before mutating anything the lane checks ancestry
+on `main`, that the SHA carries `scripts/ef-fingerprint.js`, the expected
+per-function fingerprints, and — dispatch only — a read-only receipt from
+`scripts/linear-exit-deploy-preflight.js`.
+
+**Sealed rollback bundle: NO.** CLAUDE.md attaches that capture to
+`deploy-f27-section4-closures.yml`, which takes `sealed_bundle_sha256` and
+`sealed_bundle_byte_length`. This lane names no bundle and takes no such input.
+
+**Worth stating because the sets overlap:** `linear-outbound` and
+`production-write` are in CLAUDE.md's Section 4 set *and* in this lane's pinned
+five. Releasing them through this lane means releasing them without the
+sealed-bundle protection the other lane enforces. Reported, not recommended
+against — the rollback provision for this phase is map step 2, the captured
+currently-deployed versions.
+
+#### 4. The PR description, rewritten (the only write)
+
+Replaced. The old body described head `c4b8b4db` and called it
+"CONFLICTING / DIRTY … with zero check runs", wrong on both counts at
+`d4fc10de`. The new body leads with head, base, and the CI count as
+**12 success / 2 skipped / 0 failures of 14**, saying in terms that a skipped
+check is not a passing check; then what the merge does, including the eleven
+auto-deployed functions and the skipped preflight; then the five undeployed
+staff dependencies and the dormant client route with its one blocker condition;
+then step 19's single input and the absent sealed bundle.
+
+Public-safety: no client slug, staff name, share token, project ref or
+credential. Left as a **draft**; not marked ready, not merged.
 ### 2026-09-17 — LOAD PROOF at the repoint `d4fc10de`, unstubbed and with the real private inputs: PREPARED on plan `508e6369…` and target `24c833c0…`, refused on a one-comment mutation, restored byte-identical
 
 Storage session, on the owner's machine. Branch head `d4fc10de`, tree clean.

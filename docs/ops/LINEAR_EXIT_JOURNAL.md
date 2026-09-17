@@ -30,6 +30,67 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PRE-MERGE EDGE CHECK: all ELEVEN auto-deployed functions match `main` at `1abdd1fa`. 11 PASS, 0 FAIL, 0 ERROR. No hot-fix exists for the merge to overwrite. Read-only
+
+Storage session, on the owner's machine, at branch head `ea99b3cf`. The question
+comes from the pre-gate analysis entry: the merge **will** redeploy eleven
+functions, so a live body that has drifted from `main` would be a hot-fix the
+redeploy silently overwrites.
+
+#### Method
+
+The B7 fingerprint route from the handover's 4.5, unchanged:
+
+```
+node scripts/ef-fingerprint.js 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052 --slugs=<the eleven>
+```
+
+- Mode `live-read-only`. The script reads expected files with `git show` at the
+  pinned commit and the live bodies with `GET /functions` and
+  `GET /functions/:slug/body`. It sends no mutating method, and nothing was
+  deployed.
+- The pinned commit is frozen `main`, `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`.
+- `SUPABASE_ACCESS_TOKEN` came from the machine environment; it was neither
+  printed nor written anywhere.
+
+#### Result, per function
+
+| Slug | Verdict | Live version | `verify_jwt` | Source = live digest | Files |
+|---|---|---|---|---|---|
+| `ai-onboarding-list` | MATCH | 36 | false | `bce568a72fce` | 2/2 |
+| `client-credentials` | MATCH | 44 | false | `d6300381fa19` | 2/2 |
+| `description-image-upload` | MATCH | 1 | false | `cc68f7f9ef4a` | 3/3 |
+| `filming-plans` | MATCH | 34 | false | `ef1f6aee94d0` | 2/2 |
+| `key-verify` | MATCH | 39 | false | `68e6d3094a08` | 2/2 |
+| `legacy-onboarding-list` | MATCH | 36 | false | `d1f6a2d9caf4` | 2/2 |
+| `onboarding-full` | MATCH | 36 | false | `68da4d8f413d` | 2/2 |
+| `onboarding-list` | MATCH | 36 | false | `a23980f1da39` | 2/2 |
+| `smm-weekly-reports` | MATCH | 32 | false | `e1f925289245` | 2/2 |
+| `thumbnail-revision-read` | MATCH | 27 | false | `c6891147b485` | 3/3 |
+| `thumbnail-revision-scan` | MATCH | 31 | false | `4c636e659a20` | 3/3 |
+
+```
+Summary: 11 PASS, 0 FAIL, 0 ERROR
+JWT posture: 11 verify_jwt=false, 0 off-posture
+```
+
+For every function the live source closure digest equals the digest computed
+from `main`'s files, and every expected file was found live. **No drift, so
+there is no hot-fix for the merge to overwrite, and no stop on this ground.**
+The JWT posture is the expected `verify_jwt=false` on all eleven, which the
+attestor folds into its verdict rather than merely recording.
+
+#### What this does and does not establish
+
+- It is a statement about **now**. A hot-fix deployed between this run and the
+  merge would not be visible here. Like the B5 capture, the sound place for this
+  check is immediately before the merge at step 16; today's run says the ground
+  is clean and gives a baseline to re-take against.
+- It covers the eleven the merge redeploys. It says nothing about the functions
+  the merge does not touch.
+- Nothing was deployed, dispatched or changed. The B5 browser capture was not
+  run and still waits for the owner at step 16.
+
 ### 2026-09-17 — PRE-GATE ANALYSIS: the merge WILL auto-deploy 11 Edge Functions, "may" was wrong. No client-triggerable blocker; the one client route is flag-dormant. Step 19's lane takes NO sealed bundle
 
 Four tasks. Three read-only, the fourth rewrote the PR description. Denominators

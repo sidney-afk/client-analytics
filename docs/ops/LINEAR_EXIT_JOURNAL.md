@@ -30,6 +30,81 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEPS 9 AND 10 CLOSED: package uploaded; downloaded on a second device with a matching hash (owner-reported); fresh Drive download on this machine verified member by member and RESTORED, 68 tables at `ddfa4c4f…`. 10 of 28
+
+Storage session, on the owner's authorisation. The capture, local restore and
+archive are in the entry "Step 9, IN PROGRESS" below. The method, recorded before
+anything ran, is in "Steps 9 and 10: METHOD RECORDED BEFORE RUNNING". Every hash
+below was read from a file on disk by this session, except the one marked
+**reported**.
+
+#### Step 9 — CLOSED
+
+"Done when: encrypted package uploaded, hash recorded."
+
+- **Upload:** done by the owner, reported at ~02:50Z, to the private Drive backup
+  folder.
+- **Upload hash** (recorded when the zip was made, before upload):
+  `228fe177b0b6dbef316c82dde5df1f6d2b697eb41301eb9b509021498b2841cb`,
+  44,067,359 bytes, 45 members.
+
+#### Step 10 — CLOSED
+
+"Done when: hash matches and the isolated restore verifies tables, rows and
+sequences."
+
+**1. Download on a separate device. REPORTED by the owner, not measured by this
+session.**
+
+- Device: a Windows laptop.
+- SHA-256 reported from there:
+  `228fe177b0b6dbef316c82dde5df1f6d2b697eb41301eb9b509021498b2841cb`, equal to the
+  upload hash.
+- That copy was **not restored**; nothing was restored on the laptop.
+
+**2. Fresh Drive download on this machine.** Hashed and restored by this session.
+
+| Check | Result |
+|---|---|
+| Where the owner saved it | `F:\Downloads\day-database-20260916-1.encrypted.zip`. **Deviation from the recorded method**, which said "into the evidence directory": the owner did not move it, because the evidence directory already holds the original under the same name. Handled on the owner's instruction below |
+| SHA-256 **in place** | `228fe177b0b6dbef316c82dde5df1f6d2b697eb41301eb9b509021498b2841cb`, 44,067,359 bytes, **equal to the upload hash** |
+| Is it a fresh download, not a copy of the original? | Created 2026-09-17T02:51:25Z, which is 1 h 32 m after the original zip (01:19:01Z) and after the upload. It carries an NTFS `Zone.Identifier` stream, the mark Windows puts on browser downloads; the contents were not printed. Both indicate a real download; neither proves the byte path |
+| Copied into the evidence directory as | `day-database-20260916-1.drive-download.encrypted.zip`, SHA-256 of the copy `228fe177…`, 44,067,359 bytes, identical |
+| Archive hash against upload | **equal** |
+| Extracted with `Expand-Archive` into | `day-database-downloaded-20260916-1` |
+| **Every extracted member against the local package** `day-database-20260916-1\encrypted` | **45 extracted, 45 in the package, 0 only in the download, 0 only in the package, 0 hash or size mismatches, 0 subdirectories.** 43 chunks, `encrypted.json` `edc65fc91ad46fb31c67a46d5391b5f904ecbc29ae0775fd86ecfb3a3976abdc`, `encrypted.mac` `0c503552215a0a96c5880683e49152d66f630b65cbb3cae276b84e334ae71eba`, both equal to the package. SHA-256 of the sorted `name bytes sha256` list: `6023ab6f5bb3dc542f05a336a900dd91c2e080bd7131a24d50eaa302371770a2` |
+
+**3. Restore of the downloaded copy, from a Windows PowerShell 5.1 host.**
+
+- Restore wrapper, SHA-256 `5fb32adea00b21a918ec8aa03542e7d256d54e9fd44fe674c20ff6140803e86e`,
+  run on `day-database-downloaded-20260916-1` into
+  `day-database-downloaded-restore-20260916-1`.
+- Result: **`ISOLATED_DATABASE_RESTORE_PASS`**, exit 0, 02:56:35Z → 02:56:57Z.
+
+| Evidence | Value |
+|---|---|
+| Restore receipt, SHA-256 `426652898106c25cf7ffd64079af2dd14b52b20f464636c51b81da1ec05bde18` | **`public_tables: 68`** (read by `restore()` from the sealed manifest); **`exact_catalog_and_rows_and_sequences: true`**. `restore()` compares the restored catalog, each table's row count and row-multiset hash, and every sequence's state exactly with the manifest's evidence |
+| **Independent query** of the restored database on the scratch cluster (the receipt's database, confirmed by name, on `127.0.0.1`), one read-only transaction rolled back | catalog canonical hash **`ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`**, **68** ordinary tables, **14** sequences. Cluster stopped afterwards, `pg_ctl status` 3 |
+
+**Count: 10 of 28**, Phase 2 of 7, 36%. **Next: step 11, NOT started, not
+authorised.**
+
+#### What this does and does not prove, stated so nobody rounds it up
+
+- **Proven:** a package captured from the live settled world today survives a
+  real Drive round trip byte for byte. A fresh download on this machine restores
+  into an isolated PostgreSQL 17 with exact catalog, rows and sequences, and the
+  restored world is measured independently at 68 tables and `ddfa4c4f…`.
+- **Narrows, does not close, the permanent B1 caveat.** A separate device, the
+  owner's Windows laptop, **retrieved** the package with a matching hash. That is
+  the first retrieval on separate hardware, and it is owner-reported. **No restore
+  has been run from a separately retrieved copy.** The restore that passed was of
+  the download on this machine.
+- **Public schema only.** Not platform, Auth or Storage recovery. Not a hosted
+  restore.
+- **Pre-existing side effect:** each wrapper restore leaves its `native_restore_…`
+  database inside the owned scratch cluster. Two were added tonight.
+
 ### 2026-09-17 — Step 9, IN PROGRESS: live capture PASSED first time with the new backup code, 68 tables; local restore PASSED and confirmed independently on the scratch cluster; archive made. Awaiting the owner's upload
 
 Storage session. The method is the entry "Steps 9 and 10: METHOD RECORDED BEFORE RUNNING"

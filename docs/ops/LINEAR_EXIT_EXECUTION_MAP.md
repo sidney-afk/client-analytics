@@ -136,6 +136,33 @@ the database backup). **Step 9 is not started and not authorised.** It will need
 a fresh step 8 read immediately before it, because a receipt older than one
 hour is refused.
 
+### Steps 9 and 10 CLOSED — 2026-09-17 (2026-09-16 evening on the owner's machine)
+
+Authorised by the owner. Full evidence is in the journal entry "STEPS 9 AND 10
+CLOSED".
+
+- **Step 9.**
+  - A fresh read-only catalog read (`ddfa4c4f…`, `settled68`), then the live
+    capture through the private refresh wrapper, from a Windows PowerShell 5.1
+    host: `DATABASE_CAPTURE_PASS`, 68 tables.
+  - Local restore passed.
+  - Packaged with the recorded `Compress-Archive` command. **Upload hash**
+    `228fe177b0b6dbef316c82dde5df1f6d2b697eb41301eb9b509021498b2841cb`.
+  - Uploaded to the private Drive folder by the owner.
+- **Step 10.**
+  - Downloaded on a separate Windows laptop; its SHA-256 matched the upload
+    (**owner-reported**).
+  - A fresh Drive download on this machine matched the upload hash, and all 45
+    extracted members matched the local package.
+  - That download restored in the isolated scratch cluster:
+    `ISOLATED_DATABASE_RESTORE_PASS`, exact catalog, rows and sequences. The
+    restored database was measured independently at 68 tables, catalog
+    `ddfa4c4f…`.
+  - **The separately retrieved laptop copy was not itself restored.**
+
+**Progress:** Phase 2 of 7 · step 10 of 28 · 36% complete · next: 11 (record
+the pre-state). **Step 11 is not started and not authorised.**
+
 ## Phase 3 — Install the SQL, dormant
 
 | # | Step | Who | Done when |

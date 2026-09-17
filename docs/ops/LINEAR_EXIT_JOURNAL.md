@@ -30,6 +30,121 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 23 NOT CLOSED. The REST reads are clean, 13 of 13, but the three surfaces never rendered from this session: all three stop at the same pre-access state, and the console errors that remain are this sandbox's proxy, not the site
+
+Cloud session. The owner's condition was explicit: anything other than zero
+errors and successful reads, stop and report. The reads are clean; the browser
+half is not, so **step 23 stays open** and nothing was marked CLOSED in the map.
+
+#### Part B first, because it is the clean half: 13 of 13 reads answered
+
+GET only, browser publishable key, `Range: 0-0` with `Prefer: count=exact`.
+Status codes and row counts only; no row, name or slug read into the record.
+
+```
+  table                                select                       http     rows
+  clients                              *                             206       49
+  team_members                         id                            206       22
+  deliverables                         id                            206     6632
+  calendar_posts                       id                            206    11852
+  sample_reviews                       id                            206     7100
+  batches                              id                            206     1736
+  deliverable_events                   the two install columns       206   110518
+  syncview_runtime_flags               *                             206       27
+  production_deliverables_browser_v1   id                            206     6632
+  workload_issues                      id                            206     3834
+  content_samples                      id                            206       29
+  templates                            *                             206       14
+  caption_prompts                      *                             206       26
+```
+
+The first eight are step 18's set and every count matches step 18 exactly, except
+`deliverable_events`, which moved 110343 to 110518 — an append-only event log on
+a live system, so movement is the expected reading. The last five are the main
+tables behind the three surfaces, taken from `index.html`'s own `rest/v1` calls.
+
+#### A defect of mine inside that read pass, recorded because it nearly became a false alarm
+
+A first pass asked for `select=*` on every table and got **401 with code 42501**
+on `team_members`, `deliverables` and `batches`. Read carelessly that is three
+tables going unreadable during the observation step. It is not:
+
+```
+  team_members   select=id  -> 206, 22 rows
+  team_members   select=*   -> 401, 42501, "GRANT SELECT ON public.team_members TO anon"
+```
+
+Those tables carry **column-level** grants to the browser role. `select=*` asks
+for columns the browser was deliberately never granted, which is the same
+mechanism already recorded for the batch asset columns. The page never asks for
+`*`; it names its columns. So the correct probe is the column-scoped one, and
+with it all three answer exactly the step 18 counts. **The 401s were my probe,
+not the estate.**
+
+#### Part A: the three surfaces did NOT render, and that is the finding
+
+Headless Chromium, real served site, three loads:
+
+| Surface | URL | Document | Console errors / messages | Failed requests / total |
+|---|---|---|---:|---:|
+| Calendar | `/#calendar` | 200 | **3 of 6** | 1 of 23 |
+| Samples | `/#samples` | 200 | **3 of 6** | 1 of 23 |
+| Production | `/?prod=1` | 200 | **3 of 6** | 1 of 23 |
+
+All three documents answered 200 and the routing intent survived (`#calendar`,
+`#samples`, `?prod=1` are all still on `location` at the end). But the three
+renders are **identical**, and identical is the tell:
+
+```
+  elements 861 · visible text 527 chars · visible inputs 2 · visible tables 1
+  localStorage keys 0 · REST tables requested: syncview_runtime_flags, team_members
+```
+
+A Calendar that had loaded would not read two tables and show two inputs. All
+three stop at the same pre-access state, because **this session holds no access
+key for the app**. So the honest reading is not "the surfaces are healthy" and
+not "the surfaces are broken" — it is that **they were never reached**, and
+step 23's question is still unanswered.
+
+#### The console errors are the sandbox's egress proxy, not the site
+
+All three errors on every surface are the same one: the realtime WebSocket
+handshake to the project's `/realtime/v1/websocket` answering 500. This
+environment's proxy documents **WebSocket upgrades as not supported**, and its
+own status endpoint lists `ws_closed_mid_exchange` failures for an unrelated
+browser push endpoint in the same minutes. So the 500 is the tunnel, not the
+backend, and it is not evidence about production either way. It is recorded
+rather than dismissed, because a session that could reach the surfaces should
+check whether it still appears there.
+
+The single failed request per surface was `ERR_ABORTED` on the document itself in
+the first pass and **did not reproduce** in the second, which recorded 0 failed
+document requests. An unreproducible abort is not a finding; it is noted so the
+next run knows to look.
+
+#### Method note
+
+Chromium could not reach the site at all on the first attempt
+(`ERR_CERT_AUTHORITY_INVALID`): the browser has its own trust store and does not
+read the CA configuration the rest of the toolchain uses. Fixed by importing
+this environment's documented CA bundle into the browser trust store, which is
+the same trust decision already made for every other tool here. Verification was
+never disabled, and nothing about the site's certificate was bypassed.
+
+#### What step 23 needs in order to close
+
+An access key for the app, held by a session that can drive the browser. This
+session has neither. Two routes, both the owner's to choose: hand this session
+the staff access route, or let the storage session on the owner's machine run
+the same three loads where the key already lives.
+
+#### Not done
+
+- **Step 23 is not marked CLOSED**, in the map or anywhere else.
+- Step 24 is the storage session's and is not started.
+- No write, no click, no form, no dispatch. Reads only, and the browser loaded
+  pages without interacting with them.
+
 ### 2026-09-17 — STEP 19 CLOSED on the third dispatch: 13 PASS, 0 FAIL, 0 ERROR, and the redeploy provably changed nothing. Steps 16 to 19 marked CLOSED in the execution map, progress now 68%
 
 Cloud session. The owner reported the result; the run was then found by its SHA

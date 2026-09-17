@@ -197,6 +197,31 @@ If step 14 stops partway: do not restart from zero and do not mark a chunk
 complete by hand. Classify the committed prefix and resume the same plan with
 the same identity. Nothing is activated by this phase.
 
+### Step 12 CLOSED — 2026-09-17T15:04Z (09:04 on the owner's machine)
+
+Authorised by the owner. The install operator ran in its default **read-only
+observation** mode against the live database, through the private wrapper
+`run-install-operator.private.cjs`:
+
+- **Wrapper:** SHA-256
+  `ddec698855b672677018fe6ceaf68e83718de50a23c75e46c7f83aaa5b765b45`, recorded
+  before the run at `669e7898` and unchanged after it.
+- **Apply token:** none supplied.
+- **Operator result:** `READ_ONLY_OBSERVATION`, with existing install state
+  `maintenance: false, journal: false`.
+- **What passed:** identity equal to the expected identity, TLS verified, and the
+  live catalog equal to the plan's starting catalog `ddfa4c4f…`.
+- **Drift against the step 11 snapshot:** none. The catalog hash is equal, the
+  table and function name lists are equal (68 and 122), identity is equal, and
+  both install namespaces and both gate tables are absent.
+- **Nothing was changed.**
+
+Full record is in the journal entry "STEP 12 CLOSED".
+
+**Progress:** Phase 3 of 7 · step 12 of 28 · 43% complete · next: **13, the
+owner's GATE** (approve APPLY for the exact plan, with the window evidence hash).
+**Not started.**
+
 ## Phase 4 — Release the website and functions
 
 | # | Step | Who | Done when |

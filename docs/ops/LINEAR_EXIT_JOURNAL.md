@@ -30,6 +30,91 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 12 CLOSED: install operator read-only observation of the live database. `READ_ONLY_OBSERVATION`, no install state, no drift from the step 11 snapshot. 12 of 28. Step 13 is the owner's gate
+
+Storage session, on the owner's authorisation. From a Windows PowerShell 5.1
+host at checkout `669e78983ad8221ae64d764598159e7cf4abf0d4`. The tool and its
+exact invocation were recorded before the run, in the entry "Step 12 TOOL
+RECORDED BEFORE IT RUNS" below. **Nothing was changed.**
+
+#### What ran, in one process
+
+1. **Wrapper hash checked before the run:**
+   `ddec698855b672677018fe6ceaf68e83718de50a23c75e46c7f83aaa5b765b45`, equal to
+   the record, or the script would have stopped.
+2. **Fresh read-only catalog read**, `day-catalog-20260917-1`, observed
+   2026-09-17T15:03:48.100Z, exit 0.
+   - Receipt SHA-256
+     `5bfa5978569762fd3b715b84ffe5f1b6ad660336e97ebc6308aab28bf16cec89`:
+     `ddfa4c4f…`, `settled68`, reviewed baseline matched, TLS verified.
+   - Catalog wrapper `6b6e2fe7…`, unchanged.
+   - **This was a refresh for the wrapper's one-hour window, not a re-close of
+     step 8.**
+3. **Step 12**, started 0.002 s after the read and finished at 15:04:02Z, exit 0:
+   `run-install-operator.private.cjs --catalog-dir=…/day-catalog-20260917-1 --target=…/linear-exit-observed-full-install-4b7dd8fd…/full-target.private.json --out=…/install-operator-observation-20260917-1 --snapshot=…/pre-state-snapshot-20260916-2/pre-state.private.json`.
+   **No `--apply-token` and no `--window-evidence`.**
+4. **Wrapper hash re-checked after the run:** `ddec6988…`, **unchanged**. What
+   ran is what was recorded.
+
+#### Output, read back from disk
+
+`install-operator-observation-20260917-1/operator-observation.private.json`,
+1,608 bytes, SHA-256
+**`7b06263fd3f5665573971dd96cd8a43dca2e21b6e5ba5912094abb43b70f4b4c`**.
+
+**Prepared by `api.load()`:** plan
+`508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd`, 55 steps;
+target `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`;
+post-install count 91. Mode `READ_ONLY_NO_TOKEN`.
+
+**The operator's result, verbatim:**
+
+```
+{"status":"READ_ONLY_OBSERVATION","existing_install_state":{"maintenance":false,"journal":false},"resume_validated":false,"installation_authorized":false}
+```
+
+To return that, `execute()` had to pass inside one read-only transaction,
+rolled back:
+
+- the identity row equal to the expected identity;
+- `pg_stat_ssl.ssl` true for its own backend;
+- one catalog row;
+- the namespace query;
+- the baseline check: with no install namespace present, the live catalog's
+  canonical hash must equal the plan's starting catalog, or it refuses
+  `BASELINE`.
+
+The connection itself verified TLS against the pinned CA with
+`rejectUnauthorized: true`.
+
+#### The four drift checks against the step 11 snapshot (`ad3bdf6a…`), by the owner's ruling
+
+They are computed from copies of the operator's own reads, not from separate
+queries.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Live catalog canonical hash against `ddfa4c4f…`, the snapshot's recorded catalog | **equal**: `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c` |
+| 2 | Live table-name and function-name lists against the snapshot's lists | **tables equal (68)**, **function names equal (122)** |
+| 3 | Live identity row against the expected identity (fresh read) and the step 8 closure read `day-catalog-20260916-5` | **equal to both**. Values not printed |
+| 4 | No prior installation state | **`linear_exit_maintenance` absent, `linear_exit_install` absent**, and both gate tables (`linear_outbound_cutoff_control`, `production_notification_config`) **absent** from the live catalog |
+
+**No drift in anything step 12 observes.** Per the correction to the step 11
+entry, runtime flags, flag history and settings history are **not** observed by
+step 12. That half is re-taken from the pre-install backup's restore immediately
+before step 14.
+
+**Count: 12 of 28**, Phase 3 of 7, 43%. **Next: step 13, the owner's GATE:**
+approve APPLY for plan `508e6369…` with the window evidence hash. **Not started.
+This session stops here.**
+
+**For step 14, recorded so nothing is improvised:** the same wrapper takes
+`--window-evidence` and `--apply-token` together, checks the token with the
+operator's own `consent()`, and passes it to `execute()` unchanged. By the
+sitting page's clock and the owner's ruling, it also needs a fresh catalog read
+immediately before, and the flags section re-taken from a fresh pre-install
+backup restore.
+
 ### 2026-09-17 — Step 12 TOOL RECORDED BEFORE IT RUNS: `run-install-operator.private.cjs`, for steps 12 and 14
 
 Storage session. Built on the owner's approval, with the owner's condition that

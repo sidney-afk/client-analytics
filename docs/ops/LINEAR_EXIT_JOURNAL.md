@@ -30,6 +30,81 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PR #1408 MERGED to main at `d749ec9f` on the owner's go-ahead. CI 5 of 5 green on `ec99ee71`; the merge deployed nothing and changed no served byte
+
+Cloud session. The owner lifted the gate that said #1408 must not be merged, and
+named the convention: a merge commit, the same as #1391.
+
+#### The head was not the one I had been watching
+
+The owner's message said the head was `ec99ee71` after two storage journal
+pushes, not the `7e97b140` I last read. Checked rather than accepted, because a
+state handed over in a message is not a state verified:
+
+| Claim | How it was checked | Result |
+|---|---|---|
+| Head is `ec99ee71` | `git fetch` plus the pull request's own head field | both read `ec99ee71` |
+| The migration is untouched by those two pushes | `sha256sum` of the blob at `ec99ee71` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, unchanged |
+| The preflight now passes | read the storage session's journal entry at that head, not the message | `{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":156,"read_only":true}`, exit 0 |
+| #1391's convention was a merge commit | `git log -1 --format=%P` on the old main tip | two parents, subject `Merge pull request #1391` |
+
+The two storage pushes are theirs to own and are recorded in their own entries
+above: the revokes applied live with a delta of exactly the 24 expected
+privilege rows and none added, then the urgent destination configuration row
+inserted 0 to 1, then the gate re-run green. Their second entry also corrects
+their first: the metadata validation, which carries the ten privilege keys, runs
+**before** the configuration read, so the earlier `CONTRACT_ABSENT` on
+`config:urgent_video_destination` had already proved the ten were closed.
+
+#### What CI said on the merged head
+
+`ec99ee71`, five check runs, **five success, zero failures**: `identity-exposure`,
+`f27-team-rollback-proof`, `Isolated PG17 retirement-switch`,
+`Isolated PG17 card-atomic-admission`, `unit`. `mergeable_state` read `clean`.
+The legacy commit-status endpoint reads `pending` with `total_count: 0`, which is
+an empty set rather than a pending check, and was not treated as one.
+
+Three earlier `check_suite.completed` events arrived for superseded heads
+(`b63c6804`, `9b3ecb21`, `673afe2c`) and were correctly ignored. A fourth
+repetition of the same lesson: an event names a SHA, and the SHA is the thing to
+compare, not the pull request number.
+
+#### The merge
+
+| Item | Value |
+|---|---|
+| Merge commit on main | **`d749ec9f25a921824908570d466ebd0efb39dcc6`** |
+| Parents | `302de4a4` (previous main) and `ec99ee71` (branch head) |
+| Method | merge commit, no squash, no rebase |
+| Files changed against the previous main | 5, additions only: the migration, `CLAUDE.md`, `REPO_MAP.md`, `ROLLBACK.md`, this journal |
+
+#### What the merge set off, measured rather than assumed
+
+Two workflow runs on main and no others: `Calendar unit tests` for the push, and
+`pages build and deployment`. **No Edge Function deploy lane ran**, because all
+four are path-filtered on `supabase/functions/` and the diff contains zero paths
+there, zero workflow files and no `index.html` change. Pages republishes the
+repository root, so the served page rebuilds from bytes identical to before.
+This is the opposite case to the step 17 merge, which auto-deployed eleven
+byte-identical functions, and the difference is the path filter, not luck.
+
+#### A stale sentence left standing on purpose
+
+The pull request body still says "Not merged" under "Not done here". That was
+true when it was written and is the state the reviewers read. It was not
+rewritten after the fact; this entry is the correction, in the place corrections
+belong.
+
+#### Not done
+
+- **Step 20 not started.** The gate passing is not the release. The 13-function
+  lane remains a manual dispatch by the owner.
+- No SQL run from this session, no deploy, no dispatch, nothing inside Linear.
+- Still owed by other sessions: the unstubbed operator preflight for steps 4 to 6,
+  and the live read-only fingerprint count over the thirteen functions.
+- Post-merge work now unblocked but deliberately not begun: D30, D31, D32, D33,
+  and the `test/repo-map-sync.js` one-directional fix.
+
 ### 2026-09-17 — STEP 19 GATE PASSES: the urgent destination row inserted, 0 rows → 1, and the deploy preflight returns `PASS`, 156 objects, `read_only: true`. CORRECTION to my previous entry: the ten privilege keys WERE evaluated and passed
 
 Storage session, on the owner's machine, over the direct database connection.

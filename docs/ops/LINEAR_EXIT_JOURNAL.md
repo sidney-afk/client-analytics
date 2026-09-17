@@ -30,6 +30,90 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Codex's two P1 findings on #1408 were both right, and verifying the first one found the FOURTH instance of the one-directional comparison class — in the guard that is supposed to enforce it
+
+Both findings verified before anything was pushed, neither taken on the badge.
+
+#### Finding 1 — register the migration in `REPO_MAP.md`. CORRECT, and its own citation is half wrong
+
+`AGENTS.md:99-100` says, and I read it rather than trusting the quote:
+
+> Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
+> update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
+
+The rule applies: the change adds a file and the map did not name it. Fixed, with
+a bullet in the trailing list's own style. `repo-map-sync` now reports
+**688 passed, 0 failed**, up from 687.
+
+**But the parenthetical is wrong, and that is the more interesting half.** I ran
+`test/repo-map-sync.js` against the unregistered tree first, expecting a red
+test to reproduce. It passed: **687 passed, 0 failed.** Every assertion it makes
+has the shape
+
+```
+OK  REPO_MAP.md path `…` exists
+```
+
+It walks the MAP and checks each path exists in the tree. It never walks the
+tree and checks each path is in the map. **So it cannot detect a file added
+without a map entry — the exact violation AGENTS.md cites it as enforcing.**
+
+That is the **fourth instance today** of a comparison driven by one side's key
+set:
+
+| site | walks | blind to |
+|---|---|---|
+| `linear-exit-observed-routines.js` `applyAndCompare` | the contract's functions | functions the world gained |
+| `linear-exit-observed-schema.js` `compare` | the capture's sections | sections the reconstruction gained |
+| my own repair proof, this morning | the supervisor's measured roles | the role the measurement omitted |
+| **`test/repo-map-sync.js`** | **the map's paths** | **files the tree gained** |
+
+And this one is the worst of the four in one respect: it is the guard a house
+rule points at, so the rule reads as enforced when it is enforced in one
+direction only. A reviewer citing `AGENTS.md:99-100` is entitled to believe CI
+would have caught it. CI would not. **Recorded, NOT fixed** — the fix is a
+tree-walk with an ignore list, that is a change to a CI guard on a release
+branch, and it is not in this PR's scope. It belongs with D32's "enforced or
+removed" sweep.
+
+#### Finding 2 — a rehearsed inverse for the ACL revokes. CORRECT, and now rehearsed
+
+The migration removes privileges and shipped with no documented way back.
+`ROLLBACK.md` already carries a "Kill switch / rollback" column for every live
+surface, so the convention existed and this change had not met it.
+
+Added to `ROLLBACK.md` as a dated section: the grants-only inverse in full, when
+an operator would run it, and what it does not do — it restores the pre-migration
+posture and deliberately does **not** re-open the deploy, because the preflight
+will refuse the same ten keys again by design.
+
+**Rehearsed, not just written**, on an isolated PostgreSQL 17 built by the
+source-phases lane at the live privilege posture:
+
+```
+AFTER the migration                          keys NOT satisfied : 1   (local-only config row)
+AFTER the inverse                            keys NOT satisfied : 11  (the ten are back)
+  the inverse restores EXACTLY what the migration removed: YES
+AFTER re-applying the migration              keys NOT satisfied : 1   (round trip clean)
+```
+
+A documented rollback nobody has run is D34's class exactly — an unrun claim with
+a runbook heading. If the inverse had been incomplete, the operator would have
+found out mid-incident.
+
+One asymmetry, deliberate and stated in the file: the revoke names
+`public, anon, authenticated` on the sequences, while the inverse grants `usage`
+to `anon` and `usage, select, update` to `authenticated`. **The inverse restores
+what was measured to be held, not what the revoke was permitted to remove.**
+Restoring more than was there would be a new grant wearing a rollback's clothes.
+
+#### What the findings did not touch
+
+The migration file itself is unchanged by this round: still
+`e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, still
+revokes only. Neither finding asked for a fourth statement and I did not add one.
+Not merged; step 20 still not started.
+
 ### 2026-09-17 — THE REPAIR WAS ITSELF INCOMPLETE: the supervisor's live measurement omitted `authenticated`, my proof inherited the omission and agreed with a migration that left 2 of 10 keys red. Amended, and the 2-red state is now measured rather than asserted
 
 #### What went wrong, and it is not the supervisor's alone

@@ -30,6 +30,93 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — RE-REVIEW of the loopback fix `1eb6eaf8`, delta only: PASS on all four points, with two refinements to the M7 reasoning
+
+Delta only, against the code. The four points the owner named, each answered
+from the line rather than from the account.
+
+**1. Does `localCluster()` actually execute on the CAPTURE path? YES.**
+`capture()` carries
+`if(o.syntheticPublicTables!==undefined)verifySyntheticServer(o,env,identity);`
+and `verifySyntheticServer` ends in `localCluster(o,env)`. So it is on the
+capture path, gated on the override, and not only on restore.
+
+**Its position is right, and that matters as much as its presence.** It sits
+after the session opens and after the existing `IDENTITY` check, and **before**
+`evidence()`, before `pg_dump`, and before anything is written into the package.
+The only thing that exists at that point is an empty staging directory, removed
+in the `finally`. A forwarded capture therefore refuses before a single row is
+read, not after a dump has been taken.
+
+**2. Is the system identifier compared against local files, never a
+caller-supplied value? YES, and the two sides are genuinely independent.**
+
+- `observed.system_identifier` comes from **the server**, via
+  `(select system_identifier::text from pg_control_system())`.
+- `match[1]` comes from **`pg_controldata` run against the directory on disk**,
+  `fs.realpathSync(o.localDataDirectory)`.
+
+The caller supplies a **path**, never a value. And the path alone is not enough:
+the server must independently report that same path as its own
+`data_directory`, or `LOCAL_CLUSTER_IDENTITY` fires before the identifier is
+even compared. To defeat both a caller would need a local directory whose path
+string equals the remote server's `data_directory` **and** whose `pg_control`
+holds the remote cluster's system identifier — which is possession of the remote
+cluster's control file. Confirmed sound.
+
+**3. Is the M7 reasoning correct? YES, and it is stronger than the account
+claims. Two refinements.**
+
+The account's reason is that the lane's cluster binds `listen_addresses =
+'127.0.0.1'`, so every connection reports a loopback server address and no test
+in the lane can make the address check fail. **That is correct.**
+
+**Refinement one, in the fix's favour.** The deeper reason M7 is undetectable is
+not only that the lane cannot exercise it. `localCluster()` **independently
+re-checks the same property**: `if(!['127.0.0.1','::1'].includes(observed.address))fail('LOCAL_CLUSTER_ADDRESS')`.
+So in the scenario the address check exists for — a forwarder to a server bound
+to a public address — removing it changes nothing, because `localCluster()`
+catches it one step later. M7 is redundant coverage, not absent coverage. The
+account could have said so and did not.
+
+**Refinement two, against declaring it merely redundant.** It is **not** fully
+redundant and should stay. `verifySyntheticServer` checks the **capturing
+session's own** `inet_server_addr()`, taken from the `identity` read inside the
+open REPEATABLE READ session. `localCluster()` opens a **separate** `psql`
+connection. They validate different connections. Keeping the first is what ties
+the check to the session that is actually being dumped.
+
+**On "the port and cluster-identity checks are sufficient on their own":
+attribute that to cluster-identity, not to the port.** The port check is
+defeated by an obvious variant — a forwarder listening on the same port number
+as the remote server, `127.0.0.1:5432 → remote:5432`, makes
+`inet_server_port()` equal the claimed port. Their M5 result is still correct;
+it is correct because *their* forwarder used a different port, which the test
+asserts. **The layer that actually holds against a same-port forwarder is
+`pg_controldata` on local files**, and nothing else in the chain does. The
+account's "M5 and M6 show those layers bite" is true of what was tested and
+should not be read as the port check being sufficient.
+
+**A residual assumption, pre-existing and not introduced here**, recorded so it
+is not mistaken for a gap this delta opened: the verification reads
+`identity` on the capture session, `localCluster()` opens a second connection,
+and `pg_dump` opens a third. All three use the same `env`, so the module already
+assumes that routing is stable between them. Nothing proves by construction that
+the connection verified and the connection dumped are the same server. That was
+true before this change and remains true.
+
+**4. Is the original account unedited with the correction below it? YES.**
+Measured: this commit makes **zero deletions** in the journal. The correction is
+appended beneath the account it corrects, and the account is kept as written,
+including its two overstatements. The code comment was corrected in the code
+itself, which is right — a source comment is not an append-only record.
+
+**Verdict: PASS on all four.** The finding is fixed, the fix is in the right
+place on the right path, and the one mutation that could not be proven is
+honestly labelled as unproven rather than quietly claimed. The two refinements
+above are additions to the reasoning, not defects in the change.
+
+
 ### 2026-09-16 — D24 and D25 landed together: the three suites re-based onto the settled world, the coupling asserted, and the assertion PROVEN TO BITE before landing
 
 One commit, as ruled. The corpus gains the table, the three suites are re-based,

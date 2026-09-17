@@ -30,6 +30,70 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Operator `load()` PROVEN for `settled68` against the 2026-09-17 proof, and the SOURCE_PIN gate PROVEN to bite by mutation. Step 12 NOT run: the CLI cannot take an in-memory config, reported before any workaround
+
+Storage session, on the owner's machine. These are the two proofs the execution
+session could not run. The operator reads
+`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json` since
+`c828bb5`, confirmed in the source.
+
+#### What ran
+
+A private script, run from a Windows PowerShell 5.1 host at checkout
+`34edfd60`, called `require('scripts/linear-exit-install-operator').load(config)`
+three times, each in a **fresh Node process**. **No connection was opened:**
+`load()` never connects. The config was built in memory:
+
+| Field | Source |
+|---|---|
+| `profile` | `settled68` |
+| `projectRef`, `host` | read in memory from the private catalog wrapper, never printed |
+| `port`, `database`, `user` | `5432`, `postgres`, `postgres` |
+| `password` | **a placeholder string**. `load()` only checks for a non-empty string, and nothing connects |
+| `caFile` | `%APPDATA%\postgresql\root.crt` (SHA-256 `70072358…`, as at step 8) |
+| `baselineFile` | `day-catalog-20260916-6/catalog.private.json`, the live settled catalog read before step 9 |
+| `targetFile` | the calibrate run's `full-target.private.json` (`linear-exit-observed-full-install-4b7dd8fd…`) |
+| `expectedDatabaseIdentity` | `day-catalog-20260916-6/identity.private.json` |
+
+#### Results
+
+| Run | Outcome | Values read from the returned `prepared` object |
+|---|---|---|
+| **1, unmutated** | **PREPARED** | plan `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd`, 55 steps, starting catalog `ddfa4c4f…`; target `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`, whose `plan_sha256` is the same plan; `expectedPostInstallTables` **91**; CA loaded |
+| **2, mutated** | **REFUSED `INSTALL_OPERATOR_SOURCE_PIN`** | — |
+| **3, restored** | **PREPARED** | output **identical** to run 1 |
+
+**The mutation.** One comment line was appended to
+`test/linear-exit-observed-full-pipeline.js`, one of the proof's 26 pinned files.
+The file's own line ending was used, and the size went from 7,340 to 7,424
+bytes (SHA-256 `6e742a2f…`). Run 2 then refused on the pin. The original bytes
+were written back in a `finally` block. Verified afterwards:
+
+- restored bytes compare equal to the saved original;
+- SHA-256 equals the proof's pin for that file;
+- `git diff` for the file is clean.
+
+**What would have made it fail:** a pin read from the wrong proof, a pin check
+after an earlier refusal, or a gate that does not compare hashes. Run 2 refusing
+**on `SOURCE_PIN` specifically**, with runs 1 and 3 identical, rules out all
+three.
+
+#### Step 12: stopped before running, as the owner instructed for this case
+
+The owner ruled that step 12 gets its password the way the ten private wrappers
+do: through the Windows PowerShell 5.1 secret helper, with the config **in
+memory, never on disk**. The ruling added: *"if the CLI cannot take an in-memory
+config, say so before working around it."*
+
+**It cannot.** `main()` accepts exactly one path to a JSON file
+(`JSON.parse(fs.readFileSync(absolute(args[0])))`), and there is no stdin or
+environment route. Honouring the ruling means **not using the CLI** and calling
+the exported `load()` and `execute()` from a private wrapper. That is a
+workaround of the documented command, so it is reported here and waits for the
+owner's go-ahead.
+
+**Step 12 has not run. Nothing connected to the live database for it.**
+
 ### 2026-09-17 — ANSWER: step 15's verification is NOT one-directional. Executed, not read. A target of N refuses an installed world of N+1, and refuses a same-count rename
 
 Asked before anything else, because if the answer had been yes it would have
@@ -898,6 +962,39 @@ readable hosts and is absent from both.
 **Count: 11 of 28**, Phase 2 of 7 complete, 39%. **Next: step 12 (install
 operator, read-only observation), NOT started. It waits on the pipeline proof
 re-run, which the owner will signal.**
+
+#### CORRECTION, added 2026-09-17 after reading the install operator's code. The entry above is kept as written.
+
+The entry above says the database half's staleness "closes" at step 12 because
+"step 12's live observation checks the same fields". The snapshot file's own
+`staleness_note` says the same, and the file is not edited. **That is wrong.** It
+repeated an assumption made when step 11 was sourced, and nobody checked it
+against the operator.
+
+**What step 12 actually observes,** read from `scripts/linear-exit-install-operator.js`
+`execute()` without an apply token, in one read-only transaction:
+
+- the identity row, compared exactly with the expected identity;
+- TLS on its own backend;
+- the full catalog, which must equal the plan's starting catalog unless an
+  installation namespace exists;
+- whether the `linear_exit_maintenance` and `linear_exit_install` namespaces
+  exist.
+
+**It reads no settings rows.** `syncview_runtime_flags`, `flag_flips`,
+`linear_archive_asset_rescue_config` and `settings_events` are not observed.
+
+**Owner ruling, 2026-09-17.**
+
+- **Step 12's drift check covers what it observes:**
+  - the catalog hash against `ddfa4c4f…`;
+  - the table and function name lists against this snapshot's;
+  - identity against the expected identity;
+  - no prior installation state, including the two gate tables recorded above as
+    absent.
+- **The flags half is re-taken** from the fresh pre-install backup's restore
+  immediately before step 14, as an additional dated section. **Step 25 compares
+  against that section**, not this one, for flags.
 
 ### 2026-09-17 — D22 FIRST PASS: all 61 deferred suites run. 37 pass, 17 fail, 7 cannot run here. Two failures are new, and one of them is the third instance of the class
 

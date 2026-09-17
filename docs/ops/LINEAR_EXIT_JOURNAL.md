@@ -30,6 +30,114 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 GATE PASSES: the urgent destination row inserted, 0 rows → 1, and the deploy preflight returns `PASS`, 156 objects, `read_only: true`. CORRECTION to my previous entry: the ten privilege keys WERE evaluated and passed
+
+Storage session, on the owner's machine, over the direct database connection.
+Live production write: exactly one row inserted into
+`public.production_notification_config`.
+
+#### CORRECTION, to the entry immediately below this one
+
+I wrote that `validateRows` throws on absent rows **before** evaluating privilege
+compatibility, and therefore that the run "did not evaluate the ten, and does not
+confirm that the revokes closed them". **That is wrong**, and the owner's
+correction is right. Read from `scripts/linear-exit-deploy-preflight.js` at
+`7e97b140` rather than from the claim:
+
+```
+const metadata = await read(contractQuery('metadata'));
+validateRows(metadata, keys.filter(key => !key.startsWith('config:')));
+const configuration = await read(contractQuery('configuration'));
+validateRows(configuration, keys.filter(key => key.startsWith('config:')));
+```
+
+Two separate reads, and the metadata set — the routines, triggers, columns,
+schemas and the ten privilege keys — is validated **before** the configuration
+read happens at all. The previous run reached
+`CONTRACT_ABSENT:config:urgent_video_destination`, which is thrown by the
+**second** `validateRows`. So the metadata validation had already passed:
+**the revokes did close the ten keys**, and my run proved it while I said it
+had not. I read the error and inferred the order instead of reading the order.
+
+#### The insert
+
+| Item | Value |
+|---|---|
+| Table | `public.production_notification_config` |
+| Key | `urgent_video_destination` |
+| Value | a JSON object with exactly one member, `channel_id`, whose value is **the legacy urgent n8n workflow's destination channel**, confirmed by the owner as the channel that workflow posts to today |
+| Rows before → after | **0 → 1** |
+| Evidence | `step19-config-20260917-1/` (`config-before`, `config-after`, `insert-result`, and the value file) |
+
+**The channel id itself is deliberately not in this journal.** It lives only in
+the private evidence directory. What is recorded publicly is its shape, which is
+what the gate checks: an object, exactly one key, `channel_id` matching
+`^[CG][A-Z0-9]{8,}$`.
+
+Tool: `insert-notification-config.private.cjs`, SHA-256
+`8064c6addde8a56ac63260f4bcd731ba3e726c0cc23556db422db6a5d3634b87`. It reads the
+value from a private file rather than a command line, refuses unless the table
+has **0** rows, does the insert inside its own transaction, reads the stored row
+back **before committing** and refuses on anything but an object with one key
+whose `channel_id` equals the input. Password in memory from the 5.1 helper,
+never written. Identity and TLS asserted first.
+
+#### A defect of mine, and the database caught it
+
+The first insert attempt was **refused by the table**:
+
+```
+new row for relation "production_notification_config" violates check constraint
+"production_notification_config_value_check"
+```
+
+The constraint is `CHECK (jsonb_typeof(value) = 'object')`, read live from
+`pg_constraint`, and it was right to refuse. **The fault was in my tool, not in
+the migration, the table or the value.** I passed the JSON *text* as a bound
+parameter with `$2::jsonb`; `postgres.js` serialised that JS string as a JSON
+**string**, so the cast produced a string, not an object. Probed read-only
+afterwards to confirm rather than assume:
+
+```
+string binding    -> jsonb_typeof = string   (length 41, the quoted text)
+object param      -> jsonb_typeof = object
+json_build_object -> jsonb_typeof = object, has_key = true
+```
+
+The tool now builds the value **in SQL**, `json_build_object($2::text,$3::text)::jsonb`,
+so the shape cannot be double-encoded and the channel id stays a bound parameter.
+**Nothing was written by the refused attempt**: it was inside a transaction that
+rolled back, and the measurement taken straight afterwards showed 0 rows. That
+file is kept as `config-after-refused-binding.private.json`, named so it cannot
+be mistaken for the real after-state.
+
+#### The gate
+
+From the detached worktree at `7e97b140`, with the machine's own credentials and
+`PROJECT_REF` supplied in memory; neither printed nor written.
+
+```json
+{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":156,"read_only":true}
+```
+
+| Field | Value |
+|---|---|
+| `status` | **PASS** |
+| `checked_objects` | **156** |
+| `read_only` | **true** |
+| Exit code | 0 |
+
+Step 19's read-only contract gate is satisfied: the privilege repair applied
+earlier and this configuration row together close everything it refused on.
+
+#### Not done
+
+- **No deploy was dispatched.** The gate passing is not the release; the
+  13-function lane is still a manual dispatch and was not run.
+- Nothing else was written to the database: one row, one key, one value.
+- No second row is possible without noticing: the tool refuses unless the table
+  is empty.
+
 ### 2026-09-17 — STEP 19 REPAIR APPLIED LIVE: the PR #1408 revokes ran on the hosted database, delta exactly the 24 expected rows and nothing else. The deploy preflight still does NOT pass: it refuses earlier, on `CONTRACT_ABSENT:config:urgent_video_destination`, so the ten privilege keys were never evaluated. STOPPED there
 
 Storage session, on the owner's machine, over the direct database connection.

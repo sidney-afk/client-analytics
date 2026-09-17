@@ -16,7 +16,11 @@ function load(c){
  if(built.planSha256!==PLAN)fail('PLAN');const plan=j.compile(built.planBytes,PLAN);if(plan.steps.length!==55)fail('CHUNKS');
  const targetBytes=fs.readFileSync(absolute(c.targetFile));if(j.sha(targetBytes)!==TARGET)fail('TARGET');const target=JSON.parse(targetBytes);
  if(target.plan_sha256!==PLAN||target.stage_id!==plan.stage_id)fail('TARGET_BINDING');
- const proof=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json')));
+ // SOURCE_PIN reads the CURRENT dated proof, repointed 2026-09-17 to the run that
+ // proved the settled world. The 20260913 file stays byte-identical: a dated proof is
+ // evidence of one run, so a later run writes a NEW file and this read moves to it.
+ // Editing the old file's pins would have been the same falsification with extra steps.
+ const proof=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json')));
  for(const p of proof.source_pins)if(j.sha(fs.readFileSync(path.join(ROOT,p.file)))!==p.sha256)fail('SOURCE_PIN');
  // Resolve the post-install table count HERE, in preflight, not at the
  // comparison site. A starting catalog nothing can resolve is a refusal before

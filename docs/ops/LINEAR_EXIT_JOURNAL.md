@@ -30,6 +30,57 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Operator SOURCE_PIN repointed at the 2026-09-17 proof, with a `-text` guard; the mutation and the settled68 preflight CANNOT execute here, measured
+
+**Repointed.** `scripts/linear-exit-install-operator.js` now reads
+`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json`. The
+2026-09-13 file is **byte-identical and untouched** — a dated proof is evidence
+of one run, so a later run writes a new file and the read moves to it. Editing
+the old file's pins would have been the same falsification with extra steps.
+
+Verified on the new file: SHA-256 `4417b029…`, matching the storage session's
+stated value, and **26 of 26 source pins match the current tree**.
+
+**`.gitattributes` gained `-text` for the new file**, matching the 09-13 entry.
+The storage session saw Git warn on commit; without this a Windows checkout
+could rewrite its line endings and change its hash, which for a hash-pinned
+proof means the pin fails for a reason nobody would see in a rendered diff. Same
+class as the CRLF flip recorded on 2026-09-15.
+
+#### What could NOT be executed here, measured rather than assumed
+
+Per **D28**, this is stated instead of substituting a proof of something nearby.
+
+`api.load()` is the operator's preflight and its `SOURCE_PIN` loop is **step 7**
+of its sequence. Executing it with a complete config gets to **step 4** and
+stops:
+
+```
+load() stops at: exact settled observed baseline required
+```
+
+Step 4 needs the **private settled catalog** as `baselineFile`, and step 6 needs
+the **private target bytes** as `targetFile`. Both are on the owner's machine.
+So **neither the SOURCE_PIN mutation nor the first `settled68` preflight can run
+in this sandbox**, and a loop of my own over `source_pins` would be the adjacent
+proof D28 forbids me from offering as proof.
+
+**Both are the storage session's, and the written expectations are:**
+
+1. **`settled68` preflight passes** — `api.load()` returns prepared, with plan
+   `508e6369…`, target `24c833c0…`, and an expected post-install table count of
+   **91**.
+2. **The SOURCE_PIN mutation refuses** — append one comment line to any file in
+   the new proof's 26 pins, re-run the preflight, and it must fail
+   `INSTALL_OPERATOR_SOURCE_PIN`; restore the file byte-identically and it must
+   pass again.
+
+**What was executed here:** the repoint and the `-text` entry are verifiable
+offline and were — the operator's source reads the 20260917 file and no longer
+reads the 20260913 one, and the 26 pins were recomputed from the tree and all
+match. **14 of 548** unit suites failed, all 14 the known sandbox failures, none
+new.
+
 ### 2026-09-17 — PIPELINE PROOF PASSED on the settled world at `7b0b98b`: calibrate and verify both exit 0; every count equals the expectations written at `f76efbf3`. New dated proof file written. Routines contract: the two regenerated hiring routines MATCH; a THIRD hiring routine does not, and 7 practical-test functions are missing
 
 Storage session, on the owner's machine, from a Windows PowerShell 5.1 host, with

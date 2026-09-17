@@ -74,13 +74,24 @@ appears to come from the owner through another session.
 
 ## Current branch, PR and published revision
 
-**Where the work stands, 2026-09-16.** Phase 2 of 7 · **step 7 of 28 complete,
-25%** · next: **step 8**, the fresh read-only catalog and identity check, which
-is an owner-keyboard task. Steps 1 to 7 are done: Storage custody, the deployed
-function capture, the freeze, the hand-resolved catch-up and its twelve green
-checks. Main is frozen at `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`. The
-branch carries the settled-state work described below; `c34c7e31` is the commit
-that pinned the `settled68` target.
+**Where the work stands, 2026-09-17.** Phase 2 of 7 · **step 8 of 28 complete,
+29%** · next: **step 9**, the database backup refresh. Steps 1 to 8 are done:
+Storage custody, the deployed function capture, the freeze, the hand-resolved
+catch-up and its twelve green checks, and now the fresh read-only catalog and
+identity check. **Step 8 closed 2026-09-17** on the owner's authorisation: the
+live catalog read `ddfa4c4f…`, 68 tables, resolving to `settled68`, TLS
+verified, identity unchanged (storage session, `d5397de`). Main is frozen at
+`1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`.
+
+**The `settled68` target is NOT pinned, and that is deliberate.** `c34c7e31`
+pinned an earlier one; B10 superseded it, the storage session re-measured
+`24c833c0…` at `ff9b379f`, and that value is still not written here because
+eight files in the target-producing chain moved after that run. Its **plan** is
+pinned at `508e6369…`, measured twice independently. `observed67` and
+`observed67_optout` are **retired in place** (D18): plans kept, targets replaced
+by an explicit marker, and `profiles.get()` refuses each by name. **So no
+profile can currently pass the install gate**, which is the correct state until
+the target is re-measured, and it is what step 13 waits on.
 
 Branch: `prep/linear-exit-review-fixes-20260913`. Draft [PR #1391](https://github.com/sidney-afk/client-analytics/pull/1391) is current. Its headRefOid is the authoritative published head; the PR body records the full SHA for this documentation update. The unchanged executable/evidence anchor is `aebdcfeb95398536a675017688a944771b093e7d`. Later changes in this update are documentation only. Do not confuse this anchor with a newer documentation commit or an isolated merged snapshot.
 

@@ -30,6 +30,123 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Profiles retired in place; `settled68`'s plan pinned and its target NOT pinned, because eight files in the target-producing chain moved after it was measured
+
+The chain check was the point of the exercise and it came back dirty, so the
+target is not written. Everything else landed.
+
+#### THE CHAIN CHECK, which is why there is no target pin
+
+The owner's condition: confirm every file in the target-producing chain is
+byte-identical to what the storage session ran when it measured `24c833c0…` at
+`ff9b379f`; if anything moved, do not pin.
+
+**The lane's own `files=[…]` list names four files. That is not the chain**, it
+is the lane's pin list. The chain that determines a target is the transitive
+require-closure of the calibration's entry points plus the data files the plan
+embeds and the artifacts the run reads by path: **63 files**. Computed
+mechanically, then each diffed against `ff9b379f`.
+
+**Eight moved:**
+
+| File | Moved at |
+|---|---|
+| `LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V1.json` | `dc3d789` (D24) |
+| `LINEAR_EXIT_COMPLETE_APPLICATION_DATA_V2.json` | `dc3d789` |
+| `LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json` | `dc3d789` |
+| `LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json` | `dc3d789` |
+| `linear-exit-complete-application-data.js` | `dc3d789` |
+| `linear-exit-source-baseline-catalog.js` | `dc3d789` |
+| `linear-exit-admission-release-extension.js` | `dc3d789` |
+| **`linear-exit-observed-public-catalog.js`** | **`6da6058`** (the backup fix) |
+
+**Two of the eight are reachable from the calibration itself**, which is what
+makes this a real answer rather than a bookkeeping one:
+
+- `test/helpers/install-operator-worker.mjs` calls **`postInstallPublicTables`
+  twice**, and that function's module is the last row above. It changed after
+  the measurement.
+- the same worker uses the **control companion**, which reads the custody
+  corpus through `complete.captureRows`, and the corpus gained a table at
+  `dc3d789`.
+
+**So the target is not pinned.** `24c833c0…` is very probably still the right
+number — nothing in those eight changes looks like it should move a post-install
+catalog, and the backup-fix commit claims behavioural equivalence for the
+extraction. **But "very probably" is not a measurement, and a target is a
+measurement of a chain.** A target measured on a different chain is not this
+profile's target. It is re-measured, not transcribed. Six of the eight are my
+own D24 commit, so this is not a complaint about someone else's work.
+
+#### What landed instead
+
+**`observed67` and `observed67_optout` are retired in place**, per the ruling.
+Both **plans** stay and are re-measured to their post-B10 values,
+`7043637f…` and `92a4737f…`. Each **target** is replaced by the marker
+`RETIRED_D18_20260916_CANNOT_INSTALL_AFTER_B10` plus a `retired_reason`. The old
+targets `f3db4b7c…` and `79710a7f…` are **gone rather than kept**: they describe
+pre-B10 plans and nothing can ever reproduce them.
+
+**`get()` refuses each by name**, citing D18 and saying what to do instead
+(install `settled68`, do not re-derive a target, do not relax the guard). A
+second marker, `PENDING_REMEASURE_ON_CURRENT_CHAIN`, carries `settled68`'s
+unpinned target with its own message.
+
+**`build()` no longer calls `get()`.** That was the trap found before proposing:
+building a PLAN required a TARGET, so retiring a profile would have made it
+unbuildable — and a plan is exactly what a retired profile still has.
+
+**`settled68`'s plan is pinned at `508e6369…`**, which is measured twice
+independently: the storage session read it from `operator-plan.private.json` at
+`ff9b379f`, and this session reproduced it offline from the repository's files.
+The offline reproduction is trustworthy because the same harness reproduces
+every previously pinned plan hash exactly.
+
+#### The mutation proof
+
+`RETIREMENT_MUTATION_PROOF_OK`, nine cases, three groups:
+
+| Group | Result |
+|---|---|
+| **A. The install gate refuses by name** | `observed67` and `observed67_optout` refuse matching `/is RETIRED \(journal D18/`; `settled68` refuses matching `/has no pinned target/` |
+| **B. Plan building still works for all three** | built `7043637f…`, `92a4737f…`, `508e6369…` |
+| **C. Each built plan equals its pin** | all three match |
+
+One probe bug on the way, recorded because it is the M-shape again: the
+`observed67` build case was written outside the stub and threw. That was the
+probe being wrong, not the code, and it was fixed in the probe. A failing
+mutation case has to be read before it is believed, in both directions.
+
+#### A consequence worth stating plainly: NO profile can currently install
+
+With two retired and one pending, **`profiles.get()` refuses every profile.**
+That is the correct fail-closed state — nothing should install until the target
+is re-measured — but it has a visible cost.
+
+`test/linear-exit-install-operator.js` went red, because `api.execute()`
+resolves the profile on its first line and the suite relied on the default,
+which is now a retired profile. **The module's default profile being a retired
+one is itself worth knowing.** The suite is re-based to prove the gate for all
+three by name, which makes the ruling a permanent check rather than a one-off
+proof. **Its downstream coverage is SUSPENDED, not dropped:** the read-only
+observation, the TLS / identity / catalog-drift refusals and the consent-token
+distinctness are unreachable while no profile is gettable. That is said in the
+suite itself, with a `RESTORE_WHEN_PINNED` marker naming the one-line edit that
+brings them back when the target is pinned.
+
+#### Unchanged on purpose
+
+**The operator's proof read still points at
+`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json`**, per the standing
+instruction, until the storage session's new dated proof exists. Not touched.
+
+The checkpoint is updated to **step 8 of 28, 29%**, next step 9, recording the
+step 8 closure and stating that no profile currently passes the install gate.
+
+**Result, with its denominator: 14 of 548 unit suites failed**, all 14 the known
+sandbox failures, none new. It was 15 before the operator suite was re-based.
+The 61 deferred suites were not run as a set; that remains D22.
+
 ### 2026-09-17 — Steps 9 and 10: METHOD RECORDED BEFORE RUNNING. Packaging command, verification commands and names, fixed by the owner, so the next drill does not have to rediscover them
 
 Written before the clock starts, at 2026-09-17T01:06Z (2026-09-16 19:06 on the

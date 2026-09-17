@@ -30,6 +30,107 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Steps 9 and 10: METHOD RECORDED BEFORE RUNNING. Packaging command, verification commands and names, fixed by the owner, so the next drill does not have to rediscover them
+
+Written before the clock starts, at 2026-09-17T01:06Z (2026-09-16 19:06 on the
+owner's machine), by the storage session. **Nothing below has run yet.** The
+results follow as their own entry.
+
+**Authorised by the owner:** steps 9 and 10, after the backup-path fix
+`1eb6eaf8` passed re-review at `e4eb40b`. That is the first live use of the new
+backup code. Step 11 is **not** authorised.
+
+**Found while preparing, recorded because it cost a round of questions.** The
+2026-09-14 database drill's zip,
+`SyncView-Preinstall-Database-20260914.encrypted.zip`, was made **ad hoc**. The
+private handoff and custody-confirmation files record its hash, Drive location
+and download path, but no command. A search of the private evidence
+directories, the repository and the 09-14 working directories found none. The
+archive's own metadata (44 flat members, Deflate, "made by" system 0 version 2.0)
+is consistent with Windows' built-in zip, which is inference only.
+`storage-ciphertext-transport.private.py` cannot be reused: its `pack` refuses
+anything that is not a Storage export. **The owner fixed the method below. No
+new script is written for it.**
+
+#### Names, all under `D:/Sidney/Codex/2026-09-13-final-review-repairs`, local date 2026-09-16
+
+| Use | Name |
+|---|---|
+| Fresh catalog read (a **refresh**, not a re-close of step 8) | `day-catalog-20260916-6` |
+| Step 9 capture | `day-database-20260916-1` (package in `…/encrypted`) |
+| Step 9 local restore | `day-database-restore-20260916-1` |
+| Upload archive | `day-database-20260916-1.encrypted.zip` |
+| Step 10 fresh Windows download, unpacked | `day-database-downloaded-20260916-1` |
+| Step 10 restore of that download | `day-database-downloaded-restore-20260916-1` |
+
+#### The sequence, with every command, all from a Windows PowerShell 5.1 host
+
+1. **Catalog read, then the capture immediately after it, with nothing between.**
+   The refresh wrapper refuses a receipt older than one hour.
+   ```powershell
+   node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
+   node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
+   ```
+   If the capture refuses `SOURCE_CHANGED`, that is the concurrent-write check
+   working. It is reported as such and retried **once**, in a quieter moment,
+   with a fresh catalog read and new names (`-7`, `-2`).
+2. **Local restore before any upload** (sitting page, step 9):
+   ```powershell
+   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
+   ```
+3. **Manifest confirmation, by the owner's ruling.** The manifest stays sealed;
+   it is **not** decrypted outside the wrappers. It is confirmed through the
+   restore:
+   - the restore receipt's `public_tables`, which `restore()` takes from the
+     decrypted manifest;
+   - **independently**, the restored database's catalog canonical hash and
+     table count, computed on the scratch cluster (read-only, then stopped).
+
+   68 and `ddfa4c4f…` there mean the sealed manifest says the same, because
+   `restore()` refuses unless the manifest's count equals its own evidence and
+   the restored evidence equals the manifest's exactly.
+4. **Packaging, the owner's fixed method:**
+   ```powershell
+   Compress-Archive -Path 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
+   (Get-FileHash -LiteralPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
+   ```
+   Hashed **once, when made. That is the upload hash.** Without `-Force`,
+   `Compress-Archive` refuses an existing destination.
+5. **The owner uploads** that zip to the private Drive backup folder.
+6. **Two downloads**, both hashed against the upload hash:
+   - **the owner downloads on another device** and reports the SHA-256 from
+     there;
+   - **separately, a fresh download from Drive on this machine, into the
+     evidence directory.** It is never a copy of the original zip. This is the
+     same mechanism as 2026-09-14's `drive-downloaded-database-encrypted`.
+7. **Verify the Windows download, no new script:**
+   ```powershell
+   (Get-FileHash -LiteralPath '<downloaded zip in the evidence directory>' -Algorithm SHA256).Hash.ToLower()   # must equal the upload hash
+   Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
+   ```
+   Then **every extracted member** is compared by SHA-256 and size with the file
+   of the same name in `day-database-20260916-1\encrypted`. The member sets must
+   be identical in both directions: every chunk plus `encrypted.json` and
+   `encrypted.mac`.
+   > **Correction to a count used while planning.** "All 44 plus encrypted.json
+   > and encrypted.mac" double-counts. The 2026-09-14 package's 44 files
+   > *include* those two: 42 chunks plus two. Tonight's count is whatever the
+   > capture produces, and every member is compared.
+8. **Step 10 restore of the Windows download:**
+   ```powershell
+   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
+   ```
+   Then the same independent catalog hash and table count check on the scratch
+   cluster.
+
+**Stop conditions:**
+- any refusal other than one `SOURCE_CHANGED`;
+- any hash or member mismatch;
+- any restore that does not pass, or a scratch-cluster check that is not 68 and
+  `ddfa4c4f…`.
+
+**On any of these, stop, preserve everything and report. Nothing is deleted.**
+
 ### 2026-09-17 — PROPOSAL, not implemented: what `install-profiles.js` should hold for the two profiles that will never install
 
 **What reads those fields, checked before proposing.** `profiles.get(name)`

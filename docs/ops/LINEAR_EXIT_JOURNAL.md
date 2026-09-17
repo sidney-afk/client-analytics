@@ -30,6 +30,221 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 DEPLOYED ALL THIRTEEN and then failed its own attestation on three invisible bytes. Both byte-order marks stripped, a unit guard added that is seen to fire, and `notify` now pins to the value the run measured live
+
+Cloud session, on the owner's instruction, after the supervisor root-caused it.
+
+#### The shape of this failure, which is the part worth remembering
+
+**The release lane deploys BEFORE it attests.** Run 28 of the staff-sensitive
+lane, dispatched on `d749ec9f`, ran both deploy steps to completion and only
+then computed fingerprints. So at the moment the run went red, **all thirteen
+functions were already live from `d749ec9f`**, and four of them had genuinely
+new bytes uploaded (`notify`, `production-write`, `production-comments`,
+`production-archive`; the other nine reported `No change found`). A red
+attestation here is a report about a deploy that already happened, not a gate
+that stopped one. Nothing needed to be re-deployed and nothing needed rolling
+back.
+
+That is also why the new guard went into the unit lane rather than into the
+release lane: a check that runs after the upload cannot hold anything back.
+
+#### What the run said
+
+```
+| `notify` | FAIL | 1 | false | `bfe3e13ef9d2` | `090a6cac5d93` | `3d1f2da593d2` | 4/4 |
+**Result:** 12 PASS, 1 FAIL, 0 ERROR.
+- `notify`: changed=functions/notify/urgent-link.ts
+```
+
+#### The cause, reproduced independently before anything was changed
+
+`supabase/functions/notify/urgent-link.ts` begins with a UTF-8 byte-order mark,
+`ef bb bf`. The deploy tooling strips it on upload. `scripts/ef-fingerprint.js`
+does not: `buildExpectedClosure` stores the **raw git bytes**, and only the
+import scan sees the BOM-stripped text through `sourceText`. So for a marked
+file the expected value hashes three bytes the live source cannot contain, and
+no amount of redeploying can make the two agree.
+
+Rather than take the supervisor's arithmetic, this was recomputed with a
+separate implementation of the algorithm the tool documents, over the four files
+of the `notify` closure at `d749ec9f`:
+
+| bytes hashed | fingerprint | the run's column |
+|---|---|---|
+| exactly as committed, mark present | `bfe3e13ef9d2…` | **Expected** |
+| only the three mark bytes removed | `090a6cac5d93…` | **Live** |
+
+Two values, two columns, no other edit. The live code was byte-identical to the
+intended code the whole time; only the pin disagreed.
+
+#### What changed
+
+Three bytes removed from each of the two marked files, and nothing else:
+
+| file | before | after | closure today |
+|---|---:|---:|---|
+| `supabase/functions/notify/urgent-link.ts` | 1246 B | 1243 B | in `notify` (4 files) |
+| `supabase/functions/linear-outbound/provider-send-v2-preparation.mjs` | 997 B | 994 B | **in nothing** |
+
+The second file is imported by no entrypoint, so it sits outside every
+fingerprint closure and cost nothing today. It would have become this same
+failure on the day somebody added the import. A sweep of the tree found exactly
+these two of 69 files.
+
+#### The fingerprints at the new head, all thirteen
+
+`node scripts/ef-fingerprint.js <new head> --slugs=<13> --expected-only`, which
+reads git and makes no network call:
+
+| slug | expected at `d749ec9f` | expected now | note |
+|---|---|---|---|
+| `ai-onboarding-list` | `bce568a72fce` | `bce568a72fce` | unchanged |
+| `client-credentials` | `d6300381fa19` | `d6300381fa19` | unchanged |
+| `filming-plans` | `ef1f6aee94d0` | `ef1f6aee94d0` | unchanged |
+| `key-verify` | `68e6d3094a08` | `68e6d3094a08` | unchanged |
+| `legacy-onboarding-list` | `d1f6a2d9caf4` | `d1f6a2d9caf4` | unchanged |
+| `linear-outbound` | `f59b6206e3cc` | `f59b6206e3cc` | unchanged, and it matters |
+| `notify` | `bfe3e13ef9d2` | **`090a6cac5d93`** | now equals the run's LIVE value |
+| `onboarding-full` | `68da4d8f413d` | `68da4d8f413d` | unchanged |
+| `onboarding-list` | `a23980f1da39` | `a23980f1da39` | unchanged |
+| `production-archive` | `3c478af053f2` | `3c478af053f2` | unchanged |
+| `production-comments` | `7333e4f2a5d7` | `7333e4f2a5d7` | unchanged |
+| `production-write` | `4e716d1008d9` | `4e716d1008d9` | unchanged |
+| `smm-weekly-reports` | `e1f925289245` | `e1f925289245` | unchanged |
+
+12 of 13 byte-for-byte identical, one changed, and it changed to the value the
+lane measured live. `linear-outbound` staying put is the load-bearing one:
+`.github/workflows/deploy-f27-section4-closures.yml` pins
+`LINEAR_OUTBOUND_SOURCE_SHA256` to `f59b6206e3cc…` and
+`test/f27-section4-deploy-lane.js` asserts the same literal, so a change there
+would have broken a reviewed closure pin. It was checked rather than assumed,
+because the file whose mark was stripped lives in that function's directory —
+it is only the **import closure**, not the directory, that the fingerprint
+covers.
+
+#### The guard
+
+`test/edge-function-byte-order-mark.js`, registered in
+`test/suite-classification.json` (unit 548 → 549; that registry's validator
+compares the registry against the directory in both directions, so an
+unregistered test file fails it — unlike `test/repo-map-sync.js`, which still
+walks one way only).
+
+It scans **every** file under `supabase/functions`, 69 today, not the import
+closure of some entrypoint, for the reason above.
+
+Seen to fire, three ways:
+
+1. Its own positive control, inside the test: a disposable tree with a planted
+   mark, a clean sibling, a file whose mark is not at byte 0, and an empty file.
+   Only the planted one is reported, and the tree comes back silent once it is
+   removed.
+2. Planted back into the real tree: exit 1, naming `notify/urgent-link.ts`.
+3. Removed again: exit 0, `files_scanned: 69, marked: 0`.
+
+#### Not done
+
+- **No fingerprint was re-pinned to the marked bytes.** The repair is the file,
+  not the expectation. CLAUDE.md now says so in one line.
+- No redeploy, no dispatch, no SQL, nothing inside Linear.
+- **Step 20 not started.**
+- The live functions were not re-read from the Management API by this session:
+  it holds no token. The live column quoted here is the run's own measurement.
+
+### 2026-09-17 — The merge DELETED the shared branch, and my journal push recreated it. Anyone holding the old branch must fast-forward before pushing
+
+Operational note for the other two sessions, not a finding.
+
+The merge of #1408 auto-deleted `prep/linear-exit-review-fixes-20260913`. My
+push of the entry below therefore reported `[new branch]` rather than an update:
+the branch now exists again, at `d0e8c520`, which is the new main `d749ec9f`
+plus one journal commit.
+
+**What this means for the storage session.** A local checkout still at
+`ec99ee71` is an ancestor of the recreated branch, so nothing is lost, but a
+push of new commits made on top of it will be **rejected as non fast-forward**
+until it pulls. Pull first, then push. Nothing needs to be re-done and no
+history was rewritten.
+
+The branch stays the channel. It is now based on main rather than ahead of it,
+which is also the right base for whatever the next unit of work turns out to be.
+
+### 2026-09-17 — PR #1408 MERGED to main at `d749ec9f` on the owner's go-ahead. CI 5 of 5 green on `ec99ee71`; the merge deployed nothing and changed no served byte
+
+Cloud session. The owner lifted the gate that said #1408 must not be merged, and
+named the convention: a merge commit, the same as #1391.
+
+#### The head was not the one I had been watching
+
+The owner's message said the head was `ec99ee71` after two storage journal
+pushes, not the `7e97b140` I last read. Checked rather than accepted, because a
+state handed over in a message is not a state verified:
+
+| Claim | How it was checked | Result |
+|---|---|---|
+| Head is `ec99ee71` | `git fetch` plus the pull request's own head field | both read `ec99ee71` |
+| The migration is untouched by those two pushes | `sha256sum` of the blob at `ec99ee71` | `e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`, unchanged |
+| The preflight now passes | read the storage session's journal entry at that head, not the message | `{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":156,"read_only":true}`, exit 0 |
+| #1391's convention was a merge commit | `git log -1 --format=%P` on the old main tip | two parents, subject `Merge pull request #1391` |
+
+The two storage pushes are theirs to own and are recorded in their own entries
+above: the revokes applied live with a delta of exactly the 24 expected
+privilege rows and none added, then the urgent destination configuration row
+inserted 0 to 1, then the gate re-run green. Their second entry also corrects
+their first: the metadata validation, which carries the ten privilege keys, runs
+**before** the configuration read, so the earlier `CONTRACT_ABSENT` on
+`config:urgent_video_destination` had already proved the ten were closed.
+
+#### What CI said on the merged head
+
+`ec99ee71`, five check runs, **five success, zero failures**: `identity-exposure`,
+`f27-team-rollback-proof`, `Isolated PG17 retirement-switch`,
+`Isolated PG17 card-atomic-admission`, `unit`. `mergeable_state` read `clean`.
+The legacy commit-status endpoint reads `pending` with `total_count: 0`, which is
+an empty set rather than a pending check, and was not treated as one.
+
+Three earlier `check_suite.completed` events arrived for superseded heads
+(`b63c6804`, `9b3ecb21`, `673afe2c`) and were correctly ignored. A fourth
+repetition of the same lesson: an event names a SHA, and the SHA is the thing to
+compare, not the pull request number.
+
+#### The merge
+
+| Item | Value |
+|---|---|
+| Merge commit on main | **`d749ec9f25a921824908570d466ebd0efb39dcc6`** |
+| Parents | `302de4a4` (previous main) and `ec99ee71` (branch head) |
+| Method | merge commit, no squash, no rebase |
+| Files changed against the previous main | 5, additions only: the migration, `CLAUDE.md`, `REPO_MAP.md`, `ROLLBACK.md`, this journal |
+
+#### What the merge set off, measured rather than assumed
+
+Two workflow runs on main and no others: `Calendar unit tests` for the push, and
+`pages build and deployment`. **No Edge Function deploy lane ran**, because all
+four are path-filtered on `supabase/functions/` and the diff contains zero paths
+there, zero workflow files and no `index.html` change. Pages republishes the
+repository root, so the served page rebuilds from bytes identical to before.
+This is the opposite case to the step 17 merge, which auto-deployed eleven
+byte-identical functions, and the difference is the path filter, not luck.
+
+#### A stale sentence left standing on purpose
+
+The pull request body still says "Not merged" under "Not done here". That was
+true when it was written and is the state the reviewers read. It was not
+rewritten after the fact; this entry is the correction, in the place corrections
+belong.
+
+#### Not done
+
+- **Step 20 not started.** The gate passing is not the release. The 13-function
+  lane remains a manual dispatch by the owner.
+- No SQL run from this session, no deploy, no dispatch, nothing inside Linear.
+- Still owed by other sessions: the unstubbed operator preflight for steps 4 to 6,
+  and the live read-only fingerprint count over the thirteen functions.
+- Post-merge work now unblocked but deliberately not begun: D30, D31, D32, D33,
+  and the `test/repo-map-sync.js` one-directional fix.
+
 ### 2026-09-17 — STEP 19 GATE PASSES: the urgent destination row inserted, 0 rows → 1, and the deploy preflight returns `PASS`, 156 objects, `read_only: true`. CORRECTION to my previous entry: the ten privilege keys WERE evaluated and passed
 
 Storage session, on the owner's machine, over the direct database connection.

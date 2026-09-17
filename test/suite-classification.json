@@ -145,6 +145,7 @@
     "description-image-upload.js",
     "dropbox-share-query-keys.js",
     "duplicate-batch-parent.js",
+    "edge-function-byte-order-mark.js",
     "editor-count-excludes-parents.js",
     "editors-event-assignee-postgres.js",
     "editors-week-native.js",

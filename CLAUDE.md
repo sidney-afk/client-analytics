@@ -160,3 +160,10 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
   and sequence UPDATE; a first repair named only `anon` on the sequences and
   left `authenticated` holding USAGE, SELECT and UPDATE. Name all four, or
   measure the ones you left out.
+- **A byte-order mark in an Edge Function source deploys fine and then fails
+  the attestation.** Those three invisible leading bytes are stripped by the
+  deploy tooling on upload, while the fingerprint hashes the committed bytes,
+  so the live source can never equal the expected source and redeploying never
+  helps. The release lane deploys BEFORE it attests, so the code is already
+  live when the run goes red. `npm test` now fails on any mark under
+  `supabase/functions`; strip the bytes, never re-pin the fingerprint to them.

@@ -30,6 +30,77 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — B5 BROWSER CAPTURE CLOSED: version 2 of the block, three changes, `mismatches = 0` over 22 files. `matched_git_sha = 1abdd1fa…`. The browser half of B5 is closed
+
+Storage session, on the owner's machine, minutes before the merge, after the
+owner accepted the stop above and authorised three changes and no more.
+
+#### The repair, recorded as a new version with the old one kept
+
+`docs/ops/LINEAR_EXIT_OWNER_SITTING_20260915.md` now carries
+**"B5 browser capture, VERSION 2 (2026-09-17)"** beneath the original block. The
+original is unchanged and marked superseded rather than edited: two runs are
+recorded against it, and rewriting it would falsify what they measured.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | `git -c core.autocrlf=false -c core.eol=lf archive … \| tar -x` | `git archive` applies working-tree conversion. With `core.autocrlf=true`, a captured path without an `eol` attribute came out CRLF, and `404.html` is such a path — 1,620 bytes against the blob's 1,587. `index.html` matched only because it carries `text eol=lf`. The bytes still travel `git archive \| tar`; **PowerShell still never touches them**. |
+| 2 | `CNAME` removed from `$files`, 23 → **22** | Pages does not serve it: `HEAD /CNAME` is 404. It is repository configuration, not a served asset, so asking for it could only ever produce a mismatch. |
+| 3 | `try`/`catch` per file, `$s` reset to `$null` each iteration, `continue` on failure | A failed download left `$s` holding the previous file's hash, so the block printed `404.html`'s served digest as `CNAME`'s. A failed download is now a mismatch for that file, with its reason, and never a stale comparison. |
+
+Everything else is untouched: the PowerShell 7 refusal, the `tar` refusal, the
+explicit `git fetch origin main`, the fresh output directory, and the rule that
+any mismatch is a stop.
+
+#### The run
+
+Under `pwsh` **7.6.6**, version printed in the same process, from the checkout at
+`3c6cb67f`, into the fresh directory `browser-capture-20260917-2`. The script was
+extracted from the version 2 block in the page itself with only `UNIQUE`
+substituted, so what ran and what is written down cannot drift apart.
+
+```
+capturing against main 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052, 22 files
+ok        index.html
+ok        404.html
+ok        synchro-social-favicon.png
+ok        synchro-social-logo.png
+ok        nav-icons/… (18 files)
+matched_git_sha = 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052 ; files = 22 ; mismatches = 0
+```
+
+**Checked independently of the block's own verdict**, against `git show` rather
+than against the extraction:
+
+| File | Blob at `1abdd1fa` | Extracted | Served |
+|---|---|---|---|
+| `404.html` | `f3ded2c5a7c2b3dbe7398077de2f7704ae4268f39ad0df45d97751f703063402` | equal | equal |
+| `index.html` | `1d17a0f567071dd9a8ff70dd73244fc819614725c960fee95bbbb9b639979327` | equal | equal |
+
+22 files downloaded, 22 present on disk, no `CNAME`. The two files that failed
+under version 1 are the two the repair addressed, and `404.html`'s extracted copy
+now equals the blob it could not match before.
+
+#### The capture
+
+| Item | Value |
+|---|---|
+| **`matched_git_sha`** | **`1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`** |
+| **Restore command** | **`git restore --source=1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052 -- index.html`** |
+| Files compared | 22, `mismatches = 0` |
+| Evidence | `browser-capture-20260917-2`, with `from-git/` and `served/` kept side by side |
+
+**The browser half of B5 is closed.** The served browser is main's tip, and the
+restoration route is one command against a commit that is recorded here.
+
+#### State at the moment of this entry
+
+- The B7 re-take earlier in this sitting: 11 PASS, 0 FAIL, no drift.
+- **Nothing has been merged.** Step 16 is the owner's, and the execution session
+  merges after this report.
+- The only repository change in this commit is the version 2 block and this
+  entry. No script, pin or proof file was touched.
+
 ### 2026-09-17 — STEP 16 PRE-MERGE: the B7 re-take is clean, 11 PASS. The B5 capture reports `mismatches = 2` and is therefore a STOP. Both mismatches are defects IN THE CAPTURE BLOCK, not evidence of a drifted browser — and the block still cannot produce a pass on this machine as written
 
 Storage session, on the owner's machine, minutes before the intended merge.

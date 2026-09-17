@@ -540,6 +540,102 @@ half of B5 is closed.
 Do this **before** the merge. After the merge, Pages republishes and the
 pre-merge browser is no longer downloadable.
 
+> **SUPERSEDED on 2026-09-17 by version 2 below.** The block above is kept
+> exactly as it was executed, because two runs are recorded against it. It
+> reported `mismatches = 2` on 2026-09-17 for reasons that were **not** browser
+> drift, and version 2 exists to remove them. Do not run the block above.
+
+### B5 browser capture, VERSION 2 (2026-09-17)
+
+Three changes from the block above, and nothing else. The shell refusal, the
+`tar` refusal, the explicit fetch, the fresh output directory and the rule that
+any mismatch is a stop are all unchanged.
+
+1. **Extraction no longer converts line endings.** `git archive` applies
+   working-tree conversion, so on a checkout with `core.autocrlf=true` any
+   captured path without an `eol` attribute came out CRLF and could not match
+   the served bytes. `404.html` is such a path; `index.html` matched only
+   because it carries `text eol=lf`. Version 2 runs `git` with
+   `-c core.autocrlf=false -c core.eol=lf`, so the archive reproduces the blob
+   bytes. **PowerShell still never touches the bytes**: they still travel
+   `git archive | tar`.
+2. **`CNAME` is no longer in the file list.** GitHub Pages does not serve it:
+   `HEAD /CNAME` returns 404. It is repository configuration, not a served
+   asset, and asking for it could only ever produce a mismatch. **22 files**,
+   not 23.
+3. **Per-file error handling.** A failed download now counts as a mismatch for
+   that file, with its reason, and the loop no longer carries the previous
+   file's hash forward. In the 2026-09-17 run, `CNAME`'s failed download left
+   `$s` holding `404.html`'s hash and printed it as `CNAME`'s served digest.
+
+```powershell
+$out = "D:/Sidney/Codex/2026-09-13-final-review-repairs/browser-capture-UNIQUE"
+$fromGit = Join-Path $out "from-git"
+$served  = Join-Path $out "served"
+New-Item -ItemType Directory -Path $fromGit, $served -Force | Out-Null
+
+# --- REFUSE ON THE WRONG SHELL, LOUDLY. ---------------------------------
+# PowerShell 5.1 corrupts binary data in a pipeline: it decodes bytes to text
+# and re-encodes them. `git archive | tar` would still produce FILES, and
+# Get-FileHash would still produce a HASH, and that hash would be WRONG. A
+# wrong hash here is a confidently wrong record of what was served, which is
+# worse than no record. So this refuses rather than producing one.
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  throw ("REFUSING: this block needs PowerShell 7 or later; this is " +
+         $PSVersionTable.PSVersion.ToString() + ". PowerShell 5.1 mangles bytes " +
+         "in a pipeline and would produce a WRONG hash rather than an error. " +
+         "Run it under pwsh.")
+}
+# tar moves the bytes, so its absence is a refusal too, not a fallback.
+if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+  throw "REFUSING: tar was not found on PATH. Do not substitute an extraction step; report it."
+}
+# --- FETCH BEFORE READING THE REF. --------------------------------------
+# origin/main is only as fresh as the last fetch. On 2026-09-16 a checkout that
+# had fetched only the prep branch read origin/main as 73d5fdc361 while main was
+# 1abdd1fa -- a wrong answer that looks exactly like a right one.
+git fetch --quiet origin main
+if ($LASTEXITCODE -ne 0) { throw "REFUSING: could not fetch origin/main; the ref would be stale." }
+$sha = (git rev-parse origin/main).Trim()
+$base = "https://syncview.synchrosocial.com"
+# CNAME is deliberately absent: Pages does not serve it (HEAD /CNAME is 404).
+$files = @("index.html","404.html","synchro-social-favicon.png","synchro-social-logo.png") +
+         @(git ls-tree -r --name-only $sha -- nav-icons/)
+"capturing against main $sha, $($files.Count) files"
+
+# Binary-safe twice over: git and tar move the bytes, never PowerShell, AND the
+# archive is written with no line-ending conversion, so it is the blob's bytes.
+git -c core.autocrlf=false -c core.eol=lf archive $sha -- $files | tar -x -C $fromGit
+if ($LASTEXITCODE -ne 0) { throw "git archive failed" }
+
+$bad = 0
+foreach ($f in $files) {
+  $dest = Join-Path $served $f
+  New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
+  $g = (Get-FileHash (Join-Path $fromGit $f) -Algorithm SHA256).Hash.ToLower()
+  $s = $null
+  try {
+    Invoke-WebRequest -Uri "$base/$f" -OutFile $dest -Headers @{"Cache-Control"="no-cache"} -UseBasicParsing -ErrorAction Stop
+    $s = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLower()
+  } catch {
+    $bad++; "MISMATCH  $f"; "  git      $g"; "  download FAILED: $($_.Exception.Message)"
+    continue
+  }
+  if ($g -ne $s) { $bad++; "MISMATCH  $f"; "  git    $g"; "  served $s" } else { "ok        $f" }
+}
+"matched_git_sha = $sha ; files = $($files.Count) ; mismatches = $bad"
+```
+
+**Worked when:** `mismatches = 0` over **22** files. Record that run's
+`matched_git_sha` as the captured previous browser; the restoration route is
+`git restore --source=<that-sha> -- index.html`, and the browser half of B5 is
+closed.
+
+- **Any mismatch** -> stop and report the hashes, exactly as before. A served
+  file that differs from the blob means Pages is not serving the frozen commit.
+- **A failed download** now shows as `download FAILED` with its reason. That is
+  a stop too, and it is no longer disguised as a hash difference.
+
 ---
 
 ## Done and off this page

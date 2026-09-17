@@ -30,6 +30,64 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PR #1409 MERGED at `043369b5`. Main now carries 0 byte-order marks in 69 function files, `notify` pins to the live value, and the merge deployed nothing
+
+Cloud session, on the owner's go-ahead: wait for CI, merge as a merge commit,
+report, stop.
+
+#### The merge
+
+| Item | Value |
+|---|---|
+| Merge commit on main | **`043369b5c952fd200c990619e50540b101fc6f34`** |
+| Parents | `d749ec9f` (previous main) and `5902940e` (branch head) |
+| Method | merge commit, as with #1391 and #1408 |
+| CI on `5902940e` | **6 check runs, 6 success, 0 failures** |
+| Codex review | completed on `5902940e`, **no findings**, 0 review threads |
+
+The sixth check is worth naming: **`Edge Function type ratchet`** ran on this PR
+and not on #1408, because it is path-filtered on `supabase/functions/**`. A PR
+that touches function sources gets a lane a docs PR never sees, so "the same
+checks passed last time" was not a safe assumption and was not made.
+
+#### Verified after the merge, on main rather than on the branch
+
+- **0 of 69** files under `supabase/functions` carry a mark.
+- `notify` expected fingerprint at `043369b5` is
+  `090a6cac5d9364672da39b17eb2af4abe1a611bbac43c90b39cad87d0034aaee`, the value
+  run 28 measured live.
+- `linear-outbound` is still `f59b6206e3cc…`, so the
+  `LINEAR_OUTBOUND_SOURCE_SHA256` pin in the Section 4 lane and the literal in
+  `test/f27-section4-deploy-lane.js` both still hold.
+
+#### What the merge set off, measured rather than assumed
+
+Two push runs on main and no others: `Edge Function type ratchet` and
+`Calendar unit tests`. **No deploy lane ran**, even though this merge changes
+two files under `supabase/functions` — which is the opposite of what a quick
+reading would predict, so here is the reason, from the lane's own header:
+
+> The Track-B write/read set — linear-outbound, production-write,
+> production-comments, production-archive — is manual-only... **A normal
+> merge/push must never deploy that set.**
+
+Its automatic `paths:` list covers the onboarding, credentials, filming-plan and
+SMM-report functions plus `_shared/staff-role-auth.ts`. This diff touches none
+of those, and nothing under `_shared/`, so no lane matched. For contrast, the
+step 17 merge DID auto-deploy eleven byte-identical functions, because that diff
+did touch a shared helper. The difference is always the path list.
+
+So the live set is unchanged by this merge, and it already matches these bytes.
+
+#### Not done
+
+- **Step 20 not started.** A step 19 re-dispatch on `043369b5` is the owner's to
+  make; nothing here dispatches it. If it is made, all thirteen should attest,
+  because twelve expected values never moved and the thirteenth now equals what
+  is live.
+- No deploy, no SQL, nothing inside Linear, and no fingerprint re-pinned to the
+  marked bytes.
+
 ### 2026-09-17 — STEP 19 DEPLOYED ALL THIRTEEN and then failed its own attestation on three invisible bytes. Both byte-order marks stripped, a unit guard added that is seen to fire, and `notify` now pins to the value the run measured live
 
 Cloud session, on the owner's instruction, after the supervisor root-caused it.

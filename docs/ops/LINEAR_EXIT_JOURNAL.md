@@ -30,6 +30,49 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 13 GATE APPROVED by the owner; step 14 starting. Recorded before the run
+
+**The approval, as given to the storage session:** step 13 approved by the owner
+on the supervisor's verification, at a moment the owner confirms nobody is
+mid-task. Window evidence hash
+`20fcabcb2317831f2fc514899e38aa996e9640b31285299f778da8ed4b6971a5`. The
+instruction is to derive the apply token, run step 14 through the same wrapper,
+then step 15 against target `24c833c0…`. **If anything refuses partway: stop, do
+not retry, report.**
+
+**Checked before running,** at 16:03:08Z:
+
+- the receipt `day-catalog-20260917-3/receipt.private.json` hashes to exactly the
+  approved window evidence hash;
+- the receipt is 2.5 minutes old, inside the wrapper's one-hour window, which
+  closes at 17:00:36Z;
+- the wrapper hashes to `ddec6988…`, the value recorded at `669e7898`;
+- the branch has not moved since `8827da31`.
+
+**How step 14 runs.** One private runner, `step14-apply.cjs` in the session
+scratchpad, does the following:
+
+1. Refuses unless the wrapper hash and the receipt hash are as above.
+2. Derives the token with `api.consent({profile: 'settled68', expectedDatabaseIdentity: <identity from day-catalog-20260917-3>, ownerWindowEvidenceSha256: <window hash>})`.
+   Those are the only fields `consent()` reads, and the same values the wrapper
+   builds.
+3. Checks the token's shape: `APPLY:<pinned settled68 plan>:<identity hash>:<window hash>`.
+4. Runs the wrapper **once**, with `--catalog-dir=day-catalog-20260917-3`,
+   `--target=` the pinned target file,
+   `--out=install-operator-apply-20260917-1`, `--window-evidence` and
+   `--apply-token`.
+
+The token is never written to a file or printed; only its SHA-256 is.
+
+**Step 15, stated before step 14 runs.** The apply path asserts step 15's
+conditions before it returns `INSTALLED_SCHEMA_TARGET_MATCH`: an exact
+public and private catalog comparison against the pinned target, the
+retirement contract assertion, and finalizer removal of the guards. It does not
+return the individual chunks, so a separate **read-only** verifier follows. It
+records every journaled chunk against the plan, the guards remaining, and the
+catalogs against the target. It will be written and its hash recorded before it
+runs.
+
 ### 2026-09-17 — Pre-install sequence, part 4: owner upload done; fresh catalog read taken; WINDOW EVIDENCE HASH reported. Stopped for the owner's step 13 approval
 
 Storage session.

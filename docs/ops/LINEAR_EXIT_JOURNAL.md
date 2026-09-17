@@ -30,6 +30,44 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Pre-install sequence, part 4: owner upload done; fresh catalog read taken; WINDOW EVIDENCE HASH reported. Stopped for the owner's step 13 approval
+
+Storage session.
+
+**Upload.** The owner reported the archive `day-database-20260917-1.encrypted.zip`
+uploaded to the private Drive backup folder. Its upload hash, recorded when it
+was made, is `4139771276fb35a39948b369036aee9b5cae0c919d5b10cb7d093bfd90803d86`.
+The upload is owner-reported; no download or downloaded-copy restore of this
+package was requested.
+
+**Owner ruling on timing, recorded as given:**
+
+- the window evidence is a **fresh read at approval time**, not an old hash bound
+  in advance;
+- approval is expected within the hour, carrying this hash;
+- **if it does not arrive within the hour**, take a new read and report the new
+  hash rather than proceed on a stale one.
+
+**The read.** `day-catalog-20260917-3`, from a Windows PowerShell 5.1 host, with
+the catalog wrapper at `6b6e2fe7…`, unchanged. Started 16:00:33Z, exit 0.
+Read back from disk:
+
+| Item | Value |
+|---|---|
+| **Receipt SHA-256, the window evidence hash** | **`20fcabcb2317831f2fc514899e38aa996e9640b31285299f778da8ed4b6971a5`** |
+| Receipt bytes | 291 |
+| `observed_at` | `2026-09-17T16:00:36.032Z` |
+| `catalog_sha256` | `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c`; the catalog file's canonical hash was recomputed and matches |
+| `profile`, `matches_reviewed_baseline`, `tls_verified` | `settled68`, `true`, `true` |
+| Public tables | 68 |
+| Identity | identical to the step 8 closure read |
+| **Usable by the step 14 wrapper until** | **2026-09-17T17:00:36Z**; the wrapper refuses a receipt older than one hour |
+
+**Not done, by instruction:** the apply token has **not** been derived, and
+step 14 has **not** run. Both wait for the owner's approval carrying this exact
+hash. If approval arrives after 17:00:36Z, a new read is taken and its hash is
+reported instead. Nothing proceeds on this one.
+
 ### 2026-09-17 — Pre-install sequence, parts 1 to 3: no worker pause required by the runbook; fresh live backup captured and restored at 68 tables; flags half re-taken, unchanged. Awaiting the owner's upload; part 4 not yet run
 
 Storage session, on the owner's instruction while step 13 is taken to the owner.

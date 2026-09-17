@@ -30,6 +30,84 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 CLOSED on the third dispatch: 13 PASS, 0 FAIL, 0 ERROR, and the redeploy provably changed nothing. Steps 16 to 19 marked CLOSED in the execution map, progress now 68%
+
+Cloud session. The owner reported the result; the run was then found by its SHA
+and read from its own log rather than from the report.
+
+#### The run
+
+| Item | Value |
+|---|---|
+| Run | **[35281245118](https://github.com/sidney-afk/client-analytics/actions/runs/35281245118)**, run number 29 of `deploy-onboarding-edge-functions.yml` |
+| Dispatched on | `043369b5c952fd200c990619e50540b101fc6f34`, the #1409 merge commit |
+| Started | 2026-09-17T22:17:13Z, finished 22:18:24Z |
+| Conclusion | **success** |
+| Attestation | **13 PASS, 0 FAIL, 0 ERROR**; JWT posture 13 at `verify_jwt=false`, 0 off-posture |
+
+All ten job steps concluded success, in order: main-ancestry validation, the
+validated checkout, the SQL contract preflight (step 6, the one that refused the
+first dispatch), `setup-cli`, the push-safe deploy, the pinned Track-B deploy,
+and the attestation.
+
+#### The redeploy uploaded identical bytes, and that is measured twice
+
+The owner's claim was that every live version number is unchanged from run 28.
+Checked, and it holds for all thirteen — and the **deployed bundle fingerprint**
+is unchanged for all thirteen too, which is the stronger statement of the same
+thing:
+
+| slug | version, run 28 → 29 | bundle, run 28 → 29 |
+|---|---|---|
+| `ai-onboarding-list` | 37 → 37 | `e1d7bc273dbf` → same |
+| `client-credentials` | 45 → 45 | `d4a7f1794f7e` → same |
+| `filming-plans` | 34 → 34 | `909b84e33a51` → same |
+| `key-verify` | 39 → 39 | `73f80c1b2cd9` → same |
+| `legacy-onboarding-list` | 37 → 37 | `a7877b9b4663` → same |
+| `linear-outbound` | 48 → 48 | `3ffd5097baa1` → same |
+| `notify` | 1 → 1 | `3d1f2da593d2` → same |
+| `onboarding-full` | 37 → 37 | `93534cc65363` → same |
+| `onboarding-list` | 37 → 37 | `ebc3d013f7ce` → same |
+| `production-archive` | 9 → 9 | `b7a1b9f57104` → same |
+| `production-comments` | 25 → 25 | `a02eec06572d` → same |
+| `production-write` | 72 → 72 | `36d7068a2c58` → same |
+| `smm-weekly-reports` | 32 → 32 | `147141e54926` → same |
+
+**`notify`'s bundle was already `3d1f2da593d2` in run 28**, the run that failed.
+That is the independent confirmation of the whole byte-order-mark finding: the
+live bundle never changed, because the bytes were always the intended bytes.
+What changed between the two runs is only the expected value the repository
+offers for comparison, `bfe3e13ef9d2` to `090a6cac5d93`.
+
+#### Recorded in the execution map
+
+Steps 16 to 19 are now one CLOSED block in
+`docs/ops/LINEAR_EXIT_EXECUTION_MAP.md`, in the same shape as the steps 14 and
+15 block: the step 16 gate, the step 17 merge and why it was a merge commit, the
+step 18 served-browser and 8-of-8 reads, then a table of the three dispatches
+with their run links, and what each of the two refusals actually was together
+with its repair PR. Phase 4 is finished by that block.
+
+The template progress line at the top of the map moves from
+`Phase 3 of 7 · step 14 of 28 · 46%` to
+**`Phase 4 of 7 · step 19 of 28 · 68% complete · next: 20`**.
+
+#### One thing worth keeping from the shape of step 19
+
+Three dispatches, two refusals, and **neither refusal deployed anything wrong**.
+The first deployed nothing at all and named ten privilege keys. The second
+deployed exactly the intended bytes and then misreported them. A gate that fails
+closed costs a cycle; it does not cost correctness. Both repairs went through a
+reviewed PR rather than through a re-pin, which is why the third dispatch was a
+no-op on the live set.
+
+#### Not done
+
+- **Step 20 is the storage session's** and is not started here. It needs private
+  inputs this session does not hold.
+- No deploy, no dispatch, no SQL, no n8n edit, nothing inside Linear from this
+  session.
+
 ### 2026-09-17 — PR #1409 MERGED at `043369b5`. Main now carries 0 byte-order marks in 69 function files, `notify` pins to the live value, and the merge deployed nothing
 
 Cloud session, on the owner's go-ahead: wait for CI, merge as a merge commit,

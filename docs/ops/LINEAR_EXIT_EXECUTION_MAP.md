@@ -21,7 +21,7 @@ Count completed steps out of 28. Report it like this at the start of every
 execution session and after every completed step:
 
 ```
-Phase 3 of 7 · step 14 of 28 · 46% complete · next: 15 (verify installed catalog)
+Phase 4 of 7 · step 19 of 28 · 68% complete · next: 20 (capture the legacy editor workflow)
 ```
 
 A step is complete only when its **Done when** column is satisfied and its
@@ -272,6 +272,71 @@ live browser and may auto-deploy staff functions). **Not started.**
 | 17 | Merge the PR; Pages publishes | Session + owner | Merge complete |
 | 18 | Verify the served browser | Session | Served browser SHA matches the merged commit; safe existing reads work |
 | 19 | Run the 13-function Edge release lane and verify fingerprints | Session + owner | Every deployed function matches its expected fingerprint |
+
+### Steps 16 to 19 CLOSED — 2026-09-17T22:18Z (16:18 on the owner's machine)
+
+**Step 16, the GATE:** the owner approved the merge on the storage session's B5
+browser capture (`matched_git_sha 1abdd1fa…`, 22 of 22 files, 0 mismatches),
+clean fingerprints on the eleven functions the merge would auto-deploy, and a
+stated CI bar. Recorded before step 17 ran.
+
+**Step 17:** PR #1391 merged as a **merge commit** — main at
+`302de4a4679132ded15cc462312c88ad20062a9b`. CI on the final head `493eb9c7`:
+14 check runs, 12 success, 2 skipped, 0 failures, the bar met exactly. A merge
+commit rather than a squash because the proof artifacts pin `checkout_sha`
+values and **step 19's lane validates its dispatched SHA by ancestry on main**;
+a squash would have broken the property the next step depends on. The merge
+fired exactly the three predicted deploy lanes and eleven byte-identical
+functions, and no others.
+
+**Step 18:** the served `index.html` matched the merged commit,
+`f3330147…`, about 40 seconds after the merge. The first read caught the
+pre-merge bytes still being served and was recorded as that rather than retried
+quietly until it agreed. Safe existing reads **8 of 8**, GET only, counts and
+status codes only.
+
+**Step 19 took three dispatches**, all of the same lane,
+`deploy-onboarding-edge-functions.yml`, all dispatched by the owner:
+
+| # | Run | Commit | Outcome | Deployed? |
+|---|---|---|---|---|
+| 1 | [35272220909](https://github.com/sidney-afk/client-analytics/actions/runs/35272220909) | `302de4a4` | refused at step 6, the read-only SQL preflight: `CONTRACT_MISMATCH` on exactly **ten** of 156 keys | **Nothing.** `setup-cli`, both deploy steps and the attestation were all skipped |
+| 2 | [35278692980](https://github.com/sidney-afk/client-analytics/actions/runs/35278692980) | `d749ec9f` | deployed, **then** failed its own attestation: 12 PASS, 1 FAIL — `notify` expected `bfe3e13ef9d2` against live `090a6cac5d93`, `changed=functions/notify/urgent-link.ts` | **All thirteen**, because the lane deploys BEFORE it attests |
+| 3 | [35281245118](https://github.com/sidney-afk/client-analytics/actions/runs/35281245118) | `043369b5` | **13 PASS, 0 FAIL, 0 ERROR**; 13 at `verify_jwt=false`, 0 off-posture | Yes, and the upload was a no-op: every live version number **and** every deployed-bundle fingerprint is identical to run 2's, `notify`'s included |
+
+**The two refusals, and what each one actually was:**
+
+- **Refusal 1 was the database, not the code.** The 2026-09-06 and 2026-09-09
+  migrations revoked `from public, anon, authenticated` and never from
+  `service_role`, and never touched the two sequences at all, so on a hosted
+  project the platform's blanket grants were still held. The decision was to
+  **tighten the database to the gate, not loosen the gate**: **PR #1408**,
+  revokes only, sha256 `e50d8b2a…`, merged at `d749ec9f`. The storage session
+  applied it live before the merge, a delta of exactly the 24 expected privilege
+  rows and none added. The same preflight then refused on a second, separate
+  gap — the missing configuration row `config:urgent_video_destination`, which
+  was inserted live, 0 rows to 1 — after which it returned `PASS` over 156
+  objects, `read_only: true`. The supervisor's first live measurement had
+  omitted `authenticated` on the sequences, so the migration had to be amended
+  mid-review; see **D34** and **D35**.
+- **Refusal 2 was three invisible bytes, and the deployed code was never
+  wrong.** `supabase/functions/notify/urgent-link.ts` began with a UTF-8
+  byte-order mark. The deploy tooling strips it on upload while
+  `scripts/ef-fingerprint.js` hashes the committed bytes, so `expected` and
+  `live` could never agree for that file. **PR #1409** removed the mark from it
+  and from one other, unimported, function source — three bytes each and nothing
+  else — and added a unit guard that fails on any mark under
+  `supabase/functions`, with its own planted-mark control. Merged at
+  `043369b5`. **No fingerprint was re-pinned to the marked bytes.**
+
+**Both refusals failed closed, and neither deployed anything wrong.** The first
+deployed nothing at all. The second deployed exactly the intended bytes and then
+misreported them, which is why run 3's redeploy changed no version and no
+bundle.
+
+**Progress:** Phase 4 of 7 · step 19 of 28 · 68% complete · next: 20 (capture
+the published legacy editor workflow privately), which is the **storage
+session's**. **Not started.**
 
 ## Phase 5 — The one n8n change
 

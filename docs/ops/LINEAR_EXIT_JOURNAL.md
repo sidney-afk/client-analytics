@@ -30,6 +30,128 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 DEPLOYED ALL THIRTEEN and then failed its own attestation on three invisible bytes. Both byte-order marks stripped, a unit guard added that is seen to fire, and `notify` now pins to the value the run measured live
+
+Cloud session, on the owner's instruction, after the supervisor root-caused it.
+
+#### The shape of this failure, which is the part worth remembering
+
+**The release lane deploys BEFORE it attests.** Run 28 of the staff-sensitive
+lane, dispatched on `d749ec9f`, ran both deploy steps to completion and only
+then computed fingerprints. So at the moment the run went red, **all thirteen
+functions were already live from `d749ec9f`**, and four of them had genuinely
+new bytes uploaded (`notify`, `production-write`, `production-comments`,
+`production-archive`; the other nine reported `No change found`). A red
+attestation here is a report about a deploy that already happened, not a gate
+that stopped one. Nothing needed to be re-deployed and nothing needed rolling
+back.
+
+That is also why the new guard went into the unit lane rather than into the
+release lane: a check that runs after the upload cannot hold anything back.
+
+#### What the run said
+
+```
+| `notify` | FAIL | 1 | false | `bfe3e13ef9d2` | `090a6cac5d93` | `3d1f2da593d2` | 4/4 |
+**Result:** 12 PASS, 1 FAIL, 0 ERROR.
+- `notify`: changed=functions/notify/urgent-link.ts
+```
+
+#### The cause, reproduced independently before anything was changed
+
+`supabase/functions/notify/urgent-link.ts` begins with a UTF-8 byte-order mark,
+`ef bb bf`. The deploy tooling strips it on upload. `scripts/ef-fingerprint.js`
+does not: `buildExpectedClosure` stores the **raw git bytes**, and only the
+import scan sees the BOM-stripped text through `sourceText`. So for a marked
+file the expected value hashes three bytes the live source cannot contain, and
+no amount of redeploying can make the two agree.
+
+Rather than take the supervisor's arithmetic, this was recomputed with a
+separate implementation of the algorithm the tool documents, over the four files
+of the `notify` closure at `d749ec9f`:
+
+| bytes hashed | fingerprint | the run's column |
+|---|---|---|
+| exactly as committed, mark present | `bfe3e13ef9d2…` | **Expected** |
+| only the three mark bytes removed | `090a6cac5d93…` | **Live** |
+
+Two values, two columns, no other edit. The live code was byte-identical to the
+intended code the whole time; only the pin disagreed.
+
+#### What changed
+
+Three bytes removed from each of the two marked files, and nothing else:
+
+| file | before | after | closure today |
+|---|---:|---:|---|
+| `supabase/functions/notify/urgent-link.ts` | 1246 B | 1243 B | in `notify` (4 files) |
+| `supabase/functions/linear-outbound/provider-send-v2-preparation.mjs` | 997 B | 994 B | **in nothing** |
+
+The second file is imported by no entrypoint, so it sits outside every
+fingerprint closure and cost nothing today. It would have become this same
+failure on the day somebody added the import. A sweep of the tree found exactly
+these two of 69 files.
+
+#### The fingerprints at the new head, all thirteen
+
+`node scripts/ef-fingerprint.js <new head> --slugs=<13> --expected-only`, which
+reads git and makes no network call:
+
+| slug | expected at `d749ec9f` | expected now | note |
+|---|---|---|---|
+| `ai-onboarding-list` | `bce568a72fce` | `bce568a72fce` | unchanged |
+| `client-credentials` | `d6300381fa19` | `d6300381fa19` | unchanged |
+| `filming-plans` | `ef1f6aee94d0` | `ef1f6aee94d0` | unchanged |
+| `key-verify` | `68e6d3094a08` | `68e6d3094a08` | unchanged |
+| `legacy-onboarding-list` | `d1f6a2d9caf4` | `d1f6a2d9caf4` | unchanged |
+| `linear-outbound` | `f59b6206e3cc` | `f59b6206e3cc` | unchanged, and it matters |
+| `notify` | `bfe3e13ef9d2` | **`090a6cac5d93`** | now equals the run's LIVE value |
+| `onboarding-full` | `68da4d8f413d` | `68da4d8f413d` | unchanged |
+| `onboarding-list` | `a23980f1da39` | `a23980f1da39` | unchanged |
+| `production-archive` | `3c478af053f2` | `3c478af053f2` | unchanged |
+| `production-comments` | `7333e4f2a5d7` | `7333e4f2a5d7` | unchanged |
+| `production-write` | `4e716d1008d9` | `4e716d1008d9` | unchanged |
+| `smm-weekly-reports` | `e1f925289245` | `e1f925289245` | unchanged |
+
+12 of 13 byte-for-byte identical, one changed, and it changed to the value the
+lane measured live. `linear-outbound` staying put is the load-bearing one:
+`.github/workflows/deploy-f27-section4-closures.yml` pins
+`LINEAR_OUTBOUND_SOURCE_SHA256` to `f59b6206e3cc…` and
+`test/f27-section4-deploy-lane.js` asserts the same literal, so a change there
+would have broken a reviewed closure pin. It was checked rather than assumed,
+because the file whose mark was stripped lives in that function's directory —
+it is only the **import closure**, not the directory, that the fingerprint
+covers.
+
+#### The guard
+
+`test/edge-function-byte-order-mark.js`, registered in
+`test/suite-classification.json` (unit 548 → 549; that registry's validator
+compares the registry against the directory in both directions, so an
+unregistered test file fails it — unlike `test/repo-map-sync.js`, which still
+walks one way only).
+
+It scans **every** file under `supabase/functions`, 69 today, not the import
+closure of some entrypoint, for the reason above.
+
+Seen to fire, three ways:
+
+1. Its own positive control, inside the test: a disposable tree with a planted
+   mark, a clean sibling, a file whose mark is not at byte 0, and an empty file.
+   Only the planted one is reported, and the tree comes back silent once it is
+   removed.
+2. Planted back into the real tree: exit 1, naming `notify/urgent-link.ts`.
+3. Removed again: exit 0, `files_scanned: 69, marked: 0`.
+
+#### Not done
+
+- **No fingerprint was re-pinned to the marked bytes.** The repair is the file,
+  not the expectation. CLAUDE.md now says so in one line.
+- No redeploy, no dispatch, no SQL, nothing inside Linear.
+- **Step 20 not started.**
+- The live functions were not re-read from the Management API by this session:
+  it holds no token. The live column quoted here is the run's own measurement.
+
 ### 2026-09-17 — The merge DELETED the shared branch, and my journal push recreated it. Anyone holding the old branch must fast-forward before pushing
 
 Operational note for the other two sessions, not a finding.

@@ -30,6 +30,83 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — D22 pg_dump.exe SUITES, storage side: priority-snapshot, priority-application-recovery and credential-recovery all PASS on Windows. No failures, so no pre-B10 run was needed. Nothing fixed
+
+The cloud's authoritative D22 run could not execute four suites that hard-code
+`pg_dump.exe`. The fourth, `complete-application-recovery`, was treated as
+covered by the control-recovery lane run recorded below, and was not run again.
+`observed-full-pipeline` is still waiting on the reconstruction fix.
+
+#### Method
+
+- Host: Windows PowerShell Desktop 5.1.26100.9444.
+- Each suite ran through `run-portable.ps1` on a fresh disposable cluster. The
+  lane and PostgreSQL major come from the suite's own row in
+  `scripts/test-suite-routing.js` `unitPlan().deferred`.
+- Each suite ran with the reproduce command from that row, and no optional
+  switches: no `-SequenceBounds`, `-NativeIdentifiers` or `-EncryptedCredentials`.
+- The launcher cleared the routing-pattern variables from the process before
+  handing over. Two were present, and only their names were logged.
+- Run at branch head `ec5bfd16`. It differs from `a236572` only in
+  `docs/ops/LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md` and this journal, so the
+  code under test is the code the rest of D22 measured.
+- While this entry was being pushed, the branch moved to `41a93b89`. The only
+  code it changed is `test/helpers/install-operator-worker.mjs`, which only
+  `install-operator-postgres` imports. The three results below stand for the new
+  head. The install-operator suite was not re-run: that was not asked.
+
+#### Results
+
+| Suite | Lane, PG | Result | Marker | Run |
+|---|---|---|---|---|
+| `priority-snapshot-postgres` | `priority-snapshot`, 16.15 | **PASS**, exit 0 | `LINEAR_EXIT_PRIORITY_SNAPSHOT_OK`, 7 checks, `actual_pg_dump:true` | `linear-exit-priority-snapshot-b64d2089339a459ab3ce4e084eb8599a` |
+| `priority-application-recovery` | `priority-application-recovery`, 17.11 | **PASS**, exit 0 | `LINEAR_EXIT_PRIORITY_APPLICATION_RECOVERY_OK` | `linear-exit-priority-application-recovery-c59dd283efbf446ea9f8a78ce17f9081` |
+| `credential-recovery` | `credential-recovery`, 17.11 | **PASS**, exit 0 | `LINEAR_EXIT_CREDENTIAL_RECOVERY_OK`, `ISOLATED_POSTGRES_SYNTHETIC_TRIPLE` | `linear-exit-credential-recovery-222060d9d1d149b19087dd55ec3e2244` |
+
+- The runner itself refuses exit 0 without the marker for all three lanes, and
+  each marker is present in the lane's `unit.log`.
+- `unit-error.log` is empty (0 bytes) in all three runs.
+- The markers describe what was proven, and it is limited. The snapshot marker
+  says `synthetic_schema_only:true`, `hosted_capture_proven:false` and
+  `full_restore_proven:false`. The credential marker says the triple is
+  synthetic. These are passes of isolated synthetic proofs, not hosted proofs.
+- Count: 3 suites, 3 pass, 0 fail, 0 cannot run. With no failure, there was
+  nothing to compare at `d3cbca7f`.
+
+#### Two things found in passing, recorded, not changed
+
+1. **The authoritative record contradicts itself on `complete-application-recovery`.**
+   The D22 authoritative entry's failure table lists it as a FAIL
+   (`gateway_acceptance_failed: 503 assignee_lookup_unavailable`, identical at
+   `d3cbca7f`). The same entry's "did not run" paragraph lists it among the four
+   that fail on `pg_dump.exe`. It cannot be both. I have not established which
+   one is right, and I have not edited that entry.
+   - What this box shows: `test/linear-exit-control-recovery-postgres.js` reads
+     `linear-exit-complete-application-recovery.js`'s source and splices the
+     control-recovery proof onto it.
+   - My control-recovery run (`linear-exit-control-recovery-b3a4067ec4834c2ab4d9bd6690ab4b25`)
+     failed on that 503 inside the shared recovery phase.
+   - That lane is not the same as a standalone `complete-application-recovery`
+     lane run, which was not made here.
+2. **The deferred rows' reproduce commands say `pwsh`.** The handover's
+   environment is Windows PowerShell 5.1, because pwsh 7's inherited
+   `PSModulePath` breaks `ConvertTo-SecureString`. These runs used 5.1.
+
+#### CORRECTION, against myself
+
+While looking for the deferred plan, I ran `node test/run-all.js --help`,
+expecting help text. The script has no help flag, so it started the unit suite.
+I stopped it after about two minutes. Afterwards the worktree was clean and no
+`node` or `postgres` process remained. It produced no result, and none is
+counted. The plan was then read without running anything, by requiring
+`scripts/test-suite-routing.js` and printing the rows.
+
+#### Not done
+
+- Nothing was fixed.
+- The pipeline suite was not run.
+- Step 16 was not started: it is the owner's gate. Progress remains 15 of 28.
+
 ### 2026-09-17 — D22 AUTHORITATIVE RESULT: 49 pass, 4 fail, 8 cannot run here, of 61. All four failures fail IDENTICALLY at pre-B10. Five attempts were needed and four were thrown away
 
 Full report: [`LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md`](LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md).

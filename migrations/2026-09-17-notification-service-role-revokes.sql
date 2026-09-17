@@ -50,11 +50,15 @@ revoke truncate, references, trigger on table public.production_notification_con
 
 -- 3. The two sequences. service_role keeps usage and select, which the
 --    2026-09-09 migration grants deliberately. UPDATE was never revoked from
---    it, and anon was never revoked at all -- the 2026-09-09 table revoke
---    covers tables only, never sequences.
+--    it, and NO role was ever revoked on the sequences at all -- the
+--    2026-09-09 revoke covers tables only. Measured live: anon holds USAGE,
+--    and authenticated holds USAGE, SELECT and UPDATE. The gate checks anon
+--    AND authenticated, so both are named here, and `public` with them: a
+--    revoke list that omits a role has not revoked from that role.
 revoke update on sequence public.production_notification_delivery_receipts_id_seq,
                            public.production_notification_reconciliations_id_seq from service_role;
 revoke usage, select, update on sequence public.production_notification_delivery_receipts_id_seq,
-                                         public.production_notification_reconciliations_id_seq from anon;
+                                         public.production_notification_reconciliations_id_seq
+  from public, anon, authenticated;
 
 commit;

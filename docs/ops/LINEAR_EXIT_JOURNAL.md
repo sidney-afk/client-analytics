@@ -30,6 +30,116 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — THE REPAIR WAS ITSELF INCOMPLETE: the supervisor's live measurement omitted `authenticated`, my proof inherited the omission and agreed with a migration that left 2 of 10 keys red. Amended, and the 2-red state is now measured rather than asserted
+
+#### What went wrong, and it is not the supervisor's alone
+
+The supervisor measured the live posture and reported: service_role holds
+EXECUTE on the seven, TRUNCATE/REFERENCES/TRIGGER on the config table, UPDATE on
+both sequences; **anon** holds USAGE on both sequences. I built the local
+reproduction from exactly that list, wrote a migration that closes exactly those
+gaps, and proved ten-to-zero against it.
+
+**The list did not cover `authenticated` on the sequences.** The second
+measurement found authenticated holding **USAGE, SELECT and UPDATE** on both.
+The gate checks authenticated as well as anon, so the migration as first written
+would have left **2 of the 10 keys red** and step 19 would have refused a second
+time.
+
+The propagation is the part worth keeping. My proof did not fail to catch this —
+**it could not**, by construction:
+
+1. the supervisor measured live and produced a list;
+2. I built the local world *from that list*;
+3. I wrote the migration to close *that list*;
+4. I proved the migration closes *that list*.
+
+Steps 2 and 3 share their only input, so step 4 can only ever agree. **A proof
+whose expected state is derived from the same measurement as the fix under test
+cannot detect an incomplete measurement.** I wrote in the previous entry that
+zero-after was "partly true by construction" and treated that as a caveat about
+rigour. It was not a caveat; it was the failure mode, and it had already
+happened by the time I wrote the sentence.
+
+What would have caught it: enumerating the roles the *gate* checks, and
+measuring every one of them, rather than reproducing the roles the measurement
+happened to mention. The gate's own predicates name `service_role`, `anon` and
+`authenticated` on the sequences. Reading the gate would have produced the
+complete role list without any measurement at all.
+
+#### The amendment
+
+The sequence revoke now names all three explicitly:
+
+```sql
+revoke usage, select, update on sequence public.production_notification_delivery_receipts_id_seq,
+                                         public.production_notification_reconciliations_id_seq
+  from public, anon, authenticated;
+```
+
+`public` joins them because a revoke list that omits a role has not revoked from
+it, and PUBLIC is a role like any other here. Everything else in the file is
+byte for byte as reviewed; the only other change is the comment above those
+lines, which said "anon was never revoked at all" and would otherwise have
+described a statement that no longer matches it.
+
+`daf4bc1760c5ccd1…` → **`e50d8b2a3b761fd08622634bfc6e926c2ee7cd0ca97aefe3deee9fc117859734`**,
+3789 → 4063 bytes.
+
+#### Re-proof, with `authenticated` in the local posture
+
+```
+### BEFORE the migration                    ### AFTER the amended migration
+    contract keys evaluated : 156               contract keys evaluated : 156
+    keys NOT satisfied      : 11                keys NOT satisfied      : 1
+        config:urgent_video_destination             config:urgent_video_destination
+        relation:production_notification_config
+        routine:production_assignment_epoch(text)
+        routine:…actor_valid(uuid,text,text)
+        routine:…client_comment_event_after()
+        routine:…comment_intent_after()
+        routine:…intent_guard()
+        routine:…plain_text(text,integer)
+        routine:…status_intent_after()
+        sequence:…delivery_receipts_id_seq
+        sequence:…reconciliations_id_seq
+```
+
+Ten before, **zero of the ten after**, with the authenticated grants present.
+`config:urgent_video_destination` is the same local-only configuration ROW as
+before: absent locally, present live, untouched by this migration.
+
+#### And the 2-red state MEASURED, not accepted
+
+The supervisor said the first version would leave two keys red. Rather than take
+that on assertion, the **pre-amendment file was re-applied to the same world**:
+
+```
+### AFTER the migration (pre-amendment file, from git)
+    keys NOT satisfied      : 3
+        config:urgent_video_destination
+        sequence:production_notification_delivery_receipts_id_seq
+        sequence:production_notification_reconciliations_id_seq
+```
+
+Exactly the two sequence keys, exactly as the supervisor said. The finding is now
+a measurement in the record rather than a claim I agreed with.
+
+The trigger proofs re-ran unchanged and all pass: service_role holds EXECUTE on
+none of the seven, the status trigger function's call count still goes 0 → 1 for
+a service-role write, the schema-independent control still fires, service_role
+still cannot insert an intent directly, and the guard still raises
+`production_notification_intent_insert_forbidden` by name.
+
+#### Recorded as decisions
+
+**D34** — a gate that has never run against its real target is untested; run a
+lane's read-only preflight from the owner's machine before dispatching.
+**D35** — a revoke must name every role it means; Supabase grants
+service_role/anon/authenticated everything by default, and an omitted role has
+not been revoked from. Both also added to `CLAUDE.md` under "Things that will
+waste a cycle", with no name or slug in either.
+
 ### 2026-09-17 — STEP 19 REFUSED, and the refusal was RIGHT. One revokes-only migration written, proven ten-to-zero locally, PR opened and NOT merged. Also: the prediction named the wrong gate
 
 Run [35272220909](https://github.com/sidney-afk/client-analytics/actions/runs/35272220909),
@@ -11079,6 +11189,53 @@ why they can wait — and exactly why they would otherwise never be found.
 Both derive from the world when they are done: the seed row's presence and its
 flag are readable, and `populated_optout_preserved` becomes a comparison of what
 was read before and after, not a restatement of `profile`.
+
+### D34 — A gate that has never run against its real target is untested (2026-09-17, owner)
+
+**Binding, and it generalises past this preflight.**
+
+`scripts/linear-exit-deploy-preflight.js` had been written, reviewed, pinned
+into a workflow and reasoned about for days. It executed against the live
+database for the **first time on 2026-09-17, inside the step 19 dispatch**, and
+refused **10 of 156 keys**. The release stopped at the gate rather than at a
+plan, which is the gate working — and also the most expensive possible moment to
+learn what it would say.
+
+So: **run a lane's read-only preflight from the owner's machine before
+dispatching**, never for the first time inside the dispatch. A read-only check
+costs a minute outside the window and a whole authorized window inside it.
+
+This is the same family as D27 (a stubbed gate is an untested gate) and D28 (the
+code you changed executes before you push), one level up: those two are about
+proving a change, this one is about proving a *check*. A check nobody has run
+against the thing it checks is a hypothesis with a workflow step number.
+
+### D35 — A revoke must name every role it means (2026-09-17, owner)
+
+**Binding for every migration in this repository.**
+
+Supabase grants `service_role`, `anon` and `authenticated` full rights on every
+new object by default. Therefore:
+
+- **a `revoke` list that omits a role has not revoked from that role**, and
+- **"we revoked it" is not the same claim as "that role cannot do it"**.
+
+Measured twice in one day, in both directions:
+
+| migration | revoked from | left holding |
+|---|---|---|
+| 2026-09-06 native existing assignment | `public, anon, authenticated` | `service_role` EXECUTE |
+| 2026-09-09 notification outbox (tables) | `public, anon, authenticated` | `service_role` TRUNCATE/REFERENCES/TRIGGER |
+| 2026-09-09 notification outbox (sequences) | **nothing** | `service_role` UPDATE, `anon` USAGE, `authenticated` USAGE/SELECT/UPDATE |
+| the first repair, 2026-09-17 | `service_role`, and `anon` on the sequences | **`authenticated`** USAGE/SELECT/UPDATE |
+
+The 2026-09-05 guards that pass all read
+`from public, anon, authenticated, service_role`. **Name all four, or measure
+the ones you left out** — and prefer naming them, because a measurement is a
+claim about one moment and a revoke is a claim about the object.
+
+Both entries are also in `CLAUDE.md` under "Things that will waste a cycle",
+where a session reads them in its first minute rather than on its fourth day.
 
 ## 4. Corrections the session made against itself
 

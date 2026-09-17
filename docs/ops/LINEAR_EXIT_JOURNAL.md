@@ -30,6 +30,186 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 19 REFUSED, and the refusal was RIGHT. One revokes-only migration written, proven ten-to-zero locally, PR opened and NOT merged. Also: the prediction named the wrong gate
+
+Run [35272220909](https://github.com/sidney-afk/client-analytics/actions/runs/35272220909),
+`workflow_dispatch` on `302de4a4`, **conclusion: failure**, 31 seconds,
+**nothing deployed**.
+
+#### The prediction named ancestry or fingerprints. It was neither
+
+The supervisor's prompt, and my own step 19 description, led with the lane's
+ancestry check and its per-function fingerprints. **The refusal came from the
+read-only SQL preflight instead** — step 6 of 10, before any Supabase CLI was
+even installed. Recorded because the shape matters more than the miss: I
+described the gate I had read the most carefully, not the one most likely to
+fire. The lane has four barriers and I ranked them by my own familiarity.
+
+Step-by-step evidence that nothing was deployed, from the job's own step list:
+
+```
+3  Validate the dispatched commit is on main .......... success
+5  Verify the validated commit is checked out ......... success
+6  Assert the Linear-exit SQL contract ................ FAILURE
+7  Run supabase/setup-cli@v1 .......................... skipped
+8  Deploy push-safe staff-sensitive functions ......... skipped
+9  Deploy pinned Track-B write/read functions ......... skipped
+10 Attest pinned manual release ....................... skipped
+```
+
+The lane failed closed. The ancestry and checkout checks passed, so the merge
+commit is a valid deploy target; only the database was not ready.
+
+#### The ten keys, and why the gate is right
+
+```
+linear-exit-deploy-preflight: CONTRACT_MISMATCH:
+  relation:production_notification_config,
+  routine:production_assignment_epoch(text),
+  routine:production_notification_actor_valid(uuid,text,text),
+  routine:production_notification_client_comment_event_after(),
+  routine:production_notification_comment_intent_after(),
+  routine:production_notification_intent_guard(),
+  routine:production_notification_plain_text(text,integer),
+  routine:production_notification_status_intent_after(),
+  sequence:production_notification_delivery_receipts_id_seq,
+  sequence:production_notification_reconciliations_id_seq
+```
+
+The supervisor measured the live posture read-only: service_role still holds
+EXECUTE on all seven routines, TRUNCATE/REFERENCES/TRIGGER on the config table,
+and UPDATE on both sequences, while anon still holds USAGE on both sequences.
+
+Cause, confirmed in the source: `migrations/2026-09-06-native-existing-assignment.sql:179`
+reads `revoke all on function public.production_assignment_epoch(text) from
+public,anon,authenticated;` and the 2026-09-09 outbox migration revokes its
+tables `from public, anon, authenticated` — **neither lists `service_role`**,
+and neither revokes on the sequences at all. The 2026-09-05 guards that pass do
+list it: `from public, anon, authenticated, service_role`. On a hosted project
+service_role starts with the platform's blanket grants, so "never revoked" means
+"still held". **Owner's decision: tighten the database to the gate, not the gate
+to the database.**
+
+#### Callers: 0 of 7 are called as service_role
+
+Asked before writing a single revoke, because revoking EXECUTE on something the
+gateway calls would break it:
+
+```
+routine                                              edge functions   scripts/tests
+production_assignment_epoch                                0               3
+production_notification_intent_guard                       0               4
+production_notification_plain_text                         0               2
+production_notification_actor_valid                        0               3
+production_notification_client_comment_event_after         0               3
+production_notification_comment_intent_after               0               3
+production_notification_status_intent_after                0               5
+                                                    TOTAL  0
+```
+
+**Zero references under `supabase/functions/`, and zero invocation-shaped
+matches there.** Every scripts/tests hit is the preflight contract itself, the
+retirement-switch and notification suites, or the 2026-09-10 evidence file —
+none is a runtime caller. Every real caller is either another SECURITY DEFINER
+routine in the same migrations, which executes as its definer, or a trigger.
+
+#### The migration
+
+`migrations/2026-09-17-notification-service-role-revokes.sql`,
+**sha256 `daf4bc1760c5ccd13d1c10febf284656d9b3b1cda78a5841aeebbde6bcb046c3`**,
+3789 bytes, LF. **Revokes only** — it creates nothing, alters no definition,
+grants nothing, and touches no object outside the ten keys. Seven
+`revoke execute … from service_role`, one `revoke truncate, references, trigger
+… from service_role` on the config table, and on the two sequences
+`revoke update … from service_role` plus `revoke usage, select, update … from
+anon`.
+
+#### Proof on the local settled world: ten before, zero after
+
+**First measurement, which changed the design of the proof.** Run against the
+source-phases world as built, the contract query reported **zero of the ten**.
+The gaps are *held privileges*, and the composition's roles do not carry the
+hosted project's blanket grants, so locally there was nothing to close. The
+world was therefore first brought to **exactly the posture the supervisor
+measured live** — those grants and nothing else — before the ten were expected
+to appear. Stated plainly because it makes the "after" weaker than it looks: I
+granted what I then revoked, so zero-after is partly by construction. What it
+does prove is that **those ten keys correspond precisely to those privileges and
+to nothing else**, and that the revoke wording is valid SQL that removes them.
+
+```
+### BEFORE the migration
+    contract keys evaluated : 156
+    keys NOT satisfied      : 11
+        config:urgent_video_destination            <- local-only, see below
+        relation:production_notification_config
+        routine:production_assignment_epoch(text)
+        routine:production_notification_actor_valid(uuid,text,text)
+        routine:production_notification_client_comment_event_after()
+        routine:production_notification_comment_intent_after()
+        routine:production_notification_intent_guard()
+        routine:production_notification_plain_text(text,integer)
+        routine:production_notification_status_intent_after()
+        sequence:production_notification_delivery_receipts_id_seq
+        sequence:production_notification_reconciliations_id_seq
+
+### AFTER the migration
+    contract keys evaluated : 156
+    keys NOT satisfied      : 1
+        config:urgent_video_destination
+```
+
+**Ten of ten closed, of 156 contract keys evaluated.** The residual
+`config:urgent_video_destination` is a configuration ROW absent from the local
+world and present live — the live run named only the ten, so it is a property of
+the local reproduction, not of this change, and the migration does not touch
+configuration rows.
+
+#### Proof that the affected triggers still fire
+
+```
+  OK  service_role holds EXECUTE on none of the seven          bool_and = true
+  OK  the deliverable_events triggers are attached here        production_notification_status_intent_after, …
+  OK  a deliverable row exists to hang an event on             deliverables = 1
+  OK  CONTROL: no EXECUTE for service_role, trigger still ran  log rows = 1
+  OK  a service-role status write succeeds                     deliverable_events rows = 3
+  OK  the status trigger function was CALLED by that write     calls 0 -> 1
+  OK  service_role still cannot insert an intent directly      permission denied for table …
+  OK  the intent guard still raises by name                    production_notification_intent_insert_forbidden
+
+TRIGGERS_STILL_FIRE_AFTER_THE_REVOKE_OK
+```
+
+Two things about how this was measured, both of which changed after a first
+attempt failed honestly:
+
+1. **Counting intent rows proves nothing here.** The status trigger's predicate
+   needs `source='ui'`, `action='status_change'`, a native attribution, a status
+   pair in `{smm_approval,tweak}`, `auth_kind='staff'`, a `member:<uuid>` actor,
+   a live target, a `prod_authority` row and an active client. This world
+   satisfies almost none of it, so the body correctly returns early and writes
+   nothing — and a test that read "0 intents" as failure, or as success, would
+   be reading noise either way. The observable used instead is
+   `pg_stat_user_functions` with `track_functions='all'` and an explicit
+   `pg_stat_force_next_flush()`: **the function's call count went 0 → 1 for a
+   statement issued as service_role, which holds no EXECUTE on it.**
+2. **A mechanism control, independent of this schema.** A throwaway table,
+   trigger function and trigger in the same cluster, with EXECUTE revoked from
+   `public, anon, authenticated, service_role`, then an insert as service_role:
+   the trigger still ran and wrote its log row. So the claim does not rest on
+   the seeded chain.
+
+Also proven, because it is the posture the 2026-09-09 migration intends:
+service_role still cannot insert an intent directly (`permission denied`), and
+the guard still raises `production_notification_intent_insert_forbidden` by name
+when exercised as the owner with the write flag off.
+
+#### State
+
+Identity-exposure check run. PR opened against `main` and **NOT merged**;
+numbers in the reply. Nothing deployed, no SQL applied anywhere but a disposable
+local cluster, which was destroyed. Step 20 NOT started.
+
 ### 2026-09-17 — STEPS 17 AND 18 CLOSED. Merged at `302de4a4`, Pages published in ~40s, 8 of 8 safe reads answered. And a CORRECTION: the client-comment gateway is NOT new, so the blocker condition I raised never applied
 
 #### Step 17 — the merge

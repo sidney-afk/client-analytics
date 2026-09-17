@@ -144,6 +144,307 @@ the same three loads where the key already lives.
 - Step 24 is the storage session's and is not started.
 - No write, no click, no form, no dispatch. Reads only, and the browser loaded
   pages without interacting with them.
+### 2026-09-17 — STEP 24 NOT RUN: the staff credential the browser uses is not on this machine, and I did not substitute another. STEP 25 DONE: every flag difference against `pre-state-flags-20260917-1` is explained, and no flag value changed
+
+Storage session. **No save was attempted**, and the step 25 work is read-only.
+
+#### Step 24: stopped before the first request, and why
+
+The three saves go through `calendar-upsert`, `sample-review-upsert` and
+`production-comments`. All three authorise on the header `x-syncview-key`
+(`_shared/browser-write-auth.ts` and `_shared/staff-role-auth.ts`), which carries
+a **staff role key**. The instruction says to use the staff credentials already on
+this machine. **They are not here.** Measured, names only:
+
+- The private secret helper accepts exactly two names, `database-password` and
+  `recovery-record`. There is no staff key among them.
+- The process and user environments hold `LINEAR_API_KEY`,
+  `SUPABASE_ACCESS_TOKEN` and `SUPABASE_SERVICE_ROLE_KEY`, and nothing matching
+  syncview, staff or key.
+- No `.env`, no local config and no credential-manager entry holds one.
+- The repository references the header name only, in test code.
+
+**What I did not do, deliberately.** I did not send the saves with
+`SUPABASE_SERVICE_ROLE_KEY`, and I did not read the staff key out of the Edge
+Function secrets through the Management API. Either would be a different
+credential from the one the browser uses, so it would not answer the question the
+step asks, and fetching a secret to hold it is exactly what the custody rules
+forbid. The rule that applies is the recorded one: **report the missing
+credential, do not work around it.**
+
+So steps 24's four checks — HTTP status and body, the stored row read back, the
+receipt or event row, and the absence of a `production_notification_intents` row
+and any Slack message — were not performed. Nothing was written to the test
+client `sidneylaruel`.
+
+#### Step 25: the flags half, re-run against the live database
+
+Reference: `pre-state-flags-20260917-1/pre-state-flags.private.json`, SHA-256
+verified from disk as
+`7346703619777aeba94c426d8ce19243da70f5a43e8bddfbf3e2e51a528ed63a` before
+anything was compared. Evidence: `step25-live-flags-20260917-1/`.
+
+The four queries were **read out of the reference collector's own `sql/` files**
+rather than retyped, and run in one read-only transaction over the direct
+connection, with identity and TLS asserted first.
+
+**A property of the reference that shapes every comparison:** it is
+**restore-derived** — the collector ran against the local restore of the
+pre-install backup, and it passes its output through a recursive key-sorting
+function. The live re-run does neither. Both facts produce presentation
+differences that are not changes.
+
+| Measure | Reference | Live | Verdict |
+|---|---|---|---|
+| `syncview_runtime_flags` rows | 20 | **27** | +7, explained below |
+| The original 20, `value` | — | — | **equal**, once JSON key order is normalised as the reference itself does |
+| The original 20, `updated_by` | — | — | **equal**, 0 differences |
+| The original 20, `updated_at` | 20 shown as differing | — | **the same instants**, 20 of 20; the reference renders `-06:00`, live renders `+00:00` |
+| `flag_flips` | 90 | 90 | **equal**; 12 rows differed only by jsonb key order |
+| `linear_archive_asset_rescue_config` | 0 | 0 | identical |
+| `settings_events` count / max_id | 355 / 374 | 355 / 374 | identical |
+| `settings_events` max_event_at | `…10:10:08.587642-06:00` | `…16:10:08.587642+00:00` | same instant |
+| `settings_events` rows_sha256 | `51458773…` | `888bce08…` | differs **because the hashed row text embeds timestamps rendered in the session's timezone**; the count, the max id and the latest instant all agree |
+
+**No flag value changed. No flag was removed.**
+
+#### The seven extra flag rows, with their cause
+
+| Key | Written at (UTC) | `updated_by` |
+|---|---|---|
+| `native_intake_epochs` | 2026-09-17T16:10:05.683457Z | `native-intake-draft` |
+| `native_card_materialization` | 2026-09-17T16:11:37.255692Z | null |
+| `native_brief_media` | 2026-09-17T16:12:42.878284Z | `native-brief-media-preparation` |
+| `native_assignment_epochs` | 2026-09-17T16:13:49.547911Z | `native-assignment-draft` |
+| `production_native_label_catalog` | 2026-09-17T16:14:22.344897Z | `native-labels-draft` |
+| `production_native_identifier_mint` | 2026-09-17T16:14:54.956097Z | `native-identifier-mint` |
+| `production_native_ordinary_receipts` | 2026-09-17T16:20:00.029315Z | `native-ordinary-receipts-draft` |
+
+All seven were written in a ten-minute band this morning by named migration
+drafts, which is the **step 14 installation**. The reference cannot contain them:
+it is derived from the backup taken **before** that install. Their values are all
+dormant — `provider` mode, `off`, `hold`, epochs null, intake `enabled:false` —
+so the installed world is present and idle, which is what the install was for.
+**This is an explained difference, not an unexplained one.**
+
+**Today's two deliberate changes are not flags, and the flags half confirms it:**
+the ten privilege revokes moved `pg_proc`/`pg_class` ACLs, and the configuration
+row went into `production_notification_config`. Neither table is in this half,
+and no flag value moved.
+
+#### The gates
+
+They are GitHub Actions repository variables, absent by default and read as
+`false`. Measured read-only from the Actions API; the full variable list holds
+**one** `*_ENABLED` entry, `THUMBNAIL_REVISION_SCAN_ENABLED=true`.
+
+| Gate | Variable | State |
+|---|---|---|
+| Notification sender | `NATIVE_NOTIFICATION_SENDER_ENABLED` | **absent → off** |
+| Notification monitor (the wake) | `NATIVE_NOTIFICATION_MONITOR_ENABLED` | **absent → off** |
+| Outbox debt census | `OUTBOX_DEBT_CENSUS_ENABLED` | **absent → off** |
+| Retirement admission census | `SYNCVIEW_RETIREMENT_CENSUS_ENABLED` | **absent → off** |
+| Native intake completion | `NATIVE_INTAKE_COMPLETION_ENABLED` | **absent → off** |
+
+**Two of the five names in the instruction I could not place**, and I am not
+reporting them as off on that basis: there is no workflow, variable or script in
+the repository named for a **follow-up supervisor** gate or a **reconcile apply**
+gate. The reconcile workflows exist and are enabled at the GitHub level, but
+their apply behaviour is not gated by a `*_ENABLED` variable I can find. If those
+two gates live somewhere else — a database row, an Edge Function secret, an n8n
+switch — say where and I will measure them.
+
+#### Not done
+
+- No save, no write, no Slack message, no execution of anything.
+- Step 24 remains open, waiting on the staff credential.
+
+### 2026-09-17 — STEP 22 APPLIED: the urgent editor message no longer carries the Linear line. Published version `fa9320fe…` is active and equals the draft; against the capture exactly one line in one node differs and everything else is byte-identical. Nothing was executed, tested or sent
+
+Storage session, on the owner's instruction. Two writes to n8n — one update, one
+publish — and two read-only reads around them. **No execution, no test run, no
+trigger, no Slack message.**
+
+**On the numbering:** the previous instruction said the capture would wait for
+"the owner's step 21 go-ahead"; the instruction that authorised this work calls
+it step 22. Recorded as given rather than renumbered by me.
+
+#### What was applied
+
+One operation: `setNodeParameter` on `Build Slack Message`, path `/jsCode`, with
+the value produced offline at step 20 by
+`scripts/prepare-urgent-editor-website-only.js` at main `043369b5`. Then
+`publish_workflow`, so the edited version is the published, active one rather
+than a draft.
+
+| | Before | After |
+|---|---|---|
+| `versionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` | **`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`** |
+| `activeVersionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` | **`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`** |
+| `versionId == activeVersionId` | yes | **yes** |
+| `activeVersion.sameAsDraft` | true | **true** |
+| `active` | true | **true** |
+| Nodes | 9 | **9** |
+| `updatedAt` | 2026-09-09T17:40:22.398Z | 2026-09-17T22:31:34.325Z |
+
+The version is named "Urgent tweak message: drop the Linear line" in n8n's
+history, with a description recording what changed, what prepared it and from
+which capture.
+
+#### The read-back, compared against the capture mechanically
+
+`workflow-after-publish.private.json` in the step 20 evidence directory, compared
+by script against `workflow-TJVMyfwl85qrFGeK.private.json`:
+
+```
+differing_paths_ignoring_version_fields : 1   -> /nodes/5/parameters/jsCode
+version_fields_changed                  : /versionId, /activeVersionId, /updatedAt
+nodes_differing                         : ["Build Slack Message"]
+jscode_lines before/after               : 26 / 26
+jscode_changed_lines                    : 1   -> line 24
+other_nodes_identical                   : true
+connections_identical                   : true
+settings_identical                      : true
+description_identical                   : true
+live_jscode_equals_prepared             : true
+```
+
+**The one line, as published:**
+
+```
+before  let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl + '\nLinear: ' + issue;
+after   let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl;
+```
+
+The live node's code hashes to
+`7d655612649d409073975235c16bca6ccc82dfbb201d4933cfb9062dae98a16e`, **equal to
+the offline-prepared copy** — so what is published is what was reviewed at step
+20, not a retyping of it. The mention line, the fallback map, the comment block,
+the SyncView deep link, the channel, the webhook, the validation, the Linear
+assignee resolve, the sheet read and both responses are unchanged.
+
+#### The restore record
+
+`capture-metadata.private.json` now carries both ids: the previous
+`10335825-e86c-45cf-89d5-fe16e29f5a35` and the new
+`fa9320fe-d0f6-4331-8c23-f8f4a25156e9`, with the rollback spelled out —
+`restore_workflow_version` to the previous id, then publish, which returns the
+message to the version that still carried the Linear line.
+
+#### Observed, not changed
+
+The node's comment block still says *"Linear stays underneath as a demoted
+fallback"*. That sentence is now stale: there is no Linear line left to fall back
+to. The instruction was one line and nothing else, so the comment was left
+exactly as it was. It is a wording repair for whenever that node is next touched,
+not a behaviour defect: comments do not run.
+
+The `Linear: Resolve Assignee` node still runs, because the assignee lookup is
+what produces the Slack mention. Only the link in the message text was removed.
+
+#### Not done
+
+- The workflow was not executed, tested or triggered, and no message was sent to
+  anyone.
+- No other node, connection, credential, setting, tag or the workflow
+  description was touched.
+- Nothing was deleted: the previous version remains in n8n's history and the
+  full capture remains in private evidence.
+
+### 2026-09-17 — STEP 20: the legacy urgent editor workflow captured read-only, and main's preparation script produces EXACTLY one changed line in exactly one node. Nothing was edited, executed, published or sent
+
+Storage session. Two read-only n8n reads, one offline comparison, and no write of
+any kind to n8n. The n8n tool is available on this machine and was used in read
+mode only.
+
+#### The capture
+
+| Item | Value |
+|---|---|
+| Workflow id | `TJVMyfwl85qrFGeK` |
+| Name | `SyncView — Urgent Tweak → Slack` |
+| Active | true, not archived |
+| `versionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` |
+| `activeVersionId` | `10335825-e86c-45cf-89d5-fe16e29f5a35` — **the same**, and `activeVersion.sameAsDraft` is true |
+| Nodes | 9, trigger count 1 |
+| Created / updated | 2026-06-04T19:22:57.786Z / 2026-09-09T17:40:22.398Z |
+| Evidence | `step20-n8n-20260917-1/` |
+| Captured payload | `workflow-TJVMyfwl85qrFGeK.private.json`, SHA-256 `63b3c458146c4fceb356128b6fe4255fcc887fad8f89e114686a9fb9fbc4f502`, 8,855 bytes |
+
+Its description, recorded in full privately, says in public-safe terms: a POST
+webhook that validates a Linear issue URL, resolves the sub-issue assignee
+through Linear, maps the assignee's email to a Slack id from a sheet with a
+fallback map, and posts `URGENT TWEAKS NEEDED` to the video-editing channel as
+the SyncView bot.
+
+**Kept private, not in this journal:** the Slack channel id, the editor emails
+and Slack user ids in the fallback map, the n8n credential ids, the Google Sheet
+id and the webhook ids. They are in the evidence directory.
+
+The nine nodes, in order: `Receive POST`, `Parse & Validate`, `Valid?`,
+`Linear: Resolve Assignee`, `Read Video Editors`, `Build Slack Message`,
+`Post to #video-editing`, `Respond OK`, `Respond Error`.
+
+#### Enough to restore this exact version
+
+`capture-metadata.private.json` records the published version id, the two-entry
+history at capture time, and the route: `restore_workflow_version` to
+`10335825-e86c-45cf-89d5-fe16e29f5a35` and publish, or, failing that, an update
+from the captured payload followed by a re-read compared against its SHA-256.
+Because the draft and the published version were identical at capture, restoring
+that version restores what was live.
+
+The previous version is `d639de4a-6387-492c-a050-b1aca4f87943` (2026-09-02, "Urgent
+tweak link now points at SyncView"), which is the change that introduced the
+SyncView deep link; the current one added a fifth editor to the fallback map.
+
+#### The preparation, run offline against the capture
+
+`scripts/prepare-urgent-editor-website-only.js` at **main `043369b5`**, SHA-256
+`cab41bb23209e027354296e5ad1c93a724ec8129c244f420ade4469b21c4d642`, read out of
+git rather than from a working tree. It is preparation only: it deep-copies,
+changes one string and returns; it makes no n8n call.
+
+**Result: one differing path in the whole workflow.**
+
+```
+differing_paths : 1        -> /nodes/5/parameters/jsCode
+nodes_differing : 1        -> "Build Slack Message"
+changed_lines   : 1 of 26  -> line 24
+other_nodes_identical : true
+top_level_identical   : true
+input_mutated_by_prepare : false
+```
+
+**The single line, before and after:**
+
+```
+before  let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl + '\nLinear: ' + issue;
+after   let text = 'URGENT TWEAKS NEEDED\nClient: ' + client + '\nBy when: ASAP\nSyncView: ' + syncUrl;
+```
+
+The message keeps its heading, the client, the deadline and the SyncView deep
+link, and loses only the trailing `Linear:` line. The `if (mention)` line below
+it, the fallback map, the comment block, the channel, the webhook, the
+validation, the Linear assignee resolve, the sheet read and both responses are
+byte-identical. Node count 9 before and after.
+
+The prepared payload is `a77d474c4ee1ec504aaf848a0ab43b0d3e794bac623aca909a4b43fbbad1ed20`
+and exists only in the private evidence directory.
+
+#### A check of mine that was wrong, and how it was settled
+
+A first verification script reported the target line as absent. The line is
+present: the fault was the escaping in my own check, not the capture. Settled by
+printing the stored line raw and as JSON, and then by the preparation script
+itself, which refuses with `EXACT_EDITOR_TEMPLATE_REQUIRED` unless it matches
+exactly one node — it matched one and made the change.
+
+#### Not done
+
+- Nothing was edited, executed, published, activated or sent. No Slack message.
+- The prepared workflow was **not** written back to n8n.
+- Waiting on the owner's step 21 go-ahead in this session.
 
 ### 2026-09-17 — STEP 19 CLOSED on the third dispatch: 13 PASS, 0 FAIL, 0 ERROR, and the redeploy provably changed nothing. Steps 16 to 19 marked CLOSED in the execution map, progress now 68%
 

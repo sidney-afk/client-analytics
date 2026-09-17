@@ -1,4 +1,4 @@
-﻿// Versioned preparation closure; default deployed handler and V1 remain unchanged.
+// Versioned preparation closure; default deployed handler and V1 remain unchanged.
 export {sendAdmittedProviderMutation,completeProviderSend} from './provider-send-preparation.mjs';
 export async function admitProviderSend(db,row,mutation,replay,receiptContext){
  const {data:gate,error}=await db.from('card_write_admission_v1').select('epoch,mode').eq('singleton',true).single();

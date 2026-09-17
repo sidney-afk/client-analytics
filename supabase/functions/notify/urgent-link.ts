@@ -1,4 +1,4 @@
-﻿// The claimed database intent owns the destination and card identity. No caller URL.
+// The claimed database intent owns the destination and card identity. No caller URL.
 export function urgentWebsiteText(claim: any, intent: any): string {
   if (!intent || intent.id !== claim.intent_id || intent.kind !== "urgent"
       || intent.state !== "sending" || intent.attempt_count !== claim.attempt

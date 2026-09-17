@@ -30,6 +30,93 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEPS 14 AND 15 CLOSED: the journal's and the gate's plan hash both read `18697ad2…`, the derived maintenance plan. The 33 minutes are UNEXPLAINED by the journal. 15 of 28; stop at step 16, the owner's gate
+
+Storage session. The owner authorised **one read-only read** of
+`journal_v1.plan_sha256` and `gate_v1.derived_plan_sha256`. The rule: close
+steps 14 and 15 only if both equal `18697ad2…`.
+
+#### The read
+
+- **Reader:** `D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-plan-hashes.private.cjs`,
+  SHA-256 `b6aecfe38bae1cf452519d4e06f7948e0210940f58776470686ff53600cd9d48`
+  (4,081 bytes), unchanged before and after.
+- **Connection:** the same pattern as the step 12 and 14 wrapper: password
+  through the secret helper in memory, TLS verified against the pinned CA,
+  identity compared with `day-catalog-20260917-3`'s identity (equal), and
+  `pg_stat_ssl` true.
+- **When:** from a Windows PowerShell 5.1 host, 16:51:57Z → 16:51:59Z, exit 0.
+  One `begin read only` transaction, rolled back.
+
+**The query, verbatim:**
+
+```sql
+select (select plan_sha256 from linear_exit_install.journal_v1 where singleton) as journal_plan_sha256,
+       (select count(*)::int from linear_exit_install.journal_v1) as journal_rows,
+       (select derived_plan_sha256 from linear_exit_maintenance.gate_v1 where singleton) as gate_derived_plan_sha256,
+       (select count(*)::int from linear_exit_maintenance.gate_v1) as gate_rows
+```
+
+The two row counts were added so a `where singleton` filter could not hide a
+second row. They are the only thing read beyond the two authorised fields.
+
+**The values,** from
+`install-plan-hashes-20260917-1/plan-hashes.private.json`, SHA-256
+`30dc1b3b96213fa8d4539c51afe09ffb30c3adeac239a7204501c8279b7ff3a7`:
+
+| Field | Value |
+|---|---|
+| **`linear_exit_install.journal_v1.plan_sha256`** | **`18697ad2dc54b685fac7ba9a16e3d0b19abd9faa0b6a4b7c1ce46f23d48061b6`** |
+| `journal_v1` rows | 1 |
+| **`linear_exit_maintenance.gate_v1.derived_plan_sha256`** | **`18697ad2dc54b685fac7ba9a16e3d0b19abd9faa0b6a4b7c1ce46f23d48061b6`** |
+| `gate_v1` rows | 1 |
+| Expected, read from the 2026-09-17 replay's `pipeline-report.private.json` (`admitted.derived_plan_sha256`) | `18697ad2dc54b685fac7ba9a16e3d0b19abd9faa0b6a4b7c1ce46f23d48061b6` |
+| Journal equals expected / gate equals expected | **true / true** |
+
+**This closes the one `false` field in the step 15 result.** The journal carries
+the derived maintenance plan, as `linear-exit-install-maintenance.js` requires.
+It is now confirmed by reading the value, not only by reading code.
+
+#### STEP 14 CLOSED
+
+"Done when: all 55 chunks journaled."
+
+- **Evidence:** the verifier found 55 of 55 completed chunks equal to the compiled
+  plan, in order, field by field. The operator had returned
+  `INSTALLED_SCHEMA_TARGET_MATCH` with plan `508e6369…` and target `24c833c0…`,
+  and its finalizer removed 91 guards. The result file is `6731ee7a…`; the
+  wrapper, `ddec6988…`, was unchanged before and after.
+- **Time: about 33 minutes, 16:04:41Z to 16:37:40Z. UNEXPLAINED.** The install
+  journal has **no timestamp column** and its chunk entries carry **no time**, so
+  it cannot show whether a few chunks took most of the time or it was spread
+  evenly. No other source was consulted. This is recorded as unexplained, not as
+  explained.
+
+#### STEP 15 CLOSED
+
+"Done when: exact catalog, routine and ACL comparison passes; retirement
+dependency check unchanged; finalizer removed only registered guards."
+
+- **Verifier:** `verify-install-state.private.cjs` (`b1a2cdbd…`, unchanged),
+  read-only. **Result hash
+  `1227392aa28f3eee13a4c26853e48d69d07dac78afa6a3f5f231c4bfe79a5544`.**
+- **Exact catalog, routine and ACL comparison:** `targetApi.compare` over the
+  live public **and** private catalogs against pinned target `24c833c0…` returned
+  `MATCHED_SOURCE_DERIVED_TARGET`. The public catalog is `331aabb2…` with 91
+  tables, equal to the target's.
+- **Retirement dependency check:** `production_retirement_contract_assert_v1()`
+  passed.
+- **Finalizer removed the guards:** 0 `linear_exit_maintenance_dml_v1` guards
+  remain, and the operator reported 91 removed, equal to the derived post-install
+  count.
+- **Plus:** identity equal, TLS true, both install namespaces present, 55 of 55
+  chunks exact, and the journal's and gate's plan hashes are the derived plan
+  (above).
+
+**Count: 15 of 28**, Phase 3 of 7 complete, 54%. **Next: step 16, the owner's
+GATE:** approve the merge, accepting that it publishes the live browser and may
+auto-deploy staff functions. **Not started. This session stops here.**
+
 ### 2026-09-17 — STEP 15 verifier RAN: all four owner-named checks PASS. One extra field the session added reads `false` because its expectation was wrong; steps 14 and 15 are NOT closed pending the owner. The journal records no per-chunk timestamps
 
 Storage session, on the owner's instruction. **Read-only:** one `begin read only`

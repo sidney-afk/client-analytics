@@ -222,6 +222,48 @@ Full record is in the journal entry "STEP 12 CLOSED".
 owner's GATE** (approve APPLY for the exact plan, with the window evidence hash).
 **Not started.**
 
+### Step 13 GATE approved — 2026-09-17 (owner)
+
+The owner approved APPLY for plan `508e6369…` on the supervisor's verification,
+at a moment the owner confirmed nobody was mid-task. Window evidence hash
+`20fcabcb2317831f2fc514899e38aa996e9640b31285299f778da8ed4b6971a5`, the receipt
+of the catalog read `day-catalog-20260917-3`. Recorded in the journal before step
+14 ran.
+
+### Steps 14 and 15 CLOSED — 2026-09-17T16:52Z (10:52 on the owner's machine)
+
+**Step 14:**
+
+- **What ran:** the wrapper `run-install-operator.private.cjs` (`ddec6988…`,
+  unchanged before and after), with the apply token derived by the operator's own
+  `consent()`. The token was never written.
+- **Operator result:** **`INSTALLED_SCHEMA_TARGET_MATCH`**, finalizer
+  `PREPARED_MAINTENANCE_FINALIZED`, 91 guards removed, activation not performed.
+- **Timing:** 16:04:41Z to 16:37:40Z, about 33 minutes. **Unexplained:** the
+  install journal records no timestamps.
+
+**Step 15:** the read-only verifier `verify-install-state.private.cjs`
+(`b1a2cdbd…`) found:
+
+- **55 of 55** journaled chunks exactly equal to the plan's, in order;
+- **0** maintenance guards remaining;
+- live public catalog `331aabb2…` with **91** tables, and public and private
+  catalogs **matched** target `24c833c0…`;
+- the retirement contract assertion **passed**.
+
+**Verifier result hash
+`1227392aa28f3eee13a4c26853e48d69d07dac78afa6a3f5f231c4bfe79a5544`.**
+
+One follow-up read, authorised by the owner, confirmed that the journal's and the
+maintenance gate's plan hash are both the derived maintenance plan
+`18697ad2…`, as the installer requires.
+
+Full record is in the journal entry "STEPS 14 AND 15 CLOSED".
+
+**Progress:** Phase 3 of 7 complete · step 15 of 28 · 54% complete · next:
+**16, the owner's GATE** (approve the merge, accepting that it publishes the
+live browser and may auto-deploy staff functions). **Not started.**
+
 ## Phase 4 — Release the website and functions
 
 | # | Step | Who | Done when |

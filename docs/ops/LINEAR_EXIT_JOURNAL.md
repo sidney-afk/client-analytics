@@ -30,6 +30,93 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — ANSWER: step 15's verification is NOT one-directional. Executed, not read. A target of N refuses an installed world of N+1, and refuses a same-count rename
+
+Asked before anything else, because if the answer had been yes it would have
+outranked every other item in the queue. It is no.
+
+#### What step 15 actually compares
+
+`scripts/linear-exit-observed-full-target.js` is the whole of it, and it is
+twenty-five lines. `compare()` re-derives the target from the plan and the
+installed catalog, then:
+
+```js
+const expected=JSON.parse(targetBytes),actual=create({planBytes,planSha256,catalog,privateCatalog});
+assert.deepEqual(actual,expected,'full target mismatch');
+```
+
+`assert.deepEqual` is **symmetric**: it walks the union, not the expectation's
+key set. That is the structural difference from the two one-directional loops.
+The reconstruction compare filters `Object.keys(live)` and `applyAndCompare`
+iterates `snapshot.contract.functions`; both ask only "is everything I expected
+present and equal", which is silent when reality has grown. `deepEqual` also
+asks the other half.
+
+There is a second, independent guard in front of it. `create()` asserts:
+
+```js
+const expectedTables=observed.postInstallPublicTables(plan.initial_catalog_sha256).expected;
+assert.equal(catalog.tables.length,expectedTables,'post-install public table count');
+```
+
+So an extra object is caught twice: once on the count, and, if the count were
+somehow held constant, once on the deep comparison.
+
+#### Executed, per D28 — not inferred from reading
+
+`scratchpad/step15.js` calls the **real** `targetApi.create`/`compare` the
+operator calls at step 15, with a real `settled68` plan
+(stage `OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1`, N = 91
+post-install public objects). The only stub is the private starting-catalog
+gate, which is unavailable here; the comparison under test is the real one.
+
+```
+target built for N = 91 public objects; stage OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1
+
+THE QUESTION: N-object target vs an installed world of N+1
+  OK  installed world has N+1 objects            REFUSED post-install public table count
+
+controls
+  OK  installed world is exactly N (control)     PASSED MATCHED_SOURCE_DERIVED_TARGET
+  OK  installed world has N-1 objects            REFUSED post-install public table count
+  OK  N objects, one RENAMED (same count)        REFUSED full target mismatch
+  OK  N objects plus an unexpected SECTION       REFUSED full target mismatch
+
+STEP15_COMPARISON_IS_SYMMETRIC_OK
+```
+
+The last two controls are the ones that matter, because they hold the count
+fixed and vary only the content. A rename at the same cardinality refuses on
+`full target mismatch`, and a whole unexpected *section* appearing in the
+installed catalog refuses on the same assertion. Neither could refuse if the
+comparison walked only the expected keys.
+
+#### Consequences
+
+1. **Nothing must be fixed before step 13 on this account.** The feared finding
+   is not there.
+2. **The deferral stands.** The reconstruction compare's one-directional loop
+   lives in `scripts/linear-exit-observed-schema.js`, which is in the operator's
+   26-file pinned set, so fixing it now would invalidate the 2026-09-17 proof
+   mid-sequence. It is recorded with its exact fix and deferred until after
+   step 15, exactly as instructed.
+3. **The defect class is confirmed as two instances, not three.** The three
+   comparisons in this chain are: the reconstruction compare (one-directional),
+   `applyAndCompare` (one-directional), and step 15's target compare
+   (symmetric). Two to fix, one already correct. The one that is correct is the
+   one written with `deepEqual` rather than a hand-rolled loop, which is the
+   generalisation worth keeping: the hand-rolled loops are where the direction
+   got lost.
+
+#### What this proof does NOT cover
+
+It exercises the *comparison*, not the *capture*. If `catalog` were assembled by
+a query that itself only looks for expected objects, an extra object would never
+reach `compare()` to be refused. That query is `scripts/linear-exit-observed-public-catalog.js`,
+and it is a separate question from the one asked. Recorded here so it is not
+mistaken for having been answered.
+
 ### 2026-09-17 — TRACE: the 67-table reconstruction's "exact match" is one-directional, and so is the routines comparison. Same defect, two places, and it explains both observations
 
 Task 3 answered, and it turned out to answer half of task 2 as well.

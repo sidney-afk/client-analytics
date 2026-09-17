@@ -30,6 +30,126 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — ANSWER, the other half: the CAPTURE enumerates the schema. Three objects the plan never heard of were created on a real cluster and all three came back in the catalog
+
+The caveat I attached to the step 15 answer, put to the same test. A symmetric
+comparison is worth nothing if the thing being compared never contains the
+surprise. It does contain it.
+
+#### What was executed, and against which statement
+
+Not the `.sql` file read by hand. The statement under test is
+**`plan.catalog_sql`**, taken from a real `settled68` plan built through
+`profiles.build` — the exact single statement `linear-exit-install-operator.js`
+runs at step 15 (`const [pub]=await q(plan.catalog_sql)`). Confirmed at
+`linear-exit-observed-install-plan.js:40`: `catalog_sql` is the one `select`
+statement extracted from `scripts/linear-exit-source-baseline-catalog.sql`, with
+its terminator replaced by ` as catalog;`. 8498 bytes, against the file's 8558.
+
+A control runs the whole file through the same cluster and confirms both routes
+produce a byte-identical catalog (`b858d0622260…`).
+
+Cluster: a disposable PostgreSQL 17.11 (PGDG) at `/var/lib/postgresql/capture`,
+ICU `en-US`, loopback `127.0.0.1:55444`. World built by the shared
+`applySettledWorld` construction on a rebuilt starting world — the same path
+`derive()` uses.
+
+#### The result
+
+```
+CONTROL: the plan statement and the .sql file capture the same world
+  OK  plan.catalog_sql result === whole-file result   b858d0622260…
+  OK  the capture validates as a real observed catalog  15 sections, correct shape
+
+CONTROL: none of the three probe objects exists yet
+  OK  table zz_probe_extra_table absent
+  OK  function zz_probe_extra_function absent
+  OK  sequence zz_probe_extra_sequence absent
+
+THE QUESTION: does the capture contain objects the plan never expected?
+  OK  extra TABLE appears in catalog.tables        tables    70 -> 71
+  OK  extra FUNCTION appears in catalog.functions  functions 182 -> 183
+  OK  extra SEQUENCE appears in catalog.sequences  sequences  16 -> 17
+
+CONTROLS on the deltas
+  OK  tables grew by exactly 1
+  OK  functions grew by exactly 1
+  OK  sequences grew by exactly 1
+  OK  nothing present before went missing after   (tables, functions, sequences, views, types)
+
+END TO END: capture -> observation -> the real comparator
+  OK  the unchanged world MATCHES its own observation  MATCHED_OBSERVED_PUBLIC_CATALOG
+  OK  the world with three extras is REFUSED           REFUSE CATALOG_DRIFT
+  OK  the refusal NAMES tables, functions and sequences
+      ["dependencies","functions","indexes","sequences","tables"]
+
+CAPTURE_ENUMERATES_THE_SCHEMA_OK
+```
+
+The three objects created were `public.zz_probe_extra_table`,
+`public.zz_probe_extra_function(int)` and `public.zz_probe_extra_sequence` —
+names no artifact, contract or plan in this repository has ever contained.
+
+#### Denominators, every section, before the probes
+
+```
+default_acls                    0      publications                    1
+dependencies                 1725      rules                           4
+functions                     182      sequences                      16
+indexes                       181      tables                         70
+internal_constraint_triggers  176      triggers                       69
+policies                       20      types                           0
+                                       views                           4
+```
+
+Five sections moved when the three objects were added, and the two beyond the
+three asked about are the unavoidable dependents: `indexes` +1 (the table's
+primary key) and `dependencies` +7. Ten sections did not move.
+
+#### The static half, for completeness
+
+Every section of the query filters by *namespace*, never by a name list:
+`relnamespace='public'::regnamespace`, `pronamespace='public'::regnamespace`,
+`typnamespace`, `defaclnamespace`, `o.schema='public'`. Extracting all 110
+distinct string literals in the query confirms it: they are JSON keys, catalog
+codes (`r`,`p` for tables; `v`,`m` for views; `f`,`p` for functions; `d`,`e`
+for types), the roles `anon`/`authenticated`/`service_role`, `public`,
+`pg_trigger`, and `supabase_realtime`. **`supabase_realtime` is the only
+application object name in the whole query**, and it sits in an `or` that
+*widens* which publications are captured. There is no expected-object list
+anywhere in it, and nothing that could exclude an unexpected object.
+
+So the executed answer and the structural reading agree: **the capture
+enumerates. This is not a fix before step 13.**
+
+#### THE LIMIT OF THIS PROOF, stated rather than glossed
+
+The world it ran against is a **local construction**, not a reproduction of the
+live settled catalog, and its counts say so plainly. Measured here: 70 tables,
+182 functions, 16 sequences. The `settled68` contract artifact records 68, 122
+and 14. Several other sections differ by more (`triggers` 69 vs 30,
+`internal_constraint_triggers` 176 vs 124, `dependencies` 1725 vs 1385).
+
+I am not explaining that gap here and it is not the gap this proof was asked
+about — the question was whether the *query* filters, and a query that filtered
+would have hidden the probes in any world. But it should not be read as "the
+settled world was reproduced", because it was not. The contract artifact stores
+section **hashes and counts only, not object names**, so the two worlds cannot
+be diffed by name from the repository; only the counts can be compared, and they
+are what is written above. This sits next to the reconstruction-versus-live
+question already open and is recorded for it, not answered.
+
+#### Correction to my own note of an hour ago
+
+I said, on seeing `scratchpad/exec-proof.js` fail with `initdb failed:
+directory … exists but is not empty`, that the harness did not run. That was
+wrong and I did not push it. The failure is environmental, not a defect: the
+`Cluster` helper derives its paths from the process id, so two `Cluster`
+objects in one process collide *unless* `PGHOST` points at a caller-owned
+loopback server, in which case `external` is true and `initdb` is never called.
+With `PGHOST=127.0.0.1` set, both that harness and this one run. The missing
+piece was the environment, which `derive --selfcheck` says outright and which I
+should have set before concluding anything.
 ### 2026-09-17 — STEP 12 CLOSED: install operator read-only observation of the live database. `READ_ONLY_OBSERVATION`, no install state, no drift from the step 11 snapshot. 12 of 28. Step 13 is the owner's gate
 
 Storage session, on the owner's authorisation. From a Windows PowerShell 5.1

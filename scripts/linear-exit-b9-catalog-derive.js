@@ -97,6 +97,12 @@ function reviewedSections() {
  * of that, not beside it.
  */
 function applySettledWorld(c, { onStage = () => {}, stopBeforeHiring = false, hiringOnly = false } = {}) {
+  /* This file declares `j` as a LOCAL inside each of its three long functions.
+   * When this one was extracted on 2026-09-17 it inherited a reference to `j`
+   * that no longer resolved, and threw ReferenceError on every call, on every
+   * cluster -- taking derive() down with it, because derive() now calls this.
+   * It required its own module and does not borrow from a caller's scope. */
+  const j = require('./linear-exit-install-journal');
   if (!hiringOnly) {
     /* Same storage-column supplement the operator proof uses. */
     c.exec('alter table storage.buckets alter column name set not null; alter table storage.buckets add column public boolean, add column file_size_limit bigint, add column allowed_mime_types text[];');

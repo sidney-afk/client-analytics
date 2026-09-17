@@ -30,6 +30,71 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — My lane fix crashed on every call. Fixed, and this time the function was EXECUTED on a real cluster before pushing
+
+Reported by the storage session at `12838d22`, from a calibrate run that never
+got started.
+
+#### The bug, and it was entirely mine
+
+`scripts/linear-exit-b9-catalog-derive.js` declares `j` as a **local inside each
+of its three long functions**, at lines 134, 222 and 319. `applySettledWorld` was
+extracted to sit above all three and kept a reference to `j` that no longer
+resolved. `ReferenceError: j is not defined`, on **every call, on every
+cluster** — and because `derive()` had just been pointed at the same shared
+function, **the B9 derivation tool was broken too**. One extraction took out both
+callers.
+
+**Fixed** by having the function require its own module rather than borrow from a
+caller's scope, with the reason written at the site. Every other identifier it
+dereferences — `fs`, `path`, `assert`, `gitShow`, the pinned constants — was
+checked and is module-scope.
+
+#### Why my proof could not have caught it, which is the part worth keeping
+
+The D19 mutation proof checked that `applySettledWorld` was exported, that the
+lane called it, that the lane's private copies were gone, and that opt-out came
+before hiring. **Every one of those is a property of the source text.** Not one
+required the function to run. A reference error inside the body was invisible to
+all of them by construction.
+
+That is three in a row — D26 the wrong check fired, D27 the gate was stubbed,
+D28 the changed function was never called. Recorded as **D28** above: the code
+you changed executes, on a real cluster, before you push.
+
+#### What was executed this time, not inspected
+
+On a disposable PostgreSQL 17, against a starting world rebuilt from the
+repository's own composition (recovery-ordered install, the three schema
+supplements, and the hiring-applications migration the hiring change is authored
+on top of):
+
+| Run | Result |
+|---|---|
+| `applySettledWorld(c)`, the whole function | **COMPLETED.** stages `storage_supplement_applied`, `optout_prerequisite_applied`, `hiring_migration_applied`. Public tables **69 → 70**, opt-out column **false → true**, `hiring_practical_test_jobs` **absent → present** |
+| **`derive()`'s own two-call shape** — `stopBeforeHiring:true`, catalog read, then `hiringOnly:true` — on a second freshly rebuilt world | **COMPLETED.** Same three stages in the same order, 69 after call 1 and 70 after call 2 |
+| `scripts/linear-exit-b9-catalog-derive.js --selfcheck`, the tool's own entry point | **exit 0**, `"problems": []`, PostgreSQL 17.11 |
+
+The two-call shape is run separately on purpose: `derive()` does not call the
+function once, and "one call worked" would have been another adjacent proof.
+
+**Two harness defects on the way, both mine, both in the harness and not the
+code:** the first starting world stubbed a `storage.buckets` the composition
+already creates, and the second lacked the hiring-applications tables. Neither
+was a defect in `applySettledWorld`. They are recorded because they are the cost
+of building a starting world by hand, and because a harness failure must be read
+before it is blamed on the code.
+
+**Results, with denominators.** Full unit lane **14 of 548 failed**, all 14 the
+known sandbox failures, none new. The three execution runs above all completed.
+`--selfcheck` exit 0.
+
+**Still not proven here, and it is the storage session's:** that the lane builds
+`ddfa4c4f…` end to end. That needs the private observed inputs. What is proven is
+that the function runs, does what its stages say, and that `derive()`'s call
+shape works. **The written expectation for the re-run is: three stages in the
+order above, and a settled catalog of `ddfa4c4f…`.**
+
 ### 2026-09-17 — Routines contract regenerated on the settled world, by server read, and the comparison proven to refuse a wrong body
 
 The suite that D22's first pass flagged as new now **passes, 115 of 115 full
@@ -7605,6 +7670,34 @@ result when the gate was off.
 past a missing input quietly relocates itself into the middle of the proof. The
 stub for the private catalog was reasonable; using the same run to certify the
 lane was not.
+
+### D28 — The code you changed executes, on a real cluster, before you push (2026-09-17, owner)
+
+**Binding. A proof of something adjacent proves nothing about the thing.**
+
+Given after `applySettledWorld` shipped with `ReferenceError: j is not defined`
+and threw on **every call on every cluster**, taking the B9 derivation tool down
+with it, because `derive()` had just been pointed at the same function. It was
+pushed with a mutation proof that passed.
+
+**Three proofs in a row were each structurally unable to catch the bug shipped
+beside them**, and the shape is the same every time:
+
+| | What was proven | What shipped broken |
+|---|---|---|
+| D26 | the drift guard fired | the check under test never ran |
+| D27 | five refusal paths | the gate that mattered was stubbed |
+| **D28** | the construction was single-sourced, by **reading the file** | **the function was never called** |
+
+The D28 proof checked exports, call sites, ordering and the absence of the old
+copies. Every one of those is a property of the *text*. Not one of them required
+the function to run, so a reference error inside it was invisible to all of them.
+
+So: **before pushing, execute the changed code itself.** On a real cluster if it
+touches a database. Not the comparison beside it, not its call site, not a
+property of its source — the function, running. If that is impossible in this
+sandbox, say so in the record and name who can run it, rather than substituting a
+proof of something nearby and calling the work proven.
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

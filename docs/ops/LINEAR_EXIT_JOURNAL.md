@@ -30,6 +30,84 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — Pre-install sequence, parts 1 to 3: no worker pause required by the runbook; fresh live backup captured and restored at 68 tables; flags half re-taken, unchanged. Awaiting the owner's upload; part 4 not yet run
+
+Storage session, on the owner's instruction while step 13 is taken to the owner.
+From a Windows PowerShell 5.1 host at checkout `66a42dca`. **The apply token
+has not been derived and step 14 has not run.**
+
+#### Part 1: must the scheduled workers be paused for the install window? NO, by the runbook. Read, not run
+
+- **Runbook §3** (`LINEAR_EXIT_INSTALLATION_DAY_20260914.md`, "Install the pinned
+  SQL, still dormant") contains **no pause or quiet-window requirement**. It
+  says the window hash "does not prove external fencing or custody by itself",
+  and that installation "does not call retirement activation/native reopen or
+  change runtime authority".
+- **The stop-the-workers procedure belongs to a later window.**
+  `LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md` (stop dispatch, drain,
+  reconcile, then the guarded switch) is ordered before the **retirement switch**,
+  a separate activation decision in Phase 7, not the dormant install.
+- **Nothing assumes a pause.** The checkpoint records "no service or automation
+  pause is assumed". The recovery procedure says "no n8n pause or edit is
+  implied" and "never delete or pause an unrelated integration by inference".
+- **Stated for the owner's choice of window, not as a runbook requirement.**
+  During step 14 the installer holds maintenance DML guards on every public table
+  until the finalizer removes them. The pipeline proof recorded
+  `maintenance_refused: true`. So writes from the workers that run every 10 and
+  30 minutes, and staff saves, are **refused** for the duration of the install,
+  and the runbook says no duration can be promised.
+
+#### Part 2: fresh backup of the live database, through the proven path
+
+Wrappers were hashed in the same process, all as proven: catalog read
+`6b6e2fe7…`, refresh `d8078728…`, restore `5fb32ade…`; backup module
+`328eb177…`.
+
+| Stage | Result, read from disk |
+|---|---|
+| Catalog read `day-catalog-20260917-2`, observed 2026-09-17T15:50:07.464Z | receipt SHA-256 `6d6e5435cad9a16d5ec2266422fca5d0efb449ae2cfa812564e04497060ac471`: `ddfa4c4f…`, `settled68`, reviewed baseline matched, TLS verified. Catalog file byte-identical (`9424cb81…`) to every read since 2026-09-15 |
+| **Capture** `day-database-20260917-1`, started 0.004 s after the read | **`DATABASE_CAPTURE_PASS`**, exit 0, 15:50:07Z → 15:53:15Z; **no `SOURCE_CHANGED`, no retry** |
+| Capture receipt | SHA-256 `3bf165a5b5e213e872d49a2dbe48c56b916c5854deb18925b177a64f94846bba`: **`public_tables: 68`**, `manifest_sha256` `718987e09718f93c1ba55f8e36fda1cea2da25b13f13582973a0fa4ba37ec729`, `archive_sha256` `88e3d5f25804fbb0d5b3f97d178970a8eb8649b47ab40f36f9598c52694db9c6` |
+| Package | 45 files: 43 chunks, `encrypted.json` `478f907b0fa87e2b402209619ce538e2e1a96762a8f14a7006aa79fb3d400718`, `encrypted.mac` `33545b3cf577ab191b6a48398252a693d02e0f72f58f23891317ff1ff1469cc5`; 44,216,798 bytes |
+| **Local restore** `day-database-restore-20260917-1` | **`ISOLATED_DATABASE_RESTORE_PASS`**, exit 0; receipt SHA-256 `837ffcb27c0a03660b34b39d42dc1243b95959dbe78696847571aeb9722775ca`: **`public_tables: 68`** (read from the sealed manifest), `exact_catalog_and_rows_and_sequences: true` |
+| **Independent 68-table check** on the scratch cluster (the receipt's database, `127.0.0.1`, read-only) | catalog **`ddfa4c4f…`**, **68** ordinary tables, 14 sequences; cluster stopped (status 3) |
+| **Archive**, by the recorded method (`Compress-Archive -Path '…\day-database-20260917-1\encrypted\*' -DestinationPath '…\day-database-20260917-1.encrypted.zip'`) | **UPLOAD HASH `4139771276fb35a39948b369036aee9b5cae0c919d5b10cb7d093bfd90803d86`**, 44,231,099 bytes, 45 flat members named as in the package |
+
+**The owner's upload has not happened yet.**
+
+#### Part 3: the flags half of the pre-state snapshot, re-taken from that restore as an additional dated section
+
+**Step 25 compares the flags half against THIS section**, per the owner's ruling.
+
+| Item | Value |
+|---|---|
+| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-flags-20260917-1/pre-state-flags.private.json` |
+| **SHA-256** | **`7346703619777aeba94c426d8ce19243da70f5a43e8bddfbf3e2e51a528ed63a`** |
+| Bytes | 125,217; sorted keys (re-serialisation reproduces it byte for byte) |
+| SHA-256 of its `compare` section | `48b3f5eab40a9bbdb79791a586d86ac295bb4d25ada4b4d3ea1517d292bf559c` |
+| Supplements | `pre-state-snapshot-20260916-2/pre-state.private.json`, `ad3bdf6a…` (unchanged) |
+| Source | **restore-derived**: capture `captured_at` 2026-09-17T15:53:15.489Z, catalog `ddfa4c4f…`; the restored catalog was recomputed and required equal before any row was read |
+| Contents | `syncview_runtime_flags` (20 rows), `flag_flips` (90), `linear_archive_asset_rescue_config` (0; folder ID as SHA-256), `settings_events` digest (count 355, maximum id and time, all-rows SHA-256). Same queries and shapes as step 11 |
+| Collector kept beside it | `collector.private.cjs`, SHA-256 `d89b2b6344bc72dbc6d6683d89faa308455835e183225ad4c80e0cb518473677` |
+| Secrets | checked in memory: no project ref, scratch password or service key in the file |
+
+**Changes since the step 11 snapshot: none.** All 20 runtime flags equal. Flag
+flips 90 → 90, equal. Rescue config equal. Settings events 355 → 355, with an
+equal row digest.
+
+#### Checked in passing, because three commits landed after step 12
+
+`e421ffcb`, `98d27295` and `66a42dca` changed only
+`qa/linear-exit-rehearsal/observed-baseline/routines-contract.json` and
+`scripts/linear-exit-observed-routines.js`, **neither of which is among the 26
+source pins**. All 26 pins of the proof the operator reads
+(`…_20260917.json`) match the current tree. An offline `api.load()` for
+`settled68` at `66a42dca` still returns PREPARED: plan `508e6369…`, target
+`24c833c0…`, post-install count 91.
+
+**Remaining:** the owner uploads the archive. Then part 4, a fresh catalog read
+whose receipt hash is reported as the window evidence hash. Then stop.
+
 ### 2026-09-17 — TASK TWO: routines contract regenerated to 122 by server read, the one-directional loop in `applyAndCompare` closed over the union, and the old loop shown to pass on the exact data the new one refuses
 
 Four things in one change, each executed. Contract `4ed53749…` → `ee21a7a9…`.

@@ -30,6 +30,138 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PIPELINE PROOF PASSED on the settled world at `7b0b98b`: calibrate and verify both exit 0; every count equals the expectations written at `f76efbf3`. New dated proof file written. Routines contract: the two regenerated hiring routines MATCH; a THIRD hiring routine does not, and 7 practical-test functions are missing
+
+Storage session, on the owner's machine, from a Windows PowerShell 5.1 host, with
+the private observed inputs and `SUPABASE_*` cleared per process. Both runs used
+checkout `7b0b98bf81854aee0e35adc6eac68a8ae25893c9`. **The expectations were not
+edited**; they stand as pushed in the entry "Pipeline proof re-run at `2e8ff92`:
+EXPECTATIONS" below. Nothing was pinned or repointed, and the routines contract
+was not edited.
+
+| Run | Directory (`linear-exit-observed-full-install-…`) | Exit | Marker |
+|---|---|---|---|
+| Calibrate | `4b7dd8fdd61d460abf94e2654f29eae0` | 0 | `LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_OK` |
+| Verify | `d2bacb6c91fe431681b8e0ef542ad12c` | 0 | `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_OK` |
+
+Both clusters stopped with no `postmaster.pid`. Both reconstructions printed
+`LINEAR_EXIT_OBSERVED_SCHEMA_OK`: 67 tables, 115 routines, 14 sequences, exact
+capture match. The verify run was given the calibrate run's target file,
+SHA-256 read from that file.
+
+#### Every count beside what was expected, read from the runs' own files
+
+| Quantity | Expected (`f76efbf3`) | Calibrate | Verify |
+|---|---|---|---|
+| **Starting catalog built** | **`ddfa4c4f…`** | `ddfa4c4f0d97eefd5fbe4686756714e33ce6b4d977707d7ee8e9fb92f1bedd8c` (68 tables) | same |
+| Plan SHA-256 | `508e6369…` | `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` | same |
+| Plan sources | 48 | 48 | 48 |
+| Chunks | 55, last `…062149_retirement_switch_preparation.sql` | 55, last as expected | 55 |
+| **Maintenance guards installed** | **91** | the worker's assertion `guards.length === postInstallPublicTables(…).expected` **passed**; the count is asserted, not written to a file | passed |
+| **Guards enabled at the interruption boundary** | **91** | — | the lane's assertion against the same derivation **passed** |
+| Guards removed at finalization | 91 (implied) | — | **91** (`finalized.guards_removed`) |
+| Guards remaining after finalization | 0 | — | the worker asserts 0: **passed** |
+| Post-install public tables | 91 | 91 | 91 |
+| Target SHA-256 | `24c833c0…` | `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187`, 1,613,689 bytes | same; comparison `MATCHED_SOURCE_DERIVED_TARGET` |
+| Interruption prefix, resume | 54 of 55, resume to 55 | — | **54**, interrupted worker exit **86**, backend terminated and absent; resume `PREPARED_JOURNALED_PLAN_COMPLETE`, **55** |
+| Exit | 0 | 0 | 0 |
+| *Not predicted:* final catalog SHA-256 | — | `331aabb2b51067b1b07d444e39e010c1c8ed18349f2f0ab3a0426cab0f5ff84d` | same |
+| *Not predicted:* exact final owner bodies | — | 39 | 39 |
+
+**No quantity differed from its written expectation.** Findings A and B from
+yesterday are now exercised and hold: the world is `ddfa4c4f…`, and the boundary
+count derives to 91.
+
+#### The new dated proof file
+
+| Item | Value |
+|---|---|
+| **File** | **`docs/independence/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json`** |
+| **SHA-256** | **`4417b029547f9ac096bce5da01d9cf03549a60df38d0b1f04238e2dae8da1ad0`** |
+| Bytes | 12,958, LF |
+| `status` | `PASS` |
+| `source_pins` | 26, taken from the verify run's report. **All 26 match the current tree** (0 mismatched) |
+| `retained_failures` | yesterday's two refused calibrations, `2450417d…` (Finding A) and `b2662bd9…` (Finding C), with their causes |
+
+**How it was written.** A script read every value from the two run directories'
+files, and none was typed. It refused to write unless six checks held:
+- the plan, starting catalog, target bytes and source pins are identical across
+  calibrate and verify;
+- the report's target hash equals the target file;
+- `migrations/2026-09-15-hiring-video-editor-role.sql` at the checkout is
+  identical to frozen main `1abdd1fa`.
+
+The shape follows the 2026-09-13 file, with an added `world` block (profile, starting
+catalog, construction) and `checkout_sha`.
+
+**`LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260913.json` is byte-identical**, SHA-256
+`73499b0904278ee8b29250276e4efe42441680703b8b20049e5deca613f037bb`, checked
+before and after the write. Measured in passing: its `source_pins` now mismatch
+**5** files in the current tree (3 yesterday, plus the lane and its worker, both
+changed since). **The install operator's proof read still points at the 09-13
+file**, and was not repointed.
+
+#### Routines contract comparison, as the owner asked; the contract was NOT edited
+
+**The question:** the routines contract was regenerated at `eb129f7` against a
+world built from the test fixture's copy of the hiring migration. Do its two
+changed routines match the **real** settled world?
+
+**Which two changed,** determined by diffing the contract before and after
+`eb129f7` by name and arguments: exactly `hiring_capture_application_v1` and
+`hiring_record_interview_booking_v1`. In each, all four md5 fields changed; 115
+functions remain, none added or removed. The contract file at HEAD has SHA-256
+`4ed53749cfd92aa67203b47dc082b746c7342cf433d2bc48d4db3bb3bd90b737`, equal to
+`CONTRACT_SHA256` in `scripts/linear-exit-observed-routines.js`.
+
+**The settled world used:** the calibrate run's `transition-before.private.json`,
+catalog `ddfa4c4f…`, built by the lane from the real hiring migration identical to
+frozen main. Its per-function md5 fields come from
+`scripts/linear-exit-source-baseline-catalog.sql`, which computes them exactly as
+the contract defines them: `md5(prosrc)`, `md5(pg_get_functiondef(oid))`, and
+each with CR removed.
+
+**Result for the two: MATCH on all four fields.**
+
+| Routine | Field | Contract | Settled world |
+|---|---|---|---|
+| `hiring_capture_application_v1` | body raw / LF | `7b837c4da4618ec111620789e9459848` | equal |
+| | definition raw / LF | `0de6e86ad52c000adb874b04e93d9384` | equal |
+| `hiring_record_interview_booking_v1` | body raw / LF | `ff0e77bacaded540527edd2f86014da5` | equal |
+| | definition raw / LF | `8b17f19017a0b7b73d61a2ea3efd96fe` | equal |
+
+Every other field of both entries matches as well. Both routines are unchanged
+by the installation (the post-install catalog's md5s are identical).
+
+**FINDING D, from a side check over all 115, reported and not acted on: the
+regenerated contract matches neither real world in full.**
+
+| Compared against | Routines that differ from the contract |
+|---|---|
+| the rebuilt **67-table** world (`observed-schema-after`) | `hiring_capture_application_v1`, `hiring_record_interview_booking_v1`: the two regenerated ones |
+| the real **settled** world (`transition-before`) | **`hiring_queue_interview_invite_v1`**: body md5 `b8c389e1…` in the contract, **`5a75a691…`** in the settled world; all four fields differ |
+
+- **The real hiring migration on main changes three existing hiring routines, not
+  two.** In the settled world, `hiring_queue_interview_invite_v1` differs from its
+  67-world body. The regeneration carried the other two to settled values and left
+  this one at its 67-world value.
+- **The settled world also has 7 functions the contract does not list:**
+  `hiring_authorize_practical_test_send_v1`, `hiring_claim_next_practical_test_v1`,
+  `hiring_queue_practical_test_v1`, `hiring_record_practical_test_result_v1`,
+  `hiring_require_practical_test_send_authorization`,
+  `hiring_retry_failed_practical_test_v1`, `hiring_set_practical_test_verdict_v1`.
+  122 functions in the world against 115 in the contract.
+- **Consistent with, but not proven to be caused by,** the fixture's copy of the
+  hiring migration differing from main's at `hiring_queue_interview_invite_v1`.
+  **The two migration copies were not diffed by this session.**
+- The contract's `scope` field reads `REHEARSAL_ONLY_PRE67_NOT_INSTALLER`, which
+  describes neither world it now partly matches.
+
+**Observed, not investigated:** with this contract, the lane's reconstruction
+still reports `exact_captured_catalog_match: true` for the 67-table world, even
+though two contract entries now carry settled-world bodies. Which comparison that
+flag rests on was not traced here.
+
 ### 2026-09-17 — My lane fix crashed on every call. Fixed, and this time the function was EXECUTED on a real cluster before pushing
 
 Reported by the storage session at `12838d22`, from a calibrate run that never

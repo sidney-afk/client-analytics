@@ -30,6 +30,73 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 23 CLOSED: the Calendar load-time writes are pre-existing link adoption, verified byte-identical at frozen main. Two findings carried forward to phase 7: timestamp churn on read, and a Linear-shaped path that reads our own database
+
+Supervisor's verdict, and the parts of it this session checked rather than
+accepted.
+
+#### The verdict, and what was verified here
+
+The two `calendar-upsert` POSTs on a Calendar load come from the page's own
+**load-time link adoption**: for each post whose `linear_issue_id` or
+`graphic_linear_issue_id` is empty, it fills the field from the deliverable's
+stored link.
+
+**Verified from the source, not taken on the word:**
+
+- The function is `_calAdoptDeliverableLinks`. It walks `calState.posts`, picks
+  the empty link field per component, reads the deliverable rows, and adopts
+  `row.linear_issue_url` onto the card — which is exactly the shape measured on
+  the wire: two POSTs, body `{client, post}`, patches `{id, linear_issue_id}` and
+  `{id, graphic_linear_issue_id}`.
+- **Byte-identical at frozen main.** Extracted whole from `index.html` at three
+  refs and hashed: `1abdd1fa`, `origin/main` and the prep head all give
+  `a3b00bfd8c00896c79ad85bc2a6e596f…`, 2,946 characters. So the behaviour predates
+  this month's work and **is not a regression of the exit**.
+
+Step 23 is **CLOSED** on that basis.
+
+#### FINDING for phase 7, first heading: timestamp churn on read
+
+Opening a read-only surface advances `updated_at` on a `calendar_posts` row and
+leaves **no** event row, because an event fires only when a link value actually
+changes. Measured today: one row moved during a 16-minute browse window, no
+`deliverables` row moved, no event was written.
+
+Why it matters beyond tidiness: `updated_at` on `calendar_posts` is read as
+"something happened here" by the freeze checks, by the reconcile lanes, and by my
+own step 25 pre-state comparisons. A column that moves when someone merely looks
+at the page is a weaker signal than any of those treat it as. Anything in phase 7
+that gates on recency should say whether it means *edited* or *loaded*.
+
+#### FINDING for phase 7, second heading: a Linear-shaped path that reads our own database
+
+The adopted value lands in a field named `linear_issue_id`, and the write goes
+through a gateway, so the trail looks like a Linear dependency. It is not: the
+value is read from **our own** `deliverables` row's stored link. Nothing contacts
+Linear on that path.
+
+Two consequences worth carrying into phase 7:
+
+1. **A survey that greps for `linear_*` will over-count.** This one is already
+   independent of Linear and needs no replacement, unlike the paths that really
+   do call the API.
+2. **The direction of truth is the thing to check.** Today the card copies its
+   link from the deliverable. After the exit the deliverable is the native
+   record, so this is the right direction — but that is worth asserting
+   deliberately rather than inheriting, because the same function would happily
+   re-adopt a stale link if the deliverable's stored URL were ever the copy
+   rather than the source.
+
+Neither finding is acted on here. Both belong to phase 7, where capabilities are
+turned on one at a time and each one's evidence is written down.
+
+#### Map
+
+Step 23's row is marked **CLOSED** with this verdict, and the note beneath phase 6
+carries the same two findings. The progress line stays **Phase 6 of 7 complete ·
+step 25 of 28 · 89%**.
+
 ### 2026-09-17 — STEP 23 ADDENDUM: the `key-verify` 401 was the owner's mis-selected name, not a site fault. But opening Calendar WRITES: two `calendar-upsert` POSTs carrying a post patch, and one test-client row's `updated_at` moved during the browse window with no event row
 
 Storage session, read-only except for what the page itself did.

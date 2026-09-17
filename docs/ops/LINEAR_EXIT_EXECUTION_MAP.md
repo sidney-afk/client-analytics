@@ -353,7 +353,7 @@ untouched.
 
 | # | Step | Who | Done when |
 |---|---|---|---|
-| 23 | Verify safe existing reads across Calendar, Samples and Production | Session | **CLOSED 2026-09-17**, browser half not measured by the session — see the note below |
+| 23 | Verify safe existing reads across Calendar, Samples and Production | Session | **CLOSED 2026-09-17**: all three surfaces render and request their own tables; the Calendar load's two writes are pre-existing link adoption, byte-identical at frozen main — see the note below |
 | 24 | **GATE** approve TEST saves, then run them | Owner + session | **CLOSED 2026-09-17**: three surfaces saved, event path exercised and reverted, 0 intents and 0 Slack deliveries throughout |
 | 25 | Confirm every new control is still dormant and pre-state settings are unchanged | Session | Compared against step 11 snapshot; notification sender, wake, follow-up supervisor, reconcile apply and census gates all still off |
 
@@ -408,6 +408,20 @@ named the actor to use. Steps 23 and 24 are CLOSED, with these qualifications:**
   `key-verify` **401**, with a later call to the same function succeeding. The
   surfaces work either way, but the bar is zero errors, so Calendar does not meet
   it and that 401 is an open question, not a pass.
+
+  **Verdict, same day.** The 401 was the owner selecting the wrong name on the
+  access screen before the successful login: an owner action, not a site fault.
+  The two `calendar-upsert` POSTs on a Calendar load are the page's own
+  `_calAdoptDeliverableLinks`, which fills an empty `linear_issue_id` or
+  `graphic_linear_issue_id` from the deliverable's stored link. That function
+  hashes identically at `1abdd1fa`, at current main and at this branch head, so
+  it is pre-existing and not a regression. **Step 23 is CLOSED.** Two findings go
+  to phase 7 rather than here: (a) **timestamp churn on read** — a read-only
+  surface advances `updated_at` with no event row, and several checks read that
+  column as evidence of activity; (b) **a Linear-shaped path that reads our own
+  database** — the adopted value is named `linear_issue_id` but comes from our
+  `deliverables` row, so a `linear_*` survey over-counts it and the direction of
+  truth should be asserted deliberately after the exit.
 
 ## Phase 7 — Turn on capabilities, one at a time
 

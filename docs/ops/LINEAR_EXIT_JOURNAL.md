@@ -30,6 +30,102 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 14 RAN AND RETURNED `INSTALLED_SCHEMA_TARGET_MATCH`, after about 33 minutes. The owner's read-only inspection was authorised but became moot before it ran. Step 15 verifier written, NOT run. Stopped on the owner's instruction
+
+Storage session. The plan was recorded before the run, in the entry "STEP 13 GATE
+APPROVED" below (`f464ebdc`).
+
+#### What ran
+
+- **Runner:** `step14-apply.cjs`, from a Windows PowerShell 5.1 host, started
+  2026-09-17T16:04:41Z.
+- **Before running** it confirmed the wrapper hash `ddec6988…` and that the
+  catalog receipt hashes to the approved window evidence `20fcabcb…`.
+- **Token:** derived with `api.consent()`, never written or printed. Token
+  SHA-256 `b2e8a9a11f67f5b013c54009a04e3527695d9facd4c844807daa3531db53a68b`;
+  plan part `508e6369…`, window part `20fcabcb…`.
+- **Wrapper, run once:** `run-install-operator.private.cjs --catalog-dir=…/day-catalog-20260917-3 --target=<pinned target> --out=…/install-operator-apply-20260917-1 --window-evidence=… --apply-token=…`.
+- **Ended** 16:37:40.881Z, wrapper exit 0, runner exit 0. **The wrapper's hash
+  after the run is `ddec6988…`, unchanged.**
+
+#### The result, read back from disk
+
+`install-operator-apply-20260917-1/operator-observation.private.json`,
+1,122 bytes, SHA-256
+**`6731ee7aac193e7dd0ed2874da9528361c8acd4873bfc15e418fea0ea0f7d94b`**.
+
+| Field | Value |
+|---|---|
+| `mode` | `APPLY_TOKEN_SUPPLIED` |
+| catalog receipt | `20fcabcb…`, observed 16:00:36.032Z |
+| prepared plan / steps / target / post-install | `508e6369…` / 55 / `24c833c0…` / 91 |
+| **`operator_result.status`** | **`INSTALLED_SCHEMA_TARGET_MATCH`** |
+| `operator_result.plan_sha256` / `target_sha256` | `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd` / `24c833c01743cf9d6229e052819ff1d67006b29a962790d750abf84394c22187` |
+| `finalizer` | `PREPARED_MAINTENANCE_FINALIZED`, `already_finalized: false`, **`guards_removed: 91`** |
+| `activation_performed` / `external_fencing_attested` / `runtime_dormancy_verified` | `false` / `false` / `false` |
+
+**What `INSTALLED_SCHEMA_TARGET_MATCH` means in the operator's code:** it is
+returned only after all of these, in order:
+
+1. `maintenance.run` completed the journaled plan;
+2. the guard count equalled the derived 91;
+3. the guards were dropped in a transaction and
+   `production_retirement_contract_assert_v1()` passed;
+4. `targetApi.compare` matched the live public and private catalogs exactly
+   against the pinned target, then that transaction was rolled back so
+   protection was restored;
+5. `finalize.run` removed the registered guards.
+
+Any refusal would have surfaced as `INSTALL_OPERATOR_EXECUTION_REFUSED` with a
+stage.
+
+The console output also carries 15 PostgreSQL `NOTICE` messages ("… does not
+exist, skipping", "extension pgcrypto already exists"). They are the SQL's own
+idempotent `drop … if exists` and `create extension if not exists` notices,
+echoed by the driver. They are not errors.
+
+#### The 33 minutes, and the inspection that did not run
+
+At 16:35Z, after 31 minutes without output, the session confirmed the runner
+(pid 4676) and wrapper (pid 25544) alive, with no refusal receipt. It did not
+interrupt, retry or start a second installer, and it asked the owner. **The
+owner authorised a read-only inspection** per runbook §3's "if blocked"
+paragraph, covering four things: the installer session's state and current
+statement; any lock holder it waits on and what that session is; how many of
+the 55 chunks are journaled; and whether the maintenance guards are in place.
+**No corrective action of any kind.**
+
+**The install returned at 16:37:40Z, before the inspection was built or run.**
+With the installer session ended, lock state no longer describes it, so **no
+inspection was run and no query was made for it.** Whether the 33 minutes were
+lock waits or ordinary hosted execution time **is not known** and is not
+inferred here. The runbook promises no duration.
+
+#### Step 15: verifier written and hashed, NOT run
+
+`D:/Sidney/Codex/2026-09-13-final-review-repairs/verify-install-state.private.cjs`,
+SHA-256 **`b1a2cdbd1c94a00cbf5a9b53c78ae9b533333be08abeff2210ad10cb34837b32`**,
+7,211 bytes.
+
+- **Read-only:** one `begin read only` transaction, rolled back, with the same
+  in-memory config and TLS options as the wrapper.
+- **What it records:**
+  - identity and TLS;
+  - install namespaces;
+  - **every journaled chunk** from `linear_exit_install.journal_v1.completed`,
+    compared in order, field by field, with the compiled plan's 55 steps
+    (`source_id`, `source_sha256`, `chunk_index`, `chunk_sha256`), with the full
+    lists written privately;
+  - maintenance guards remaining, public and total;
+  - the live public catalog hash and table count, and `targetApi.compare`
+    against pinned target `24c833c0…`;
+  - last, `production_retirement_contract_assert_v1()`.
+
+**It has not run**, because the owner's latest instruction was to report and
+stop. **Step 14 is therefore not yet marked closed in the execution map**: its
+"Done when" is *all 55 chunks journaled*, and the chunk-by-chunk record is what
+the verifier produces.
+
 ### 2026-09-17 — STEP 13 GATE APPROVED by the owner; step 14 starting. Recorded before the run
 
 **The approval, as given to the storage session:** step 13 approved by the owner

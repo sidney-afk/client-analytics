@@ -30,6 +30,69 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 23 BROWSER HALF MEASURED: all three staff surfaces render and request their own tables. Samples and Production show zero failed requests; Calendar's full load shows ONE, a `key-verify` 401, which misses the zero-errors bar and is reported rather than waved through
+
+Storage session. The owner applied the admin key to the served page's access
+screen; the session did not handle the credential in the browser. Everything
+below is read-only observation of the live site in a real browser on this
+machine.
+
+**Identity confirmed before measuring, without reading the secret:** the page
+holds `syncview_staff_identity_v1` with `key` present, `role: admin`, and a
+member name of the expected length. The key's value was never read.
+
+#### Per surface
+
+| Surface | Rendered past the access screen | Console errors | Failed requests | REST tables requested |
+|---|---|---|---|---|
+| **Calendar** (`#calendar/sidneylaruel`) | **Yes** — the test client's board, cards and status pickers | **1** | **1** | `calendar_posts`, `deliverables`, `syncview_runtime_flags`, `caption_prompts`, `team_members`, `templates` |
+| **Samples** (`#samples/sidneylaruel`) | **Yes** — the review surface for the client | **0 new** | **0** | `sample_reviews` |
+| **Production** (`?prod=1&d=…#production`) | **Yes** — the card, its sub-issue, description and assets | **0 new** | **0** | `production_deliverables_browser_v1`, `batches`, `clients`, `deliverable_events`, `syncview_runtime_flags`, `team_members` |
+
+Edge Functions called alongside those reads: Calendar `key-verify`,
+`calendar-upsert`, `thumbnail-revision-read`, `workload-plan`; Production
+`key-verify`, `production-comments`, `production-write`, `smm-weekly-reports`.
+
+**Observed and not explained here:** both write gateways are called during a
+read. Calendar calls `calendar-upsert` and Production calls `production-write`
+several times while merely loading. The gateways do carry read-only actions, so
+this is likely a read path rather than a write, but the request method and action
+were not captured and **this entry does not claim they were reads.**
+
+#### The one failure, named
+
+On a full Calendar load, exactly one request returns **401**:
+`/functions/v1/key-verify`. Measured from the page's own resource timings, which
+carry the response status, so it is not an inference from a console line. On the
+Production load the same function was called once and did **not** fail, and no
+request on the Samples or Production passes returned 400 or above.
+
+So the pattern is a **first** `key-verify` call being refused and a later one
+succeeding on the same page — the surfaces render either way. **The bar for this
+step is zero console errors, and Calendar does not meet it.** Whether that first
+call is expected (a probe before the stored identity is attached) or a real
+defect is not established here, and it is the kind of thing that stays invisible
+precisely because the page works anyway.
+
+#### Method
+
+A recorder was installed in the page to capture request URLs and statuses for
+hash-driven navigations, and `PerformanceResourceTiming.responseStatus` was used
+for full loads, because the pane's network log records same-origin requests only
+and every Supabase call is cross-origin. The repeated aborted `HEAD /` entries in
+that same-origin log are the page probing itself and are not counted as surface
+failures.
+
+Nothing was typed into the page by the session, no write was made from the
+browser, and no credential value was read out of storage.
+
+#### Map
+
+The step 23 note is corrected below its original text rather than rewritten: the
+browser half is now measured, with the Calendar 401 recorded as an open question.
+Steps 23 and 24 stay CLOSED and the progress line stays Phase 6 of 7 complete,
+step 25 of 28.
+
 ### 2026-09-17 — STEP 24 COMPLETED on all three surfaces and the event path exercised and put back; STEP 23's browser half NOT measured here, because it needs a credential typed into a web page. Both steps marked CLOSED in the map with those qualifications
 
 Storage session, on the owner's machine, test client `sidneylaruel` only.

@@ -398,6 +398,17 @@ named the actor to use. Steps 23 and 24 are CLOSED, with these qualifications:**
   the page by the owner, after which the surfaces can be driven and measured
   without the session handling the credential.
 
+  **Measured later the same day**, after the owner applied the key to the access
+  screen himself. All three surfaces render past it and request their own tables:
+  Calendar `calendar_posts`, `deliverables`, `syncview_runtime_flags`,
+  `caption_prompts`, `team_members`, `templates`; Samples `sample_reviews`;
+  Production `production_deliverables_browser_v1`, `batches`, `clients`,
+  `deliverable_events`, `syncview_runtime_flags`, `team_members`. Samples and
+  Production had **zero** failed requests. A full Calendar load had **one**: a
+  `key-verify` **401**, with a later call to the same function succeeding. The
+  surfaces work either way, but the bar is zero errors, so Calendar does not meet
+  it and that 401 is an open question, not a pass.
+
 ## Phase 7 — Turn on capabilities, one at a time
 
 Repeat steps 26 to 28 per capability. Enable one, watch real work, then the

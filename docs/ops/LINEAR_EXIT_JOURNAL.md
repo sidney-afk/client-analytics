@@ -30,6 +30,100 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — THE DEFERRED FIX LANDED: the reconstruction compare now walks the union. And it BREAKS THE OPERATOR'S SOURCE_PIN — 1 of 26 pins is now stale and the pipeline proof must be re-run before step 16
+
+Third and last instance of the one-directional comparison. `scripts/linear-exit-observed-schema.js`, the `compare` stage.
+
+#### The change
+
+```js
+// was
+const differences=Object.keys(live).filter(k=>canon(live[k])!==canon(actual[k]));
+// now
+const sections=[...new Set([...Object.keys(live),...Object.keys(actual)])].sort();
+const differences=sections.filter(k=>canon(live[k])!==canon(actual[k]));
+```
+
+`live` is the four private capture files; `actual` is the rebuilt world. Walking
+`Object.keys(live)` asked only "is everything the capture recorded still here"
+and was silent about anything the reconstruction had **gained**, so a section
+present in the rebuilt world and absent from the capture could not reach
+`remaining_groups` and `exact_captured_catalog_match` could read `true` while
+the two catalogs disagreed. `canon(undefined)` returns `undefined`, so a key on
+one side only is a difference rather than a crash.
+
+#### D28: executed, with the real pinned query, on a real cluster
+
+`applyObservedSchema` as a whole needs the four private capture files and cannot
+run here. What ran is the stage that changed, with the **real**
+`linear-exit-source-baseline-catalog` query against a real PostgreSQL 17.11
+cluster. **Denominator: 15 sections captured.**
+
+```
+captured by the real pinned query: 15 sections
+
+CONTROL: identical catalogs
+  OK  NEW reports 0 differences                    sections compared: 15
+  OK  OLD reports 0 differences
+
+THE DEFECT: the world has a section the capture never recorded
+  OK  OLD is SILENT -> exact_captured_catalog_match would read true   differences: []
+  OK  NEW REPORTS it                                                  differences: ["sequences"]
+
+CONTROLS the old code already caught, and the new one must not lose
+  OK  a section in the capture the world lacks
+  OK  a section whose CONTENT differs              tables 1 vs 0
+  OK  a rename at the same cardinality
+
+MUTATION on the new code: drop the union back to one side
+  OK  the one-directional form goes silent again on the defect
+
+RECON_COMPARE_IS_NOW_SYMMETRIC_OK
+```
+
+The second block is the defect executed rather than argued: the old filter
+returns `[]` on two catalogs that genuinely differ.
+
+#### The family is now closed, and the pattern is the same three times
+
+| site | shape | state |
+|---|---|---|
+| `linear-exit-observed-routines.js` `applyAndCompare` | hand-rolled loop over the expectation | fixed, union, 122 functions |
+| `linear-exit-observed-schema.js` `compare` | hand-rolled filter over the expectation | **fixed here** |
+| `linear-exit-observed-full-target.js` `compare` | `assert.deepEqual` | was already symmetric |
+
+Three comparisons, two defective, and the two defective ones are the two written
+by hand. The one that was correct is the one that delegated to `deepEqual`.
+**Where the direction is implemented by hand, the direction gets lost.**
+
+#### ⛔ WHAT THIS BREAKS, stated plainly because it is not optional
+
+`scripts/linear-exit-observed-schema.js` is **one of the operator's 26
+`source_pins`**. Measured after the change:
+
+```
+LINEAR_EXIT_OBSERVED_FULL_PIPELINE_20260917.json
+   pinned 7b70becf48f5c3da…   now c5e6a4e4683c0deb…   STALE
+   stale pins in this artifact: 1 of 26   [linear-exit-observed-schema.js]
+```
+
+So `linear-exit-install-operator.js` will now `fail('SOURCE_PIN')` at step 7 of
+its `load()` sequence. **The operator cannot run until the pipeline proof is
+re-run and a new dated proof file is written**, which needs the private inputs
+and is the storage session's lane, not mine. The established pattern applies:
+re-run, do not edit; write a NEW dated file; leave `20260917` byte-identical;
+repoint the operator's read. Do not hand-edit the pin.
+
+For completeness, the predecessor `20260913` file now has **6 of 26** stale
+pins. It is deliberately frozen and nothing reads it; recorded so it is not
+mistaken for live.
+
+Steps 14 and 15 are closed, which is why this was safe to do now — the fix
+cannot invalidate a proof mid-sequence any more. But **step 16 onward needs a
+green operator preflight**, so the re-run is a prerequisite for the next step,
+not a tidy-up afterwards. Nothing merges; main is frozen; this sits on the
+branch.
+
 ### 2026-09-17 — TASK FIVE: 497 file-hash pins swept. 46 stale, and EVERY ONE of them is a pin nothing running enforces. Zero stale pins sit under a gate CI executes
 
 Full table: [`LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md`](LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md).

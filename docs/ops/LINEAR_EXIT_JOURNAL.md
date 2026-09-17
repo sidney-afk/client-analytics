@@ -30,6 +30,104 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — STEP 16 PRE-MERGE: the B7 re-take is clean, 11 PASS. The B5 capture reports `mismatches = 2` and is therefore a STOP. Both mismatches are defects IN THE CAPTURE BLOCK, not evidence of a drifted browser — and the block still cannot produce a pass on this machine as written
+
+Storage session, on the owner's machine, minutes before the intended merge.
+Branch head `37716bed`, tree clean. **Nothing was merged, deployed or fixed.**
+
+#### 1. B7 fingerprint re-take on the eleven auto-deployed functions: no drift
+
+Same route as the earlier run today, `live-read-only`, pinned at frozen `main`
+`1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`.
+
+```
+Summary: 11 PASS, 0 FAIL, 0 ERROR
+JWT posture: 11 verify_jwt=false, 0 off-posture
+```
+
+Every slug reports the same live version and the same source digest as hours
+ago: `ai-onboarding-list` 36, `client-credentials` 44,
+`description-image-upload` 1, `filming-plans` 34, `key-verify` 39,
+`legacy-onboarding-list` 36, `onboarding-full` 36, `onboarding-list` 36,
+`smm-weekly-reports` 32, `thumbnail-revision-read` 27,
+`thumbnail-revision-scan` 31. No hot-fix has appeared; nothing for the merge to
+overwrite. **No stop on this ground.**
+
+#### 2. B5 capture: `mismatches = 2`, which is a STOP by the page's own rule
+
+Run under `pwsh` **7.6.6** (version printed in the same process), from the
+checkout, into the fresh directory `browser-capture-20260917-1`, with
+`git fetch origin main` first, exactly as the owner-sitting page writes it and
+with only `$out`'s suffix changed.
+
+```
+capturing against main 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052, 23 files
+matched_git_sha = 1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052 ; files = 23 ; mismatches = 2
+```
+
+21 of 23 matched: `index.html`, both PNGs at the root, and all 18 `nav-icons/`
+files. The two that did not are `404.html` and `CNAME`.
+
+**Neither is browser drift. Both are defects in the block, and I am reporting
+them rather than working around them, as the page instructs.**
+
+**a. `404.html` — the git side of the comparison was corrupted on extraction.**
+
+| Bytes | SHA-256 |
+|---|---|
+| `git show 1abdd1fa:404.html` | `f3ded2c5a7c2b3dbe7398077de2f7704ae4268f39ad0df45d97751f703063402` |
+| Served (HTTP 200) | `f3ded2c5a7c2b3dbe7398077de2f7704ae4268f39ad0df45d97751f703063402` |
+| The block's `from-git/404.html` | `5287f285066416585a15cb6c2567a1a6a44582c92687d9b04aecce65282e2a78` |
+
+**The served file equals main's blob exactly.** The block's own copy does not:
+1,620 bytes against 1,587, the first difference at byte 16, a CR where the blob
+has none — 33 CRs inserted. `core.autocrlf` is `true` on this machine and
+`404.html` carries no `.gitattributes` entry, so `git archive` materialized it
+with CRLF. `index.html` matched precisely because it does have one
+(`text: set, eol: lf`). The block is binary-safe against *PowerShell*, which is
+what it was designed for, and is not safe against *attribute-driven line-ending
+conversion on extraction*.
+
+**b. `CNAME` — not served at all, and the mismatch line is an artifact.**
+
+`HEAD https://syncview.synchrosocial.com/CNAME` returns **404**; GitHub Pages
+does not serve it. `Invoke-WebRequest` therefore threw, no file was written, and
+`Get-FileHash` failed on the missing path. The loop has no per-file error
+handling, so `$s` **kept the previous iteration's value** and the block printed
+a comparison of `CNAME`'s git hash against `404.html`'s served hash. Its
+`served` digest in the output, `f3ded2c5…`, is literally the previous file's.
+A failed download must be an error, not a silently stale comparison.
+
+#### What this run does and does not establish
+
+- **Establishes:** `index.html`, the site's actual browser, is served byte-identical
+  to main's tip, 5,573,035 bytes; all 20 images match; and `404.html` as served
+  equals main's blob when compared against the blob rather than against the
+  block's extraction.
+- **Does NOT establish:** a clean B5 capture. The run's verdict is
+  `mismatches = 2`, and the recorded rule is that any mismatch is a stop. I am
+  not recording B5 as closed, and I have not re-run it a different way:
+  "do not substitute an extraction step; report it" applies to the comparison
+  step for the same reason.
+- `matched_git_sha` would be `1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052`, and the
+  restore route `git restore --source=1abdd1fa4b00f35f69c08e6ada2c1fc48dd3d052 -- index.html`,
+  **if** the capture had passed. It did not, so that pair is recorded here as
+  what the run would have yielded, not as a closed capture.
+
+#### For whoever repairs the block, after the owner decides
+
+Two changes, neither made here: compare the served bytes against
+`git cat-file blob <sha>:<path>` (or add the missing `-text`/`eol` attributes for
+every captured path), and make a failed download fail that file's comparison
+instead of leaving `$s` holding the last value. `CNAME` additionally has no
+business in a served-file list when Pages does not serve it.
+
+#### Not done
+
+- **Nothing was merged.** Step 16 remains the owner's.
+- No file in the repository was changed by this work; the two runs are read-only
+  and the capture wrote only into its own private directory.
+
 ### 2026-09-17 — PR description refreshed to head `20c4d70c`, and a defect in MY OWN watcher recorded
 
 Two small things, both caught by a background task finishing rather than by

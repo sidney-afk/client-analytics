@@ -9452,6 +9452,37 @@ touches a database. Not the comparison beside it, not its call site, not a
 property of its source — the function, running. If that is impossible in this
 sandbox, say so in the record and name who can run it, rather than substituting a
 proof of something nearby and calling the work proven.
+### D29 — "Fails identically at the baseline" is a REGRESSION control, not a validity control (2026-09-17, owner)
+
+**Binding, and it applies to every session and every baseline, not just
+`d3cbca7f`.**
+
+Re-running a failing suite at the pre-change commit answers exactly one
+question: *is this failure new?* It proves the failure is **not this change's
+fault**. It proves **nothing whatsoever** about whether the test is sound,
+whether it is measuring what it claims, or whether it can pass at all on the
+machine it is running on.
+
+Given after the D22 first pass dismissed fifteen failures with "they fail
+identically at `d3cbca7f`, so they are not this month's work". True, and
+misleading: **at least six of the fifteen failed only because the harness was
+broken** — missing Deno, a proof root pointed at the wrong directory, the wrong
+Node on PATH. A suite broken by its environment fails identically at every
+commit in the repository's history. That is precisely why the control waved them
+through, and it is the failure mode of using it as a validity control.
+
+So, when a suite fails:
+
+1. **Is it new?** The baseline re-run answers this, and only this.
+2. **Is the environment the thing failing?** A separate question, answered by
+   reading the actual error rather than the verdict, and by suspecting the
+   harness *first* when the harness is one I built.
+3. **Is the expectation stale, or the world?** A third question again, and the
+   one that usually matters.
+
+"Identical at the baseline" may be reported. It may never be used to close an
+item, and it is never a reason not to read the error.
+
 ## 4. Corrections the session made against itself
 
 Kept as its own section because the owner asked for them explicitly, and because

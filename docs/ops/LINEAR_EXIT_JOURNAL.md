@@ -30,6 +30,89 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — TASK FIVE: 497 file-hash pins swept. 46 stale, and EVERY ONE of them is a pin nothing running enforces. Zero stale pins sit under a gate CI executes
+
+Full table: [`LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md`](LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md).
+Denominator 497 on every line.
+
+```
+MATCH the tree                      391 of 497
+STALE                                46 of 497
+private run output, never in tree    22 of 497   expected
+target does not resolve to a file    19 of 497
+constant pins something not a file   19 of 497   correctly excluded
+
+of the 437 that resolve to a file in the tree:
+  unit lane (CI runs the checker)   258   stale: 0
+  deferred suites only                5   stale: 0
+  nothing reaches the checker        174   stale: 46
+```
+
+**The finding is the coincidence of those two columns.** Staleness and absence
+of enforcement are the same population. Not one stale pin is under a gate CI
+runs, which is what you would expect if pins only ever rot where nothing is
+watching — and it means the repository's pin discipline is working exactly as
+far as its gates reach, and no further.
+
+#### The four script-constant file pins all match today, and two are unguarded
+
+| module | constant | pins | gate |
+|---|---|---|---|
+| `admission-preflight.js` | `CONTRACT_SHA` | the admission schema contract | unit lane |
+| `atomic-writer-bound-bundle.js` | `BUILDER_SHA256` | **another script's bytes** | deferred only |
+| `b9-catalog-derive.js` | `OPTOUT_PREREQUISITE_SHA` | the 2026-09-14 opt-out migration | **nothing** |
+| `backup-observed-baseline.js` | `ARTIFACT_SHA` | the backup table baseline | deferred only |
+
+`OPTOUT_PREREQUISITE_SHA` is the one I had not noticed: it pins the migration
+read via `git show` at a fixed ref, it currently matches, and **no suite reaches
+the code that checks it** — the derivation is a tool, not a tested module. It is
+correct by luck rather than by construction. Same migration as tasks one and
+three, now implicated a third time.
+
+#### All 46 stale pins live in DATED RECEIPT artifacts
+
+Nine receipts hold them, worst first: `INSTALL_OPERATOR_PG17_20260914` (9 stale
+of 31), `OBSERVED_FULL_PIPELINE_20260913` (7 of 28),
+`CONTROL_CURRENT_PUBLIC_PROOF_20260913` (7 of 20),
+`CONTROL_RETIREMENT_PROOF_20260913` (6 of 38),
+`CONTROL_RECOVERY_PROOF_20260912` (5 of 12), plus four smaller.
+
+**A dated receipt going stale is not by itself a defect** — it records a past
+tree, which is what dating it is for. Two consequences do follow:
+
+1. a receipt whose pins no longer match **cannot be re-verified**, so it is a
+   claim about a run nobody can now confirm it described. That is uncomfortable
+   for the `CONTROL_*_PROOF_*` files and for
+   `INSTALL_OPERATOR_PG17_20260914`, which the exit leans on;
+2. `OBSERVED_FULL_PIPELINE_20260913` is the predecessor of the file the operator
+   now enforces through its `SOURCE_PIN` loop. The enforced pattern exists and
+   works; the 09-13 file is the unenforced version of the same thing, 7 of its
+   28 pins stale. It was deliberately left byte-identical, so this is expected —
+   recorded so nobody reads it as live.
+
+#### TWO false positives this sweep produced and I caught, both worth keeping
+
+1. **`PRIVATE_CATALOG_SHA` is not a file pin.** An earlier pass bound
+   `scripts/linear-exit-install-maintenance.js`'s hash constant to the only path
+   constant in the same file and reported it **stale under a unit-lane gate** —
+   which would have meant CI was red. It pins
+   `j.sha(j.canonical(r[0].maintenance_catalog))`, a **runtime query result**.
+   The single-path fallback was removed and 19 constants now sit in an explicit
+   "pins something that is not a file" bucket rather than being guessed at.
+2. **A comment is not a gate.** Enforcement for artifact entries is found by
+   searching modules for the artifact's path, and that search cannot tell code
+   from a comment. It credited `LINEAR_EXIT_OBSERVED_INSTALL_TARGET_V1.json`
+   with a unit-lane gate on the strength of two comments naming it. No code
+   reads that file.
+
+The second one generalises, and it is stated in the document: **the "unit lane"
+column is an UPPER BOUND on enforcement.** Where this sweep errs it errs toward
+claiming more protection than exists. The 258 may be smaller; the 46 unguarded
+stale pins cannot be larger for that reason.
+
+Nothing fixed. The two pins repaired earlier today (tasks one and two) are
+marked as such in the table.
+
 ### 2026-09-17 — TASKS THREE AND FOUR, both reported and NEITHER fixed. The 503 is one missing column; the SCHEMA_INCOMPLETE is a stale expectation, and my own D22 description of it was wrong
 
 #### TASK THREE — what the assignee lookup needs that the rehearsal cluster lacks

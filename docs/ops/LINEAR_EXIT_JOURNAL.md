@@ -30,6 +30,125 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — PROPOSAL, not implemented: what `install-profiles.js` should hold for the two profiles that will never install
+
+**What reads those fields, checked before proposing.** `profiles.get(name)`
+asserts **both** `plan` and `target` are non-empty and is called from three
+places: the install operator's preflight and its `execute()`, its `consent()`
+token, and the operator test's non-calibrate assertion. Calibration does not
+call it — `test/linear-exit-install-operator-postgres.js` skips the target
+comparison when `INSTALL_OPERATOR_CALIBRATE==='1'`. **The trap is elsewhere:**
+`profiles.build()` calls `get(name)` for `observed67` and `observed67_optout`
+(not for `settled68`, which returns before that line), so simply setting their
+targets to `null` breaks **plan building** for those two profiles, not just
+installing — and plan building is still wanted, by the neutrality checks and by
+any future comparison across worlds. So the proposal is: keep both measured
+plans as they are, replace each dead target with an explicit **refusal value
+rather than a hash or a null** — a `retired` marker carrying D18, the date and
+the reason — and move the `get()` call out of `build()`'s path so that building
+a plan no longer demands an install-only field; `get()` then refuses a retired
+profile by name, with a message saying the profile cannot install after B10 and
+pointing at D18, instead of the current generic "is not pinned yet: derive its
+plan and target". That keeps the two plans honest and useful, makes the dead
+targets say **why** they are dead instead of being a plausible-looking number
+describing a run that will never happen, and turns an attempt to install a
+retired profile into a named refusal rather than a hash mismatch. **Not
+implemented, and one thing is deliberately left to the owner:** whether the two
+profiles are retired in place like this or removed outright, which the D18 entry
+explicitly did not decide.
+
+### 2026-09-17 — D19 carried out: the pipeline proof lane now builds the SETTLED world, its three restated counts derive, and the refusal on a wrong target is proven by mutation
+
+The storage session was idle on this. The lane can now be run against the
+private inputs.
+
+#### What changed, and why each site
+
+`test/linear-exit-observed-full-pipeline.js`
+
+1. **The world.** The reconstruction rebuilds `observed67`; the owner's hiring
+   migration is what makes it `settled68`. It is now applied in the lane,
+   **the same way `scripts/linear-exit-b9-catalog-derive.js` applies it** —
+   `HIRING_MIGRATION` read from that module's own export and executed — so there
+   is one way this world is built and not two. A second hand-rolled
+   reconstruction would be a new thing to be wrong about.
+2. **The plan.** `full.build(initial)` with no options took the default
+   contract, which is why this lane could only ever be `observed67`. It now
+   builds through `profiles.build(initial,'settled68')`.
+3. **The post-install count.** `assert.equal(after.tables.length,90)` now
+   derives from `postInstallPublicTables(plan.initial_catalog_sha256)`.
+4. **The marker.** `tables:90` now reports `after.tables.length`.
+
+`test/helpers/observed-full-pipeline-worker.mjs`
+
+5. `assert.equal(guards.length,90)` derives from the same resolver.
+6. The report's `tables:90` reports `catalog.tables.length`.
+
+Sites 3 to 6 are **survey sites #4 and #5 of
+[`LINEAR_EXIT_GUARD_COUNT_SITES.md`](LINEAR_EXIT_GUARD_COUNT_SITES.md)** plus two
+marker literals beside them. The sweep predicted this exactly: those sites are
+"correct today but bound to a single world" and "wrong **by the act of carrying
+out D19**". They were.
+
+#### A consequence of D24 that I did not foresee, and that made this urgent
+
+The worker asserts the post-install catalog's table names equal the **V2 custody
+corpus** exactly. D24 moved V2 from 90 names to 91.
+
+| | count |
+|---|---|
+| V2 corpus, after D24 | **91** |
+| post-install `observed67` | 90 |
+| post-install `settled68` | **91** |
+
+**So D24 had already made this lane unable to pass in the `observed67` world**,
+before D19 was carried out. Re-basing it is not only the owner's preference; it
+is now the only world in which the lane's own V2 comparison can hold. I did not
+see that when landing D24, and it went unnoticed for the usual reason: the lane
+is one of the 61 the unit lane defers.
+
+#### The mutation proof
+
+The lane itself cannot run here — it refuses without `OBSERVED_INPUT_DIRECTORY`
+and reconstructs from four private capture files. **So the mutation was run
+against the mechanism the lane relies on for the refusal**, `targetApi`
+`create`/`compare`, which is the same code the worker calls, driven by a **real
+`settled68` plan**. The only stub is the starting-catalog gate, applied
+identically to every case so it cancels.
+
+The plan built was `508e63699a0f7d8fde2a4a3abf3f13c84780ced95d4b5c2702da4a54cc06f2bd`,
+stage `OBSERVED_PUBLIC_20260916_SETTLED_FULL_PREPARATION_V1`, post-install
+derived as **91** — the measured settled68 plan, so the probe is exercising the
+world the lane will now build.
+
+| Case | Result |
+|---|---|
+| CONTROL, correct target | **PASSED** `MATCHED_SOURCE_DERIVED_TARGET` |
+| M1 wrong target SHA-256 | REFUSED `target bytes drift` |
+| M2 tampered bytes, SHA recomputed | REFUSED `full target mismatch` |
+| M3 target from a different plan | REFUSED `INSTALL_JOURNAL_PLAN_HASH` |
+| M4 wrong-size post-install catalog | REFUSED `post-install public table count` |
+| M5 different private catalog | REFUSED `full target mismatch` |
+
+**What this proof does NOT cover, stated so it is not read as more than it is.**
+It does not prove the re-based lane runs end to end; that needs the private
+inputs and is the storage session's. It proves the refusal path the lane depends
+on bites five ways, and that it bites on the settled plan specifically. The
+first real run is the test of the re-base itself, and **`--calibrate` takes no
+target and can go first**.
+
+#### Result, with its denominator
+
+**14 of 548 unit suites failed**, all 14 the known sandbox failures that fail
+identically on a clean control; none new. The pipeline lane is deferred and was
+not run: that is what this change hands to the storage session. The 61 deferred
+suites were not run as a set; that remains D22, before the exit merge.
+
+**Not changed:** `test/linear-exit-observed-full-install.js` (survey site #6)
+still builds through the unprofiled builder with a synthetic 90-table catalog.
+It is a different lane, it is internally consistent, and D19 named the pipeline
+proof. Left deliberately rather than swept along.
+
 ### 2026-09-17 — STEP 8 CLOSED on the owner's authorisation: live catalog `ddfa4c4f…`, 68 tables, resolved to `settled68`, TLS verified, identity unchanged. 8 of 28. Step 9 NOT started
 
 **Date.** 2026-09-17T00:10:37Z UTC, which was 2026-09-16 18:10 on the owner's

@@ -30,6 +30,126 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-17 — TASKS THREE AND FOUR, both reported and NEITHER fixed. The 503 is one missing column; the SCHEMA_INCOMPLETE is a stale expectation, and my own D22 description of it was wrong
+
+#### TASK THREE — what the assignee lookup needs that the rehearsal cluster lacks
+
+**It needs `public.team_members.auto_assign_opt_out`, and the rehearsal world
+cannot have it.**
+
+`supabase/functions/production-write/index.ts` throws
+`GatewayError(503,'assignee_lookup_unavailable')` at four places, all four
+querying `public.team_members`. Their column sets, read out of the file:
+
+| line | function | selects |
+|---|---|---|
+| 2957 | `assigneeRosterRow` | `id,name,role,team,active,linear_user_id` |
+| 3020 | `mappedCreateAssignees` | `id,name,role,team,active,linear_user_id` |
+| 3065 | `existingAssignmentOptions` | `id,name,role,team,active,linear_user_id` |
+| **3101** | **`intakeAssigneePool`** | `id,name,role,team,linear_user_id,default_for_team,active,` **`auto_assign_opt_out`** |
+
+Only 3101 names a column outside the baseline table. Executed on a real
+PostgreSQL 17 cluster against the baseline `team_members` from `FOUNDATION_SQL`:
+
+```
+OK     sites 2957 / 3020 / 3065 column set resolves on the baseline table
+ERROR: column "auto_assign_opt_out" does not exist      <- site 3101
+```
+
+The baseline table is `id, name, email, role, team, slack_user_id,
+linear_user_id, avatar_color, default_for_team, active, created_at` — every
+column the other three want, and not this one.
+
+**Why the rehearsal world cannot have it**, measured rather than assumed:
+
+- the only source in the repository that adds the column is
+  `migrations/2026-09-14-team-members-auto-assign-opt-out.sql`;
+- that file appears **0 times** in
+  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json`;
+- and **0 times** in `test/helpers/remaining-application-fixture.js`'s owner
+  list.
+
+So the world the recovery rehearsal builds has no path to the column, while the
+gateway code it exercises now reads it. One column, one site, two suites
+(`complete-application-recovery` and `control-recovery-postgres`, which share a
+`main`).
+
+**NOT FIXED, and it is not "plainly a fixture gap".** The obvious repair —
+adding the migration to the fixture's owner list — changes
+`test/helpers/remaining-application-fixture.js`, whose bytes are pinned inside
+`docs/independence/LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json`, which is itself
+pinned by `PIN='87848097…'` in `scripts/linear-exit-source-baseline-catalog.js`
+and reached by 25 test files. A one-line fixture edit therefore requires
+regenerating a reviewed artifact on a cluster and moving a constant. There is
+also a second reading available: the inventory is deliberately pinned at
+2026-09-10 and the *world* is correct, in which case the gateway's dependency on
+a later migration is what needs stating. **That is a decision, not a fixture
+gap, so it stays with the owner.**
+
+Same column as task one, from the other side: task one was a test expecting the
+column to be absent in a world that has it; this is production code expecting it
+present in a world that does not.
+
+#### TASK FOUR — the three missing tables, the fourth I had not counted, and which side is stale
+
+**Denominator: 9 tables examined. 5 exact, 4 missing, 0 present-but-mismatched.**
+
+| table | present | declared by |
+|---|---|---|
+| `content_samples` | no | `live-schema-baseline-2026-07-03.sql`, `samples-supabase-migration.sql` |
+| `filming_plans` | no | `2026-07-09-filming-plans-source.sql` |
+| `thumbnail_media_revisions` | no | `2026-07-09-thumbnail-media-revisions.sql` |
+| `batches_parent_claim_backup_20260824` | no | **nothing — `source_declarations: []`** |
+
+**THE EXPECTATION IS STALE, not the world.** Line 31 of the suite is
+`if(exact!==9){…process.exitCode=1;}` — it demands nine of nine. Run in all
+three lane variants on fresh clusters:
+
+```
+flags=(none = the routing row lane)          FAIL  expected=9 exact=5 supplement=null  observed_backup=null
+flags=--supplement-three                     FAIL  expected=9 exact=8 supplement=applied observed_backup=null
+flags=--supplement-three --observed-backup   FAIL  EXECUTION_FAILED, no report written
+```
+
+Three of the four missing tables are created by `--supplement-three`, a flag the
+**routing row does not name**: its `reproduce` field says
+`-Lane priority-application-schema`, the bare lane, in which four of nine are
+absent by construction and the suite can never pass. That alone makes the
+expectation stale relative to the lane the repository tells you to run.
+
+The fourth is worse. `batches_parent_claim_backup_20260824` is declared by
+nothing in the repository — a dated one-off backup table, by the look of its
+name — so **no amount of source replay can make it "exact"**. Even with the
+supplement applied it is the single remaining gap, 8 of 9. The only lane that
+could supply it is `--observed-backup`, and that variant dies at
+`EXECUTION_FAILED`.
+
+**A diagnosability defect found on the way**, recorded and not fixed: line 33 is
+`catch(error){console.error('…EXECUTION_FAILED');process.exitCode=1;}`. The
+error object is discarded — no private log, no message — so the third variant's
+failure cannot be named from its output at all. Every other suite in this family
+writes a `.private-error.log`.
+
+**NOT FIXED.** Which way it should go is a decision: either the suite's 9
+becomes derived from the lane it is running in (and `batches_parent_claim_backup_20260824`
+is dropped from the expectation or given a source), or the routing row names the
+`priority-observed-baseline` lane instead of the bare one. Both change what
+"required_for_release: true" means for this file.
+
+#### CORRECTIONS to my own D22 authoritative report, both amended in place there
+
+1. **`linear-exit-atomic-writer-bound-bundle.js` is CANNOT RUN HERE, not FAIL.**
+   The report said "the refusal is real; the expectation about which refusal is
+   stale". Backwards. The expectation was right and the gate standing in front
+   of it was stale. With the pin re-derived the suite passes line 5 and stops at
+   its private-fixture requirement. Counts move from **4 FAIL / 8 CANNOT RUN**
+   to **3 FAIL / 9 CANNOT RUN**, out of 61. The 49 passes are unchanged.
+2. **`priority-application-schema` is 4 missing of 9, not "3 missing and 1
+   mismatched".** There is no present-but-mismatched table; the
+   `column_order_matches: false` readings I took for a mismatch are what the
+   report prints for a table that is simply absent. I described a report I had
+   skimmed rather than parsed.
+
 ### 2026-09-17 — D22 pg_dump.exe SUITES, storage side: priority-snapshot, priority-application-recovery and credential-recovery all PASS on Windows. No failures, so no pre-B10 run was needed. Nothing fixed
 
 The cloud's authoritative D22 run could not execute four suites that hard-code

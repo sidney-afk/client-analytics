@@ -6,11 +6,18 @@ every line. Nothing was fixed; this is a report.
 | verdict | count | meaning |
 |---|---|---|
 | **PASS** | **49 of 61** | ran and passed |
-| **FAIL** | **4 of 61** | ran and failed; all four fail identically at `d3cbca7f` |
-| **CANNOT RUN HERE** | **8 of 61** | did not run: 4 Windows-only by construction, 4 need private inputs |
+| **FAIL** | **3 of 61** | ran and failed; all three fail identically at `d3cbca7f` |
+| **CANNOT RUN HERE** | **9 of 61** | did not run: 4 Windows-only by construction, 5 need private inputs |
 
-**None of the 4 failures is a regression from this month's work.** All four fail
-with the identical signature at the pre-B10 commit.
+> **Amended 2026-09-17, after the follow-up tasks.** This table read 4 / 8 when
+> first published. `linear-exit-atomic-writer-bound-bundle.js` moved from FAIL to
+> CANNOT RUN HERE: its failure was a stale byte pin standing in front of the
+> assertion under test (see §1), and with the pin re-derived the suite advances
+> to its genuine private-fixture requirement. The 49 passes are unchanged.
+> Two further corrections are marked inline below.
+
+**None of the failures is a regression from this month's work.** Each fails with
+the identical signature at the pre-B10 commit.
 
 ---
 
@@ -19,7 +26,7 @@ with the identical signature at the pre-B10 commit.
 Each was run twice: at head and at `d3cbca7f`, same harness, same PostgreSQL
 binaries, same invocation, one fresh cluster each. Only the checkout differed.
 
-### `linear-exit-atomic-writer-bound-bundle.js` — identical at `d3cbca7f`
+### `linear-exit-atomic-writer-bound-bundle.js` — identical at `d3cbca7f`, and RECLASSIFIED on 2026-09-17
 
 ```
 AssertionError: The input did not match the regular expression
@@ -29,9 +36,18 @@ Input: Error: WRITER_BINDING_BUILDER_DRIFT
 
 Line 5 asserts that binding a plan to an invalid catalog (`{}`) refuses with a
 message about the catalog. It does refuse — with `WRITER_BINDING_BUILDER_DRIFT`,
-a different reason. The refusal is real; the *expectation about which refusal*
-is stale. The suite never reaches its own "explicit observed catalog JSON
-fixture path required" line, so this is not an input gap.
+a different reason.
+
+**AMENDMENT.** The sentence that stood here — "the refusal is real; the
+expectation about which refusal is stale" — had it backwards. The *expectation*
+was right and the *gate in front of it* was stale: `BUILDER_SHA256` in
+`scripts/linear-exit-atomic-writer-bound-bundle.js` pinned the bytes of another
+file and had been stale since `03d18fb3`, before B10, which moved that file
+again. With the pin re-derived through the module's own mechanism, line 5 passes
+(`exact starting public catalog required`) and the suite stops at its real
+private-fixture requirement. **So this suite is CANNOT RUN HERE, not FAIL**, and
+the sweep now carries it as a pin over another file's bytes with no running gate
+enforcing it (§7d there).
 
 ### `linear-exit-complete-application-recovery.js` — identical at `d3cbca7f`
 
@@ -66,10 +82,13 @@ Same failure, same stage, same assertion: this suite delegates to
 LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_INCOMPLETE
 ```
 
-Three tables report `"status":"missing"` — `content_samples`, `filming_plans`,
-`thumbnail_media_revisions` — and one more reports present but with
-`column_order_matches: false` and `primary_key_matches: false`. The suite is
-reporting an incomplete application schema, which is what it exists to do.
+**AMENDMENT.** This paragraph said "three tables missing and one more present
+but mismatched". Wrong on both counts, and the corrected figures are in the
+journal entry for task four: **9 tables examined, 5 exact, 4 missing, none
+present-but-mismatched.** The fourth missing table is
+`batches_parent_claim_backup_20260824`, and the `column_order_matches: false`
+readings I mistook for a mismatch are what the report prints for a table that is
+simply absent. The verdict is unchanged; the description of it was not accurate.
 
 ---
 

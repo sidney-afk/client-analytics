@@ -336,6 +336,8 @@
     "native-notifications.js",
     "native-ordinary-business-extraction.js",
     "native-ordinary-receipts-postgres.js",
+    "native-test-client-parity-contract.js",
+    "native-test-client-parity-postgres.js",
     "native-ordinary-receipts.js",
     "native-post-cutoff-extraction.js",
     "native-post-editor-picker.js",

@@ -30,7 +30,7 @@ capability**, so a single number out of 28 stops being meaningful there — repo
 the capability by name and its own step:
 
 ```
-Phase 7 of 7 · labels: step 27 of 28 complete · next: 28 (record the dependency it closes)
+Phase 7 of 7 · labels: step 27 in progress (4 of 7 checks) · next: checks 4, 6, 7-graphics
 ```
 
 A step is complete only when its **Done when** column is satisfied and its
@@ -319,7 +319,10 @@ next. Linear stays running underneath the whole time.
 
 | Capability | Flag | Step | Evidence |
 |---|---|---|---|
-| **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | **27 complete** · next 28 | Deployed at `b7c30c74`, `production-write` v77. Step 27 passed on receipts **10536** and **10537**. Served per team: video **2**, graphics **6** — not 27 workspace-wide; see the procedure for why the filter makes those different questions. Kill switch: `mode:"hold"`. |
+| **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | **27 IN PROGRESS** — 4 of 7 checks measured | Deployed at `b7c30c74`, `production-write` v77; version read back from `production_label_catalog_versions` at 19:45Z. **Measured:** check 1 (read, seen by the owner), check 2 (receipts **10536**, **10537**), check 3 (row changed, updated 20:08:02Z), check 5 (labels debt 0 before and after). **Remaining: check 4 (replay), check 6 (refusals), check 7 on graphics** — video only so far. Check 4 is **only satisfiable by a staff principal**; the replay shortcut excludes the test client. Served per team: video **2**, graphics **6** — not 27 workspace-wide; see the procedure for why the filter makes those different questions. Kill switch: `mode:"hold"`. |
+
+Step 28 for labels is **not reachable** until step 27's remaining checks are
+done. A capability is not through phase 7 because its flag is on.
 
 Procedure and its corrections:
 [step 26/27 for native labels](LINEAR_EXIT_STEP26_NATIVE_LABELS.md). Three of

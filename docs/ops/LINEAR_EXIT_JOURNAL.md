@@ -41,7 +41,7 @@ from that report plus repository reading.
 | capability | `native` since **2026-09-18T20:02:56Z** |
 | catalog version | `f55a7dd2` |
 | deployed at | `b7c30c74`, `production-write` **v77** |
-| step 27 | **passed**, receipts **10536** and **10537** |
+| step 27 | **in progress** — 4 of 7 checks measured (corrected below) |
 | kill switch | `mode:"hold"` |
 
 #### The two blockers that were never real, and they failed the same way
@@ -89,11 +89,59 @@ count answer different questions.** A small served number is the filter working,
 not a partial capture, and the capture must stay whole or it fails its own
 count check.
 
+#### CORRECTION, same day — I recorded step 27 as passed, and 4 of its 7 checks were measured
+
+Codex raised this as a P1 on #1418 and the supervisor confirmed it. The entry
+above originally said step 27 **passed**, on receipts 10536 and 10537. **Those
+two receipts prove check 2.** They say nothing about the other six.
+
+| # | State |
+|---|---|
+| 1 read, both teams | ✅ seen by the owner |
+| 2 write + receipt | ✅ receipts 10536, 10537 |
+| 3 row changed | ✅ `labelIds` and `labels.nodes` agree, `hasNextPage` false, updated 20:08:02Z |
+| 4 replay idempotent | ❌ not run |
+| 5 debt conserved | ✅ labels debt 0 before and after, no row touched |
+| 6 refusals fire | ❌ not run |
+| 7 both teams | ⚠️ video only |
+
+**And check 4 cannot be run the way the resolved B-3 invites.** The
+accepted-receipt replay shortcut is gated on
+`principal.kind === "staff" && ! principal.testOnly` (`index.ts:5977-5978`), so
+a test-client replay never reaches it and falls through to a generic response
+carrying none of `replayed`, `read_only` or `authority_source`. Running check 4
+as `sidneylaruel` fails it for a reason unrelated to idempotency. So the test
+client can exercise the label **write** lane — which is what #1414 was for — and
+**cannot** exercise replay. My note that check 7 no longer needed a named real
+client was wrong on the same point and is withdrawn.
+
+**This is the same error shape again, and that is the seventh instance.** "The
+flag is on and writes are landing" was turned into "step 27 passed" without
+enumerating what step 27 actually requires. The receipts were real; the scope of
+what they evidenced was assumed. A checklist is not passed because its most
+visible item is.
+
+The narrow rule to carry: **when a step has enumerated acceptance checks, report
+per check, never in aggregate.** An aggregate verdict hides which ones nobody
+ran — here, two of seven, plus half of a third.
+
+Two further overclaims in the same PR, both also correct findings:
+
+- I wrote that `verify --package` proves the staged version landed. It does
+  not: `runVerify` reads three local files and never connects to Postgres.
+  Landing proof is the database readback of the version id, taken at 19:45Z.
+- I described the catalog query as the exact **seven**-field contract. It is
+  **eight** — `retiredAt` joined it on 2026-09-18, which is the whole reason a
+  pre-2026-09-18 package is refused. Following the row as written would have
+  produced a refused package.
+
 #### Still open
 
+- **Step 27 checks 4 and 6, and check 7 on graphics.** Check 4 needs a staff
+  principal on a real card — not the test client, per the correction above.
 - Execution map **step 28** for labels: record the website dependency this
   closes, the accepted replacement, and evidence the legacy route is
-  unreachable. This is the next session task for this capability.
+  unreachable. **Not reachable until step 27 is actually finished.**
 - `_prodLabelErrorText` has no branch for `native_label_state_incomplete`, so
   the 9 backfilled cards with no Linear issue show a tooltip naming Linear.
   Cosmetic, and the only known rough edge left.

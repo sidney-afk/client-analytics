@@ -14,7 +14,7 @@ Execution map phase 7, for the **one** capability `production_native_label_catal
 > | capability | `native` since **2026-09-18T20:02:56Z** |
 > | catalog version | `f55a7dd2` |
 > | deployed at | `b7c30c74`, `production-write` **v77** |
-> | step 27 | **passed**, on receipts **10536** and **10537** |
+> | step 27 | **IN PROGRESS** — 4 of 7 checks measured; see *Step 27 acceptance checks* |
 > | kill switch | `mode:"hold"` — see *The rollback* in (c) |
 >
 > The original text is kept below with a correction block against each thing
@@ -276,7 +276,7 @@ exists, it is read-only, and it names its own output.
 | Query | Shape | Why |
 |---|---|---|
 | `WORKSPACE_QUERY` | `organization { id urlKey }` + `team(id:)` for **both** teams | Resolves the workspace fingerprint and proves both team ids exist and differ, **before** any capture. `production_label_catalog_check_manifest` refuses `teams.video = teams.graphics` |
-| `CATALOG_QUERY` | `issueLabels(first, after, includeArchived: true)` → `nodes { id name color description isGroup archivedAt team { id } }` + `pageInfo { hasNextPage endCursor }` | Exactly the seven node fields the checker reads. Fewer is a refused manifest; more inflates it against its own 5 MiB ceiling |
+| `CATALOG_QUERY` | `issueLabels(first, after, includeArchived: true)` → `nodes { id name color description isGroup archivedAt retiredAt team { id } }` + `pageInfo { hasNextPage endCursor }` | Exactly the **eight** node fields the checker reads. Fewer is a refused manifest; more inflates it against its own 5 MiB ceiling. **`retiredAt` joined the list on 2026-09-18** — a capture without it is refused with `label_catalog_label_invalid`, which is exactly why a package taken before that date must be retaken |
 | `CATALOG_QUERY` again, **different page size** | same | The independent walk behind `independent_count_reconciled` |
 | `SELECTED_LABELS_QUERY` | `issue(id) { labels(first, after) }` | Half (b) only, and only for cards the native writer would refuse |
 
@@ -420,7 +420,7 @@ needed: staging a version changes no behaviour by itself. An unattested older
 version **cannot** be promoted in place — attestation only ever creates a new
 version.
 
-Prove it landed, without trusting the receipt:
+Re-check the **package**, without trusting its receipt:
 
 ```
 node scripts/linear-label-catalog-export.js verify --package=<dir>
@@ -428,6 +428,25 @@ node scripts/linear-label-catalog-export.js verify --package=<dir>
 
 which re-validates the manifest and re-derives `source_sha256` from
 `raw-pages.ndjson`.
+
+> ⚠ **This does not prove the version landed in the database, and must not be
+> read as if it did.** `runVerify`
+> (`linear-label-catalog-export.cli.js:499-515`) opens
+> `label-catalog-manifest.json`, `capture-receipt.json` and `raw-pages.ndjson`
+> from the package directory and **never connects to Postgres**. It proves the
+> package is internally consistent and unmodified since capture — nothing about
+> what `3-stage-attested.sql` did.
+>
+> That distinction is load-bearing here, because the next section says the
+> capability flag does not validate that its `version_id` exists either. If
+> neither the flag nor this command checks, and the staging script's own
+> `ok:true` goes unread, a wrong or absent version reaches production and
+> surfaces only as a 503 one call later.
+>
+> **Landing proof is a database readback of the version id in
+> `production_label_catalog_versions`** — which was taken on 2026-09-18 at
+> **19:45Z**, before the flag was flipped at 20:02:56Z. That readback, not this
+> command, is the evidence that `f55a7dd2` is staged and attested.
 
 ---
 
@@ -517,11 +536,53 @@ branch is unreachable and the flag does nothing.
 
 ### Step 27 acceptance checks
 
-> ✅ **STEP 27 PASSED**, 2026-09-18, on receipts **10536** and **10537** in
-> `mirror_outbox`. Those two receipt ids are the evidence for check 2 and are
-> what a later session should re-read rather than re-deriving. Check 7 no longer
-> needs the owner's named go-ahead for a real client: B-3 is resolved, so the
-> test client can exercise the lane.
+> ### ⏳ STEP 27 IS IN PROGRESS — 4 of these 7 are measured, 2 were not run
+>
+> An earlier revision of this file said "STEP 27 PASSED" on the strength of
+> receipts 10536 and 10537. **Those two receipts prove check 2 and nothing
+> else.** The honest state, 2026-09-18:
+>
+> | # | What it checks | State |
+> |---|---|---|
+> | 1 | Read, both teams, no Linear request | ✅ **seen by the owner** |
+> | 2 | Write, then assert the receipt | ✅ **receipts 10536 and 10537** |
+> | 3 | The row actually changed | ✅ **measured** — `labelIds` and `labels.nodes` agree, `hasNextPage` false, row updated **20:08:02Z** |
+> | 4 | Exact replay is idempotent | ❌ **NOT RUN** — and see the constraint below |
+> | 5 | Provider debt is conserved | ✅ **measured** — `labels` debt **0** before and after the flip, no row touched |
+> | 6 | The refusals fire | ❌ **NOT RUN** |
+> | 7 | Both teams, on real cards | ⚠️ **video only** — graphics unexercised |
+>
+> **Remaining before step 27 can be called complete: checks 4 and 6, and check
+> 7 on graphics.**
+>
+> ### ⚠ Check 4 is only satisfiable by a STAFF principal — do NOT run it as the test client
+>
+> This is a real constraint in the gateway, not a preference. The
+> accepted-receipt replay shortcut is gated at `index.ts:5977-5978`:
+>
+> ```ts
+> if (operation === "labels" && entity === "deliverable" && surface === "production"
+>     && principal.kind === "staff" && ! principal.testOnly && body.legacy_parity !== true) {
+> ```
+>
+> `! principal.testOnly` **excludes the test client**. A TEST replay never
+> reaches the shortcut; it falls through to the generic response
+> (`index.ts:6734-6753`), which carries **none** of `replayed`, `read_only` or
+> `authority_source`. So running check 4 as `sidneylaruel` produces a response
+> that fails the check for a reason that has nothing to do with idempotency,
+> and reads as a regression when it is not one.
+>
+> **Consequence for B-3's resolution:** the test client can now exercise the
+> label *write* lane, which is what #1414 delivered and what it was for. It
+> **cannot** exercise the replay shortcut. Check 4 therefore still needs a staff
+> principal on a real card, exactly as check 7 does, and B-3 being resolved does
+> not change that. The earlier note here saying check 7 no longer needs the
+> owner's named go-ahead was wrong on the same point and is withdrawn.
+>
+> Whether that exclusion is itself correct is a separate question and not one
+> this file answers. It is deliberate — the comment above it says an accepted
+> receipt is "a read-only result adoption, not renewed admission" — but nothing
+> records why the test client is outside it.
 
 Run them in this order; each one can fail without damaging the next.
 
@@ -755,17 +816,20 @@ stays with the owner under point 3 above.
 
 Steps 1, 4, 5, 7 and 9 are the owner's alone.
 
-> ✅ **All eleven ran on 2026-09-18, in this order, and 1 through 10 are
-> complete.** Gate 0 passed; B-3 was resolved by the parity migration and its
-> `auth_kind` binding; B-4 turned out not to be a blocker at all; the capture
-> was taken, verified and attested; staging returned `ok:true`; the flag went to
-> `native` at 20:02:56Z on version `f55a7dd2`; and step 27's checks passed on
-> receipts 10536 and 10537.
+> ✅ **Steps 1 through 9 ran on 2026-09-18, in this order, and are complete.**
+> Gate 0 passed; B-3 was resolved by the parity migration and its `auth_kind`
+> binding; B-4 turned out not to be a blocker at all; the capture was taken,
+> verified and attested; staging returned `ok:true` and was **read back from
+> `production_label_catalog_versions` at 19:45Z**; the flag went to `native` at
+> 20:02:56Z on version `f55a7dd2`.
 >
-> **Step 11 (execution map step 28) is the one still outstanding** — recording
-> the website dependency this closes, with the exact gate, the accepted
-> replacement and evidence the legacy route is unreachable. That is a session
-> task and it is the next thing to do for this capability.
+> ⏳ **Step 10 (execution map step 27) is IN PROGRESS**, not complete: 4 of its
+> 7 acceptance checks are measured. Checks 4 and 6 were not run, and check 7
+> covered video only. See *Step 27 acceptance checks* for what each one needs —
+> including that check 4 cannot be run as the test client at all.
+>
+> **Step 11 (execution map step 28) is therefore not reachable yet.** Recording
+> the dependency this closes needs step 27 finished first.
 >
 > Note for the next capability that comes through this sequence: steps 2 and 3
 > here were both *blockers derived by reading rather than measuring*, and one of

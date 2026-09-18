@@ -30,6 +30,124 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — NOTIFICATIONS STEP 26 PREPARATION: nothing enabled. Every notification secret and gate is absent today, a runner key is generated and held privately, the creative-channel load is prepared and not run — and two measurements disagree with what was expected: the Slack bot's membership could not be measured, and the app's sheet carries 32 creative ids, not 37
+
+Storage session. Read only except for writing one protected key file and two
+private files. Nothing was set, loaded, sent or enabled.
+
+**Owner decision, recorded:** intents that were blocked before the
+creative-channel migration **stay blocked**. Only events that happen **after the
+sender goes live** are sent. Nothing standing in the outbox today is to be
+released.
+
+#### 1. Supabase function secrets, names only
+
+Supabase function secrets are **project-wide**: `notify` and `production-write`
+see the same set. The project holds 29 secrets. Of the three asked about:
+
+| Secret | Set today | Read by (source on main) |
+|---|---|---|
+| `NOTIFY_RUNNER_KEY` | **no** | `notify`, `production-write` |
+| `SLACK_BOT_TOKEN` | **no** | `notify` |
+| `NOTIFY_WAKE_ENABLED` | **no** | `production-write` |
+
+Read through the Management API with the machine's access token; only names were
+compared, and no value was printed or stored.
+
+#### 2. The runner key
+
+32 random bytes from the system CSPRNG, hex-encoded (64 characters), stored
+DPAPI-protected as `notify-runner-key.dpapi` beside the admin role key, outside
+the repository. The secret helper's `ValidateSet` now accepts
+`notify-runner-key`. Readback through the helper matches by hash.
+
+**SHA-256 of the value: `6bc67156c9d7a3c971b599f1809f653621ed2a3615bf5135f3858b9712a1cc0a`.**
+The value itself is not in this journal and is in the push gate's leak list,
+read from the protected store in memory. **It is not set anywhere yet** — not in
+Supabase, not in GitHub.
+
+#### 3. Slack bot membership in the creative channels: NOT MEASURED
+
+The owner says the SyncView Bot is a member of every creative channel. That could
+not be measured here:
+
+- the Slack connector available to this session searches people and reads
+  messages; it has no channel-membership call, and a search for the bot user
+  returns nothing, because it lists humans;
+- the bot token is not available to this session — `SLACK_BOT_TOKEN` is not set
+  in Supabase, and the n8n credential of that name can only be used by executing
+  a workflow, which is out of bounds;
+- reading each channel's messages to infer membership would pull client
+  conversation content into this session for a yes/no question, and was not done.
+
+So the answer is **unmeasured, not "members of all"**. What would measure it:
+one read-only `users.conversations` call made with the bot's own token, compared
+against the creative ids. Either the owner runs it, or the owner stores the bot
+token here the way the other keys are stored and this session runs it.
+
+#### 4. The creative-channel load, prepared and not run
+
+Source: the **Clients Info** tab, read through the same public gviz CSV the app
+uses, parsed in memory. Both id columns are typed as text by gviz, so no cell was
+dropped by type inference.
+
+| Measure | Count |
+|---|---|
+| Client rows in the tab | **36** |
+| …carrying a creative channel id | **32** — not the 37 expected |
+| Matched to exactly one active slug by the app's own `wlNormalizeClient()` | 32 of 32; 0 unmatched, 0 ambiguous |
+| Failing the migration's check `^C[A-Z0-9]{8,}$` | 0 |
+| **Excluded because the creative id equals the shared client channel** | **1** |
+| **Rows the statement would load** | **31**, all `kind='client'` |
+
+**The one excluded client** has the same id in its creative and shared columns.
+Loading it would point that client's notifications straight back into the
+channel it shares with the client, so it is left out, and the statement also
+refuses any such row on its own:
+`v.creative_channel_id is distinct from nullif(btrim(coalesce(c.slack_channel_id,'')),'')`.
+Which client it is, is recorded privately.
+
+The statement is keyed by slug, touches active clients only, and ends with a
+readback that counts rows filled, rows still null, and rows filled with their
+shared id (which must be 0). Saved privately as
+`notifications-creative-load-20260918-1/creative-channel-load.private.sql`,
+**SHA-256 `dbd20a1e05bd4e1f5aa7d245131b3d76422230b2dd94443e8ce9d831e5bc7d75`**. It
+holds slugs and channel ids and is never committed.
+
+**It cannot run yet:** `clients.creative_channel_id` does **not exist** live. The
+column arrives with `migrations/2026-09-18-notification-creative-channel.sql`,
+which is on the prep branch and not applied.
+
+**The 37 is unresolved.** The app's Clients Info tab has 32 creative ids. If the
+owner's count comes from a different sheet or tab, the statement was built from
+the wrong source and must be rebuilt from that one; the source needs naming
+before this load runs.
+
+#### 5. The GitHub side, names only
+
+| Kind | Name | Exists today |
+|---|---|---|
+| secret | `NATIVE_NOTIFICATION_NOTIFY_URL` | **no** |
+| secret | `NATIVE_NOTIFICATION_RUNNER_KEY` | **no** |
+| variable | `NATIVE_NOTIFICATION_SENDER_ENABLED` | **no** (so the sender reads `false`) |
+| variable | `NATIVE_NOTIFICATION_MONITOR_ENABLED` | **no** (so the monitor reads `false`) |
+
+**Can this session set them?** Technically yes: its GitHub token carries the
+`repo` scope and the account has admin on the repository, and the Supabase access
+token here can write project secrets. **It will not do so without the owner's
+explicit instruction for each one**, and the two `*_ENABLED` variables are the
+go-live gate itself — setting either to `true` is step 27, the owner's act.
+
+#### What stands between here and step 27
+
+1. Apply the creative-channel migration.
+2. Name the source of the 37 creative ids, rebuild the load if it is not Clients
+   Info, then run it and read back.
+3. Measure the bot's membership of every creative channel it will post to.
+4. Set `NOTIFY_RUNNER_KEY` and `SLACK_BOT_TOKEN` in Supabase, and the two GitHub
+   secrets, from protected stores.
+5. Only then, on the owner's go-ahead, the two `*_ENABLED` variables.
+
 ### 2026-09-18 — What a native card actually does when an editor touches it, why last night's drill went red, and PR #1412
 
 Cloud session, owner back and driving #1410 himself. Hourly PR check-ins

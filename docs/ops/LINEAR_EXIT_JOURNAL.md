@@ -30,6 +30,105 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL RETIRED-STATE AND ASSIGNMENT AUTH-KIND BINDING APPLIED LIVE; deploy preflight NOT PASS on the same class of pin defect, so no dispatch. LABEL CAPTURE RETAKEN: 46 labels, 19 retired (video 16, graphics 0, workspace 3), reconciled, not attested
+
+Storage session. Main is `e1cb2236340d888d070217818b9241abe002658c`; every step
+below ran from a clean detached worktree at that commit.
+
+#### 1. Migrations
+
+| File | sha256, commit blob and worktree | Applied (UTC) | Notices |
+|---|---|---|---|
+| `2026-09-18-native-label-retired-state.sql` | `6c808729…9e4`, equal to the pin | 19:36:25.716 → .851 | none |
+| `2026-09-18-native-assignment-auth-kind-binding.sql` | `2c211c22…661`, equal to the pin | 19:36:28.445 → .552 | none |
+
+Both files were run unedited, each in its own transaction under its own
+`begin`/`commit`. Both re-state their routines' grants with `revoke all` plus
+`grant`. The pre-state confirmed that the re-stated grants equal the live
+holders before either ran.
+
+| Routine | md5 before → after | EXECUTE holders, unchanged | Signature, definer, config |
+|---|---|---|---|
+| `production_label_catalog_check_manifest(jsonb)` | `cdddaeca…` → `ae8b6d3d…` | postgres | unchanged (invoker) |
+| `production_label_catalog_read_version(uuid,text)` | `591b3342…` → `3fc8a41a…` | postgres, service_role | unchanged |
+| `production_assignee_write(jsonb,jsonb)` | `d12dc5af…` → `51e5db64…` | postgres, service_role | unchanged |
+
+The four native flags were byte-identical before and after, and the label
+capability stays `provider`. `production_label_catalog_versions` still has 0 rows.
+
+#### 2. Deploy preflight: NOT PASS
+
+```
+linear-exit-deploy-preflight: CONTRACT_MISMATCH:routine:production_label_catalog_check_manifest(jsonb)
+```
+
+It is the only mismatch the preflight listed, and **the same class of defect as
+the one fixed in #1416.** At `e1cb2236`, the preflight's new row for
+`production_label_catalog_check_manifest(jsonb)` has no fifth element, so the
+default `securityDefiner = true` applies. The function is an invoker: it was one
+before this migration, the migration does not make it a definer, and it is one
+live.
+
+| Attribute | Preflight expects | Live |
+|---|---|---|
+| body md5 (the preflight's own extraction) | `ae8b6d3d…` | `ae8b6d3d…` |
+| search path | `pg_catalog, public` | `pg_catalog, public` |
+| service_role / anon / authenticated EXECUTE | no / no / no | no / no / no |
+| **security definer** | **true** | **false** |
+
+`production_label_catalog_read_version` and `production_assignee_write` match on
+every attribute.
+
+**Said rather than quietly fixed:** #1416 added
+`test/linear-exit-preflight-definer-pins.js` for exactly this class of defect, and
+it did not catch this row. Assume the same gap for any row added later. The fix is
+one element, `false`, on that row. **It is not made here.** The database is not
+changed to fit the gate.
+
+#### 3. Deploy: NOT dispatched
+
+The instruction was to tell the owner "preflight PASS, dispatch e1cb2236" only
+after a PASS, so **that message was not given.** No run was started or watched.
+
+#### 4. Label capture retaken
+
+The exporter at `e1cb2236` now requests `retiredAt`. It was run with the same two
+team ids, archived included, **no confirmation flag**, and card state skipped as
+before.
+
+| Measure | Value |
+|---|---|
+| Capture id | `6a96e211-b527-4ab7-8601-d691d5d87ea7`, 19:37:00.983Z |
+| **Video** `cd12db10…` | **18 labels, 16 retired**, 0 archived |
+| **Graphics** `4789fc53…` | **6 labels, 0 retired**, 0 archived |
+| **Workspace-scoped** | **3 labels, 3 retired**, 0 archived |
+| Two other teams (`d77dc414…`, `51aaf4a4…`) | 16 and 3 labels, 0 retired, 0 archived |
+| Total | **46 labels, 19 retired, 0 archived, 0 groups** |
+| Records carrying the `retiredAt` field | 46 of 46 |
+| Pages fetched | **1**; `hasNextPage` false, so the **terminal page was reached** |
+| Independent walk at page size 50 | **RECONCILED**: 46 and 46, 0 differences |
+| Team mapping | `video` → `cd12db10…`, `graphics` → `4789fc53…`; distinct |
+| Workspace fingerprint | `f80a5b5f…`, the same workspace as the first capture |
+| `verify` re-run | manifest VALID, raw pages match, reconciled YES |
+
+The retired counts equal the supervisor's direct reading: 16 video, 0 graphics,
+3 workspace.
+
+| Package `label-catalog-capture-20260918-2`, private | sha256 |
+|---|---|
+| **export package** | **`69130269b4dd6a865c82517806f2f690989e94eb16c7b5510609a1f49ea6940f`** |
+| raw pages | `e24953e413490452537dfd9ba9aab1e8fba2884c358634bcb8c9369f80433f83` |
+| manifest | `d3fc91693acefec8b744d9876702bf7667217ccbfcda226a64f237985186a60d` |
+| review evidence | `fc419125852e9c339c7ed2f910fdf0cfc95afb2fbd3bac604fdff6d60b3af677` |
+| capture receipt | `575ffa046a628121272136d1464b1116d8dc2f1bfd98a8ab1e3d09aed8a5e893` |
+
+**The previous package, `a6ab6440…`, is SUPERSEDED and must not be attested.** A
+`SUPERSEDED-DO-NOT-ATTEST.txt` marker was written into its private folder. It
+carries no `retiredAt`, so the new checker would refuse it.
+
+**Holding:** for the corrected preflight before any dispatch, and for the owner's
+own-words confirmation before any attest.
+
 ### 2026-09-18 — PRODUCTION-WRITE DEPLOY PASS: run `35385640357` at `53417b82`. The in-run preflight passed, 13 functions were deployed, and the attestation is 13 PASS, 0 FAIL, 0 ERROR
 
 Storage session, watching the owner's dispatch.

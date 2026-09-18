@@ -1176,3 +1176,81 @@ end;
 $fn$;
 commit;
 ```
+
+## 2026-09-18 — inverse for the native calendar status bridge (REHEARSED, NOT APPLIED)
+
+`migrations/2026-09-18-native-calendar-status-bridge.sql` installs an AFTER
+UPDATE row trigger on `deliverables` that projects a native status change onto
+the linked calendar post's component status and `*_status_at` stamp, plus two
+supporting routines and a one-off backfill routine. Nothing else on the page,
+in an Edge Function, or in `index.html` changes, and no Edge Function
+fingerprint moves — so neither F27 lane is involved and **no sealed bundle
+needs capturing**.
+
+**When to run this.** Only if the projection itself is misbehaving. Running it
+restores the state this change exists to repair: an editor's status change stops
+reaching the content calendar at all, and stays unreached, because the
+reconciler that used to converge it pulls from Linear and native receipts send
+nothing to Linear. That is the measured 2026-09-18 regression, deliberately
+reinstated. If the problem is one wrong projection rather than the mechanism,
+fix the card.
+
+**What it deliberately does NOT do.**
+
+- It does not revert a single card. Every component status the bridge already
+  projected is the canonical value from the linked deliverable, and un-writing
+  it would put a stale status back in front of a client. The statuses stay.
+- It does not delete the `calendar_post_events` rows the bridge wrote. They are
+  the paper trail for why those cards moved.
+- It does not restore `calendar_posts.video_status_at` to a pre-projection
+  value. That column is the urgent ping's deduplication key
+  (`production_notification_enqueue_urgent` builds
+  `intent_key = 'urgent:' || sha256(deliverable_id || '|' || video_status_at)`),
+  so moving it backwards would re-open tweak rounds that have already been
+  pinged — the exact duplicate-notification failure the forward migration is
+  built to avoid.
+- It issues no grant and no revoke beyond removing the three functions' own.
+  Nothing else's ACL is touched.
+- It does not revert `scripts/linear-exit-deploy-preflight.js`. **If this inverse
+  is applied, remove the four `production_native_calendar_status_*` ROUTINES
+  rows and the `deliverables.zzz_native_calendar_status_project` TRIGGERS row in
+  the same change**, or the Linear-exit deploy preflight will refuse with
+  `CONTRACT_ABSENT` on five keys and no production-write release can dispatch.
+  The install inventory entry in
+  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json` and
+  its `CANDIDATE`/`DEPENDENCIES` entries in
+  `scripts/linear-exit-install-manifest.js` come out with it.
+
+Also removes the stale-approval clearing the projection performs, so a component
+that regresses after this inverse keeps its client sign-off stamp again. That is
+part of what it restores, not an oversight.
+
+**Rehearsed on 2026-09-18** against a disposable PostgreSQL carrying the real
+migration chain, as the last two assertions of
+`test/native-calendar-status-bridge-postgres.js`, so the rehearsal re-runs every
+time that lane does rather than being a dated claim: after the inverse all five
+objects are gone, the identical native status change leaves the card and its
+stamp untouched (the regression, reproduced), and every value, stamp and event
+row the bridge had already written is unchanged.
+
+The inverse, in full:
+
+```sql
+-- INVERSE of 2026-09-18-native-calendar-status-bridge.sql.
+-- Removes the projection. It deliberately does NOT revert any card status the
+-- bridge already projected, does NOT delete the calendar_post_events rows it
+-- wrote, and does NOT move calendar_posts.video_status_at backwards -- that
+-- column is the urgent ping's dedupe key and moving it back re-opens tweak
+-- rounds that were already pinged.
+-- It also does NOT revert scripts/linear-exit-deploy-preflight.js: remove the
+-- four production_native_calendar_status_* ROUTINES rows and the
+-- deliverables.zzz_native_calendar_status_project TRIGGERS row in the same
+-- change, or the deploy preflight refuses on five keys.
+begin;
+drop trigger if exists zzz_native_calendar_status_project on public.deliverables;
+drop function if exists public.production_native_calendar_status_backfill(timestamptz, boolean);
+drop function if exists public.production_native_calendar_status_project();
+drop function if exists public.production_native_calendar_status_map(text, text);
+drop function if exists public.production_native_calendar_status_above(text);
+commit;
+```

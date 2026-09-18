@@ -2,6 +2,84 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — the calendar stopped hearing about production status changes, and the fix is a trigger
+
+Priority regression from the ordinary-receipts flip, reported the same day.
+
+An editor's status change on a production card reached the content calendar by
+one route and one only: the write landed in `deliverables`, the outbound mirror
+carried it to Linear, and `scripts/linear-sync-reconcile.js` pulled it back onto
+`calendar_posts.video_status` / `graphic_status`. Native receipts send nothing to
+Linear. The reconciler still runs, still resolves the link, still gets the stale
+Linear state, and its own provenance test correctly refuses to write it — so
+nothing wrote the calendar's copy at all. Changes made FROM the calendar were
+never affected; they have always written both copies.
+
+Measured: four video cards moved to `smm_approval` between 19:12Z and 19:25Z and
+the calendar still read "Tweaks Needed" at 20:20Z, when the SMM re-set all four
+by hand. At 20:44Z ten components across seven clients were lagging their linked
+card (six video, four graphics), oldest since 17:34Z.
+
+`migrations/2026-09-18-native-calendar-status-bridge.sql` projects the change in
+the database — the mapped calendar value, its `*_status_at` stamp through the
+existing BEFORE trigger, and one `calendar_post_events` row with
+`source = 'native-bridge'`. `scripts/native-calendar-status-backfill.js`,
+dry-run by default, catches up the cards that already lagged.
+
+**Trigger, not gateway, and the reason is the reconciler's ledger.** That ledger
+decides direction by comparing the card's EXACT change time against Linear's
+poll time, and exists because a card whose stamp did NOT move when the card
+really changed looks OLDER than Linear and gets reverted
+(`LINEAR_DRIFT_INCIDENT_2026-06-19.md`). Its expectation is about the column on
+every write path, in the same transaction — not about one caller. A gateway
+projection is a second step that can be skipped, can fail, or can ship in a
+version of `production-write` that is not deployed yet, and `production-write` is
+not the only writer of `deliverables.status` anyway. Same reasoning, same shape,
+as the 2026-09-10 Kasper ping ledger trigger. No Edge Function changes, so no
+fingerprint moves and no sealed bundle is needed.
+
+**The duplicate-notification hazard was real and it was not the obvious one.**
+The client-channel status intent is a trigger on `deliverable_events` keyed on
+`source='ui'`, which this cannot reach — that one was easy. The sharp one is
+that `calendar_posts.video_status_at` IS the urgent editor ping's deduplication
+key: `production_notification_enqueue_urgent` builds
+`intent_key = 'urgent:' || sha256(deliverable_id || '|' || video_status_at)` and
+leans on `on conflict do nothing`. A projection that re-stamps that column
+without a card-visible change mints a fresh key and lets the same tweak be
+pinged twice. Every write is therefore predicated on the MAPPED value differing
+from the card's, so a no-op, a native move between two statuses that map to the
+same calendar value, the four cards the SMM already fixed by hand, and a second
+backfill run all write nothing. Asserted in the units that decide it — the
+`sha256` key itself — not in prose.
+
+One repair falls out: `urgentSnapshot` requires the card to read `Tweaks
+Needed`, so the urgent ping has been unreachable on natively-changed cards since
+the flip and is reachable again.
+
+**Amended 2026-09-18, before merge, after review found three defects.** The
+biggest: a component regressing `approved` -> `tweak` kept its client approval
+stamp, so the card read "Tweaks Needed" beside a live sign-off and nothing
+recomputed it. The projection now mirrors `_calClearStaleApprovals` for the
+component that regressed, clearing `client_<component>_approved_at` and, when no
+component is left above the client-approval line, `kasper_approved_at` — in the
+same statement that moves the status. The header line saying this projection
+does not copy `computeOverallStatus` was right and had quietly been read as
+covering `_calClearStaleApprovals` too; they do different jobs, and only the
+first is recomputed on reload. The backfill's apply now re-reads the deliverable
+in the same statement and writes its events rows only from what an UPDATE
+returned, so a row a concurrent change took out from under it reports
+`applied: false` rather than being clobbered and logged. And the usage block is
+absolute, run as written from an unrelated directory before being handed over.
+
+Proofs: `test/native-calendar-status-bridge.js` executes
+`_calMapNativeStatusStrict` out of `index.html`, parses the migration's `case`
+arms out of the SQL and compares them over all 90 status/origin pairs — seen to
+fail on a planted one-character drift before being accepted.
+`test/native-calendar-status-bridge-postgres.js` is 32 assertions on a real
+disposable PostgreSQL, including a CONTROL that drops the trigger and reproduces
+the reported regression, and the `ROLLBACK.md` inverse rehearsed in the same
+lane so it re-runs rather than being a dated claim.
+
 ## 2026-09-18 — A native card has no identifier, so its row cell escaped
 
 Browser-only. `.prod-id` declared `width: 76px` and no truncation at all. A

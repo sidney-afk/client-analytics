@@ -548,3 +548,35 @@ sentinel is unchanged, and no read, request, or authority path is touched. The
 narrow shape (no persisted stamp, no project from any source, no Linear issue
 yet, an ACTIVE roster slug) is what keeps it from reaching a row Linear
 invalidated, an unmapped project, a conflict, or a former client.
+
+## Addendum, 2026-09-18 — the native calendar status projection, and what it does not widen
+
+`migrations/2026-09-18-native-calendar-status-bridge.sql` adds an AFTER UPDATE
+row trigger on `deliverables` that writes the linked calendar post's component
+status, its `*_status_at` stamp, and one `calendar_post_events` row
+(WIRED-PARITY 2026-09-18, `ROLLBACK.md` same date).
+
+It widens no capability and no authority. It reads columns already on the
+changed row, resolves the card through the link the card itself holds, and
+writes two tables the same `service_role` that performed the deliverable write
+already has full DML on — SECURITY INVOKER, so no privilege is granted and none
+is needed. It cannot create a card, cannot delete one, cannot archive one,
+cannot touch `sample_reviews`, cannot reach `deliverable_events` and therefore
+cannot reach any notification trigger, and cannot move a card whose own
+`video_deliverable_id` / `graphic_deliverable_id` does not name the deliverable.
+No read, request, gate or authority path is touched, and no Edge Function
+changes, so no fingerprint moves and neither F27 lane is involved.
+
+It clears `client_<component>_approved_at` and `kasper_approved_at` under the
+page's own conditions when the component it moves regresses below the
+client-approval line. That is a narrowing of what the card asserts, never a
+widening: it can only ever blank a sign-off that the component's new status has
+already invalidated, and it can never set one.
+
+The one thing it can do that nothing else could is move a calendar component
+status without a calendar write, which is the point: that value had no
+server-side writer at all once Linear stopped carrying it.
+
+Its narrow predicate — the MAPPED calendar value must actually differ from what
+the card holds — is what keeps it from re-stamping `video_status_at`, the urgent
+ping's deduplication key, on a change the card never showed.

@@ -26371,3 +26371,58 @@ otherwise minimal and reviewable.
 retiring, and the owner's two cards need linking to one of them. Six thumbnails
 on a third calendar were queued behind the outage itself, not this bug, and
 clear on their own.
+
+## 212. [2026-09-18, FIXED — MIGRATION REQUIRED] The flip cut the content calendar's only supply of production statuses
+
+**What the SMM saw.** Four video cards moved to `smm_approval` by an editor
+between 19:12Z and 19:25Z; the calendar still read "Tweaks Needed" at 20:20Z,
+when they re-set all four by hand. At 20:44Z ten components across seven clients
+were lagging their linked card (six video, four graphics), the oldest since
+17:34Z. Reported by card and deliverable id; one of the seven is the test
+client.
+
+**Why.** The calendar's copy of a production status has always come from Linear.
+The card write lands in `deliverables`, the outbound mirror carries it to Linear,
+and `scripts/linear-sync-reconcile.js` pulls it back onto
+`calendar_posts.video_status` / `graphic_status`. Native receipts send nothing to
+Linear, so from the ordinary-receipts flip that chain carried nothing — the
+reconciler resolved the link, got the stale Linear state, and its provenance
+test correctly refused to write it. Nothing else had ever written that column.
+Changes made FROM the calendar were never affected; they write both copies.
+
+**Fix.** `migrations/2026-09-18-native-calendar-status-bridge.sql` projects the
+change in the database, in the same transaction as the deliverable write: the
+mapped calendar value, its `*_status_at` stamp through the existing BEFORE
+trigger, and one `calendar_post_events` row with `source = 'native-bridge'`.
+`scripts/native-calendar-status-backfill.js` (dry-run by default) catches up the
+cards that already lagged. No Edge Function changes, so no fingerprint moves and
+no sealed bundle is needed — but the migration has to be applied and the deploy
+preflight now expects four more objects.
+
+**The hazard that shaped it.** `calendar_posts.video_status_at` is the urgent
+editor ping's deduplication key —
+`intent_key = 'urgent:' || sha256(deliverable_id || '|' || video_status_at)` —
+so a projection that re-stamps it without a card-visible change lets one tweak
+be pinged twice. Every write is predicated on the mapped value actually
+differing from the card's. A repair falls out of the same reading: the urgent
+ping has been unreachable on natively-changed cards since the flip, because
+`urgentSnapshot` requires the card to read `Tweaks Needed`.
+
+**Proof.** `test/native-calendar-status-bridge.js` (mapping parity against
+`index.html` over all 90 status/origin pairs, seen to fail on a planted drift)
+and `test/native-calendar-status-bridge-postgres.js` (32 assertions on a real
+disposable PostgreSQL, including a CONTROL that drops the trigger and reproduces
+the regression, and the `ROLLBACK.md` inverse rehearsed in the same lane).
+
+**Amended before merge, after review.** The first draft moved the status and
+left the approval stamps, so a regressing component showed "Tweaks Needed" beside
+a live client sign-off — the stamps are stored, and unlike the roll-up nothing
+recomputes them on reload. The projection now clears them under
+`_calClearStaleApprovals`'s own conditions, scoped to the component that
+regressed. The backfill's apply also re-reads the deliverable in the same
+statement and logs only rows an UPDATE returned.
+
+**Not done here.** The card's overall `status` roll-up is still recomputed only
+by the next calendar write; `computeOverallStatus` and `_calClearStaleApprovals`
+have no server-side twin and inventing a second one in SQL is how the two drift.
+Worth a decision, not a silent addition.

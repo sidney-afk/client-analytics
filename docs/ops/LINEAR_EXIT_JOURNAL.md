@@ -30,6 +30,57 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL CATALOG VERSION STAGED on the owner's own go-ahead: `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`, 46 labels, 19 retired, `ok: true`, not activated. `production_native_label_catalog` still `provider`
+
+Storage session. The owner's go-ahead, in his own words, after the runbook
+conflict recorded in the previous entry:
+
+> Stage it. Run the staging SQL for version f55a7dd2, read back the version id, 46 labels with 19 retired, and confirm the flag is still provider.
+
+#### What ran
+
+The package's `3-stage-attested.sql` was run **unedited**, after its hash was
+checked against the attestation output: sha256 `2abdc5ef…bea60`. It is one
+call to `production_label_catalog_stage_attested('f55a7dd2…'::uuid, manifest,
+attestation)`.
+
+- It ran as `service_role`, per the file's own header, via `set local role`
+  inside a single transaction.
+- The transaction committed only after the result came back `ok: true` with this
+  version id. Transaction time: **2026-09-18T19:45:19.167Z**.
+- `4-capability-flag.sql` was **not** run.
+
+#### Result
+
+```
+ok: true, activated: false, operator_attested: true, provider_completeness_verified: false
+```
+
+#### Readback (the transaction was rolled back afterwards)
+
+| Check | Value |
+|---|---|
+| Versions staged, before → after | 0 → **1** |
+| **version_id** | **`f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`** |
+| staged_at | 2026-09-18T19:45:19.355Z |
+| verification_state | `structure_validated_only` |
+| manifest sha256 (the database's own) | `ce912bbd60fd71401e362c6b8e04a46b17a74a9734b196a0b5024a2de96932f3` |
+| capture_id / source_sha256 | `6a96e211…` / `e24953e4…`, equal to the package |
+| **Labels in the stored manifest** | **46** (expected_count 46) |
+| **Retired** | **19** |
+| Archived | 0 |
+| **`production_native_label_catalog`** | **`provider`**, `version_id` null. Byte-identical before and after, last updated 2026-09-17 by `native-labels-draft` |
+
+`provider_completeness_verified: false` and `structure_validated_only` are what the
+foundation migration records: the database proves the manifest's structure, and
+completeness rests on the owner's attestation.
+
+**The version cannot be removed:** the versions table is immutable by trigger. It
+changes no behaviour while the flag is `provider`.
+
+**Holding.** The flag stays `provider` until production-write is deployed at the
+retired-aware commit, and the deploy waits for a corrected preflight.
+
 ### 2026-09-18 — LABEL CATALOG ATTESTED on the owner's own words: version `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`. NOT STAGED. The capture runbook reserves staging for the owner, and staging is irreversible
 
 Storage session. The owner's confirmation, in his own words:

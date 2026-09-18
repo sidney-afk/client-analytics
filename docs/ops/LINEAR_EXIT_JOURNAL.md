@@ -30,6 +30,42 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — OWNER DECISION, option B: notifications go live with the wake path ON. Recorded before acting, with the supervisor's error and the off switch
+
+> wake on too, go
+
+#### The error, as the supervisor records it
+
+**Supervisor error.** The step 26 prompt set `NOTIFY_WAKE_ENABLED=true` as
+configuration. It is a **sender with no gate**: production-write wakes the notify
+function directly after creating an intent. Notifications were therefore **live
+from 14:47 to 15:09:14Z, before the owner's go-ahead.**
+
+What went out in that window, as measured in the previous entry:
+
+- **One message delivered**, to the client's **correct creative channel**.
+- **Two refused** by Slack, before the bot had joined those channels.
+- **Nothing to a channel shared with a client.**
+
+**The two refused intents stay blocked, by owner rule.** They are not retried.
+
+#### The off switch, from now on
+
+For native notifications the off switch is **both** of these, **in this order**:
+
+1. `NOTIFY_WAKE_ENABLED=false` (Supabase project secret) — stops the ungated
+   path that sends within seconds of each event;
+2. `NATIVE_NOTIFICATION_SENDER_ENABLED` **absent** (GitHub variable) — stops the
+   scheduled sender.
+
+Either one alone leaves a sender running. The execution map's rollback line for
+this capability now says exactly that.
+
+#### Next
+
+With the decision recorded: wake back on, the sender variable set, one dispatch of
+the sender workflow, then the one-comment test on a real client's card.
+
 ### 2026-09-18 — STEP 27 NOT STARTED: notifications were ALREADY sending before the go-ahead. `NOTIFY_WAKE_ENABLED=true` makes production-write call the sender directly, with no GitHub gate. One message delivered, to the correct creative channel; two refused. Wake switched off at 15:09:14Z
 
 Storage session. The owner gave the go-ahead —

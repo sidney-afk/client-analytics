@@ -423,6 +423,12 @@ release at it, and blocks every existing pending `client_creative_channel`
 intent; the creative ids load from the owner's sheet as data and are never
 committed.
 
+**Native notifications — rollback line (recorded 2026-09-18, owner decision B).**
+The off switch is **`NOTIFY_WAKE_ENABLED=false`** (Supabase secret) **and then**
+**`NATIVE_NOTIFICATION_SENDER_ENABLED` absent** (GitHub variable), in that order.
+Either alone leaves a sender running: the wake path sends within seconds of each
+event with no GitHub gate, and the schedule sends on its own.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

@@ -15277,6 +15277,20 @@ else's ability to GET a webhook. So the exposure F48 tracks is exactly as open
 as it was before this lane, and the entry above declared a SECURITY item closed
 on the strength of a diff that cannot close it.
 
+**CORRECTION, added 2026-09-18. The paragraph above is kept as written, and its
+point still stands.** The clause "that date ends our Linear *access*" is now
+wrong on the date. **Linear access is LIVE, measured by the owner on
+2026-09-18** -- three days after the 15th. Every line in this ledger that speaks
+of Linear access ending on 2026-09-15 is describing a plan that did not happen
+on that schedule, not an observed fact; read them as "when access ends", with no
+date attached, until a new one is measured.
+
+Two things do NOT change with it. The F48 webhook exposure is independent of
+Linear access and was never gated on that date -- which is the whole argument
+above. And the B7 label catalog capture is still **untaken**
+(`docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md`), so the window being open again is
+an opportunity that expires on somebody else's schedule, not a reprieve.
+
 **Why it was not closed here instead.** Deactivating that workflow is the fix,
 and `CLAUDE.md` is unambiguous: never edit an n8n workflow without the owner's
 explicit go-ahead **in that same request**. This session does not have one — the

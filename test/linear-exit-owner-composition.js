@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs'), crypto = require('node:crypto');
 const installInventory = require('../scripts/linear-exit-install-manifest');
-const inventoryIdentity = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918.json';
+const inventoryIdentity = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_2.json';
 const inventoryPath = path.resolve(__dirname,'..',inventoryIdentity);
 const {
   bootCluster, connectionEnv, psqlAsync, MIGRATIONS, count, jsonRows, scalar,

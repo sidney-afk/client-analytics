@@ -9,7 +9,7 @@ const COVERED=['2026-07-03-a1-calendar-upsert.sql','2026-07-05-b0-linear-auth-sc
  '2026-07-23-f34-f53-production-attachments.sql','2026-08-06-artifact-projection-scope-and-revision.sql','2026-08-30-artifact-video-projection.sql',
  '2026-09-05-artifact-card-binding-first.sql','2026-07-20-f27-team-rollback.sql'];
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
-function plan(){const bytes=fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918.json'));const manifest=JSON.parse(bytes.toString('utf8'));inventory.verify(manifest);const skip=new Set([...COVERED,'live-schema-baseline-2026-07-03.sql']);return{manifest,digest:sha(bytes),remaining:manifest.dependency_order.filter(id=>!skip.has(id))};}
+function plan(){const bytes=fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_2.json'));const manifest=JSON.parse(bytes.toString('utf8'));inventory.verify(manifest);const skip=new Set([...COVERED,'live-schema-baseline-2026-07-03.sql']);return{manifest,digest:sha(bytes),remaining:manifest.dependency_order.filter(id=>!skip.has(id))};}
 function authenticate(checkpoint,key){
  const {mac,...payload}=checkpoint;
  return crypto.createHmac('sha256',Buffer.from(key,'hex')).update(JSON.stringify(payload)).digest('hex');

@@ -35,6 +35,7 @@ const CANDIDATE=[
  '2026-09-12-native-ordinary-envelope-repair.sql','2026-09-11-native-signoff-verifier.sql','2026-09-09-native-notification-outbox.sql',
  '2026-09-05-description-images.sql','2026-09-09-kasper-urgent-pings.sql','2026-09-10-kasper-urgent-ping-ledger.sql',
  '2026-09-18-notification-creative-channel.sql','2026-09-18-native-test-client-parity.sql',
+ '2026-09-18-native-label-empty-state-seed.sql','2026-09-18-native-label-test-client-parity.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -68,6 +69,14 @@ const DEPENDENCIES={
  // after each of them; the ordinary edge is the envelope repair, which is
  // itself the last replacement of production_native_ordinary_event.
  '2026-09-18-native-test-client-parity.sql':['2026-09-12-native-ordinary-envelope-repair.sql','2026-09-06-native-existing-assignment.sql'],
+ // Seeds deliverables.linear_raw and reuses the workload lane's own "absent"
+ // predicate, so it installs after the migration that last defines it and
+ // after the b1 data model that owns the table and its ledger guard.
+ '2026-09-18-native-label-empty-state-seed.sql':['2026-07-06-b1-linear-data-model.sql','2026-09-08-workload-native-label-state-shape.sql'],
+ // Replaces two bodies the label writes migration defines, so it installs
+ // after it; the seed is what makes the lane reachable on a native card, so
+ // it installs after that too.
+ '2026-09-18-native-label-test-client-parity.sql':['2026-09-06-native-label-writes.sql','2026-09-18-native-label-empty-state-seed.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

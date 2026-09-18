@@ -495,7 +495,7 @@ const CANDIDATES = new Map([
     // index.ts only -- closure membership stays at six and the entrypoint hash
     // is unchanged, because that one hashes the PATH, not the file.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: '74d641b0ac0f5ff6575c738e59f12c623e3cf10b27175677a02435bbb2f2384d',
+    source: '9dd41919d1690b6035146fad49504aa8d08fbc990efa62ac55ddd66abf5994aa',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

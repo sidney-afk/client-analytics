@@ -948,7 +948,7 @@ async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<Js
   const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
     team(id: $teamId) { id key }
     issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
-      nodes { id name color description archivedAt isGroup team { id } }
+      nodes { id name color description archivedAt retiredAt isGroup team { id } }
       pageInfo { hasNextPage endCursor }
     }
   }`;
@@ -972,11 +972,18 @@ async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<Js
     for (const node of catalogNodes) {
       if (!Object.prototype.hasOwnProperty.call(node, "team")
           || typeof node.isGroup !== "boolean"
-          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")) {
+          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")
+          // Required, not optional: a response without it cannot tell a retired
+          // label from a live one, and guessing "live" is the defect.
+          || !Object.prototype.hasOwnProperty.call(node, "retiredAt")) {
         throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
       }
       const labelTeamId = clean(parseJson(node.team).id);
-      if (node.isGroup === true || clean(node.archivedAt)
+      // Retired is a separate state from archived and both are excluded from
+      // what this lane offers as applicable. An existing selection of either
+      // still resolves for display, because mergeLabelCatalog keeps
+      // selected-only labels as additional rows.
+      if (node.isGroup === true || clean(node.archivedAt) || clean(node.retiredAt)
           || (labelTeamId && labelTeamId !== teamId)) continue;
       const label = sanitizedLabel(node, true);
       if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });

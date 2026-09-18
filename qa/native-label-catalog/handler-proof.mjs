@@ -14,7 +14,7 @@ const EDGE='supabase/functions/production-write/index.ts';
 const sha=x=>crypto.createHash('sha256').update(x).digest('hex');
 const clone=x=>JSON.parse(JSON.stringify(x));
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-const label=(n,extra={})=>({id:uuid(n),name:'Synthetic '+n,color:'#123456',description:null,archivedAt:null,isGroup:false,team:null,...extra});
+const label=(n,extra={})=>({id:uuid(n),name:'Synthetic '+n,color:'#123456',description:null,archivedAt:null,retiredAt:null,isGroup:false,team:null,...extra});
 const publicLabel=({id,name,color,description})=>({id,name,color,description});
 const secrets={SUPABASE_URL:'https://supabase.synthetic.invalid',SUPABASE_SERVICE_ROLE_KEY:'synthetic-service',ROLE_KEY_ADMIN:'synthetic-admin',LINEAR_MIRROR_API_KEY:'synthetic-provider'};
 let handler,store,provider='denied',providerCalls=0,unexpectedDestinations=0,background=0;
@@ -28,7 +28,7 @@ globalThis.fetch=async(url,options)=>{
   const {query,variables}=JSON.parse(options.body);let data;
   if(query.includes('SyncViewProductionLabelIssue'))data={issue:{id:uuid(500),team:{id:uuid(900)}}};
   else if(query.includes('SyncViewProductionLabelCatalog')){
-    data={team:{id:uuid(900),key:'VIDEO'},issueLabels:{nodes:provider==='empty'?[]:[label(1),label(2,{team:{id:uuid(900)}}),label(3,{team:{id:uuid(901)}}),label(4,{isGroup:true}),label(5,{archivedAt:'2026-09-01T12:00:00Z'})],pageInfo:{hasNextPage:false,endCursor:null}}};
+    data={team:{id:uuid(900),key:'VIDEO'},issueLabels:{nodes:provider==='empty'?[]:[label(1),label(2,{team:{id:uuid(900)}}),label(3,{team:{id:uuid(901)}}),label(4,{isGroup:true}),label(5,{archivedAt:'2026-09-01T12:00:00Z'}),label(6,{retiredAt:'2026-09-02T12:00:00Z'})],pageInfo:{hasNextPage:false,endCursor:null}}};
     if(provider==='incomplete')delete data.issueLabels.pageInfo.hasNextPage;
     if(provider==='wrong-team')data.team.id=uuid(901);
   }else if(query.includes('SyncViewProductionSelectedLabels'))data={issue:{id:variables.id,team:{id:uuid(900)},labels:{nodes:[],pageInfo:{hasNextPage:false,endCursor:null}}}};

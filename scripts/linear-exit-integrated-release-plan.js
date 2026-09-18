@@ -6,7 +6,7 @@ const ROOT=path.resolve(__dirname,'..'),canon=require('./track-b-backup').canoni
 const sha=x=>crypto.createHash('sha256').update(x).digest('hex');
 function build({addonBytes,addonSha256}={}){
  const ext=extension.verify(),extensionBytes=fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_ADMISSION_RELEASE_EXTENSION_V1.json'));if(canon(JSON.parse(extensionBytes))!==canon(ext))throw Error('PLAN_EXTENSION_DRIFT');const bytes=fs.readFileSync(path.join(ROOT,ext.base_install_inventory.path));
- if(sha(bytes)!==ext.base_install_inventory.sha256)throw Error('PLAN_BASE_DRIFT');const base=JSON.parse(bytes);manifest.verify(base);
+ if(sha(bytes)!==ext.base_install_inventory.sha256)throw Error('PLAN_BASE_DRIFT');const base=JSON.parse(bytes);manifest.verifyFrozen(base);
  const entries=base.dependency_order.map(id=>structuredClone(base.entries.find(x=>x.id===id)));
  let prior=base.dependency_order.slice();
  for(const input of [...ext.prerequisites.filter(x=>x.path.endsWith('.sql')),...ext.sql_owners]){
@@ -23,7 +23,7 @@ function build({addonBytes,addonSha256}={}){
  const requirements={path:baselinePath,sha256:sha(baselineBytes),tables:baseline.tables,platform_prerequisites:baseline.platform_prerequisites,limits:baseline.limits,observation_provided:false,classification:baselineRequirements.classify({tables:[]}),satisfied:false};
  const order=manifest.validate(entries);
  const payload={format:'linear-exit-integrated-source-plan-v1',base_inventory_sha256:sha(bytes),extension_sha256:sha(extensionBytes),addon_sha256:addon_hash,baseline_requirements:requirements,entries,dependency_order:order,executable:false,installation_authorized:false,blockers:['HOSTED_BASELINE_UNOBSERVED','ADDITIONAL_APPLICATION_SCHEMA_OWNER_COMPOSITION_NOT_IN_BASE_64','EXTERNAL_PLATFORM_SCAFFOLD_NOT_INSTALL_PROOF','CUMULATIVE_HOSTED_PREFIX_SIGNATURES_UNOBSERVED','INTERNAL_COMMIT_RECOVERY_UNPROVEN']};
- if(canon(baselineRequirements.verify())!==canon(baseline))throw Error('PLAN_BASELINE_DRIFT');manifest.verify(base);if(canon(extension.verify())!==canon(ext))throw Error('PLAN_EXTENSION_DRIFT');for(const e of entries)if(e.path&&sha(fs.readFileSync(path.join(ROOT,e.path)))!==e.sha256)throw Error('PLAN_SOURCE_DRIFT');
+ if(canon(baselineRequirements.verify())!==canon(baseline))throw Error('PLAN_BASELINE_DRIFT');manifest.verifyFrozen(base);if(canon(extension.verify())!==canon(ext))throw Error('PLAN_EXTENSION_DRIFT');for(const e of entries)if(e.path&&sha(fs.readFileSync(path.join(ROOT,e.path)))!==e.sha256)throw Error('PLAN_SOURCE_DRIFT');
  return {...payload,plan_sha256:sha(Buffer.from(canon(payload)))};
 }
 function keyBytes(key){if(!Buffer.isBuffer(key)||key.length!==32)throw Error('PREFIX_EXPLICIT_KEY_REQUIRED');return key;}

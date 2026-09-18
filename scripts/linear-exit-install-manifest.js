@@ -98,5 +98,23 @@ function build({read=relative=>fs.readFileSync(path.join(ROOT,relative))}={}){
  return {contract:'linear-exit-install-inventory-v1',classification:'SOURCE_ONLY',executable:false,installation_authorized:false,install_ready:false,installation_complete:false,dependency_closure_complete:false,baseline:'UNRESOLVED_CURRENT_HOSTED_CATALOG; dated capture is not a full baseline',external_platform:'SYNTHETIC auth/roles/storage scaffold is not platform custody proof',interruption_rehearsal:'UNPROVEN_PER_COMMIT',order_review:'DOCUMENT_ORDER_PROPOSED; intermediate-state database equivalence unproven',resume_signatures:'UNRESOLVED_CUMULATIVE_PREFIX_CATALOG; isolated file hashes cannot describe later owner replacements',entries,dependency_order:validate(entries)};
 }
 function verify(manifest,options){const fresh=build(options);if(JSON.stringify(manifest)!==JSON.stringify(fresh))throw Error('manifest_source_or_contract_drift');return true;}
-module.exports={build,verify,validate,transactions,BASELINE,CANDIDATE,DEPENDENCIES};
+// A dated capture is frozen the moment something pins it, and later work only
+// ADDS owners, so demanding it still EQUAL build() retires the checkpoint
+// rather than checking it. A frozen holder proves the claim that stays true:
+// the capture is a subset of today's inventory, every owner it covers is still
+// byte-identical including its dependency edges, and their relative install
+// order is unchanged. Editing any owner the capture covers, renaming one,
+// reordering them or changing a contract field still fails here — only the
+// appearance of NEW owners is tolerated, which is the one thing that must be.
+function verifyFrozen(frozen,options){
+ const fresh=build(options),{entries:was,dependency_order:wasOrder,...wasHead}=frozen||{},{entries:now,dependency_order:nowOrder,...nowHead}=fresh;
+ if(JSON.stringify(wasHead)!==JSON.stringify(nowHead))throw Error('manifest_frozen_contract_drift');
+ if(!Array.isArray(was)||!Array.isArray(wasOrder)||was.length!==wasOrder.length||was.length>now.length)throw Error('manifest_frozen_shape');
+ const current=new Map(now.map(e=>[e.id,e]));
+ for(const e of was){const live=current.get(e&&e.id);if(!live||JSON.stringify(e)!==JSON.stringify(live))throw Error('manifest_frozen_owner_drift:'+(e&&e.id));}
+ const covered=new Set(was.map(e=>e&&e.id));
+ if(covered.size!==was.length||JSON.stringify(wasOrder)!==JSON.stringify(nowOrder.filter(id=>covered.has(id))))throw Error('manifest_frozen_order_drift');
+ return true;
+}
+module.exports={build,verify,verifyFrozen,validate,transactions,BASELINE,CANDIDATE,DEPENDENCIES};
 if(require.main===module)process.stdout.write(JSON.stringify(build(),null,2)+'\n');

@@ -375,8 +375,13 @@ function applicationDetail(
       && !!practicalTestFailureCode
       && RETRYABLE_FAILURE_CODES.has(practicalTestFailureCode),
     practical_test_verdict: verdict,
-    practical_test_sent: practicalTestState === "sent"
-      ? { subject: clean(practicalTestJob?.subject), body: clean(practicalTestJob?.body) }
+    // The exact subject/body already stored on the job — not recomputed from
+    // current config — for every state once a job exists. A retry resends
+    // this stored payload verbatim, so the preview shown for a failed job
+    // must be this, never a freshly-built preview that could differ if the
+    // configured materials link changed after the job was queued.
+    practical_test_job_preview: practicalTestJob
+      ? { subject: clean(practicalTestJob.subject), body: clean(practicalTestJob.body) }
       : null,
   };
 }

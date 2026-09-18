@@ -78003,6 +78003,7 @@
                     ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'hold' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'hold\')"' + actionDisabled + '>Put on hold</button>' : ''}
                     ${!deliveryPending && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) ? '<button type="button" class="hp-action danger" onclick="_hpSetStatus(\'rejected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
                 </div>
+                <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpApplicationActionStatus">${_hpEsc(_hpState.actionError || _hpState.actionMessage)}</div>
             </div>
             <div class="hp-section">
                 <div class="hp-section-title">Answers</div>
@@ -78025,7 +78026,7 @@
         const testsEnabled = detail.practical_tests_enabled === true;
         const testState = String(detail.practical_test_state || '').trim().toLowerCase();
         const verdict = String(detail.practical_test_verdict || '').trim().toLowerCase();
-        const sent = detail.practical_test_sent || null;
+        const jobPreview = detail.practical_test_job_preview || null;
         const preview = detail.practical_test_preview || null;
         const terminal = ['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status);
         const canQueueTest = testsEnabled && !!preview && !terminal && !testState;
@@ -78039,10 +78040,13 @@
         else if (testState === 'delivery_uncertain') statusNote = 'Delivery needs confirmation before another practical test can be sent.';
         else if (verdict === 'passed') statusNote = 'Verdict: passed. The final interview invite is unlocked below.';
         else if (verdict === 'not_selected') statusNote = 'Verdict: not moving forward.';
-        const shown = sent || preview;
+        // A job's stored payload (once one exists, in any state) is what will
+        // actually be sent/resent — it always wins over the freshly-built
+        // preview, which can go stale the moment the job is queued.
+        const shown = jobPreview || preview;
         return `<div class="hp-preview">
             <div class="hp-section-title">Practical test</div>
-            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((sent && sent.recipient) || (preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${_hpEsc(shown.body)}</div>` : ''}
+            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${_hpEsc(shown.body)}</div>` : ''}
             <div class="hp-actions">
                 ${canQueueTest ? '<button type="button" class="hp-action primary" id="hpPracticalSendButton" onclick="_hpQueuePracticalTest()"' + actionDisabled + '>Send practical test</button>' : ''}
                 ${canRetryTest ? '<button type="button" class="hp-action primary" onclick="_hpRetryPracticalTest()"' + actionDisabled + '>Retry practical test</button>' : ''}

@@ -1664,6 +1664,67 @@
       "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
     },
     {
+      "id": "2026-09-18-notification-creative-channel.sql",
+      "path": "migrations/2026-09-18-notification-creative-channel.sql",
+      "sha256": "6d45052dd8d695ddad83546bb6c3e9afd1b244aeaf6af30abfdc3dae0f89e0cf",
+      "bytes": 25756,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-09-native-notification-outbox.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 36,
+            "kind": "begin"
+          },
+          {
+            "index": 12,
+            "line": 404,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-18-native-test-client-parity.sql",
+      "path": "migrations/2026-09-18-native-test-client-parity.sql",
+      "sha256": "d7137d68f2d24927d3f713fe39d33fe32a042bdba333da6d11c54324fc531317",
+      "bytes": 20441,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-12-native-ordinary-envelope-repair.sql",
+        "2026-09-06-native-existing-assignment.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 51,
+            "kind": "begin"
+          },
+          {
+            "index": 8,
+            "line": 298,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
       "id": "atomic-native-intake",
       "path": null,
       "sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
@@ -1777,6 +1838,8 @@
     "2026-09-09-native-notification-outbox.sql",
     "2026-09-05-description-images.sql",
     "2026-09-09-kasper-urgent-pings.sql",
-    "2026-09-10-kasper-urgent-ping-ledger.sql"
+    "2026-09-10-kasper-urgent-ping-ledger.sql",
+    "2026-09-18-notification-creative-channel.sql",
+    "2026-09-18-native-test-client-parity.sql"
   ]
 }

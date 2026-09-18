@@ -3017,7 +3017,21 @@
         .prod-status-dot[data-status="todo"] { color: var(--prod-st-todo); }
         .prod-status-dot[data-status="triage"] { color: var(--prod-st-triage); }
         .prod-status-dot[data-status="approved"]::before, .prod-status-dot[data-status="scheduled"]::before, .prod-status-dot[data-status="posted"]::before, .prod-status-dot[data-status="canceled"]::before, .prod-status-dot[data-status="duplicate"]::before { background: currentColor; border-color: currentColor; }
-        .prod-id { width: 76px; flex: none; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+        /* `width: 76px` was never a cap, and the cell did not escape sideways.
+           MEASURED, after a first explanation that was wrong: a deliverable id
+           is hyphenated, so with no `white-space: nowrap` it WRAPS, and the
+           cell grows taller than the 44px row -- escaping top and bottom by
+           8px each, not left or right. `min-width: 0` alone would not have
+           fixed it; `nowrap` plus `overflow: hidden` is what does.
+           It never showed while every card carried a 9-character Linear
+           identifier. A natively created card has none yet, so
+           `_prodIssueLabel` falls through to the deliverable id, and the cards
+           created on 2026-09-18 turned the layout lane red on rows nothing had
+           changed.
+           `min-width: 0` makes the declared width the real one, and the
+           ellipsis makes the truncation legible instead of a hard cut. The
+           full id stays available on hover; see _prodIssueIdHTML. */
+        .prod-id { width: 76px; flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; font-variant-numeric: tabular-nums; }
         .prod-title { min-width: 0; flex: 1; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--prod-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .prod-title b { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
         .prod-subtle { color: var(--prod-muted); font-weight: 450; overflow: hidden; text-overflow: ellipsis; }
@@ -55936,6 +55950,19 @@
         function _prodIssueLabel(d) {
             return d && (d.displayId || d.identifier || d.linear_identifier || d.id) || '';
         }
+        /* A provider card's identifier is 9 characters; a native card has none
+           yet and falls through to the 40-character deliverable id. The cell
+           truncates either way now (see `.prod-id`), so the long one has to
+           stay recoverable: the full value goes on the hover, exactly as
+           `_prodTitleAttrs` already does for a clipped title.
+           THE PROPER FIX IS THE IDENTIFIER MINT CAPABILITY -- a native card
+           should carry a short identifier of its own rather than show a raw id
+           at all. This keeps the row readable until it does, and is not a
+           substitute for it. */
+        function _prodIssueIdHTML(d) {
+            const label = _prodIssueLabel(d);
+            return '<span class="prod-id"' + (label ? _prodTitleAttrs(label) : '') + '>' + _calEsc(label) + '</span>';
+        }
         function _prodFmtDate(v) {
             // Compact written display ("Jul 15") for every column/pill; year accuracy lives in the
             // hover via _prodFmtDateFull (owner decisions 2026-07-17/18: no two-line wrap on desktop).
@@ -66109,7 +66136,7 @@
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
-                + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
+                + _prodIssueIdHTML(d)
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
@@ -66326,7 +66353,7 @@
             return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(d.status, d.id)
-                + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
+                + _prodIssueIdHTML(d)
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + _prodAttributionChipOnlyHTML(d) + '<span class="prod-spacer"></span>'
                 + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
@@ -66567,7 +66594,7 @@
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField || descReadFailed, descReadFailed ? 'Description could not load.' : 'No batch description.', false) + '</div>'
                 + (rows[0] ? _prodAssetsPanelHTML(rows[0], { slots: ['filming_plan','raw_footage','delivery_folder'], readOnly: true }) : '')
-                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + _prodIssueIdHTML(d) + '<span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'

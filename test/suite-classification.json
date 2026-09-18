@@ -382,7 +382,6 @@
     "prod-batch-parent-panels.js",
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
-    "prod-client-chip-css-pin.js",
     "prod-client-composer-present.js",
     "prod-comments-read-timeout.js",
     "prod-context-menu-pixel-contract.js",
@@ -409,6 +408,7 @@
     "prod-polish-gate-failure-codes.js",
     "prod-polish-names-the-check.js",
     "prod-read-console-audit.js",
+    "prod-row-cell-overflow-pin.js",
     "prod-silent-refresh-honesty.js",
     "prod-smm-line.js",
     "prod-subissue-order.js",
@@ -1155,11 +1155,11 @@
       "required_for_release": true
     },
     {
-      "file": "prod-client-chip-name-width.js",
+      "file": "prod-row-cell-overflow.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; renders the extracted stylesheet only, no hosted credentials and no live data.",
-      "reproduce": "node test/prod-client-chip-name-width.js (after repository Playwright/Chromium setup)",
+      "reproduce": "node test/prod-row-cell-overflow.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

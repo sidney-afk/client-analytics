@@ -1,6 +1,6 @@
 'use strict';
 /*
- * THE UNIT-LANE HALF of the client-chip width fix.
+ * THE UNIT-LANE HALF of the row-cell overflow fixes.
  *
  * The measurement lives in `test/prod-client-chip-name-width.js`: it renders
  * the real extracted stylesheet in Chromium around a synthetic 24-character
@@ -24,6 +24,32 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'index.html'), 'utf8');
+
+/* `.prod-id` holds a 9-character Linear identifier on a provider card and the
+   raw 40-character deliverable id on a native one, which has no identifier
+   yet. Hyphenated, so without nowrap it wraps and the cell grows taller than
+   the 44px row. This is the pair that stops that. */
+assert.match(
+  source,
+  /\.prod-id\s*\{[^}]*white-space:\s*nowrap[^}]*\}/,
+  '.prod-id must not wrap, or a hyphenated 40-character id grows the cell taller than its row',
+);
+assert.match(
+  source,
+  /\.prod-id\s*\{[^}]*text-overflow:\s*ellipsis[^}]*\}/,
+  '.prod-id needs an ellipsis, or the truncation is a hard cut with no sign it happened',
+);
+/* The truncated value has to stay recoverable. */
+assert.match(
+  source,
+  /function _prodIssueIdHTML\([\s\S]{0,400}_prodTitleAttrs\(label\)/,
+  'the identifier cell must carry the full label on its hover, as the title cell does',
+);
+assert.doesNotMatch(
+  source,
+  /'<span class="prod-id">'/,
+  'every identifier render site must go through _prodIssueIdHTML, not build the span inline',
+);
 
 /* `.prod-chip` sets `flex: none`, which is `flex: 0 0 auto` -- the chip cannot
    shrink and hangs outside any row too narrow for it. This override is what
@@ -54,4 +80,4 @@ assert.match(
   '.prod-chip itself still sets flex: none, so the override above stays scoped',
 );
 
-console.log('ok client chip width rules are present (measurement: test/prod-client-chip-name-width.js)');
+console.log('ok row-cell overflow rules are present (measurement: test/prod-row-cell-overflow.js)');

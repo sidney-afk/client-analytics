@@ -2,6 +2,25 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — A native card has no identifier, so its row cell escaped
+
+Browser-only. `.prod-id` declared `width: 76px` and no truncation at all. A
+provider card shows a 9-character Linear identifier; a native card has none and
+`_prodIssueLabel` falls through to the raw 40-character deliverable id, which is
+hyphenated, so it wrapped and the cell grew taller than its 44px row. Every card
+created after 13:35Z that day was native, and `prod-layout-polish` went red on
+rows nothing had changed.
+
+The cell now truncates with an ellipsis and does not wrap, and all three
+identifier render sites go through `_prodIssueIdHTML`, which carries the full
+value on the hover. **The proper fix is the identifier mint capability** — a
+native card should carry its own short identifier instead of showing a raw id.
+This is a readability stopgap, not that.
+
+Found by the gate's new per-child assertion ids: `plp_list_metadata` alone named
+the sweep and left six candidate cells, and a fix aimed at the wrong one of the
+six shipped first. The id now names the cell.
+
 ## 2026-09-18 — The client chip escaped its row on a longer client name
 
 Browser-only, CSS. `.prod-chip-client` inherited `flex: none` and therefore

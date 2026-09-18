@@ -1110,6 +1110,31 @@ An SMM filed a thumbnail from the content calendar, and the card refused every
 edit under **"Client attribution needs repair."** The client was fine.
 OPEN_REPAIRS 187.
 
+### A native card has no identifier, so the row showed a 40-character id and the cell escaped
+
+-   **Candidate behaviour.** `_prodIssueLabel` falls back through
+    `displayId → identifier → linear_identifier → id`. A provider card stops at
+    the 9-character Linear identifier; a natively created card has none yet and
+    reaches the raw 40-character deliverable id. `.prod-id` declared
+    `width: 76px` and nothing else — no `nowrap`, no `overflow`. A deliverable
+    id is hyphenated, so it **wrapped**, and the cell grew taller than the 44px
+    row, escaping top and bottom by 8px each. Invisible until 2026-09-18, when
+    every card created after 13:35Z was native; `prod-layout-polish` then went
+    red on `plp_list_metadata_id` on rows nothing had changed.
+-   **Wired behaviour.** The cell truncates with an ellipsis and does not wrap,
+    and every identifier render site goes through one helper,
+    `_prodIssueIdHTML`, which puts the full value on the hover exactly as
+    `_prodTitleAttrs` does for a clipped title.
+-   **THE PROPER FIX IS THE IDENTIFIER MINT CAPABILITY.** A native card should
+    carry a short identifier of its own rather than display a raw id at all.
+    This keeps the row readable until it does and is **not** a substitute for
+    it.
+-   **What does NOT move.** The 76px column, the tabular numerals, the colour,
+    and what the cell shows for a provider card — a 9-character identifier is
+    unchanged and never truncates. Pinned by `test/prod-row-cell-overflow.js`
+    against a **synthetic** 40-character native id, confirmed to fail without
+    the fix, and by `test/prod-row-cell-overflow-pin.js` in the unit lane.
+
 ### The client chip escaped its row the day a longer client name arrived
 
 -   **Candidate behaviour.** `.prod-chip-client` carries the client's display

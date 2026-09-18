@@ -3,7 +3,7 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const ROOT=path.resolve(__dirname,'..');
 const BUILDER='scripts/linear-exit-observed-full-install-plan.js';
-const BUILDER_SHA256='5b67fe972eb15af8293045f09e386f587285c3af074a37f30acc795b563d93c8';
+const BUILDER_SHA256='acfef36134efaec5f041565d9d8d638a58a1388db6b7606c7175f76a7ff14986';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 /* ONE function both enforces the builder pin and re-derives it, so the value
  * above can only ever be produced by the same code path that checks it.

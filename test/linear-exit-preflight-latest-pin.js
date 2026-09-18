@@ -132,6 +132,29 @@ ok(pinned.get('production_notification_intent_guard') === 'migrations/2026-09-18
     'the notification migration installs after the outbox it replaces routines from');
 }
 
+/* The script-constant pins that hold ANOTHER file's bytes. There are four, and
+   the 2026-09-17 sweep found that the only thing checking them is a throw
+   inside a function no unit-lane suite reaches -- which is exactly how
+   BUILDER_SHA256 sat stale from 03d18fb3 until someone went looking. Editing
+   the file a constant pins is a normal thing to do; noticing is the part that
+   was missing, so the noticing happens here now. Re-pin with the module's own
+   re-derivation, never with a pasted shell digest. */
+{
+  const constants = [
+    ['scripts/linear-exit-atomic-writer-bound-bundle.js', 'BUILDER_SHA256',
+      () => require('../scripts/linear-exit-atomic-writer-bound-bundle').builderSha256()],
+    ['scripts/linear-exit-admission-preflight.js', 'CONTRACT_SHA', null],
+    ['scripts/linear-exit-b9-catalog-derive.js', 'OPTOUT_PREREQUISITE_SHA', null],
+    ['scripts/linear-exit-backup-observed-baseline.js', 'ARTIFACT_SHA', null],
+  ];
+  for (const [file, name, rederive] of constants) {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const m = new RegExp(`${name}\\s*=\\s*'([a-f0-9]{64})'`).exec(src);
+    ok(m, `${file} still declares ${name} as a 64-hex constant`);
+    if (rederive) ok(rederive() === m[1], `${name} matches the bytes it pins`);
+  }
+}
+
 /* The control: the rule must be seen to FIRE. A synthetic pair proves the
    comparison, without touching the real table. */
 {

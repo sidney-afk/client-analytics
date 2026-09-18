@@ -30,6 +30,55 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — PR #1415 is green on all six checks, and the unit lane could never have caught the one that went red
+
+Cloud session. Head `74e08f23`, six of six checks `success`: `unit`,
+`identity-exposure`, `f27-team-rollback-proof`, `Edge Function type ratchet`,
+`Isolated PG17 retirement-switch`, `Isolated PG17 card-atomic-admission`.
+`mergeable_state: clean`, no merge conflict, one review thread and it is
+resolved. Not merged — the supervisor merges.
+
+#### The failure that mattered, and why the local lane said nothing
+
+`Isolated PG17 retirement-switch` went red while the local full unit lane was
+reporting **560 of 560 passed, runner exit 0**. Those two facts are compatible,
+and the runner says so in its own summary line:
+
+```
+All 560 classified unit suites passed; 61 required profiles NOT_RUN in this lane
+```
+
+**Sixty-one required profiles are not covered by a green unit run.** The two
+PG17 lanes are among them. So "the full lane passed" is a claim about 560
+suites, not about the checks that gate the PR, and reading it as the latter is
+the same shape of error this journal keeps recording: a claim about the system
+drawn from a measurement that did not measure it.
+
+The cause was mundane once reproduced — `test/linear-exit-retirement-switch-postgres.js`
+carries its **own** label fixture, and that fixture predates `retiredAt`, so the
+newly strict `projectLabel` refused it. The CI container log pointed at
+`retirement_dependency_contract:production_assignment_epoch`, which is not where
+the fault was; the real line only appears in the lane's private error log:
+
+```
+ManifestError: label_catalog_label_invalid: label.retiredAt absent from the provider response
+    at projectLabel (scripts/linear-label-catalog-export.js:261:13)
+    at Object.buildManifest (scripts/linear-label-catalog-export.js:278:39)
+    at test/linear-exit-retirement-switch-postgres.js:29:75
+```
+
+Reproduced locally on a PostgreSQL 17 cluster on port 5433, using the lane's
+real command line and `PROOF_OUTPUT_ROOT`, then fixed in place. The fixture edit
+had to preserve the byte-pin: `retiredAt: null` went **inside** an existing
+line, keeping CRLF 62 / LF 68.
+
+#### The rule this leaves behind
+
+**Run both PG17 lanes locally before pushing anything that touches a migration
+or the export library.** A green unit lane is not evidence about them, and the
+CI summary line for a red PG17 lane can name the wrong contract — read the
+private error log, not the container log.
+
 ### 2026-09-18 — CORRECTION: the label seed's premise was wrong. Native intake DOES stamp the empty relation, in the gateway, and I searched only the SQL
 
 Cloud session. The migration is merged and applied; the correction is a comment

@@ -265,6 +265,7 @@
     "linear-exit-observed-public-catalog.js",
     "linear-exit-observed-routines.js",
     "linear-exit-observed-schema.js",
+    "linear-exit-preflight-definer-pins.js",
     "linear-exit-preflight-latest-pin.js",
     "linear-exit-priority-companion-pair.js",
     "linear-exit-priority-companion.js",

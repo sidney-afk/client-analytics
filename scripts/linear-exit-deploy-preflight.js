@@ -38,7 +38,7 @@ const ROUTINES = Object.freeze([
   ['production_labels_write(jsonb,jsonb)', 'migrations/2026-09-18-native-label-test-client-parity.sql', 'production_labels_write', 'pg_catalog, public'],
   ['production_native_label_receipt_guard()', 'migrations/2026-09-18-native-label-test-client-parity.sql', 'production_native_label_receipt_guard', 'pg_catalog, public'],
   ['production_native_label_truncate_guard()', 'migrations/2026-09-06-native-label-writes.sql', 'production_native_label_truncate_guard', 'pg_catalog, public'],
-  ['production_native_label_empty_state(jsonb)', 'migrations/2026-09-18-native-label-empty-state-seed.sql', 'production_native_label_empty_state', 'pg_catalog, public'],
+  ['production_native_label_empty_state(jsonb)', 'migrations/2026-09-18-native-label-empty-state-seed.sql', 'production_native_label_empty_state', 'pg_catalog, public', false],
   ['production_native_label_seed_guard()', 'migrations/2026-09-18-native-label-empty-state-seed.sql', 'production_native_label_seed_guard', 'pg_catalog, public'],
   ['production_native_identifier_capability(text)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_capability', 'pg_catalog, public'],
   ['production_native_identifier_seed(text,bigint)', 'migrations/2026-09-07-native-identifier-mint.sql', 'production_native_identifier_seed', 'pg_catalog, public'],

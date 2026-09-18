@@ -329,6 +329,8 @@
     "native-intake-ui-source.js",
     "native-label-catalog-export.js",
     "native-label-catalog-foundation.js",
+    "native-label-retired-state-contract.js",
+    "native-label-retired-state-postgres.js",
     "native-label-seed-parity-contract.js",
     "native-label-seed-parity-postgres.js",
     "native-label-writes.js",

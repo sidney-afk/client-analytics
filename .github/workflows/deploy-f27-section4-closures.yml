@@ -376,7 +376,7 @@ jobs:
       # production-write v69, 2026-09-07.)
       # Integrated main client status no-op authorization and due-bump guard.
       # Prepared canonical archive-lifecycle notification repair; not deployed.
-      PRODUCTION_WRITE_SOURCE_SHA256: 74d641b0ac0f5ff6575c738e59f12c623e3cf10b27175677a02435bbb2f2384d
+      PRODUCTION_WRITE_SOURCE_SHA256: 9dd41919d1690b6035146fad49504aa8d08fbc990efa62ac55ddd66abf5994aa
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -131,19 +131,27 @@ function label(n, overrides) {
     description: null,
     isGroup: false,
     archivedAt: null,
+    retiredAt: null,
     team: { id: TEAM_VIDEO },
   }, overrides || {});
 }
 
-/* 5 labels split two ways: 3+2 for the manifest walk, 2+2+1 for the
- * independent reconciliation walk. Same set, different cursor chain — which is
- * exactly what the reconciliation is meant to prove. */
+/* 7 labels split two ways for the manifest walk and the independent
+ * reconciliation walk. Same set, different cursor chain — which is exactly what
+ * the reconciliation is meant to prove.
+ *
+ * Label 6 is RETIRED and label 7 is retired AND archived. Both are kept in the
+ * capture and neither may ever be served as applicable; 7 exists because the
+ * two states are independent and a filter that only handles one of them must
+ * still be caught. */
 const ALL = [
   label(1),
   label(2, { archivedAt: '2026-08-01T00:00:00.000Z' }),
   label(3, { isGroup: true, team: null }),
   label(4, { team: { id: TEAM_GRAPHICS }, description: 'graphics only' }),
   label(5, { team: null }),
+  label(6, { retiredAt: '2026-09-01T00:00:00.000Z' }),
+  label(7, { retiredAt: '2026-09-02T00:00:00.000Z', archivedAt: '2026-09-03T00:00:00.000Z' }),
 ];
 
 function chunk(list, size) {
@@ -345,6 +353,10 @@ function runAssertions() {
       [m => { m.pages[0].nodes[0].color = 'blue'; }, /label_catalog_label_invalid/],
       [m => { m.pages[0].nodes[0].name = '  '; }, /label_catalog_label_invalid/],
       [m => { delete m.pages[0].nodes[0].archivedAt; }, /label_catalog_label_invalid/],
+      /* The pre-2026-09-18 capture shape. It must be REFUSED, not read as
+         "nothing here is retired" -- that silent reading is the whole defect. */
+      [m => { delete m.pages[0].nodes[0].retiredAt; }, /label_catalog_label_invalid/],
+      [m => { m.pages[0].nodes[0].retiredAt = 'yesterday'; }, /label_catalog_label_invalid/],
       [m => { delete m.pages[0].nodes[0].team; }, /label_catalog_label_invalid/],
       [m => { m.pages[1].nodes[0].id = m.pages[0].nodes[0].id; }, /label_catalog_duplicate_identity/],
       [m => { m.pages[0].nodes[0].team = { id: 'nope' }; }, /label_catalog_team_invalid/],
@@ -412,9 +424,9 @@ function runAssertions() {
       cli.packageDigest([{ name: 'a', sha256: 'y' }, { name: 'b', sha256: 'x' }]));
   });
 
-  check('the capture asks Linear for archived labels and for exactly the seven fields', () => {
+  check('the capture asks Linear for archived labels and for exactly the eight fields', () => {
     assert.match(cli.CATALOG_QUERY, /includeArchived:\s*true/);
-    for (const field of ['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'team']) {
+    for (const field of ['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'retiredAt', 'team']) {
       assert.match(cli.CATALOG_QUERY, new RegExp(`\\b${field}\\b`));
     }
     assert.match(cli.CATALOG_QUERY, /hasNextPage endCursor/);

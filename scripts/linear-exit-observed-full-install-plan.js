@@ -17,7 +17,7 @@ const OWNERS=[
  ['20260913190840_provider_terminal_private_acl_preparation.sql','439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942'],
  ['20260913181213_provider_comment_observation_recovery_preparation.sql','b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b'],
  ['20260913183021_provider_issue_observation_recovery_preparation.sql','5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2'],
- ['20260913062149_retirement_switch_preparation.sql','5ce4fac33f723a4e6353386183772f0108d52894d20f772cfaa0cb9f5c4939f2']
+ ['20260913062149_retirement_switch_preparation.sql','b1aa5c438a411437eb019024e9fd869aa96cdc3f6a7e49c1fb91c0f1146a747d']
 ].map(([file,sha256])=>Object.freeze({path:'supabase/migrations/'+file,sha256}));
 Object.freeze(OWNERS);
 // Journal statement parsing normalizes line endings. Encode CR-bearing routine bodies

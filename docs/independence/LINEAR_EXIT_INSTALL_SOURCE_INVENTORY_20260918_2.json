@@ -1787,6 +1787,36 @@
       "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
     },
     {
+      "id": "2026-09-18-native-label-retired-state.sql",
+      "path": "migrations/2026-09-18-native-label-retired-state.sql",
+      "sha256": "6c808729f0d004ce33d01be38cbf6be70175dc2e24939062be7da99d147f39e4",
+      "bytes": 10808,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-native-label-catalog-foundation.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 36,
+            "kind": "begin"
+          },
+          {
+            "index": 6,
+            "line": 178,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
       "id": "atomic-native-intake",
       "path": null,
       "sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
@@ -1904,6 +1934,7 @@
     "2026-09-18-notification-creative-channel.sql",
     "2026-09-18-native-test-client-parity.sql",
     "2026-09-18-native-label-empty-state-seed.sql",
-    "2026-09-18-native-label-test-client-parity.sql"
+    "2026-09-18-native-label-test-client-parity.sql",
+    "2026-09-18-native-label-retired-state.sql"
   ]
 }

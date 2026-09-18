@@ -158,6 +158,21 @@ exactly these four things:
 4. **The catalog is the WHOLE workspace** — a closed page chain proves internal
    structure, not that the provider returned everything. This is the judgement
    only you can make. The foundation migration's own header says the same.
+5. **The retired count looks right.** A Linear label can be *retired*
+   (`retiredAt` set), which is a different state from archived — on
+   2026-09-18 the owner measured **19 of the 46** labels in the live workspace
+   as retired. The evidence file reports the retired count separately. Retired
+   labels are **kept** in the capture, so the count still reconciles, and are
+   **never served as applicable** — the same treatment archived gets, for the
+   same reason.
+
+> **⚠ ANY PACKAGE CAPTURED BEFORE 2026-09-18 MUST BE RETAKEN.** The exporter
+> did not ask Linear for `retiredAt` until then, so an older package cannot
+> distinguish a retired label from a live one. `production_label_catalog_check_manifest`
+> now **requires** the field on every label, so an old package is refused with
+> `label_catalog_label_invalid` rather than read as "nothing here is retired".
+> That refusal is the point: the silent reading is the defect. Re-run `export`,
+> then `attest` the new package.
 
 Then, and only then:
 

@@ -2,6 +2,30 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — The browser refused the test client's own native cards
+
+Browser-only change, not deployed and not deployable: `index.html` is served by
+Pages on merge to `main`. No migration, no Edge Function, no runtime flag, no
+schema, no write path and no client delivery.
+
+The native-intake attribution proof in `_prodResolveAttributions` demanded
+`owner_kind === 'client'`. The gateway writes that field as the roster row's own
+kind, so every native card of a `kind: 'test'` client failed the proof, resolved
+`needs_attribution`, and showed the repair banner with the comment box and write
+controls gated shut — long after `production-write` began accepting that client
+(#1414). The proof now takes the expected kind from the roster row and requires
+the stamp to equal it, accepting `client` or `test`. `internal` stays refused.
+
+The existing suite could not have caught this: its only client fixture is
+`kind: 'client'`, so a green run was never evidence about this path. Six
+assertions were added to `test/native-intake-attribution-ownership.js` and
+confirmed to fail on the pre-fix file with the reported symptom before being
+accepted. Roster lookups were checked and needed no change — they gate on
+`active === true` alone and always carried `kind` through.
+
+Reversal and current state are in `ROLLBACK.md`; the behaviour contract is in
+`docs/syncview-design/WIRED-PARITY.md`.
+
 ## 2026-09-14 ? Draft installation-day preparation
 
 Prepared isolated frozen-main catch-up, guarded installation adapter, urgent website links and owner/day-of documents. No branch merge, deployment, installation, messages, n8n changes or production writes. Main #1393 was rehearsed in isolated Git objects and its known catalog change reviewed separately. See docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md for exact scope, evidence and pending quiet Storage custody.

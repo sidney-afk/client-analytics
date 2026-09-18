@@ -1110,6 +1110,37 @@ An SMM filed a thumbnail from the content calendar, and the card refused every
 edit under **"Client attribution needs repair."** The client was fine.
 OPEN_REPAIRS 187.
 
+### The test client's own cards refused every write, for months after the server stopped refusing them
+
+-   **Candidate behaviour.** The browser proves a persisted native-intake stamp
+    before it will trust it, and that proof demanded `owner_kind === 'client'`.
+    The gateway writes that field as the roster row's own kind
+    (`lower(client.kind || "client")` in `production-write/index.ts`), so a
+    `kind: 'test'` roster row is stamped `'test'`, the proof failed, and every
+    one of that client's native cards resolved `needs_attribution`: repair
+    banner up, comment box and write controls gated shut. The server had
+    accepted that client since #1414; only the page had not.
+-   **Wired behaviour.** The proof reads the expected kind off the roster row
+    for the persisted slug and requires the stamp to equal it, accepting
+    `client` or `test`, and carries that kind into the resolved attribution
+    instead of rewriting it to `'client'`. This is what the
+    explicit-classification branch of the same function already did; the native
+    branch was the copy that drifted.
+-   **What does NOT move.** Every other refusal. A stamp that disagrees with the
+    roster kind is still refused, in both directions. `'internal'` is still
+    refused — nothing has measured that kind end to end. The per-team project
+    evidence, the epoch check, the row/stamp slug agreement and the duplicate
+    and cross-team ownership refusals are untouched, and no roster lookup
+    changed: `activeBySlug`, the native and legacy project-owner maps and the
+    batch-parent map all gate on `active === true` alone and always carried
+    `kind` through. Pinned by `test/native-intake-attribution-ownership.js`,
+    whose six new assertions were confirmed to FAIL on the pre-fix file with the
+    reported symptom before being accepted.
+-   **What this changes for an operator.** A test client's native cards now read
+    as that client's and accept comments and writes, exactly as a real client's
+    do. Rollback is the revert below; nothing is stored, migrated or deployed by
+    this change.
+
 -   **Candidate behaviour.** Native creation writes the deliverable row first
     and mirrors it into Linear after. `_prodResolveAttributions` derives the
     client from the MIRRORED fields only — the row's own Linear project, then

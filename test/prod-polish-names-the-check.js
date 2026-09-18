@@ -175,9 +175,19 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
      injected set gained a fourth name. Injected empty here, which is what a
      suite that emits no pixel marker produces, so every case below asserts the
      same behaviour it always did. */
-  const build = (behav, pixel) => new Function(
-    'behavWiredFailedChecks', 'pixelWiredFailedStates', 'classifyFailure', 'smokeFailedStage',
-    reasonFn + '\nreturn failureReason;')(behav, pixel, () => 'timeout_unspecified', failedStage);
+  /* `layoutPolishFailedAssertions` joined the chain on 2026-09-18, so the
+     injected set gained a fifth name. Injected empty by default, which is what
+     a suite that emits no layout marker produces, so every case below asserts
+     the same behaviour it always did.
+
+     THIS HARNESS IS WHY A SIXTH ONE WILL NOT BE FORGOTTEN. Adding the call to
+     failureReason without adding the name here throws ReferenceError inside
+     this eval -- which is exactly how the fifth one was caught, one CI cycle
+     after it was written. */
+  const build = (behav, pixel, layout = () => '') => new Function(
+    'behavWiredFailedChecks', 'pixelWiredFailedStates', 'layoutPolishFailedAssertions',
+    'classifyFailure', 'smokeFailedStage',
+    reasonFn + '\nreturn failureReason;')(behav, pixel, layout, () => 'timeout_unspecified', failedStage);
   const reason = build(() => '', () => '');
   ok(reason('SMOKE_STAGE board_open\nTimeout') === 'timeout_unspecified@board_open',
     'the code says WHAT broke and the stage says WHERE, joined by a literal this file owns');
@@ -191,6 +201,12 @@ ok(/const named = behavWiredFailedChecks\(text\);\s*\n\s*if \(named\) return nam
     'a named pixel state likewise outranks the generic code and the stage');
   ok(build(() => 'behav_wired:x', () => 'pixel_wired:topbar')('anything') === 'behav_wired:x',
     'and when both lanes name something the behaviour lane still answers first, as it did before');
+  const layoutNamed = build(() => '', () => '', () => 'layout_polish:plp_list_metadata');
+  ok(layoutNamed('SMOKE_STAGE board_open') === 'layout_polish:plp_list_metadata',
+    'a named layout assertion likewise outranks the generic code and the stage');
+  ok(build(() => 'behav_wired:x', () => '', () => 'layout_polish:plp_list_metadata')('anything') === 'behav_wired:x'
+    && build(() => '', () => 'pixel_wired:topbar', () => 'layout_polish:plp_list_metadata')('anything') === 'pixel_wired:topbar',
+    'and the layout lane takes its place BEHIND the two that came before it, so no existing summary changes');
 }
 
 if (failures) {

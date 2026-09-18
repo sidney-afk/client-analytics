@@ -127,6 +127,79 @@ predicate would not be.
   the rehearsal and the fixtures are synthetic.
 - Populating `creative_channel_id` for real clients is an owner action and no
   part of this PR.
+### 2026-09-18 — NOTIFICATIONS FINDING, and it is a hard blocker: the installed sender would post approval and comment messages into the client channel. The destination is labelled creative and filled from the shared one. Three pending intents must never be sent
+
+Measured by the supervisor against the owner's roster sheet, with the database
+side verified here rather than transcribed. **No notification capability is
+enabled**, and nothing was sent.
+
+#### What the supervisor measured
+
+`clients.slack_channel_id` holds **one client channel** per client — the channel
+**shared with the client**. For every active client that has one, the stored id
+matches the shared column of the owner's roster sheet and **none** matches its
+creative column. The sheet is the owner's private data and is not in this
+repository; that comparison is the supervisor's measurement, recorded as theirs.
+
+#### What was verified here, read-only
+
+| Check | Result |
+|---|---|
+| Active clients of kind `client` | **42** |
+| …of those, holding a channel id | **26** |
+| Columns on `clients` whose name contains "creative" | **0** |
+| Routines reading `slack_channel_id` | all four: the three intent triggers and `production_notification_reconcile` |
+
+And the mislabel, read straight out of the installed trigger source:
+
+```
+v_channel := nullif(btrim(coalesce(v_client.slack_channel_id, '')), '');
+…
+v_actor_id, 'client_creative_channel', case when v_state = 'pending' then v_channel else null end,
+```
+
+**The `destination_kind` says `client_creative_channel`. The
+`destination_channel_id` is the shared client channel.** The label and the value
+disagree, and only the value is delivered to. A reader checking destination kinds
+would see "creative" everywhere and conclude the routing was right.
+
+#### The intents already standing
+
+| State | Destination kind | Rows |
+|---|---|---|
+| `blocked` | `client_creative_channel` | **5** |
+| `pending` | `client_creative_channel` | **3** |
+
+Eight real intents since today's deploy. **Three are still sendable** —
+`pending`, `retryable` or `unknown` — and all three carry a destination equal to
+their client's stored channel, which is the shared one. **They must never be
+sent.** They are inert only because the sender gate is off.
+
+#### The owner's rule
+
+**Approval and comment messages never go to a channel shared with a client.**
+Never, not "by default".
+
+#### The fix plan, recorded and not started
+
+1. A migration **adds `clients.creative_channel_id`**.
+2. It **repoints the three notification intent triggers and the reconcile
+   release** at the new column.
+3. It **blocks every existing pending `client_creative_channel` intent**, so the
+   three above can never drain even if a gate is flipped by accident.
+4. The creative ids are **loaded from the owner's sheet as data by this session,
+   never committed** to this repository.
+
+**Until that migration is applied and the column is filled, no notification
+capability may be enabled.** That is now a precondition on its phase 7 gate, not
+a note.
+
+#### Why it is worth stating plainly
+
+The sender is dormant and the gate variables are absent, so nothing has been
+delivered. But the failure mode, had it been enabled first and inspected later,
+is a client reading an internal approval or a staff comment in their own channel.
+The dormancy is what saved it; the labelling is what would have hidden it.
 
 ### 2026-09-18 — Two phase 7 questions answered from source, reading only. `native_brief_media`'s on value is `required` and switching it changes nothing anyone can see; `native_assignment_epochs` has four activation requirements, two of them already evidenced
 

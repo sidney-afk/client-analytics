@@ -30,6 +30,160 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — A native card has no identifier, and the Production row showed the raw id
+
+Not a Linear-exit task, found by one. The layout gate went red on rows nothing
+had changed, and the cause is a direct consequence of native intake: a provider
+card carries a 9-character Linear identifier, a natively created card has none
+yet, and `_prodIssueLabel` falls all the way through to the raw 40-character
+deliverable id. Every card created after 13:35Z that day was native.
+
+`.prod-id` declared `width: 76px` and no truncation at all, so the id wrapped
+and the cell grew taller than its 44px row. Fixed with `nowrap`, `overflow` and
+an ellipsis, plus one render helper carrying the full value on the hover.
+
+**The proper fix is the identifier mint capability**, which is exit work: a
+native card should carry a short identifier of its own rather than display a raw
+id. Recorded here so the stopgap does not become the answer by default. Named in
+the CSS comment, `WIRED-PARITY.md`, `EXECUTION_LOG.md` and the `ROLLBACK.md` row
+as well.
+
+**Two wrong explanations on the way, both caught by measurement rather than
+review.** First, the clipping cell was said to be the client chip; a fix shipped
+at it and the lane came back red on the identical assertion id, because that id
+named the containment *sweep* and the sweep checks six cells. Second, the escape
+was said to be sideways, on a flex item's min-content width; the test printed a
+NEGATIVE right-edge overhang, which cannot happen if something hangs off the
+right, and measuring it showed the cell escapes top and bottom because a
+hyphenated id wraps.
+
+The gate's assertion ids now name the cell, not the sweep — 24 literals across
+the four containment sweeps. Both wrong explanations survived exactly as long as
+the instrumentation was coarser than the question being asked, which is the same
+lesson this journal keeps recording at smaller and smaller scales.
+
+### 2026-09-18 — Check 6b is measured, the clause named a code it never reaches, and labels is through phase 7
+
+Supervisor ruling, after the correction below. Placed above it because this is
+the state a reader should carry away; the correction stays because the reason
+for it does.
+
+**The clause named the wrong code.** Check 6b read *"A role outside `admin|smm`
+→ `native_label_scope_forbidden`."* Two guards can stop that write and the role
+never reaches the second. The policy table refuses first at
+`index.ts:5924-5931` — `staffOperationAllowed` returns false for
+`(creative, labels)` and the gateway throws **403 `operation_forbidden`**. The
+guard emitting `native_label_scope_forbidden` at 6425-6427 gates on the
+principal's **kind** and on `legacy_parity`, not on the role, so a creative is
+already refused before it is reached. Ruled: the clause is about the outcome,
+either code satisfies it, and the wording is amended. Worth recording that a
+requirement naming only the unreachable code would have held the capability open
+on a defect in the sentence rather than in the system.
+
+**Measured offline, with a control.** Five assertions execute the policy guard's
+real bytes against the real `policy.mjs`: a creative is refused 403
+`operation_forbidden`; admin and smm still reach the write, so it refuses the
+role and not the operation; the same creative still reaches `comment`. The fifth
+is the one that makes the rest mean anything — flipping `staffOperationAllowed`
+to return true lets the creative through, so the refusal **is** the policy row
+and not a missing team or a botched extraction.
+
+**And the extraction nearly lied.** The first attempt anchored on
+`if (principal.kind === "staff"`, which appears **five times** in that file. It
+sliced the wrong guard and two of the five assertions passed against it anyway.
+The anchor is now the unique `staffOperationAllowed(...)` call. The paired
+assertions are the only reason this was caught within the minute rather than
+committed: a test that passes while measuring the wrong thing is this
+workstream's recurring failure, and it has now appeared at the level of the
+capability, the check, the clause and the string anchor. The pairing habit —
+always assert the negative case beside the positive, and flip the input that is
+supposed to be decisive — catches it at every level, which the rules did not.
+
+Step 27 complete on all seven checks. Step 28 restored from withdrawn; the
+withdrawal and the restoration both stay in the checkpoint.
+
+### 2026-09-18 — CORRECTION: labels is NOT through phase 7. Check 6 has three refusals and two were measured
+
+Placed above the entry it corrects, because that entry's claim is the thing a
+reader must not carry away. Established by a Codex P1 on #1420, verified against
+the acceptance text before anything was written.
+
+**Check 6 reads:** *"A `client` principal → 403. A role outside `admin|smm` →
+`native_label_scope_forbidden`. A stale `catalog_version` from an old tab → 409
+`native_label_catalog_changed`."* Three refusals. The evidence covered the first
+and the third. The second was never run.
+
+Worse than the gap is how it was produced. The instruction described a "403 half"
+and a "409 half", and that framing was adopted without opening the acceptance
+text four hundred lines down **in the file being edited**. A two-part check was
+invented and then reported as complete. Step 28 was recorded on top of it.
+
+**Eighth instance of the shape, and the first committed inside the document
+written to stop it.** The rule the seventh produced — *when a step has
+enumerated acceptance checks, report per check, never in aggregate* — was obeyed
+at the level of the check number and abandoned one level down, which is the same
+failure at smaller scale. The rule is replaced, not supplemented:
+
+> **Re-read the acceptance text for every check being closed, in the run that
+> closes it. A check with sub-clauses is not closed until each clause is named
+> and answered separately. An instruction that describes a check is not the
+> check.**
+
+**The nearest existing evidence is another near miss.**
+`test/native-label-seed-parity-postgres.js` asserts
+`native_label_scope_forbidden` five times, and every one is about the
+`test_only` / `auth_kind` binding, not a staff role. Same code, different cause.
+Citing it would have repeated the mistake one layer deeper.
+
+**And the check may name the wrong code.** The guard emitting
+`native_label_scope_forbidden` (`index.ts:6425-6427`) gates on the principal's
+kind and on `legacy_parity`, not on the staff role; the `admin|smm` restriction
+lives in the policy table and refuses with `operation_forbidden`. Whether the
+contract's wording is wrong or a path was not found is not this session's call
+and is recorded as a question, not a finding.
+
+Step 27 is back to IN PROGRESS. The step 28 closure is marked **withdrawn** in
+the checkpoint's dependency table rather than deleted.
+
+### 2026-09-18 — Labels is through phase 7, and the one check this session could measure had no test at all
+
+Step 27 closed on evidence from three sources. Checks 1, 3 and 5 are the owner's
+and the supervisor's. Checks 4, 6-409 and 7-graphics are the storage session's —
+receipt **10579** and journal **`edf78a6a`** for the first two, receipts **10575**
+and **10576** for graphics. That journal is not reachable from this repository at
+the time of writing, so this session has **not read it** and records those three
+as reported, not as measured here. Said plainly in the procedure, the map and the
+closure, because "all seven checks passed" is the aggregate claim this same
+capability already produced once and had to withdraw.
+
+**Check 4 passed without contradicting the constraint.** The replay shortcut
+excludes `principal.testOnly`, which is a property of the credential, not of the
+card's owner. The storage session ran it on the test *card*, not as the test
+*client*. The constraint stands and stays in the file.
+
+**The 403 half of check 6 had no test, and three near misses looked like one.**
+Check 6 needs a client principal refused a labels write. What existed:
+`handleLabelsRead` (the read, not the write); a regex on the write guard's
+condition buried in an unrelated `brief`-leakage assertion, never naming the
+status; and the auth matrix's `labels: false` client row, which exercises
+`clientOperationAllowed` — **a function the labels write path never calls.** The
+write is refused earlier and unconditionally at `index.ts:5932-5935`. So a green
+suite was never evidence about this gate, and citing any of those three would
+have been the same error shape as the step 27 overclaim: a true statement about
+what a test measures, offered as an answer to a different question.
+
+Five assertions added to `test/production-write-gateway.js` that **execute the
+guard's real bytes** in a sandbox rather than matching them, anchored on the
+exact source text so a reworded guard fails loudly. Confirmed to fail when the
+guard's condition is defeated.
+
+**Step 28 is recorded with its limits.** The provider branch is switched off,
+not removed: `mode:"provider"` is still selectable because the kill switch
+`mode:"hold"` shares the same flag. So "unreachable" means no supported label
+operation reaches it while the capability is native — not that the path is gone.
+And the dependency row it acts on also covers metadata, credential reads, intake
+and assignment. Labels closes none of those; the row stays open.
+
 ### 2026-09-18 — The browser refused the test client's own native cards, and the test suite said it was fine
 
 Owner-reported. Every card of the test client showed the "project needs

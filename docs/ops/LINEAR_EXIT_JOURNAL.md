@@ -30,6 +30,74 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — NATIVE TEST-CLIENT PARITY MIGRATION APPLIED LIVE: five bodies replaced, the admissions table's `test_only = false` check gone, the `legacy_parity = false` check kept, EXECUTE holders unchanged, both capabilities still provider. Deploy preflight PASS, 157
+
+Storage session. Instruction: apply `migrations/2026-09-18-native-test-client-parity.sql`
+from main at `5247d967b64a7773600c06442369f41b1a8e805b`, then stop at the gate.
+
+#### 0. The file
+
+sha256 `d7137d68f2d24927d3f713fe39d33fe32a042bdba333da6d11c54324fc531317`, read from
+the committed blob at `5247d967` and again from a fresh detached worktree at that
+commit — **equal to the pin.** `origin/main` was `5247d967` at the time. The
+worktree was clean when the file was run.
+
+#### 1. Pre-state (one transaction, rolled back)
+
+| Routine | Body md5 before | EXECUTE holders |
+|---|---|---|
+| `production_native_ordinary_event(jsonb,jsonb)` | `0b07bb0d…` | postgres |
+| `production_native_ordinary_receipt_guard()` | `05076600…` | postgres |
+| `production_assignment_context(jsonb)` | `20db9935…` | postgres, service_role |
+| `production_native_assignment_receipt_guard()` | `f46ecebe…` | postgres |
+| `production_assignee_write(jsonb,jsonb)` | `2ddefb16…` | postgres, service_role |
+
+One overload each; all `security definer`, `search_path=public`.
+
+Admissions table: **7** check constraints, including `CHECK ((test_only = false))` and
+`CHECK ((legacy_parity = false))`. Admission rows: 0.
+
+Flags: `production_native_ordinary_receipts` and `native_assignment_epochs` both
+`provider`, epoch null, for **graphics and video**. Resolved per team: ordinary
+mode `provider`, assignment epoch empty.
+
+#### 2. Apply and readback
+
+The file was run **unedited**, as one transaction under its own `begin`/`commit`:
+**2026-09-18T16:07:33.773Z → 16:07:33.972Z**, no notices.
+
+| Routine | Body changed | Signature same | EXECUTE holders unchanged | Definer and config unchanged |
+|---|---|---|---|---|
+| `production_native_ordinary_event` | yes | yes | yes | yes |
+| `production_native_ordinary_receipt_guard` | yes | yes | yes | yes |
+| `production_assignment_context` | yes | yes | yes | yes |
+| `production_native_assignment_receipt_guard` | yes | yes | yes | yes |
+| `production_assignee_write` | yes | yes | yes | yes |
+
+- `test_only = false` check: **gone.**
+- `legacy_parity = false` check: **present, exactly one.**
+- The other five checks: byte-identical to the pre-state.
+- Both flag rows: byte-identical to the pre-state; both teams still `provider`
+  for both capabilities. Admission rows: 0.
+
+#### 3. Deploy preflight
+
+`node scripts/linear-exit-deploy-preflight.js` from the clean worktree at
+`5247d967`, against live, with the access token and project ref supplied in memory:
+
+```
+{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":157,"read_only":true}
+```
+
+**PASS, 157.** This also closes the earlier `CONTRACT_MISMATCH` on
+`production_notification_intent_guard()` recorded after the creative-channel
+migration: at `5247d967` the preflight no longer fails on it.
+
+#### Holding
+
+**Parity applied, preflight PASS. Waiting for the owner's go-ahead to enable
+ordinary receipts native for both teams.** No flag was touched.
+
 ### 2026-09-18 — STEP 27 ENABLED and CLOSED for native notifications: sender and wake live, monitor off. The five queued approvals and every event since went to the right creative channel within seconds; nothing reached a shared channel; no pre-existing intent changed state
 
 Storage session. The owner's go-aheads, in order:

@@ -185,6 +185,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - `test/linear-exit-deploy-preflight-postgres.js` ? disposable PostgreSQL missing-prerequisite and JSON-shape diagnostics.
 
 - `test/linear-exit-deploy-preflight-ordered.js` ? actual release metadata validation against the inventory-ordered disposable candidate.
+- `test/linear-exit-preflight-definer-pins.js`: reads every migration the deploy preflight cites and requires each routine row's `security definer` expectation to match the function header in that file, so a plain function pinned as definer (the 2026-09-18 label seed) fails offline instead of live.
 
 - `test/linear-exit-view-provenance.js` ? local PostgreSQL reconstruction against a pinned hosted-view definition hash.
 

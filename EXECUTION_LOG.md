@@ -2,6 +2,23 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — The client chip escaped its row on a longer client name
+
+Browser-only, CSS. `.prod-chip-client` inherited `flex: none` and therefore
+could not shrink, so at any row narrower than its content it hung outside the
+row. Harmless while the longest active client display name was 13 characters;
+`prod-layout-polish` went red on `plp_list_metadata` at compact-desktop when a
+19-character name arrived with 32 new cards, on rows no change had touched, and
+it went red on two unrelated pull requests at once.
+
+The chip now yields and the label ellipsizes. Pinned by
+`test/prod-client-chip-name-width.js` with a synthetic 24-character name,
+confirmed to fail without the fix.
+
+Named in the gate's public summary for the first time: the layout suite now
+prints the ids of the assertions that fired, harvested by the gate from that
+suite's own source, so a red lane says which check rather than `error_generic`.
+
 ## 2026-09-18 — The browser refused the test client's own native cards
 
 Browser-only change, not deployed and not deployable: `index.html` is served by

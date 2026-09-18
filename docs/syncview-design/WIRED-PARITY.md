@@ -1110,6 +1110,28 @@ An SMM filed a thumbnail from the content calendar, and the card refused every
 edit under **"Client attribution needs repair."** The client was fine.
 OPEN_REPAIRS 187.
 
+### The client chip escaped its row the day a longer client name arrived
+
+-   **Candidate behaviour.** `.prod-chip-client` carries the client's display
+    name and inherits `flex: none` from `.prod-chip` — `flex: 0 0 auto`, so it
+    cannot shrink. At any row narrower than its content it keeps its width and
+    hangs outside the row. `max-width: 180px` caps it without making it yield,
+    and the `text-overflow: ellipsis` on `.prod-chip` never fires because the
+    label sits in a nested span the chip's own `overflow` only clips. Invisible
+    while the longest active display name was 13 characters; red the day a
+    19-character one arrived with 32 new cards, on rows nothing had changed —
+    and red on two open pull requests at once, neither of which caused it.
+-   **Wired behaviour.** The chip yields like `.prod-title` beside it already
+    does (`min-width: 0`), and the label span ellipsizes. Any name length stays
+    inside its row at any viewport.
+-   **What does NOT move.** The 180px cap, the chip's colours, its click target
+    and its tooltip; the `@media (max-width: 900px)` rule that hides
+    `.prod-chip.optional` outright; and every other chip, which keeps
+    `flex: none`. Pinned by `test/prod-client-chip-name-width.js`, which renders
+    the real extracted stylesheet around a **synthetic 24-character** name —
+    never a real client's, since this repository is public — and was confirmed
+    to fail without the fix with a 65px overhang.
+
 ### The test client's own cards refused every write, for months after the server stopped refusing them
 
 -   **Candidate behaviour.** The browser proves a persisted native-intake stamp

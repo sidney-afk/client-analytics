@@ -30,6 +30,29 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — DEPLOY PREFLIGHT PASS, 160 objects, from main `53417b82` with the definer fix. Holding for the owner's production-write dispatch
+
+Storage session.
+
+Main is at `53417b82805d923e4cc4372ee83b13a9e44fee1e` (PR #1416). Compared with
+`37d7099c`, its only change to the preflight is one line: the
+`production_native_label_empty_state(jsonb)` row now passes `false` as its fifth
+element. That is the fix the previous entry named. The PR also adds a test, a
+suite classification line and a `REPO_MAP.md` line.
+
+From a clean detached worktree at `53417b82`, against live, with the access token
+and project ref supplied in memory:
+
+```
+{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":160,"read_only":true}
+```
+
+**PASS, 160.** Earlier today's count was 157. The three additions are the seed's
+two routines and its trigger, all pinned at `37d7099c`.
+
+**Holding** for the owner's dispatch of `deploy-onboarding-edge-functions.yml`.
+The session watches the run when it starts.
+
 ### 2026-09-18 — LABEL SEED AND LABEL PARITY APPLIED LIVE on the owner's decision. The seed changed exactly 9 cards with no clock moved. The deploy preflight does NOT pass: it expects the seed's shape helper to be `security definer`, and the migration does not make it one
 
 Storage session. The owner's decision, after the stop recorded in the previous

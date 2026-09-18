@@ -30,6 +30,67 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 28 CLOSED for native notifications: since go-live, 17 intents were sent, every one to its client's creative channel and none to a shared channel. Ordinary receipts and assignment step 28 are NOT closed: the only native rows on real clients are the owner's own step 27 tests
+
+Storage session, on the owner's instruction. Measured read-only at
+2026-09-18T16:42:25Z.
+
+#### 1. Native notifications — the measure
+
+Go-live was at 15:28:26.936Z, when wake was switched on.
+
+| Measure | Count |
+|---|---|
+| Intents in total | **46** — 28 blocked, 18 sent |
+| Sent **before** go-live (the wake-path delivery at 15:06, recorded earlier) | 1 |
+| **Sent since go-live** | **17** |
+| … created before go-live (the five queued approvals, sent by the one dispatch) | 5 |
+| … created after go-live | 12 |
+| … by kind | 9 `status_smm_approval`, 7 `comment`, 1 `status_tweak` |
+| … **to the client's creative channel** | **17** |
+| … **to the client's shared channel** | **0** |
+| … on the test client | 0 |
+| … with exactly one `sent` delivery receipt | 17 |
+| Sent to a shared channel, ever | **0** |
+
+Of the 12 created after go-live:
+
+- three came from the owner's tests: comments `73d71329…` and `acbfe0e0…`, and
+  comment `c7c154bf…` on the real native card;
+- **nine are ordinary staff events on real clients**, from 15:30:32Z to
+  16:01:17Z: `5baa3710…`, `a0f6f620…`, `7ad9a481…`, `943168c2…`, `15ed3cee…`,
+  `9e762183…`, `1cd8a51e…`, `09a29850…`, `5c044b82…`.
+
+**CORRECTION to the count in the instruction.** The instruction said "ten sent to
+creative channels … per your own counts". That ten was the **all-day** sent total
+at the step 27 check around 15:36, and it included the one delivery made before
+go-live. The measure now is **17 sent since go-live, 18 all day.** The
+substance of the instruction is unchanged: every delivery went to a creative
+channel and none to a shared channel.
+
+**STEP 28 is CLOSED for native notifications.** The monitor variable stays absent,
+for the reason already recorded: the 28 blocked intents count as debt.
+
+#### 2. Ordinary receipts and assignment — step 28 NOT closed
+
+Checked once, read-only. These are every mirror_outbox row since 16:07 on a
+client of kind `client` that is `native_ordinary` or carries
+`_native_assignment_epoch`:
+
+| Row | Lane | Team | Operation | What it is |
+|---|---|---|---|---|
+| `10419` | ordinary | video | comment | the owner's step 27 test comment |
+| `10420` | assignment | video | assignee | the owner's step 27 test, change |
+| `10421` | assignment | video | assignee | the owner's step 27 test, change back |
+
+There are **no other rows**, and none at all for graphics in either lane. All
+three are the owner's own step 27 evidence, made on the owner's instruction, not
+a staff follow-up. So they are **not** counted as the first real staff follow-up,
+and **no step 28 is closed** for either lane or team. The next check happens when
+the owner asks.
+
+**Holding.**
+
 ### 2026-09-18 — STEP 27 ENABLED for native assignment, both teams: the owner's assignee change and change-back on a real native card each landed as a native `skipped` receipt with the video epoch. The assignee is back to the original, with no failures and no notifications. Graphics is enabled but not exercised
 
 Storage session. The owner's go-ahead:

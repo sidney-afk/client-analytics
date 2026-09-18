@@ -490,6 +490,22 @@ notification intents and no other changes.
 - **Safe kill:** `{"mode":"hold"}` per team, prepared and unused. This is not a
   return to provider.
 
+**Native notifications — STEP 28 CLOSED 2026-09-18.** Measured at 16:42Z:
+
+- **Sent since go-live (15:28:26.936Z):** 17, every one to its client's creative
+  channel, none to a shared channel, none on the test client, each with one
+  `sent` receipt.
+- **What those 17 were:** 5 approvals queued before go-live, 3 from the owner's
+  tests and **9 ordinary staff events on real clients**.
+- **All day:** 18 sent, 0 of them to a shared channel.
+- The monitor stays absent.
+
+**Ordinary receipts and native assignment — step 28 still OPEN, both teams.**
+Checked at 16:42Z. The only native rows on real clients since 16:07 are the
+owner's own step 27 tests (`10419`, `10420`, `10421`), which are not counted as
+staff follow-ups. There are none for graphics. The next check is on the owner's
+request.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

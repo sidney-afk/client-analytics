@@ -411,6 +411,18 @@ not the same as proven.
 - **After-list, not tonight:** make the test client able to prove native
   attribution on the page. A code change, not a config flip.
 
+**BLOCKER on any notification capability, recorded 2026-09-18.** The installed
+sender would post approval and comment messages into **the client channel**: the
+three intent triggers and the reconcile release fill `destination_channel_id`
+from `clients.slack_channel_id`, which is the channel shared with the client,
+while labelling the row `client_creative_channel`. There is no creative channel
+column. Eight intents exist, **three still sendable**, all carrying a shared
+channel. **No notification capability may be gated on until** a migration adds
+`clients.creative_channel_id`, repoints the three triggers and the reconcile
+release at it, and blocks every existing pending `client_creative_channel`
+intent; the creative ids load from the owner's sheet as data and are never
+committed.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

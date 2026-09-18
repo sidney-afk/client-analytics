@@ -30,6 +30,80 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — BOT MEMBERSHIP MEASURED: the SyncView bot is in 7 of the 31 creative channels and missing from 24 — while it IS in all 26 shared client channels. The sender cannot deliver for most clients as things stand. D36 extended to the bot token
+
+Storage session, read only. Holding at the notifications gate.
+
+#### The measurement
+
+Slack `users.conversations` called with the stored bot token — the bot's own
+membership, `types=public_channel,private_channel`, paginated (one page held
+everything) — compared with the 31 creative channel ids now loaded in
+`clients.creative_channel_id`.
+
+| Measure | Count |
+|---|---|
+| Authenticated as the bot | **yes** |
+| Channels the bot is in | **52** — 10 public, 42 private |
+| Creative channels loaded | **31** |
+| **Bot is a member of** | **7 of 31** |
+| **Bot is missing from** | **24 of 31** |
+
+The 24 clients are listed privately by slug in
+`bot-membership-20260918-1/membership.private.json`, not here.
+
+**Checked before reporting, because a missing scope would look exactly like
+missing membership:** the token carries `channels:read` **and** `groups:read`,
+and the list it returned does include 42 private channels. The 24 are real
+absences, not an unreadable half of the workspace.
+
+#### Where the bot actually is
+
+| Channel set | Count | Bot is a member of |
+|---|---|---|
+| Shared client channels (`slack_channel_id`) | 26 | **26 of 26** |
+| Creative channels (`creative_channel_id`) | 31 | **7 of 31** |
+
+**The bot's membership is the reverse of what notifications need.** It sits in
+every channel it must never post a notification to, and is absent from three
+quarters of the channels it is meant to post to. The owner's understanding that
+the bot is in all of them is most likely true of the **shared** channels.
+
+What that means if the sender were enabled today:
+
+- For the 24 clients, a post to the creative channel would be refused by Slack
+  (`not_in_channel`). It **fails safe**: no misdelivery, but no delivery either,
+  and each refused send would land as a failed or blocked intent.
+- Nothing in the notification routines reads the shared channel any more, so the
+  bot's presence there cannot misroute a notification. It remains a standing
+  capability, though: the bot has `chat:write` in every channel shared with a
+  client.
+
+**This belongs in front of the go-ahead:** enabling the sender now would deliver
+for 7 clients and fail for 24. Inviting the bot to the 24 creative channels is a
+Slack workspace action for the owner; this session does not do it.
+
+#### D36, extended
+
+Recorded in place under D36, below its original text: the **Slack SyncView bot
+token** is covered by the same owner decision as the admin role key — **not
+rotated, and no session raises it again**.
+
+#### CORRECTION, against myself
+
+D36 was recorded on 2026-09-17 by another session. I had not read it, and
+recommended rotating the admin role key in three places afterwards — the step 24
+entry, the notifications configuration entry, and in chat — and the bot token in
+the latter two. **Those recommendations are withdrawn.** D36's own rule allowed me
+to record the observation once in the journal; it did not allow reopening the
+question with the owner, which is what repeating it in chat did.
+
+#### Holding at the gate
+
+**Step 26 done for notifications. Waiting for the owner's go-ahead to enable the
+sender.** The membership finding above is information for that decision, not a
+change to it.
+
 ### 2026-09-18 — NOTIFICATIONS STEP 26 DONE, configuration only: three Supabase secrets and two GitHub secrets set, the sender stays OFF, and the health call answers exactly as expected — 26 blocked, nothing pending
 
 Storage session. Configuration only. **Neither `*_ENABLED` variable exists**, so
@@ -1447,6 +1521,13 @@ simply will not appear. That is the failure mode to expect, and it fails closed.
 stays as it is. This sits beside the existing standing decision not to rotate the
 Supabase publishable key. A session that thinks rotation is indicated may record
 the observation in this journal; it does not reopen the question with the owner.
+
+**Extended 2026-09-18, owner decision:** the **Slack SyncView bot token** is
+covered by the same decision. It is **not rotated**, and **no session raises it
+again**. The storage session recommended rotating both the admin role key and the
+bot token on 2026-09-17 and 2026-09-18 without having read D36; those
+recommendations are withdrawn, and the correction is recorded in the 2026-09-18
+entry on the bot's channel membership.
 
 #### Not done
 

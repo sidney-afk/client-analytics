@@ -30,6 +30,102 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — the backfill was never callable, and the green fixture is the part worth remembering
+
+The bridge migration applied live at 22:38Z. The trigger works. The storage
+session then tried the backfill and it refused, every time, in dry-run as much
+as in apply: SQLSTATE 21000, "DELETE requires a WHERE clause", before it read a
+single row.
+
+The cause is four words of SQL. The routine clears its two `on commit drop`
+temp tables at entry so that a second call inside one transaction cannot see the
+first call's rows, and it cleared them with a bare `delete from <table>;`.
+Supabase loads the `safeupdate` guard for the role PostgREST connects as, and
+that guard rejects any DELETE or UPDATE whose plan carries no qualifier. It does
+not care that the table is a temporary one this routine created moments earlier
+and is about to drop.
+
+I fixed it with `truncate`, in a new dated migration, and did not touch the
+applied one. `delete ... where true` was the obvious alternative and I turned it
+down: the planner folds `where true` away before the guard inspects the plan, so
+it is not reliably a qualifier at all — it would be a fix that depends on the
+guard not constant-folding, which is exactly the sort of thing that changes
+underneath you. `truncate` is not a DELETE, so the guard has nothing to say
+about it.
+
+**The lesson is not "check for bare deletes".** It is that a lane can be
+honestly, completely green against code the real caller can never execute. All
+38 disposable-PostgreSQL assertions passed, and they were right to: a plain
+PostgreSQL 17 has no `safeupdate` loaded and no PostgREST in front of it, so the
+statement is legal there. No assertion I could have added to that lane would
+have caught this, because the difference is the connection, not the SQL. When a
+fixture and the live caller differ in their *connection*, the fixture's verdict
+is scoped to the SQL and says nothing about reachability — and I did not think
+to ask which of those two things my green tick was about.
+
+So the guard reads the committed bytes instead: `test/migration-bare-delete-lint.js`
+walks every routine body in the repository, 362 of them, and refuses the
+pattern. Running it over the repository as it stands found the two statements in
+the bridge migration and nothing else, which answers the question the supervisor
+asked — no other routine has this. It was seen to fail twice before being
+accepted: once on a wrapped bare delete planted in the repair itself, once on
+one planted in an unrelated routine, and it went green again on restore both
+times. Its first draft also reported 19 lines across the repository that were
+not defects at all (`on conflict … do update set`, `for update skip locked`, and
+its own prose about the guard); anchoring the match to a statement start and
+stripping comments fixed that, and I would rather record that the first draft
+was wrong than present the second as if it arrived correct.
+
+One ordering detail worth leaving here: the lint proves the repair installs
+after the file it repairs by asking the install manifest's `dependency_order`,
+not by comparing filenames. Both files carry today's date and the repair sorts
+*before* the bridge alphabetically. Filename order was never what decided which
+definition survives.
+
+The preflight row for the backfill now cites the repair, because a routine is
+pinned against the file that LAST defines it — pinning it to the bridge would be
+telling the preflight to expect a body a working database must not hold. The
+install inventory went to `_5` for the new candidate, with seven references
+repointed; the journal's own older entry still says `_4`, correctly, because it
+was true when it was written.
+
+Separately: this script had the live project's REST origin as a `SUPABASE_URL`
+default. The repository is public, so that published an identifier for the
+production database — but the worse half is that it made the dangerous direction
+the silent one. An unset or misspelled variable would have pointed a `--apply`
+at production rather than refusing. It is now required with no default, and the
+script was run as written from an unrelated directory to confirm it refuses on
+the variable and not on a missing module. `linear-label-catalog-export.cli.js`
+line 384 has the same fallback; it is recorded in OPEN_REPAIRS 213 and
+deliberately left alone, because pulling an unrelated tool into a regression PR
+is how it ends up shipped untested.
+
+Still true and worth repeating: the already-lagging cards are still lagging. The
+trigger only ever sees changes made after it exists, and the backfill has not
+run once.
+
+**Amendment, same evening.** CI failed the new lint file on its first run, on a
+gate I did not know existed and could not have seen fail locally:
+`test/comment-strip-is-honest.js` forbids stripping block comments with
+`/\/\*[\s\S]*?\*\//g`, and my first draft used exactly that. The gate is right.
+That regex opens a comment at ANY two characters "/" and "*" — inside a string,
+a MIME type, a glob — and then runs to the next closer anywhere in the file;
+about 64k characters of `index.html` were invisible to seventeen gates this way
+(OPEN_REPAIRS 145), and negative assertions over the deleted region passed
+vacuously. `test/helpers/strip-comments.js` is the sanctioned replacement and
+the lint now uses it, handling SQL's `--` here because the helper knows `//`
+and not `--`, and removing only whole-line ones for the same conservative
+reason the helper gives.
+
+The process lesson is the one I want the next session to have. **A brand new
+test file is invisible to the repository's own meta-gates until it is staged**,
+because several of them enumerate with `git ls-files`. My local `npm test` ran
+while the file was untracked, reported the six known failures, and told me
+nothing about this one. `git add` before the full run, not after it — otherwise
+the suite is measuring the repository as it was, not as you are proposing it.
+Both planted-drift failures were re-checked against the new stripper rather than
+assumed to still hold.
+
 ### 2026-09-18 — Codex found the approval stamps, and the one thing I could not stage I wrote down instead of quietly dropping
 
 Three findings on #1422, all three correct, all three addressed on the

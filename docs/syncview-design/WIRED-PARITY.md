@@ -1280,3 +1280,20 @@ said so.
     this: `urgentSnapshot` requires the card to read `Tweaks Needed`, so the
     urgent ping has been unreachable on natively-changed cards since the flip
     and is reachable again.
+-   **Amendment, 2026-09-18 after the 22:38Z apply.** The paragraph above
+    described the backfill as working. Measured live, it was not: every call
+    through PostgREST refused with SQLSTATE 21000 "DELETE requires a WHERE
+    clause", in dry-run as much as in apply, before reading a row. The routine
+    cleared its two temp tables with a bare `delete from <table>;` and Supabase
+    loads the `safeupdate` guard for the role PostgREST connects as, which
+    rejects any DELETE or UPDATE whose plan carries no qualifier — a temp table
+    the routine created itself is no exception.
+    `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`
+    replaces the routine using `truncate`, which is not a DELETE and so has
+    nothing for the guard to refuse. The trigger half was and is unaffected.
+    The lesson is about the lane, not the SQL: the disposable PostgreSQL 17
+    fixture is a plain cluster with no guard loaded and no PostgREST in front
+    of it, so all 38 assertions were honestly green against a statement the
+    real caller could never run. Bytes-level lint
+    (`test/migration-bare-delete-lint.js`) now covers what the connection
+    cannot.

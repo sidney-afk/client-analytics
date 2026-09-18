@@ -77,7 +77,10 @@ const ROUTINES = Object.freeze([
   ['production_native_calendar_status_above(text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_above', 'public, pg_temp', false],
   ['production_native_calendar_status_map(text,text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_map', 'public, pg_temp', false],
   ['production_native_calendar_status_project()', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_project', 'public, pg_temp', false],
-  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
+  // Attributed to the repair, not to the migration that first defined it: the
+  // bridge migration's version refuses on every API call with 21000, so the
+  // body a live database must hold is the one in the file below.
+  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
 ]);
 
 const PRIVATE_ROUTINES = new Set([

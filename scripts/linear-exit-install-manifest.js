@@ -38,6 +38,7 @@ const CANDIDATE=[
  '2026-09-18-native-label-empty-state-seed.sql','2026-09-18-native-label-test-client-parity.sql',
  '2026-09-18-native-label-retired-state.sql','2026-09-18-native-assignment-auth-kind-binding.sql',
  '2026-09-18-native-calendar-status-bridge.sql',
+ '2026-09-18-native-calendar-backfill-temp-table-clear.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -93,6 +94,9 @@ const DEPENDENCIES={
  // stamps video_status_at / graphic_status_at -- the column the projection
  // relies on moving, and the urgent ping's dedupe key.
  '2026-09-18-native-calendar-status-bridge.sql':['live-schema-baseline-2026-07-03.sql','2026-07-03-a1-calendar-upsert.sql','2026-07-06-b1-linear-data-model.sql'],
+ // Replaces the backfill routine in full, so it must land after the file that
+ // first defined it -- otherwise the bare-delete version wins.
+ '2026-09-18-native-calendar-backfill-temp-table-clear.sql':['2026-09-18-native-calendar-status-bridge.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

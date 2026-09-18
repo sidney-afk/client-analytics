@@ -313,6 +313,7 @@
     "native-batch-picker-search.js",
     "native-calendar-status-bridge-postgres.js",
     "native-calendar-status-bridge.js",
+    "migration-bare-delete-lint.js",
     "native-client-provisioning-postgres.js",
     "native-client-provisioning.js",
     "native-existing-assignment-preinstall.js",

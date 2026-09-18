@@ -16,7 +16,7 @@ const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
 const installInventory = require('./linear-exit-install-manifest');
-const INSTALL_INVENTORY_PATH = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json';
+const INSTALL_INVENTORY_PATH = 'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_5.json';
 function inventorySnapshot() {
   const bytes=fs.readFileSync(path.join(ROOT,INSTALL_INVENTORY_PATH));
   const manifest=JSON.parse(bytes.toString('utf8'));installInventory.verify(manifest);

@@ -26426,3 +26426,32 @@ statement and logs only rows an UPDATE returned.
 by the next calendar write; `computeOverallStatus` and `_calClearStaleApprovals`
 have no server-side twin and inventing a second one in SQL is how the two drift.
 Worth a decision, not a silent addition.
+
+**Amendment, 2026-09-18, after the 22:38Z apply.** The trigger half of this
+works live. The backfill half did not run at all: every call through the API
+refused with SQLSTATE 21000 "DELETE requires a WHERE clause" before reading a
+row, because the routine cleared its two temp tables with a bare
+`delete from <table>;` and Supabase loads the `safeupdate` guard for the role
+PostgREST connects as. Repaired by
+`migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, which
+replaces the routine using `truncate`. **The backfill therefore still has not
+been run against production** — the entry above should be read as the trigger
+being live and the already-lagging cards still lagging until the repaired
+routine is applied and the script run with `--apply`. See 213.
+
+## 213. [2026-09-18, OPEN] The live project's REST origin is a default in at least one more script
+
+`scripts/native-calendar-status-backfill.js` shipped with the production
+project's REST origin as a `SUPABASE_URL` fallback. Two problems, not one: the
+repository is public, so the fallback published an identifier for the production
+database; and it made the dangerous direction the silent one, since a run with
+the variable unset or misspelled would have pointed a `--apply` at production
+instead of refusing. That script now requires the variable, with no default.
+
+`scripts/linear-label-catalog-export.cli.js` line 384 has the identical
+fallback and is **not** fixed — it has its own callers and its own lane, and
+widening a regression PR to reach it is how an unrelated tool ends up untested
+in a hurry. The same sweep should check the rest of `scripts/` rather than these
+two files: a grep for the project ref finds it in several more, and whether each
+is a default (dangerous) or a documented constant in a read-only diagnostic
+(merely public) has not been measured.

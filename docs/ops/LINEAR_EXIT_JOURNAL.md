@@ -30,6 +30,38 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — A native card has no identifier, and the Production row showed the raw id
+
+Not a Linear-exit task, found by one. The layout gate went red on rows nothing
+had changed, and the cause is a direct consequence of native intake: a provider
+card carries a 9-character Linear identifier, a natively created card has none
+yet, and `_prodIssueLabel` falls all the way through to the raw 40-character
+deliverable id. Every card created after 13:35Z that day was native.
+
+`.prod-id` declared `width: 76px` and no truncation at all, so the id wrapped
+and the cell grew taller than its 44px row. Fixed with `nowrap`, `overflow` and
+an ellipsis, plus one render helper carrying the full value on the hover.
+
+**The proper fix is the identifier mint capability**, which is exit work: a
+native card should carry a short identifier of its own rather than display a raw
+id. Recorded here so the stopgap does not become the answer by default. Named in
+the CSS comment, `WIRED-PARITY.md`, `EXECUTION_LOG.md` and the `ROLLBACK.md` row
+as well.
+
+**Two wrong explanations on the way, both caught by measurement rather than
+review.** First, the clipping cell was said to be the client chip; a fix shipped
+at it and the lane came back red on the identical assertion id, because that id
+named the containment *sweep* and the sweep checks six cells. Second, the escape
+was said to be sideways, on a flex item's min-content width; the test printed a
+NEGATIVE right-edge overhang, which cannot happen if something hangs off the
+right, and measuring it showed the cell escapes top and bottom because a
+hyphenated id wraps.
+
+The gate's assertion ids now name the cell, not the sweep — 24 literals across
+the four containment sweeps. Both wrong explanations survived exactly as long as
+the instrumentation was coarser than the question being asked, which is the same
+lesson this journal keeps recording at smaller and smaller scales.
+
 ### 2026-09-18 — Check 6b is measured, the clause named a code it never reaches, and labels is through phase 7
 
 Supervisor ruling, after the correction below. Placed above it because this is
@@ -151,6 +183,45 @@ not removed: `mode:"provider"` is still selectable because the kill switch
 operation reaches it while the capability is native — not that the path is gone.
 And the dependency row it acts on also covers metadata, credential reads, intake
 and assignment. Labels closes none of those; the row stays open.
+
+### 2026-09-18 — The browser refused the test client's own native cards, and the test suite said it was fine
+
+Owner-reported. Every card of the test client showed the "project needs
+attribution" banner with the comment box and the write controls locked, months
+after the server started accepting that client (#1414).
+
+The cause is one hard-coded string. `_prodResolveAttributions` proves a
+persisted native-intake stamp before it will trust it, and that proof demanded
+`persisted.owner_kind === 'client'`. The gateway writes that field as the
+roster row's own kind — `lower(client.kind || "client")` in
+`production-write/index.ts` — so a `kind: 'test'` client is stamped `'test'`,
+the proof failed, and the row fell through to `needs_attribution`. The same
+function's **explicit** branch never had this bug: it reads the roster kind and
+requires the persisted value to equal it. The native branch now does the same,
+and carries that kind into the resolved attribution instead of rewriting it to
+`'client'`.
+
+Two things worth recording beyond the fix.
+
+**The roster lookups were never the problem.** `activeBySlug`,
+`nativeProjectOwners`, `nativeLegacyProjectOwners` and the batch-parent map all
+gate on `active === true` alone and carry `kind` through untouched. Checked
+because the owner asked; no change was needed, and none was made.
+
+**`test/native-intake-attribution-ownership.js` passed throughout.** Its only
+client fixture is `kind: 'client'`, so the suite could not have caught this and
+a green run was never evidence about it. Six assertions were added and were
+confirmed to FAIL on the pre-fix file with exactly the reported symptom
+(`needs_attribution` where `resolved` was expected) before being accepted as
+passing. A test written after a fix proves nothing until it has been seen to
+fail without it.
+
+`'internal'` is deliberately still refused. Nothing has measured that kind end
+to end, and this change is not the place to find out.
+
+Gates: `prod-write-gateway-browser` passed. `prod-boot-budget` fails here on a
+WebSocket handshake to the live realtime endpoint and fails identically on the
+unmodified tree, so it is the sandbox, not this change.
 
 ### 2026-09-18 — Labels are NATIVE. Three of the four step 26 blockers dissolved, and two of them were never real
 

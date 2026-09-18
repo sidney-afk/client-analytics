@@ -4,6 +4,16 @@ Later bounded source addendum (2026-09-05): the draft mapped-feedback reader/UI
 contract is documented in `docs/features/COMPONENT_FEEDBACK.md`. It adds no writer
 authority or live proof and does not revise this audit's historical findings.
 
+Later bounded source addendum (2026-09-18): the browser's native-intake
+attribution proof accepted `owner_kind` `'client'` only, so an active roster row
+of `kind: 'test'` had every native card held at `needs_attribution` with its
+write controls gated shut, months after `production-write` began accepting that
+client. The proof now takes the expected kind from the roster row and requires
+the persisted stamp to equal it (`client` or `test`; `internal` still refused).
+This changes which rows the existing gate lets through — it adds no writer
+authority, no new control, no schema and no live proof, and does not revise this
+audit's historical findings. See `docs/syncview-design/WIRED-PARITY.md`.
+
 ## Goal
 
 Make the `?prod=1` Production tab behave like a finished, polished read-only product surface.

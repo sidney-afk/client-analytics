@@ -2,6 +2,66 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — A native card has no identifier, so its row cell escaped
+
+Browser-only. `.prod-id` declared `width: 76px` and no truncation at all. A
+provider card shows a 9-character Linear identifier; a native card has none and
+`_prodIssueLabel` falls through to the raw 40-character deliverable id, which is
+hyphenated, so it wrapped and the cell grew taller than its 44px row. Every card
+created after 13:35Z that day was native, and `prod-layout-polish` went red on
+rows nothing had changed.
+
+The cell now truncates with an ellipsis and does not wrap, and all three
+identifier render sites go through `_prodIssueIdHTML`, which carries the full
+value on the hover. **The proper fix is the identifier mint capability** — a
+native card should carry its own short identifier instead of showing a raw id.
+This is a readability stopgap, not that.
+
+Found by the gate's new per-child assertion ids: `plp_list_metadata` alone named
+the sweep and left six candidate cells, and a fix aimed at the wrong one of the
+six shipped first. The id now names the cell.
+
+## 2026-09-18 — The client chip escaped its row on a longer client name
+
+Browser-only, CSS. `.prod-chip-client` inherited `flex: none` and therefore
+could not shrink, so at any row narrower than its content it hung outside the
+row. Harmless while the longest active client display name was 13 characters;
+`prod-layout-polish` went red on `plp_list_metadata` at compact-desktop when a
+19-character name arrived with 32 new cards, on rows no change had touched, and
+it went red on two unrelated pull requests at once.
+
+The chip now yields and the label ellipsizes. Pinned by
+`test/prod-client-chip-name-width.js` with a synthetic 24-character name,
+confirmed to fail without the fix.
+
+Named in the gate's public summary for the first time: the layout suite now
+prints the ids of the assertions that fired, harvested by the gate from that
+suite's own source, so a red lane says which check rather than `error_generic`.
+
+## 2026-09-18 — The browser refused the test client's own native cards
+
+Browser-only change, not deployed and not deployable: `index.html` is served by
+Pages on merge to `main`. No migration, no Edge Function, no runtime flag, no
+schema, no write path and no client delivery.
+
+The native-intake attribution proof in `_prodResolveAttributions` demanded
+`owner_kind === 'client'`. The gateway writes that field as the roster row's own
+kind, so every native card of a `kind: 'test'` client failed the proof, resolved
+`needs_attribution`, and showed the repair banner with the comment box and write
+controls gated shut — long after `production-write` began accepting that client
+(#1414). The proof now takes the expected kind from the roster row and requires
+the stamp to equal it, accepting `client` or `test`. `internal` stays refused.
+
+The existing suite could not have caught this: its only client fixture is
+`kind: 'client'`, so a green run was never evidence about this path. Six
+assertions were added to `test/native-intake-attribution-ownership.js` and
+confirmed to fail on the pre-fix file with the reported symptom before being
+accepted. Roster lookups were checked and needed no change — they gate on
+`active === true` alone and always carried `kind` through.
+
+Reversal and current state are in `ROLLBACK.md`; the behaviour contract is in
+`docs/syncview-design/WIRED-PARITY.md`.
+
 ## 2026-09-14 ? Draft installation-day preparation
 
 Prepared isolated frozen-main catch-up, guarded installation adapter, urgent website links and owner/day-of documents. No branch merge, deployment, installation, messages, n8n changes or production writes. Main #1393 was rehearsed in isolated Git objects and its known catalog change reviewed separately. See docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md for exact scope, evidence and pending quiet Storage custody.

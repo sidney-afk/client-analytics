@@ -1217,9 +1217,16 @@ fix the card.
   the same change**, or the Linear-exit deploy preflight will refuse with
   `CONTRACT_ABSENT` on five keys and no production-write release can dispatch.
   The install inventory entry in
-  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json` and
+  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_5.json` and
   its `CANDIDATE`/`DEPENDENCIES` entries in
   `scripts/linear-exit-install-manifest.js` come out with it.
+- **The backfill repair comes out with it too.**
+  `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql` only
+  replaces `production_native_calendar_status_backfill`, so dropping that
+  function drops what the repair installed as well. There is no separate
+  inverse for it, and reverting the repair ALONE is never right: it would leave
+  a routine installed that refuses every API call with 21000. If the intent is
+  to undo only the repair, drop the function outright instead.
 
 Also removes the stale-approval clearing the projection performs, so a component
 that regresses after this inverse keeps its client sign-off stamp again. That is

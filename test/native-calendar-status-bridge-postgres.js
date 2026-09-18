@@ -1,6 +1,7 @@
 'use strict';
 /*
- * Isolated-PostgreSQL proof of migrations/2026-09-18-native-calendar-status-bridge.sql.
+ * Isolated-PostgreSQL proof of migrations/2026-09-18-native-calendar-status-bridge.sql
+ * and its repair migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql.
  *
  * All identities below are synthetic and the database is disposable; nothing
  * here reaches a live backend.
@@ -149,6 +150,21 @@ try {
   cluster.runFile(path.join(MIGRATIONS, 'calendar-status-at-migration.sql'));
   cluster.exec(FIXTURE);
   cluster.runFile(path.join(MIGRATIONS, '2026-09-18-native-calendar-status-bridge.sql'));
+  /* The repair lands immediately after the file it repairs, exactly as the
+   * install order has it, so every backfill assertion below runs against the
+   * body a live database actually holds. This lane cannot reproduce the defect
+   * itself -- the `safeupdate` guard that refuses a bare DELETE is loaded for
+   * Supabase's API role, and a disposable PostgreSQL has no such role and no
+   * PostgREST in front of it. That is precisely why the guard for it is
+   * test/migration-bare-delete-lint.js, reading the committed bytes. What THIS
+   * lane can still prove, and does, is that the replacement body behaves
+   * identically to the one that was proved here on 2026-09-18. */
+  cluster.runFile(path.join(MIGRATIONS, '2026-09-18-native-calendar-backfill-temp-table-clear.sql'));
+  ok('the installed backfill body clears its temp tables with truncate, not a bare delete',
+    /truncate table native_calendar_backfill_scope;/.test(scalar(cluster,
+      `select prosrc from pg_proc where proname = 'production_native_calendar_status_backfill'`))
+    && !/delete from native_calendar_backfill_scope;/.test(scalar(cluster,
+      `select prosrc from pg_proc where proname = 'production_native_calendar_status_backfill'`)));
 
   /* ---- the mapping, at the SQL boundary --------------------------------- */
   const mapped = jsonRows(cluster, `select s as status, o as origin,
@@ -246,6 +262,10 @@ try {
   ok('the projection adds no deliverable_events row of its own, so the client-channel status intent cannot fire twice',
     withBridgeDelta === deliverableEventCount() - controlEventsBefore);
   cluster.runFile(path.join(MIGRATIONS, '2026-09-18-native-calendar-status-bridge.sql'));
+  cluster.runFile(path.join(MIGRATIONS, '2026-09-18-native-calendar-backfill-temp-table-clear.sql'));
+  ok('re-running both migrations leaves the repaired backfill body installed, not the bare-delete one',
+    /truncate table native_calendar_backfill_applied;/.test(scalar(cluster,
+      `select prosrc from pg_proc where proname = 'production_native_calendar_status_backfill'`)));
   ok('re-running the migration restores the trigger, so it is idempotent',
     Number(scalar(cluster, `select count(*) from pg_trigger where tgname = 'zzz_native_calendar_status_project' and not tgisinternal`)) === 1);
 

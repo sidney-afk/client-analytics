@@ -2,6 +2,53 @@
 
 All times are UTC unless noted.
 
+## 2026-09-18 — the bridge's backfill could not be called at all, and the fixture could not have told us
+
+The bridge migration applied live at 22:38Z. The trigger half works: a native
+status change on a production card now projects onto the linked calendar post.
+
+The backfill half never ran. Every call through PostgREST — dry-run as much as
+apply — refused with SQLSTATE 21000 "DELETE requires a WHERE clause" before
+reading a single row. `production_native_calendar_status_backfill` clears its
+two `on commit drop` temp tables at entry so a second call in one transaction
+cannot see the first call's rows, and it cleared them with a bare
+`delete from <table>;`. Supabase loads the `safeupdate` guard for the role
+PostgREST connects as, and that guard rejects any DELETE or UPDATE whose plan
+carries no qualifier. It does not exempt a temporary table the routine created
+itself moments earlier.
+
+`migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql` replaces
+the routine using `truncate`. `delete ... where true` was the other candidate
+and was rejected on purpose: the planner folds `where true` away before the
+guard inspects the plan, so it would be a fix resting on the guard not
+constant-folding. Two statements change; the body was extracted from the applied
+file and patched by script rather than retyped, and the lint below holds the two
+to being identical apart from those two lines. The applied migration is not
+edited — it ran against production, and rewriting it would make the ledger
+describe a database that never existed.
+
+The part worth keeping is not the SQL. All 38 disposable-PostgreSQL assertions
+were green, honestly, against a statement the real caller could never execute:
+the fixture is a plain PostgreSQL 17 with no `safeupdate` loaded and no
+PostgREST in front of it. No assertion added to that lane could have caught
+this, because the difference is the connection and not the SQL. So the guard is
+`test/migration-bare-delete-lint.js`, which reads the committed bytes of every
+routine body in the repository — 362 of them — and refuses the pattern outright.
+Running it over the repository as it stands found the two statements in the
+bridge migration and no others, so nothing else was silently broken in the same
+way. It was seen to fail on a wrapped bare delete and on one planted in an
+unrelated routine before being accepted.
+
+Two smaller things went with it. The backfill script carried the live project's
+REST origin as a `SUPABASE_URL` default; the repository is public, so that
+published an identifier for the production database, and separately it made the
+dangerous direction the silent one — an unset or misspelled variable would have
+pointed a `--apply` at production rather than refusing. It is now required, with
+no default. `scripts/linear-label-catalog-export.cli.js` has the same fallback
+at line 384; that is recorded in OPEN_REPAIRS and deliberately not fixed here,
+because it has its own callers and its own lane and does not belong in a
+regression PR.
+
 ## 2026-09-18 — the calendar stopped hearing about production status changes, and the fix is a trigger
 
 Priority regression from the ordinary-receipts flip, reported the same day.

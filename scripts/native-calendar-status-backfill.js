@@ -9,6 +9,7 @@
  * work out and no working directory to infer — a fresh PowerShell window at the
  * default prompt is exactly right. Windows PowerShell, as written:
  *
+ *   $env:SUPABASE_URL = "https://<project-ref>.supabase.co"
  *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js"
  *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js" --apply
  *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js" --since=2026-09-18T00:00:00Z
@@ -53,8 +54,21 @@
  *
  * REQUIRED ENV
  *   SUPABASE_SERVICE_ROLE_KEY   the routine is service-role only, by design
- * OPTIONAL
- *   SUPABASE_URL                defaults to the live SyncView project
+ *   SUPABASE_URL                the project REST origin, e.g.
+ *                               https://<project-ref>.supabase.co
+ *
+ * THERE IS NO DEFAULT PROJECT, DELIBERATELY. This file carried the live
+ * project's REST origin as a fallback until 2026-09-18. The repository is
+ * public, so that published an identifier for the production database to
+ * anybody reading it -- and separately it made the dangerous direction the
+ * silent one: a run with the variable unset, or misspelled, would quietly point
+ * a `--apply` at production instead of refusing. Requiring it costs one
+ * exported variable and removes both.
+ *
+ * `scripts/linear-label-catalog-export.cli.js` has the same fallback at line
+ * 384 (this repair is not extended to it here -- that script has its own
+ * callers and its own test lane, and widening this change would put an
+ * unrelated tool in a regression PR). Recorded in OPEN_REPAIRS.
  *
  * PUBLIC-SAFETY. The repository is public and so is any CI log this prints
  * into. Output is by card id, deliverable id and component, plus counts. It
@@ -62,7 +76,7 @@
  * clients are reported only as a distinct count.
  */
 
-const SUPA_URL = process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co';
+const SUPA_URL = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
 const SERVICE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 const APPLY = process.argv.includes('--apply');
@@ -75,6 +89,12 @@ function fail(message) {
   process.exit(1);
 }
 
+if (!SUPA_URL) {
+  fail('SUPABASE_URL is required — this script has no default project, so that an unset variable refuses rather than guessing production.');
+}
+if (!/^https:\/\/[^/]+$/.test(SUPA_URL)) {
+  fail('SUPABASE_URL must be an https origin with no path, e.g. https://<project-ref>.supabase.co');
+}
 if (!SERVICE_KEY) {
   fail('SUPABASE_SERVICE_ROLE_KEY is required — production_native_calendar_status_backfill is service-role only.');
 }

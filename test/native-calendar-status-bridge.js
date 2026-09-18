@@ -192,18 +192,24 @@ ok('it carries NO WHEN clause, so the deploy preflight tgqual is null check hold
 ok('the event source is distinct from every existing calendar_post_events writer',
   /'native-bridge'/.test(sql) && !/'ui'\s*,\s*$/m.test(sql));
 
+/* Each routine is pinned against the file that LAST defines it, which for the
+ * backfill is no longer this migration: its body here refuses every API call
+ * with 21000 and was replaced the same day. Pinning it to this file would tell
+ * the preflight to expect a body a working database must not hold. */
+const BRIDGE = 'migrations/2026-09-18-native-calendar-status-bridge.sql';
+const REPAIR = 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql';
 const expectedRoutines = [
-  'production_native_calendar_status_above(text)',
-  'production_native_calendar_status_map(text,text)',
-  'production_native_calendar_status_project()',
-  'production_native_calendar_status_backfill(timestamp with time zone,boolean)',
+  ['production_native_calendar_status_above(text)', BRIDGE],
+  ['production_native_calendar_status_map(text,text)', BRIDGE],
+  ['production_native_calendar_status_project()', BRIDGE],
+  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', REPAIR],
 ];
-for (const signature of expectedRoutines) {
+for (const [signature, file] of expectedRoutines) {
   const row = ROUTINES.find(r => r[0] === signature);
   ok(`the deploy preflight pins ${signature}`, !!row);
   if (!row) continue;
-  ok(`  ...against this migration, with securityDefiner false (none of the three is SECURITY DEFINER)`,
-    row[1] === 'migrations/2026-09-18-native-calendar-status-bridge.sql' && row[4] === false);
+  ok(`  ...against ${file.split('/').pop()}, with securityDefiner false (none of the four is SECURITY DEFINER)`,
+    row[1] === file && row[4] === false);
 }
 const triggerRow = TRIGGERS.find(r => r[2] === 'zzz_native_calendar_status_project');
 ok('the deploy preflight pins the trigger itself', !!triggerRow);

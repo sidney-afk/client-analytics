@@ -811,3 +811,298 @@ involved and no bundle needs capturing.
 ## September 13 review follow-up: staged-schema reads
 
 Source preparation only in draft PR #1391. The additive-column read compatibility does not change hosted schema, writers, authority or activation flags. It provides no authorization to roll back installed data or native work. Installation and any later source rollback remain governed by the reviewed installation boundary; no rollback was performed.
+
+## 2026-09-18 — inverse for the notification creative channel (REHEARSED, NOT APPLIED)
+
+`migrations/2026-09-18-notification-creative-channel.sql` adds
+`clients.creative_channel_id` and repoints the three notification intent triggers
+and the client branch of `production_notification_reconcile` at it, so the shared
+client channel in `clients.slack_channel_id` is no longer a notification
+destination. It also withdraws every `client_creative_channel` intent still in
+`pending` to `blocked` with no destination.
+
+**When to run this.** Only to restore the pre-2026-09-18 destination behavior,
+and only as a decision, not as a reflex: running it puts the shared client
+channel back in the path of internal status changes and staff comments. If the
+problem is a single wrong or missing creative channel, fix that row instead.
+
+**What it deliberately does NOT do.**
+
+- It does not drop `clients.creative_channel_id` or its check constraint. The
+  column is additive and its values are operator-entered; dropping it would
+  destroy data the forward migration did not create.
+- It does not re-point the intents step 3 withdrew. Sending those to a shared
+  client channel is the exact outcome the migration exists to prevent. Releasing
+  one is a per-intent operator decision through
+  `production_notification_reconcile(id, 'release_blocked_destination')`.
+- It issues no grant and no revoke. `create or replace function` preserves each
+  function's ACL, so `service_role`, `anon`, `authenticated` and `public` keep
+  exactly what they hold; in particular the EXECUTE that
+  `2026-09-17-notification-service-role-revokes.sql` removed from `service_role`
+  stays removed. Rehearsed: the count of those routines where `service_role`
+  holds EXECUTE is identical before the migration, after it, and after this
+  inverse.
+
+**Rehearsed on 2026-09-18** against a disposable PostgreSQL carrying the real
+migration chain: before, a status change produced `pending` with the shared
+channel; after, the same change produced `blocked` with no destination *while the
+shared column was still set*; with a creative channel set it produced `pending`
+with that channel; after this inverse, it produced `pending` with the shared
+channel again. Fifteen checks, all passing.
+
+The inverse, in full:
+
+```sql
+-- INVERSE of 2026-09-18-notification-creative-channel.sql.
+-- Restores the four readers and the intent guard to their 2026-09-09 text, so
+-- the client destination is resolved from clients.slack_channel_id again.
+-- It deliberately does NOT drop clients.creative_channel_id or its check, and it
+-- does NOT re-point the intents step 3 withdrew: re-pointing a withdrawn intent
+-- at a shared client channel is the exact outcome the migration exists to
+-- prevent. Releasing one is an operator decision through
+-- production_notification_reconcile, per intent.
+-- Grants and revokes: none. create or replace preserves each function's ACL, so
+-- service_role, anon, authenticated and public all keep exactly what they hold.
+begin;
+create or replace function public.production_notification_status_intent_after()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_deliverable public.deliverables%rowtype;
+  v_client public.clients%rowtype;
+  v_actor_id uuid;
+  v_actor_key text := nullif(btrim(coalesce(new.payload->>'actor_key', '')), '');
+  v_channel text;
+  v_kind text;
+  v_text text;
+  v_state text;
+begin
+  -- Only the canonical native UI ledger can create a client-channel status
+  -- intent. Mirrors, imports, reconciles, replay receipts and assignment events
+  -- never meet this predicate.
+  if new.source <> 'ui' or new.action <> 'status_change'
+     or coalesce(new.event_assignee_attribution, 'unknown') not in ('native_transaction', 'unassigned')
+     or new.to_status not in ('smm_approval', 'tweak')
+     or new.from_status is not distinct from new.to_status
+     or new.deliverable_id is null
+     or coalesce(new.payload->>'auth_kind', '') <> 'staff'
+     or coalesce(new.payload->>'test_only', 'false') in ('true', '1')
+     or coalesce(new.payload->>'legacy_parity', 'false') in ('true', '1')
+     or v_actor_key !~ '^member:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return new;
+  end if;
+  v_actor_id := substring(v_actor_key from 8)::uuid;
+  select d.* into v_deliverable from public.deliverables d where d.id = new.deliverable_id;
+  if not found or v_deliverable.client_slug <> new.client_slug or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
+  if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
+  if not public.production_notification_actor_valid(v_actor_id, v_actor_key, v_deliverable.team) then return new; end if;
+  select c.* into v_client from public.clients c where c.slug = v_deliverable.client_slug and c.active = true and c.kind = 'client';
+  if not found then return new; end if;
+  v_channel := nullif(btrim(coalesce(v_client.slack_channel_id, '')), '');
+  v_kind := case new.to_status when 'smm_approval' then 'status_smm_approval' else 'status_tweak' end;
+  v_text := case new.to_status
+    when 'smm_approval' then 'Status update: ' || public.production_notification_plain_text(v_deliverable.title, 300) || ' is ready for SMM approval.'
+    else 'Status update: ' || public.production_notification_plain_text(v_deliverable.title, 300) || ' needs tweaks.' end;
+  v_state := case when v_channel ~ '^[CG][A-Z0-9]{8,}$' then 'pending' else 'blocked' end;
+  perform set_config('app.production_notification_write', '1', true);
+  insert into public.production_notification_intents (
+    intent_key, kind, state, client_slug, deliverable_id, source_event_id,
+    actor_member_id, destination_kind, destination_channel_id, message
+  ) values (
+    'event:' || new.id::text, v_kind, v_state, v_deliverable.client_slug, v_deliverable.id, new.id,
+    v_actor_id, 'client_creative_channel', case when v_state = 'pending' then v_channel else null end,
+    jsonb_build_object('schema', 1, 'text', v_text, 'parse', 'none', 'link_names', false,
+      'actor_member_id', v_actor_id::text, 'event_id', new.id)
+  ) on conflict (source_event_id) where source_event_id is not null do nothing;
+  return new;
+end;
+$fn$;
+create or replace function public.production_notification_comment_intent_after()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_deliverable public.deliverables%rowtype;
+  v_client public.clients%rowtype;
+  v_channel text;
+  v_state text;
+begin
+  -- One freshly-created internal native subissue comment only.  Existing
+  -- comment upserts return their prior row, and mirror/import/system rows fail
+  -- this predicate, so they cannot generate a second channel post.
+  if new.deliverable_id is null or new.deleted_at is not null
+     or new.origin <> 'native' or new.source <> 'ui' or new.import_run_id is not null
+     or new.backfill_tag is not null or new.native_comment_id is null
+     or new.author_member_id is null or new.author_key <> 'member:' || new.author_member_id::text
+     or coalesce(new.provenance->>'test_only', 'false') in ('true', '1')
+     or coalesce(new.provenance->>'legacy_parity', 'false') in ('true', '1') then return new; end if;
+  select d.* into v_deliverable from public.deliverables d where d.id = new.deliverable_id;
+  if not found or v_deliverable.client_slug <> new.client_slug or v_deliverable.team <> new.team
+     or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
+  if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
+  if not public.production_notification_actor_valid(new.author_member_id, new.author_key, v_deliverable.team) then return new; end if;
+  select c.* into v_client from public.clients c where c.slug = v_deliverable.client_slug and c.active = true and c.kind = 'client';
+  if not found then return new; end if;
+  v_channel := nullif(btrim(coalesce(v_client.slack_channel_id, '')), '');
+  v_state := case when v_channel ~ '^[CG][A-Z0-9]{8,}$' then 'pending' else 'blocked' end;
+  perform set_config('app.production_notification_write', '1', true);
+  insert into public.production_notification_intents (
+    intent_key, kind, state, client_slug, deliverable_id, source_comment_id,
+    actor_member_id, destination_kind, destination_channel_id, message
+  ) values (
+    'comment:' || regexp_replace(new.id, '[^A-Za-z0-9:_-]', '_', 'g'), 'comment', v_state,
+    v_deliverable.client_slug, v_deliverable.id, new.id, new.author_member_id,
+    'client_creative_channel', case when v_state = 'pending' then v_channel else null end,
+    jsonb_build_object('schema', 1,
+      'text', public.production_notification_plain_text(new.author_name, 200) || ' commented on ' || public.production_notification_plain_text(v_deliverable.title, 300) || ': ' || public.production_notification_plain_text(new.body, 3500),
+      'parse', 'none', 'link_names', false, 'actor_member_id', new.author_member_id::text,
+      'comment_id', new.id)
+  ) on conflict (source_comment_id) where source_comment_id is not null do nothing;
+  return new;
+end;
+$fn$;
+create or replace function public.production_notification_client_comment_event_after()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_comment public.production_comments%rowtype;
+  v_deliverable public.deliverables%rowtype;
+  v_client public.clients%rowtype;
+  v_comment_id text := nullif(btrim(coalesce(new.payload->'comment'->>'id', '')), '');
+  v_channel text;
+  v_state text;
+begin
+  if new.source <> 'ui' or new.action <> 'comment_add'
+     or coalesce(new.payload->>'auth_kind', '') <> 'client'
+     or new.role is distinct from 'client'
+     or new.actor is distinct from nullif(btrim(coalesce(new.payload->'comment'->>'author_name', '')), '')
+     or new.client_slug is null or new.deliverable_id is null or v_comment_id is null
+     or new.payload->>'actor_key' is distinct from 'client:' || new.client_slug then return new; end if;
+  select c.* into v_comment from public.production_comments c where c.id = v_comment_id;
+  if not found or v_comment.deleted_at is not null or v_comment.deliverable_id is distinct from new.deliverable_id or v_comment.client_slug is distinct from new.client_slug
+     or v_comment.author_member_id is not null or v_comment.author_key is distinct from 'client:' || new.client_slug
+     or v_comment.role is distinct from 'client' or v_comment.origin is distinct from 'native' or v_comment.source is distinct from 'ui'
+     or v_comment.import_run_id is not null or v_comment.backfill_tag is not null
+     or coalesce(v_comment.provenance->>'test_only', 'false') in ('true', '1')
+     or coalesce(v_comment.provenance->>'legacy_parity', 'false') in ('true', '1') then return new; end if;
+  select d.* into v_deliverable from public.deliverables d where d.id = v_comment.deliverable_id;
+  if not found or v_deliverable.client_slug <> v_comment.client_slug or v_deliverable.team <> v_comment.team
+     or not public.production_notification_target_live(v_deliverable.id) then return new; end if;
+  if not exists (select 1 from public.syncview_runtime_flags f where f.key = 'prod_authority' and f.value->>v_deliverable.team = 'syncview') then return new; end if;
+  select c.* into v_client from public.clients c where c.slug = v_comment.client_slug and c.active = true and c.kind = 'client';
+  if not found then return new; end if;
+  v_channel := nullif(btrim(coalesce(v_client.slack_channel_id, '')), '');
+  v_state := case when v_channel ~ '^[CG][A-Z0-9]{8,}$' then 'pending' else 'blocked' end;
+  perform set_config('app.production_notification_write', '1', true);
+  insert into public.production_notification_intents(
+    intent_key, kind, state, client_slug, deliverable_id, source_comment_id,
+    actor_member_id, destination_kind, destination_channel_id, message
+  ) values (
+    'comment:' || regexp_replace(v_comment.id, '[^A-Za-z0-9:_-]', '_', 'g'), 'comment', v_state,
+    v_comment.client_slug, v_deliverable.id, v_comment.id, null,
+    'client_creative_channel', case when v_state = 'pending' then v_channel else null end,
+    jsonb_build_object('schema', 1,
+      'text', public.production_notification_plain_text(v_client.display_name, 200) || ' commented on ' || public.production_notification_plain_text(v_deliverable.title, 300) || ': ' || public.production_notification_plain_text(v_comment.body, 3500),
+      'parse', 'none', 'link_names', false, 'actor_kind', 'client', 'comment_id', v_comment.id)
+  ) on conflict (source_comment_id) where source_comment_id is not null do nothing;
+  return new;
+end;
+$fn$;
+create or replace function public.production_notification_reconcile(
+  p_intent_id uuid, p_action text, p_confirmation text default null, p_provider_message_id text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_intent public.production_notification_intents%rowtype;
+  v_channel text;
+  v_action text := lower(btrim(coalesce(p_action, '')));
+  v_provider text := nullif(btrim(coalesce(p_provider_message_id, '')), '');
+begin
+  select * into v_intent from public.production_notification_intents where id = p_intent_id for update;
+  if not found then raise exception 'production_notification_intent_missing'; end if;
+  perform set_config('app.production_notification_write', '1', true);
+  if v_action = 'release_blocked_destination' then
+    if v_intent.state <> 'blocked' or v_intent.destination_channel_id is not null then raise exception 'production_notification_reconcile_invalid_state'; end if;
+    if v_intent.destination_kind = 'client_creative_channel' then
+      select nullif(btrim(coalesce(c.slack_channel_id, '')), '') into v_channel from public.clients c where c.slug = v_intent.client_slug and c.active and c.kind = 'client';
+    else
+      select nullif(btrim(coalesce(value->>'channel_id', '')), '') into v_channel from public.production_notification_config where key = 'urgent_video_destination';
+    end if;
+    if (v_channel ~ '^[CG][A-Z0-9]{8,}$') is not true then raise exception 'production_notification_destination_unavailable'; end if;
+    update public.production_notification_intents set state = 'pending', destination_channel_id = v_channel,
+      last_failure_code = null, next_attempt_at = now(), updated_at = now() where id = v_intent.id;
+  elsif v_action = 'retry_duplicate_risk' then
+    if v_intent.state not in ('unknown', 'sending') or p_confirmation is distinct from 'RETRY_MAY_DUPLICATE' then
+      raise exception 'production_notification_duplicate_risk_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'retryable', lease_token = null, lease_expires_at = null,
+      next_attempt_at = now(), last_failure_code = 'operator_duplicate_risk_retry', updated_at = now() where id = v_intent.id;
+  elsif v_action = 'retry_known_nondelivery' then
+    if v_intent.state <> 'blocked' or v_intent.destination_channel_id is null
+       or p_confirmation is distinct from 'PROVIDER_CONFIRMED_NOT_DELIVERED' then
+      raise exception 'production_notification_known_nondelivery_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'retryable', next_attempt_at = now(),
+      last_failure_code = 'operator_confirmed_nondelivery', updated_at = now() where id = v_intent.id;
+  elsif v_action = 'attest_manual_receipt' then
+    if v_intent.state not in ('unknown', 'sending')
+       or p_confirmation is distinct from 'MANUAL_PROVIDER_RECEIPT_VERIFIED'
+       or (v_provider ~ '^\d{10,}\.[0-9]{6}$') is not true then
+      raise exception 'production_notification_manual_receipt_confirmation_required';
+    end if;
+    update public.production_notification_intents set state = 'sent', provider_message_id = v_provider, sent_at = now(),
+      attempt_count = attempt_count + 1, lease_token = null, lease_expires_at = null, updated_at = now(), last_failure_code = null
+      where id = v_intent.id;
+    insert into public.production_notification_delivery_receipts(intent_id, attempt, outcome, intended_member_id, destination_channel_id, provider_message_id)
+    values (v_intent.id, v_intent.attempt_count + 1, 'sent', v_intent.intended_member_id, v_intent.destination_channel_id, v_provider);
+  else raise exception 'production_notification_reconcile_action_invalid'; end if;
+  insert into public.production_notification_reconciliations(intent_id, action, provider_message_id) values (v_intent.id, v_action, v_provider);
+  return jsonb_build_object('state', (select state from public.production_notification_intents where id = v_intent.id));
+end;
+$fn$;
+create or replace function public.production_notification_intent_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+begin
+  if tg_op = 'INSERT' then
+    if current_setting('app.production_notification_write', true) is distinct from '1' then
+      raise exception 'production_notification_intent_insert_forbidden';
+    end if;
+    return new;
+  end if;
+  if current_setting('app.production_notification_write', true) is distinct from '1' then
+    raise exception 'production_notification_intent_update_forbidden';
+  end if;
+  if new.id is distinct from old.id or new.intent_key is distinct from old.intent_key
+     or new.kind is distinct from old.kind or new.client_slug is distinct from old.client_slug
+     or new.deliverable_id is distinct from old.deliverable_id
+     or new.source_event_id is distinct from old.source_event_id
+     or new.source_comment_id is distinct from old.source_comment_id
+     or new.actor_member_id is distinct from old.actor_member_id
+     or new.intended_member_id is distinct from old.intended_member_id
+     or new.destination_kind is distinct from old.destination_kind
+     or new.message is distinct from old.message or new.created_at is distinct from old.created_at
+     or (new.destination_channel_id is distinct from old.destination_channel_id and not (
+       old.state = 'blocked' and old.destination_channel_id is null and new.state = 'pending'
+       and (new.destination_channel_id ~ '^[CG][A-Z0-9]{8,}$') is true)) then
+    raise exception 'production_notification_intent_immutable';
+  end if;
+  return new;
+end;
+$fn$;
+commit;
+```

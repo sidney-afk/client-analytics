@@ -37,6 +37,10 @@ let PROD_AUTHORITY = {};
 // Per-team native intake epochs, read once in preflight. '' means the team is
 // still on the provider lane. See readNativeIntakeLanes().
 let NATIVE_INTAKE = { video: '', graphics: '' };
+// Per-team FOLLOW-UP capabilities, read the same way. A follow-up mutation is
+// not covered by the intake epoch; see followupSettlementRequired().
+let NATIVE_ORDINARY = { video: 'provider', graphics: 'provider' };
+let NATIVE_ASSIGNMENT = { video: 'provider', graphics: 'provider' };
 const RUN_ID = `write-ui-drill-${Date.now()}`;
 const STARTED_AT = new Date().toISOString();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -256,6 +260,7 @@ const FAILURE_CLASSES = Object.freeze([
   [/native intake produced a Linear issue/i, 'native_intake_linear_issue_present'],
   [/native intake create receipt is not a native-only receipt/i, 'native_intake_receipt_invalid'],
   [/native intake did not write exactly one batch and one item create receipt/i, 'native_intake_receipt_missing'],
+  [/native card left non-native mirror rows behind/i, 'native_intake_provider_mirror_rows'],
   [/native cleanup archive timed out/i, 'native_cleanup_archive_timeout'],
   [/native description readback timed out/i, 'native_description_readback_timeout'],
   [/native fixture row disappeared/i, 'native_intake_row_missing'],
@@ -512,30 +517,74 @@ function unsettledNativeMirrorRows(rows) {
 }
 
 /*
- * WHY THE FOLLOW-UP ROWS ARE REPORTED AND NOT ASSERTED (Codex P1 on #1412).
+ * THE FOLLOW-UP SETTLEMENT GATE, UN-PARKED (2026-09-18).
  *
- * The first draft of this change made "every follow-up mirror row is terminal
- * and native" a hard assertion. It can never pass on this drill, in either
- * mode, and a gate with no reachable green is worse than no gate:
+ * #1412 could only REPORT these rows. Both follow-up lanes refused a
+ * `test_only` envelope outright once their capability was `native`, and left
+ * it on the provider lane otherwise, so no configuration existed in which the
+ * assertion could pass. `migrations/2026-09-18-native-test-client-parity.sql`
+ * removed that: each lane now records and compares `test_only` like any other
+ * scope field, and the TEST client is admitted exactly as a real client is.
  *
- *  - `provider` mode (the installed default): the TEST write passes straight
- *    through `production_native_ordinary_event`
- *    (migrations/2026-09-12-native-ordinary-envelope-repair.sql:10) and an
- *    ordinary provider row is enqueued against a card with no Linear issue.
- *    Not native, so the assertion fails.
- *  - `native` mode: the same function's scope check refuses any `test_only`
- *    envelope outright with `native_ordinary_receipt_scope_forbidden` (`:21`),
- *    and `production_native_ordinary_receipt_admissions` carries
- *    `check (test_only = false)`. `production_assignment_context` refuses a
- *    TEST write the same way once its epoch is on
- *    (migrations/2026-09-06-native-existing-assignment.sql:72-75). The drill
- *    would die at the mutation, before verification.
+ * So the gate is reachable now -- but only where the capability is actually
+ * on. It is asserted when the team's follow-up lanes are BOTH native, and
+ * still reported (and named in `parked_assertions`) when either is not,
+ * because a provider lane still produces provider rows against a card with no
+ * Linear issue. That is a configuration statement, not a drill failure.
  *
- * There is no TEST-capable native follow-up contract to assert against. So the
- * drill RECORDS what the follow-up rows actually did, by operation and status,
- * and names the assertion it therefore did not make. When such a contract
- * exists this becomes the gate, unchanged.
+ * Both readers mirror their database functions exactly, including refusing a
+ * malformed value rather than falling back to `provider`:
+ * `production_native_ordinary_capability`
+ * (migrations/2026-09-09-native-ordinary-receipts.sql:43-62) and
+ * `production_assignment_epoch`
+ * (migrations/2026-09-06-native-existing-assignment.sql:8-29).
  */
+function nativeOrdinaryLanes(value) {
+  const parsed = parseJson(value);
+  if (parsed.schema_version !== 1) fail('production_native_ordinary_receipts has an unknown schema_version');
+  const lanes = {};
+  for (const team of ['video', 'graphics']) {
+    const entry = parsed[team];
+    const mode = clean(entry && entry.mode);
+    if (!entry || typeof entry !== 'object' || !['provider', 'native', 'hold'].includes(mode)) {
+      fail(`production_native_ordinary_receipts is malformed for ${team}`);
+    }
+    if (mode === 'native' && !NATIVE_EPOCH_RE.test(clean(entry.epoch))) {
+      fail(`production_native_ordinary_receipts carries no usable epoch for ${team}`);
+    }
+    lanes[team] = mode;
+  }
+  return lanes;
+}
+
+function nativeAssignmentLanes(value) {
+  const parsed = parseJson(value);
+  const lanes = {};
+  for (const team of ['video', 'graphics']) {
+    const entry = parsed[team];
+    const mode = clean(entry && entry.mode);
+    if (!entry || typeof entry !== 'object' || !['provider', 'native', 'hold'].includes(mode)) {
+      fail(`native_assignment_epochs is malformed for ${team}`);
+    }
+    if (mode === 'native' && !NATIVE_EPOCH_RE.test(clean(entry.epoch))) {
+      fail(`native_assignment_epochs carries no usable epoch for ${team}`);
+    }
+    lanes[team] = mode;
+  }
+  return lanes;
+}
+
+/*
+ * The drill's follow-ups span BOTH lanes -- status, due, description and the
+ * comment are ordinary; the two assignee writes are not. One lane still on
+ * `provider` is enough to leave provider rows behind, so the gate requires
+ * both.
+ */
+function followupSettlementRequired(ordinaryLanes, assignmentLanes, team) {
+  const key = clean(team).toLowerCase();
+  return clean((ordinaryLanes || {})[key]) === 'native'
+    && clean((assignmentLanes || {})[key]) === 'native';
+}
 function nativeMirrorRowStates(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const states = {};
@@ -594,6 +643,9 @@ async function preflight() {
   // authority-specific readback expectation.
   PROD_AUTHORITY = assertFlipTolerantStance(before).authority;
   NATIVE_INTAKE = await readNativeIntakeLanes();
+  const followup = await readFollowupLanes();
+  NATIVE_ORDINARY = followup.ordinary;
+  NATIVE_ASSIGNMENT = followup.assignment;
   return before;
 }
 
@@ -609,6 +661,23 @@ async function readNativeIntakeLanes() {
   const rows = await rest('syncview_runtime_flags?select=key,value&key=eq.native_intake_epochs');
   if (!rows.length) return { video: '', graphics: '' };
   return nativeIntakeLanes(rows[0].value);
+}
+
+/*
+ * The two FOLLOW-UP capabilities, read the same way and for the same reason:
+ * absent means the dormant migration is not installed, which is the provider
+ * lane; present but malformed is an error, exactly as the database functions
+ * treat it.
+ */
+async function readFollowupLanes() {
+  const [ordinary, assignment] = await Promise.all([
+    rest('syncview_runtime_flags?select=key,value&key=eq.production_native_ordinary_receipts'),
+    rest('syncview_runtime_flags?select=key,value&key=eq.native_assignment_epochs'),
+  ]);
+  return {
+    ordinary: ordinary.length ? nativeOrdinaryLanes(ordinary[0].value) : { video: 'provider', graphics: 'provider' },
+    assignment: assignment.length ? nativeAssignmentLanes(assignment[0].value) : { video: 'provider', graphics: 'provider' },
+  };
 }
 
 async function mappedAssignee(team) {
@@ -1028,15 +1097,22 @@ async function verifyNativeFixture(asset) {
   assert(asset.echoUnexpected === 0, `${asset.team} produced a foreign-write/echo storm event`);
 
   /*
-   * REPORTED, NOT ASSERTED -- see nativeMirrorRowStates() for why this cannot
-   * be a gate on the TEST lane. The intake epoch terminalizes the CREATE only;
-   * the nine follow-up mutations are governed by separate capabilities that
-   * structurally exclude TEST writes. Recording the real states keeps the fact
-   * visible instead of letting a green run imply it was proved.
+   * The gate, where the capability makes it reachable. See
+   * followupSettlementRequired(): both follow-up lanes must be native, because
+   * one still on `provider` leaves provider rows against a card with no Linear
+   * issue. Where it is not required the states are still recorded and the
+   * assertion is named in `parked_assertions`, so a green run never implies a
+   * settlement it did not prove.
    */
-  asset.followupMirror = nativeMirrorRowStates(
-    (await fixtureMirrorRows(asset)).filter(candidate => clean(candidate.operation) !== 'create'),
-  );
+  const followupRows = (await fixtureMirrorRows(asset))
+    .filter(candidate => clean(candidate.operation) !== 'create');
+  asset.followupMirror = nativeMirrorRowStates(followupRows);
+  asset.followupSettlementRequired = followupSettlementRequired(NATIVE_ORDINARY, NATIVE_ASSIGNMENT, asset.team);
+  if (asset.followupSettlementRequired) {
+    const unsettled = unsettledNativeMirrorRows(followupRows);
+    assert(unsettled.length === 0,
+      `${asset.team} native card left non-native mirror rows behind: ${unsettled.join(' ')}`);
+  }
 
   asset.nativeIntake = { epoch_present: !!epoch, create_receipts: 2 };
   asset.linear = null;
@@ -1463,6 +1539,25 @@ async function cleanupAsset(asset) {
       const row = rows[0];
       return row && clean(row.status).toLowerCase() === 'archived' ? row : null;
     });
+    /*
+     * RECORDED, NEVER ASSERTED -- and this one is not a capability question
+     * (Codex P1 on #1413).
+     *
+     * Cleanup archives through the service-only `deliverable-write` Edge
+     * Function, which calls the `deliverable_write` RPC directly
+     * (supabase/functions/deliverable-write/index.ts). Only
+     * `production_deliverable_write` invokes
+     * `production_native_ordinary_event` and so mints the marker
+     * `nativeMirrorRowSettled` looks for; the production surface reaches it,
+     * this legacy owner does not. So the archive row is provider-style no
+     * matter how the capabilities are set, and asserting native settlement on
+     * it would turn the nightly red immediately after an otherwise successful
+     * native verification.
+     *
+     * Not fixed by routing cleanup through the production owner: that would
+     * change what cleanup exercises, and the service-only path is the point of
+     * it. The row is reported, and the assertion is named rather than implied.
+     */
     asset.cleanupMirror = nativeMirrorRowStates(
       (await fixtureMirrorRows(asset)).filter(candidate => clean(candidate.operation) === 'archive'),
     );
@@ -1570,6 +1665,13 @@ async function main() {
     // What the follow-up and cleanup mirror rows actually did on a native
     // card, by operation and status. Counts only -- never a payload or an id.
     // This is an observation, not a gate: see nativeMirrorRowStates().
+    // Which follow-up lanes each team drilled, and therefore whether the
+    // settlement above was asserted or only observed.
+    followup_lane_by_team: Object.fromEntries(DRILL_TEAMS.map(team => [team, {
+      ordinary: clean(NATIVE_ORDINARY[team]) || 'unknown',
+      assignment: clean(NATIVE_ASSIGNMENT[team]) || 'unknown',
+      settlement_asserted: followupSettlementRequired(NATIVE_ORDINARY, NATIVE_ASSIGNMENT, team),
+    }])),
     native_followup_mirror_by_team: Object.fromEntries(assets
       .filter(asset => asset.followupMirror)
       .map(asset => [asset.team, asset.followupMirror])),
@@ -1600,9 +1702,15 @@ async function main() {
       // against Linear because it has no Linear counterpart, and its follow-up
       // mirror rows have no TEST-capable native contract to be asserted
       // against yet -- they are reported instead.
-      ...(assets.some(asset => asset.nativeIntake)
-        ? ['linear_reconcile_native_intake', 'native_followup_mirror_settlement']
+      ...(assets.some(asset => asset.nativeIntake) ? ['linear_reconcile_native_intake'] : []),
+      // Un-parked by 2026-09-18-native-test-client-parity.sql wherever both
+      // follow-up lanes are native; still named where either is not.
+      ...(assets.some(asset => asset.nativeIntake && !asset.followupSettlementRequired)
+        ? ['native_followup_mirror_settlement']
         : []),
+      // The cleanup archive writes through the service-only legacy owner,
+      // which never mints a native receipt. Always named on a native run.
+      ...(assets.some(asset => asset.nativeIntake) ? ['native_cleanup_mirror_settlement'] : []),
     ],
     graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
     // Why an owner-supplied artifact URL was refused, if it was. `null` means
@@ -1640,6 +1748,9 @@ module.exports = {
   nativeIntakeLanes,
   nativeMirrorRowSettled,
   nativeMirrorRowStates,
+  nativeOrdinaryLanes,
+  nativeAssignmentLanes,
+  followupSettlementRequired,
   reconcilableAssets,
   unsettledNativeMirrorRows,
   parentTeamKey,

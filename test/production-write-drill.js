@@ -12,7 +12,10 @@ const {
   nativeIntakeEnabled,
   nativeIntakeLanes,
   nativeMirrorRowSettled,
+  followupSettlementRequired,
+  nativeAssignmentLanes,
   nativeMirrorRowStates,
+  nativeOrdinaryLanes,
   reconcilableAssets,
   stableJson,
   unsettledNativeMirrorRows,
@@ -318,8 +321,102 @@ ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missi
   ok(empty.rows === 0 && empty.settled_native === 0 && Object.keys(empty.by_operation_status).length === 0,
     'an empty or missing row set reports zero rows rather than reading as settled');
   ok(nativeMirrorRowStates(null).rows === 0, 'a missing row set is not an exception');
-  ok(!/native_intake_provider_mirror_rows/.test(source),
-    'the unreachable follow-up gate is gone: it could never pass on the TEST lane in either mode');
+}
+{
+  /*
+   * THE FOLLOW-UP GATE, UN-PARKED (2026-09-18-native-test-client-parity.sql).
+   *
+   * #1412 could only report these rows: both follow-up lanes refused a
+   * test_only envelope once native, and left it on the provider lane
+   * otherwise, so the assertion had no reachable green. The parity migration
+   * removed that. The gate is now asserted exactly where both lanes are
+   * native, and still only observed where either is not.
+   */
+  const ordinary = nativeOrdinaryLanes({
+    schema_version: 1,
+    video: { mode: 'native', epoch: 'ord.2026-09-18' },
+    graphics: { mode: 'provider', epoch: null },
+  });
+  const assignment = nativeAssignmentLanes({
+    video: { mode: 'native', epoch: 'asg.2026-09-18' },
+    graphics: { mode: 'provider', epoch: null },
+  });
+  ok(ordinary.video === 'native' && ordinary.graphics === 'provider'
+    && assignment.video === 'native' && assignment.graphics === 'provider',
+    'both follow-up capabilities are read per team, mode by mode');
+  ok(followupSettlementRequired(ordinary, assignment, 'video'),
+    'the settlement is asserted when BOTH follow-up lanes are native');
+  ok(!followupSettlementRequired(ordinary, assignment, 'graphics'),
+    'and not asserted where neither is');
+  ok(!followupSettlementRequired(ordinary, { video: 'provider', graphics: 'provider' }, 'video'),
+    'one lane still on provider is enough to leave provider rows, so the gate stays off');
+  ok(!followupSettlementRequired({ video: 'hold', graphics: 'hold' }, assignment, 'video'),
+    'a held lane is not a native lane');
+  ok(followupSettlementRequired(ordinary, assignment, 'VIDEO'),
+    'the lane decision is case-insensitive, matching the team keys the drill passes');
+
+  let ordinaryRejected = 0;
+  for (const value of [
+    { video: { mode: 'native', epoch: 'e' }, graphics: { mode: 'provider', epoch: null } },
+    { schema_version: 2, video: { mode: 'native', epoch: 'e' }, graphics: { mode: 'provider', epoch: null } },
+    { schema_version: 1, video: { mode: 'retired', epoch: 'e' }, graphics: { mode: 'provider', epoch: null } },
+    { schema_version: 1, video: { mode: 'native', epoch: '' }, graphics: { mode: 'provider', epoch: null } },
+    { schema_version: 1, video: { mode: 'native', epoch: 'e' } },
+  ]) {
+    try { nativeOrdinaryLanes(value); } catch (_) { ordinaryRejected++; }
+  }
+  ok(ordinaryRejected === 5,
+    'a malformed ordinary capability is an error, never a silent fall back to provider');
+  let assignmentRejected = 0;
+  for (const value of [
+    { video: { mode: 'native', epoch: null }, graphics: { mode: 'provider', epoch: null } },
+    { video: { mode: 'retired', epoch: 'e' }, graphics: { mode: 'provider', epoch: null } },
+    { video: { mode: 'native', epoch: 'e' } },
+  ]) {
+    try { nativeAssignmentLanes(value); } catch (_) { assignmentRejected++; }
+  }
+  ok(assignmentRejected === 3,
+    'a malformed assignment capability is an error too');
+
+  ok(/native_intake_provider_mirror_rows/.test(source)
+    && classifyFailure(new Error('video native card left non-native mirror rows behind: status:failed'))
+      === 'native_intake_provider_mirror_rows',
+    'the settlement failure has its classified code back');
+  /*
+   * Structural, not textual: EVERY call site of the settlement check must sit
+   * directly under the capability guard. Asserting the guard merely appears
+   * somewhere would pass even if one of the two call sites were made
+   * unconditional.
+   */
+  const callSites = source.split('\n')
+    .map((line, index) => ({ line, index }))
+    .filter(row => /unsettledNativeMirrorRows\(/.test(row.line) && !/^function /.test(row.line));
+  const guarded = callSites.filter(row => source.split('\n')
+    .slice(Math.max(0, row.index - 3), row.index)
+    .some(line => /if \(asset\.followupSettlementRequired\) \{/.test(line)));
+  ok(callSites.length === 1 && guarded.length === 1,
+    `the one settlement call site is gated on the capability (${guarded.length}/${callSites.length})`);
+
+  /*
+   * The cleanup archive is NOT that call site, and must never become one:
+   * cleanup writes through the service-only `deliverable-write` Edge Function,
+   * whose `deliverable_write` RPC never invokes
+   * `production_native_ordinary_event`, so its row is provider-style whatever
+   * the capabilities say. Asserting settlement there would redden the nightly
+   * straight after a successful native verification.
+   */
+  const cleanupBody = source.slice(source.indexOf('async function cleanupAsset'));
+  ok(!/unsettledNativeMirrorRows\(/.test(cleanupBody),
+    'cleanup never asserts native settlement on the archive row it cannot get a receipt for');
+  ok(/native_cleanup_mirror_settlement/.test(source),
+    'and a native run names that assertion rather than implying it');
+  ok(/rpc: "deliverable_write"/.test(
+    fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'deliverable-write', 'index.ts'), 'utf8')),
+    'the reason still holds: deliverable-write calls the non-native RPC');
+  ok(/followup_lane_by_team/.test(source),
+    'the report states which follow-up lanes each team drilled and whether the settlement was asserted');
+  ok(/asset\.nativeIntake && !asset\.followupSettlementRequired/.test(source),
+    'the parked assertion is named only where the capability leaves it unprovable');
 }
 {
   ok(classifyFailure(new Error('video native intake produced a Linear issue'))
@@ -361,7 +458,7 @@ ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missi
     'the report states which intake lane each team drilled');
   ok(/linear_reconcile_native_intake/.test(source)
     && /native_followup_mirror_settlement/.test(source),
-    'a green native run names both the reconcile and the follow-up settlement it did not prove');
+    'a green native run still names the reconcile, and the settlement where it is unprovable');
   ok(/native_followup_mirror_by_team/.test(source),
     'the follow-up mirror rows are reported by operation and status rather than silently dropped');
   const cleanup = source.slice(source.indexOf('async function cleanupAsset'));

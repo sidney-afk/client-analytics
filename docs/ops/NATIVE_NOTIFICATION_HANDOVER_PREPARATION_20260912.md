@@ -31,7 +31,16 @@ Use this procedure only for separately authorized live acceptance of existing ex
    function closure. Verify `NATIVE_NOTIFICATION_SENDER_ENABLED`,
    `NATIVE_NOTIFICATION_MONITOR_ENABLED` and `NOTIFY_WAKE_ENABLED` remain false
    while configuration is reviewed. Keep the old route until new acceptance passes.
-2. Privately verify `clients.slack_channel_id` for every in-scope active client,
+2. **Corrected 2026-09-18 — the column changed.** Privately verify
+   `clients.creative_channel_id` for every in-scope active client, NOT
+   `clients.slack_channel_id`: all 26 stored values in that older column are the
+   SHARED client channel, so verifying it would confirm exactly the wrong
+   destination. The creative channel is already maintained in the Clients Info
+   sheet (column N, `creative_channel_id`) and is **not** copied into
+   `public.clients` by anything today, so before activation an operator has to
+   populate the database column from that roster and read it back per client.
+   Until that is done every ordinary status and comment intent blocks, which is
+   the intended failure direction but is not a configured system. Also verify
    `production_notification_config.urgent_video_destination`, and the current
    active editor-to-Slack identity mapping. Missing destinations remain blocked;
    do not substitute a generic channel or infer a recipient from display text.

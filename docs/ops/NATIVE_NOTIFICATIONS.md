@@ -43,7 +43,10 @@ configure the same key in production-write only if wakeups are wanted, configure
 `SLACK_BOT_TOKEN`, and insert the protected
 `production_notification_config.urgent_video_destination` row with a reviewed
 channel ID. Client status/comment intents are retained as `blocked` when an
-active client lacks a valid `clients.slack_channel_id`; they are not discarded.
+active client lacks a valid `clients.creative_channel_id`; they are not
+discarded. **Corrected 2026-09-18:** that destination used to be read from
+`clients.slack_channel_id`, which holds the SHARED client channel; see
+`migrations/2026-09-18-notification-creative-channel.sql`.
 
 The source includes dormant five-minute GitHub Actions sender and monitor jobs:
 `native-notification-sender.yml` and `native-notification-monitor.yml`. They remain

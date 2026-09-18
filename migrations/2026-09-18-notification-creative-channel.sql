@@ -292,11 +292,79 @@ begin
        -- all. It can only ever reduce what a sender could do, and without it
        -- step 3 of this migration could not withdraw the pending rows that
        -- point at a shared channel.
-       or (old.state = 'pending' and old.destination_channel_id is not null
+       or (old.state in ('pending', 'retryable') and old.destination_channel_id is not null
          and new.state = 'blocked' and new.destination_channel_id is null))) then
     raise exception 'production_notification_intent_immutable';
   end if;
   return new;
+end;
+$fn$;
+
+-- 2b. The claim re-checks the client destination before handing it to a sender,
+-- mirroring the urgent-destination check that was already there. This is what
+-- makes the withdrawal above durable: a row returned to a claimable state later,
+-- without its destination re-resolved, is blocked here rather than sent.
+
+create or replace function public.production_notification_claim(p_limit integer default 10)
+returns table(intent_id uuid, attempt integer, destination_channel_id text, text text, client_msg_id uuid, allow_mentions boolean)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_limit integer := greatest(1, least(coalesce(p_limit, 10), 10));
+begin
+  perform set_config('app.production_notification_write', '1', true);
+  -- Candidate locks and its stale urgent check share one statement. The Slack
+  -- request remains necessarily later (documented point-in-time limitation).
+  return query
+  with candidates as (
+    select i.id
+      from public.production_notification_intents i
+     where i.state in ('pending', 'retryable') and i.destination_channel_id is not null and i.next_attempt_at <= now()
+     order by i.created_at, i.id
+     for update skip locked
+     limit v_limit
+  ), stale as (
+    update public.production_notification_intents i
+       set state = 'blocked', last_failure_code = case when i.kind='urgent' then 'urgent_target_changed' else 'notification_target_changed' end, updated_at = now()
+      from candidates c
+     where i.id = c.id and (not public.production_notification_target_live(i.deliverable_id)
+       -- 2026-09-18: the client destination is re-checked here, exactly as the
+       -- urgent destination already is below. Without it the stored channel is
+       -- never revalidated, so any path that returns a row to a claimable state
+       -- without re-resolving it -- retry_duplicate_risk is the live one -- can
+       -- put a stale destination back in front of a sender.
+       or (i.destination_kind = 'client_creative_channel' and not exists (
+         select 1 from public.clients c
+         where c.slug = i.client_slug and c.active and c.kind = 'client'
+           and c.creative_channel_id = i.destination_channel_id))
+       or (i.kind='comment' and not exists (select 1 from public.production_comments comment where comment.id=i.source_comment_id and comment.deliverable_id=i.deliverable_id and comment.client_slug=i.client_slug and comment.deleted_at is null))
+       or (i.kind = 'urgent' and not exists (
+         select 1 from public.deliverables d
+         join public.team_members m on m.id = i.intended_member_id
+         join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
+         join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
+         where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
+           and d.kind = 'video' and d.status = 'tweak' and public.production_notification_target_live(d.id)
+           and d.origin = i.message->>'surface' and d.card_id = i.message->>'card_id'
+           and d.batch_id = i.message->>'batch_id'
+           and exists (select 1 from public.batches b where b.id=d.batch_id and b.client_slug=i.client_slug and b.status='active' and coalesce(b.purpose,'calendar')=i.message->>'surface')
+           and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
+           and cfg.value->>'channel_id' = i.destination_channel_id
+           and ((i.message->>'surface' = 'calendar' and exists (select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived'))
+             or (i.message->>'surface' = 'samples' and exists (select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived')))
+       ))) returning i.id
+  ), claimed as (
+    update public.production_notification_intents i
+       set state = 'sending', attempt_count = i.attempt_count + 1,
+           lease_token = gen_random_uuid(), lease_expires_at = now() + interval '5 minutes',
+           updated_at = now(), next_attempt_at = now(), last_failure_code = null
+      from candidates c
+     where i.id = c.id and not exists (select 1 from stale s where s.id = i.id)
+    returning i.*
+  )
+  select c.id, c.attempt_count, c.destination_channel_id, c.message->>'text', c.id, coalesce((c.message->>'allow_mentions')::boolean, false) from claimed c;
 end;
 $fn$;
 
@@ -315,14 +383,20 @@ begin
            last_failure_code = 'destination_withdrawn_creative_channel_migration',
            updated_at = now()
      where destination_kind = 'client_creative_channel'
-       and state = 'pending'
+       -- Both claimable states, not just pending: production_notification_claim
+       -- selects `state in ('pending','retryable')`, so a retryable row with a
+       -- shared-channel destination is one sender run away from posting into a
+       -- channel the client reads. `sending`, `sent` and `unknown` keep their
+       -- recorded destination: that is the record of where something went, or
+       -- may have gone, and rewriting it would destroy the evidence.
+       and state in ('pending', 'retryable')
      returning 1)
   select count(*) into v_withdrawn from withdrawn;
   raise notice 'withdrawn pending client_creative_channel intents: %', v_withdrawn;
   if exists (select 1 from public.production_notification_intents
               where destination_kind = 'client_creative_channel'
-                and state = 'pending' and destination_channel_id is not null) then
-    raise exception 'pending client destination survived the withdrawal';
+                and state in ('pending', 'retryable') and destination_channel_id is not null) then
+    raise exception 'claimable client destination survived the withdrawal';
   end if;
 end;
 $mig$;

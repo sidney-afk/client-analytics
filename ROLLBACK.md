@@ -850,17 +850,31 @@ shared column was still set*; with a creative channel set it produced `pending`
 with that channel; after this inverse, it produced `pending` with the shared
 channel again. Fifteen checks, all passing.
 
+**Amended 2026-09-18, same day, before merge**, after review found two defects in
+the first draft: the withdrawal missed `retryable` intents, which
+`production_notification_claim` also selects, and the claim never re-checked a
+client destination at all. The forward migration now withdraws both claimable
+states and replaces the claim with a client-destination re-check, so this inverse
+restores **five** routines plus the guard rather than four, and the deploy
+preflight's five routine rows plus the new column row have to be repointed by
+hand if it is ever applied.
+
 The inverse, in full:
 
 ```sql
 -- INVERSE of 2026-09-18-notification-creative-channel.sql.
--- Restores the four readers and the intent guard to their 2026-09-09 text, so
--- the client destination is resolved from clients.slack_channel_id again.
+-- Restores the five readers and the intent guard to their 2026-09-09 text, so
+-- the client destination is resolved from clients.slack_channel_id again and the
+-- claim stops re-checking it.
 -- It deliberately does NOT drop clients.creative_channel_id or its check, and it
 -- does NOT re-point the intents step 3 withdrew: re-pointing a withdrawn intent
 -- at a shared client channel is the exact outcome the migration exists to
 -- prevent. Releasing one is an operator decision through
 -- production_notification_reconcile, per intent.
+-- It also does NOT revert scripts/linear-exit-deploy-preflight.js. If this
+-- inverse is applied, repoint those five ROUTINES rows back at the 2026-09-09
+-- file and drop the clients.creative_channel_id column row, or the deploy
+-- preflight will refuse on five routine keys and one column key.
 -- Grants and revokes: none. create or replace preserves each function's ACL, so
 -- service_role, anon, authenticated and public all keep exactly what they hold.
 begin;
@@ -1069,6 +1083,59 @@ begin
   else raise exception 'production_notification_reconcile_action_invalid'; end if;
   insert into public.production_notification_reconciliations(intent_id, action, provider_message_id) values (v_intent.id, v_action, v_provider);
   return jsonb_build_object('state', (select state from public.production_notification_intents where id = v_intent.id));
+end;
+$fn$;
+create or replace function public.production_notification_claim(p_limit integer default 10)
+returns table(intent_id uuid, attempt integer, destination_channel_id text, text text, client_msg_id uuid, allow_mentions boolean)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $fn$
+declare
+  v_limit integer := greatest(1, least(coalesce(p_limit, 10), 10));
+begin
+  perform set_config('app.production_notification_write', '1', true);
+  -- Candidate locks and its stale urgent check share one statement. The Slack
+  -- request remains necessarily later (documented point-in-time limitation).
+  return query
+  with candidates as (
+    select i.id
+      from public.production_notification_intents i
+     where i.state in ('pending', 'retryable') and i.destination_channel_id is not null and i.next_attempt_at <= now()
+     order by i.created_at, i.id
+     for update skip locked
+     limit v_limit
+  ), stale as (
+    update public.production_notification_intents i
+       set state = 'blocked', last_failure_code = case when i.kind='urgent' then 'urgent_target_changed' else 'notification_target_changed' end, updated_at = now()
+      from candidates c
+     where i.id = c.id and (not public.production_notification_target_live(i.deliverable_id)
+       or (i.kind='comment' and not exists (select 1 from public.production_comments comment where comment.id=i.source_comment_id and comment.deliverable_id=i.deliverable_id and comment.client_slug=i.client_slug and comment.deleted_at is null))
+       or (i.kind = 'urgent' and not exists (
+         select 1 from public.deliverables d
+         join public.team_members m on m.id = i.intended_member_id
+         join public.syncview_runtime_flags f on f.key = 'prod_authority' and f.value->>'video' = 'syncview'
+         join public.production_notification_config cfg on cfg.key = 'urgent_video_destination'
+         where d.id = i.deliverable_id and d.client_slug = i.client_slug and d.team = 'video'
+           and d.kind = 'video' and d.status = 'tweak' and public.production_notification_target_live(d.id)
+           and d.origin = i.message->>'surface' and d.card_id = i.message->>'card_id'
+           and d.batch_id = i.message->>'batch_id'
+           and exists (select 1 from public.batches b where b.id=d.batch_id and b.client_slug=i.client_slug and b.status='active' and coalesce(b.purpose,'calendar')=i.message->>'surface')
+           and d.assignee_id = i.intended_member_id and m.active and m.role = 'editor' and m.team = 'video'
+           and cfg.value->>'channel_id' = i.destination_channel_id
+           and ((i.message->>'surface' = 'calendar' and exists (select 1 from public.calendar_posts p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived'))
+             or (i.message->>'surface' = 'samples' and exists (select 1 from public.sample_reviews p where p.id = i.message->>'card_id' and p.client = i.client_slug and p.video_deliverable_id = i.deliverable_id and p.video_status = 'Tweaks Needed' and p.video_status_at = (i.message->>'round')::timestamptz and lower(btrim(coalesce(p.status,''))) <> 'archived')))
+       ))) returning i.id
+  ), claimed as (
+    update public.production_notification_intents i
+       set state = 'sending', attempt_count = i.attempt_count + 1,
+           lease_token = gen_random_uuid(), lease_expires_at = now() + interval '5 minutes',
+           updated_at = now(), next_attempt_at = now(), last_failure_code = null
+      from candidates c
+     where i.id = c.id and not exists (select 1 from stale s where s.id = i.id)
+    returning i.*
+  )
+  select c.id, c.attempt_count, c.destination_channel_id, c.message->>'text', c.id, coalesce((c.message->>'allow_mentions')::boolean, false) from claimed c;
 end;
 $fn$;
 create or replace function public.production_notification_intent_guard()

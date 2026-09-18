@@ -30,6 +30,91 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — NOTIFICATIONS STEP 26 DONE, configuration only: three Supabase secrets and two GitHub secrets set, the sender stays OFF, and the health call answers exactly as expected — 26 blocked, nothing pending
+
+Storage session. Configuration only. **Neither `*_ENABLED` variable exists**, so
+the sender and the monitor both read `false`, and nothing can be sent.
+
+#### The Slack bot token
+
+Supplied by the owner in chat. Stored DPAPI-protected as `slack-bot-token.dpapi`
+beside the other keys, outside the repository; the secret helper accepts
+`slack-bot-token`. SHA-256 of the value:
+`e23292fbc2aca4d60e6ded9800bb6390e429708a0f33f5a962c3c83b79b589e7`. The value is
+not in this journal and is in the push gate's leak list, read from the protected
+store in memory.
+
+**Recommendation, the session's:** this token travelled through chat, as the
+admin role key did. Rotate both once notifications are live.
+
+#### 1. Supabase project secrets
+
+Set through the Management API in one call (HTTP 201), every value read from its
+protected store in memory and never printed:
+
+| Secret | Source | Present after |
+|---|---|---|
+| `NOTIFY_RUNNER_KEY` | `notify-runner-key.dpapi` (hash `6bc67156…`) | **yes** |
+| `SLACK_BOT_TOKEN` | `slack-bot-token.dpapi` (hash `e23292fb…`) | **yes** |
+| `NOTIFY_WAKE_ENABLED` | literal `true` | **yes** |
+
+Project secrets: **29 before, 32 after**. Confirmed by listing names only.
+
+#### 2. GitHub repository secrets
+
+| Secret | Value source | Present after |
+|---|---|---|
+| `NATIVE_NOTIFICATION_NOTIFY_URL` | the project URL plus `/functions/v1/notify`, which is how the sender and monitor workflows consume it | **yes**, 14:47:09Z |
+| `NATIVE_NOTIFICATION_RUNNER_KEY` | the same runner key, piped from its protected store | **yes**, 14:47:10Z |
+
+GitHub secrets cannot be read back, so the runner key there is known correct by
+its source, not by readback.
+
+**`NATIVE_NOTIFICATION_SENDER_ENABLED` and `NATIVE_NOTIFICATION_MONITOR_ENABLED`
+were NOT created.** Counted after: **0** of the two exist. Absent means `false`;
+they are the owner's go-live switch.
+
+#### 3. The health call
+
+`POST` to the notify function with `{"action":"health"}` and the
+`x-notify-runner-key` header — the same two headers the sender workflow sends,
+nothing else. Response saved privately as `notify-health-20260918-1.private.json`.
+
+| Field | Value |
+|---|---|
+| HTTP status | **503** |
+| `ok` | **false** |
+| `pending_stale` | **0** |
+| `sending_stale` | 0 |
+| `blocked` | **26** |
+| `unknown` | 0 |
+| `retryable_overdue` | 0 |
+| `total_open` | **26** |
+
+**Blocked 26, pending 0 — exactly as expected.** The call authenticated rather
+than being refused, which also confirms the runner key the function reads is the
+one in the protected store.
+
+**Why 503 is correct, and why the monitor stays off.** The function counts
+`blocked` as notification **debt**, and answers 503 whenever debt is above zero.
+The owner decided the 26 intents blocked by the creative-channel migration **stay
+blocked**, so that debt is permanent by design. Enabling the monitor now would
+report a standing alarm on every run. It stays off until the backlog question is
+decided differently, or the health rule stops counting deliberately blocked
+intents as debt.
+
+#### A gap that is now closable, not closed
+
+Earlier today the bot's membership of the creative channels could not be
+measured, because the bot token was not available here. It now is. A read-only
+`users.conversations` call with the bot token would settle it. It was **not** made
+here, because it was not asked for.
+
+#### Stopped at the gate
+
+**Step 26 done for notifications. Waiting for the owner's go-ahead to enable the
+sender.**
+
 ### 2026-09-18 — CREATIVE-CHANNEL MIGRATION APPLIED LIVE and the creative ids LOADED: 16 pending intents withdrawn, nothing sendable, 31 clients filled, 0 pointing at a shared channel. The deploy preflight does NOT pass: it still binds the intent guard to the old migration file
 
 Storage session, over the direct connection, on the owner's word that the

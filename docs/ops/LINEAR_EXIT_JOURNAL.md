@@ -30,6 +30,56 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Calendar backfill fix (main `c0eac8a4`, PR #1423) APPLIED, preflight PASS 166, backfill APPLIED: 16 components (video 12, graphics 4) across 9 clients now match their cards; the re-run lists 0; notification intents unchanged at 85, 2 urgent
+
+Storage session, on the owner's instruction. Everything ran from a clean
+worktree at `c0eac8a4`. The owner's other checkout was not touched.
+
+#### 1. Migration: APPLIED
+
+- **File:** `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`.
+  Its sha `5da09b6a…764f` equals the committed blob at `c0eac8a4`.
+- **How it ran:** unedited, as `postgres`, as one simple-query message, at
+  23:44:36Z. There were no notices.
+- **Readback of `production_native_calendar_status_backfill(timestamptz,boolean)`:**
+  the body **now uses `truncate table`** on both temporary tables and no longer
+  has a bare `delete from`. The body md5 went from `d7000942…` to `c844c202…`.
+  It is still invoker, with EXECUTE `postgres,service_role`.
+- **Unchanged:** the other three bridge functions (md5 equal before and after),
+  the trigger `zzz_native_calendar_status_project`, which is still enabled, and
+  the four native flags.
+
+#### 2. Preflight: PASS
+
+Read-only at `c0eac8a4`: `PASS`, **166** checked objects.
+
+#### 3. Dry run
+
+The script ran from the worktree, with `SUPABASE_URL` built in memory from the
+private catalog. It would apply **16 components: video 12, graphics 4, across 9
+clients.** The oldest lag is from 17:34:45Z. Every target is `For SMM Approval`.
+
+**CORRECTION to the "about 10 across 7" expectation.** All 10 posts measured at
+20:44Z are among the 16. The other **6 are video posts whose cards moved between
+20:44:51Z and 21:49:10Z**: after that measurement, and before the trigger landed
+at 22:38:14Z.
+
+#### 4. Apply and readback
+
+| Check | Result |
+|---|---|
+| `--apply` | exit 0, **16 applied** |
+| Each of the 16 posts' component status equals `production_native_calendar_status_map` of its card's status | **16 of 16 match** |
+| Second run (dry run) | **0** lagging, nothing listed |
+| Notification intents | before 85, 2 urgent, newest 21:49:10Z; after **85, 2 urgent, the same newest**. **No new intent.** |
+
+The package is `calendar-bridge-fix-20260918-1` (private). It holds the dry-run
+rows, the apply output, the intents before and after, and the preflight output.
+
+**Tooling note, no effect on the results:** the first intents snapshot failed.
+Windows PowerShell could not load `ConvertTo-SecureString` when started from
+PowerShell 7, so no secret was read. It was re-taken from bash before the apply.
+
 ### 2026-09-18 — Native calendar status bridge (main `87a5d0a7`, PR #1422): migration APPLIED and preflight PASS 166. The backfill dry run is REFUSED by the live database (`21000 DELETE requires a WHERE clause`); nothing backfilled. STOPPED
 
 Storage session, on the owner's instruction. Everything ran from a clean

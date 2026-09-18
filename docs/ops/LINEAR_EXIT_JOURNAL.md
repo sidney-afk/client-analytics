@@ -30,6 +30,36 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 CLOSED for the native label catalog (`production_native_label_catalog`), version `f55a7dd2`: the owner's add and remove on a real native video card landed as two native `skipped` receipts. Graphics is not exercised; step 28 waits for real staff work per team
+
+Storage session, on the owner's instruction.
+
+**Evidence.** The owner added and then removed a label on the real native video
+card `del_dbb20054-e865-4008-879e-67086dac8f7f`, at 20:07Z and 20:08Z. The two
+receipts, recorded in the previous entry:
+
+- `10536`, 20:07:54.102Z: operation `labels`, **`skipped`**,
+  `_native_label_catalog_version` `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`,
+  `linear_result` `native_labels: true` with that catalog version;
+- `10537`, 20:08:02.217Z: the same.
+
+There were no failed rows since the flip at 20:02:56.157Z.
+
+The instruction says step 27 is **passed on both readers**. The supervisor's
+statement of which readers those are is recorded as given. This session measured
+the receipts and both read functions, `read_attested` and `read_version`, which
+served video 2 and graphics 6.
+
+**STEP 27 is CLOSED for the label catalog.**
+
+- **Graphics is not exercised:** it is served 6 applicable labels, but no graphics
+  label write has run.
+- **Step 28 is OPEN for both teams** and closes on the first real staff label work
+  per team.
+- **Kill switch:** mode `hold`, prepared and unused.
+- The watcher ended itself at 20:08:27Z, on finding the first rows. Nothing is
+  left running.
+
 ### 2026-09-18 — FIRST NATIVE LABEL ROWS after the flip: two `labels` writes, both `skipped` with the catalog marker `f55a7dd2`. No failures
 
 Storage session. This is the watcher's result, read-only, at 20:08:27Z.

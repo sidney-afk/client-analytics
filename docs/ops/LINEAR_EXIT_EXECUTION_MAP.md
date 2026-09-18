@@ -506,6 +506,23 @@ owner's own step 27 tests (`10419`, `10420`, `10421`), which are not counted as
 staff follow-ups. There are none for graphics. The next check is on the owner's
 request.
 
+**Native label catalog (`production_native_label_catalog`) — STEP 27 CLOSED
+2026-09-18, version `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`.**
+
+- **How the version got here:** captured with `retiredAt` (46 labels, 19
+  retired), attested and staged on the owner's own words.
+- **The flip:** native at 20:02:56.157Z, after production-write was deployed at
+  `b7c30c74`.
+- **What is served:** video 2 applicable labels, graphics 6. Retired labels,
+  and the labels of teams outside the plan, are never served.
+- **Evidence:** the owner added and then removed a label on a real native video
+  card. That produced receipts `10536` and `10537`, both `skipped`, each carrying
+  the catalog marker and version, with no failures.
+- **Graphics is not exercised.**
+- **Step 28 is OPEN for both teams,** closing on the first real staff label work
+  per team.
+- **Kill switch:** mode `hold`.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

@@ -30,6 +30,68 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Native calendar status bridge (main `87a5d0a7`, PR #1422): migration APPLIED and preflight PASS 166. The backfill dry run is REFUSED by the live database (`21000 DELETE requires a WHERE clause`); nothing backfilled. STOPPED
+
+Storage session, on the owner's instruction. Everything ran from a clean
+worktree at `87a5d0a7`. The instruction's `$env:USERPROFILE\client-analytics`
+checkout sits at `658f728c` and does not contain the backfill script. The owner
+chose the worktree and said not to touch that checkout. It was not touched.
+
+#### 1. Migration: APPLIED
+
+- **File:** `migrations/2026-09-18-native-calendar-status-bridge.sql`. Its sha
+  `346d76cc…bd71` equals the committed blob at `87a5d0a7`.
+- **How it ran:** unedited, as `postgres`, from 22:38:14.570Z to 22:38:14.789Z.
+- **The file has no `begin`/`commit` of its own.** It was sent as one
+  simple-query message, which Postgres runs as a single implicit transaction.
+- **Notice:** only the expected `drop trigger if exists … skipping`.
+
+Readback, before and after:
+
+| Object | Before | After |
+|---|---|---|
+| `production_native_calendar_status_map(text,text)` | absent | present; invoker; EXECUTE `postgres,service_role` |
+| `production_native_calendar_status_above(text)` | absent | present; invoker; EXECUTE `postgres,service_role` |
+| `production_native_calendar_status_project()` | absent | present; invoker; EXECUTE `postgres,service_role` |
+| `production_native_calendar_status_backfill(timestamptz,boolean)` | absent | present; invoker; EXECUTE `postgres,service_role` |
+| Trigger `zzz_native_calendar_status_project` on `deliverables` | absent | present, enabled, **AFTER UPDATE FOR EACH ROW**, calls `…_project()` |
+
+The four native flags are unchanged. **CORRECTION to the instruction:** it
+expected "three functions". The file creates **four**; all four are present.
+
+#### 2. Preflight: PASS
+
+Read-only at `87a5d0a7`: `PASS`, contract `linear-exit-production-write-sql-v6`,
+**166** checked objects, as expected.
+
+#### 3. Backfill dry run: REFUSED
+
+- **What was run:** `scripts/native-calendar-status-backfill.js` with no flags,
+  which is the dry run and the default. It exited 1 with `RPC … HTTP 400`.
+- **The error:** the same dry-run request (`p_apply: false`) sent again showed
+  PostgREST's error code: **`21000 DELETE requires a WHERE clause`**.
+- **The cause:** `production_native_calendar_status_backfill` clears its two
+  temporary tables with an unqualified `delete from native_calendar_backfill_scope;`
+  (line 400) and `delete from native_calendar_backfill_applied;` (line 405). The
+  live API's requests reject a `DELETE` without a `WHERE`, so the routine cannot
+  run through the RPC, dry run included.
+- **Not fixed and not worked around.** The function was not called directly as
+  `postgres` either. This is a defect in the merged migration, for the code
+  session. Other routines may have the same unqualified `DELETE`; they have not
+  been checked.
+- **Steps 4 and 5 did not run:** `--apply`, the match readback and the re-run.
+  **Nothing was backfilled.**
+
+Notification intents before any backfill attempt: 85 total, 2 urgent, the newest
+created at 21:49:10Z. The dry run writes nothing.
+
+**Also noted, not fixed:** the backfill script defaults `SUPABASE_URL` to the live
+project's URL, hard-coded in the public repo. This is the same class as the
+exporter's line 373, already reported.
+
+The trigger is live from 22:38:14Z. From then on, status changes on native cards
+project to the calendar. The 10 posts that were already lagging still lag.
+
 ### 2026-09-18 — Calendar component status lag, read-only: 10 posts (video 6, graphics 4) across 7 distinct clients lag their linked deliverable. The oldest lag is from 17:34:45Z. Ids saved privately for the backfill
 
 Storage session, on the owner's instruction. There was one read-only transaction,

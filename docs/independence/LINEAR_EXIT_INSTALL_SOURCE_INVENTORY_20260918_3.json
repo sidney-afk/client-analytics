@@ -1727,8 +1727,8 @@
     {
       "id": "2026-09-18-native-label-empty-state-seed.sql",
       "path": "migrations/2026-09-18-native-label-empty-state-seed.sql",
-      "sha256": "5cbf71ca3ed9eae3efa52c85d0d0286a767247223c8b9ed847a309eaa6504440",
-      "bytes": 7593,
+      "sha256": "e34ffbfd0d153b9b782eff8fef668c1ef53edd20868bcede3719f71254f0c10d",
+      "bytes": 9609,
       "scope": "candidate_owner",
       "dependencies": [
         "2026-07-06-b1-linear-data-model.sql",
@@ -1741,12 +1741,12 @@
         "boundaries": [
           {
             "index": 0,
-            "line": 29,
+            "line": 63,
             "kind": "begin"
           },
           {
             "index": 7,
-            "line": 135,
+            "line": 169,
             "kind": "commit"
           }
         ],
@@ -1778,6 +1778,66 @@
           {
             "index": 6,
             "line": 163,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-18-native-label-retired-state.sql",
+      "path": "migrations/2026-09-18-native-label-retired-state.sql",
+      "sha256": "6c808729f0d004ce33d01be38cbf6be70175dc2e24939062be7da99d147f39e4",
+      "bytes": 10808,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-05-native-label-catalog-foundation.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 36,
+            "kind": "begin"
+          },
+          {
+            "index": 6,
+            "line": 178,
+            "kind": "commit"
+          }
+        ],
+        "meta_commands": []
+      },
+      "installed_catalog": "UNRESOLVED",
+      "resume_policy": "UNREVIEWED_DO_NOT_REAPPLY"
+    },
+    {
+      "id": "2026-09-18-native-assignment-auth-kind-binding.sql",
+      "path": "migrations/2026-09-18-native-assignment-auth-kind-binding.sql",
+      "sha256": "2c211c22ec37bc7e38aae0d574bd4e5fca3c3450d920d8aef790466d4d3ec661",
+      "bytes": 6352,
+      "scope": "candidate_owner",
+      "dependencies": [
+        "2026-09-18-native-test-client-parity.sql"
+      ],
+      "transaction": {
+        "classification": "single_explicit_transaction",
+        "explicit_commits": 1,
+        "outside_transaction_statements": 0,
+        "boundaries": [
+          {
+            "index": 0,
+            "line": 40,
+            "kind": "begin"
+          },
+          {
+            "index": 4,
+            "line": 95,
             "kind": "commit"
           }
         ],
@@ -1904,6 +1964,8 @@
     "2026-09-18-notification-creative-channel.sql",
     "2026-09-18-native-test-client-parity.sql",
     "2026-09-18-native-label-empty-state-seed.sql",
-    "2026-09-18-native-label-test-client-parity.sql"
+    "2026-09-18-native-label-test-client-parity.sql",
+    "2026-09-18-native-label-retired-state.sql",
+    "2026-09-18-native-assignment-auth-kind-binding.sql"
   ]
 }

@@ -30,6 +30,125 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — PR #1413: both native follow-up lanes now treat the test client like a real client, and ONE body change turned out to have FOUR frozen artifacts downstream of it
+
+Cloud session. Not merged; the supervisor merges.
+
+#### What the change actually does
+
+Before this, a natively-created card could not be exercised end to end by the
+test client at all. Both native follow-up lanes refused `test_only` outright —
+the ordinary lane (status, due, title, priority, archive, restore, parent,
+description, attachment, comments) and the assignment lane (assignee). So the
+drill could create a native test card and then could not touch it, which is
+what run 35327383049 was really showing.
+
+`migrations/2026-09-18-native-test-client-parity.sql`, sha256
+`d7137d68f2d24927d3f713fe39d33fe32a042bdba333da6d11c54324fc531317`, replaces
+five routine bodies so both lanes **record and compare** `test_only` instead of
+refusing it: `production_native_ordinary_event`, `production_native_ordinary_receipt_guard`,
+`production_assignment_context`, `production_native_assignment_receipt_guard`,
+`production_assignee_write`. The admissions table's `CHECK ((test_only = false))`
+is dropped by exact definition, and the migration asserts the `legacy_parity`
+check survives, so a failure to find it stops the migration rather than
+silently widening the wrong gate. `legacy_parity` is untouched in both lanes and
+still refuses. Nothing new is granted; no role list was edited.
+
+Rehearsed on disposable PostgreSQL 16, 17 checks: the before-state refusal
+reproduced for both lanes, then a `test_only` status change and a `test_only`
+assignment admitted and their outbox rows skipped with the native marker,
+a real-client row behaving identically, a forged receipt refused, a non-test
+client refused, ACLs preserved, and `provider` mode unchanged.
+
+#### The part worth remembering: how many frozen artifacts one body change moves
+
+Replacing a routine body is not one edit. The repository pins the same bodies in
+four independent places, and three of them only announce themselves after the
+fact, in a different CI lane:
+
+1. `scripts/linear-exit-deploy-preflight.js` — `bodyMd5` per routine.
+2. `scripts/linear-exit-install-manifest.js` plus its snapshot JSON.
+3. The `expected` blob inside `production_retirement_contract_assert_v1`, which
+   carries `md5(prosrc)` for 33 routines.
+4. The dated install source inventory capture, which is byte-pinned.
+
+Each of the three beyond the preflight was found by a red lane, not by reading,
+and each cost a round trip. Three machine checks now close the class rather than
+the instance:
+
+- `test/linear-exit-preflight-latest-pin.js` — every routine redefined by a
+  later migration must be pinned to its latest file, and every pinned file must
+  actually define the routine it is pinned for. This is what caught the live
+  `CONTRACT_MISMATCH:routine:production_notification_intent_guard()`: #1410
+  repointed five notification routines and left the intent guard on the
+  2026-09-09 file. 49 routine rows, 15 cited files, 0 violations.
+- `test/retirement-contract-body-pins.js` — the 19 routines the retirement
+  contract and the deploy preflight both name must agree. A control proves the
+  extraction equals `prosrc` rather than assuming it.
+- `test/native-test-client-parity-contract.js` — the migration's own shape,
+  offline.
+
+#### The re-capture, and the convention that decided it
+
+Regenerating the install inventory in place put the byte-pin gate red, because
+`sameComposition` compares line-ending counts and a regenerated file has a
+different line count. The repository's own convention settled it, and the owner
+confirmed it: **a re-capture is a new dated file, never an edit.** There are
+three prior `LINEAR_EXIT_OBSERVED_FULL_PIPELINE_2026091*.json` files saying so.
+
+So `LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json` is left byte-identical,
+`…_20260918.json` is written by the module's own writer at 66 entries, pinned in
+`.gitattributes` beside its predecessor, and all 9 live references moved. The
+2026-09-18 creative-channel migration from #1410 was missing from the inventory
+and is included in the same capture, so the new capture is complete.
+
+Three references were deliberately NOT moved, each measured rather than assumed:
+the admission release extension and the atomic writer bundle pin the 2026-09-10
+bytes by sha256 and never rebuild them, and the source baseline catalog is a
+`POST_64_OWNER_PRE_ADMISSION` checkpoint whose own artifact declares 64 owners
+and 99 sources — repointing it would have made the artifact lie.
+
+#### And the last one, which was a real design mistake rather than a stale pin
+
+Two suites then went red with `manifest_source_or_contract_drift`, and the pins
+were not the problem. `install-manifest.verify()` asserts a capture still
+**equals** `build()`. A frozen checkpoint holding a dated capture can only
+satisfy that while the repository has exactly the owners that capture froze — so
+the first migration added after any capture retires every checkpoint holding it,
+rather than testing it. Both artifacts were correct; the check was asking the
+wrong question.
+
+`verify()` keeps its meaning for live callers. Frozen holders move to a new
+`verifyFrozen()`, which proves what stays true across additions: the capture is
+a subset of today's inventory, every owner it covers is still byte-identical
+including its dependency edges, and their relative install order is unchanged.
+Editing a covered owner's source, its edges or its id, dropping one,
+duplicating one, reordering them, or changing a contract field all still refuse,
+each with its own negative control. Only the appearance of a NEW owner is
+tolerated, which is the one thing that has to be.
+
+The generalisable lesson, and it is the same one as 2026-09-15: a check that
+cannot survive a legitimate change is not a strict check, it is a check that
+will be deleted the first time it is inconvenient. Frozen and live artifacts
+need different questions asked of them.
+
+#### Also on this PR
+
+- `production_notification_intent_guard()` repointed from the 2026-09-09 outbox
+  migration to `2026-09-18-notification-creative-channel.sql`. The bodies
+  genuinely differ. Contract stays at 157 keys; the preflight returns
+  `{"status":"PASS","checks":28,"contract":"linear-exit-production-write-sql-v6"}`.
+- `native_followup_mirror_settlement` un-parked in the drill, where the
+  capability is on. A structural control proves every call site sits under the
+  capability guard — the first version of that control did not fire, because one
+  of two occurrences had been replaced and the regex was too weak.
+- Codex round 1 was right about the wrong body revision: the 2026-09-12 revision
+  is what the preflight pins, and it reads the mode first and then applies the
+  scope check. Corrected and acknowledged in the thread.
+- An earlier assertion that the cleanup archive mints a native receipt was
+  removed. It cannot: `deliverable-write` calls `rpc: "deliverable_write"`, not
+  `production_deliverable_write`. Two assertions now lock that distinction.
+
 ### 2026-09-17 — STEP 19 DEPLOYED ALL THIRTEEN and then failed its own attestation on three invisible bytes. Both byte-order marks stripped, a unit guard added that is seen to fire, and `notify` now pins to the value the run measured live
 
 Cloud session, on the owner's instruction, after the supervisor root-caused it.

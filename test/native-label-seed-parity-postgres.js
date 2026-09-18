@@ -103,9 +103,17 @@ function labelRelation(id) {
   return row ? row.linear_raw : undefined;
 }
 
+/* auth_kind is NOT free to choose here. eventFor() emits `auth_kind:
+   principal.kind` (index.ts:1557) and the TEST principal's kind is "test"
+   (index.ts:1206), so a fixture that hard-codes 'staff' for a test_only write
+   is not modelling the gateway -- it is modelling a request the gateway never
+   sends. The first version of this file did exactly that and hid the fact that
+   the lane was still unreachable; Codex caught it on PR #1414. */
+function authKindFor(testOnly) { return testOnly ? 'test' : 'staff'; }
+
 function labelsEvent({ dedup, id, testOnly = false, legacyParity = false, version, ids = [] }) {
   return {
-    surface: 'production', auth_kind: 'staff', source: 'ui', action: 'labels_change',
+    surface: 'production', auth_kind: authKindFor(testOnly), source: 'ui', action: 'labels_change',
     actor: 'Fixture Admin', role: 'admin',
     expected_updated_at: scalar(cluster, `select updated_at from public.deliverables where id=${literal(id)}`),
     outbound: {
@@ -248,6 +256,11 @@ function main() {
 
     /* ================= (1) THE SEED ================= */
 
+    ok('eventFor still emits auth_kind from principal.kind, which is what authKindFor models',
+      GATEWAY.includes('auth_kind: principal.kind,'));
+    ok('the TEST principal still has kind "test", so a staff-only gate would refuse it',
+      /kind: "test",[\s\S]{0,400}?testOnly: true,/.test(GATEWAY));
+
     const gatewayBody = assertPortStillModelsGateway();
     ok('the ported snapshot check still models the gateway (3 conditions re-read from index.ts)', gatewayBody.length > 0);
 
@@ -358,6 +371,26 @@ function main() {
         id: 'lbl-native', client_slug: 'fixture-client', team: 'video',
       })},${json(labelsEvent({ dedup: 'write-ui:labels:deliverable:lbl-native:test', id: 'lbl-native', testOnly: false, version: VERSION, ids: [LABEL_A] }))})`,
       /idempotency_conflict/));
+
+    /* The binding's own controls. auth_kind and test_only must agree in BOTH
+       directions, so a forged event carrying one without the other is refused
+       -- which is what stops "auth_kind: test" being a way to write as the
+       test client without the authority check that goes with it. */
+    ok('THE BINDING: a TEST write claiming auth_kind "staff" is refused',
+      rejection(`select public.production_labels_write(${json({
+        id: 'lbl-native', client_slug: 'fixture-client', team: 'video',
+      })},${json({ ...labelsEvent({ dedup: 'write-ui:labels:deliverable:lbl-native:mismatch1', id: 'lbl-native', testOnly: true, version: VERSION, ids: [LABEL_B] }), auth_kind: 'staff' })})`,
+      /native_label_scope_forbidden/));
+    ok('THE BINDING: a real-client write claiming auth_kind "test" is refused',
+      rejection(`select public.production_labels_write(${json({
+        id: 'lbl-real', client_slug: 'label-real', team: 'video',
+      })},${json({ ...labelsEvent({ dedup: 'write-ui:labels:deliverable:lbl-real:mismatch2', id: 'lbl-real', testOnly: false, version: VERSION, ids: [LABEL_B] }), auth_kind: 'test' })})`,
+      /native_label_scope_forbidden/));
+    ok('test_only must be a JSON boolean, not a string that casts like one',
+      rejection(`select public.production_labels_write(${json({
+        id: 'lbl-native', client_slug: 'fixture-client', team: 'video',
+      })},${json({ ...labelsEvent({ dedup: 'write-ui:labels:deliverable:lbl-native:strbool', id: 'lbl-native', testOnly: true, version: VERSION, ids: [LABEL_B] }), outbound: { ...labelsEvent({ dedup: 'write-ui:labels:deliverable:lbl-native:strbool', id: 'lbl-native', testOnly: true, version: VERSION, ids: [LABEL_B] }).outbound, test_only: 'true' } })})`,
+      /native_label_scope_forbidden/));
 
     ok('legacy_parity is STILL refused on the label lane',
       rejection(`select public.production_labels_write(${json({

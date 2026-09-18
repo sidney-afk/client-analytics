@@ -42,6 +42,14 @@ ok('the writer passes the REAL test_only to production_assert_authority',
   parity.includes("perform public.production_assert_authority(p_row->>'client_slug',p_row->>'team',coalesce((v_out->>'test_only')::boolean,false),false);"));
 ok('the guard passes the REAL test_only to production_assert_authority',
   parity.includes('perform public.production_assert_authority(new.client_slug,new.team,new.test_only,false);'));
+ok('auth_kind is BOUND to test_only in both directions, not merely widened',
+  parity.includes("or p_event->>'auth_kind' is distinct from (case when v_out->'test_only'='true'::jsonb then 'test' else 'staff' end)")
+    && !parity.includes("p_event->>'auth_kind' is distinct from 'staff'"));
+ok('test_only must be a JSON boolean, which the old literal comparison implied for free',
+  parity.includes("or jsonb_typeof(v_out->'test_only') is distinct from 'boolean'"));
+ok('the gateway admits the TEST principal as well as staff, since its kind is "test"',
+  read('supabase/functions/production-write/index.ts').includes('if (!["staff", "test"].includes(principal.kind) || legacyParity) {'));
+
 ok('THE COMPARE: production_outbox_replay receives the real test_only, not a literal false',
   parity.includes("p_event->>'role',coalesce((v_out->>'test_only')::boolean,false),false,v_payload->>'_intent_fingerprint'"));
 

@@ -6410,7 +6410,15 @@ async function handleEntityOperation(
         // and production_assert_authority still requires an active kind='test'
         // client for it -- so a TEST write is validated AS a test write here
         // rather than waved through.
-        if (principal.kind !== "staff" || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
+        // Both halves matter, and dropping only the first left the lane exactly
+        // as unreachable: the TEST principal's `kind` is "test", not "staff"
+        // (index.ts:1206), so `kind !== "staff"` refused every TEST request on
+        // its own. eventFor then emits `auth_kind: principal.kind`, which the
+        // SQL binds to test_only in both directions, so a TEST request is
+        // validated AS a test request end to end rather than waved through.
+        if (!["staff", "test"].includes(principal.kind) || legacyParity) {
+          throw new GatewayError(403, "native_label_scope_forbidden");
+        }
         labelCatalogVersion = String(config.version_id);
         if (body.catalog_version !== labelCatalogVersion) throw new GatewayError(409, "native_label_catalog_changed");
         if (!nativeLabelSnapshot(existing)) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });

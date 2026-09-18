@@ -1758,8 +1758,8 @@
     {
       "id": "2026-09-18-native-label-test-client-parity.sql",
       "path": "migrations/2026-09-18-native-label-test-client-parity.sql",
-      "sha256": "f9186768d1b6e6ba20df011b790dc8d8517c166bd72709e5f6fda1105bd0904d",
-      "bytes": 10518,
+      "sha256": "13ebec036ff741bf564e0d2966c8778c390c652c9d1425d420f67fbd376bf8d5",
+      "bytes": 11656,
       "scope": "candidate_owner",
       "dependencies": [
         "2026-09-06-native-label-writes.sql",
@@ -1772,12 +1772,12 @@
         "boundaries": [
           {
             "index": 0,
-            "line": 33,
+            "line": 49,
             "kind": "begin"
           },
           {
             "index": 6,
-            "line": 145,
+            "line": 163,
             "kind": "commit"
           }
         ],

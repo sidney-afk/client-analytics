@@ -26,10 +26,26 @@
 -- separately in test/native-label-test-client-parity-contract.js so a later
 -- edit cannot widen one while claiming the other.
 --
--- NOT IN THIS FILE: the gateway still refuses principal.testOnly at
--- supabase/functions/production-write/index.ts:6403, so the TEST client cannot
--- reach this lane through the browser until production-write is redeployed.
--- That is a separate commit on this PR and a separate deploy decision.
+-- AUTH_KIND IS PART OF THE SCOPE, and it was the half this migration first
+-- missed. eventFor() emits `auth_kind: principal.kind`
+-- (production-write/index.ts:1557), and the TEST principal's kind is `test`,
+-- not `staff` (index.ts:1206). Requiring 'staff' therefore refused every real
+-- TEST request no matter what test_only said -- so dropping the test_only
+-- refusal alone left the lane exactly as unreachable as before. Codex caught
+-- this on PR #1414; the first rehearsal missed it by hand-building an event
+-- with auth_kind 'staff', which is not what the gateway sends.
+--
+-- The two are now BOUND, in both directions: auth_kind must be 'test' exactly
+-- when test_only is true and 'staff' exactly when it is false. That is exact
+-- rather than permissive, because testOnly is true on precisely one principal
+-- and that principal's kind is always 'test' (index.ts:1206-1215; every other
+-- branch sets testOnly false). A forged event claiming one without the other
+-- is refused. test_only must also be a JSON boolean now, which the old
+-- `is distinct from 'false'::jsonb` implied for free and the new read does not.
+--
+-- NOT IN THIS FILE: the gateway's own principal gate, which is a separate
+-- commit on this PR because it is the only part needing a production-write
+-- deploy.
 begin;
 
 create or replace function public.production_native_label_receipt_guard() returns trigger
@@ -74,7 +90,9 @@ declare v_out jsonb:=p_event->'outbound'; v_payload jsonb:=v_out->'payload'; v_m
   v_current public.deliverables; v_receipt public.mirror_outbox; v_selection jsonb; v_raw jsonb;
   v_nodes jsonb; v_ids jsonb; v_read jsonb; v_result public.deliverables;
 begin
-  if p_event->>'surface' is distinct from 'production' or p_event->>'auth_kind' is distinct from 'staff'
+  if p_event->>'surface' is distinct from 'production'
+     or jsonb_typeof(v_out->'test_only') is distinct from 'boolean'
+     or p_event->>'auth_kind' is distinct from (case when v_out->'test_only'='true'::jsonb then 'test' else 'staff' end)
      or p_event->>'source' is distinct from 'ui' or p_event->>'action' is distinct from 'labels_change'
      or coalesce(p_event->>'role','') not in ('admin','smm') or coalesce(p_event->>'actor','')=''
      or v_out->>'operation' is distinct from 'labels' or v_out->>'entity' is distinct from 'deliverable'

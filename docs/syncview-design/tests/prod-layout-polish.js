@@ -10,6 +10,38 @@ const {
   formatFailures,
 } = require('./prod-test-utils');
 
+/* ASSERTION IDS FOR THE PUBLIC GATE SUMMARY.
+ *
+ * CI keeps this suite's output on the ephemeral runner, because a layout
+ * failure message names viewports, item indices and, for the console check,
+ * live URLs. That left every failure here reported as `error_generic`, which
+ * is a true statement that helps nobody -- the same blackout `behav-wired.js`
+ * and `pixel-wired.js` already solved.
+ *
+ * So each assertion carries a literal id from this closed list, and the suite
+ * prints the DISTINCT IDS ONLY on failure. Ids, never values: no viewport
+ * name, no item index, no selector, and above all nothing from the console
+ * check's own text, which is the one live-derived string this suite handles.
+ * The gate harvests this list from this file's source and drops anything not
+ * in it, exactly as it does for the other two suites.
+ */
+const PLP_ASSERTIONS = [
+  'plp_list_metadata',
+  'plp_subrow_metadata',
+  'plp_project_issue_metadata',
+  'plp_project_card_controls',
+  'plp_filter_pill_height',
+  'plp_filter_pill_overflow',
+  'plp_floating_chrome',
+  'plp_project_detail_child_fixture',
+  'plp_parent_trail_inline',
+  'plp_project_filter_empty_state',
+  'plp_board_column_chrome',
+  'plp_card_focus_sticky',
+  'plp_console_errors',
+  'plp_write_like_requests',
+];
+
 const viewports = [
   { name: 'desktop', width: 1440, height: 950 },
   { name: 'compact-desktop', width: 1180, height: 760 },
@@ -29,26 +61,26 @@ async function collectLayoutFailures(page, label) {
       const p = parent.getBoundingClientRect();
       return c.left >= p.left - pad && c.right <= p.right + pad && c.top >= p.top - pad && c.bottom <= p.bottom + pad;
     };
-    const checkInside = (selector, innerSelector, desc, limit = 40) => {
+    const checkInside = (id, selector, innerSelector, desc, limit = 40) => {
       [...document.querySelectorAll(selector)].filter(visible).slice(0, limit).forEach((parent, i) => {
         [...parent.querySelectorAll(innerSelector)].filter(visible).forEach(child => {
-          if (!within(child, parent, 2)) failures.push(`${label} ${desc} clipped outside row/card at item ${i}`);
+          if (!within(child, parent, 2)) failures.push(`[${id}] ${label} ${desc} clipped outside row/card at item ${i}`);
         });
       });
     };
-    checkInside('.prod-row', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'list metadata');
-    checkInside('.prod-subrow', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'subrow metadata');
-    checkInside('[data-prod-project-issue]', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'project issue metadata');
-    checkInside('.prod-card', '.prod-card-check, .prod-card-ico, .prod-card-title, .prod-card-status, .prod-card-lead, .prod-card-target', 'project card controls');
+    checkInside('plp_list_metadata', '.prod-row', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'list metadata');
+    checkInside('plp_subrow_metadata', '.prod-subrow', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'subrow metadata');
+    checkInside('plp_project_issue_metadata', '[data-prod-project-issue]', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'project issue metadata');
+    checkInside('plp_project_card_controls', '.prod-card', '.prod-card-check, .prod-card-ico, .prod-card-title, .prod-card-status, .prod-card-lead, .prod-card-target', 'project card controls');
     [...document.querySelectorAll('.prod-filter-pill')].filter(visible).forEach((pill, i) => {
-      if (pill.getBoundingClientRect().height > 30) failures.push(`${label} filter pill ${i} wrapped taller than 30px`);
+      if (pill.getBoundingClientRect().height > 30) failures.push(`[plp_filter_pill_height] ${label} filter pill ${i} wrapped taller than 30px`);
       const holder = pill.closest('.prod-filter-pills');
-      if (holder && !within(pill, holder, 2)) failures.push(`${label} filter pill ${i} overflows its toolbar`);
+      if (holder && !within(pill, holder, 2)) failures.push(`[plp_filter_pill_overflow] ${label} filter pill ${i} overflows its toolbar`);
     });
     [...document.querySelectorAll('.prod-pop, .prod-cmd, .prod-toast')].filter(visible).forEach((el, i) => {
       const r = el.getBoundingClientRect();
       if (r.left < -1 || r.right > innerWidth + 1 || r.top < -1 || r.bottom > innerHeight + 1) {
-        failures.push(`${label} floating chrome ${i} is outside the viewport`);
+        failures.push(`[plp_floating_chrome] ${label} floating chrome ${i} is outside the viewport`);
       }
     });
     return failures;
@@ -115,7 +147,7 @@ async function collectLayoutFailures(page, label) {
         return { projectId, childId: '', team: parent ? parent.team : '' };
       });
       if (projectFixture.projectId) {
-        if (!projectFixture.childId) failures.push(`${vp.name} project detail needs a real child-row fixture for the inline parent-trail check`);
+        if (!projectFixture.childId) failures.push(`[plp_project_detail_child_fixture] ${vp.name} project detail needs a real child-row fixture for the inline parent-trail check`);
         await page.evaluate(fixture => {
           _prodState.team = fixture.team || 'video';
           _prodState.tab = 'all';
@@ -142,7 +174,7 @@ async function collectLayoutFailures(page, label) {
             && titleRect.right <= rowRect.right + 1
             && parentRect.right <= rowRect.right + 1;
         }, projectFixture.childId);
-        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render inline beside the title`);
+        if (!projectIssueTitleHierarchy) failures.push(`[plp_parent_trail_inline] ${vp.name} project detail parent issue trail should render inline beside the title`);
         await page.evaluate(filters => {
           _prodState.filters = filters;
           _prodRender();
@@ -157,7 +189,7 @@ async function collectLayoutFailures(page, label) {
           const empty = document.querySelector('[data-prod-project-filter-empty]');
           return !!empty && /Clear filters/i.test(empty.textContent || '') && !!empty.querySelector('button');
         });
-        if (!projectFilterEmptyExplained) failures.push(`${vp.name} project detail needs a clear filter-empty state when filters hide existing project issues`);
+        if (!projectFilterEmptyExplained) failures.push(`[plp_project_filter_empty_state] ${vp.name} project detail needs a clear filter-empty state when filters hide existing project issues`);
       }
 
       await page.evaluate(() => {
@@ -201,14 +233,14 @@ async function collectLayoutFailures(page, label) {
             && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
             && cardCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'));
         });
-        if (!emptyColumnChrome) failures.push('project board columns should not show fake header add/options controls');
+        if (!emptyColumnChrome) failures.push('[plp_board_column_chrome] project board columns should not show fake header add/options controls');
       }
       if (await page.locator('.prod-card[data-prod-client-card]').count()) {
         await page.locator('.prod-card[data-prod-client-card] [data-prod-cardcheck]').first().click({ force: true });
         failures.push(...await collectLayoutFailures(page, `${vp.name} selected card`));
         await page.locator('.prod-card[data-prod-client-card] [data-prod-cardcheck]').first().click({ force: true });
         const sticky = await page.locator('.prod-card.pcard-kfocus').count();
-        if (sticky) failures.push(`${vp.name} project card kept a keyboard focus border after mouse deselect`);
+        if (sticky) failures.push(`[plp_card_focus_sticky] ${vp.name} project card kept a keyboard focus border after mouse deselect`);
       }
 
       await page.locator('.prod-search-btn').click().catch(() => {});
@@ -217,13 +249,22 @@ async function collectLayoutFailures(page, label) {
       const readConsole = await readConsoleAudit.settle();
       recoveredReadAttempts += readConsole.recoveredReadAttempts;
       navigationAborts += readConsole.navigationAborts;
-      if (!readConsole.ok) failures.push(`${vp.name} console/page errors: ${readConsole.error}`);
+      if (!readConsole.ok) failures.push(`[plp_console_errors] ${vp.name} console/page errors: ${readConsole.error}`);
       await page.close().catch(() => {});
     }
 
     const writes = requests.filter(isWriteLikeRequest);
-    if (writes.length) failures.push('Write-like requests during layout pass: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
-    if (failures.length) throw new Error(formatFailures('prod-layout-polish failures', failures));
+    if (writes.length) failures.push('[plp_write_like_requests] Write-like requests during layout pass: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
+    if (failures.length) {
+      /* IDS ONLY, and only the ones that actually fired. Matched against the
+         closed PLP_ASSERTIONS list above so nothing assembled here can come
+         from a failure's message body -- an id absent from that list is
+         dropped rather than printed. This line is the only part of this
+         suite's output that CI is willing to publish. */
+      const fired = PLP_ASSERTIONS.filter(id => failures.some(f => String(f).startsWith(`[${id}]`)));
+      if (fired.length) console.log('LAYOUT_POLISH_FAILED_ASSERTIONS ' + fired.join(' '));
+      throw new Error(formatFailures('prod-layout-polish failures', failures));
+    }
     console.log(`prod-layout-polish: desktop, compact desktop, and mobile list/filter/project/card/menu clipping checks plus ${recoveredReadAttempts} recovered read retries and ${navigationAborts} navigation-aborted reads passed`);
   } finally {
     await browser.close().catch(() => {});

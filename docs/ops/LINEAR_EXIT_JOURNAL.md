@@ -30,6 +30,46 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Check 6b is measured, the clause named a code it never reaches, and labels is through phase 7
+
+Supervisor ruling, after the correction below. Placed above it because this is
+the state a reader should carry away; the correction stays because the reason
+for it does.
+
+**The clause named the wrong code.** Check 6b read *"A role outside `admin|smm`
+→ `native_label_scope_forbidden`."* Two guards can stop that write and the role
+never reaches the second. The policy table refuses first at
+`index.ts:5924-5931` — `staffOperationAllowed` returns false for
+`(creative, labels)` and the gateway throws **403 `operation_forbidden`**. The
+guard emitting `native_label_scope_forbidden` at 6425-6427 gates on the
+principal's **kind** and on `legacy_parity`, not on the role, so a creative is
+already refused before it is reached. Ruled: the clause is about the outcome,
+either code satisfies it, and the wording is amended. Worth recording that a
+requirement naming only the unreachable code would have held the capability open
+on a defect in the sentence rather than in the system.
+
+**Measured offline, with a control.** Five assertions execute the policy guard's
+real bytes against the real `policy.mjs`: a creative is refused 403
+`operation_forbidden`; admin and smm still reach the write, so it refuses the
+role and not the operation; the same creative still reaches `comment`. The fifth
+is the one that makes the rest mean anything — flipping `staffOperationAllowed`
+to return true lets the creative through, so the refusal **is** the policy row
+and not a missing team or a botched extraction.
+
+**And the extraction nearly lied.** The first attempt anchored on
+`if (principal.kind === "staff"`, which appears **five times** in that file. It
+sliced the wrong guard and two of the five assertions passed against it anyway.
+The anchor is now the unique `staffOperationAllowed(...)` call. The paired
+assertions are the only reason this was caught within the minute rather than
+committed: a test that passes while measuring the wrong thing is this
+workstream's recurring failure, and it has now appeared at the level of the
+capability, the check, the clause and the string anchor. The pairing habit —
+always assert the negative case beside the positive, and flip the input that is
+supposed to be decisive — catches it at every level, which the rules did not.
+
+Step 27 complete on all seven checks. Step 28 restored from withdrawn; the
+withdrawal and the restoration both stay in the checkpoint.
+
 ### 2026-09-18 — CORRECTION: labels is NOT through phase 7. Check 6 has three refusals and two were measured
 
 Placed above the entry it corrects, because that entry's claim is the thing a

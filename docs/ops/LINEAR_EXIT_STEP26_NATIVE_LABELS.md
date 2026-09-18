@@ -14,8 +14,8 @@ Execution map phase 7, for the **one** capability `production_native_label_catal
 > | capability | `native` since **2026-09-18T20:02:56Z** |
 > | catalog version | `f55a7dd2` |
 > | deployed at | `b7c30c74`, `production-write` **v77** |
-> | step 27 | ⏳ **IN PROGRESS** — 6 of 7 checks measured; check 6 is 2 of its 3 refusals |
-> | step 28 | ⛔ **WITHDRAWN** — not reachable until check 6 is complete |
+> | step 27 | ✅ **COMPLETE** — 7 of 7 checks; check 6 is 3 of its 3 refusals |
+> | step 28 | ✅ **RECORDED** in the checkpoint's dependency table |
 > | kill switch | `mode:"hold"` — see *The rollback* in (c) |
 >
 > The original text is kept below with a correction block against each thing
@@ -537,12 +537,14 @@ branch is unreachable and the flag does nothing.
 
 ### Step 27 acceptance checks
 
-> ### ⏳ STEP 27 IS IN PROGRESS — check 6 is 2 of its 3 refusals
+> ### ✅ STEP 27 IS COMPLETE — check 6 is 3 of its 3 refusals
 >
-> **Corrected 2026-09-18, after a Codex P1 on #1420.** A previous revision of
-> this block said all seven checks were measured and step 28 was recorded. That
-> was wrong, and wrong in the way this file exists to prevent: **check 6 names
-> THREE refusals, not two.** Four hundred lines below, the acceptance contract
+> **This block has been wrong twice and the history is kept deliberately.** It
+> first said all seven checks were measured when **check 6 names THREE
+> refusals, not two**, and only two were covered — a Codex P1 on #1420 caught
+> it. Check 6b is now measured (below) and the clause's wording amended, so the
+> step is genuinely complete. The account of the original error stays, because
+> the correction is worth less than the reason it was needed. Four hundred lines below, the acceptance contract
 > reads *"A `client` principal → 403. A role outside `admin|smm` →
 > `native_label_scope_forbidden`. A stale `catalog_version` from an old tab →
 > 409 `native_label_catalog_changed`."* The evidence covered the first and the
@@ -570,23 +572,42 @@ branch is unreachable and the flag does nothing.
 > | 4 | Exact replay is idempotent | ✅ | storage session, on the **test card**, receipt **10579**, journal **`edf78a6a`** |
 > | 5 | Provider debt is conserved | ✅ | `labels` debt **0** before and after the flip, no row touched |
 > | 6a | Refusal: `client` principal → **403** | ✅ | offline, `test/production-write-gateway.js` — see below |
-> | 6b | Refusal: role outside `admin\|smm` → **`native_label_scope_forbidden`** | ❌ **NOT RUN** | — see *The refusal nobody ran* |
+> | 6b | Refusal: staff role outside `admin\|smm` cannot write labels | ✅ | offline, `test/production-write-gateway.js` — **403 `operation_forbidden`** from the policy table; see below |
 > | 6c | Refusal: stale `catalog_version` → **409** | ✅ | storage session, receipt **10579**, journal **`edf78a6a`** |
 > | 7 | Both teams, on real cards | ✅ | video earlier; **graphics on receipts 10575 and 10576** |
 >
-> **Remaining before step 27 can be called complete: check 6b.**
+> ### Check 6b: the refusal nobody had run, and the code it does not use
 >
-> ### The refusal nobody ran, and a question about how it is written
+> **Measured 2026-09-18**, offline, after the supervisor amended the clause to
+> accept either refusal code (see *6. The refusals fire* below for why).
 >
-> Check 6b is not covered, and the nearest existing evidence is another near
-> miss of the kind this file keeps collecting.
+> Five assertions in `test/production-write-gateway.js` execute the policy guard
+> at `index.ts:5924-5931` against the **real** `policy.mjs` module: a `creative`
+> principal's labels write yields **403 `operation_forbidden`**; `admin` and
+> `smm` still reach the write, so the refusal is about the role and not the
+> operation; and the same creative still reaches `comment`. The fifth is the
+> control that makes the others mean anything — **flipping
+> `staffOperationAllowed` to return true lets the creative through**, so the
+> refusal is the policy row and not a missing team, a context field or the
+> extraction.
+>
+> *The extraction nearly lied, and the paired assertions are why it did not.*
+> The first attempt anchored on `if (principal.kind === "staff"`, which appears
+> **five times** in that file, sliced the wrong guard, and two of the five
+> assertions still passed against it. The anchor is now the unique
+> `staffOperationAllowed(...)` call. A test that passes while measuring the
+> wrong thing is the same failure this document keeps recording, one level down
+> again.
+>
+> The nearest existing evidence was another near miss of the kind this file
+> keeps collecting.
 > `test/native-label-seed-parity-postgres.js` asserts
 > `native_label_scope_forbidden` five times — but every one of them is about the
 > **test_only / `auth_kind` binding**, not about a staff role. Same error code,
 > different cause, different question. Citing it would repeat the exact mistake
 > that produced this correction.
 >
-> **And the contract may name the wrong code.** The guard that emits
+> **And the contract named the wrong code — now amended.** The guard that emits
 > `native_label_scope_forbidden` is `index.ts:6425-6427`:
 >
 > ```ts
@@ -601,10 +622,11 @@ branch is unreachable and the flag does nothing.
 > with `operation_forbidden`. So a role outside `admin|smm` may well be refused,
 > correctly, by a different code than the one check 6b names.
 >
-> **This session is not deciding that.** Either the check's wording needs
-> correcting or a path emits that code for a role and has not been found; both
-> are readings that belong to whoever ratified the contract. What is recorded
-> here is only what was measured: 6b was not run, and nothing offline covers it.
+> **Ruled on 2026-09-18:** the clause is about the outcome — a staff role
+> outside `admin|smm` cannot write labels natively — and either code satisfies
+> it. The wording is amended below. Recorded because a requirement that named
+> only the unreachable code would have held the capability open on a defect in
+> the sentence rather than in the system.
 >
 > **Two things about this table that are not measurements of mine.** Checks 4,
 > 6-409 and 7-graphics were run by the storage session and are recorded here as
@@ -730,9 +752,28 @@ or `failed` for `operation='labels'` before and after. The number must not move,
 and no drainer may restart. A newly native capability must not reclassify or
 requeue existing provider receipts.
 
-**6. The refusals fire.** A `client` principal → 403. A role outside
-`admin|smm` → `native_label_scope_forbidden`. A stale `catalog_version` from an
+**6. The refusals fire.** A `client` principal → 403. A staff role outside
+`admin|smm` cannot write labels natively → **either** `operation_forbidden`
+(403, from the policy table) **or** `native_label_scope_forbidden` (403, from
+the native-label gate), whichever fires first. A stale `catalog_version` from an
 old tab → 409 `native_label_catalog_changed`.
+
+> ⚠ **Wording amended 2026-09-18** on the supervisor's ruling, after this clause
+> was found to name a code the role refusal does not produce. The original read
+> *"A role outside `admin|smm` → `native_label_scope_forbidden`."*
+>
+> Two different guards can stop this write, and the role never reaches the
+> second one. The policy table refuses first, at `index.ts:5924-5931`:
+> `staffOperationAllowed` returns false for `(creative, labels)` and the gateway
+> throws **403 `operation_forbidden`**. The guard that emits
+> `native_label_scope_forbidden`, at `index.ts:6425-6427`, gates on the
+> principal's **kind** and on `legacy_parity` — not on the staff role — so a
+> creative is already refused before it is reached.
+>
+> The clause is about the **outcome**: a staff role outside `admin|smm` cannot
+> write labels natively. Either code satisfies it. Naming only the second one
+> made a satisfiable requirement look unsatisfiable, and would have kept the
+> capability open on a wording defect.
 
 **7. Both teams, on real cards.** See B-3: there is no TEST path, so this
 requires the owner's named go-ahead for a real client, or the parity migration
@@ -924,14 +965,14 @@ Steps 1, 4, 5, 7 and 9 are the owner's alone.
 > `production_label_catalog_versions` at 19:45Z**; the flag went to `native` at
 > 20:02:56Z on version `f55a7dd2`.
 >
-> ⏳ **Step 10 (execution map step 27) is IN PROGRESS.** Six of seven checks are
-> measured; check 6 is **2 of its 3 refusals**, and 6b — a role outside
-> `admin|smm` — was never run. See *Step 27 acceptance checks*.
+> ✅ **Step 10 (execution map step 27) is COMPLETE.** All seven checks are
+> measured, check 6 across all three of its refusals. See *Step 27 acceptance
+> checks* for the evidence behind each, including which of them this session
+> measured itself (6a and 6b, two of nine rows).
 >
-> ⛔ **Step 11 (execution map step 28) is WITHDRAWN.** A closure was written and
-> is now marked withdrawn in the checkpoint's dependency table rather than
-> deleted, because the reasoning that produced a premature closure is worth more
-> than a tidy file. It becomes valid when 6b is measured.
+> ✅ **Step 11 (execution map step 28) is COMPLETE**, restored after the
+> withdrawal above: the closure is recorded in the checkpoint's dependency
+> table.
 >
 > Note for the next capability that comes through this sequence: steps 2 and 3
 > here were both *blockers derived by reading rather than measuring*, and one of

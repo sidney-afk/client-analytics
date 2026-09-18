@@ -31,7 +31,7 @@ const ROUTINES = Object.freeze([
   ['production_assignee_write(jsonb,jsonb)', 'migrations/2026-09-18-native-assignment-auth-kind-binding.sql', 'production_assignee_write', 'public'],
   ['production_native_assignment_receipt_guard()', 'migrations/2026-09-18-native-test-client-parity.sql', 'production_native_assignment_receipt_guard', 'public'],
   ['production_native_assignment_truncate_guard()', 'migrations/2026-09-06-native-existing-assignment.sql', 'production_native_assignment_truncate_guard', 'public'],
-  ['production_label_catalog_check_manifest(jsonb)', 'migrations/2026-09-18-native-label-retired-state.sql', 'production_label_catalog_check_manifest', 'pg_catalog, public'],
+  ['production_label_catalog_check_manifest(jsonb)', 'migrations/2026-09-18-native-label-retired-state.sql', 'production_label_catalog_check_manifest', 'pg_catalog, public', false],
   ['production_label_catalog_read_version(uuid,text)', 'migrations/2026-09-18-native-label-retired-state.sql', 'production_label_catalog_read_version', 'pg_catalog, public'],
   ['production_label_catalog_validate_selection(uuid,text,jsonb,jsonb)', 'migrations/2026-09-05-native-label-catalog-foundation.sql', 'production_label_catalog_validate_selection', 'pg_catalog, public'],
   ['production_label_catalog_capability()', 'migrations/2026-09-06-native-label-writes.sql', 'production_label_catalog_capability', 'pg_catalog, public'],

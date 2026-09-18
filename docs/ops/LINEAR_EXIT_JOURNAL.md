@@ -30,6 +30,19 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Owner decision: the live Clients Info tab is the app's source of truth for creative channel ids. 32 ids, 31 to load, is correct; the "37" is closed
+
+The step 26 notifications entry recorded an open question: the owner expected 37
+creative channel ids and the app's Clients Info tab carries 32. The owner has
+answered it: **the live Clients Info tab is the app's source of truth**, so the
+count is **32**, and the prepared load's **31 rows** — 32 less the one client whose
+creative id equals its shared client channel — is the correct scope.
+
+The prepared statement (`dbd20a1e…`) was built from exactly that tab, so it stands
+as prepared and does not need rebuilding. It still cannot run until the
+creative-channel migration creates the column, and it runs only on the owner's
+word that the migration is merged.
+
 ### 2026-09-18 — STEP 26 PREPARED for capability 2 (`production_native_ordinary_receipts`) and capability 3 (`native_assignment_epochs`), both teams. Rehearsed and rolled back; nothing enabled
 
 Storage session, over the direct connection. Every write below happened inside a

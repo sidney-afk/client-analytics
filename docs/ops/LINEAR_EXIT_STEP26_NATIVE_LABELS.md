@@ -14,7 +14,8 @@ Execution map phase 7, for the **one** capability `production_native_label_catal
 > | capability | `native` since **2026-09-18T20:02:56Z** |
 > | catalog version | `f55a7dd2` |
 > | deployed at | `b7c30c74`, `production-write` **v77** |
-> | step 27 | **IN PROGRESS** — 4 of 7 checks measured; see *Step 27 acceptance checks* |
+> | step 27 | ✅ **COMPLETE** — all 7 checks measured; see *Step 27 acceptance checks* |
+> | step 28 | ✅ **RECORDED** in the execution map's checkpoint dependency table |
 > | kill switch | `mode:"hold"` — see *The rollback* in (c) |
 >
 > The original text is kept below with a correction block against each thing
@@ -536,26 +537,75 @@ branch is unreachable and the flag does nothing.
 
 ### Step 27 acceptance checks
 
-> ### ⏳ STEP 27 IS IN PROGRESS — 4 of these 7 are measured, 2 were not run
+> ### ✅ STEP 27 IS COMPLETE — all 7 checks measured, 2026-09-18
 >
 > An earlier revision of this file said "STEP 27 PASSED" on the strength of
-> receipts 10536 and 10537. **Those two receipts prove check 2 and nothing
-> else.** The honest state, 2026-09-18:
+> receipts 10536 and 10537 alone. **Those two receipts prove check 2 and
+> nothing else**, and that overclaim is left recorded rather than tidied away.
+> What follows is the per-check state that actually closes the step.
 >
-> | # | What it checks | State |
-> |---|---|---|
-> | 1 | Read, both teams, no Linear request | ✅ **seen by the owner** |
-> | 2 | Write, then assert the receipt | ✅ **receipts 10536 and 10537** |
-> | 3 | The row actually changed | ✅ **measured** — `labelIds` and `labels.nodes` agree, `hasNextPage` false, row updated **20:08:02Z** |
-> | 4 | Exact replay is idempotent | ❌ **NOT RUN** — and see the constraint below |
-> | 5 | Provider debt is conserved | ✅ **measured** — `labels` debt **0** before and after the flip, no row touched |
-> | 6 | The refusals fire | ❌ **NOT RUN** |
-> | 7 | Both teams, on real cards | ⚠️ **video only** — graphics unexercised |
+> | # | What it checks | State | Evidence |
+> |---|---|---|---|
+> | 1 | Read, both teams, no Linear request | ✅ | seen by the owner |
+> | 2 | Write, then assert the receipt | ✅ | receipts **10536** and **10537** |
+> | 3 | The row actually changed | ✅ | `labelIds` and `labels.nodes` agree, `hasNextPage` false, row updated **20:08:02Z** (supervisor) |
+> | 4 | Exact replay is idempotent | ✅ | storage session, on the **test card**, receipt **10579**, journal **`edf78a6a`** |
+> | 5 | Provider debt is conserved | ✅ | `labels` debt **0** before and after the flip, no row touched |
+> | 6 | The refusals fire — 409 half | ✅ | storage session, same run: receipt **10579**, journal **`edf78a6a`** |
+> | 6 | The refusals fire — 403 half | ✅ | offline, `test/production-write-gateway.js` — see below |
+> | 7 | Both teams, on real cards | ✅ | video earlier; **graphics on receipts 10575 and 10576** |
 >
-> **Remaining before step 27 can be called complete: checks 4 and 6, and check
-> 7 on graphics.**
+> **Two things about this table that are not measurements of mine.** Checks 4,
+> 6-409 and 7-graphics were run by the storage session and are recorded here as
+> reported to this session. Journal `edf78a6a` is their primary record; it is
+> not reachable from this repository at the time of writing, so this session has
+> not read it. Checks 1, 3 and 5 are likewise the owner's and the supervisor's.
+> Only the 403 half of check 6 was measured here.
+>
+> ### The 403 half of check 6 is an offline assertion, and it did not exist until now
+>
+> Check 6 needs a **client** principal to be refused a labels write. Nothing in
+> the suite asserted that. Three tests came close and each measured something
+> else:
+>
+> | Nearest existing test | What it actually measures |
+> |---|---|
+> | `test/production-write-gateway.js`, `handleLabelsRead` assertion | the labels **read**, not the write |
+> | `test/production-write-gateway.js`, the `brief`-leakage assertion | a regex on this guard's *condition*, inside an unrelated claim, never naming the status |
+> | `test/production-write-auth-matrix.js`, the `labels: false` client row | `clientOperationAllowed`, **which the labels write path never calls** |
+>
+> That last one matters most. The labels write is refused earlier and
+> unconditionally, at `index.ts:5932-5935`:
+>
+> ```ts
+> if ((operation === "labels" || operation === "description" || operation === "attachment")
+>     && principal.kind === "client") {
+>   throw new GatewayError(403, "operation_forbidden");
+> }
+> ```
+>
+> The policy table is never consulted, so a green auth matrix was never evidence
+> about this gate. Five assertions were added to `test/production-write-gateway.js`
+> which **execute that guard's real bytes** in a sandbox with a mocked
+> `GatewayError`, rather than matching them with a regex: a client principal on
+> `labels` yields `403 operation_forbidden`; so do `description` and
+> `attachment`; a staff or service principal passes through; and `status` and
+> `comment` are left to their own policy. The slice is anchored on the exact
+> source text, so a reworded guard fails the test loudly instead of quietly
+> asserting nothing. Confirmed to fail when the guard's condition is defeated.
+>
+> No live call. This half of check 6 is offline by construction — refusing a
+> client principal is a property of the deployed source, and running it against
+> production would mean authenticating as a real client.
 >
 > ### ⚠ Check 4 is only satisfiable by a STAFF principal — do NOT run it as the test client
+>
+> **Still true, and check 4 passed without contradicting it.** The storage
+> session ran check 4 on the test *card*, not as the test *client*. The gate
+> below excludes `principal.testOnly`, which is a property of the credential,
+> not of the card's owner, so a staff principal writing to a test client's card
+> reaches the shortcut normally. Keep the constraint: it is the principal that
+> is excluded.
 >
 > This is a real constraint in the gateway, not a preference. The
 > accepted-receipt replay shortcut is gated at `index.ts:5977-5978`:
@@ -823,13 +873,15 @@ Steps 1, 4, 5, 7 and 9 are the owner's alone.
 > `production_label_catalog_versions` at 19:45Z**; the flag went to `native` at
 > 20:02:56Z on version `f55a7dd2`.
 >
-> ⏳ **Step 10 (execution map step 27) is IN PROGRESS**, not complete: 4 of its
-> 7 acceptance checks are measured. Checks 4 and 6 were not run, and check 7
-> covered video only. See *Step 27 acceptance checks* for what each one needs —
-> including that check 4 cannot be run as the test client at all.
+> ✅ **Step 10 (execution map step 27) is COMPLETE.** All 7 acceptance checks
+> are measured — checks 4, 6-409 and 7-graphics by the storage session, the 403
+> half of check 6 offline in this repository. See *Step 27 acceptance checks*
+> for the evidence behind each one, and for which of them this session measured
+> itself (one of seven).
 >
-> **Step 11 (execution map step 28) is therefore not reachable yet.** Recording
-> the dependency this closes needs step 27 finished first.
+> ✅ **Step 11 (execution map step 28) is COMPLETE**: the dependency labels
+> closes is recorded in the checkpoint dependency table in
+> `LINEAR_EXIT_EXECUTION_MAP.md`.
 >
 > Note for the next capability that comes through this sequence: steps 2 and 3
 > here were both *blockers derived by reading rather than measuring*, and one of

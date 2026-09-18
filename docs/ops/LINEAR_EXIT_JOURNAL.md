@@ -30,6 +30,45 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Labels is through phase 7, and the one check this session could measure had no test at all
+
+Step 27 closed on evidence from three sources. Checks 1, 3 and 5 are the owner's
+and the supervisor's. Checks 4, 6-409 and 7-graphics are the storage session's —
+receipt **10579** and journal **`edf78a6a`** for the first two, receipts **10575**
+and **10576** for graphics. That journal is not reachable from this repository at
+the time of writing, so this session has **not read it** and records those three
+as reported, not as measured here. Said plainly in the procedure, the map and the
+closure, because "all seven checks passed" is the aggregate claim this same
+capability already produced once and had to withdraw.
+
+**Check 4 passed without contradicting the constraint.** The replay shortcut
+excludes `principal.testOnly`, which is a property of the credential, not of the
+card's owner. The storage session ran it on the test *card*, not as the test
+*client*. The constraint stands and stays in the file.
+
+**The 403 half of check 6 had no test, and three near misses looked like one.**
+Check 6 needs a client principal refused a labels write. What existed:
+`handleLabelsRead` (the read, not the write); a regex on the write guard's
+condition buried in an unrelated `brief`-leakage assertion, never naming the
+status; and the auth matrix's `labels: false` client row, which exercises
+`clientOperationAllowed` — **a function the labels write path never calls.** The
+write is refused earlier and unconditionally at `index.ts:5932-5935`. So a green
+suite was never evidence about this gate, and citing any of those three would
+have been the same error shape as the step 27 overclaim: a true statement about
+what a test measures, offered as an answer to a different question.
+
+Five assertions added to `test/production-write-gateway.js` that **execute the
+guard's real bytes** in a sandbox rather than matching them, anchored on the
+exact source text so a reworded guard fails loudly. Confirmed to fail when the
+guard's condition is defeated.
+
+**Step 28 is recorded with its limits.** The provider branch is switched off,
+not removed: `mode:"provider"` is still selectable because the kill switch
+`mode:"hold"` shares the same flag. So "unreachable" means no supported label
+operation reaches it while the capability is native — not that the path is gone.
+And the dependency row it acts on also covers metadata, credential reads, intake
+and assignment. Labels closes none of those; the row stays open.
+
 ### 2026-09-18 — Labels are NATIVE. Three of the four step 26 blockers dissolved, and two of them were never real
 
 Cloud session, correcting documents after the fact. **This session did not run

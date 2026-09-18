@@ -1228,6 +1228,57 @@ function extractFunction(name, bodyMarker = '{') {
   ok(/\[functions\.production-write\][\s\S]{0,40}verify_jwt = false/.test(config),
     'Edge config exposes production-write for custom fail-closed browser auth');
 
+  /* Linear exit, step 27, check 6 (403 half).
+   *
+   * Nothing offline asserted this before. The nearest three all measured
+   * something else: the assertion above at `handleLabelsRead` is the labels
+   * READ, the `brief`-leakage assertion is a regex on this guard's condition
+   * that never mentions the status, and the auth matrix's `labels: false` row
+   * exercises `clientOperationAllowed`, which the labels WRITE path never
+   * calls -- it is refused earlier and unconditionally, right here. A green
+   * suite was therefore not evidence that a client principal is refused a
+   * labels write, which is what check 6 claims.
+   *
+   * So run the guard's real bytes rather than matching them. The slice is
+   * anchored on the exact source text: if the guard moves or is reworded this
+   * fails loudly instead of quietly asserting nothing.
+   */
+  const clientWriteGuardHead = '  if ((operation === "labels" || operation === "description" || operation === "attachment")';
+  const clientWriteGuardStart = edge.indexOf(clientWriteGuardHead);
+  const clientWriteGuardEnd = clientWriteGuardStart >= 0
+    ? edge.indexOf('\n  }', clientWriteGuardStart) + 4
+    : -1;
+  const clientWriteGuard = clientWriteGuardStart >= 0 ? edge.slice(clientWriteGuardStart, clientWriteGuardEnd) : '';
+  ok(clientWriteGuardStart >= 0
+    && /principal\.kind === "client"/.test(clientWriteGuard)
+    && /throw new GatewayError\(403, "operation_forbidden"\);/.test(clientWriteGuard),
+  'the client write guard is still present in production-write and still throws 403 operation_forbidden');
+  const guardContext = vm.createContext({
+    GatewayError: class GatewayError extends Error {
+      constructor(status, code) { super(code); this.status = status; this.code = code; }
+    },
+  });
+  vm.runInContext(
+    'this.clientWriteGuard = function (operation, principal) {\n'
+    + clientWriteGuard + '\n'
+    + '  return "reached_the_write";\n};',
+    guardContext);
+  const guardOutcome = (operation, kind) => {
+    try { return guardContext.clientWriteGuard(operation, { kind }); }
+    catch (error) { return `${error.status}:${error.code}`; }
+  };
+  ok(guardOutcome('labels', 'client') === '403:operation_forbidden',
+  'a CLIENT principal is refused a labels write with 403 operation_forbidden (step 27 check 6)');
+  ok(guardOutcome('description', 'client') === '403:operation_forbidden'
+    && guardOutcome('attachment', 'client') === '403:operation_forbidden',
+  'the same guard refuses a client principal on description and attachment writes');
+  ok(guardOutcome('labels', 'staff') === 'reached_the_write'
+    && guardOutcome('labels', 'service') === 'reached_the_write',
+  'the guard refuses on principal kind alone and does not block non-client labels writes');
+  ok(guardOutcome('status', 'client') === 'reached_the_write'
+    && guardOutcome('comment', 'client') === 'reached_the_write',
+  'the guard is scoped to the three authored-content operations and leaves client status and comment to their own policy');
+
   if (failures) {
     console.error(`\n${failures} production-write gateway check(s) failed`);
     process.exit(1);

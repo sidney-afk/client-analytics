@@ -30,6 +30,40 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Calendar component status lag, read-only: 10 posts (video 6, graphics 4) across 7 distinct clients lag their linked deliverable. The oldest lag is from 17:34:45Z. Ids saved privately for the backfill
+
+Storage session, on the owner's instruction. There was one read-only transaction,
+rolled back, and no writes.
+
+**Query.** The posts come from `calendar_posts`.
+
+- **Join:** `video_deliverable_id` for video and `graphic_deliverable_id` for
+  graphics, each to `deliverables.id`.
+- **Kept:** posts where `deliverables.status_at` is after 2026-09-18T00:00Z and
+  after the matching component's `video_status_at` or `graphic_status_at`.
+- **"Disagrees" means:** the deliverable status, mapped by the app's
+  `_calMapNativeStatusStrict` (calendar origin, main `b7c30c74`), is not null and
+  differs from the component status normalised by `_calNormStatus`. The script
+  checks all eight mapping arms against main before it runs.
+
+| | video | graphics | total |
+|---|---|---|---|
+| **Posts lagging** | **6** | **4** | **10** |
+| **Distinct clients** | 5 | 2 | **7** |
+| **Oldest lag** (deliverable `status_at`) | 17:34:45Z | 19:39:33Z | **17:34:45Z**, about 3h10m at read time (20:44Z) |
+
+- **Candidates:** 27 passed the time filter before the status comparison.
+- **Null timestamps:** no lagging post has a null component `status_at`; the
+  count is the same with them included.
+- **Posted guard:** no post is `Posted` in the calendar while its deliverable is
+  in an earlier state. So the UI rule that never moves a post back from Posted
+  excludes nothing here.
+- **Archived posts:** none.
+
+The ids are in the private package `calendar-status-lag-20260918-1`: post id,
+deliverable id, both statuses and both times. Its file sha is `dd11ff3e…`. No
+backfill has run.
+
 ### 2026-09-18 — Half (b) of the label capture, the per-card label state, TAKEN read-only: 5 cards read (all video), 0 with labels, 0 labels total. No database writes, no flag change
 
 Storage session, on the owner's instruction. The capture is read-only against

@@ -78071,7 +78071,7 @@
             <div class="hp-preview">
                 <div class="hp-section-title">${isVideoEditor ? 'Final interview invitation preview' : 'Interview invitation preview'}</div>
                 <div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc(preview.recipient || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(preview.subject || 'Interview invitation')}</span></div>
-                <div class="hp-email">${_hpEsc(preview.body || 'The invitation preview will appear once the interview calendar is configured.')}</div>
+                <div class="hp-email">${preview.body || _hpEsc('The invitation preview will appear once the interview calendar is configured.')}</div>
                 <div class="hp-actions">
                     ${canQueue ? '<button type="button" class="hp-action primary" id="hpInviteButton" onclick="_hpQueueInvite()"' + actionDisabled + '>Send interview invite</button>' : ''}
                     ${canRetry ? '<button type="button" class="hp-action primary" id="hpRetryInviteButton" onclick="_hpRetryInvite()"' + actionDisabled + '>Retry interview invite</button>' : ''}
@@ -78104,7 +78104,7 @@
         const shown = jobPreview || preview;
         return `<div class="hp-preview">
             <div class="hp-section-title">Practical test</div>
-            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${_hpEsc(shown.body)}</div>` : ''}
+            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${shown.body}</div>` : ''}
             <div class="hp-actions">
                 ${canQueueTest ? '<button type="button" class="hp-action primary" id="hpPracticalSendButton" onclick="_hpQueuePracticalTest()"' + actionDisabled + '>Send practical test</button>' : ''}
                 ${canRetryTest ? '<button type="button" class="hp-action primary" onclick="_hpRetryPracticalTest()"' + actionDisabled + '>Retry practical test</button>' : ''}

@@ -241,6 +241,26 @@ function checkManifest(manifest) {
 /** Reduce one Linear label node to exactly the eight keys the checker reads. */
 function projectLabel(node) {
   if (!isObject(node)) throw new ManifestError('label_catalog_label_invalid', 'node not an object');
+  /* EVERY key this reducer emits must be PRESENT on the raw node.
+   *
+   * Four of them default to the MORE PERMISSIVE value when absent -- isGroup
+   * false (not a group), archivedAt null (not archived), retiredAt null (not
+   * retired) and team null (workspace-wide, so applicable to BOTH teams). The
+   * checker only ever sees the PROJECTED manifest (buildManifest maps raw nodes
+   * through here), so a synthesized default reads to it as a fully selectable
+   * label -- and a second walk with the same gap reconciles against the first,
+   * so the divergence check cannot catch it either.
+   *
+   * That is how a provider response which never mentioned retirement would have
+   * been attested as "nothing here is retired", which is the precise failure
+   * the retiredAt work exists to prevent. Presence is the caller's to supply;
+   * this reducer will not invent it. Found by Codex on PR #1415, on retiredAt;
+   * the other three are the same hole and are closed with it. */
+  for (const field of LABEL_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(node, field)) {
+      throw new ManifestError('label_catalog_label_invalid', `label.${field} absent from the provider response`);
+    }
+  }
   const team = isObject(node.team) ? { id: clean(node.team.id) } : null;
   return {
     id: clean(node.id),

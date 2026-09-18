@@ -424,6 +424,32 @@ function runAssertions() {
       cli.packageDigest([{ name: 'a', sha256: 'y' }, { name: 'b', sha256: 'x' }]));
   });
 
+  /* THE PROJECTION MUST NOT INVENT STATE. buildManifest maps raw provider nodes
+     through projectLabel, and the checker only ever sees the projected result --
+     so a field the provider omitted, defaulted here, would reach the checker
+     looking present and legitimate. Four of the eight default to the MORE
+     permissive value, and a second walk with the same gap reconciles against
+     the first, so neither the checker nor the reconciliation could catch it.
+     Codex found this on retiredAt (PR #1415); all eight are asserted. */
+  check('a raw node missing ANY projected field is refused, not defaulted', () => {
+    for (const field of lib.LABEL_FIELDS) {
+      const node = label(1);
+      delete node[field];
+      assert.throws(() => lib.projectLabel(node), /label_catalog_label_invalid/,
+        `projectLabel must refuse a node with no ${field}`);
+    }
+    /* And the whole pipeline, not just the reducer: a page carrying such a node
+       cannot produce a manifest at all. */
+    const node = label(1);
+    delete node.retiredAt;
+    assert.throws(() => lib.buildManifest({
+      pages: [{ after: null, nodes: [node], pageInfo: { hasNextPage: false, endCursor: null } }],
+      teams: { video: TEAM_VIDEO, graphics: TEAM_GRAPHICS },
+      captureId: uuid(77), sourceSha256: 'a'.repeat(64),
+      workspaceFingerprint: 'b'.repeat(64), capturedAt: '2026-09-18T00:00:00Z',
+    }), /label_catalog_label_invalid/);
+  });
+
   check('the capture asks Linear for archived labels and for exactly the eight fields', () => {
     assert.match(cli.CATALOG_QUERY, /includeArchived:\s*true/);
     for (const field of ['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'retiredAt', 'team']) {

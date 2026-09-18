@@ -104,6 +104,28 @@ Still true and worth repeating: the already-lagging cards are still lagging. The
 trigger only ever sees changes made after it exists, and the backfill has not
 run once.
 
+**Amendment, same evening.** CI failed the new lint file on its first run, on a
+gate I did not know existed and could not have seen fail locally:
+`test/comment-strip-is-honest.js` forbids stripping block comments with
+`/\/\*[\s\S]*?\*\//g`, and my first draft used exactly that. The gate is right.
+That regex opens a comment at ANY two characters "/" and "*" — inside a string,
+a MIME type, a glob — and then runs to the next closer anywhere in the file;
+about 64k characters of `index.html` were invisible to seventeen gates this way
+(OPEN_REPAIRS 145), and negative assertions over the deleted region passed
+vacuously. `test/helpers/strip-comments.js` is the sanctioned replacement and
+the lint now uses it, handling SQL's `--` here because the helper knows `//`
+and not `--`, and removing only whole-line ones for the same conservative
+reason the helper gives.
+
+The process lesson is the one I want the next session to have. **A brand new
+test file is invisible to the repository's own meta-gates until it is staged**,
+because several of them enumerate with `git ls-files`. My local `npm test` ran
+while the file was untracked, reported the six known failures, and told me
+nothing about this one. `git add` before the full run, not after it — otherwise
+the suite is measuring the repository as it was, not as you are proposing it.
+Both planted-drift failures were re-checked against the new stripper rather than
+assumed to still hold.
+
 ### 2026-09-18 — Codex found the approval stamps, and the one thing I could not stage I wrote down instead of quietly dropping
 
 Three findings on #1422, all three correct, all three addressed on the

@@ -66,12 +66,26 @@ function walk(dir) {
   return out;
 }
 
-/* Comments are stripped before the scan. The bodies here explain themselves at
- * length, and prose about "any DELETE or UPDATE whose plan..." is not a
- * statement — the first draft of this lint matched exactly that and reported a
- * clean file as dirty. */
-function stripComments(sql) {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
+// Comments are stripped before the scan. The bodies here explain themselves at
+// length, and prose about "any DELETE or UPDATE whose plan..." is not a
+// statement -- the first draft of this lint matched exactly that and reported a
+// clean file as dirty.
+//
+// Block comments go through test/helpers/strip-comments.js, never through a raw
+// /\*[\s\S]*?\*\/ regex. That regex opens a comment at ANY two characters "/"
+// and "*" and then runs to the next closer anywhere in the file, which is how
+// about 64k characters of index.html became invisible to seventeen gates
+// (OPEN_REPAIRS 145). test/comment-strip-is-honest.js enforces this, and it
+// caught this file on its first CI run.
+//
+// SQL line comments are handled here rather than by the helper, which knows
+// "//" and not "--", and only WHOLE-LINE ones are removed -- the same
+// conservative choice the helper makes. A "--" inside a string literal is not a
+// comment, and keeping a comment merely makes the scan stricter (a false
+// positive a person then reads), while wrongly opening one hides a defect.
+const { stripBlockComments } = require('./helpers/strip-comments');
+function stripSqlComments(sql) {
+  return stripBlockComments(sql, ' ').replace(/^[ \t]*--.*$/gm, ' ');
 }
 
 /* Routine bodies only. A bare delete in a plain migration statement is the
@@ -81,7 +95,7 @@ function routineBodies(sql) {
   const bodies = [];
   const re = /create\s+(?:or\s+replace\s+)?function\s+([a-z_][a-z0-9_$.]*)[\s\S]*?as\s+(\$[a-z_]*\$)([\s\S]*?)\2\s*;/gi;
   let m;
-  while ((m = re.exec(sql))) bodies.push({ routine: m[1].replace(/^public\./i, ''), body: m[3], scan: stripComments(m[3]) });
+  while ((m = re.exec(sql))) bodies.push({ routine: m[1].replace(/^public\./i, ''), body: m[3], scan: stripSqlComments(m[3]) });
   return bodies;
 }
 

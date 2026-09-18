@@ -377,6 +377,20 @@ GRAPHICS ONLY, epoch `native-graphics-20260917`.**
   gate**. Nothing about video changed here.
 - The rollback statement is prepared, saved and unused.
 
+**Updated later the same night — VIDEO enabled too, ahead of the Monday
+expectation, on the owner's own go-ahead.** Step 26 prepared and step 27 enabled
+at `2026-09-18T00:16:38.026Z`, epoch `native-video-20260917`, graphics unchanged.
+The second test post went **entirely native**: the batch and both children were
+skipped as native-only with each team's epoch, nothing drained to Linear, neither
+deliverable carries a Linear id, zero notification intents and zero Slack
+deliveries. The video assignee came from the four-editor native pool.
+
+- **Step 27 is CLOSED for capability 1, both teams.**
+- **Step 28 stays OPEN for both teams.** It closes on the **first real staff post
+  per team**, expected **Friday**: one active graphics designer, four active
+  video editors.
+- Both rollback statements are prepared, saved and unused.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

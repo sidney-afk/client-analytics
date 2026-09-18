@@ -30,6 +30,129 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 ENABLED, capability 1: `native_intake_epochs`, video. The whole post is now native: batch and both children skipped as native-only, nothing drained to Linear, no notification
+
+Phase 7, capability 1, second and last team. Storage session on the owner's
+machine, over the direct connection. Graphics was enabled twelve minutes earlier
+and is unchanged by this.
+
+#### The go-ahead, quoted
+
+> enable native intake for video, epoch native-video-20260917, go
+
+#### Step 26: pre-state and rehearsal, nothing committed
+
+Pre-state saved privately as
+`phase7-cap1-video-pre-state-20260917/pre-state.private.json`, SHA-256
+`84714c67492826ad8d54c80252d93ab41e20ad1e8929979f3472a859490651f0`.
+
+| Pre-state item | Value | Expected |
+|---|---|---|
+| `native_intake_epochs` | video `{enabled:false, epoch:null}`, graphics `{enabled:true, epoch:"native-graphics-20260917"}` | graphics still on ✓ |
+| `prod_authority` | video `syncview`, graphics `syncview` | — |
+| Active video editors | **4** | 4 ✓ |
+| `mirror_outbox` with `native_only='true'` | **1** | 1 ✓ |
+| Manifests with `native_epochs <> '{}'` | **1** | 1 ✓ |
+| Open `track_b_team_rollbacks` | **0** | 0 ✓ |
+
+Rehearsed in one transaction and rolled back: 1 row updated, graphics untouched
+inside the transaction, and
+
+```
+select public.production_native_intake_epochs();
+  → {"video": "native-video-20260917", "graphics": "native-graphics-20260917"}
+```
+
+After the rollback the row is **byte-identical** to the pre-state. The readback
+ran in a read-write transaction that rolls back, because the function takes share
+locks — the lesson from the graphics flip, applied rather than re-learned.
+
+#### The three statements, verbatim
+
+```sql
+-- 1. ENABLE (step 27)
+update public.syncview_runtime_flags
+  set value = jsonb_set(value, '{video}', '{"enabled":true,"epoch":"native-video-20260917"}'::jsonb),
+      updated_by = 'owner-phase7-step27', updated_at = now()
+  where key = 'native_intake_epochs' and value->'video'->>'enabled' = 'false';
+
+-- 2. READBACK
+select key, value, updated_by, updated_at from public.syncview_runtime_flags where key='native_intake_epochs';
+select public.production_native_intake_epochs();
+
+-- 3. ROLLBACK
+update public.syncview_runtime_flags
+  set value = jsonb_set(value, '{video}', '{"enabled":false,"epoch":null}'::jsonb),
+      updated_by = 'owner-phase7-rollback', updated_at = now()
+  where key = 'native_intake_epochs';
+```
+
+Saved as `phase7-cap1-video-statements.sql`, SHA-256
+`6bda021626d1ef57786bca060e8cffc84242b461c00b34a8ff43a2a3520f15dc`, and the
+enable that ran was read back out of that file after re-verifying its hash.
+
+#### Step 27: the flip
+
+**Flip time: `2026-09-18T00:16:38.026Z`**, `updated_by = owner-phase7-step27`,
+exactly 1 row updated. Readback: video `{enabled:true, epoch:"native-video-20260917"}`,
+graphics unchanged, function returns both epochs.
+
+#### The test post, verified read-only after the flip
+
+One Video + Thumbnail post on `sidneylaruel` through the real Create Post dialog.
+Ids, not names.
+
+**(a) `mirror_outbox`, 3 rows — all three skipped, all three native**
+
+| Row | Entity | Status | `native_only` | epoch in result / payload | Linear issue |
+|---|---|---|---|---|---|
+| `10258` | batch `bat_0c5ab731-152f-4782-a877-75a96d68e5e1` | **skipped** | **true** | `native-video-20260917` / same | **none** |
+| `10259` | deliverable `del_3864d643-c120-44fc-99e9-b5b04848316f` (video) | **skipped** | **true** | `native-video-20260917` / same | **none** |
+| `10260` | deliverable `del_7d4abb63-e740-4ca3-baf1-3a09357fc77f` (graphics) | **skipped** | **true** | `native-graphics-20260917` / same | **none** |
+
+Each row carries **its own team's** epoch. **Nothing from this post drained to
+Linear** — the contrast with the graphics-only post an hour ago, where the batch
+and the video child were written to Linear, is the whole point.
+
+**(b) `production_intake_manifests`, 1 row** — request
+`calendar:a5561b55-5fe9-40a5-8089-2e9b167e3e18`, batch `bat_0c5ab731-…`,
+surface `calendar`, `native_epochs = {"video":"native-video-20260917","graphics":"native-graphics-20260917"}`.
+
+**(c) `deliverables`, 2 rows, neither touching Linear**
+
+| Id | Team | Kind | Linear uuid / identifier / url | `sync_state` |
+|---|---|---|---|---|
+| `del_3864d643-c120-44fc-99e9-b5b04848316f` | video | video | **none / none / none** | clean |
+| `del_7d4abb63-e740-4ca3-baf1-3a09357fc77f` | graphics | thumbnail | **none / none / none** | clean |
+
+**(d) Notifications: zero.** No `production_notification_intents` since the flip,
+0 across all clients and 0 for the test client; `production_notification_delivery_receipts`
+still **0** in total. No Slack message.
+
+**(e) Everything else unchanged.** `prod_authority` equals the pre-state, and the
+six other native flags are **6 of 6 equal** to the step 25 live snapshot.
+
+**(f) The assignment path.** The video child carries assignee
+`744ab6a3-d44f-4c13-9987-20d9ec886950`, and that id **is one of the four active
+video editors**, not opted out — so the assignment came from the native pool the
+capability is supposed to use. The graphics child carries
+`ee655b4d-c465-42b5-b0f7-40cee65f8f04`, an active graphics designer. Whether the
+dialog presented a picker or resolved it automatically is not recorded by these
+tables and is not claimed here.
+
+**No number failed to match.** Nothing was rolled back; both rollback statements
+remain prepared and unused.
+
+#### What closes and what does not
+
+- **Step 27 is closed for capability 1, both teams.** Native intake is on for
+  graphics and video, proven on a test client mirrored to a real Linear project.
+- **Step 28 stays open for both teams.** It closes on the **first real staff post
+  per team**, expected **Friday**. One active graphics designer, four active
+  video editors.
+- Nothing else in phase 7 was touched: the other six native capabilities remain
+  dormant.
+
 ### 2026-09-18 — STEP 26 CONFIGURED and STEP 27 ENABLED, capability 1: `native_intake_epochs`, graphics only. The test post split exactly as designed: the graphics child is native and never reached Linear, the video child went to Linear as before, and nothing notified anyone
 
 Phase 7, first capability. Storage session on the owner's machine, over the

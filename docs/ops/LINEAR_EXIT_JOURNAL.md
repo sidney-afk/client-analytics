@@ -30,6 +30,22 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — FIRST NATIVE LABEL ROWS after the flip: two `labels` writes, both `skipped` with the catalog marker `f55a7dd2`. No failures
+
+Storage session. This is the watcher's result, read-only, at 20:08:27Z.
+
+| mirror_outbox | Deliverable | Team | Status | `_native_label_catalog_version` | `linear_result` | Created (UTC) |
+|---|---|---|---|---|---|---|
+| `10536` | `del_dbb20054-e865-4008-879e-67086dac8f7f` | video | **`skipped`** | `f55a7dd2…`, equal to the version | `native_labels: true`, `catalog_version` `f55a7dd2…` | 20:07:54.102 |
+| `10537` | same card | video | **`skipped`** | `f55a7dd2…`, equal to the version | `native_labels: true`, `catalog_version` `f55a7dd2…` | 20:08:02.217 |
+
+Both are on a real client with `test_only` false and no `last_error`. The card is
+the real native card used for the step 27 tests. Who made the writes is not
+recorded here. **Failed rows since the flip: 0.** The flag still reads native with
+`f55a7dd2`.
+
+**Holding.**
+
 ### 2026-09-18 — LABEL CATALOG FLIPPED NATIVE at 20:02:56.157Z on the owner's go-ahead, version `f55a7dd2`. Served applicable labels are video 2 and graphics 6, not "27". Kill switch: mode hold
 
 Storage session. The owner's go-ahead:

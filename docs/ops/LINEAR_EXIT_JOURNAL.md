@@ -30,6 +30,50 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — BOT JOINED the 24 missing creative channels: membership now 31 of 31. No errors, every channel name re-checked for "creative" immediately before its join
+
+Storage session, on the owner's go-ahead, replacing the invite one-off that was
+stopped earlier because its inviter would have been the bot itself. No n8n
+workflow was created, edited or run.
+
+#### What ran
+
+One `conversations.join` per channel, with the stored bot token, over the 24
+creative channels the bot was missing from. Immediately before each join the
+channel was re-read with `conversations.info`, and the run was set to stop if the
+lookup failed, if the name did not contain "creative", or if the join returned an
+error.
+
+| Measure | Count |
+|---|---|
+| Channels attempted | **24** |
+| Name contained "creative" at the moment of joining | **24 of 24** |
+| Joined | **24** |
+| Already a member (skipped) | 0 |
+| Errors | **0** — the run did not stop |
+
+The per-channel log is kept privately by slug in
+`bot-join-20260918-1/join-log.private.json`.
+
+#### Membership afterwards, re-measured
+
+`users.conversations` with the bot token again, public and private, paginated:
+
+| Channel set | Before | After |
+|---|---|---|
+| Creative channels (31 loaded) | 7 of 31 | **31 of 31** |
+| Shared client channels (26) | 26 of 26 | 26 of 26 (unchanged) |
+| Channels the bot is in, total | 52 | **76** |
+
+The bot is now in every channel the sender will post to. Its membership of the
+shared client channels is unchanged; nothing in the notification routines reads
+those any more.
+
+#### Holding at the gate
+
+**Bot membership 31 of 31. Waiting for the owner's go-ahead to enable the
+sender.**
+
 ### 2026-09-18 — BOT INVITE ONE-OFF: STOPPED before creating any workflow. The list is built (24 to add, 0 skipped), but the specified mechanism cannot work: the credential that would do the inviting IS the bot
 
 Storage session, on the owner's go-ahead for a one-off n8n workflow. **Nothing

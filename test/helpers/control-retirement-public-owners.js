@@ -8,7 +8,7 @@ const OWNERS=[
  ['supabase/migrations/20260913190840_provider_terminal_private_acl_preparation.sql','439db3390b299b519af1a110bb0678ee8680d4b88be5c5ceb96faf1aae108942'],
  ['supabase/migrations/20260913181213_provider_comment_observation_recovery_preparation.sql','b92fbbe60b3e64d4cc3da7f297d3c6f6900cb7aaf225f1f6e0151ef55ea3004b'],
  ['supabase/migrations/20260913183021_provider_issue_observation_recovery_preparation.sql','5c5e24aef2c2710975d769378f58c812a78a32ff2e5eeb2392e36c515e5d33a2'],
- ['supabase/migrations/20260913062149_retirement_switch_preparation.sql','f25f3a959daba0c05cb2794ebb4fe635ec0cf22017c8e0f0149cf92863eb5ca0']
+ ['supabase/migrations/20260913062149_retirement_switch_preparation.sql','5ce4fac33f723a4e6353386183772f0108d52894d20f772cfaa0cb9f5c4939f2']
 ];
 const hash=(x,kind='sha256')=>crypto.createHash(kind).update(x).digest('hex');
 function expected(){const result=prior.expected();for(const [file,pin] of OWNERS){const b=fs.readFileSync(file);assert.equal(hash(b),pin,'retirement public owner drift');for(const s of split(b.toString('utf8'))){const m=s.text.match(/^create\s+(?:or\s+replace\s+)?function\s+public\.(\w+)[\s\S]*?\bas\s+(\$[a-zA-Z_0-9]*\$)([\s\S]*?)\2/i);if(m)result.set(m[1],hash(m[3],'md5'));}}return result;}

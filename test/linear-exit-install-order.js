@@ -18,7 +18,7 @@ const COVERED=[
 ];
 let cluster,temp,current='bootstrap';const prefixes=[];
 try{
- const inventoryPath=path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918.json');
+ const inventoryPath=path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_2.json');
  const inventoryBytes=fs.readFileSync(inventoryPath),manifest=JSON.parse(inventoryBytes.toString('utf8'));inventory.verify(manifest);
  const inventorySha256=crypto.createHash('sha256').update(inventoryBytes).digest('hex');
  const byId=new Map(manifest.entries.map(e=>[e.id,e]));

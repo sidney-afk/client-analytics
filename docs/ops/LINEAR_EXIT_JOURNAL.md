@@ -30,6 +30,42 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — PRODUCTION-WRITE DEPLOY PASS: run `35385640357` at `53417b82`. The in-run preflight passed, 13 functions were deployed, and the attestation is 13 PASS, 0 FAIL, 0 ERROR
+
+Storage session, watching the owner's dispatch.
+
+`deploy-onboarding-edge-functions.yml`, run **`35385640357`**, event
+`workflow_dispatch`, created 19:23:15Z, head
+`53417b82805d923e4cc4372ee83b13a9e44fee1e`. It checked out `53417b82` (PR #1416).
+Conclusion **success**; the one job, `deploy`, succeeded with no failed step.
+
+- The run's own native SQL preflight gate reported **PASS** before any deploy step.
+- **13 functions deployed.** The attestation, from the run's summary:
+
+| Slug | Result | Live version | verify_jwt | Expected source = live source | Deployed bundle | Files |
+|---|---|---|---|---|---|---|
+| `production-write` | PASS | 76 | false | `74d641b0ac0f` | `5dacb89b21f6` | 6/6 |
+| `production-comments` | PASS | 28 | false | `7333e4f2a5d7` | `a02eec06572d` | 4/4 |
+| `production-archive` | PASS | 12 | false | `3c478af053f2` | `b7a1b9f57104` | 2/2 |
+| `notify` | PASS | 4 | false | `090a6cac5d93` | `3d1f2da593d2` | 4/4 |
+| `linear-outbound` | PASS | 51 | false | `f59b6206e3cc` | `3ffd5097baa1` | 5/5 |
+| `key-verify` | PASS | 42 | false | `68e6d3094a08` | `73f80c1b2cd9` | 2/2 |
+| `client-credentials` | PASS | 48 | false | `d6300381fa19` | `d4a7f1794f7e` | 2/2 |
+| `onboarding-list` | PASS | 40 | false | `a23980f1da39` | `ebc3d013f7ce` | 2/2 |
+| `ai-onboarding-list` | PASS | 40 | false | `bce568a72fce` | `e1d7bc273dbf` | 2/2 |
+| `legacy-onboarding-list` | PASS | 40 | false | `d1f6a2d9caf4` | `a7877b9b4663` | 2/2 |
+| `onboarding-full` | PASS | 40 | false | `68da4d8f413d` | `93534cc65363` | 2/2 |
+| `filming-plans` | PASS | 37 | false | `ef1f6aee94d0` | `909b84e33a51` | 2/2 |
+| `smm-weekly-reports` | PASS | 35 | false | `e1f925289245` | `147141e54926` | 2/2 |
+
+**Result: 13 PASS, 0 FAIL, 0 ERROR.**
+
+The earlier instruction named `37d7099c` as the dispatch commit. The owner
+dispatched `53417b82`, which is main with the preflight fix on top of it and
+contains `37d7099c`.
+
+**Holding.**
+
 ### 2026-09-18 — DEPLOY PREFLIGHT PASS, 160 objects, from main `53417b82` with the definer fix. Holding for the owner's production-write dispatch
 
 Storage session.

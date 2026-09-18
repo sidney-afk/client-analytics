@@ -30,6 +30,52 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL CAPTURE, CONFIRMATION HELD: the package carries NO `retiredAt` and no retired flag on any record, so it cannot tell a retired label from a live one. The exporter never asked for the field
+
+Storage session, reading only, on the owner's instruction to hold the confirmation.
+The supervisor read Linear directly and reports that 16 of the 18 video labels and
+all 3 workspace-scoped labels carry `retiredAt` (retired 2026-07-22), which is
+different from `archivedAt`, and that graphics has none retired. That is the
+supervisor's reading, not measured here.
+
+#### What the package holds
+
+Package `label-catalog-capture-20260918-1` (export sha256 `a6ab6440…`):
+
+| File | Records | Fields on every record | Carries `retiredAt` or any retired flag |
+|---|---|---|---|
+| raw pages | 46 | `id`, `name`, `color`, `description`, `isGroup`, `archivedAt`, `team` | **no, 0 of 46** |
+| manifest | 46 | the same seven | **no, 0 of 46** |
+| review evidence, capture receipt | — | — | no mention of retirement |
+
+**Retired per team, from the package: not determinable.** Video 0 of 18, graphics
+0 of 6, workspace 0 of 3 carry the field, because it was never requested.
+
+#### Why
+
+The exporter's catalog query (`scripts/linear-label-catalog-export.cli.js`,
+`CATALOG_QUERY`) requests exactly those seven node fields. Its comment says they
+are what `production_label_catalog_check_manifest` reads, and that asking for
+more "inflates the manifest". Neither the exporter nor either label migration
+mentions `retiredAt` anywhere. So the "0 archived" in the capture is correct as far
+as it goes, but it says nothing about retirement.
+
+The foundation migration serves a team's labels with archived entries and groups
+filtered out. **Retired labels would therefore be served as live labels.** If the
+supervisor's reading is right, that applies to 16 of the 18 video labels and to
+the 3 workspace-scoped labels.
+
+#### Not done
+
+- No attest step was run and no confirmation flag was passed. Nothing was sent to
+  Postgres or to Linear.
+- The exporter, the checker and the package are unchanged. Whether retired labels
+  should be excluded, flagged or kept is a decision for the owner and the
+  supervisor. Acting on it needs a change to the exporter's query and the
+  manifest checker, and then a re-capture.
+
+**Holding. The confirmation is held.**
+
 ### 2026-09-18 — NATIVE LABEL CATALOG, STEP 26 CAPTURE TAKEN: 46 labels across the whole workspace, one page, terminal page reached, two independent walks RECONCILED, 0 archived. NOT attested: the confirmation flag was not passed and waits for the owner's own words
 
 Storage session, on the owner's instruction.

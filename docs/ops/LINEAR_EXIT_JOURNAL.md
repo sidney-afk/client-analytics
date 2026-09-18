@@ -30,6 +30,96 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL SEED AND LABEL PARITY APPLIED LIVE on the owner's decision. The seed changed exactly 9 cards with no clock moved. The deploy preflight does NOT pass: it expects the seed's shape helper to be `security definer`, and the migration does not make it one
+
+Storage session. The owner's decision, after the stop recorded in the previous
+entry: **apply the seed anyway, with the premise recorded as wrong.** The reasoning,
+as the owner gave it:
+
+- the 14 native-intake cards already carry the complete empty state, so the
+  seed changes nothing on them;
+- the 9 cards it does touch have no Linear issue, so Linear can never supply their
+  labels, and "no labels, complete" is the truthful state;
+- the deploy gate at `37d7099c` now pins the seed's function and trigger, so the
+  production-write deploy cannot pass without it.
+
+**The migration's premise is recorded as wrong.** Its header says native intake
+"never stamps" a labels relation. Live, all 14 native-intake cards already carry
+the complete empty relation.
+
+#### 1. Seed — `2026-09-18-native-label-empty-state-seed.sql` (sha256 `5cbf71ca…`, verified)
+
+The file was run unedited, **18:19:05.606Z → 18:19:05.768Z**. Its notice:
+`native label empty state seeded on 9 card(s)`.
+
+| Check | Result |
+|---|---|
+| Rows changed by the backfill (its own row count) | **9**: 6 on real clients (`direct_project`, 2026-09-15), 3 on the test client (2026-07-11) |
+| All 9 now hold `{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}` | 9 of 9 |
+| `updated_at` moved on any of the 9 | **0**. Max before and after: 2026-09-15T15:17:59.845Z, equal |
+| Cards still absent after the migration, by the migration's test and by the owner's test | 0 and 0 |
+| Seed trigger `zzz_native_label_state_seed` on `deliverables` | present; both helper functions present |
+| The two parity routines | unchanged by the seed |
+
+**The 6,624 fingerprinted cards (those with a Linear issue).** The whole-set
+fingerprint taken at the pre-state (18:10:43Z) had changed by the readback. The
+change is **staff traffic, not the seed**:
+
+- exactly 6 of those cards have `updated_at` after the pre-state;
+- each has its own staff event: status changes at 18:14:55, 18:14:58, 18:16:02,
+  18:19:02, 18:19:10 and 18:19:16, and one comment at 18:17:51;
+- none has an `updated_at` inside the migration's window (18:19:05.606–.768);
+- the backfill's own row count is 9, all of them cards with no Linear issue;
+- the trigger's first statement returns for any card with `linear_issue_uuid` set.
+
+The measurement was a whole-set fingerprint, not a per-card one, so this is
+established by those facts rather than by a byte comparison of each of the
+6,618 unmoved cards.
+
+#### 2. Parity — `2026-09-18-native-label-test-client-parity.sql` (sha256 `13ebec03…`, verified)
+
+The file was run unedited, **18:19:45.056Z → 18:19:45.180Z**, with no notices.
+
+| Routine | md5 before → after | EXECUTE holders | Signature, definer, config |
+|---|---|---|---|
+| `production_native_label_receipt_guard()` | `ee99c634…` → `3d82a07e…` | postgres, unchanged | unchanged |
+| `production_labels_write(jsonb,jsonb)` | `614dd995…` → `d2934e5d…` | postgres, service_role, unchanged | unchanged |
+
+#### 3. Deploy preflight: NOT PASS
+
+`node scripts/linear-exit-deploy-preflight.js` was run from a clean worktree at
+`37d7099c`, against live:
+
+```
+linear-exit-deploy-preflight: CONTRACT_MISMATCH:routine:production_native_label_empty_state(jsonb)
+```
+
+That is the only mismatch the preflight listed. It lists every one it finds.
+
+**The cause is in the preflight's routine table, not the database.** The row for
+`production_native_label_empty_state(jsonb)` has no fifth element, so the default
+`securityDefiner = true` applies. The migration defines that function as plain
+`language sql immutable`, with no `security definer`, and that is what is live.
+
+| Attribute | Preflight expects | Live |
+|---|---|---|
+| body md5 (the preflight's own extraction from the file) | `7eaf0777…` | `7eaf0777…` |
+| search path | `pg_catalog, public` | `pg_catalog, public` |
+| service_role / anon / authenticated EXECUTE | no / no / no | no / no / no |
+| **security definer** | **true** | **false** |
+
+`production_native_label_seed_guard()` matches on every attribute, and so does the
+trigger.
+
+The fix is one element in the preflight's table: pass `false` as that row's fifth
+element. **It is not made here.** The preflight is a pinned gate on main, and
+changing it is the execution session's job. The database is not changed to fit the
+gate either: making the helper `security definer` would widen what the migration
+defines. **Assume the deploy workflow's own contract step fails the same way**
+until the preflight is corrected.
+
+**Holding.** The deploy dispatch should wait for the preflight fix.
+
 ### 2026-09-18 — LABEL EMPTY-STATE SEED: STOPPED AT PRE-STATE, NOTHING APPLIED. Live native cards already carry the complete empty labels relation. The migration's backfill would instead touch 9 cards outside the named population
 
 Storage session. Instruction: apply two migrations from main

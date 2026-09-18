@@ -382,6 +382,7 @@
     "prod-batch-parent-panels.js",
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
+    "prod-client-chip-css-pin.js",
     "prod-client-composer-present.js",
     "prod-comments-read-timeout.js",
     "prod-context-menu-pixel-contract.js",
@@ -1152,6 +1153,14 @@
       "reproduce": "pwsh qa/linear-exit-rehearsal/run-portable.ps1 -PgBin ABSOLUTE_PG_BIN -Lane write-diagnostics",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
+    },
+    {
+      "file": "prod-client-chip-name-width.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; renders the extracted stylesheet only, no hosted credentials and no live data.",
+      "reproduce": "node test/prod-client-chip-name-width.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
     },
     {
       "file": "track-b-recovery-deferred-defaults-postgres.js",

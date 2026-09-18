@@ -30,6 +30,167 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — What a native card actually does when an editor touches it, why last night's drill went red, and PR #1412
+
+Cloud session, owner back and driving #1410 himself. Hourly PR check-ins
+stopped. Three things: two read-only answers and one PR.
+
+#### 1. A native card's follow-up writes go to Linear and fail there
+
+Asked plainly: on a real client (`kind = client`), for a deliverable created
+natively — no `linear_issue_uuid`, attribution source `native_intake_legacy_project`
+— what does an editor's status change, comment, due-date change, reassign or
+archive enqueue, and what does the drain do with it?
+
+**The create is native. The follow-ups are not.** They are two separate
+capabilities and only one of them is on.
+
+- `native_intake_epochs` terminalizes the **create**:
+  `production_native_intake_receipt_guard` fires on INSERT and only for
+  `operation='create'` with a `write-ui:create:%` dedup key
+  (`migrations/2026-09-05-native-only-intake.sql:103`), setting
+  `status='skipped'`, `linear_result={"native_only":true,"epoch":…}` (`:125-128`).
+  Nothing else it does touches a later mutation.
+- Every follow-up is governed instead by
+  `production_native_ordinary_receipts`, a **separate per-team flag** whose
+  installed default is `{"mode":"provider","epoch":null}`
+  (`migrations/2026-09-09-native-ordinary-receipts.sql:15-17`).
+  `production_deliverable_write` routes status, due, title, priority, archive,
+  restore, parent, description and attachment through
+  `production_native_ordinary_event` (`:147`), and the comment owner does
+  the same (`:244-248`).
+
+So there are three branches, and which one you get is config, not the card:
+
+| team's ordinary-receipt mode | what happens |
+|---|---|
+| `native` | the event gains a `_native_ordinary_receipt` marker; the guard terminalizes the row at INSERT: `status='skipped'`, `linear_result={"native_ordinary":true,…}` (`:126-127`). `linear-outbound` claims only `pending`/`failed`/`shadow_ok` (`supabase/functions/linear-outbound/index.ts:1050`), so it **never sees the row**. Correct behaviour. |
+| `provider` — **the installed default** | `production_native_ordinary_event` returns the event unchanged (`:85`). An ordinary **pending** row is enqueued. |
+| `hold` | the RPC raises `native_ordinary_receipt_held` (`:84`) and the gateway write itself refuses. |
+
+On the `provider` branch — today's default — the row is enqueued and drained,
+and this is the part worth writing down:
+
+1. `linear-outbound` claims it and resolves the target issue with
+   `linearIssueId` (`index.ts:507-517`): payload `linear_issue_id`, then
+   `entity.linear_issue_uuid`, then the batch parent, then a prior result. A
+   native card has **none of the four**. Empty.
+2. `buildMutation` then throws, and the exact code depends on the operation:
+   - status, due, **assignee**, title, priority, **archive**, restore, parent,
+     description, attachment → `linear issue id required`
+     (`supabase/functions/linear-outbound/mapping.mjs:914`)
+   - comment (add) → `incomplete comment mutation` (`mapping.mjs:905`)
+3. That lands in the generic catch (`index.ts:1902`), **not** the
+   `entity not found: issue` branch — Linear was never called, so there is no
+   Linear error to match. The row is written `status='failed'`, `last_error`
+   set to that string, `attempts+1`, exponential backoff
+   (`index.ts:1942-1950`).
+4. After 8 attempts `next_retry_at` is null and the row is filtered out of
+   every future claim (`index.ts:1101`). It parks, permanently failed.
+5. `counts.failed > 0`, so the drain answers `ok:false` and raises
+   `alerts.failed_write` for the whole sweep.
+
+**The row is not skipped.** Nothing anywhere recognises "this card is native,
+so this mutation has no provider work to do". `linear-outbound` contains no
+reference to native intake at all — the only `native` matches in it are
+unrelated comments and the label-comparison helper.
+
+It is also not conditional on the mirror being "applicable":
+`production_comment_mirror_applicable` returns a hard `true`
+(`migrations/2026-07-23-production-comment-thread-lifecycle.sql:192-206`), so
+every comment mutation queues.
+
+**What I could not check, and did not assume**: the live values of
+`native_intake_epochs` and `production_native_ordinary_receipts`. This session
+has no key that can read `syncview_runtime_flags`. Everything above is from the
+installed migrations and the deployed function sources. If a team's ordinary
+mode has been moved to `native`, that team is in row one of the table and fine.
+
+#### 2. Last night's drill failure: the drill asserted the wrong lane
+
+Run 35327383049 (2026-09-18, 09:01–09:03Z). From the job log: all ten gateway
+operations succeeded — `"operations_completed": 10` — and then:
+
+```
+"error_code": "video_verification",
+"error_class": "linear_linkage_timeout",
+"teams_completed": 0
+```
+
+**Nothing failed to write.** `verifyFixture` calls `linkedRow`
+(`scripts/production-write-drill.js:621-626`), which polls
+`deliverables.linear_issue_uuid` until it appears. Under native intake it
+never appears, because no Linear issue is created. The drill spent its budget
+waiting for something the system had correctly decided not to produce, then
+reported a timeout that reads like a mirror outage.
+
+The drill has no idea the lane exists. `flags()` (`:198`) reads exactly four
+keys — `prod_authority`, `linear_outbound_enabled`, `linear_inbound_enabled`,
+`auth_enforcement` — and asserts it found four. `native_intake_epochs` is not
+among them.
+
+So: **what the drill asserts that native intake breaks** is everything
+downstream of a Linear issue existing — the linkage poll, the issue readback,
+the nesting assertions, the mirrored description round-trip, the "Linear
+comment exactly once" count, the due/assignee-clear readback taken from the
+Linear issue, and the per-fixture reconcile, which hard-fails at
+`:1050` on a fixture with no Linear identifier.
+
+The follow-up rows the owner saw failing with **`TEST override project mismatch`**
+are the same defect as §1 wearing the TEST lane's coat. For a `test_only` row
+the drain calls `testScope` first (`index.ts:1574`), which computes
+`project = issueProject || payload.project_id` and throws when neither exists
+(`index.ts:438-441`). A native card has no issue, and a follow-up payload
+carries no `project_id` — so the TEST lane fails one step *earlier* than a real
+client would, with a different message, for the same underlying reason. On a
+real client the same rows would read `linear issue id required`.
+
+#### 3. PR #1412 — make the drill correct under native intake
+
+https://github.com/sidney-afk/client-analytics/pull/1412 — **not merged; main
+stays frozen.** Two files: the drill and its unit test.
+
+The drill now reads `native_intake_epochs` in preflight and dispatches per
+team. The provider lane is unchanged byte for byte. The native lane asserts
+what native intake actually produces: no `linear_issue_uuid` (a present one is
+a failure, not a tolerated extra), batch and item create receipts that are
+`skipped` with `native_only: true` and the accepted epoch on **both** the
+payload marker and the terminal result, a native description readback, native
+due/assignee clears, and the existing native-comment and echo checks. The
+Linear issue read, the nesting assertions and the mirrored readback are not
+performed. A native fixture is excluded from the per-fixture reconciler gate
+and the exclusion is **named** in `parked_assertions` rather than scored as
+settled.
+
+**One addition beyond what was asked, called out rather than buried.** Fixing
+only the readback would have made the drill go green while all nine follow-up
+mirror rows failed every night — the exact anti-pattern this file's own
+comments describe twice. So the native verification also asserts every
+follow-up mirror row is terminal and native, and names the operations that are
+not, under a new classified code `native_intake_provider_mirror_rows`.
+Consequence stated plainly, in the PR too: **the drill may stay red after this
+merges.** It would then be red on the true condition — naming which operations
+are stuck on the provider lane — instead of on a linkage that was never coming.
+
+Eight new classified failure codes, so this lane can never again be reported as
+`linear_linkage_timeout` or `unclassified`. The flag is read outside `flags()`
+so the four-flag before/after invariant is untouched, and an absent key reads
+as the provider lane; a malformed one is an error, mirroring
+`production_native_intake_epochs()` rather than falling back silently.
+
+38 new unit assertions over pure exported readers, in the same commit. Both
+guards were proven to fire against planted regressions: removing the lane
+dispatch, and loosening the settlement rule to accept `failed`.
+
+Identity exposure check on the committed work: 0 terms added, 0 files. The
+unsettled-row report prints operation and status only, never a payload, body,
+slug or row id, because it reaches the public artifact and `deliverable_events`.
+
+**Branch deviation, stated rather than quiet**: this went to
+`prep/drill-native-intake-20260918`, not the session's designated
+`claude/vibrant-cori-xoku96`, because that branch currently carries the open
+unmerged #1410 and a push would have silently amended it.
+
 ### 2026-09-18 — Morning: SHEETS.md re-verified and restamped in PR #1411 (three drifted facts corrected, not stamped over); and the `native_assignment_epochs` permission reading, which had not been done, is done — the #1408 revoke does not break the assignment chain
 
 Storage session. Both items read-only against live systems; the only write is a

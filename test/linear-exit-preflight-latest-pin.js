@@ -70,13 +70,33 @@ const pinned = new Map(rows.map(row => [row.name, row.file]));
 const citedFiles = [...new Set(rows.map(row => row.file))].sort();
 ok(citedFiles.length > 0, `the contract cites ${citedFiles.length} migration files`);
 
+/* APPLY ORDER, NOT FILENAME ORDER. This check is about which body is LIVE, and
+   only apply order can say that. The two genuinely disagree: 2026-09-18-native-
+   assignment-auth-kind-binding.sql sorts BEFORE 2026-09-18-native-test-client-
+   parity.sql and installs AFTER it, so a filename comparison calls a correct
+   pin stale. The install inventory's dependency_order is the real sequence.
+   A file the inventory does not carry falls back to filename order, and the
+   "every cited migration is in the install inventory" check below is what stops
+   that fallback quietly becoming the rule. */
+const installOrder = new Map(require('../scripts/linear-exit-install-manifest')
+  .build().dependency_order.map((id, index) => [id, index]));
+const applyRank = file => {
+  const id = String(file).replace(/^migrations\//, '');
+  return installOrder.has(id) ? installOrder.get(id) : null;
+};
+const appliedAfter = (candidate, pin) => {
+  const a = applyRank(candidate);
+  const b = applyRank(pin);
+  return a !== null && b !== null ? a > b : String(candidate) > String(pin);
+};
+
 const violations = [];
 for (const file of citedFiles) {
   for (const row of rows) {
     if (pinned.get(row.name) === file) continue;
     const body = bodyFor(file, row.name);
     if (body === null) continue;              // this file does not redefine it
-    if (file <= pinned.get(row.name)) continue; // the pin is the later cited file
+    if (!appliedAfter(file, pinned.get(row.name))) continue; // the pin is the later-applied file
     violations.push({
       routine: row.signature,
       pinned_to: pinned.get(row.name),
@@ -158,12 +178,18 @@ ok(pinned.get('production_notification_intent_guard') === 'migrations/2026-09-18
 /* The control: the rule must be seen to FIRE. A synthetic pair proves the
    comparison, without touching the real table. */
 {
-  const synthetic = [
-    { name: 'synthetic_routine', file: 'migrations/2026-01-01-a.sql' },
-    { name: 'synthetic_routine', file: 'migrations/2026-02-02-b.sql' },
-  ];
-  const stale = synthetic[1].file > synthetic[0].file;
-  ok(stale, 'the control: a later cited file is recognised as later than the pin');
+  ok(appliedAfter('migrations/2026-02-02-b.sql', 'migrations/2026-01-01-a.sql'),
+    'the control: for files outside the inventory, filename order still decides');
+  ok(!appliedAfter('migrations/2026-01-01-a.sql', 'migrations/2026-02-02-b.sql'),
+    'the control: and it is not symmetric');
+  /* The case that made this comparator necessary: alphabetically the binding
+     migration comes FIRST, and by apply order it comes second. */
+  ok(!appliedAfter('migrations/2026-09-18-native-test-client-parity.sql',
+    'migrations/2026-09-18-native-assignment-auth-kind-binding.sql'),
+    'the control: apply order beats filename order where the two disagree');
+  ok(appliedAfter('migrations/2026-09-18-native-assignment-auth-kind-binding.sql',
+    'migrations/2026-09-18-native-test-client-parity.sql'),
+    'the control: and the later-applied file is recognised as later');
 }
 
 console.log(JSON.stringify({

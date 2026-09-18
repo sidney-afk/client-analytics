@@ -23,14 +23,14 @@ db.raw=function(sql,database){fs.writeFileSync(sqlFile,"set time zone 'UTC';\n"+
 const lit=v=>"'"+String(v).replace(/'/g,"''")+"'",j=v=>lit(JSON.stringify(v))+'::jsonb',uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const cases=[],sha=x=>crypto.createHash('sha256').update(x).digest('hex');let providerCalls=0,background=0,provider='denied';
 const report={classification:'DISPOSABLE_SQL_AND_ACTUAL_HANDLER',status:'RUNNING',cases};
-const pinned=['supabase/functions/production-write/index.ts','index.html','migrations/2026-09-05-native-label-catalog-foundation.sql','migrations/2026-09-06-native-label-writes.sql','qa/native-label-catalog/write-proof.mjs'];
+const pinned=['supabase/functions/production-write/index.ts','index.html','migrations/2026-09-05-native-label-catalog-foundation.sql','migrations/2026-09-06-native-label-writes.sql','migrations/2026-09-18-native-label-retired-state.sql','qa/native-label-catalog/write-proof.mjs'];
 report.source_pins=Object.fromEntries(pinned.map(f=>[f,sha(fs.readFileSync(path.join(ROOT,f)))]));
 function save(){fs.writeFileSync(path.join(cfg.output,'REPORT.private.json'),JSON.stringify(report,null,2)+'\n');}
 function pass(name){cases.push(name);save();}
 let handler;
 try{
  db.create();report.database=db.name;save();setup(db,fs.readFileSync(path.join(ROOT,'migrations/2026-09-05-calendar-feedback-recovery.sql'),'utf8'));
- for(const name of ['2026-09-05-native-label-catalog-foundation.sql','2026-09-06-native-label-writes.sql'])db.query(fs.readFileSync(path.join(ROOT,'migrations',name),'utf8'));
+ for(const name of ['2026-09-05-native-label-catalog-foundation.sql','2026-09-06-native-label-writes.sql','2026-09-18-native-label-retired-state.sql'])db.query(fs.readFileSync(path.join(ROOT,'migrations',name),'utf8'));
  const servicePassword=crypto.randomBytes(24).toString('hex');
  db.query(`alter role service_role login password ${lit(servicePassword)}; grant select on public.deliverables,public.team_members,public.clients,public.client_access,public.mirror_outbox,public.syncview_runtime_flags to service_role;`);
  Object.assign(process.env,{NIR_PGHOST:cfg.host,NIR_PGPORT:String(cfg.port),NIR_PGUSER:'service_role',NIR_PGDATABASE:db.name,NIR_PSQL:cfg.psql,PGPASSWORD:servicePassword,
@@ -66,15 +66,15 @@ try{
  const readBody=id=>({action:'labels_read',surface:'production',id});
  let seq=0;const operation=(id,ids,version=uuid(700))=>({operation:'labels',entity:'deliverable',surface:'production',id,request_id:'label-request-'+(++seq),
   source_edited_at:'2026-09-06T12:00:00Z',expected_updated_at:row(id).updated_at,label_ids:ids,catalog_version:version});
- const node=(n,extra={})=>({id:uuid(n),name:'Synthetic '+n,color:'#123456',description:null,isGroup:false,archivedAt:null,team:null,...extra});
+ const node=(n,extra={})=>({id:uuid(n),name:'Synthetic '+n,color:'#123456',description:null,isGroup:false,archivedAt:null,retiredAt:null,team:null,...extra});
  const manifest=nodes=>({schema_version:1,capture_id:uuid(800),source_kind:'linear_workspace_issue_labels',source_sha256:'a'.repeat(64),workspace_fingerprint:'b'.repeat(64),captured_at:'2026-09-06T10:00:00Z',include_archived:true,teams:{video:uuid(900),graphics:uuid(901)},expected_count:nodes.length,pages:[{after:null,nodes,pageInfo:{hasNextPage:false,endCursor:null}}]});
  const attestation=m=>({contract:'operator-reviewed-complete-export-v1',source_sha256:m.source_sha256,workspace_fingerprint:m.workspace_fingerprint,teams:m.teams,expected_count:m.expected_count,capture_id:m.capture_id,
   export_package_sha256:'c'.repeat(64),review_evidence_sha256:'d'.repeat(64),operator_subject:'fictional-operator',archived_pages_verified:true,independent_count_reconciled:true,reviewed_at:'2026-09-06T11:00:00Z'});
- const m=manifest([node(1),node(2,{team:{id:uuid(900)}}),node(3,{team:{id:uuid(901)}}),node(4,{archivedAt:'2026-09-01T00:00:00Z'}),node(5,{isGroup:true})]);
+ const m=manifest([node(1),node(2,{team:{id:uuid(900)}}),node(3,{team:{id:uuid(901)}}),node(4,{archivedAt:'2026-09-01T00:00:00Z'}),node(5,{isGroup:true}),node(6,{retiredAt:'2026-09-02T00:00:00Z'})]);
  const stage=(id,m,a=attestation(m))=>db.query(`set role service_role;select public.production_label_catalog_stage_attested(${lit(id)}::uuid,${j(m)},${j(a)});`);
  stage(uuid(700),m);stage(uuid(701),manifest([]));
  const attestedBefore=db.rows('select * from public.production_label_catalog_versions order by version_id');stage(uuid(700),m);assert.deepEqual(db.rows('select * from public.production_label_catalog_versions order by version_id'),attestedBefore);
- for(const [manifestValue,attestedValue,expected] of [[m,{...attestation(m),review_evidence_sha256:'bad'},'native_label_catalog_unverified'],[{...m,expected_count:6},attestation(m),'label_catalog_count_mismatch'],[m,{...attestation(m),operator_subject:'different-reviewer'},'label_catalog_version_conflict']]){
+ for(const [manifestValue,attestedValue,expected] of [[m,{...attestation(m),review_evidence_sha256:'bad'},'native_label_catalog_unverified'],[{...m,expected_count:7},attestation(m),'label_catalog_count_mismatch'],[m,{...attestation(m),operator_subject:'different-reviewer'},'label_catalog_version_conflict']]){
   const failed=db.raw(`set role service_role;select public.production_label_catalog_stage_attested(${lit(uuid(700))},${j(manifestValue)},${j(attestedValue)});`);assert.notEqual(failed.status,0);assert(failed.stderr.includes(expected));assert.deepEqual(db.rows('select * from public.production_label_catalog_versions order by version_id'),attestedBefore);
  }pass('attested stage exact replay is immutable; malformed evidence/incomplete manifest/changed attestation leave no residue');
  db.query("insert into public.batches(id,client_slug,name,purpose) values('labels-batch','fixture-client','Synthetic label batch','calendar');");
@@ -144,6 +144,6 @@ try{
  const providerWrite=operation('labelsp',[uuid(1)]);r=await call(candidate,providerWrite);assert.equal(r.status,200,JSON.stringify(r));const providerState=state();policy('hold');provider='denied';start=providerCalls;r=await call(candidate,providerWrite);assert.equal(r.status,200);assert.equal(r.body.mirror_pending,true);assert.equal(providerCalls,start);assert.deepEqual(state(),providerState);pass('provider-era accepted receipt survives hold without conversion or drainer restart');
  assert.equal(background,0);report.status='PASS';report.passed=cases.length;report.provider_requests_synthetic_or_denied=providerCalls;report.background_drains=background;
  assert.deepEqual(Object.fromEntries(pinned.map(f=>[f,sha(fs.readFileSync(path.join(ROOT,f)))])),report.source_pins,'tested source must remain unchanged');
- report.migration_hashes=Object.fromEntries(['2026-09-05-native-label-catalog-foundation.sql','2026-09-06-native-label-writes.sql'].map(f=>[f,sha(fs.readFileSync(path.join(ROOT,'migrations',f)))]));
+ report.migration_hashes=Object.fromEntries(['2026-09-05-native-label-catalog-foundation.sql','2026-09-06-native-label-writes.sql','2026-09-18-native-label-retired-state.sql'].map(f=>[f,sha(fs.readFileSync(path.join(ROOT,'migrations',f)))]));
  report.limits=['Synthetic operator attestation is not verified live export evidence','Existing combined migration fixture is not installed schema reconstruction','No live calls, activation, recovery coverage or serving proof','HTTP fetch entirely substituted; not an external socket receiver proof'];save();console.log(JSON.stringify({status:report.status,passed:report.passed,provider_requests_synthetic_or_denied:providerCalls}));
 }catch(error){report.status='FAIL';report.error=String(error.stack);save();console.error('Native label actual-source/SQL proof failed; inspect private retained receipt.');process.exitCode=1;}

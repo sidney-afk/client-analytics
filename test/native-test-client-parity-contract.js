@@ -25,25 +25,45 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
-/* The five routines this migration owns from here on. Each must be repointed
-   in the deploy preflight, or the gate hashes a body nobody installs. */
+/* The five routines this migration defines. Each must be pinned in the deploy
+   preflight to whichever file LAST defines it, or the gate hashes a body nobody
+   installs.
+
+   production_assignee_write was superseded on 2026-09-18 by
+   2026-09-18-native-assignment-auth-kind-binding.sql, which finished the job
+   this migration started: it stopped refusing test_only but left
+   `auth_kind is distinct from 'staff'` standing, and the TEST principal's
+   auth_kind is 'test'. So this file is no longer that routine's last word, and
+   the pin correctly points past it. The other four are still owned here. */
 const OWNED = [
   'production_native_ordinary_event(jsonb,jsonb)',
   'production_native_ordinary_receipt_guard()',
   'production_assignment_context(jsonb)',
   'production_native_assignment_receipt_guard()',
-  'production_assignee_write(jsonb,jsonb)',
 ];
-for (const signature of OWNED) {
+const SUPERSEDED = new Map([
+  ['production_assignee_write(jsonb,jsonb)',
+    'migrations/2026-09-18-native-assignment-auth-kind-binding.sql'],
+]);
+const pinOf = signature => {
   const row = new RegExp(`\\['${signature.replace(/[(){}[\].*+?^$|\\]/g, '\\$&')}',\\s*'([^']+)'`);
   const match = preflight.match(row);
-  ok(match && match[1] === MIGRATION,
+  return match ? match[1] : null;
+};
+for (const signature of OWNED) {
+  ok(pinOf(signature) === MIGRATION,
     `deploy preflight hashes ${signature} from this migration, not its superseded source`);
+}
+for (const [signature, file] of SUPERSEDED) {
+  ok(pinOf(signature) === file,
+    `deploy preflight hashes ${signature} from the migration that superseded this one`);
+  ok(source.includes(`function public.${signature.replace(/\(.*$/, '')}(`),
+    `${signature} is still defined here, so the supersession is real rather than a stale list entry`);
 }
 
 /* bodyFor takes the FIRST definition in the named file, so a second one would
    be hashed and never installed. */
-for (const signature of OWNED) {
+for (const signature of [...OWNED, ...SUPERSEDED.keys()]) {
   const name = signature.replace(/\(.*$/, '');
   const defs = source.match(new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${name}\\s*\\(`, 'gi')) || [];
   ok(defs.length === 1, `${name} is defined exactly once, and as a replacement`);

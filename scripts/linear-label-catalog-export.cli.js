@@ -21,13 +21,19 @@ const { LIMITS, ACTIVE_CARD_PREDICATE } = lib;
 
 const LINEAR_URL = 'https://api.linear.app/graphql';
 
-/* Exactly the seven node fields production_label_catalog_check_manifest reads,
+/* Exactly the EIGHT node fields production_label_catalog_check_manifest reads,
  * plus the page envelope. Asking for less is a refused manifest; asking for
- * more inflates the manifest against its own 5 MiB ceiling. */
+ * more inflates the manifest against its own 5 MiB ceiling.
+ *
+ * retiredAt joined the list on 2026-09-18. A retired label is not an archived
+ * one, and without this field a capture cannot tell them apart -- so the
+ * serving path would have offered every retired label as selectable. Any
+ * package captured before that date lacks the field and is refused by the
+ * checker rather than read as "nothing is retired". */
 const CATALOG_QUERY = `query LabelPage($first: Int!, $after: String) {
   issueLabels(first: $first, after: $after, includeArchived: true) {
     pageInfo { hasNextPage endCursor }
-    nodes { id name color description isGroup archivedAt team { id } }
+    nodes { id name color description isGroup archivedAt retiredAt team { id } }
   }
 }`;
 
@@ -43,7 +49,7 @@ const SELECTED_LABELS_QUERY = `query IssueLabels($id: String!, $first: Int!, $af
     team { id }
     labels(first: $first, after: $after) {
       pageInfo { hasNextPage endCursor }
-      nodes { id name color description isGroup archivedAt team { id } }
+      nodes { id name color description isGroup archivedAt retiredAt team { id } }
     }
   }
 }`;
@@ -170,16 +176,21 @@ function reconcile(primaryPages, verifyPages) {
 
 function archivedEvidence(pages) {
   let archived = 0;
+  let retired = 0;
   let groups = 0;
   let workspaceScoped = 0;
   for (const page of pages) {
     for (const node of page.nodes) {
       if (node.archivedAt != null) archived += 1;
+      /* Counted separately from archived on purpose: they are different states
+         and a reviewer needs to see both numbers to judge the capture. Both
+         are kept in the catalog and neither is ever served as applicable. */
+      if (node.retiredAt != null) retired += 1;
       if (node.isGroup === true) groups += 1;
       if (node.team == null) workspaceScoped += 1;
     }
   }
-  return { archived, groups, workspace_scoped: workspaceScoped };
+  return { archived, retired, groups, workspace_scoped: workspaceScoped };
 }
 
 /* ------------------------------------------------------- per-card, half (b) */
@@ -416,6 +427,7 @@ async function runExport(args) {
     `captured_at             ${receipt.captured_at}`,
     `labels captured         ${receipt.expected_count} across ${receipt.pages} page(s), archived included`,
     `  of which archived     ${evidence.composition.archived}`,
+    `  of which retired      ${evidence.composition.retired}`,
     `  of which label groups ${evidence.composition.groups}`,
     `  workspace-scoped      ${evidence.composition.workspace_scoped}`,
     `independent walk        page size ${verifyPageSize}: ${reconciliation.reconciled ? 'RECONCILED' : 'DIVERGED'} ` +

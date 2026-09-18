@@ -948,7 +948,7 @@ async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<Js
   const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
     team(id: $teamId) { id key }
     issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
-      nodes { id name color description archivedAt isGroup team { id } }
+      nodes { id name color description archivedAt retiredAt isGroup team { id } }
       pageInfo { hasNextPage endCursor }
     }
   }`;
@@ -972,11 +972,18 @@ async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<Js
     for (const node of catalogNodes) {
       if (!Object.prototype.hasOwnProperty.call(node, "team")
           || typeof node.isGroup !== "boolean"
-          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")) {
+          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")
+          // Required, not optional: a response without it cannot tell a retired
+          // label from a live one, and guessing "live" is the defect.
+          || !Object.prototype.hasOwnProperty.call(node, "retiredAt")) {
         throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
       }
       const labelTeamId = clean(parseJson(node.team).id);
-      if (node.isGroup === true || clean(node.archivedAt)
+      // Retired is a separate state from archived and both are excluded from
+      // what this lane offers as applicable. An existing selection of either
+      // still resolves for display, because mergeLabelCatalog keeps
+      // selected-only labels as additional rows.
+      if (node.isGroup === true || clean(node.archivedAt) || clean(node.retiredAt)
           || (labelTeamId && labelTeamId !== teamId)) continue;
       const label = sanitizedLabel(node, true);
       if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
@@ -6400,7 +6407,25 @@ async function handleEntityOperation(
       const config = await nativeLabelCatalogConfig(supabase, team);
       if (config.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
       if (config.mode === "native") {
-        if (principal.kind !== "staff" || principal.testOnly || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
+        // `principal.testOnly` used to be refused here alongside legacy parity.
+        // It is not the same kind of thing: legacy parity is a route this lane
+        // must never serve, while a TEST write is an ordinary write by the one
+        // client that exists to exercise it. Refusing it meant the first native
+        // label write that could ever succeed was on a real client, and step 27
+        // had no rehearsal at all. The SQL now records and compares `test_only`
+        // rather than refusing it (2026-09-18-native-label-test-client-parity.sql),
+        // and production_assert_authority still requires an active kind='test'
+        // client for it -- so a TEST write is validated AS a test write here
+        // rather than waved through.
+        // Both halves matter, and dropping only the first left the lane exactly
+        // as unreachable: the TEST principal's `kind` is "test", not "staff"
+        // (index.ts:1206), so `kind !== "staff"` refused every TEST request on
+        // its own. eventFor then emits `auth_kind: principal.kind`, which the
+        // SQL binds to test_only in both directions, so a TEST request is
+        // validated AS a test request end to end rather than waved through.
+        if (!["staff", "test"].includes(principal.kind) || legacyParity) {
+          throw new GatewayError(403, "native_label_scope_forbidden");
+        }
         labelCatalogVersion = String(config.version_id);
         if (body.catalog_version !== labelCatalogVersion) throw new GatewayError(409, "native_label_catalog_changed");
         if (!nativeLabelSnapshot(existing)) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });

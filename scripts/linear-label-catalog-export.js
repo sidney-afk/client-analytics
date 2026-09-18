@@ -68,7 +68,7 @@ const COUNT_TEXT_RE = /^(0|[1-9][0-9]{0,3})$/;
 /* The seven keys production_label_catalog_check_manifest requires on a label
  * node, and nothing else. Extra keys would pass the checker but inflate the
  * manifest toward the 5 MiB ceiling for no reader. */
-const LABEL_FIELDS = Object.freeze(['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'team']);
+const LABEL_FIELDS = Object.freeze(['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'retiredAt', 'team']);
 
 /*
  * (b) THE OWNER'S SCOPE RULING, AS A PREDICATE.
@@ -210,11 +210,19 @@ function checkManifest(manifest) {
       if (label.description !== null && typeof label.description !== 'string') labelBad('label.description type');
       if (typeof label.isGroup !== 'boolean') labelBad('label.isGroup');
       if (!Object.prototype.hasOwnProperty.call(label, 'archivedAt')) labelBad('label.archivedAt missing');
+      /* Required, not optional. A package from the pre-2026-09-18 exporter has no
+         retiredAt at all, and must be REFUSED rather than read as "nothing is
+         retired" -- that silent reading is the bug this field exists to stop. */
+      if (!Object.prototype.hasOwnProperty.call(label, 'retiredAt')) labelBad('label.retiredAt missing');
       if (!Object.prototype.hasOwnProperty.call(label, 'team')) labelBad('label.team missing');
       if (ids.has(label.id)) throw new ManifestError('label_catalog_duplicate_identity', label.id);
       if (label.archivedAt !== null) {
         if (typeof label.archivedAt !== 'string' || !TIMESTAMP_RE.test(label.archivedAt)) labelBad('label.archivedAt format');
         if (!Number.isFinite(Date.parse(label.archivedAt))) labelBad('label.archivedAt unparseable');
+      }
+      if (label.retiredAt !== null) {
+        if (typeof label.retiredAt !== 'string' || !TIMESTAMP_RE.test(label.retiredAt)) labelBad('label.retiredAt format');
+        if (!Number.isFinite(Date.parse(label.retiredAt))) labelBad('label.retiredAt unparseable');
       }
       if (label.team !== null && (!isObject(label.team) || !UUID_RE.test(clean(label.team.id)))) {
         throw new ManifestError('label_catalog_team_invalid', 'label.team');
@@ -230,9 +238,29 @@ function checkManifest(manifest) {
   return { labelCount: seen, pageCount };
 }
 
-/** Reduce one Linear label node to exactly the seven keys the checker reads. */
+/** Reduce one Linear label node to exactly the eight keys the checker reads. */
 function projectLabel(node) {
   if (!isObject(node)) throw new ManifestError('label_catalog_label_invalid', 'node not an object');
+  /* EVERY key this reducer emits must be PRESENT on the raw node.
+   *
+   * Four of them default to the MORE PERMISSIVE value when absent -- isGroup
+   * false (not a group), archivedAt null (not archived), retiredAt null (not
+   * retired) and team null (workspace-wide, so applicable to BOTH teams). The
+   * checker only ever sees the PROJECTED manifest (buildManifest maps raw nodes
+   * through here), so a synthesized default reads to it as a fully selectable
+   * label -- and a second walk with the same gap reconciles against the first,
+   * so the divergence check cannot catch it either.
+   *
+   * That is how a provider response which never mentioned retirement would have
+   * been attested as "nothing here is retired", which is the precise failure
+   * the retiredAt work exists to prevent. Presence is the caller's to supply;
+   * this reducer will not invent it. Found by Codex on PR #1415, on retiredAt;
+   * the other three are the same hole and are closed with it. */
+  for (const field of LABEL_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(node, field)) {
+      throw new ManifestError('label_catalog_label_invalid', `label.${field} absent from the provider response`);
+    }
+  }
   const team = isObject(node.team) ? { id: clean(node.team.id) } : null;
   return {
     id: clean(node.id),
@@ -241,6 +269,7 @@ function projectLabel(node) {
     description: typeof node.description === 'string' ? node.description : null,
     isGroup: node.isGroup === true,
     archivedAt: node.archivedAt == null ? null : clean(node.archivedAt),
+    retiredAt: node.retiredAt == null ? null : clean(node.retiredAt),
     team,
   };
 }

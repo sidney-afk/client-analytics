@@ -30,6 +30,133 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — PR #1415 is green on all six checks, and the unit lane could never have caught the one that went red
+
+Cloud session. Head `74e08f23`, six of six checks `success`: `unit`,
+`identity-exposure`, `f27-team-rollback-proof`, `Edge Function type ratchet`,
+`Isolated PG17 retirement-switch`, `Isolated PG17 card-atomic-admission`.
+`mergeable_state: clean`, no merge conflict, one review thread and it is
+resolved. Not merged — the supervisor merges.
+
+#### The failure that mattered, and why the local lane said nothing
+
+`Isolated PG17 retirement-switch` went red while the local full unit lane was
+reporting **560 of 560 passed, runner exit 0**. Those two facts are compatible,
+and the runner says so in its own summary line:
+
+```
+All 560 classified unit suites passed; 61 required profiles NOT_RUN in this lane
+```
+
+**Sixty-one required profiles are not covered by a green unit run.** The two
+PG17 lanes are among them. So "the full lane passed" is a claim about 560
+suites, not about the checks that gate the PR, and reading it as the latter is
+the same shape of error this journal keeps recording: a claim about the system
+drawn from a measurement that did not measure it.
+
+The cause was mundane once reproduced — `test/linear-exit-retirement-switch-postgres.js`
+carries its **own** label fixture, and that fixture predates `retiredAt`, so the
+newly strict `projectLabel` refused it. The CI container log pointed at
+`retirement_dependency_contract:production_assignment_epoch`, which is not where
+the fault was; the real line only appears in the lane's private error log:
+
+```
+ManifestError: label_catalog_label_invalid: label.retiredAt absent from the provider response
+    at projectLabel (scripts/linear-label-catalog-export.js:261:13)
+    at Object.buildManifest (scripts/linear-label-catalog-export.js:278:39)
+    at test/linear-exit-retirement-switch-postgres.js:29:75
+```
+
+Reproduced locally on a PostgreSQL 17 cluster on port 5433, using the lane's
+real command line and `PROOF_OUTPUT_ROOT`, then fixed in place. The fixture edit
+had to preserve the byte-pin: `retiredAt: null` went **inside** an existing
+line, keeping CRLF 62 / LF 68.
+
+#### The rule this leaves behind
+
+**Run both PG17 lanes locally before pushing anything that touches a migration
+or the export library.** A green unit lane is not evidence about them, and the
+CI summary line for a red PG17 lane can name the wrong contract — read the
+private error log, not the container log.
+
+### 2026-09-18 — CORRECTION: the label seed's premise was wrong. Native intake DOES stamp the empty relation, in the gateway, and I searched only the SQL
+
+Cloud session. The migration is merged and applied; the correction is a comment
+block on its header and this entry. No SQL changed, and that is measured rather
+than asserted: both routine bodies and the whole comment-stripped file are
+byte-identical across the edit.
+
+#### What I claimed, and what is true
+
+The finding behind `migrations/2026-09-18-native-label-empty-state-seed.sql`
+(PR #1414, and B-4 in the step 26 procedure) said a natively created card
+carries **no** `linear_raw -> issue -> labels` relation, so turning the label
+capability on would still render "Labels unavailable".
+
+**It does carry one.** The stamp is in the gateway:
+
+| site | when |
+|---|---|
+| `handleIntakeCreate` — `production-write/index.ts:7705` | the team's native epoch is set |
+| `handleComponentFill` — `production-write/index.ts:7081` | the team's native epoch is set |
+
+Both write
+`linear_raw.issue = {"labelIds":[],"labels":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}`
+— **exactly the shape the migration seeds**. The 7081 site says so in its own
+comment: *"A newly created native component has a known empty label selection.
+Do not apply this to existing or provider-era rows with unknown state."* Which
+is, almost word for word, the rule the migration re-derived from scratch.
+
+#### The measurement
+
+Every native-intake card already carried the complete relation. The backfill
+touched **9 rows, none of them from native intake**: 6 provider-era real cards
+from 2026-09-15 and 3 old test cards — rows that lack a Linear issue for other
+reasons.
+
+The owner applied it anyway, and that decision is right on its own terms: the
+deploy gate pins the file, and "no labels" is a truthful statement about a card
+that has no issue. So the 9 rows are correctly seeded and the trigger stays
+correct and cheap for exactly that population. It is simply not the population
+the migration predicted, and the header no longer claims otherwise.
+
+#### The actual mistake, which is not "a missing grep"
+
+The search was `grep hasNextPage migrations/*.sql`. It returned only readers and
+the writer's own output, and I reported that as **"nothing in any migration
+seeds one"** — which was true — and then concluded **"nothing seeds one"**,
+which does not follow. The stamp is TypeScript. One layer was searched and a
+claim about the system was drawn from it.
+
+What makes this worth a journal entry rather than a shrug is that the same
+session had already been bitten by the same shape twice in a day, and said so
+both times:
+
+- the rehearsal that hand-built `auth_kind: 'staff'` and proved a path the
+  gateway cannot take (Codex P1 on #1414);
+- `production_assignment_context` reported as gating on `auth_kind` when the
+  evidence was an `awk` range spanning two functions.
+
+All three are the same error: **a claim about the running system taken from one
+layer, or from a command that did not measure what the claim says.** CLAUDE.md
+already carries the general form — *"a gate that has never run against its real
+target is untested"* — and the 2026-09-15 entries carry it too. The specific
+form worth adding is narrower:
+
+> **Before asserting that nothing does X, name the layers where X could live and
+> say which ones were searched.** For this repository that is at least:
+> `migrations/*.sql`, `supabase/migrations/*.sql`, `supabase/functions/**`, and
+> `index.html`. A negative over one of them is a negative over one of them.
+
+#### What does NOT change
+
+The seed migration's behaviour, its trigger, its refusals and its ACLs all stand
+— the 9 rows needed it. `production_labels_write` still requires a complete
+relation, so a card that lacks one still cannot have its labels changed
+natively; that part of the original reasoning was never in question. And the
+step 26 procedure on `prep/step26-native-labels-20260918` still states B-4 as
+originally found; whoever merges that branch should carry this correction into
+it.
 ### 2026-09-18 — Step 26 procedure for the native label catalog, and the FOUR reasons it cannot be run as written today
 
 Cloud session, reading only. No SQL was issued, no Linear request was made, no

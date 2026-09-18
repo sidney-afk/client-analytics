@@ -345,6 +345,7 @@
     "nightly-dispatch-input.js",
     "no-hardcoded-colors.js",
     "notes-linear-routing.js",
+    "notification-triggers-no-shared-channel.js",
     "onboarding-credentials-import.js",
     "onboarding-reader-auth.js",
     "onboarding-viewer-style-preview.js",

@@ -306,6 +306,8 @@
     "native-assignee-catalog-dryrun.js",
     "native-assignee-eligibility.js",
     "native-assignee-policy.js",
+    "native-assignment-auth-kind-contract.js",
+    "native-assignment-auth-kind-postgres.js",
     "native-batch-picker-parents.js",
     "native-batch-picker-search.js",
     "native-client-provisioning-postgres.js",

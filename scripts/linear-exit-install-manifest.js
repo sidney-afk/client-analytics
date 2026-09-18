@@ -36,7 +36,7 @@ const CANDIDATE=[
  '2026-09-05-description-images.sql','2026-09-09-kasper-urgent-pings.sql','2026-09-10-kasper-urgent-ping-ledger.sql',
  '2026-09-18-notification-creative-channel.sql','2026-09-18-native-test-client-parity.sql',
  '2026-09-18-native-label-empty-state-seed.sql','2026-09-18-native-label-test-client-parity.sql',
- '2026-09-18-native-label-retired-state.sql',
+ '2026-09-18-native-label-retired-state.sql','2026-09-18-native-assignment-auth-kind-binding.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -82,6 +82,9 @@ const DEPENDENCIES={
  // after it. Nothing in the label WRITE path changes, so it carries no edge on
  // the writes migration.
  '2026-09-18-native-label-retired-state.sql':['2026-09-05-native-label-catalog-foundation.sql'],
+ // Replaces production_assignee_write, whose last definition is the #1413
+ // parity migration, so it installs after that one.
+ '2026-09-18-native-assignment-auth-kind-binding.sql':['2026-09-18-native-test-client-parity.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

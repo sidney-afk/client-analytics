@@ -315,43 +315,6 @@ function classifyFailure(text) {
   return 'unclassified';
 }
 
-/* The layout suite's assertion ids, harvested from its OWN SOURCE for exactly
-   the reason BEHAV_WIRED_CHECKS and PIXEL_WIRED_STATES are.
-
-   `Production layout polish [error_generic]` is the same blackout those two
-   already fixed: it says a suite assertion failed and nothing about which one.
-   That lane can fail on fourteen different assertions, and telling them apart
-   decided nothing less than whether a change was at fault -- on 2026-09-18 it
-   cost a full investigation that ended without an answer.
-
-   The suite prints `LAYOUT_POLISH_FAILED_ASSERTIONS` followed by the distinct
-   ids that fired, drawn from a closed list of string literals in its own
-   source in this public repository. An id this file does not find there is
-   dropped, so the emitted string is assembled from allowlist entries and never
-   from the run's output. The ids name assertions, never values: no viewport,
-   no item index, and nothing from the console check's live-derived text. */
-const LAYOUT_POLISH_ASSERTIONS = (() => {
-  try {
-    const src = require('fs').readFileSync(
-      path.join(root, 'docs', 'syncview-design', 'tests', 'prod-layout-polish.js'), 'utf8');
-    const names = new Set();
-    const re = /'(plp_[a-z0-9_]+)'/g;
-    let match;
-    while ((match = re.exec(src))) names.add(match[1]);
-    return names;
-  } catch (_) { return new Set(); }
-})();
-
-function layoutPolishFailedAssertions(text) {
-  const line = (String(text || '').match(/LAYOUT_POLISH_FAILED_ASSERTIONS([^\n]*)/) || [])[1];
-  if (!line) return '';
-  const named = line.trim().split(/\s+/).filter(name => LAYOUT_POLISH_ASSERTIONS.has(name));
-  if (!named.length) return '';
-  const shown = named.slice(0, BEHAV_WIRED_NAME_CAP).join('+');
-  return 'layout_polish:' + shown + (named.length > BEHAV_WIRED_NAME_CAP
-    ? '+' + (named.length - BEHAV_WIRED_NAME_CAP) + 'more' : '');
-}
-
 /* The read-only smoke suite's stage names, harvested from its OWN SOURCE for
    exactly the reason BEHAV_WIRED_CHECKS is: a name this file did not find in
    that file is dropped, so the emitted code is assembled from allowlist entries
@@ -404,8 +367,6 @@ function failureReason(text) {
   if (named) return named;
   const pixel = pixelWiredFailedStates(text);
   if (pixel) return pixel;
-  const layout = layoutPolishFailedAssertions(text);
-  if (layout) return layout;
   const code = classifyFailure(text);
   const where = smokeFailedStage(text);
   return where ? code + '@' + where : code;

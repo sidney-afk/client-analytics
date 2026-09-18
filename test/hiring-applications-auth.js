@@ -49,10 +49,10 @@ ok(/if \(!await invitesEnabled\(db\)\)/.test(SOURCE)
 ok(/if \(!await practicalTestsEnabled\(db\)\)/.test(SOURCE)
   && /wrong_role/.test(SOURCE),
   'the practical-test queue action fails closed on its own kill switch and refuses the wrong role');
-ok(/function requireHttpsUrl\(body: JsonMap, field: string\)/.test(SOURCE)
-  && /url\.protocol !== "https:"/.test(SOURCE)
-  && /function requireInstructions\(body: JsonMap\)/.test(SOURCE),
-  'the browser-supplied raw-footage/reference-edit links are validated as https and bounded before being queued');
+ok(/const PRACTICAL_TEST_MATERIALS_URL =/.test(SOURCE)
+  && !/raw_footage_url"\)/.test(SOURCE)
+  && !/reference_edit_url"\)/.test(SOURCE),
+  'the practical-test materials link is a fixed server-side constant, never accepted from the browser');
 ok(!/\bfetch\s*\(/.test(SOURCE) && !/gmail|sendgrid|mailgun/i.test(SOURCE),
   'the Edge Function does not call an email provider or send an invitation itself');
 ok(/hiring_queue_interview_invite_v1/.test(SOURCE)

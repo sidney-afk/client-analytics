@@ -128,15 +128,23 @@ documented above: application review, then one interview-invite email.
 Video Editor gets a third stage in between:
 
 1. **Application review** — same private mirror, same admin review.
-2. **Practical test** (new, Video Editor only) — Kasper types in a raw-footage
-   link, a reference-edit link, and written instructions for that applicant,
-   and queues a durable practical-test email job
-   (`hiring_practical_test_jobs`, one per application, same claim/authorize/
-   record/retry shape as the interview-invite outbox, gated by its own
-   independent kill switch `hiring_practical_tests_enabled`, default `false`).
-   The raw-footage/reference-edit links and instructions are legitimately
-   browser-supplied per applicant (validated as `https://` and length-bounded)
-   — unlike the interview calendar link, they are not a server secret.
+2. **Practical test** (new, Video Editor only) — Kasper reviews a fully
+   pre-built email preview (materials link, instructions, everything already
+   filled in — nothing typed per applicant) and clicks one button to queue it.
+   That queues a durable practical-test email job (`hiring_practical_test_jobs`,
+   one per application, same claim/authorize/record/retry shape as the
+   interview-invite outbox, gated by its own independent kill switch
+   `hiring_practical_tests_enabled`, default `false`). The shared raw-footage/
+   reference-edit materials link is a fixed constant in the Edge Function
+   source (`PRACTICAL_TEST_MATERIALS_URL`, one Drive folder link containing
+   both — not a secret, since it already goes out in every applicant's
+   email), never accepted from the browser — the same link and instructions
+   go out to every Video Editor applicant. The email
+   asks the applicant to upload their finished cut to a Drive folder with link
+   sharing on and reply to the email (same `hello@synchrosocial.com` mailbox
+   the interview invite sends from) with that link; Kasper reads that reply
+   manually and records the verdict himself — there is no automated capture
+   of the finished edit.
 3. **Verdict** — once the practical-test email is confirmed delivered
    (provider receipt, same as everywhere else in this sidecar), Kasper marks
    `passed` or `not_selected` (`hiring_set_practical_test_verdict_v1`). A
@@ -148,7 +156,10 @@ Video Editor gets a third stage in between:
    requires `practical_test_verdict = 'passed'` when `role_slug =
    'video-editor'`; the Client Success role's gate is unchanged. It points at
    the `video-editor-interview` iClosed event instead of the Client Success
-   one.
+   one. The SyncView panel for this step shows only the prebuilt preview and a
+   send/retry button — the general application-status actions (mark in
+   review / put on hold / mark not moving forward) live in the Application
+   section instead, so they no longer sit under an email-send panel.
 
 Everything above is additive: the original five hiring-automation bridge
 actions, RPC contracts, and their exact literal iClosed-slug constants are

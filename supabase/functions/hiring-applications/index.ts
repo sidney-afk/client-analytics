@@ -57,6 +57,11 @@ const INTERVIEW_EVENT_URL_ENV: Record<string, string> = {
   "client-success-content-manager": "HIRING_INTERVIEW_EVENT_URL",
   "video-editor": "HIRING_INTERVIEW_EVENT_URL_VIDEO_EDITOR",
 };
+// Not a secret: this exact link already goes out in every Video Editor
+// practical-test email, so there's nothing gained by keeping it out of the
+// (public) repo. Hardcoded rather than env-configured for that reason.
+const PRACTICAL_TEST_MATERIALS_URL =
+  "https://drive.google.com/drive/folders/13eNElkoiwGAzykWDLDuqHI-ntR9oeiCc?usp=sharing";
 
 type JsonMap = Record<string, unknown>;
 type ApplicationRow = {
@@ -194,25 +199,6 @@ function parseListRole(value: unknown): string | null {
   return role;
 }
 
-function requireHttpsUrl(body: JsonMap, field: string): string {
-  const value = clean(body[field]);
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") throw new Error("not_https");
-    return url.href;
-  } catch (_error) {
-    throw new HiringApplicationsError(400, "invalid_invite");
-  }
-}
-
-function requireInstructions(body: JsonMap): string {
-  const value = clean(body.instructions);
-  if (!value || value.length > 4_000) {
-    throw new HiringApplicationsError(400, "invalid_invite");
-  }
-  return value;
-}
-
 function applicationRole(application: ApplicationRow): string {
   const role = clean(application.role_slug).toLowerCase();
   return ROLE_SLUGS.has(role) ? role : "client-success-content-manager";
@@ -271,9 +257,6 @@ function buildInvitePreview(
 
 function buildPracticalTestPreview(
   application: ApplicationRow,
-  rawFootageUrl: string,
-  referenceEditUrl: string,
-  instructions: string,
 ): PracticalTestPreview | null {
   const recipient = clean(application.email).toLowerCase();
   if (!recipient || !recipient.includes("@")) return null;
@@ -285,16 +268,12 @@ function buildPracticalTestPreview(
       "",
       "Thanks for applying for the Video Editor role at Synchro Social. The next step is a short practical test.",
       "",
-      "Raw footage:",
-      rawFootageUrl,
+      "The raw footage and a reference edit (so you can see the result we're looking for) are both in this shared folder:",
+      PRACTICAL_TEST_MATERIALS_URL,
       "",
-      "A reference edit, so you can see the result we're looking for:",
-      referenceEditUrl,
+      "Watch the reference edit, then re-cut the raw footage to match its pacing, structure, and hook style as closely as you can.",
       "",
-      "Instructions:",
-      instructions,
-      "",
-      "Reply to this email with a shareable link to your finished edit when you're done.",
+      "When you're done, upload your finished cut to a new Google Drive folder, turn on link sharing (set to \"Anyone with the link\" as Viewer), and reply to this email with that link.",
       "",
       "Looking forward to seeing what you make,",
       "Synchro Social",
@@ -354,6 +333,7 @@ function applicationDetail(
   const practicalTestState = clean(practicalTestJob?.state).toLowerCase() || null;
   const practicalTestFailureCode = safeFailureCode(practicalTestJob?.failure_code);
   const verdict = clean(row.practical_test_verdict).toLowerCase() || null;
+  const practicalTestPreview = role === "video-editor" ? buildPracticalTestPreview(row) : null;
   return {
     id: clean(row.id),
     name: clean(row.name),
@@ -378,6 +358,7 @@ function applicationDetail(
     invites_enabled: invitesEnabled,
     invite_preview: preview,
     practical_tests_enabled: practicalTestsEnabled,
+    practical_test_preview: practicalTestPreview,
     practical_test_state: practicalTestState,
     practical_test_failure_code: practicalTestFailureCode,
     practical_test_retry_available: practicalTestsEnabled
@@ -386,8 +367,13 @@ function applicationDetail(
       && !!practicalTestFailureCode
       && RETRYABLE_FAILURE_CODES.has(practicalTestFailureCode),
     practical_test_verdict: verdict,
-    practical_test_sent: practicalTestState === "sent"
-      ? { subject: clean(practicalTestJob?.subject), body: clean(practicalTestJob?.body) }
+    // The exact subject/body already stored on the job — not recomputed from
+    // current config — for every state once a job exists. A retry resends
+    // this stored payload verbatim, so the preview shown for a failed job
+    // must be this, never a freshly-built preview that could differ if the
+    // configured materials link changed after the job was queued.
+    practical_test_job_preview: practicalTestJob
+      ? { subject: clean(practicalTestJob.subject), body: clean(practicalTestJob.body) }
       : null,
   };
 }
@@ -554,16 +540,13 @@ async function retryInvite(
   };
 }
 
-// Video Editor round 2. Unlike the interview link, the raw-footage and
-// reference-edit links and the instructions text are legitimately supplied
-// by the (admin-authenticated) browser, per applicant, at send time — they
-// are not a server secret. They are validated (https only, bounded length)
-// and stored durably on the queued job, never accepted again once queued.
+// Video Editor round 2. The shared materials link is a fixed constant, never
+// accepted from the browser — the same link and instructions go out for
+// every applicant, so there is nothing per-applicant left to type.
 async function queuePracticalTest(
   db: SupabaseClient,
   applicationId: string,
   stateVersion: number,
-  body: JsonMap,
 ): Promise<JsonMap> {
   if (!await practicalTestsEnabled(db)) {
     throw new HiringApplicationsError(503, "feature_disabled");
@@ -572,10 +555,7 @@ async function queuePracticalTest(
   if (applicationRole(application) !== "video-editor") {
     throw new HiringApplicationsError(409, "wrong_role");
   }
-  const rawFootageUrl = requireHttpsUrl(body, "raw_footage_url");
-  const referenceEditUrl = requireHttpsUrl(body, "reference_edit_url");
-  const instructions = requireInstructions(body);
-  const preview = buildPracticalTestPreview(application, rawFootageUrl, referenceEditUrl, instructions);
+  const preview = buildPracticalTestPreview(application);
   if (!preview) throw new HiringApplicationsError(400, "invalid_invite");
   const { data, error } = await db.rpc("hiring_queue_practical_test_v1", {
     p_application_id: applicationId,
@@ -583,8 +563,8 @@ async function queuePracticalTest(
     p_recipient_email: preview.recipient,
     p_subject: preview.subject,
     p_body: preview.body,
-    p_raw_footage_url: rawFootageUrl,
-    p_reference_edit_url: referenceEditUrl,
+    p_raw_footage_url: PRACTICAL_TEST_MATERIALS_URL,
+    p_reference_edit_url: PRACTICAL_TEST_MATERIALS_URL,
     p_actor: "staff-admin",
   });
   if (error) rpcError(error);
@@ -699,7 +679,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ ok: true, ...result, message: "Practical test verdict recorded." });
     }
     if (action === "queue_practical_test") {
-      const result = await queuePracticalTest(db, applicationId, stateVersion, body);
+      const result = await queuePracticalTest(db, applicationId, stateVersion);
       return json({
         ok: true,
         ...result,

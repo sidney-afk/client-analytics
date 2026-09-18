@@ -30,6 +30,102 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 ENABLED and CLOSED for native notifications: sender and wake live, monitor off. The five queued approvals and every event since went to the right creative channel within seconds; nothing reached a shared channel; no pre-existing intent changed state
+
+Storage session. The owner's go-aheads, in order:
+
+> enable the notification sender, go
+
+> wake on too, go
+
+— the second choosing option B after the wake path was found sending before the
+first, and then, for the five approvals queued while notifications were off:
+"Option 1, send them."
+
+#### Switches
+
+| Switch | Value | Set at (UTC) |
+|---|---|---|
+| `NOTIFY_WAKE_ENABLED` (Supabase secret) | `true` | **2026-09-18T15:28:26.936Z** |
+| `NATIVE_NOTIFICATION_SENDER_ENABLED` (GitHub variable) | `true` | **2026-09-18T15:28:27.953Z** (GitHub records 15:28:29Z) |
+| `NATIVE_NOTIFICATION_MONITOR_ENABLED` (GitHub variable) | **absent** | — |
+
+**The monitor stays off, and why:** the health function counts `blocked` intents
+as notification debt and answers 503 whenever debt is above zero. The owner ruled
+that the migration's backlog **stays blocked** — 28 intents, including the two
+refused before the bot joined — so that debt is permanent by design and the
+monitor would alarm on every run.
+
+**Off switch**, as recorded in the map: `NOTIFY_WAKE_ENABLED=false`, then the
+sender variable absent, in that order.
+
+#### The dispatch
+
+`native-notification-sender.yml`, run `35362645165`, `workflow_dispatch`:
+conclusion **success**, and its result line
+
+```
+{"ok":true,"claimed":5,"sent":5,"retryable":0,"blocked":0,"unknown":0,"receipt_failed":0}
+```
+
+followed by its heartbeat.
+
+#### The five queued approvals, each verified
+
+| Intent | State | Sent (UTC) | Provider message id | To its creative channel | Receipts / sent |
+|---|---|---|---|---|---|
+| `666d96a3-2463-4cc9-916e-7827086beecd` | sent | 15:28:47.839 | present | yes | 1 / 1 |
+| `01be47f2-7fab-4c2a-9e55-485a7355a61a` | sent | 15:28:47.944 | present | yes | 1 / 1 |
+| `81121bf9-985d-4e30-8cbf-61ac8f3488a0` | sent | 15:28:48.064 | present | yes | 1 / 1 |
+| `c82b54c3-3297-433f-8adf-1d09f682144b` | sent | 15:28:48.163 | present | yes | 1 / 1 |
+| `30ea2833-6386-4499-b70f-0ff0b577a68d` | sent | 15:28:48.285 | present | yes | 1 / 1 |
+
+5 sent, 0 refused.
+
+#### The owner's test — two comments, one card
+
+The owner posted the comment twice by accident, so two intents were expected.
+
+| Intent | Kind | Card | Created → sent | Seconds | Provider message id | To its creative channel | To a shared channel | Receipts / sent |
+|---|---|---|---|---|---|---|---|---|
+| `73d71329-785f-4f9b-9dc6-8a519966ca6c` | comment | `b1_d_23623f1648b7489f95c4a74b2499e35c` | 15:35:26.800 → 15:35:27.531 | **0.73** | present | **yes** | no | 1 / 1 |
+| `acbfe0e0-b035-4305-b278-d43765fe1a4b` | comment | same card | 15:35:30.355 → 15:35:31.499 | **1.14** | present | **yes** | no | 1 / 1 |
+
+Both went pending to sent in about a second, through the wake path.
+
+#### Live traffic in the same window, reported rather than omitted
+
+Two more intents arrived from ordinary staff work on other cards, both after
+go-live, and both were delivered correctly:
+
+| Intent | Kind | Created → sent | Seconds | To its creative channel | Receipts / sent |
+|---|---|---|---|---|---|
+| `5baa3710-2152-41fd-b1d5-92c0ce7267d7` | status_smm_approval | 15:30:30.364 → 15:30:32.626 | 2.26 | yes | 1 / 1 |
+| `a0f6f620-2723-413d-834a-a4eee1233ca6` | status_smm_approval | 15:35:36.512 → 15:35:37.671 | 1.16 | yes | 1 / 1 |
+
+#### Nothing else changed
+
+Against the snapshot taken immediately before go-live: **0** pre-existing intents
+changed state other than the five, and there are **0** new intents other than the
+four above. Totals: **38 intents — 28 blocked, 10 sent — and 12 delivery
+receipts**, up from 3. Across every delivery today, **none** went to a channel
+shared with a client.
+
+#### FINDING, reported by the owner: two messages per event on cards that still have a Linear issue
+
+On cards that still carry a Linear issue, **Linear's own Slack integration also
+posts the comment into the creative channel.** Those cards therefore produce **two
+messages per event** — one from SyncView, one from Linear — until the card is
+archived or the owner turns off Linear's Slack posting.
+
+**Linear-side settings are the owner's decision and outside this plan. No session
+touches them.** This was reported by the owner and was not measured here.
+
+#### What closes
+
+**Step 27 is CLOSED for native notifications.** Step 28 for this capability — the
+website dependency row it closes — is not recorded here and stays open.
+
 ### 2026-09-18 — OWNER DECISION, option B: notifications go live with the wake path ON. Recorded before acting, with the supervisor's error and the off switch
 
 > wake on too, go

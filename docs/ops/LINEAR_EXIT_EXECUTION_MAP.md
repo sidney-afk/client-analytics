@@ -429,6 +429,20 @@ The off switch is **`NOTIFY_WAKE_ENABLED=false`** (Supabase secret) **and then**
 Either alone leaves a sender running: the wake path sends within seconds of each
 event with no GitHub gate, and the schedule sends on its own.
 
+**Native notifications — STEP 27 CLOSED 2026-09-18.** Wake on at 15:28:26.936Z and
+the sender variable on at 15:28:27.953Z; the monitor variable stays **absent**,
+because the health function counts the 28 deliberately blocked intents as debt.
+The one dispatch sent the five approvals queued while notifications were off, and
+the owner's test comments and all live events since went pending to sent in about
+a second, each to its client's creative channel, none to a shared channel.
+**Step 28 for this capability stays open.**
+
+- **Known behaviour, owner's decision, outside the plan:** on cards that still
+  have a Linear issue, Linear's own Slack integration also posts the comment to
+  the creative channel, so those cards produce two messages per event until
+  archived or until the owner turns Linear's Slack posting off. **No session
+  touches Linear-side settings.**
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

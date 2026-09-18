@@ -30,6 +30,93 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — NATIVE LABEL CATALOG, STEP 26 CAPTURE TAKEN: 46 labels across the whole workspace, one page, terminal page reached, two independent walks RECONCILED, 0 archived. NOT attested: the confirmation flag was not passed and waits for the owner's own words
+
+Storage session, on the owner's instruction.
+
+#### Linear API access, and a stale line
+
+The supervisor confirmed that Linear API access is live, and this capture used it
+successfully. **`docs/ops/OPEN_REPAIRS.md` line 15275 at `5247d967` is stale.** It
+reads "that date ends our Linear *access*", meaning 2026-09-15. Access was still
+live on 2026-09-18. The line is recorded as stale here and was not edited.
+
+#### The key
+
+The owner supplied the Linear API key in chat. It is stored DPAPI-protected as
+`linear-api-key.dpapi` beside the others, and the private reader's allow-list is
+extended to name it. The stored value read back equal to the supplied one. sha256
+of the value: `34af354cb5b48c09211a1c30a083bae246c75500fef05ff5a3e078da42884720`.
+It is covered by D36 (extended in place below D36's text): **not rotated, and not
+raised again.** It reaches the exporter only through that child process's
+environment, and it is never printed.
+
+#### The run
+
+`scripts/linear-label-catalog-export.cli.js` (the same `main` that
+`linear-label-catalog-export.js` delegates to), run from a clean worktree at main
+`5247d967`, per `docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md`:
+
+- Team ids: `--video-team=cd12db10-751a-4cea-bed7-be7bbea1efa6` and
+  `--graphics-team=4789fc53-4e9b-4599-aab8-4e22420931d7`, both resolved against
+  the live workspace before the capture.
+- `includeArchived: true`, full cursor pagination at page size 100, and an
+  independent second walk at page size 50.
+- **`--confirm=REVIEWED_COMPLETE_LINEAR_LABEL_EXPORT` was NOT passed.** No attest
+  step was run, and nothing was sent to Postgres or to Linear.
+- **Half (b), per-card label state, was not taken** (`--skip-card-state`). The
+  instruction asked for the catalog, and no service-role key is held here. Half
+  (b) is mostly a snapshot of our own database. It can be taken later through the
+  runbook's `--card-state-file` route while Linear still answers.
+
+#### Counts
+
+| Measure | Value |
+|---|---|
+| Capture id | `0acf9d0b-817b-4b4d-9f64-9184c50db78a`, 16:57:27.193Z |
+| Labels captured, whole workspace | **46** |
+| … team **Video** `cd12db10…` | **18**, archived **0** |
+| … team **Graphics** `4789fc53…` | **6**, archived **0** |
+| … workspace-scoped (no team) | 3, archived 0 |
+| … two other teams (`d77dc414-518e-4df8-8a10-0114ce15a2a0`, `51aaf4a4-9485-4e6e-8ccd-2ec41bc2f235`) | 16 and 3, archived 0 |
+| Archived, all | **0** |
+| Label groups | 0 |
+| Pages fetched | **1**; `hasNextPage` **false**, so the **terminal page was reached**; end cursor present |
+| `expected_count` = nodes | 46 = 46 |
+| Independent walk (page size 50) | **RECONCILED**: 46 and 46, 0 only in one walk, 0 content diverged |
+| Team mapping in the manifest | `video` → `cd12db10…`, `graphics` → `4789fc53…`; distinct |
+| Workspace fingerprint | `f80a5b5f4c9a5db92aafd5e69948daed451acde9e937466a444fad2a2310a8cf` |
+| `verify` re-run | manifest VALID; raw pages hash matches the manifest; reconciled YES |
+
+#### Package, private, never committed
+
+`label-catalog-capture-20260918-1/` in the private evidence directory.
+
+| File | sha256 |
+|---|---|
+| **export package** (the exporter's own digest) | **`a6ab644069ac03b21914dc7e04a293fc0646bf2ff5c27055f991448af434a9b7`** |
+| raw pages (`source_sha256`) | `00886fb83491e3de810c36c3ce776fa5f9f7c8e2dd8e1068d966082f52c81c7f` |
+| manifest | `9b04eab828b9a65e48e1051e916d8f63f7eb362d2c6e50b32cecec3c35310be4` |
+| review evidence | `d10992fd6d2112f3f4b71259e0cb7d0ce4d1a4b9db66ea3d4acdfdc813b705da` |
+| capture receipt | `1e7932d22a5384fd502b88b9ca18cdfac70011ef2361601d73a8db0b96fd01e1` |
+
+#### For the owner's review, and not decided here
+
+- **Archived is 0.** The runbook's first attestation point asks the reviewer to
+  decide whether the workspace genuinely has no archived labels, or the
+  `includeArchived` flag did not take. The query sent `includeArchived: true`.
+- **The catalog covers the whole workspace,** including two teams outside the
+  plan, as the runbook requires. A catalog filtered to two teams would fail its
+  own count check.
+
+#### Also found
+
+`scripts/linear-label-catalog-export.cli.js` line 373, on main, contains the
+project's Supabase URL as a hard-coded default. This is reported, not changed.
+The diff-based identity check does not look at files already on main.
+
+**Holding. The attest step waits for the owner's confirmation in his own words.**
+
 ### 2026-09-18 — STEP 28 CLOSED for native notifications: since go-live, 17 intents were sent, every one to its client's creative channel and none to a shared channel. Ordinary receipts and assignment step 28 are NOT closed: the only native rows on real clients are the owner's own step 27 tests
 
 Storage session, on the owner's instruction. Measured read-only at
@@ -2143,6 +2230,12 @@ again**. The storage session recommended rotating both the admin role key and th
 bot token on 2026-09-17 and 2026-09-18 without having read D36; those
 recommendations are withdrawn, and the correction is recorded in the 2026-09-18
 entry on the bot's channel membership.
+
+**Extended again 2026-09-18, on the owner's instruction:** the **Linear API key**
+supplied for the native label catalog capture is covered by the same decision. It
+is **not rotated** and **no session raises it again**. It is stored under DPAPI
+beside the others, and only its hash is recorded: see the 2026-09-18 entry on the
+label catalog capture.
 
 #### Not done
 

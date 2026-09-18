@@ -30,6 +30,67 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — `unit` is red on main and on every PR: `docs/truth/SHEETS.md` went stale overnight. And a near-miss: 26 red lines in the assignee lane are a negative control, not a defect
+
+Cloud session, while driving PR #1410. Two findings, one real and one that I
+almost reported as real.
+
+#### 1. The red is a freshness gate, and it is main's, not any PR's
+
+`test/truth-sync.js` fails one assertion of 535:
+
+```
+FAIL docs/truth/SHEETS.md freshness date is within 30 days
+```
+
+`docs/truth/SHEETS.md` carries `Last verified: 2026-08-19`. Today is 2026-09-18,
+so the window lapsed overnight. Main's own `unit` passed at 2026-09-17T21:42Z
+with the stamp 29 days old; nothing changed but the date.
+
+**Established against the base branch rather than inferred**: `origin/main`
+checked out into a separate worktree, same suite, same single failure, exit 1.
+
+The repair is to re-verify the Clients Info sheet and restamp the line. Writing a
+fresh date without doing that verification would assert a check nobody performed,
+which is the one thing the gate exists to prevent, so it was not done here. Until
+someone does, **`unit` is red on every PR and on main**.
+
+#### 2. The near-miss: 26 `FAIL [native-assignee]` lines that are supposed to be there
+
+The same run printed 26 `FAIL [native-assignee] native-…` lines while the runner
+reported only `1 of 550 unit suite(s) failed`. The obvious reading — a suite that
+prints failures and still exits 0, a red line that never turns CI red — would
+have been a serious finding in exactly the family this project keeps hitting.
+
+**It is wrong.** `test/native-assignee-eligibility.js` runs the lane twice
+against two fresh databases: once positive, and once with
+`ASSIGNEE_LANE_NEGATIVE_CONTROL=1`, replaying the exact PR1302 head handler,
+which **must** fail the native chosen-editor journeys. The suite throws unless
+that second run fails. So the 26 red lines are the control firing, and
+`origin/main` prints the identical 26 and exits 0 too.
+
+Recorded because the misreading was one sentence away from being published, and
+the thing that stopped it was reading the suite's own source instead of its
+output. A test that is designed to be seen failing looks exactly like a test that
+is failing.
+
+#### A method note worth keeping
+
+The first local `npm test` run reported 0 failures. It was not evidence: the CI
+`unit` job runs with a PostgreSQL 16 service and `F63_REQUIRE_POSTGRES=1` plus
+`ARTIFACT_REQUIRE_POSTGRES=1`, and without those the postgres-gated suites SKIP.
+Measured: **17 skips locally, 0 skips with the CI environment**. A local run that
+skips seventeen suites and a CI run that runs them are not the same check, and
+only the second one can be quoted about them.
+
+Reproducing the lane locally is cheap: PostgreSQL 16 on `127.0.0.1:5432` with
+`postgres`/`postgres`, then the five `PG*` variables and the two flags.
+
+#### Not done
+
+- `SHEETS.md` not restamped, for the reason above. It is the owner's to assign.
+- Nothing in the gated run is attributable to PR #1410.
+
 ### 2026-09-18 — The notification destination was the SHARED client channel, in all four readers. Migration drafted as a PR, not merged: main stays frozen
 
 Cloud session. Owner-measured tonight and the reason this exists: **all 26

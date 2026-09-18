@@ -26,10 +26,36 @@ const {
  * in it, exactly as it does for the other two suites.
  */
 const PLP_ASSERTIONS = [
-  'plp_list_metadata',
-  'plp_subrow_metadata',
-  'plp_project_issue_metadata',
-  'plp_project_card_controls',
+  /* THE CONTAINMENT SWEEPS NAME THEIR CHILD, not just their parent group.
+     `plp_list_metadata` alone said a row child escaped its row and left six
+     candidates -- which is how a fix aimed at the client chip shipped, and the
+     lane stayed red on the same id. A group id is a narrower blackout, not the
+     end of one. The child part is a CSS class from the selector literals
+     below: public source, never live-derived. */
+  'plp_list_metadata_due',
+  'plp_list_metadata_created',
+  'plp_list_metadata_avatar',
+  'plp_list_metadata_chip_client',
+  'plp_list_metadata_title',
+  'plp_list_metadata_id',
+  'plp_subrow_metadata_due',
+  'plp_subrow_metadata_created',
+  'plp_subrow_metadata_avatar',
+  'plp_subrow_metadata_chip_client',
+  'plp_subrow_metadata_title',
+  'plp_subrow_metadata_id',
+  'plp_project_issue_metadata_due',
+  'plp_project_issue_metadata_created',
+  'plp_project_issue_metadata_avatar',
+  'plp_project_issue_metadata_chip_client',
+  'plp_project_issue_metadata_title',
+  'plp_project_issue_metadata_id',
+  'plp_project_card_controls_check',
+  'plp_project_card_controls_ico',
+  'plp_project_card_controls_title',
+  'plp_project_card_controls_status',
+  'plp_project_card_controls_lead',
+  'plp_project_card_controls_target',
   'plp_filter_pill_height',
   'plp_filter_pill_overflow',
   'plp_floating_chrome',
@@ -61,17 +87,31 @@ async function collectLayoutFailures(page, label) {
       const p = parent.getBoundingClientRect();
       return c.left >= p.left - pad && c.right <= p.right + pad && c.top >= p.top - pad && c.bottom <= p.bottom + pad;
     };
-    const checkInside = (id, selector, innerSelector, desc, limit = 40) => {
+    /* Selector and id side by side, so the emitted part is read off this list
+       rather than derived from anything the page produced. */
+    const ROW_PARTS = [
+      ['.prod-due', 'due'], ['.prod-created', 'created'], ['.prod-avatar', 'avatar'],
+      ['.prod-chip-client', 'chip_client'], ['.prod-title', 'title'], ['.prod-id', 'id'],
+    ];
+    const CARD_PARTS = [
+      ['.prod-card-check', 'check'], ['.prod-card-ico', 'ico'], ['.prod-card-title', 'title'],
+      ['.prod-card-status', 'status'], ['.prod-card-lead', 'lead'], ['.prod-card-target', 'target'],
+    ];
+    const checkInside = (group, selector, parts, desc, limit = 40) => {
       [...document.querySelectorAll(selector)].filter(visible).slice(0, limit).forEach((parent, i) => {
-        [...parent.querySelectorAll(innerSelector)].filter(visible).forEach(child => {
-          if (!within(child, parent, 2)) failures.push(`[${id}] ${label} ${desc} clipped outside row/card at item ${i}`);
+        parts.forEach(([innerSelector, part]) => {
+          [...parent.querySelectorAll(innerSelector)].filter(visible).forEach(child => {
+            if (!within(child, parent, 2)) {
+              failures.push(`[${group}_${part}] ${label} ${desc} ${innerSelector} clipped outside row/card at item ${i}`);
+            }
+          });
         });
       });
     };
-    checkInside('plp_list_metadata', '.prod-row', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'list metadata');
-    checkInside('plp_subrow_metadata', '.prod-subrow', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'subrow metadata');
-    checkInside('plp_project_issue_metadata', '[data-prod-project-issue]', '.prod-due, .prod-created, .prod-avatar, .prod-chip-client, .prod-title, .prod-id', 'project issue metadata');
-    checkInside('plp_project_card_controls', '.prod-card', '.prod-card-check, .prod-card-ico, .prod-card-title, .prod-card-status, .prod-card-lead, .prod-card-target', 'project card controls');
+    checkInside('plp_list_metadata', '.prod-row', ROW_PARTS, 'list metadata');
+    checkInside('plp_subrow_metadata', '.prod-subrow', ROW_PARTS, 'subrow metadata');
+    checkInside('plp_project_issue_metadata', '[data-prod-project-issue]', ROW_PARTS, 'project issue metadata');
+    checkInside('plp_project_card_controls', '.prod-card', CARD_PARTS, 'project card controls');
     [...document.querySelectorAll('.prod-filter-pill')].filter(visible).forEach((pill, i) => {
       if (pill.getBoundingClientRect().height > 30) failures.push(`[plp_filter_pill_height] ${label} filter pill ${i} wrapped taller than 30px`);
       const holder = pill.closest('.prod-filter-pills');

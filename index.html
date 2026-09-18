@@ -77841,6 +77841,17 @@
     };
 
     function _hpEsc(value) { return _calEsc(String(value == null ? '' : value)); }
+    // A stored job body from before the HTML email rollout is plain text that
+    // embedded the applicant's name unescaped -- rendering it via innerHTML
+    // would be a stored-XSS hole. Only bodies our own server actually built as
+    // HTML (which always start with this exact literal, never applicant-
+    // influenced) are trusted to render as markup; anything else is shown as
+    // escaped text, matching how it always rendered before this rollout.
+    const HP_TRUSTED_EMAIL_HTML_PREFIX = '<div style="line-height: 1.4; font-family: Arial, sans-serif;">';
+    function _hpEmailBodyHtml(value) {
+        const body = String(value == null ? '' : value);
+        return body.startsWith(HP_TRUSTED_EMAIL_HTML_PREFIX) ? body : _hpEsc(body);
+    }
     function _hpApplicationId(value) {
         const id = String(value || '').trim();
         return HP_APPLICATION_ID.test(id) ? id : '';
@@ -78027,6 +78038,11 @@
         const videoUrl = _hpSafeUrl(detail.video_url);
         const recordUrl = _hpSafeUrl(detail.iclosed_preview_url);
         const preview = detail.invite_preview || {};
+        const inviteJobPreview = detail.invite_job_preview || null;
+        // Once an invite job exists, in any state, its stored payload is what
+        // a retry actually resends -- always prefer it over the freshly-built
+        // preview, which can go stale the moment the job is queued.
+        const inviteShown = inviteJobPreview || (preview.body ? preview : null);
         const inviteState = String(detail.invite_state || '').trim().toLowerCase();
         const invitationsEnabled = detail.invites_enabled === true;
         const isVideoEditor = String(detail.role_slug || '') === 'video-editor';
@@ -78070,8 +78086,8 @@
             ${practicalSection}
             <div class="hp-preview">
                 <div class="hp-section-title">${isVideoEditor ? 'Final interview invitation preview' : 'Interview invitation preview'}</div>
-                <div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc(preview.recipient || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(preview.subject || 'Interview invitation')}</span></div>
-                <div class="hp-email">${preview.body || _hpEsc('The invitation preview will appear once the interview calendar is configured.')}</div>
+                <div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc(preview.recipient || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc((inviteShown && inviteShown.subject) || 'Interview invitation')}</span></div>
+                <div class="hp-email">${inviteShown ? _hpEmailBodyHtml(inviteShown.body) : _hpEsc('The invitation preview will appear once the interview calendar is configured.')}</div>
                 <div class="hp-actions">
                     ${canQueue ? '<button type="button" class="hp-action primary" id="hpInviteButton" onclick="_hpQueueInvite()"' + actionDisabled + '>Send interview invite</button>' : ''}
                     ${canRetry ? '<button type="button" class="hp-action primary" id="hpRetryInviteButton" onclick="_hpRetryInvite()"' + actionDisabled + '>Retry interview invite</button>' : ''}
@@ -78104,7 +78120,7 @@
         const shown = jobPreview || preview;
         return `<div class="hp-preview">
             <div class="hp-section-title">Practical test</div>
-            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${shown.body}</div>` : ''}
+            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${_hpEmailBodyHtml(shown.body)}</div>` : ''}
             <div class="hp-actions">
                 ${canQueueTest ? '<button type="button" class="hp-action primary" id="hpPracticalSendButton" onclick="_hpQueuePracticalTest()"' + actionDisabled + '>Send practical test</button>' : ''}
                 ${canRetryTest ? '<button type="button" class="hp-action primary" onclick="_hpRetryPracticalTest()"' + actionDisabled + '>Retry practical test</button>' : ''}

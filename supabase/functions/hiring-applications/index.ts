@@ -338,7 +338,8 @@ function applicationDetail(
   invitesEnabled: boolean,
   practicalTestsEnabled: boolean,
 ): JsonMap {
-  const job = inviteJob(row.hiring_invite_jobs);
+  const job = inviteJob(row.hiring_invite_jobs) as unknown as
+    (InviteJobRow & { subject?: string | null; body?: string | null }) | null;
   const jobState = clean(job?.state).toLowerCase() || null;
   const failureCode = safeFailureCode(job?.failure_code);
   const preview = buildInvitePreview(row);
@@ -373,6 +374,10 @@ function applicationDetail(
       && RETRYABLE_FAILURE_CODES.has(failureCode),
     invites_enabled: invitesEnabled,
     invite_preview: preview,
+    // Same reasoning as practical_test_job_preview below: once an invite job
+    // exists, a retry resends its exact stored subject/body, never a
+    // freshly-recomputed preview.
+    invite_job_preview: job ? { subject: clean(job.subject), body: clean(job.body) } : null,
     practical_tests_enabled: practicalTestsEnabled,
     practical_test_preview: practicalTestPreview,
     practical_test_state: practicalTestState,
@@ -465,7 +470,7 @@ async function listApplications(
 async function getApplication(db: SupabaseClient, id: string): Promise<ApplicationRow> {
   const { data, error } = await db
     .from("hiring_applications")
-    .select("id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug,practical_test_verdict,state_version,submitted_at,updated_at,hiring_invite_jobs(state,updated_at,failure_code,provider_message_id),hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)")
+    .select("id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug,practical_test_verdict,state_version,submitted_at,updated_at,hiring_invite_jobs(state,updated_at,failure_code,provider_message_id,subject,body),hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HiringApplicationsError(503, "service_unavailable");

@@ -30,6 +30,124 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Labels are NATIVE. Three of the four step 26 blockers dissolved, and two of them were never real
+
+Cloud session, correcting documents after the fact. **This session did not run
+any of it** — the owner flipped the flag and measured; what follows is recorded
+from that report plus repository reading.
+
+| | |
+|---|---|
+| capability | `native` since **2026-09-18T20:02:56Z** |
+| catalog version | `f55a7dd2` |
+| deployed at | `b7c30c74`, `production-write` **v77** |
+| step 27 | **in progress** — 4 of 7 checks measured (corrected below) |
+| kill switch | `mode:"hold"` |
+
+#### The two blockers that were never real, and they failed the same way
+
+**B-1 said the capture could no longer be taken.** Three documents agreed that
+Linear access ended on 2026-09-15 — the runbook's status line, OPEN_REPAIRS 170,
+and `OPEN_REPAIRS.md:15275`. All three were **predictions written in advance**.
+A date that was *planned for* was read back as a date that *happened*. Gate 0
+existed to measure exactly this, and when it finally ran, Linear answered.
+
+**B-4 said native cards would still show "Labels unavailable".** The supporting
+sentence — *"nothing in any migration seeds the empty relation"* — was true. The
+conclusion, *"nothing seeds it"*, was false: the gateway stamps it at
+`handleIntakeCreate` (`index.ts:7705`) and `handleComponentFill`
+(`index.ts:7081`). One layer searched, a whole-system claim drawn from it.
+
+**These are the same error.** Both asserted a fact about the running system from
+a source that could not establish it — a document written in advance, and a
+grep over one directory. Neither was careless about its own evidence; both were
+careless about what that evidence *covered*. Recorded as the fifth and sixth
+instances of this shape in this journal.
+
+The rule, sharpened: **before a claim about the running system becomes
+load-bearing, name what measured it.** If the answer is "a document" or "one
+directory", it has not been measured. Where a cheap live gate exists, run it
+first — reasoning from the record is the expensive path and it was wrong twice.
+
+#### B-3 was real, and its fix taught something separate
+
+The label lane genuinely refused the test client in all three layers. #1414
+fixed it; Codex then found the parity was still unreachable through the real
+gateway, because `eventFor` emits `auth_kind: principal.kind` and the SQL still
+demanded `'staff'`. Every rehearsal that "passed" had hand-built an `auth_kind`
+the gateway cannot send. **A rehearsal that constructs its own input proves the
+SQL, not the path.**
+
+#### The readback result most likely to be misread later
+
+Labels are served **per team**: video **2**, graphics **6**. Not 27
+workspace-wide, which is what "46 labels, 19 retired" invites you to expect.
+`production_label_catalog_read_version` excludes a label for four independent
+reasons — group, archived, retired, or belonging to the other team — and only a
+label with `team: null` reaches both teams. **The catalog count and the served
+count answer different questions.** A small served number is the filter working,
+not a partial capture, and the capture must stay whole or it fails its own
+count check.
+
+#### CORRECTION, same day — I recorded step 27 as passed, and 4 of its 7 checks were measured
+
+Codex raised this as a P1 on #1418 and the supervisor confirmed it. The entry
+above originally said step 27 **passed**, on receipts 10536 and 10537. **Those
+two receipts prove check 2.** They say nothing about the other six.
+
+| # | State |
+|---|---|
+| 1 read, both teams | ✅ seen by the owner |
+| 2 write + receipt | ✅ receipts 10536, 10537 |
+| 3 row changed | ✅ `labelIds` and `labels.nodes` agree, `hasNextPage` false, updated 20:08:02Z |
+| 4 replay idempotent | ❌ not run |
+| 5 debt conserved | ✅ labels debt 0 before and after, no row touched |
+| 6 refusals fire | ❌ not run |
+| 7 both teams | ⚠️ video only |
+
+**And check 4 cannot be run the way the resolved B-3 invites.** The
+accepted-receipt replay shortcut is gated on
+`principal.kind === "staff" && ! principal.testOnly` (`index.ts:5977-5978`), so
+a test-client replay never reaches it and falls through to a generic response
+carrying none of `replayed`, `read_only` or `authority_source`. Running check 4
+as `sidneylaruel` fails it for a reason unrelated to idempotency. So the test
+client can exercise the label **write** lane — which is what #1414 was for — and
+**cannot** exercise replay. My note that check 7 no longer needed a named real
+client was wrong on the same point and is withdrawn.
+
+**This is the same error shape again, and that is the seventh instance.** "The
+flag is on and writes are landing" was turned into "step 27 passed" without
+enumerating what step 27 actually requires. The receipts were real; the scope of
+what they evidenced was assumed. A checklist is not passed because its most
+visible item is.
+
+The narrow rule to carry: **when a step has enumerated acceptance checks, report
+per check, never in aggregate.** An aggregate verdict hides which ones nobody
+ran — here, two of seven, plus half of a third.
+
+Two further overclaims in the same PR, both also correct findings:
+
+- I wrote that `verify --package` proves the staged version landed. It does
+  not: `runVerify` reads three local files and never connects to Postgres.
+  Landing proof is the database readback of the version id, taken at 19:45Z.
+- I described the catalog query as the exact **seven**-field contract. It is
+  **eight** — `retiredAt` joined it on 2026-09-18, which is the whole reason a
+  pre-2026-09-18 package is refused. Following the row as written would have
+  produced a refused package.
+
+#### Still open
+
+- **Step 27 checks 4 and 6, and check 7 on graphics.** Check 4 needs a staff
+  principal on a real card — not the test client, per the correction above.
+- Execution map **step 28** for labels: record the website dependency this
+  closes, the accepted replacement, and evidence the legacy route is
+  unreachable. **Not reachable until step 27 is actually finished.**
+- `_prodLabelErrorText` has no branch for `native_label_state_incomplete`, so
+  the 9 backfilled cards with no Linear issue show a tooltip naming Linear.
+  Cosmetic, and the only known rough edge left.
+- Any capture package taken before 2026-09-18 must be retaken before it can be
+  attested — `check_manifest` now requires `retiredAt` on every label.
+
 ### 2026-09-18 — PR #1415 is green on all six checks, and the unit lane could never have caught the one that went red
 
 Cloud session. Head `74e08f23`, six of six checks `success`: `unit`,
@@ -157,6 +275,112 @@ natively; that part of the original reasoning was never in question. And the
 step 26 procedure on `prep/step26-native-labels-20260918` still states B-4 as
 originally found; whoever merges that branch should carry this correction into
 it.
+### 2026-09-18 — Step 26 procedure for the native label catalog, and the FOUR reasons it cannot be run as written today
+
+Cloud session, reading only. No SQL was issued, no Linear request was made, no
+flag was read live, nothing was deployed. The procedure is
+[LINEAR_EXIT_STEP26_NATIVE_LABELS.md](LINEAR_EXIT_STEP26_NATIVE_LABELS.md).
+
+The ask was for the step 26 procedure: what the capture must contain, the exact
+SQL that installs a version, the exact on value and rollback, and what "Labels
+unavailable" becomes. All four are in the document. What is worth recording here
+is that the exporter and the runbook **already existed** — `scripts/linear-label-catalog-export.js`,
+its `.cli.js`, and `docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` — so the procedure
+is a layer on top of them, not a rewrite of them. The first draft instinct was to
+specify the GraphQL by hand; the repository had it, with an offline fixture
+rehearsal and a test that re-reads every bound out of the two migrations. This is
+the same lesson as the F27 capture script in `CLAUDE.md`: look for the tool
+before writing the instructions.
+
+#### B-1. The capture window closed on 2026-09-15 and the capture was never taken
+
+`NATIVE_LABEL_CATALOG_CAPTURE.md` still opens "Status: SOURCE ONLY. The capture
+has NOT been taken." OPEN_REPAIRS 170 agrees. `OPEN_REPAIRS.md:15275` says of the
+15th: "that date ends our Linear **access**". Today is the 18th.
+
+**Stated as a question, not a conclusion.** A session cannot tell whether
+`api.linear.app` still answers for this workspace, and the repository's statement
+is a plan, not a measurement. The procedure opens with a Gate 0 that settles it
+for free: the exporter resolves the organization and both team ids before it
+captures anything, so a lapsed credential fails on the first request. If Gate 0
+is green that run **is** the capture; if it is red, step 26 for this capability
+cannot complete and step 28's honest entry is "no accepted replacement".
+
+#### B-2. There is no in-database substitute, and that is deliberate
+
+The obvious fallback is to build a manifest from the label nodes already in
+`deliverables.linear_raw`. It is ruled out in writing: the foundation record says
+"A selected-label union is never treated as a catalog", and attestation item 4
+requires the owner to assert the manifest is the whole workspace. A
+self-consistent truncated file passes every structural check the SQL performs —
+which is exactly why the human assertion exists and why synthesising one is a
+false attestation rather than a shortcut.
+
+#### B-3. The label lane refuses the test client — the same defect #1413 just fixed twice
+
+Found by reading, not by running. All three layers refuse `test_only`:
+
+| Layer | Refusal |
+|---|---|
+| `2026-09-06-native-label-writes.sql:132` | `production_labels_write` requires `v_out->'test_only'` to be exactly `false` |
+| `2026-09-06-native-label-writes.sql:101` | the receipt guard refuses `new.test_only is distinct from false` |
+| `production-write/index.ts:6403` | the gateway refuses `principal.testOnly` with 403 |
+
+So step 27 has **no TEST lane at all**, and the first native label write that can
+ever succeed is on a real client — colliding with "Mutate only the test client
+`sidneylaruel`". #1413 fixed precisely this shape for the ordinary and assignment
+lanes and left the third untouched, because nobody had looked at it. Two honest
+resolutions, both owner decisions: extend the parity migration to this lane, or
+name a real client in the go-ahead.
+
+#### B-4. The flag alone does not make labels appear on native cards
+
+This is the answer to "what does 'Labels unavailable' become", and for a
+natively-created card the answer is: **it stays "Labels unavailable".**
+
+`nativeLabelSnapshot` (`index.ts:797-818`) returns null unless the stored
+relation has a `nodes` array and `pageInfo.hasNextPage === false`. Native intake
+stamps no `labels` relation at all — `grep hasNextPage migrations/*.sql` returns
+only readers plus the writer's own output. The workload lane already treats an
+absent relation as "complete, with no labels"
+(`2026-09-08-workload-native-label-state-shape.sql:8`); production-write does not
+share that reading. So native mode swaps the refusal from
+`linear_issue_unavailable` to `native_label_state_incomplete` and renders the
+same string, with a tooltip that still says "Retry to check the current Linear
+state" on a card that never had a Linear issue.
+
+The capture's half (b) cannot repair these either: its repair arm requires
+`card.linear_issue_uuid`, which a native card does not have. What is needed is a
+seed of the empty-but-complete relation, which is a migration this repository
+does not have and a **prerequisite of step 26**, not of 27.
+
+#### The two facts that make the capability worth having
+
+- **The credential asymmetry is the whole point.** The provider label path reads
+  `LINEAR_MIRROR_API_KEY` (`index.ts:841-843`). The native path never reaches it:
+  `handleLabelsRead` returns at `index.ts:5612-5618` before `linearLabelSnapshot`,
+  and `production_labels_write` makes no outbound request. Turning this on is
+  precisely what removes the Linear credential from the label read and write
+  path. The credential is needed **once**, to capture, and never again.
+- **The gateway half is already serving.** `production-write` was deployed at
+  `d749ec9f` on 2026-09-17, and that revision already carries
+  `nativeLabelCatalogConfig`, `readNativeLabelCatalog` and the
+  `production_labels_write` call; production-write has not changed since. So the
+  foundation record's ordered hold 4, "serve the compatible gateway before the
+  browser version field, with native mode still off", is already satisfied. The
+  browser half is live too — `index.html` adopts `catalog_version` and sends it
+  back on save.
+
+#### Who runs the capture
+
+Neither this session nor the storage session. It needs a live Linear credential
+and the service role key, its output is a private package carrying label names
+and client slugs into a **public** repository's blast radius, and
+`--confirm=REVIEWED_COMPLETE_LINEAR_LABEL_EXPORT` is an assertion that a human
+read the evidence — which a session cannot truthfully make. If custody of the
+package is ever delegated, the storage session is the right holder, because
+private-package custody and the Drive lane are already its job. That is custody
+only; it does not extend to running the capture or making the attestation.
 
 ### 2026-09-18 — PR #1413: both native follow-up lanes now treat the test client like a real client, and ONE body change turned out to have FOUR frozen artifacts downstream of it
 

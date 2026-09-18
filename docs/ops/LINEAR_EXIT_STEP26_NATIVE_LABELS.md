@@ -1,8 +1,29 @@
 # Step 26/27 — native label catalog
 
 Execution map phase 7, for the **one** capability `production_native_label_catalog`.
-Read-only research, 2026-09-18, cloud session. **Nothing here has been run.**
-No SQL was issued, no Linear request was made, no flag was read live.
+
+> ## ✅ SUPERSEDED BY EVENTS — labels went native on 2026-09-18 at 20:02:56Z
+>
+> This file was written earlier the same day as **read-only research**, and it
+> opened by saying nothing in it had been run and that four blockers stopped it
+> being run as written. **Three of those four were resolved and the capability
+> is live.** Live state, as measured by the owner:
+>
+> | | |
+> |---|---|
+> | capability | `native` since **2026-09-18T20:02:56Z** |
+> | catalog version | `f55a7dd2` |
+> | deployed at | `b7c30c74`, `production-write` **v77** |
+> | step 27 | **passed**, on receipts **10536** and **10537** |
+> | kill switch | `mode:"hold"` — see *The rollback* in (c) |
+>
+> The original text is kept below with a correction block against each thing
+> that turned out to be wrong, because the reasoning that produced a wrong
+> blocker is worth more than a tidy file. **Read each ⚠ correction before
+> acting on the paragraph above it.**
+
+Read-only research, 2026-09-18, cloud session, superseded as above. When first
+written: no SQL was issued, no Linear request was made, no flag was read live.
 
 Companion documents, both still correct and neither superseded by this one:
 [the B7 capture runbook](NATIVE_LABEL_CATALOG_CAPTURE.md) is the owner's command
@@ -18,6 +39,17 @@ procedure being run as written today.
 Three of them are not "do it carefully" cautions. They are reasons the step
 cannot complete, and two were not written down anywhere before this file.
 
+> ⚠ **As of 2026-09-18T20:02:56Z: B-1, B-3 and B-4 are resolved.** B-2 still
+> stands and was never tested, because the capture it describes a substitute for
+> was actually taken. Corrections are inline below.
+>
+> | | as written | as it turned out |
+> |---|---|---|
+> | **B-1** | the capture window closed, capture never taken | access was still live; the capture was taken and attested |
+> | **B-2** | no in-database substitute exists | **still true**, and never needed |
+> | **B-3** | the label lane refuses the test client | fixed in #1414, then bound to `auth_kind` |
+> | **B-4** | native cards keep saying "Labels unavailable" | **wrong** — the gateway already stamped the empty relation |
+
 ### B-1. The capture window closed three days ago, and the capture was never taken
 
 `NATIVE_LABEL_CATALOG_CAPTURE.md` still opens with **"Status: SOURCE ONLY. The
@@ -27,6 +59,23 @@ capture has NOT been taken."** OPEN_REPAIRS 170 says the same. And
 
 Today is 2026-09-18. Every other step in this file is downstream of a capture
 that, on the repository's own record, can no longer be taken.
+
+> ⚠ **CORRECTED — the record was stale, the access was not.** Linear still
+> answered on 2026-09-18. Gate 0 below is exactly the check that established
+> this, and it passed. The capture was taken, attested, staged and activated the
+> same day; the catalog version is `f55a7dd2`.
+>
+> **The mistake is worth naming, because it is not a small one.** Three
+> documents agreed that access had ended — the runbook's own status line,
+> OPEN_REPAIRS 170, and `OPEN_REPAIRS.md:15275` — and all three were
+> *predictions written in advance*, not measurements. A date that was planned
+> for was read back as a date that happened. Nothing had checked.
+>
+> The corrected ledger line now reads that access is live, measured
+> 2026-09-18. The general form: **a date in a document is a claim about the
+> future until something measures it.** Gate 0 existed precisely to measure it,
+> and the right move was always to run Gate 0 first rather than to reason from
+> the record. That is what eventually happened.
 
 **This is a question, not a conclusion.** A session cannot tell whether
 `api.linear.app` still answers for this workspace, and the repository's
@@ -74,6 +123,27 @@ That is an owner decision, and it has exactly two honest shapes:
 **Do not** resolve it by flipping `test_only` on a real write. The receipt guard
 would refuse it anyway, and the refusal is correct.
 
+> ⚠ **CORRECTED — resolved by shape (i), and then by a defect found on top of
+> it.** `migrations/2026-09-18-native-label-test-client-parity.sql` (#1414)
+> extended the #1413 parity to this third lane: all three layers now record and
+> compare `test_only` instead of refusing it, `legacy_parity` untouched, every
+> role named, nothing granted.
+>
+> **That was not sufficient on its own, and the reason generalises.** Codex
+> found that the TEST principal was still refused one layer later: `eventFor`
+> emits `auth_kind: principal.kind`, the TEST principal's kind is `test`, and
+> the SQL still demanded `auth_kind = 'staff'`. So the parity was *unreachable
+> through the real gateway* — every rehearsal that "passed" had hand-built an
+> `auth_kind` the gateway cannot actually send. The fix **binds** the two
+> fields: `auth_kind` must be `test` exactly when `test_only` is true and
+> `staff` exactly when false, both directions. The assignment lane carried the
+> identical defect and got the identical binding
+> (`2026-09-18-native-assignment-auth-kind-binding.sql`, #1415).
+>
+> **The reusable lesson:** a rehearsal that constructs its own input proves the
+> SQL, not the path. Derive the rehearsal's input the way the gateway derives
+> it, or the test agrees with itself.
+
 ### B-4. Turning the flag on does NOT make labels appear on natively-created cards
 
 This is the direct answer to *"what does 'Labels unavailable' become"*, and the
@@ -102,6 +172,48 @@ What is actually needed is a one-line seed, on native cards only, of
 `linear_raw.issue.labels = {"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}`
 — the empty-but-complete relation. That is a migration this repository does not
 have, and it is a prerequisite of step 26, not of step 27.
+
+> ⚠ **CORRECTED — B-4 was wrong. Native cards already carried the relation, and
+> turning the flag on DID make labels appear on them.**
+>
+> The claim above rests on the sentence *"nothing in any migration seeds one"*,
+> and that sentence is **true**. The conclusion drawn from it — *"nothing seeds
+> one"* — does not follow, and is false. **The stamp is in the gateway, not in
+> SQL:**
+>
+> | site | when |
+> |---|---|
+> | `handleIntakeCreate` — `production-write/index.ts:7705` | the team's native epoch is set |
+> | `handleComponentFill` — `production-write/index.ts:7081` | the team's native epoch is set |
+>
+> Both write exactly the shape this blocker says is missing. The 7081 site says
+> so in its own comment: *"A newly created native component has a known empty
+> label selection."* So `nativeLabelSnapshot` gets its `nodes` array and its
+> `hasNextPage: false`, `handleLabelsRead` never reaches the 409, and the
+> control renders an editable empty list — `Add labels`, not
+> `Labels unavailable`.
+>
+> **Measured live before the flip:** *every* native-intake card already carried
+> the complete empty relation. The seed migration was written anyway and
+> applied; its backfill touched **9 rows, none of them from native intake** — 6
+> provider-era real cards from 2026-09-15 and 3 old test cards, all lacking a
+> Linear issue for other reasons. Those 9 are correctly seeded, "no labels" is
+> truthful for a card with no issue, and the trigger remains right for exactly
+> that population. The migration is pinned by the deploy gate, so it stays.
+>
+> **The mistake, stated so it is reusable.** The search was `migrations/*.sql`.
+> One layer was searched; the claim made was about the whole system. Before
+> asserting that *nothing* does X, name the layers where X could live and say
+> which ones were searched — here that is at least `migrations/*.sql`,
+> `supabase/migrations/*.sql`, `supabase/functions/**` and `index.html`. This
+> is the same error shape as B-1 (reasoning from the record instead of
+> measuring) and it is the fourth instance recorded in the journal.
+>
+> The second follow-up this blocker implied — a `_prodLabelErrorText` branch for
+> `native_label_state_incomplete` — is **still open and still worth doing**, for
+> the 9 seeded cards and any future card with no issue. It is cosmetic: the
+> tooltip on such a card still says *"Retry to check the current Linear
+> state."*, which names Linear on a card that never had a Linear issue.
 
 ---
 
@@ -342,6 +454,10 @@ update public.syncview_runtime_flags
  where key = 'production_native_label_catalog';
 ```
 
+> ✅ **This is what was run.** The live value carries
+> `"mode":"native"` with version `f55a7dd2`, set 2026-09-18T20:02:56Z against
+> `production-write` **v77** deployed at `b7c30c74`.
+
 All three keys are mandatory and the shape is validated on every read:
 `schema_version` must be exactly `1`; `mode` one of `provider|native|hold`; and
 `version_id` must be a lowercase-hex UUID when `mode='native'` and exactly JSON
@@ -365,12 +481,47 @@ manifest maps them separately and a wrong mapping shows up here or nowhere.
 `provider_completeness_verified` stays `false`. That is correct and permanent —
 it is not a check that was skipped.
 
+> ✅ **Measured, and the counts are much smaller than the catalog. This is the
+> readback's most misreadable result, so read it before you call it a bug.**
+>
+> | team | applicable labels served |
+> |---|---|
+> | `video` | **2** |
+> | `graphics` | **6** |
+>
+> **Not 27 workspace-wide**, which is what "the catalog has 46 labels, 19 of
+> them retired" invites you to expect. The serving filter is per team by
+> construction — `production_label_catalog_read_version` ends with:
+>
+> ```sql
+> where n->'isGroup' = 'false'::jsonb and n->'archivedAt' = 'null'::jsonb
+>   and n->'retiredAt' = 'null'::jsonb
+>   and (n->'team' = 'null'::jsonb or n->'team'->>'id' = v_row.manifest->'teams'->>p_team)
+> ```
+>
+> Four independent reasons a captured label is not served to a given team:
+> it is a **group**, it is **archived**, it is **retired**, or it **belongs to
+> the other team**. Only a label with `team: null` is genuinely workspace-wide
+> and reaches both. So the catalog count and the served count answer different
+> questions, and a small served number is the filter working rather than a
+> partial capture.
+>
+> **The capture is still whole**, and must be: dropping the unserved entries
+> would be a `label_catalog_count_mismatch`. Completeness lives in the manifest;
+> applicability is decided per read.
+
 Also confirm, before anyone touches the UI, that `prod_authority` is `syncview`
 for the team under test. `handleLabelsRead` only consults the capability when
 authority is `syncview` (`index.ts:5604-5605`); on a `linear` team the native
 branch is unreachable and the flag does nothing.
 
 ### Step 27 acceptance checks
+
+> ✅ **STEP 27 PASSED**, 2026-09-18, on receipts **10536** and **10537** in
+> `mirror_outbox`. Those two receipt ids are the evidence for check 2 and are
+> what a later session should re-read rather than re-deriving. Check 7 no longer
+> needs the owner's named go-ahead for a real client: B-3 is resolved, so the
+> test client can exercise the lane.
 
 Run them in this order; each one can fail without damaging the next.
 
@@ -426,6 +577,13 @@ requires the owner's named go-ahead for a real client, or the parity migration
 first.
 
 ### The rollback — `hold`, and why not `provider`
+
+> ✅ **This is the live kill switch.** The capability is on, so this is no
+> longer a contingency in a plan: it is the one statement that turns labels off
+> safely, and it is the first thing to reach for if the lane misbehaves. Keep
+> `version_id` as JSON `null` — a UUID here raises
+> `native_label_catalog_config_invalid` and the gateway turns that into a 503,
+> so a malformed rollback fails loudly rather than silently leaving `native` on.
 
 ```sql
 update public.syncview_runtime_flags
@@ -502,6 +660,17 @@ no Linear fallback. That is the intended behaviour.
 
 ### After the flag is on — for a natively-created card
 
+> ⚠ **CORRECTED — it does NOT still say "Labels unavailable."** A natively
+> created card gets the same editable list as any other complete card: the real
+> chips, or `Add labels` when the selection is empty. The paragraph below is
+> wrong for exactly the reason B-4's correction gives — the empty-but-complete
+> relation is stamped by the gateway at intake, so `nativeLabelSnapshot`
+> succeeds and `handleLabelsRead` never reaches the 409.
+>
+> It remains accurate for the **9 backfilled cards that have no Linear issue for
+> other reasons**, and for any future card in that position. For those, the
+> tooltip naming Linear is still the open cosmetic follow-up.
+
 **It still says "Labels unavailable."** See B-4. The code changes from
 `linear_issue_unavailable` to `native_label_state_incomplete`
 (`index.ts:5611`), both render the same string, and `_prodLabelErrorText` still
@@ -514,6 +683,11 @@ Two follow-ups this implies, neither in scope here:
   native cards;
 - a `_prodLabelErrorText` branch for `native_label_state_incomplete`, so the
   message stops naming Linear on a card that never had a Linear issue.
+
+> Status of the two: the **first is done** (merged and applied in #1414, though
+> for a different and smaller population than predicted — see B-4). The
+> **second is still open**, and is now the only known rough edge left on this
+> capability.
 
 ---
 
@@ -579,4 +753,20 @@ stays with the owner under point 3 above.
 10. **Step 27 acceptance checks**, both teams. *(session + owner)*
 11. **Step 28** — record the dependency this closes. *(session)*
 
-Steps 1, 4, 5, 7 and 9 are the owner's alone. Nothing in this file has been run.
+Steps 1, 4, 5, 7 and 9 are the owner's alone.
+
+> ✅ **All eleven ran on 2026-09-18, in this order, and 1 through 10 are
+> complete.** Gate 0 passed; B-3 was resolved by the parity migration and its
+> `auth_kind` binding; B-4 turned out not to be a blocker at all; the capture
+> was taken, verified and attested; staging returned `ok:true`; the flag went to
+> `native` at 20:02:56Z on version `f55a7dd2`; and step 27's checks passed on
+> receipts 10536 and 10537.
+>
+> **Step 11 (execution map step 28) is the one still outstanding** — recording
+> the website dependency this closes, with the exact gate, the accepted
+> replacement and evidence the legacy route is unreachable. That is a session
+> task and it is the next thing to do for this capability.
+>
+> Note for the next capability that comes through this sequence: steps 2 and 3
+> here were both *blockers derived by reading rather than measuring*, and one of
+> the two was simply not real. Run the cheap live gate first.

@@ -24,6 +24,15 @@ execution session and after every completed step:
 Phase 3 of 7 · step 14 of 28 · 46% complete · next: 15 (verify installed catalog)
 ```
 
+**Current position, 2026-09-18:** phase 7 is under way and the counter above is
+only an example of the format. Phase 7 repeats steps 26 to 28 **per
+capability**, so a single number out of 28 stops being meaningful there — report
+the capability by name and its own step:
+
+```
+Phase 7 of 7 · labels: step 27 of 28 complete · next: 28 (record the dependency it closes)
+```
+
 A step is complete only when its **Done when** column is satisfied and its
 evidence is recorded. A step that was started and stopped is not complete;
 report it as in progress with what remains. Never report a GATE as complete
@@ -305,6 +314,17 @@ next. Linear stays running underneath the whole time.
 | 26 | For the chosen capability: complete its deployment and configuration, then **GATE** approve enabling it | Owner + session | Configuration in place; explicit go-ahead for this one capability |
 | 27 | Enable the single flag and watch real work flow through it | Session + owner | Its own acceptance checks pass against real usage |
 | 28 | Record the website dependency it closes: the exact gate, the accepted replacement, and evidence the legacy route is unreachable | Session | Recorded for that capability in the checkpoint dependency table |
+
+### Status by capability
+
+| Capability | Flag | Step | Evidence |
+|---|---|---|---|
+| **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | **27 complete** · next 28 | Deployed at `b7c30c74`, `production-write` v77. Step 27 passed on receipts **10536** and **10537**. Served per team: video **2**, graphics **6** — not 27 workspace-wide; see the procedure for why the filter makes those different questions. Kill switch: `mode:"hold"`. |
+
+Procedure and its corrections:
+[step 26/27 for native labels](LINEAR_EXIT_STEP26_NATIVE_LABELS.md). Three of
+the four blockers that file opens with were resolved on the day and one of them
+was never real; its correction blocks say which and why.
 
 Stop on any required path with no accepted replacement. If a capability
 misbehaves, turn that one flag back off; Linear is still underneath.

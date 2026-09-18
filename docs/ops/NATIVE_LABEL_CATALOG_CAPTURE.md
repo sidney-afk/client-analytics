@@ -1,7 +1,16 @@
 # B7 — capture the Linear label catalog before it is gone
 
-**Status: SOURCE ONLY. The capture has NOT been taken. Nothing here has been
-run against Linear or against the live database by any session.**
+> **✅ STATUS, 2026-09-18: TAKEN, ATTESTED AND LIVE.** The capture was run by
+> the owner, staged, and the capability is `native` on version `f55a7dd2` as of
+> 20:02:56Z. The status line below is kept because the rest of this file is
+> still the correct command sheet for a **re-capture**, which the retirement
+> change now requires of any package taken before 2026-09-18.
+>
+> The old line said access ended on the 15th. It had not: nothing had measured
+> it, and when something did, Linear answered.
+
+**Status when written: SOURCE ONLY. The capture has NOT been taken. Nothing here
+has been run against Linear or against the live database by any session.**
 
 This is the one item in the Linear exit that cannot be done later. Everything
 else in the programme can slip to the 14th and still be recoverable. This

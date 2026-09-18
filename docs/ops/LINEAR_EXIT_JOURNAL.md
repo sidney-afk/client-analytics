@@ -30,6 +30,76 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Labels are NATIVE. Three of the four step 26 blockers dissolved, and two of them were never real
+
+Cloud session, correcting documents after the fact. **This session did not run
+any of it** — the owner flipped the flag and measured; what follows is recorded
+from that report plus repository reading.
+
+| | |
+|---|---|
+| capability | `native` since **2026-09-18T20:02:56Z** |
+| catalog version | `f55a7dd2` |
+| deployed at | `b7c30c74`, `production-write` **v77** |
+| step 27 | **passed**, receipts **10536** and **10537** |
+| kill switch | `mode:"hold"` |
+
+#### The two blockers that were never real, and they failed the same way
+
+**B-1 said the capture could no longer be taken.** Three documents agreed that
+Linear access ended on 2026-09-15 — the runbook's status line, OPEN_REPAIRS 170,
+and `OPEN_REPAIRS.md:15275`. All three were **predictions written in advance**.
+A date that was *planned for* was read back as a date that *happened*. Gate 0
+existed to measure exactly this, and when it finally ran, Linear answered.
+
+**B-4 said native cards would still show "Labels unavailable".** The supporting
+sentence — *"nothing in any migration seeds the empty relation"* — was true. The
+conclusion, *"nothing seeds it"*, was false: the gateway stamps it at
+`handleIntakeCreate` (`index.ts:7705`) and `handleComponentFill`
+(`index.ts:7081`). One layer searched, a whole-system claim drawn from it.
+
+**These are the same error.** Both asserted a fact about the running system from
+a source that could not establish it — a document written in advance, and a
+grep over one directory. Neither was careless about its own evidence; both were
+careless about what that evidence *covered*. Recorded as the fifth and sixth
+instances of this shape in this journal.
+
+The rule, sharpened: **before a claim about the running system becomes
+load-bearing, name what measured it.** If the answer is "a document" or "one
+directory", it has not been measured. Where a cheap live gate exists, run it
+first — reasoning from the record is the expensive path and it was wrong twice.
+
+#### B-3 was real, and its fix taught something separate
+
+The label lane genuinely refused the test client in all three layers. #1414
+fixed it; Codex then found the parity was still unreachable through the real
+gateway, because `eventFor` emits `auth_kind: principal.kind` and the SQL still
+demanded `'staff'`. Every rehearsal that "passed" had hand-built an `auth_kind`
+the gateway cannot send. **A rehearsal that constructs its own input proves the
+SQL, not the path.**
+
+#### The readback result most likely to be misread later
+
+Labels are served **per team**: video **2**, graphics **6**. Not 27
+workspace-wide, which is what "46 labels, 19 retired" invites you to expect.
+`production_label_catalog_read_version` excludes a label for four independent
+reasons — group, archived, retired, or belonging to the other team — and only a
+label with `team: null` reaches both teams. **The catalog count and the served
+count answer different questions.** A small served number is the filter working,
+not a partial capture, and the capture must stay whole or it fails its own
+count check.
+
+#### Still open
+
+- Execution map **step 28** for labels: record the website dependency this
+  closes, the accepted replacement, and evidence the legacy route is
+  unreachable. This is the next session task for this capability.
+- `_prodLabelErrorText` has no branch for `native_label_state_incomplete`, so
+  the 9 backfilled cards with no Linear issue show a tooltip naming Linear.
+  Cosmetic, and the only known rough edge left.
+- Any capture package taken before 2026-09-18 must be retaken before it can be
+  attested — `check_manifest` now requires `retiredAt` on every label.
+
 ### 2026-09-18 — PR #1415 is green on all six checks, and the unit lane could never have caught the one that went red
 
 Cloud session. Head `74e08f23`, six of six checks `success`: `unit`,

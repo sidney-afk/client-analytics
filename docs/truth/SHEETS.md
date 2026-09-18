@@ -1,6 +1,15 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-08-19 @ f05c3132 (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
+> Last verified: 2026-09-18 @ 043369b5 (re-verification of the same claims the 2026-08-19 stamp covered — the three `*_ef_clients` rosters, the duplicate-slug claim and the code anchors — plus the live Clients Info header row. Three facts had drifted; they are corrected in the block directly below, not silently. Sheet tabs other than Clients Info, and the Video Editors and Social Media Managers column claims, were NOT re-read this pass.)
+>
+> **Re-verification 2026-09-18, results and corrections to claims further down this page:**
+> - `*_ef_clients` rosters: all three present and **still identical to one another** (the gate). They now hold **43 slugs each, not 36** — the "36 slugs each" line under *Roster truth* is superseded.
+> - Duplicate-slug claim: **holds.** One matching slug in `clients`, active, `kind=client`, one entry in each of the three rosters.
+> - Code anchors: `wlNormalizeClient()`, `WL_ALLOWED_GRAPHICS` and the `client-review-link` Edge Function still exist on main. **`WL_VIDEO_EDITORS` does not**: it was removed from `index.html` at `87283f92` (2026-09-13). The *Frontend allowlists* line under *Roster truth* is superseded for that one name.
+> - Clients Info header, read live through the same unauthenticated gviz CSV the app uses: **14 named columns**, but **`creative_channel_id` is column K (11th), not N**. Live order: `client_name`, `email`, `competitors`, `keywords`, `specific_keywords`, `content_description`, `instagram_handle`, `tiktok_handle`, `youtube_channel_id`, `slack_channel_id`, `creative_channel_id`, `roam_channel_id`, `upload_post_profile`, `postforme_account_id`. The header ends in `postforme_account_id`, and gviz returns 13 further blank header cells. The app reads this tab by header name, so the position does not break it; anything that reads it by column letter would. The "(N)" position and the A–N list order under *What the app reads* are superseded.
+> - Previously verified 2026-08-19 @ f05c3132; that scope note is kept verbatim below.
+>
+> Previous stamp (2026-08-19 @ f05c3132) (Supabase-side re-verification: the three `*_ef_clients` rosters, the duplicate-slug claim, and the four code anchors below. Sheet-tab shapes and column counts were NOT re-read this pass and retain their 2026-07-05 audit source)
 > **Scoped Clients Info column-count correction (2026-08-25 @ 1a15097):** live-read via two
 > independent paths (direct Sheets API `values.get` and Drive's content index) during the
 > §19 creative-channel-finalizer incident (`docs/CLIENT_LIFECYCLE_MAP.md`). The "12 cols A–L"

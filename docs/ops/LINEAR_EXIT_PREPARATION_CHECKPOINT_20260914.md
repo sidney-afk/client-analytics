@@ -248,7 +248,18 @@ One row per capability that has finished step 27. A capability appears here only
 after every one of its acceptance checks is measured; a flag being on is not a
 closure.
 
-#### Labels — `production_native_label_catalog`, recorded 2026-09-18
+#### ⛔ Labels — `production_native_label_catalog`: WITHDRAWN 2026-09-18, not a closure
+
+> **This closure was written prematurely and is withdrawn.** Step 27 is not
+> finished: acceptance check 6 names three refusals — a `client` principal →
+> 403, a role outside `admin|smm` → `native_label_scope_forbidden`, and a stale
+> `catalog_version` → 409 — and only the first and third were measured. The
+> middle one was never run. Established by a Codex P1 on #1420.
+>
+> It is kept below rather than deleted so the reasoning stays legible. **Nothing
+> in it may be cited as a recorded closure** until check 6b is measured and this
+> banner is removed. The rest of it — the gate, the replacement, the bounded
+> sense of "unreachable", the scope limits — was not what was wrong.
 
 | | |
 |---|---|

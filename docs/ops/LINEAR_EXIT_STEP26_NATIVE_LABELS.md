@@ -14,8 +14,8 @@ Execution map phase 7, for the **one** capability `production_native_label_catal
 > | capability | `native` since **2026-09-18T20:02:56Z** |
 > | catalog version | `f55a7dd2` |
 > | deployed at | `b7c30c74`, `production-write` **v77** |
-> | step 27 | ✅ **COMPLETE** — all 7 checks measured; see *Step 27 acceptance checks* |
-> | step 28 | ✅ **RECORDED** in the execution map's checkpoint dependency table |
+> | step 27 | ⏳ **IN PROGRESS** — 6 of 7 checks measured; check 6 is 2 of its 3 refusals |
+> | step 28 | ⛔ **WITHDRAWN** — not reachable until check 6 is complete |
 > | kill switch | `mode:"hold"` — see *The rollback* in (c) |
 >
 > The original text is kept below with a correction block against each thing
@@ -537,7 +537,25 @@ branch is unreachable and the flag does nothing.
 
 ### Step 27 acceptance checks
 
-> ### ✅ STEP 27 IS COMPLETE — all 7 checks measured, 2026-09-18
+> ### ⏳ STEP 27 IS IN PROGRESS — check 6 is 2 of its 3 refusals
+>
+> **Corrected 2026-09-18, after a Codex P1 on #1420.** A previous revision of
+> this block said all seven checks were measured and step 28 was recorded. That
+> was wrong, and wrong in the way this file exists to prevent: **check 6 names
+> THREE refusals, not two.** Four hundred lines below, the acceptance contract
+> reads *"A `client` principal → 403. A role outside `admin|smm` →
+> `native_label_scope_forbidden`. A stale `catalog_version` from an old tab →
+> 409 `native_label_catalog_changed`."* The evidence covered the first and the
+> third. The middle one was never run, and the split into a "403 half" and a
+> "409 half" invented a two-part check that the contract does not contain.
+>
+> That is the eighth instance of this shape, and the first committed **while
+> editing the document written to stop it**. The rule the seventh instance
+> produced — *when a step has enumerated acceptance checks, report per check* —
+> was followed at the level of the check number and abandoned one level down.
+> The rule is therefore narrower than it needed to be, and its replacement is:
+> **re-read the acceptance text for every check being closed, in the run that
+> closes it. A check with sub-clauses is not closed until each clause is named.**
 >
 > An earlier revision of this file said "STEP 27 PASSED" on the strength of
 > receipts 10536 and 10537 alone. **Those two receipts prove check 2 and
@@ -551,9 +569,42 @@ branch is unreachable and the flag does nothing.
 > | 3 | The row actually changed | ✅ | `labelIds` and `labels.nodes` agree, `hasNextPage` false, row updated **20:08:02Z** (supervisor) |
 > | 4 | Exact replay is idempotent | ✅ | storage session, on the **test card**, receipt **10579**, journal **`edf78a6a`** |
 > | 5 | Provider debt is conserved | ✅ | `labels` debt **0** before and after the flip, no row touched |
-> | 6 | The refusals fire — 409 half | ✅ | storage session, same run: receipt **10579**, journal **`edf78a6a`** |
-> | 6 | The refusals fire — 403 half | ✅ | offline, `test/production-write-gateway.js` — see below |
+> | 6a | Refusal: `client` principal → **403** | ✅ | offline, `test/production-write-gateway.js` — see below |
+> | 6b | Refusal: role outside `admin\|smm` → **`native_label_scope_forbidden`** | ❌ **NOT RUN** | — see *The refusal nobody ran* |
+> | 6c | Refusal: stale `catalog_version` → **409** | ✅ | storage session, receipt **10579**, journal **`edf78a6a`** |
 > | 7 | Both teams, on real cards | ✅ | video earlier; **graphics on receipts 10575 and 10576** |
+>
+> **Remaining before step 27 can be called complete: check 6b.**
+>
+> ### The refusal nobody ran, and a question about how it is written
+>
+> Check 6b is not covered, and the nearest existing evidence is another near
+> miss of the kind this file keeps collecting.
+> `test/native-label-seed-parity-postgres.js` asserts
+> `native_label_scope_forbidden` five times — but every one of them is about the
+> **test_only / `auth_kind` binding**, not about a staff role. Same error code,
+> different cause, different question. Citing it would repeat the exact mistake
+> that produced this correction.
+>
+> **And the contract may name the wrong code.** The guard that emits
+> `native_label_scope_forbidden` is `index.ts:6425-6427`:
+>
+> ```ts
+> if (! ["staff", "test"].includes(principal.kind) || legacyParity) {
+>   throw new GatewayError(403, "native_label_scope_forbidden");
+> }
+> ```
+>
+> That gates on the principal's **kind** and on `legacy_parity` — not on the
+> staff **role**. The `admin|smm` restriction lives in the policy table
+> (`staffOperationAllowed`, where `creative` gets `labels: false`) and refuses
+> with `operation_forbidden`. So a role outside `admin|smm` may well be refused,
+> correctly, by a different code than the one check 6b names.
+>
+> **This session is not deciding that.** Either the check's wording needs
+> correcting or a path emits that code for a role and has not been found; both
+> are readings that belong to whoever ratified the contract. What is recorded
+> here is only what was measured: 6b was not run, and nothing offline covers it.
 >
 > **Two things about this table that are not measurements of mine.** Checks 4,
 > 6-409 and 7-graphics were run by the storage session and are recorded here as
@@ -873,15 +924,14 @@ Steps 1, 4, 5, 7 and 9 are the owner's alone.
 > `production_label_catalog_versions` at 19:45Z**; the flag went to `native` at
 > 20:02:56Z on version `f55a7dd2`.
 >
-> ✅ **Step 10 (execution map step 27) is COMPLETE.** All 7 acceptance checks
-> are measured — checks 4, 6-409 and 7-graphics by the storage session, the 403
-> half of check 6 offline in this repository. See *Step 27 acceptance checks*
-> for the evidence behind each one, and for which of them this session measured
-> itself (one of seven).
+> ⏳ **Step 10 (execution map step 27) is IN PROGRESS.** Six of seven checks are
+> measured; check 6 is **2 of its 3 refusals**, and 6b — a role outside
+> `admin|smm` — was never run. See *Step 27 acceptance checks*.
 >
-> ✅ **Step 11 (execution map step 28) is COMPLETE**: the dependency labels
-> closes is recorded in the checkpoint dependency table in
-> `LINEAR_EXIT_EXECUTION_MAP.md`.
+> ⛔ **Step 11 (execution map step 28) is WITHDRAWN.** A closure was written and
+> is now marked withdrawn in the checkpoint's dependency table rather than
+> deleted, because the reasoning that produced a premature closure is worth more
+> than a tidy file. It becomes valid when 6b is measured.
 >
 > Note for the next capability that comes through this sequence: steps 2 and 3
 > here were both *blockers derived by reading rather than measuring*, and one of

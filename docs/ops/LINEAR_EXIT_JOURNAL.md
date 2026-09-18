@@ -30,6 +30,49 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — CORRECTION: labels is NOT through phase 7. Check 6 has three refusals and two were measured
+
+Placed above the entry it corrects, because that entry's claim is the thing a
+reader must not carry away. Established by a Codex P1 on #1420, verified against
+the acceptance text before anything was written.
+
+**Check 6 reads:** *"A `client` principal → 403. A role outside `admin|smm` →
+`native_label_scope_forbidden`. A stale `catalog_version` from an old tab → 409
+`native_label_catalog_changed`."* Three refusals. The evidence covered the first
+and the third. The second was never run.
+
+Worse than the gap is how it was produced. The instruction described a "403 half"
+and a "409 half", and that framing was adopted without opening the acceptance
+text four hundred lines down **in the file being edited**. A two-part check was
+invented and then reported as complete. Step 28 was recorded on top of it.
+
+**Eighth instance of the shape, and the first committed inside the document
+written to stop it.** The rule the seventh produced — *when a step has
+enumerated acceptance checks, report per check, never in aggregate* — was obeyed
+at the level of the check number and abandoned one level down, which is the same
+failure at smaller scale. The rule is replaced, not supplemented:
+
+> **Re-read the acceptance text for every check being closed, in the run that
+> closes it. A check with sub-clauses is not closed until each clause is named
+> and answered separately. An instruction that describes a check is not the
+> check.**
+
+**The nearest existing evidence is another near miss.**
+`test/native-label-seed-parity-postgres.js` asserts
+`native_label_scope_forbidden` five times, and every one is about the
+`test_only` / `auth_kind` binding, not a staff role. Same code, different cause.
+Citing it would have repeated the mistake one layer deeper.
+
+**And the check may name the wrong code.** The guard emitting
+`native_label_scope_forbidden` (`index.ts:6425-6427`) gates on the principal's
+kind and on `legacy_parity`, not on the staff role; the `admin|smm` restriction
+lives in the policy table and refuses with `operation_forbidden`. Whether the
+contract's wording is wrong or a path was not found is not this session's call
+and is recorded as a question, not a finding.
+
+Step 27 is back to IN PROGRESS. The step 28 closure is marked **withdrawn** in
+the checkpoint's dependency table rather than deleted.
+
 ### 2026-09-18 — Labels is through phase 7, and the one check this session could measure had no test at all
 
 Step 27 closed on evidence from three sources. Checks 1, 3 and 5 are the owner's

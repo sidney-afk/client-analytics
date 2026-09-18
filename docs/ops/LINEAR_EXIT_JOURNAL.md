@@ -30,6 +30,113 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Step 26 procedure for the native label catalog, and the FOUR reasons it cannot be run as written today
+
+Cloud session, reading only. No SQL was issued, no Linear request was made, no
+flag was read live, nothing was deployed. The procedure is
+[LINEAR_EXIT_STEP26_NATIVE_LABELS.md](LINEAR_EXIT_STEP26_NATIVE_LABELS.md).
+
+The ask was for the step 26 procedure: what the capture must contain, the exact
+SQL that installs a version, the exact on value and rollback, and what "Labels
+unavailable" becomes. All four are in the document. What is worth recording here
+is that the exporter and the runbook **already existed** — `scripts/linear-label-catalog-export.js`,
+its `.cli.js`, and `docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` — so the procedure
+is a layer on top of them, not a rewrite of them. The first draft instinct was to
+specify the GraphQL by hand; the repository had it, with an offline fixture
+rehearsal and a test that re-reads every bound out of the two migrations. This is
+the same lesson as the F27 capture script in `CLAUDE.md`: look for the tool
+before writing the instructions.
+
+#### B-1. The capture window closed on 2026-09-15 and the capture was never taken
+
+`NATIVE_LABEL_CATALOG_CAPTURE.md` still opens "Status: SOURCE ONLY. The capture
+has NOT been taken." OPEN_REPAIRS 170 agrees. `OPEN_REPAIRS.md:15275` says of the
+15th: "that date ends our Linear **access**". Today is the 18th.
+
+**Stated as a question, not a conclusion.** A session cannot tell whether
+`api.linear.app` still answers for this workspace, and the repository's statement
+is a plan, not a measurement. The procedure opens with a Gate 0 that settles it
+for free: the exporter resolves the organization and both team ids before it
+captures anything, so a lapsed credential fails on the first request. If Gate 0
+is green that run **is** the capture; if it is red, step 26 for this capability
+cannot complete and step 28's honest entry is "no accepted replacement".
+
+#### B-2. There is no in-database substitute, and that is deliberate
+
+The obvious fallback is to build a manifest from the label nodes already in
+`deliverables.linear_raw`. It is ruled out in writing: the foundation record says
+"A selected-label union is never treated as a catalog", and attestation item 4
+requires the owner to assert the manifest is the whole workspace. A
+self-consistent truncated file passes every structural check the SQL performs —
+which is exactly why the human assertion exists and why synthesising one is a
+false attestation rather than a shortcut.
+
+#### B-3. The label lane refuses the test client — the same defect #1413 just fixed twice
+
+Found by reading, not by running. All three layers refuse `test_only`:
+
+| Layer | Refusal |
+|---|---|
+| `2026-09-06-native-label-writes.sql:132` | `production_labels_write` requires `v_out->'test_only'` to be exactly `false` |
+| `2026-09-06-native-label-writes.sql:101` | the receipt guard refuses `new.test_only is distinct from false` |
+| `production-write/index.ts:6403` | the gateway refuses `principal.testOnly` with 403 |
+
+So step 27 has **no TEST lane at all**, and the first native label write that can
+ever succeed is on a real client — colliding with "Mutate only the test client
+`sidneylaruel`". #1413 fixed precisely this shape for the ordinary and assignment
+lanes and left the third untouched, because nobody had looked at it. Two honest
+resolutions, both owner decisions: extend the parity migration to this lane, or
+name a real client in the go-ahead.
+
+#### B-4. The flag alone does not make labels appear on native cards
+
+This is the answer to "what does 'Labels unavailable' become", and for a
+natively-created card the answer is: **it stays "Labels unavailable".**
+
+`nativeLabelSnapshot` (`index.ts:797-818`) returns null unless the stored
+relation has a `nodes` array and `pageInfo.hasNextPage === false`. Native intake
+stamps no `labels` relation at all — `grep hasNextPage migrations/*.sql` returns
+only readers plus the writer's own output. The workload lane already treats an
+absent relation as "complete, with no labels"
+(`2026-09-08-workload-native-label-state-shape.sql:8`); production-write does not
+share that reading. So native mode swaps the refusal from
+`linear_issue_unavailable` to `native_label_state_incomplete` and renders the
+same string, with a tooltip that still says "Retry to check the current Linear
+state" on a card that never had a Linear issue.
+
+The capture's half (b) cannot repair these either: its repair arm requires
+`card.linear_issue_uuid`, which a native card does not have. What is needed is a
+seed of the empty-but-complete relation, which is a migration this repository
+does not have and a **prerequisite of step 26**, not of 27.
+
+#### The two facts that make the capability worth having
+
+- **The credential asymmetry is the whole point.** The provider label path reads
+  `LINEAR_MIRROR_API_KEY` (`index.ts:841-843`). The native path never reaches it:
+  `handleLabelsRead` returns at `index.ts:5612-5618` before `linearLabelSnapshot`,
+  and `production_labels_write` makes no outbound request. Turning this on is
+  precisely what removes the Linear credential from the label read and write
+  path. The credential is needed **once**, to capture, and never again.
+- **The gateway half is already serving.** `production-write` was deployed at
+  `d749ec9f` on 2026-09-17, and that revision already carries
+  `nativeLabelCatalogConfig`, `readNativeLabelCatalog` and the
+  `production_labels_write` call; production-write has not changed since. So the
+  foundation record's ordered hold 4, "serve the compatible gateway before the
+  browser version field, with native mode still off", is already satisfied. The
+  browser half is live too — `index.html` adopts `catalog_version` and sends it
+  back on save.
+
+#### Who runs the capture
+
+Neither this session nor the storage session. It needs a live Linear credential
+and the service role key, its output is a private package carrying label names
+and client slugs into a **public** repository's blast radius, and
+`--confirm=REVIEWED_COMPLETE_LINEAR_LABEL_EXPORT` is an assertion that a human
+read the evidence — which a session cannot truthfully make. If custody of the
+package is ever delegated, the storage session is the right holder, because
+private-package custody and the Drive lane are already its job. That is custody
+only; it does not extend to running the capture or making the attestation.
+
 ### 2026-09-18 — PR #1413: both native follow-up lanes now treat the test client like a real client, and ONE body change turned out to have FOUR frozen artifacts downstream of it
 
 Cloud session. Not merged; the supervisor merges.

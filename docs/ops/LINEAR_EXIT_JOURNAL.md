@@ -30,6 +30,96 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Morning: SHEETS.md re-verified and restamped in PR #1411 (three drifted facts corrected, not stamped over); and the `native_assignment_epochs` permission reading, which had not been done, is done — the #1408 revoke does not break the assignment chain
+
+Storage session. Both items read-only against live systems; the only write is a
+docs PR against main, unmerged.
+
+#### 1. `test/truth-sync.js` and `docs/truth/SHEETS.md`
+
+On a clean main worktree at `043369b5` the suite reported **534 passed, 1
+failed** — the one failure is SHEETS.md's freshness date, 2026-08-19 against a
+30-day window. No other truth doc was stale.
+
+Re-verified the same claims the 2026-08-19 stamp covered, plus the live Clients
+Info header row, counts only:
+
+| Claim | Result |
+|---|---|
+| Three `*_ef_clients` rosters identical to one another (the gate) | **holds** |
+| …36 slugs each | **drifted: 43 each** |
+| Duplicate-slug claim | **holds** — 1 matching slug, active, `kind=client`, 1 entry per roster |
+| Anchors `wlNormalizeClient()`, `WL_ALLOWED_GRAPHICS`, `client-review-link` | **present** on main |
+| Anchor `WL_VIDEO_EDITORS` | **gone** — removed from `index.html` at `87283f92` |
+| Clients Info header, 14 columns | **holds** — 14 named columns |
+| …ending in `creative_channel_id` | **drifted: `creative_channel_id` is column K (11th); the header ends in `postforme_account_id`** |
+
+The header was read through the same unauthenticated gviz CSV the app uses,
+parsed in memory for the first row only, and nothing was written to disk. The app
+reads that tab by header name, so the position does not break it; anything that
+reads it by column letter would, and that was not surveyed.
+
+The 2026-08-19 stamp did not name its "four code anchors". The four checked here
+are the four code-shaped anchors the doc names; that choice is stated rather than
+implied.
+
+**Stamping over three false facts would have certified them**, so they are
+corrected in a dated block directly under the new stamp, with the original lines
+left in place and each superseded one named. On the branch: **535 passed, 0
+failed**. One commit, docs only; identity check before pushing: 0 slugs, 0 names.
+
+**PR: https://github.com/sidney-afk/client-analytics/pull/1411** — not merged.
+
+#### 2. `native_assignment_epochs`: the installed-permission reading
+
+Last night's reading-only entry left this to the storage session: re-read the
+installed permissions for the native existing-assignment objects, because PR
+#1408 revoked `EXECUTE` on `production_assignment_epoch(text)` from
+`service_role`, and confirm the live callers reach it through a `SECURITY DEFINER`
+chain or a trigger. **There was no record of it being done; it is done now.**
+Evidence: `native-assignment-permissions-20260918-1/permissions.private.json`,
+SHA-256 `34ef4c3bafe825df685f3df5f647be953ba1569759d8f533e7f52a7e532e0db7`.
+
+| Function | Exists | Owner | `SECURITY DEFINER` | `search_path` | EXECUTE held by |
+|---|---|---|---|---|---|
+| `production_assignment_epoch(text)` | yes | postgres | yes | `public` | **postgres only** |
+| `production_assignment_context(jsonb)` | yes | postgres | yes | `public` | postgres, **service_role** |
+| `production_assignee_write(jsonb,jsonb)` | yes | postgres | yes | `public` | postgres, **service_role** |
+| `production_native_assignment_receipt_guard()` | yes | postgres | yes | `public` | postgres only |
+| `production_native_assignment_truncate_guard()` | yes | postgres | yes | `public` | postgres only |
+
+`anon` and `authenticated` hold EXECUTE on **none** of the five.
+
+| Trigger | Table | Enabled | Function |
+|---|---|---|---|
+| `zzz_native_assignment_receipt_guard` | `mirror_outbox` | `O` (fires normally) | `production_native_assignment_receipt_guard` |
+| `zzz_native_assignment_truncate_guard` | `mirror_outbox` | `O` | `production_native_assignment_truncate_guard` |
+
+Seeded row: `native_assignment_epochs` = video and graphics both
+`{"mode":"provider","epoch":null}` — dormant, unchanged.
+
+**Who calls the epoch function, and whether the revoke breaks it.** In the
+migration, every call to `production_assignment_epoch` is inside another of these
+`SECURITY DEFINER` functions, or inside the receipt guard, which is a trigger
+function. All are owned by `postgres`, and `postgres` still holds EXECUTE on the
+epoch function, so those calls run as the definer and are unaffected. Under
+`supabase/functions` on main there are **0** direct references to
+`production_assignment_epoch`; the gateway's assignment entry point is an RPC to
+`production_assignment_context`, which `service_role` can still execute.
+
+**Verdict: the #1408 revoke does not break the native assignment chain.** The
+only roles that could reach the epoch function directly lost it, and nothing
+legitimate called it directly.
+
+**What this does not establish.** It is a structural reading, not a call. The
+entry's third item — a live or operator proof of one real assignment and one
+exact replay — is still open, and nothing here substitutes for it.
+
+#### Not done
+
+- PR #1411 not merged.
+- No flag set, no write, no live call to any assignment function.
+
 ### 2026-09-18 — `unit` is red on main and on every PR: `docs/truth/SHEETS.md` went stale overnight. And a near-miss: 26 red lines in the assignee lane are a negative control, not a defect
 
 Cloud session, while driving PR #1410. Two findings, one real and one that I

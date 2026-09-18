@@ -20,8 +20,8 @@
       "sha256": "e0fd80e9ee8a154af098752baf3f8d30c386790fd5916c7834d3fb30787f855a"
     },
     {
-      "path": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918.json",
-      "sha256": "0a96b06a099ec4619a5ac0025fa15ba85cdc9cee9b20665b4f4f498be85e2ecd"
+      "path": "docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json",
+      "sha256": "6c57462d97876157322b8ecffbc6d46b0b40d9cfc669c14be61df871c5e43122"
     },
     {
       "path": "docs/independence/LINEAR_EXIT_PRIORITY_ROW_SCHEMA_20260910.json",
@@ -318,14 +318,6 @@
     {
       "path": "migrations/2026-09-12-native-ordinary-envelope-repair.sql",
       "sha256": "121838243805361c891ba5daccf975b991f289183339b07d1a9a219aaa5ffb84"
-    },
-    {
-      "path": "migrations/2026-09-18-native-test-client-parity.sql",
-      "sha256": "d7137d68f2d24927d3f713fe39d33fe32a042bdba333da6d11c54324fc531317"
-    },
-    {
-      "path": "migrations/2026-09-18-notification-creative-channel.sql",
-      "sha256": "6d45052dd8d695ddad83546bb6c3e9afd1b244aeaf6af30abfdc3dae0f89e0cf"
     },
     {
       "path": "migrations/ai-onboarding-supabase-migration.sql",

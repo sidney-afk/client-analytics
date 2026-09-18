@@ -311,6 +311,8 @@
     "native-assignment-auth-kind-postgres.js",
     "native-batch-picker-parents.js",
     "native-batch-picker-search.js",
+    "native-calendar-status-bridge-postgres.js",
+    "native-calendar-status-bridge.js",
     "native-client-provisioning-postgres.js",
     "native-client-provisioning.js",
     "native-existing-assignment-preinstall.js",

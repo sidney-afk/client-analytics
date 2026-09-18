@@ -1219,3 +1219,57 @@ OPEN_REPAIRS 187.
 ## September 13 review follow-up: staged-schema reads
 
 The prepared Production page tolerates only the exact missing-column responses for clients.native_project_ids and the two planned raw attribution fields in production_deliverables_browser_v1. It retries the same safe projection without those additions, preserving absent native proof and existing write gates. Other errors remain visible. This is staged-schema compatibility, not a new visual design or hosted deployment; final review evidence is in docs/ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md.
+
+## 2026-09-18 — the calendar's copy of a production status, projected natively
+
+**Not a Production-tab visual change.** Nothing about the SyncLinear surface
+moves; this records where the *content calendar's* copy of a production status
+now comes from, because until today it came through Linear and the parity map
+said so.
+
+-   **Before.** An editor changed a card's status on the Production tab. The
+    write landed in `deliverables`, the outbound mirror carried it to Linear,
+    and `scripts/linear-sync-reconcile.js` pulled it back onto
+    `calendar_posts.video_status` / `graphic_status` on its 15-minute tick,
+    stamping `video_status_at` / `graphic_status_at` through the BEFORE trigger
+    the reconciler's own ledger reads. Changes made from the calendar wrote both
+    copies directly and were never affected.
+-   **What broke.** Native receipts send nothing to Linear. From the
+    ordinary-receipts flip, the middle of that chain was empty: the reconciler
+    still resolved the card's Linear link, still got the stale state, and its
+    provenance test correctly refused to write it. Nothing else had ever written
+    the calendar's copy. Measured 2026-09-18 — four video cards moved to
+    `smm_approval` between 19:12Z and 19:25Z and the calendar still read "Tweaks
+    Needed" at 20:20Z when the SMM re-set them by hand; ten lagging components
+    across seven clients at 20:44Z (six video, four graphics), oldest since
+    17:34Z.
+-   **Wired behaviour.** `migrations/2026-09-18-native-calendar-status-bridge.sql`
+    projects the change in the database, in the same transaction as the
+    deliverable write: the mapped calendar value onto the linked card's
+    component status, its `*_status_at` stamp through the existing BEFORE
+    trigger, and one `calendar_post_events` row with `source = 'native-bridge'`.
+    The mapping is `_calMapNativeStatusStrict`'s — the same one the page and the
+    reconciler bind to — mirrored into SQL and held to the page's copy over
+    every allowed status by `test/native-calendar-status-bridge.js`.
+-   **Why the database and not the gateway.** The reconciler's most-recent-wins
+    ledger reads `*_status_at` as the EXACT moment the card changed, and its
+    whole purpose is that a card whose stamp did not move looks older than
+    Linear and gets reverted. That expectation is about the column on every
+    write path, not about one caller, and `production-write` is not the only
+    writer of `deliverables.status`. Full reasoning in the migration's header.
+-   **What does NOT move.** The card's overall `status` roll-up, which is still
+    `computeOverallStatus` plus `_calClearStaleApprovals` in `index.html` and is
+    still recomputed by the next calendar write — no server-side twin was
+    invented. Statuses with no calendar equivalent (`triage`, `canceled`,
+    `duplicate`, anything unrecognised, and `scheduled` / `posted` on a samples
+    row) leave the card exactly as it was. Samples cards are untouched. A card
+    whose own slot column does not point back at the deliverable is never
+    written. Archived cards are out of scope, as they are for the reconciler.
+-   **And the urgent ping.** `calendar_posts.video_status_at` is the urgent
+    editor ping's deduplication key, so every write is predicated on the mapped
+    value actually differing from the card's — a no-op projection, a native move
+    between two statuses that map to the same calendar value, and a re-run of
+    the backfill all write nothing and re-open no round. One repair falls out of
+    this: `urgentSnapshot` requires the card to read `Tweaks Needed`, so the
+    urgent ping has been unreachable on natively-changed cards since the flip
+    and is reachable again.

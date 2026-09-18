@@ -37,6 +37,7 @@ const CANDIDATE=[
  '2026-09-18-notification-creative-channel.sql','2026-09-18-native-test-client-parity.sql',
  '2026-09-18-native-label-empty-state-seed.sql','2026-09-18-native-label-test-client-parity.sql',
  '2026-09-18-native-label-retired-state.sql','2026-09-18-native-assignment-auth-kind-binding.sql',
+ '2026-09-18-native-calendar-status-bridge.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -85,6 +86,13 @@ const DEPENDENCIES={
  // Replaces production_assignee_write, whose last definition is the #1413
  // parity migration, so it installs after that one.
  '2026-09-18-native-assignment-auth-kind-binding.sql':['2026-09-18-native-test-client-parity.sql'],
+ // Projects deliverables.status onto the calendar card's component status, so
+ // it installs after the data model that owns `deliverables` and the card link
+ // columns, after the A1 migration that owns `calendar_post_events`, and after
+ // the live baseline that owns `calendar_posts` and the BEFORE trigger which
+ // stamps video_status_at / graphic_status_at -- the column the projection
+ // relies on moving, and the urgent ping's dedupe key.
+ '2026-09-18-native-calendar-status-bridge.sql':['live-schema-baseline-2026-07-03.sql','2026-07-03-a1-calendar-upsert.sql','2026-07-06-b1-linear-data-model.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

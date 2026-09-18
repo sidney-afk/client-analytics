@@ -30,6 +30,105 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — The flip cut the calendar's only supply of production statuses, and the question that decided the fix was what the reconciler's ledger expects
+
+Priority regression, reported the same day the ordinary receipts went native.
+
+An editor changes a status on a production card. That status has always reached
+the content calendar by exactly one route: the write lands in `deliverables`,
+the outbound mirror carries it to Linear, and the reconciler pulls it back onto
+the card. Native receipts send nothing to Linear. The reconciler still runs and
+is still correct — it resolves the link, gets the stale Linear state it has
+always had, and its own provenance test refuses to write it, which is the right
+answer to the wrong question. Nothing else had ever written the calendar's copy,
+so nothing did.
+
+Measured: four video cards to `smm_approval` between 19:12Z and 19:25Z, calendar
+still reading "Tweaks Needed" at 20:20Z when the SMM re-set them by hand; ten
+lagging components across seven clients at 20:44Z, oldest since 17:34Z. Changes
+made FROM the calendar were never affected — they write both copies.
+
+**Trigger or gateway was decided by one question, and it was not a taste
+question.** The reconciler's most-recent-wins ledger reads
+`calendar_posts.video_status_at` / `graphic_status_at` as the EXACT moment the
+card changed, and the column exists because of GRA-6339: a card whose stamp did
+not move when the card really changed looks OLDER than Linear, and the
+reconciler then pulls a stale Linear value over live work. So the ledger's
+standing expectation of that column is that it moves in the same transaction as
+the authoritative change, on every write path. A gateway projection is a second
+step — skippable, failable, and only present in a deployed version of one
+function — and `production-write` is not the only writer of
+`deliverables.status`. The gateway can satisfy the feature; it cannot satisfy
+the ledger. That is the whole argument, and it is recorded in the migration's
+own header rather than only here.
+
+The precedent is the 2026-09-10 Kasper ping ledger, which chose a trigger over
+an edge-function change for a ledger row and wrote down why. One thing is
+deliberately NOT copied from it: that trigger swallows every error, because a
+missing ledger row is never worth a failed client save. This one does not. A
+silently skipped projection is precisely the invisible lag being repaired, and
+a projection that fails should fail the write that caused it, where someone can
+see it.
+
+**The duplicate-notification trap was one level down from where I first looked.**
+The obvious candidate is the client-channel status intent — and it is a trigger
+on `deliverable_events` keyed on `source='ui'`, which a write to `calendar_posts`
+cannot reach. Easy, and not the risk.
+
+The real one is that `calendar_posts.video_status_at` **is** the urgent editor
+ping's deduplication key. `production_notification_enqueue_urgent` builds
+`intent_key = 'urgent:' || sha256(deliverable_id || '|' || video_status_at)` and
+relies on `on conflict (intent_key) do nothing` to make a repeat ping a no-op.
+So re-stamping that column without a card-visible change mints a NEW key and
+lets one tweak be pinged to the editor twice. Nothing about the column's name
+says "notification"; it is a timestamp, and it was read as one until the enqueue
+body was read.
+
+The guard is that every write is predicated on the MAPPED calendar value
+differing from what the card already holds, which makes a no-op projection, a
+native move between two statuses mapping to the same calendar value, the four
+cards the SMM already corrected by hand, and a second backfill run all write
+zero rows. And the assertion is made in the units that decide it — the `sha256`
+key recomputed exactly as the enqueue builds it — rather than on the timestamp,
+because "the stamp did not move" and "no second Slack message is possible" are
+different claims and only the second one matters.
+
+A repair falls out of the same reading: `urgentSnapshot` requires the card to
+read `Tweaks Needed`, so the urgent ping has been unreachable on
+natively-changed cards since the flip. It works again.
+
+**The second copy of the mapping is the standing risk, and it is guarded rather
+than promised.** `_calMapNativeStatusStrict` in `index.html` is canonical, and
+the reconciler extracts it at runtime precisely so a copy cannot drift. A SQL
+trigger cannot call it, so this ships a second copy. The suite executes the
+page's function, parses the migration's `case` arms out of the SQL, and compares
+them over every value the `deliverables.status` CHECK constraint allows, in both
+origins — 90 pairs. Seen to fail on a planted one-character drift before being
+accepted, per the rule that a test written after a fix proves nothing until it
+has been seen to fail without it. The PostgreSQL lane's 32 assertions each carry
+the decisive input flipped, including a CONTROL that drops the trigger and
+reproduces the reported regression, and the `ROLLBACK.md` inverse rehearsed
+inside the lane so it re-runs rather than being a dated claim.
+
+**Two knock-ons worth naming rather than discovering later.**
+
+- The four new preflight keys take the Linear-exit deploy preflight from **161**
+  to **165** expected objects. Measured with the shipped code's own
+  `expectedObjects().keys.length` on `main` and on this branch, not counted by
+  hand — and worth saying plainly that the widely-quoted **156** is a figure
+  from the 2026-09-17 run and has been stale since; four migrations have added
+  rows between then and now. It has never been run against the hosted database
+  with these rows, and per the standing rule a gate that has never run against
+  its real target is untested: run the read-only preflight from the owner's
+  machine BEFORE the next dispatch, not for the first time inside one.
+- The install source inventory had to be re-issued as
+  `LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json`, because `plan()`
+  verifies it against `build()` by strict equality and seven files point at the
+  dated name. The frozen 2026-09-10 base still verifies, since `verifyFrozen`
+  tolerates new owners and nothing existing moved.
+
+Opened as a PR. Not merged, not deployed, and the migration is not applied.
+
 ### 2026-09-18 — A native card has no identifier, and the Production row showed the raw id
 
 Not a Linear-exit task, found by one. The layout gate went red on rows nothing

@@ -24,7 +24,7 @@ function sqlTransport(sql){
 function build(catalog,{contract}={}){
  const expected=observed.load(contract?{contract}:undefined),queryBytes=fs.readFileSync(path.join(ROOT,expected.query.path));
  assert.equal(observed.compare(catalog,expected,{projectRef:expected.project_ref,queryBytes}).status,'MATCHED_OBSERVED_PUBLIC_CATALOG','exact starting public catalog required');
- const manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_3.json')));inventory.verify(manifest);
+ const manifest=JSON.parse(fs.readFileSync(path.join(ROOT,'docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json')));inventory.verify(manifest);
  const added=extension.verify(),sources=[],decisions=[];
  for(const id of manifest.dependency_order){
   const e=manifest.entries.find(x=>x.id===id);

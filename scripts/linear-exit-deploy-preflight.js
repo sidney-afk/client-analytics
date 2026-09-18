@@ -69,6 +69,14 @@ const ROUTINES = Object.freeze([
   ['production_notification_enqueue_urgent(uuid,text,text,text,text,timestamp with time zone,uuid,uuid)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_enqueue_urgent', 'public, extensions, pg_temp'],
   ['production_notification_claim(integer)', 'migrations/2026-09-18-notification-creative-channel.sql', 'production_notification_claim', 'public, pg_temp'],
   ['production_notification_record_delivery(uuid,integer,text,text,text)', 'migrations/2026-09-09-native-notification-outbox.sql', 'production_notification_record_delivery', 'public, pg_temp'],
+  // The native calendar status bridge. None of the three is SECURITY DEFINER --
+  // `deliverables` is writable only by service_role, which already holds DML on
+  // both calendar tables, so the projection needs no elevation and is granted
+  // none. The fifth element records that; a row without it defaults to true and
+  // fails the live gate on a database that matches the migration exactly.
+  ['production_native_calendar_status_map(text,text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_map', 'public, pg_temp', false],
+  ['production_native_calendar_status_project()', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_project', 'public, pg_temp', false],
+  ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
 ]);
 
 const PRIVATE_ROUTINES = new Set([
@@ -116,6 +124,10 @@ const TRIGGERS = Object.freeze([
   ['deliverable_events.production_notification_status_intent_after', 'deliverable_events', 'production_notification_status_intent_after', 'production_notification_status_intent_after', 5],
   ['production_comments.production_notification_comment_intent_after', 'production_comments', 'production_notification_comment_intent_after', 'production_notification_comment_intent_after', 5],
   ['deliverable_events.production_notification_client_comment_event_after', 'deliverable_events', 'production_notification_client_comment_event_after', 'production_notification_client_comment_event_after', 5],
+  // tgtype 17 = ROW (1) | UPDATE (16), i.e. AFTER UPDATE ... FOR EACH ROW. The
+  // status test lives in the body rather than in a WHEN clause because the
+  // compatibility query below requires tgqual to be null.
+  ['deliverables.zzz_native_calendar_status_project', 'deliverables', 'zzz_native_calendar_status_project', 'production_native_calendar_status_project', 17],
 ]);
 
 const COLUMNS = Object.freeze([

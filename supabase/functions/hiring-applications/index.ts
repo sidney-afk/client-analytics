@@ -224,6 +224,39 @@ function firstName(value: unknown): string {
   return name ? name.split(/\s+/)[0] : "there";
 }
 
+// Applicant-supplied text (name) is rendered into an HTML email body, so it
+// must be escaped -- the same discipline the n8n side already applies to
+// applicant-supplied fields in its own HTML/Telegram messages.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const EMAIL_LOGO_URL = "https://synchrosocial.com/images/logo.png";
+
+function emailHtml(firstNameValue: string, paragraphs: string[], signOff: string): string {
+  const body = paragraphs.map((paragraph) => `<p style="margin: 21px 0;">${paragraph}</p>`).join("");
+  return [
+    '<div style="line-height: 1.4; font-family: Arial, sans-serif;">',
+    '<div style="padding-bottom: 14px; border-bottom: 1px solid #eeeeee; margin-bottom: 22px;">',
+    `<img src="${EMAIL_LOGO_URL}" alt="Synchro Social" width="84" height="84" style="display: block;"/>`,
+    "</div>",
+    `<p>Hi ${escapeHtml(firstNameValue)},</p>`,
+    body,
+    `<p style="margin: 21px 0 0 0;">${signOff}</p>`,
+    '<table cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;"><tr>',
+    `<td style="padding-right: 12px; vertical-align: middle;"><img src="${EMAIL_LOGO_URL}" alt="Synchro Social" width="48" height="48" style="display: block;"/></td>`,
+    '<td style="border-left: 2px solid #A020F0; padding-left: 12px; vertical-align: middle; line-height: 1.5;">',
+    '<strong style="color: #111111;">The Synchro Social Team</strong><br>',
+    '<a href="https://www.synchrosocial.com" style="color: #A020F0; text-decoration: none;">synchrosocial.com</a>',
+    "</td></tr></table>",
+    "</div>",
+  ].join("");
+}
+
 function buildInvitePreview(
   application: ApplicationRow,
   interviewUrl = configuredInterviewEventUrl(applicationRole(application)),
@@ -240,18 +273,10 @@ function buildInvitePreview(
   return {
     recipient,
     subject: "We'd love to speak with you — Synchro Social",
-    body: [
-      `Hi ${firstName(application.name)},`,
-      "",
+    body: emailHtml(firstName(application.name), [
       introLine,
-      "",
-      "We enjoyed learning more about you and would love to speak with you. If you're still interested, choose a time that works for you here:",
-      "",
-      interviewUrl,
-      "",
-      "Looking forward to it,",
-      "Synchro Social",
-    ].join("\n"),
+      `We enjoyed learning more about you and would love to speak with you. If you're still interested, choose a time that works for you here: <a href="${interviewUrl}">${interviewUrl}</a>`,
+    ], "Looking forward to it,"),
   };
 }
 
@@ -263,21 +288,12 @@ function buildPracticalTestPreview(
   return {
     recipient,
     subject: "Your practical test — Video Editor at Synchro Social",
-    body: [
-      `Hi ${firstName(application.name)},`,
-      "",
+    body: emailHtml(firstName(application.name), [
       "Thanks for applying for the Video Editor role at Synchro Social. The next step is a short practical test.",
-      "",
-      "The raw footage and a reference edit (so you can see the result we're looking for) are both in this shared folder:",
-      PRACTICAL_TEST_MATERIALS_URL,
-      "",
+      `The raw footage and a reference edit (so you can see the result we're looking for) are both in this shared folder: <a href="${PRACTICAL_TEST_MATERIALS_URL}">${PRACTICAL_TEST_MATERIALS_URL}</a>`,
       "Watch the reference edit, then re-cut the raw footage to match its pacing, structure, and hook style as closely as you can.",
-      "",
-      "When you're done, upload your finished cut to a new Google Drive folder, turn on link sharing (set to \"Anyone with the link\" as Viewer), and reply to this email with that link.",
-      "",
-      "Looking forward to seeing what you make,",
-      "Synchro Social",
-    ].join("\n"),
+      'When you\'re done, upload your finished cut to a new Google Drive folder, turn on link sharing (set to "Anyone with the link" as Viewer), and reply to this email with that link.',
+    ], "Looking forward to seeing what you make,"),
   };
 }
 
@@ -322,7 +338,8 @@ function applicationDetail(
   invitesEnabled: boolean,
   practicalTestsEnabled: boolean,
 ): JsonMap {
-  const job = inviteJob(row.hiring_invite_jobs);
+  const job = inviteJob(row.hiring_invite_jobs) as unknown as
+    (InviteJobRow & { subject?: string | null; body?: string | null }) | null;
   const jobState = clean(job?.state).toLowerCase() || null;
   const failureCode = safeFailureCode(job?.failure_code);
   const preview = buildInvitePreview(row);
@@ -357,6 +374,10 @@ function applicationDetail(
       && RETRYABLE_FAILURE_CODES.has(failureCode),
     invites_enabled: invitesEnabled,
     invite_preview: preview,
+    // Same reasoning as practical_test_job_preview below: once an invite job
+    // exists, a retry resends its exact stored subject/body, never a
+    // freshly-recomputed preview.
+    invite_job_preview: job ? { subject: clean(job.subject), body: clean(job.body) } : null,
     practical_tests_enabled: practicalTestsEnabled,
     practical_test_preview: practicalTestPreview,
     practical_test_state: practicalTestState,
@@ -449,7 +470,7 @@ async function listApplications(
 async function getApplication(db: SupabaseClient, id: string): Promise<ApplicationRow> {
   const { data, error } = await db
     .from("hiring_applications")
-    .select("id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug,practical_test_verdict,state_version,submitted_at,updated_at,hiring_invite_jobs(state,updated_at,failure_code,provider_message_id),hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)")
+    .select("id,name,email,location,when_can_start,answers,video_url,iclosed_preview_url,status,role_slug,practical_test_verdict,state_version,submitted_at,updated_at,hiring_invite_jobs(state,updated_at,failure_code,provider_message_id,subject,body),hiring_practical_test_jobs(state,updated_at,failure_code,provider_message_id,subject,body,raw_footage_url,reference_edit_url)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HiringApplicationsError(503, "service_unavailable");

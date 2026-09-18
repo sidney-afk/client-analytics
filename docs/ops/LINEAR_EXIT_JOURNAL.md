@@ -30,6 +30,117 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Step 27 readback, read-only, for ordinary receipts and assignment, against the owner's chosen criteria: 138 ordinary and 11 assignment native receipts, all typed and terminal, with no unmarked ordinary write since the flip. Most criteria are offline proofs and not applicable to live traffic. `calendar_post_events` has no native-bridge row after the backfill's own 16
+
+Storage session, on the owner's instruction. There was one read-only
+transaction, rolled back, plus two short read-only follow-ups. Nothing was
+written and no flag changed. Read at 23:56:40Z; follow-ups at 23:57:14Z. The
+private package is `step27-readback-20260918-1`, and its readback file's sha
+starts `406860f9e597`.
+
+**Where the criteria come from.** `docs/ops/LINEAR_EXIT_EXECUTION_MAP.md` (main
+`82a49c8a`) has step-27 acceptance checks for Labels only. It has none for
+ordinary receipts or assignment. The owner chose these sources:
+- ordinary receipts: `NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md`, the sections
+  "Proof required before enabling retirement" and "Definition of done";
+- assignment: `NATIVE_EXISTING_ASSIGNMENT.md`, the section "Finite evidence".
+
+Each result is labelled with its doc and section. No criterion was added.
+
+**Flags, read only and unchanged:**
+- `production_native_ordinary_receipts`: `native` for both teams since
+  **16:13:49Z** (epochs `native-ordinary-video-20260918` and
+  `native-ordinary-graphics-20260918`).
+- `native_assignment_epochs`: `native` for both teams since **16:29:34Z**.
+
+#### A. Ordinary receipts — `NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md`, "Proof required before enabling retirement"
+
+| # | Criterion (short form) | Result |
+|---|---|---|
+| 1 | Actual PostgreSQL tests on a disposable cluster: atomic row/event/receipt, injected failures change nothing | **Not applicable to live traffic.** It names a disposable cluster and injected faults. |
+| 2 | Identity and replay tests: response-loss retries, identity conflicts, human mutations survive replay, provider-era receipts keep provider behaviour | **Not applicable to live traffic.** It names tests. |
+| 3 | Race tests: mutation against a capability flip, an F27 hold, or retirement activation | **Not applicable to live traffic.** It names tests. |
+| 4 | No-Linear-network tests and the `SYNCVIEW_QA_LINEAR_DEAD=1` rehearsal | **Not applicable to live traffic.** It names tests and a rehearsal. |
+| 5a | Before activation, the retirement census may report dormant | **Measured.** `production_syncview_retirement_census()` returns mode **`active`** (the census contract's pre-retirement mode; the spec's word "dormant" is not a value the census emits), with `activated_at` null, high-water null, and ordinary, native and F27 post-cutoff totals **0**. |
+| 5b | After activation, the census must fail on an ordinary row above the high-water or any nonterminal row | **Not measurable from live rows yet.** Retirement is not activated. |
+| 5c | Census, `outbox-debt-census` and the dead-man watchdog stay three separate signals | **Not applicable to live traffic.** It is a monitoring design requirement, not a row property. |
+| 6a | High-water census before and after activation | **Not measurable yet.** There is no activation. |
+| 6b | Native receipt counts per operation | **Measured.** See the table below. |
+| 6c | Zero ordinary rows after the cutoff | **Not measurable yet.** There is no cutoff without activation. |
+| 6d | Zero nonterminal rows | **Measured: not zero.** There are **41** `failed` rows, ids from 1170, oldest 2026-08-05T21:18:04Z, newest **15:35:26Z**, which is **before** the ordinary flip. None was created since the flip. **24 are `test_only`; the other 17** are the pre-flip failed rows already on record. **0** nonterminal rows carry a native ordinary or assignment marker. |
+| 6e | Exact deployed SQL and function hashes | **Measured, before activation.** The md5 of each live body, first 8 characters: `production_deliverable_write` `6ab21b73`, `production_comment_write` `983e93fd`, `production_comment_lifecycle_write` `052a20d6`, `production_native_ordinary_capability` `78c0f8ed`, `production_native_ordinary_event` `b4918fb7`, `production_native_ordinary_receipt_guard` `297a3428`, `production_native_ordinary_receipt_truncate_guard` `8b9fb457`, `production_syncview_retirement_typed_native_receipt` `7955efee`, `production_syncview_retirement_census` `2e50e43e`. Edge function `production-write` is **v78**, ACTIVE, ezbr sha `4445024b…027e`. The full values are in the package. |
+
+**6b: native ordinary receipts** (every `mirror_outbox` row carrying `_native_ordinary_receipt`):
+
+| Operation | Team | Count | First–last (Z) | Receipt ids |
+|---|---|---|---|---|
+| status | video | 62 | 16:15:58–21:49:10 | 10418, 10440–10442, 10451–10454, 10456, 10458–10460, 10462, 10464, 10465, 10467–10469, 10471–10474, 10476–10478, 10480, 10483–10487, 10494, 10495, 10507–10509, 10531, 10532, 10534, 10538, 10540, 10559, 10561–10563, 10568, 10569, 10571, 10574, 10577, 10578, 10580, 10582–10584, 10588–10591, 10593–10595 |
+| status | graphics | 41 | 16:46:03–20:59:15 | 10423, 10425, 10427–10429, 10431–10438, 10444, 10446, 10448, 10450, 10455, 10457, 10461, 10466, 10470, 10475, 10479, 10481, 10482, 10488, 10517, 10533, 10535, 10539, 10541, 10560, 10570, 10572, 10573, 10581, 10585–10587, 10592 |
+| attachment | graphics | 9 | 16:45:46–19:39:20 | 10422, 10424, 10426, 10430, 10443, 10445, 10447, 10449, 10516 |
+| description | graphics | 5 | 19:37:40–19:40:22 | 10510, 10512, 10514, 10518, 10521 |
+| description | video | 5 | 19:40:54–19:43:30 | 10522, 10523, 10527, 10529, 10530 |
+| due | graphics | 5 | 19:38:00–19:40:10 | 10511, 10513, 10515, 10519, 10520 |
+| due | video | 4 | 19:41:31–19:42:46 | 10524–10526, 10528 |
+| comment (add) | video | 6 | 16:23:21–20:24:34 | 10419, 10463, 10564–10567 |
+| comment (add) | graphics | 1 | 17:06:22 | 10439 |
+| **Total** | | **138** (video 77, graphics 61) | 16:15:58–21:49:10 | |
+
+- **All 138** are `skipped`, which is terminal. Each passes the retirement
+  recognizer `production_syncview_retirement_typed_native_receipt` and has its
+  row in `production_native_ordinary_receipt_admissions`. None is `test_only`
+  or `legacy_parity`.
+- **Not seen in live traffic today:** `title`, `priority`, `archive`, `restore`
+  and `parent`, and the comment operations `edit`, `delete`, `resolve` and
+  `unresolve`.
+- **Observation, not a criterion:** since 16:13:49Z, **0** rows on the
+  allowlisted ordinary operations lack the native marker. No provider-shaped
+  ordinary write got in after the flip.
+
+#### B. Ordinary receipts — `NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md`, "Definition of done"
+
+| Criterion | Result |
+|---|---|
+| Only after every allowlisted owner row has the proof above may a reviewed change replace the blocked activation RPC | **Measured: not done.** `production_syncview_retirement_activate(text)` still raises `syncview_retirement_native_receipt_contract_required` (body md5 `6cdc9c69…`). `syncview_retirement_admission.mode` is `active`, with no activation and no high-water. **Also present, recorded and not judged:** `production_syncview_retirement_activate_v2(uuid,jsonb,text,text)` from `supabase/migrations/20260913062149_retirement_switch_preparation.sql`. It is security definer, EXECUTE `postgres,service_role`, body md5 `2e8fe9f9…`, and its first refusal is `retirement_switch_request`. Whether v2 is the "replacement" this section means is for the code session. |
+| The change updates `SYNCVIEW_RETIREMENT_RUNBOOK.md`, removes the not-ready state and adds tests in the same commit | **Not applicable to live traffic.** It is a repository change requirement. |
+| No change to n8n, frozen writers, deployment ownership or F27 recovery as a shortcut | **Not applicable to live traffic.** |
+
+#### C. Assignment — `NATIVE_EXISTING_ASSIGNMENT.md`, "Finite evidence"
+
+Every criterion in this section is an **offline or hosted-CI proof**. None can
+be measured from live rows.
+
+| Criterion | Result |
+|---|---|
+| `test/native-existing-assignment.js` under the disposable-PostgreSQL guard, loopback only | **Not applicable to live traffic** |
+| Eight exact-base characterization checks | **Not applicable to live traffic** |
+| 46 actual-handler/SQL checks on candidate `82ccefba` | **Not applicable to live traffic** |
+| 28 offline pre-install controls, including the four falsy negatives | **Not applicable to live traffic** |
+| Hosted run `34012555030`, and the three corrected suites | **Not applicable to live traffic.** The section itself says full hosted re-verification is pending. |
+| "Live/provider-call and deployment proof remain unclaimed" | This is a statement, not a criterion. The live facts below bear on it; this entry claims nothing further. |
+
+**Live facts, not a criterion from the section.** Since 16:29:34Z there are
+**11** assignee receipts in `mirror_outbox`:
+- video 9: 10420, 10421, 10542, 10543, 10545, 10555–10558;
+- graphics 2: 10544, 10546.
+
+The first is at 16:33:31Z and the last at 20:17:10Z. All 11 carry
+`_native_assignment_epoch`, are `skipped`, pass the retirement recognizer, and
+none is `test_only`. **0** assignee rows since the flip lack the epoch.
+
+#### D. `calendar_post_events` after 23:45:26Z
+
+- **The rows:** 16 native-bridge rows fall after 23:45:26Z. **All 16** are the
+  backfill's own rows (ids **44936–44951**), `via: backfill`, stamped exactly
+  **23:45:26.864738Z**. No native-bridge row is later than that.
+- **The trigger has written nothing:** there are **0** rows with
+  `via: trigger` since it landed at 22:38:14Z, and **0**
+  `deliverable_events` `status_change` rows since then.
+- **Why:** the newest native ordinary status receipt is 10595, at 21:49:10Z.
+  No editor has changed a card's status since the trigger went live, so no
+  bridge row is expected, and none exists.
+- **What this shows and does not show:** the "genuine editor change" side of
+  this check is empty. The absence of spurious bridge rows is confirmed. That
+  the trigger projects a real editor change has not yet been observed live.
 ### 2026-09-18 — Calendar backfill fix (main `c0eac8a4`, PR #1423) APPLIED, preflight PASS 166, backfill APPLIED: 16 components (video 12, graphics 4) across 9 clients now match their cards; the re-run lists 0; notification intents unchanged at 85, 2 urgent
 
 Storage session, on the owner's instruction. Everything ran from a clean

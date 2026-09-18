@@ -30,6 +30,42 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — PRODUCTION-WRITE DEPLOYED AT THE RETIRED-AWARE COMMIT: run `35388505375` at `b7c30c74`, 13 PASS, 0 FAIL, 0 ERROR. production-write is now version 77, source `9dd41919d169`. The label flag is untouched
+
+Storage session, watching the owner's dispatch.
+
+`deploy-onboarding-edge-functions.yml`, run **`35388505375`**, `workflow_dispatch`,
+created 19:54:11Z, head `b7c30c7442abe1bc04afb297b9266116a452f96d`. Conclusion
+**success**; the one job, `deploy`, succeeded with no failed step.
+
+**Attestation: 13 PASS, 0 FAIL, 0 ERROR.** On every function `verify_jwt` is
+false and the live source equals the expected source.
+
+| Slug | Live version | Source | Deployed bundle | Files | Compared with run `35385640357` |
+|---|---|---|---|---|---|
+| **`production-write`** | **77** | **`9dd41919d169`** | **`4445024b938f`** | 6/6 | **changed**: was 76, `74d641b0ac0f`, bundle `5dacb89b21f6` |
+| `production-comments` | 28 | `7333e4f2a5d7` | `a02eec06572d` | 4/4 | same |
+| `production-archive` | 12 | `3c478af053f2` | `b7a1b9f57104` | 2/2 | same |
+| `notify` | 4 | `090a6cac5d93` | `3d1f2da593d2` | 4/4 | same |
+| `linear-outbound` | 51 | `f59b6206e3cc` | `3ffd5097baa1` | 5/5 | same |
+| `key-verify` | 42 | `68e6d3094a08` | `73f80c1b2cd9` | 2/2 | same |
+| `client-credentials` | 48 | `d6300381fa19` | `d4a7f1794f7e` | 2/2 | same |
+| `onboarding-list` | 40 | `a23980f1da39` | `ebc3d013f7ce` | 2/2 | same |
+| `ai-onboarding-list` | 40 | `bce568a72fce` | `e1d7bc273dbf` | 2/2 | same |
+| `legacy-onboarding-list` | 40 | `d1f6a2d9caf4` | `a7877b9b4663` | 2/2 | same |
+| `onboarding-full` | 40 | `68da4d8f413d` | `93534cc65363` | 2/2 | same |
+| `filming-plans` | 37 | `ef1f6aee94d0` | `909b84e33a51` | 2/2 | same |
+| `smm-weekly-reports` | 35 | `e1f925289245` | `147141e54926` | 2/2 | same |
+
+The preflight at this commit had passed with 161 objects before the dispatch
+(previous entry).
+
+**Not done:** `4-capability-flag.sql` was not run. `production_native_label_catalog`
+stays **`provider`**, with version `f55a7dd2…` staged and not activated. Turning
+it native is a separate owner gate.
+
+**Holding.**
+
 ### 2026-09-18 — DEPLOY PREFLIGHT PASS, 161 objects, from main `b7c30c74` (PR #1417). Nothing dispatched, and the label flag SQL was not run
 
 Storage session.

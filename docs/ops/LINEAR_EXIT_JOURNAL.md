@@ -30,6 +30,72 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL EMPTY-STATE SEED: STOPPED AT PRE-STATE, NOTHING APPLIED. Live native cards already carry the complete empty labels relation. The migration's backfill would instead touch 9 cards outside the named population
+
+Storage session. Instruction: apply two migrations from main
+`37d7099cb49f6ff65b136dc3cc97b17406613588` in order, seed then parity, each
+verified by hash first.
+
+#### Hashes: both match
+
+| File | sha256 at `37d7099c` (commit blob and clean worktree) |
+|---|---|
+| `migrations/2026-09-18-native-label-empty-state-seed.sql` | `5cbf71ca…6504440`, equal to the pin |
+| `migrations/2026-09-18-native-label-test-client-parity.sql` | `13ebec03…f8d5`, equal to the pin |
+
+#### Pre-state (read-only)
+
+**The owner's population** is native deliverables with no `linear_issue_uuid`,
+attribution source `native_intake%`, and no labels relation in `linear_raw`.
+It is **0**.
+
+What the 14 native-intake cards actually hold:
+
+| Source | Client kind | Cards | `issue.labels` | `nodes` | `hasNextPage` | Created |
+|---|---|---|---|---|---|---|
+| `native_intake_legacy_project` | client | 10 | present | `[]` | `false` | 2026-09-18 15:20Z |
+| `native_intake_legacy_project` | test | 4 | present | `[]` | `false` | 2026-09-18 00:07–09:01Z |
+
+All 14 also carry `issue.labelIds`. **Native intake already stamps the complete
+empty relation**, which is exactly the shape the seed would write. The
+migration's premise ("native intake never stamps one") does not hold against
+live.
+
+**The migration's own backfill population** is every card with no
+`linear_issue_uuid` whose relation is absent by the workload lane's test. It is
+**9**, and none of them is a native-intake card:
+
+| Source | Client kind | Origin | Cards | `issue` key | Created |
+|---|---|---|---|---|---|
+| `direct_project` | client | calendar | **6** | absent | 2026-09-15 14:54–15:17Z |
+| none | test | manual | **3** | absent | 2026-07-11 |
+
+Both counts are taken over all 23 cards without a Linear issue. Also recorded:
+6,624 provider-issue cards (fingerprint `8c93e20d…`); the seed trigger and its
+helpers are absent; the two parity routines have md5
+`ee99c634…` (receipt guard, EXECUTE postgres) and `614dd995…` (labels write,
+EXECUTE postgres, service_role).
+
+#### Why it stopped
+
+Applying the seed would give "no labels" to 9 cards that are not native-intake
+cards: six on real clients from 2026-09-15 and three July test cards. Meanwhile
+it would change none of the cards it was written for. The trigger would also
+seed any future card with no Linear issue that lacks the relation. Whether that
+is wanted for the `direct_project` cards is a scope decision for the owner and
+the supervisor.
+
+**The parity migration was not applied either.** The instruction orders it after
+the seed. Nothing is sequenced after the stop, so the preflight and the
+production-write deploy did not run.
+
+#### Not done
+
+Nothing was applied. No flag moved and no deploy was dispatched. The pre-state is
+kept privately in `label-migrations-20260918-1/`.
+
+**Holding.**
+
 ### 2026-09-18 — LABEL CAPTURE, CONFIRMATION HELD: the package carries NO `retiredAt` and no retired flag on any record, so it cannot tell a retired label from a live one. The exporter never asked for the field
 
 Storage session, reading only, on the owner's instruction to hold the confirmation.

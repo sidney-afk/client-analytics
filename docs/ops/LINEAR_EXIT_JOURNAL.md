@@ -30,6 +30,56 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL CATALOG ATTESTED on the owner's own words: version `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`. NOT STAGED. The capture runbook reserves staging for the owner, and staging is irreversible
+
+Storage session. The owner's confirmation, in his own words:
+
+> the capture counts are correct, 46 labels with 19 retired, attest it
+
+#### Attestation
+
+The package `label-catalog-capture-20260918-2` was checked first. Its receipt's
+export sha256 equals `69130269b4dd6a865c82517806f2f690989e94eb16c7b5510609a1f49ea6940f`,
+and `verify` re-ran clean: manifest VALID, raw pages match, reconciled.
+
+Then `scripts/linear-label-catalog-export.cli.js attest` ran from the clean
+worktree at `e1cb2236`, with `--subject=owner` and
+`--confirm=REVIEWED_COMPLETE_LINEAR_LABEL_EXPORT`. It writes files into the package
+only; nothing was sent to Postgres.
+
+| Output | Value |
+|---|---|
+| **version_id** | **`f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`** |
+| attestation | sha256 `03b8a5991245e198626fe38832d8e7ab6609bfa88201beb122d3558680bd9473` |
+| `3-stage-attested.sql` | 11,811 bytes, sha256 `2abdc5ef7e176c6310fce448a61f264dabc1215ab62a60cfa65947ddab9bea60` |
+| `4-capability-flag.sql` | 920 bytes, sha256 `9269de8bbd74614dcc520506f0bced239e47a84857fed64136492adf1e86150b` |
+
+The staging SQL is one call to
+`production_label_catalog_stage_attested('f55a7dd2…'::uuid, manifest, attestation)`
+for capture `6a96e211…`, 46 labels across 1 page.
+
+#### Why staging did not run
+
+The instruction was to stage the version next. `docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md`,
+under "The live actions, in order", lists running `3-stage-attested.sql` as action
+3 and says of the whole table: *"These are for the owner. No session runs any of
+them."* Its own undo column for action 3 reads "None needed and none possible":
+`production_label_catalog_versions` is immutable by trigger. The owner's words
+cover the attestation, which only writes files. The instruction to stage came
+from the supervisor's text, not from the owner.
+
+Per the standing rule, a conflict between an instruction and the runbook is raised
+before anything runs, not resolved quietly. **Staging waits for the owner's own
+go-ahead**, or for the owner to state that this session may run it despite the
+runbook.
+
+`production_native_label_catalog` stays **`provider`**, and nothing touched it.
+`4-capability-flag.sql` was not run and is not to be run until production-write is
+deployed at the retired-aware commit.
+
+**Holding:** for the owner on staging, and for the corrected preflight before any
+dispatch.
+
 ### 2026-09-18 — LABEL RETIRED-STATE AND ASSIGNMENT AUTH-KIND BINDING APPLIED LIVE; deploy preflight NOT PASS on the same class of pin defect, so no dispatch. LABEL CAPTURE RETAKEN: 46 labels, 19 retired (video 16, graphics 0, workspace 3), reconciled, not attested
 
 Storage session. Main is `e1cb2236340d888d070217818b9241abe002658c`; every step

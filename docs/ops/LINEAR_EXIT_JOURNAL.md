@@ -30,6 +30,33 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — DEPLOY PREFLIGHT PASS, 161 objects, from main `b7c30c74` (PR #1417). Nothing dispatched, and the label flag SQL was not run
+
+Storage session.
+
+`origin/main` was fetched and its tip confirmed as
+`b7c30c7442abe1bc04afb297b9266116a452f96d` (PR #1417). A clean detached worktree
+was made at that commit. Compared with `e1cb2236`, the only change is one line in
+`scripts/linear-exit-deploy-preflight.js`: the
+`production_label_catalog_check_manifest(jsonb)` row now passes `false` as its
+fifth element, pinning it as a plain (invoker) function. That is the fix the
+earlier entry named.
+
+Against live, with the access token and project ref supplied in memory:
+
+```
+{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":161,"read_only":true}
+```
+
+**PASS, 161 checked objects, no mismatch.** That includes
+`production_label_catalog_check_manifest(jsonb)`. The last PASS, at `53417b82`,
+was 160.
+
+**Not done, as instructed:** no deploy was dispatched, and `4-capability-flag.sql`
+was not run. `production_native_label_catalog` stays `provider`.
+
+**Holding.**
+
 ### 2026-09-18 — LABEL CATALOG VERSION STAGED on the owner's own go-ahead: `f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152`, 46 labels, 19 retired, `ok: true`, not activated. `production_native_label_catalog` still `provider`
 
 Storage session. The owner's go-ahead, in his own words, after the runbook

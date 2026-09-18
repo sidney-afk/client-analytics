@@ -30,6 +30,45 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — The browser refused the test client's own native cards, and the test suite said it was fine
+
+Owner-reported. Every card of the test client showed the "project needs
+attribution" banner with the comment box and the write controls locked, months
+after the server started accepting that client (#1414).
+
+The cause is one hard-coded string. `_prodResolveAttributions` proves a
+persisted native-intake stamp before it will trust it, and that proof demanded
+`persisted.owner_kind === 'client'`. The gateway writes that field as the
+roster row's own kind — `lower(client.kind || "client")` in
+`production-write/index.ts` — so a `kind: 'test'` client is stamped `'test'`,
+the proof failed, and the row fell through to `needs_attribution`. The same
+function's **explicit** branch never had this bug: it reads the roster kind and
+requires the persisted value to equal it. The native branch now does the same,
+and carries that kind into the resolved attribution instead of rewriting it to
+`'client'`.
+
+Two things worth recording beyond the fix.
+
+**The roster lookups were never the problem.** `activeBySlug`,
+`nativeProjectOwners`, `nativeLegacyProjectOwners` and the batch-parent map all
+gate on `active === true` alone and carry `kind` through untouched. Checked
+because the owner asked; no change was needed, and none was made.
+
+**`test/native-intake-attribution-ownership.js` passed throughout.** Its only
+client fixture is `kind: 'client'`, so the suite could not have caught this and
+a green run was never evidence about it. Six assertions were added and were
+confirmed to FAIL on the pre-fix file with exactly the reported symptom
+(`needs_attribution` where `resolved` was expected) before being accepted as
+passing. A test written after a fix proves nothing until it has been seen to
+fail without it.
+
+`'internal'` is deliberately still refused. Nothing has measured that kind end
+to end, and this change is not the place to find out.
+
+Gates: `prod-write-gateway-browser` passed. `prod-boot-budget` fails here on a
+WebSocket handshake to the live realtime endpoint and fails identically on the
+unmodified tree, so it is the sandbox, not this change.
+
 ### 2026-09-18 — Labels are NATIVE. Three of the four step 26 blockers dissolved, and two of them were never real
 
 Cloud session, correcting documents after the fact. **This session did not run

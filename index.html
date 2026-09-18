@@ -55239,8 +55239,22 @@
                             && !directUnmapped && candidate && candidate.state === 'resolved'
                             && candidate.clientSlug === persisted.client_slug
                             && mappedProjectId === persisted.project_id;
+                        // The persisted owner kind is whatever the gateway wrote
+                        // for the roster row (`lower(client.kind || 'client')`),
+                        // so demanding 'client' here refused every card of the
+                        // test client -- banner up, comment box and write
+                        // controls locked -- while the server has accepted that
+                        // client since #1414. Carry the roster kind through and
+                        // require the persisted value to equal it, exactly as
+                        // the explicit branch below already does. 'internal'
+                        // stays out on purpose: nothing has measured it.
+                        const nativeOwnerKind = String(
+                            (persistedActive && activeBySlug.get(persisted.client_slug)
+                                && activeBySlug.get(persisted.client_slug).kind) || 'client'
+                        ).trim().toLowerCase();
                         const nativeProofValid = persisted.schema === 'syncview_attribution_v1'
-                            && persisted.owner_kind === 'client'
+                            && (nativeOwnerKind === 'client' || nativeOwnerKind === 'test')
+                            && persisted.owner_kind === nativeOwnerKind
                             && persistedActive
                             && String(row.client_slug || '').trim() === persisted.client_slug
                             && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(persisted.native_epoch)
@@ -55256,7 +55270,7 @@
                                     && globalLegacyOwner.slug === persisted.client_slug);
                         attribution = nativeProofValid
                             ? resolved(persisted.client_slug, persisted.source, {
-                                ownerKind: 'client',
+                                ownerKind: nativeOwnerKind,
                                 mappingRevision: persisted.mapping_revision,
                                 repairRequired: persisted.repair_required,
                                 reason: persisted.reason || (persisted.source === 'native_intake_project'

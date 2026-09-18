@@ -43,6 +43,18 @@ assert.equal(outcome({ raw_attribution_client_slug: 'other-client' }).state, 'ne
 assert.equal(outcome({ raw_attribution_source: 'direct_project', raw_attribution_project_id: VIDEO }).state, 'needs_attribution', 'synthetic ids do not enter direct Linear attribution');
 assert.equal(outcome({}, [client, { ...client, slug: 'other-client' }]).state, 'needs_attribution', 'duplicate native mapping is refused');
 
+// The gateway writes `owner_kind` as the roster row's own kind, so a test
+// client's native cards are stamped 'test'. This branch demanded 'client' and
+// therefore refused every one of them -- banner up, comment box and write
+// controls locked -- long after the server started accepting that client.
+const testClient = { ...client, kind: 'test' };
+assert.equal(outcome({ raw_attribution_owner_kind: 'test' }, [testClient]).state, 'resolved', "a test client's native stamp resolves");
+assert.equal(outcome({ raw_attribution_owner_kind: 'test' }, [testClient]).ownerKind, 'test', 'the persisted owner kind is carried through, not rewritten to client');
+assert.equal(outcome({}).ownerKind, 'client', 'a real client still resolves as client');
+assert.equal(outcome({ raw_attribution_owner_kind: 'client' }, [testClient]).state, 'needs_attribution', 'a stamp that disagrees with the roster kind is still refused');
+assert.equal(outcome({ raw_attribution_owner_kind: 'test' }, [client]).state, 'needs_attribution', 'a test stamp on a real client row is still refused');
+assert.equal(outcome({ raw_attribution_owner_kind: 'internal' }, [{ ...client, kind: 'internal' }]).state, 'needs_attribution', 'kinds nobody has measured end to end stay refused');
+
 function legacyOutcome(team = 'video', extra = {}, clients = [client]) {
   const projectId = team === 'graphics' ? LEGACY_GRAPHICS : LEGACY_VIDEO;
   return resolve([row({

@@ -30,6 +30,141 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 26 CONFIGURED and STEP 27 ENABLED, capability 1: `native_intake_epochs`, graphics only. The test post split exactly as designed: the graphics child is native and never reached Linear, the video child went to Linear as before, and nothing notified anyone
+
+Phase 7, first capability. Storage session on the owner's machine, over the
+direct connection.
+
+#### Owner-stated facts, recorded today at the owner's instruction
+
+- **All staff already work in SyncView. Nobody works in Linear any more.** Linear
+  issues are a **mirror only**.
+- The test client `sidneylaruel` **is mirrored to a real Linear project**, so a
+  post on it exercises the same path a real client's post does. That is why the
+  test below is evidence and not a toy.
+
+#### The go-ahead, quoted
+
+> enable native intake for graphics, epoch native-graphics-20260917, go
+
+#### Step 26: pre-state and rehearsal, nothing committed
+
+Pre-state saved privately as `phase7-cap1-pre-state-20260917/pre-state.private.json`,
+SHA-256 `93de3e332e4d9a096529285698e55441d5fdbbd044d690525b475c4e52d61811`.
+
+| Pre-state item | Value |
+|---|---|
+| `native_intake_epochs` | video `{enabled:false, epoch:null}`, graphics `{enabled:false, epoch:null}` |
+| `prod_authority` | video `syncview`, graphics `syncview` |
+| Active `graphics` designers | **1** |
+| `mirror_outbox` with `linear_result->>'native_only'='true'` | **0** (expected 0) |
+| `production_intake_manifests` with `native_epochs <> '{}'` | **0** (expected 0) |
+| `track_b_team_rollbacks` with `state='open'` | **0** (expected 0) |
+
+The enable was rehearsed inside one transaction and **rolled back**: 1 row
+updated, the in-transaction value showed graphics enabled with the epoch and
+video untouched, and the function returned exactly the expected shape:
+
+```
+select public.production_native_intake_epochs();
+  → {"video": "", "graphics": "native-graphics-20260917"}
+```
+
+No `authority_unavailable`. After the rollback the row was re-read and is
+**byte-identical** to the pre-state.
+
+#### The three statements, verbatim
+
+```sql
+-- 1. ENABLE (step 27)
+update public.syncview_runtime_flags
+  set value = jsonb_set(value, '{graphics}', '{"enabled":true,"epoch":"native-graphics-20260917"}'::jsonb),
+      updated_by = 'owner-phase7-step27', updated_at = now()
+  where key = 'native_intake_epochs' and value->'graphics'->>'enabled' = 'false';
+
+-- 2. READBACK
+select key, value, updated_by, updated_at from public.syncview_runtime_flags where key='native_intake_epochs';
+select public.production_native_intake_epochs();
+
+-- 3. ROLLBACK
+update public.syncview_runtime_flags
+  set value = jsonb_set(value, '{graphics}', '{"enabled":false,"epoch":null}'::jsonb),
+      updated_by = 'owner-phase7-rollback', updated_at = now()
+  where key = 'native_intake_epochs';
+```
+
+Saved as `phase7-cap1-statements.sql`, SHA-256
+`e079158956636d5ca2019139a4d5267a03a963329a7e2adbc447db8523994640`. The enable
+that ran at step 27 was **read back out of that file after re-verifying its
+hash**, so what executed is what was reviewed.
+
+#### Step 27: the flip
+
+**Flip time: `2026-09-18T00:04:51.899Z`**, `updated_by = owner-phase7-step27`,
+exactly 1 row updated. Readback: graphics `{enabled:true, epoch:"native-graphics-20260917"}`,
+video unchanged, and the function returns `{"video":"","graphics":"native-graphics-20260917"}`.
+
+*Recorded because it was a real error of mine:* the first readback attempt failed
+with `cannot execute SELECT FOR SHARE in a read-only transaction`. That is the
+function taking share locks and my transaction being read-only — **not** the
+database refusing the flip, which had already committed. The readback was re-run
+in a read-write transaction that rolls back.
+
+#### The test post, verified read-only after the flip
+
+One Video + Thumbnail post created by the owner through the real Create Post
+dialog on `sidneylaruel`. Everything below is scoped to that client and to rows
+created after the flip time. Ids, not names.
+
+**(a) `mirror_outbox`, 3 rows — 1 graphics, 2 video**
+
+| Row | Entity | Status | `native_only` | result epoch | payload `_native_intake_epoch` | Linear issue |
+|---|---|---|---|---|---|---|
+| `10253` | deliverable `del_e3e8c9f5-e986-4a33-9ca7-5f06f5dd5ca5` (graphics) | **skipped** | **true** | `native-graphics-20260917` | `native-graphics-20260917` | **none** |
+| `10251` | batch `bat_6941f8c8-2a08-4699-8e26-5c82938a75c4` (video) | **written** | null | null | `""` | yes |
+| `10252` | deliverable `del_a4a4d61d-773e-4fb4-bf85-644886d75f5d` (video) | **written** | null | null | `""` | yes |
+
+The graphics create was skipped as native-only and carries the epoch on both the
+result and the payload. The video rows carry no native marker, drained normally,
+and reached Linear.
+
+**(b) `production_intake_manifests`, 1 row** — request `calendar:c4eb00e0-cfe3-4a01-a69d-bd104582b93c`,
+batch `bat_6941f8c8-2a08-4699-8e26-5c82938a75c4`, surface `calendar`,
+`native_epochs = {"video":"","graphics":"native-graphics-20260917"}`.
+
+**(c) `deliverables`, 2 rows**
+
+| Id | Team | Kind | Linear uuid | Linear identifier | Linear url |
+|---|---|---|---|---|---|
+| `del_e3e8c9f5-e986-4a33-9ca7-5f06f5dd5ca5` | graphics | thumbnail | **no** | **none** | **no** |
+| `del_a4a4d61d-773e-4fb4-bf85-644886d75f5d` | video | video | yes | `VID-13935` | yes |
+
+Both `sync_state: clean`, both status `todo`, both on the same batch.
+
+**(d) Notifications: zero.** `production_notification_intents` created since the
+flip: **0** across all clients, **0** for the test client.
+`production_notification_delivery_receipts`: **0** in total. No Slack message.
+
+**(e) Everything else unchanged.** `prod_authority` equals the pre-state. The six
+other native flags — `native_assignment_epochs`, `native_brief_media`,
+`native_card_materialization`, `production_native_identifier_mint`,
+`production_native_label_catalog`, `production_native_ordinary_receipts` — are
+**all equal** to the step 25 live snapshot, 6 of 6, none differing. With
+`prod_authority` that is the seven items checked.
+
+**No number failed to match.** Nothing was rolled back.
+
+#### What this closes and what it does not
+
+- **Step 27 closes on this test post.** The capability is on for graphics on one
+  mirrored test client, and the split behaved as designed on the first try.
+- **Step 28 is NOT closed.** The dependency row closes on the **first real staff
+  graphics post**, expected Friday or Monday. There is exactly **one** active
+  graphics designer, so that is one person's first post.
+- **The video team is untouched** and follows **no earlier than Monday**, through
+  its own step 26 gate.
+- The rollback statement is prepared and unused.
+
 ### 2026-09-17 — PHASE 7 ORDER PROPOSAL, reading only. Eight dormant capabilities measured against their own docs and their live flag values, with a recommended order and one recommended first. Also D36: the admin role key is not being rotated
 
 Cloud session, no write of any kind. Flag values below were read live, read-only,

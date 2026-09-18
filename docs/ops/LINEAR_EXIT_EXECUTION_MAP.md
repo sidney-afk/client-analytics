@@ -363,6 +363,20 @@ unchanged. This is a safe place to stop for days.
 **Progress:** Phase 6 of 7 complete · step 25 of 28 · 89% complete · next: 26,
 the first capability gate, which is the **owner's**. **Not started.**
 
+**Updated 2026-09-18 — phase 7 capability 1 is under way: `native_intake_epochs`,
+GRAPHICS ONLY, epoch `native-graphics-20260917`.**
+
+- **Step 26 CONFIGURED** and **step 27 ENABLED** at `2026-09-18T00:04:51.899Z` on
+  the owner's go-ahead. The test post on the mirrored test client split as
+  designed: the graphics child is native with no Linear issue, the video child
+  reached Linear as before, zero notification intents and zero Slack deliveries,
+  and every other flag equal to its pre-state.
+- **Step 28 is NOT closed.** The dependency row closes on the **first real staff
+  graphics post**, expected **Friday or Monday**. One active graphics designer.
+- **The video team follows no earlier than Monday**, through its **own step 26
+  gate**. Nothing about video changed here.
+- The rollback statement is prepared, saved and unused.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

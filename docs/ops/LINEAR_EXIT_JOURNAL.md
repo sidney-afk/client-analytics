@@ -30,6 +30,40 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Half (b) of the label capture, the per-card label state, TAKEN read-only: 5 cards read (all video), 0 with labels, 0 labels total. No database writes, no flag change
+
+Storage session, on the owner's instruction. The capture is read-only against
+Linear. Its private package is `label-card-state-20260918-1`, beside the catalog
+package.
+
+**Method.** The exporter code was loaded from main at `b7c30c74`.
+
+- **Which cards.** The active cards were read in a rolled-back read-only
+  transaction, using the exporter's `ACTIVE_CARD_PREDICATE.sql` (sha
+  `04e6b900…`). The exporter's own `captureCardState` classified each card.
+- **What was re-read.** Only the cards the native writer would refuse, meaning a
+  stored state other than `complete`, were re-read from Linear. The reads used
+  `readSelectedLabels` with `SELECTED_LABELS_QUERY` (sha `d423c4f6…`), and that
+  was the only query sent.
+- **Linear key.** It was read in memory only.
+
+| | video | graphics | total |
+|---|---|---|---|
+| Active cards | 3332 | 2238 | 5570 |
+| Stored `complete` | 3327 | 2238 | 5565 |
+| **Refused** (`missing`; paginated 0, malformed 0) | **5** | **0** | **5** |
+| **Cards read from Linear** | **5** | 0 | **5** |
+| **Cards with labels** | **0** | 0 | **0** |
+| **Labels total** | **0** | 0 | **0** |
+| Read failures | 0 | 0 | 0 |
+
+- **Linear calls:** 5.
+- **State file:** its sha is `4fa6f36b…df72`.
+- **Status:** the package is marked read-only and not attested. Nothing was
+  staged or written back.
+- **What this means:** the 5 refused cards have no labels in Linear either. Their
+  label state is empty, not lost.
+
 ### 2026-09-18 — Label step 27 API checks on the TEST client's native video card: check 4 (byte-identical replay) MEASURED PASS on receipt `10579`; check 6 stale `catalog_version` MEASURED PASS (409); the 403 refusals NOT RUN
 
 Storage session, on the owner's instruction. Both checks ran against

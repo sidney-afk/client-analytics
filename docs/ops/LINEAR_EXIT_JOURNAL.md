@@ -30,6 +30,113 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — CREATIVE-CHANNEL MIGRATION APPLIED LIVE and the creative ids LOADED: 16 pending intents withdrawn, nothing sendable, 31 clients filled, 0 pointing at a shared channel. The deploy preflight does NOT pass: it still binds the intent guard to the old migration file
+
+Storage session, over the direct connection, on the owner's word that the
+migration was merged. Two live changes: the migration, and the 31-row data load.
+
+#### The file, verified before it was applied
+
+| Reading | SHA-256 |
+|---|---|
+| Blob at main `ba7056be6126b34ce747b130c0bc1eab7baaac77` | `6d45052dd8d695ddad83546bb6c3e9afd1b244aeaf6af30abfdc3dae0f89e0cf` |
+| Fresh file in a detached worktree at that commit | `6d45052d…` (same), 25,756 bytes, `eol: lf` |
+| Quoted by the owner | `6d45052d…` (same) |
+
+`origin/main` was exactly `ba7056be…` at fetch.
+
+**The migration redefines six routines, not five:** the three intent triggers,
+`production_notification_reconcile`, `production_notification_intent_guard` and
+`production_notification_claim`. All six were measured.
+
+#### 1. Pre-state, read only
+
+| Measure | Value |
+|---|---|
+| `clients.creative_channel_id` | **absent** (the tool refuses if it already exists) |
+| Intents, `client_creative_channel` | **10 blocked, 16 pending** — up from 5 and 3 this morning |
+
+Routine body md5s before: status `bdb6cae2…`, comment `4cff1dc7…`, client
+comment `bfec387e…`, reconcile `abe988dd…`, intent guard `fe606d04…`, claim
+`1c7a4c0d…`.
+
+#### 2. The migration, applied
+
+Sent unedited, hash re-verified in the same process, inside its own
+`begin`/`commit`: **2026-09-18T14:40:04.948Z → 14:40:05.175Z**.
+
+Notices, **2**:
+1. `constraint "clients_creative_channel_id_check" … does not exist, skipping` —
+   the harmless `drop constraint if exists` on a first run.
+2. **`withdrawn pending client_creative_channel intents: 16`**.
+
+**Withdrawn: 16.** Every pending intent — each one carrying a shared client
+channel — is now `blocked`, as the owner's decision requires: intents from before
+the migration stay blocked.
+
+#### 3. Readback after the migration
+
+| Check | Result |
+|---|---|
+| Column exists | **yes** |
+| Its check | `CHECK ((creative_channel_id IS NULL) OR (creative_channel_id ~ '^C[A-Z0-9]{8,}$'))` |
+| Routine bodies changed | **6 of 6** |
+| `client_creative_channel` intents in `pending` or `retryable` with a destination | **0** |
+| Intents by state after | **26 blocked**, 0 pending |
+
+#### 4. The creative-id load
+
+Prepared statement hash-verified (`dbd20a1e…`) before running.
+
+| Readback | Count |
+|---|---|
+| Active `kind='client'` rows filled before | **0** |
+| **Rows filled after** | **31** |
+| Rows still null | **11** (42 active clients less 31) |
+| Filled rows equal to their shared client channel | **0** (must be 0) |
+| Sample check, one client row against the live sheet | **match** |
+
+*A counting note, recorded because it looked wrong:* the tool's own
+`rows_updated` counter read 0. That is its parsing of the driver's
+multi-statement result, not the database; the before and after readbacks, 0 to
+31, are the evidence of the load.
+
+#### 5. The deploy preflight: NOT PASS
+
+From a worktree at `ba7056be`, with the machine's credentials held in memory:
+
+```
+linear-exit-deploy-preflight: CONTRACT_MISMATCH:routine:production_notification_intent_guard()
+```
+
+**The cause is in the preflight, not the database.** At `ba7056be`,
+`scripts/linear-exit-deploy-preflight.js` binds **five** of the six redefined
+routines to `migrations/2026-09-18-notification-creative-channel.sql`, but still
+binds **`production_notification_intent_guard()`** to the old
+`migrations/2026-09-09-native-notification-outbox.sql` (line 55). It computes the
+expected body md5 from that file:
+
+| Source | Intent guard body md5 |
+|---|---|
+| **Live, after the migration** | **`3c98b1f5f9ff3dc3bcc0a0b5f7ccfc4b`** |
+| From the NEW 2026-09-18 file | `3c98b1f5…` — **equal to live** |
+| From the OLD 2026-09-09 file, which the preflight uses | `fe606d04…` — equal to the **pre-migration** live body |
+
+So the migration installed exactly what it says, and the merged contract missed
+repointing one routine. The fix is one line in the preflight's routine table.
+**It was not made here**: main belongs to the owner and the execution session. No
+receipt was produced, so there is no `checked_objects` to compare with the 157
+expected.
+
+**Nothing was rolled back.** The migration is correct, the load is correct, and
+the preflight is a read-only gate. Nothing is sendable in any case: the sender
+gate is absent and every standing intent is blocked.
+
+#### Not done
+
+- The preflight was not edited and nothing was redeployed.
+- No notification secret or gate was set.
+
 ### 2026-09-18 — Owner decision: the live Clients Info tab is the app's source of truth for creative channel ids. 32 ids, 31 to load, is correct; the "37" is closed
 
 The step 26 notifications entry recorded an open question: the owner expected 37

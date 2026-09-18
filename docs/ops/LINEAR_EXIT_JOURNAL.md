@@ -30,6 +30,97 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 NOT STARTED: notifications were ALREADY sending before the go-ahead. `NOTIFY_WAKE_ENABLED=true` makes production-write call the sender directly, with no GitHub gate. One message delivered, to the correct creative channel; two refused. Wake switched off at 15:09:14Z
+
+Storage session. The owner gave the go-ahead —
+
+> enable the notification sender, go
+
+— and the pre-enable snapshot found the sender had been live for twenty minutes.
+**The GitHub variable was not set. Step 27 was not carried out.**
+
+#### What the snapshot showed
+
+Taken read-only before touching anything: **29 intents — 28 blocked, 1 `sent` —
+and 3 delivery receipts.** The 14:47 health call had read 26 blocked, 0 sent, and
+there were 0 receipts all day until then.
+
+#### The cause, confirmed from source
+
+`supabase/functions/production-write/index.ts`, around line 3933:
+
+```
+if (Deno.env.get("NOTIFY_WAKE_ENABLED") !== "true") return;
+…
+await fetch(`${url}/functions/v1/notify`, { … headers: { … "x-notify-runner-key": key }, body: '{"limit":1}' });
+```
+
+When an intent is created, production-write **wakes the notify function itself**
+with the runner key, and notify sends. The GitHub variable
+`NATIVE_NOTIFICATION_SENDER_ENABLED` gates only the scheduled workflow; it does
+not gate this path. The sender workflow's runs today were all `schedule`, all
+gated off — none sent anything.
+
+`NOTIFY_WAKE_ENABLED=true` was set at **14:47** as part of step 26, described as
+"configuration only, sender stays off". **It was the sender.**
+
+#### Timeline, ids only
+
+| Time (UTC) | Event |
+|---|---|
+| 14:47 | `NOTIFY_RUNNER_KEY`, `SLACK_BOT_TOKEN`, `NOTIFY_WAKE_ENABLED=true` set |
+| 15:03:18 | intent `3e476816-b2b0-4206-827c-b428f56c3d7a` (`status_smm_approval`) attempted → receipt 1, **blocked, `slack_api_rejected`** |
+| 15:04:10 | intent `e92a05de-ad03-469e-a879-c652961f740f` (`status_smm_approval`) attempted → receipt 2, **blocked, `slack_api_rejected`** |
+| 15:05:06 | the bot joined the 24 creative channels it was missing from |
+| 15:06:28 | intent `e8a7f9eb-5728-45d2-8e1c-7d047ab09770` (`status_smm_approval`) → receipt 3, **`sent`**, provider message id present |
+| 15:09:14 | **`NOTIFY_WAKE_ENABLED` set to `false`** |
+
+Each attempt came within about two seconds of its intent being created — the wake
+path, not a schedule.
+
+#### Where they went
+
+| Receipt | Outcome | To the client's creative channel | To the shared client channel |
+|---|---|---|---|
+| 1 | blocked | **yes** | no |
+| 2 | blocked | **yes** | no |
+| 3 | **sent** | **yes** | **no** |
+
+**Nothing went to a channel shared with a client.** The one delivered message
+landed in the correct creative channel. The two refusals are almost certainly the
+bot not yet being in those two channels: both came before the 15:05 joins, and the
+delivery after them succeeded.
+
+#### What was done, and why it is the rollback
+
+The owner's step 27 rule is to roll back immediately "if anything else sends". It
+names setting the GitHub variable to false; that variable was never set and does
+not gate the path that sent, so setting it would have changed nothing. The path
+that sent was switched off instead: **`NOTIFY_WAKE_ENABLED` set to `false` at
+15:09:14Z** (Management API, HTTP 201). The GitHub variable remains absent. **Nothing
+can send now** by either path.
+
+State now: **1 sent, 28 blocked**, 3 receipts. The two refused intents are
+`blocked`; retrying them is an explicit reconcile action with a confirmation, and
+is the owner's decision, not done here.
+
+#### CORRECTION, against myself
+
+At step 26 I set `NOTIFY_WAKE_ENABLED=true` as instructed without reading what it
+does. The code is five lines, and reading them would have shown that "wake" is a
+second sender with no gate, so "configuration only, sender stays off" was not true
+of that setting. Earlier today I had mapped which function reads each secret; I
+recorded **who** reads `NOTIFY_WAKE_ENABLED` and not **what it does**. The general
+point, worth keeping: a flag named for a mechanism (wake) can be the capability
+itself, and a secret can be a gate just as much as a variable is.
+
+#### Holding
+
+Step 27 is not carried out. What happens next is the owner's decision: either the
+planned sequence with wake left off (the schedule then does all sending, gated by
+the GitHub variable), or wake back on as part of going live, knowing it sends
+within seconds of each event.
+
 ### 2026-09-18 — BOT JOINED the 24 missing creative channels: membership now 31 of 31. No errors, every channel name re-checked for "creative" immediately before its join
 
 Storage session, on the owner's go-ahead, replacing the invite one-off that was

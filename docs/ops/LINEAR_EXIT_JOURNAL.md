@@ -30,6 +30,104 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — The notification destination was the SHARED client channel, in all four readers. Migration drafted as a PR, not merged: main stays frozen
+
+Cloud session. Owner-measured tonight and the reason this exists: **all 26
+stored `clients.slack_channel_id` values are shared client channels**, the ones
+the client is in.
+
+#### Why this is not a delivery bug
+
+Every native notification path resolved its destination from that one column:
+the status trigger, the staff comment trigger, the client comment trigger, and
+the client branch of `production_notification_reconcile`. So with the sender
+enabled, an internal status change to `smm_approval` or `tweak`, and every staff
+comment on a sub-issue, would have posted **into a channel the client reads**.
+Nothing was mis-sent, because the sender has never been switched on. That is
+luck of sequencing, not a control.
+
+Measured in the rehearsal below, on the world as it stands on main: a status
+change produced `pending` with the shared channel id in
+`destination_channel_id`. One flag away from leaving.
+
+#### What the migration does
+
+`migrations/2026-09-18-notification-creative-channel.sql`, sha256
+`6d540448d7748cc84399ef19a5dd39a9f18ea1de9cdb543dfd0ecd873eebf265`.
+
+1. **`clients.creative_channel_id`**, nullable, with
+   `check (creative_channel_id is null or creative_channel_id ~ '^C[A-Z0-9]{8,}$')`.
+2. **The four readers read it instead.** Each function body is the 2026-09-09
+   text with exactly one identifier changed; the bodies were extracted
+   programmatically and substituted, not retyped, so no other line can drift.
+3. **Every `client_creative_channel` intent still `pending` is withdrawn** to
+   `blocked` with `destination_channel_id` null and a named failure code.
+   `sending`, `sent`, `retryable` and `unknown` are untouched: this migration
+   does not rewrite the record of something that already left, or that an
+   operator is mid-decision on.
+4. **No grant, no revoke.** `create or replace function` preserves a function's
+   ACL. All four roles are named in the file so the absence is a statement
+   rather than an omission: `service_role`, `anon`, `authenticated` and `public`
+   gain nothing, and the EXECUTE that 2026-09-17 removed from `service_role`
+   stays removed. Proven in the rehearsal, not assumed.
+
+#### One thing the instruction implied but did not name, so it is called out here
+
+Step 3 was **impossible as written** until the guard changed.
+`production_notification_intent_guard` raises
+`production_notification_intent_immutable` on any change to
+`destination_channel_id`, with a single exception for the release direction
+(`blocked` with no destination → `pending` with a valid one). Withdrawing a
+`pending` row to `blocked` with a null destination is the opposite direction and
+was refused.
+
+The migration therefore widens the guard by **exactly one** transition:
+`pending` with a destination → `blocked` with none. It can only ever reduce what
+a sender may do. Everything else in the guard is byte for byte the 2026-09-09
+text. This is the one substantive addition beyond what was asked, and it is the
+kind of thing that should be seen rather than buried.
+
+#### Rehearsed on a disposable PostgreSQL, 15 checks
+
+Real migration chain, the real outbox migration, the notification half of the
+2026-09-17 revokes reproduced directly (the file itself also names a routine
+from a migration outside this chain).
+
+| Stage | Observed |
+|---|---|
+| Before, only the shared channel set | `pending` / shared channel — the defect, reproduced |
+| Column added | `text` / nullable; `G…` refused; lowercase refused |
+| Step 3 | 1 of 1 pending intent withdrawn to `blocked` / null; 0 pending remain |
+| service_role EXECUTE over the four routines | identical before and after |
+| **After, shared channel STILL set, no creative channel** | **`blocked` / null** — the decisive one |
+| After, creative channel set | `pending` / the creative channel |
+| `reconcile release_blocked_destination` | releases against the creative channel |
+| After the inverse | `pending` / shared channel again; column retained; ACL identical |
+
+#### The guard, and a note on the two shapes
+
+`test/notification-triggers-no-shared-channel.js` walks the migrations in date
+order, takes the **last** definition of each of the four routines — the one a
+fresh apply would win with — and fails if it reads the shared column or does not
+read the creative one. It carries a planted-body control, and it was also proven
+against a real regression planted into the migration itself: exit 1, naming the
+routine and the file. Unit lane 549 → 550.
+
+The column check accepts `^C[A-Z0-9]{8,}$` while the state predicate and the
+table constraint accept `^[CG][A-Z0-9]{8,}$`. Deliberate: since this column is
+now the only source of a client destination, a `G…` id cannot be stored and so
+cannot be sent to. Widening the column later is additive; narrowing the
+predicate would not be.
+
+#### Not done
+
+- **Not merged, and not applied anywhere.** Main stays frozen. The only database
+  this ran against was a disposable cluster, which was destroyed.
+- No channel id from the live roster is recorded in this repository. The ids in
+  the rehearsal and the fixtures are synthetic.
+- Populating `creative_channel_id` for real clients is an owner action and no
+  part of this PR.
+
 ### 2026-09-18 — Two phase 7 questions answered from source, reading only. `native_brief_media`'s on value is `required` and switching it changes nothing anyone can see; `native_assignment_epochs` has four activation requirements, two of them already evidenced
 
 Cloud session. No flag, no write, no deploy. Both answers are read out of the

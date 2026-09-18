@@ -391,6 +391,26 @@ deliveries. The video assignee came from the four-editor native pool.
   video editors.
 - Both rollback statements are prepared, saved and unused.
 
+**FINDING, same night, and it changes what step 28 requires.** Both native test
+posts show *"Client attribution needs repair"* in SyncLinear and their cards are
+write-locked. Cause verified: the gateway stamps `owner_kind` from the client's
+`kind`, so the test client stamps `test`, and the page's native proof
+(`nativeProofValid` in `index.html`) accepts `client` only, so it refuses the
+stamp and falls to `needs_attribution`. It fails closed. Measured read-only: 42
+active clients of kind `client`, each with its own video and graphics project id,
+none shared within a team — so real posts are **expected** to resolve, which is
+not the same as proven.
+
+- **The database side of capability 1 is proven; the page side is NOT**, and the
+  test client cannot prove it: it is `kind='test'` and its two teams share one
+  Linear project id, unlike every real client.
+- **Step 28 for each team now also requires**, on the **first real staff post**:
+  open the card in SyncLinear **within minutes** and confirm **no attribution
+  banner** and **editable assets**. If the banner appears on a real client's
+  post, **run that team's rollback statement and report**.
+- **After-list, not tonight:** make the test client able to prove native
+  attribution on the page. A code change, not a config flip.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

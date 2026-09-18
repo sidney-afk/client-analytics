@@ -147,6 +147,96 @@ one that would be embarrassing to discover during a flip rather than before it.
   entry's recommendation stands: `native_intake_epochs` first. On what is written
   above, `native_brief_media` should move **later**, not earlier, because there
   is no observable behavior to accept in step 27.
+### 2026-09-18 — CAPABILITY 1 FINDING: both native test posts show "Client attribution needs repair" in SyncLinear and their cards are write-locked. The database side of native intake is proven; **the page side is not**, and the test client cannot prove it
+
+Reported by the owner after the video flip, with the cause verified here rather
+than transcribed.
+
+#### What the page does, read from `index.html`
+
+The attribution resolver's `nativeProofValid` requires, among other things:
+
+```
+persisted.schema === 'syncview_attribution_v1'
+&& persisted.owner_kind === 'client'
+&& String(row.client_slug || '').trim() === persisted.client_slug
+&& expectedProjects[0] === persisted.project_id
+…
+```
+
+**`owner_kind` must be exactly `client`.** Anything else fails the proof and the
+card falls to `needs_attribution`, which is what locks every write on it.
+
+#### What the gateway stamped, read from the three native deliverables
+
+All three native children of tonight's two test posts carry the same shape:
+
+```
+state            resolved
+reason           native_intake_legacy_project_mapped
+schema           syncview_attribution_v1
+source           native_intake_legacy_project
+owner_kind       test          <-- the refusal
+client_slug      sidneylaruel
+project_id       <the test client's Linear project>
+native_epoch     native-graphics-20260917 / native-video-20260917
+repair_required  false
+```
+
+Ids: `del_e3e8c9f5-e986-4a33-9ca7-5f06f5dd5ca5`,
+`del_7d4abb63-e740-4ca3-baf1-3a09357fc77f` (graphics) and
+`del_3864d643-c120-44fc-99e9-b5b04848316f` (video).
+
+**The stamp itself says `repair_required: false`.** The database considers the
+attribution resolved; the page refuses it because of one field. It **fails
+closed**, which is the right direction, and the owner's account of the cause is
+confirmed in both directions: the writer stamps `owner_kind` from the client's
+`kind`, and the test client's kind is `test`.
+
+#### A second way the test client is not representative, measured here
+
+The test client's `linear_project_ids` are `{"video": X, "graphics": X}` — **the
+same project id for both teams**. Every active real client has two distinct ones.
+Since the page also checks `expectedProjects[0] === persisted.project_id` per
+team, the test client differs from a real client in two ways at once, not one.
+
+#### The roster, checked read-only, and why real posts are expected to resolve
+
+| Measure | Result |
+|---|---|
+| Clients by kind | `client` 45 (**42 active**), `test` 3 (1 active), `internal` 1 (0 active) |
+| Active `kind='client'` with a video project id | **42 of 42** |
+| Active `kind='client'` with a graphics project id | **42 of 42** |
+| Video project ids shared by more than one client | **0** |
+| Graphics project ids shared by more than one client | **0** |
+
+So every real client stamps `owner_kind: client` and has its own project per
+team. Real posts are **expected** to resolve. Expected is not proven.
+
+#### Recorded consequences
+
+**1. The test client cannot prove the page side of native intake.** Tonight's
+step 27 evidence stands for the database: outbox skipped and native-only, epochs
+carried, nothing drained to Linear, no notification. It does **not** stand for
+the SyncLinear page, where both test cards are banner-locked. That half is
+unproven and must not be written up as if it passed.
+
+**2. Step 28 gains a required check, per team.** On the **first real staff post**
+for that team: open the card in SyncLinear **within minutes**, and confirm **no
+attribution banner** and **editable assets**. If the banner appears on a real
+client's post, **run that team's rollback statement** —
+`phase7-cap1-statements.sql` for graphics, `phase7-cap1-video-statements.sql` for
+video — and report immediately. Step 28 does not close on the database rows
+alone.
+
+**3. After-list item, not tonight.** Make the test client able to prove native
+attribution on the page. That is a code change — either the proof accepts a test
+owner for a client whose slug matches, or the test client is given the shape a
+real client has. It is not a config flip, and it should not be done at midnight
+after two live flips.
+
+Nothing was changed in response to this finding: no rollback was run, no stamp
+was edited, no page code was touched.
 
 ### 2026-09-18 — STEP 27 ENABLED, capability 1: `native_intake_epochs`, video. The whole post is now native: batch and both children skipped as native-only, nothing drained to Linear, no notification
 

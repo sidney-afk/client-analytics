@@ -30,6 +30,125 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 ENABLED and CLOSED for ordinary receipts, both teams: a status change on the test post and a staff comment on a real native card each landed as a native receipt, with no Linear egress, no new failures and the comment's notification delivered to the creative channel. STEP 28 CLOSED for native intake, both teams
+
+Storage session. The owner's go-ahead:
+
+> enable ordinary receipts native for video and graphics, go
+
+#### The flip
+
+The prepared statements file (sha256 `9a6d84d5…`, verified before use) supplied
+both enable statements, and they were run as written. Each ran in its own
+transaction and had to update exactly one row.
+
+| Team | Epoch | Flip (transaction time, UTC) | Rows | Readback through `production_native_ordinary_capability` |
+|---|---|---|---|---|
+| video | `native-ordinary-video-20260918` | **2026-09-18T16:13:48.679Z** | 1 | `native`, that epoch |
+| graphics | `native-ordinary-graphics-20260918` | **2026-09-18T16:13:49.220Z** | 1 | `native`, that epoch |
+
+`schema_version` kept at 1; the `native_assignment_epochs` row byte-identical
+before and after. Both rollback statements were extracted beside the evidence and
+**not run** — no action by the owner was refused.
+
+#### Evidence 1 — status change on the test post
+
+Deliverable `del_3864d643-c120-44fc-99e9-b5b04848316f` (video, the test client),
+`todo` → `client_approval`, UI event at 16:15:58.864Z.
+
+- mirror_outbox `10418`: operation `status`, **`skipped`**, `linear_result`
+  `native_ordinary: true`, epoch `native-ordinary-video-20260918`.
+- admission `957e2a94-5452-4053-9761-06e1105c0ddd`: `receipt_id` 10418, same epoch.
+- **No notification intent for the test client**, before or after.
+
+#### Evidence 2 — a staff comment on a real native card
+
+The test client's native card shows the attribution banner and its comment box is
+locked (the known page-side gap, below), so the comment half ran on a real
+native card instead: `del_dbb20054-e865-4008-879e-67086dac8f7f` (video, an active
+client of kind `client`, no Linear issue, created natively at 15:20:16Z).
+
+- comment `pc_8346d501-0e24-4126-b537-a1e9f3182e47`: present, not deleted,
+  role admin, source `ui`, origin `native`, 16:23:20.427Z.
+- mirror_outbox `10419`: entity `comment`, **`skipped`**, `native_ordinary: true`,
+  epoch `native-ordinary-video-20260918`.
+- admission `ffe4f93a-8ecc-42a2-b097-2f545bf51ea2`: `receipt_id` 10419, same epoch.
+- notification intent `c7c154bf-631b-40e3-8196-5c0628f540f6`: kind `comment`,
+  **`sent`** 16:23:22.604Z (0.74 s after creation), provider message id present,
+  destination **equal to that client's creative channel id**, not its shared
+  channel; one sent delivery receipt.
+- The card's status is still **`approved`**.
+
+#### Totals since the flip
+
+- mirror_outbox: exactly the two rows above, both native, both `skipped`.
+- admissions: exactly two, both with `receipt_id` set.
+- Notification intents: exactly one, the one above.
+- **Failed rows created since the flip: 0.** The failed total is 41, the same as
+  at the flip.
+
+#### `test_only` is `false` on both, and that is expected
+
+Both receipts and both admissions carry `test_only = false`, including the test
+client's status change. A staff write from the UI is not a drill envelope. Only
+the nightly drill sets `test_only = true`, and the parity migration concerns that
+envelope. **Recorded as expected**, on the owner's instruction.
+
+The graphics lane is enabled and reads back `native`, but no graphics write was
+exercised in this test.
+
+#### After-list: 17 failed provider-lane rows from before the flip
+
+These are mirror_outbox rows `10357`–`10373`, created 15:30–15:35 today, **before**
+the flip, and counted in the 41. They are real staff edits on native cards that
+have no Linear issue, sent down the provider lane while ordinary receipts were
+still `provider`:
+
+- 7 are video status rows, failing `outbound state mapping missing`;
+- 10 are graphics due-date and description rows, failing `linear_issue_missing`.
+
+They are still retrying and cannot succeed. **Not touched here.**
+
+**STEP 27 is CLOSED for ordinary receipts, both teams.** Step 28 for this
+capability is not recorded here.
+
+### 2026-09-18 — STEP 28 CLOSED for native intake (`native_intake_epochs`), both teams, on the owner's observation of a real native card and a read-only measurement of every real native post since 15:20
+
+Storage session, on the owner's instruction.
+
+**Owner-observed, not measured by this session.** The owner opened the real native
+card `del_dbb20054-e865-4008-879e-67086dac8f7f` in SyncLinear and reports:
+
+> no attribution banner, the client resolved on the card, assets editable, and the comment accepted
+
+That comment is evidence 2 above, and the database shows it was accepted.
+
+**Measured, read-only, from the production browser view.** Native deliverables
+created since 15:20 today with no Linear issue:
+
+| Measure | Count |
+|---|---|
+| Deliverables | **10** (on **5** cards) |
+| Real clients (kind `client`) | 10 |
+| Test client | 0 |
+| By team | graphics 5, video 5 |
+| Attribution state `resolved` | 10 |
+| `owner_kind` `client` | 10 |
+| Attributed client equal to the card's client | 10 |
+| Repair required | 0 |
+| Carrying their team's intake epoch (`native-graphics-20260917` / `native-video-20260917`) | 5 / 5 |
+
+The owner's "ten real native posts" are ten deliverables on five cards.
+
+**STEP 28 is CLOSED for native intake, both teams.** The earlier finding still
+holds for the **test client** alone: its native cards show the attribution banner
+and a locked comment box, because it stamps `owner_kind` `test`. The after-list
+item to make the test client able to prove native attribution on the page stays
+open.
+
+**Holding. Waiting for the owner's go-ahead to enable native assignment for both
+teams.**
+
 ### 2026-09-18 — NATIVE TEST-CLIENT PARITY MIGRATION APPLIED LIVE: five bodies replaced, the admissions table's `test_only = false` check gone, the `legacy_parity = false` check kept, EXECUTE holders unchanged, both capabilities still provider. Deploy preflight PASS, 157
 
 Storage session. Instruction: apply `migrations/2026-09-18-native-test-client-parity.sql`

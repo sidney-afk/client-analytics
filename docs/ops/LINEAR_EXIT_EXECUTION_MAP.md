@@ -443,6 +443,38 @@ a second, each to its client's creative channel, none to a shared channel.
   archived or until the owner turns Linear's Slack posting off. **No session
   touches Linear-side settings.**
 
+**Native intake — STEP 28 CLOSED 2026-09-18, both teams.** The owner opened a real
+native card in SyncLinear and reports, owner-observed: *"no attribution banner,
+the client resolved on the card, assets editable, and the comment accepted"*.
+Measured read-only: every native deliverable since 15:20 today, ten of them on five
+cards (graphics 5, video 5), all on real clients. Each one is attribution
+`resolved`, `owner_kind` `client`, attributed to its own client, with no repair
+required and its team's intake epoch. **After-list, still open:** the test client
+alone still shows the banner and a locked comment box, because it stamps
+`owner_kind` `test`.
+
+**Ordinary receipts (`production_native_ordinary_receipts`) — STEP 27 CLOSED
+2026-09-18, both teams.** The parity migration was applied first; preflight PASS,
+157. Video flipped at 16:13:48.679Z and graphics at 16:13:49.220Z, each with its
+own epoch. The evidence is two native `skipped` receipts, each with an admission:
+
+- a status change on the test post;
+- a staff comment on a real native card, whose notification went to the client's
+  creative channel.
+
+There have been no new failed rows since the flip, and no notification for the
+test client.
+
+- `test_only` is `false` on UI writes, including the test client's. **This is
+  expected:** only the drill envelope carries `true`.
+- The graphics lane is enabled and reads back `native`, but no graphics write
+  was exercised in the test.
+- Both rollback statements are prepared and unused.
+- **After-list:** 17 failed provider-lane rows created before the flip (7 video
+  status, 10 graphics due date and description) are staff edits on native cards
+  with no Linear issue. They cannot succeed and are untouched.
+- **Next gate: capability 3, native assignment,** on the owner's go-ahead.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

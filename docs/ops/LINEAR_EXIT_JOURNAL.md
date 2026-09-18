@@ -30,6 +30,54 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — BOT INVITE ONE-OFF: STOPPED before creating any workflow. The list is built (24 to add, 0 skipped), but the specified mechanism cannot work: the credential that would do the inviting IS the bot
+
+Storage session, on the owner's go-ahead for a one-off n8n workflow. **Nothing
+was created, edited or run in n8n, and nothing changed in Slack.**
+
+#### Step 1 and 2: done, read only
+
+| Measure | Count |
+|---|---|
+| Loaded creative channels the bot is not in | **24** |
+| Resolved by name with the bot token (`conversations.info`) | **24 of 24** |
+| **Name contains "creative" — to add** | **24** |
+| Skipped, name does not contain "creative" | **0** |
+| Archived among the 24 | 0 |
+| **Private among the 24** | **0 — all 24 are public** |
+
+The list is kept privately by slug in `bot-invite-20260918-1/invite-list.private.json`.
+The bot's user id was read from `auth.test` and is kept in the same file.
+
+#### Why it stopped at step 3
+
+The instruction was to invite the bot using the same Slack credential the
+"ONE-OFF — Create Amanda Hanson private channel" workflow uses for its invite step.
+Read from that workflow, read only: its invite node uses the credential
+**named "SyncView Bot"** (its id is kept privately) — **the bot itself.**
+
+That worked there because the bot had just **created** that channel and was
+therefore a member of it; it was inviting other people. Here it would be asked to
+invite **itself** into channels it is **not** in. Slack refuses both halves of
+that: an inviter must be a member of the channel, and a user cannot invite itself
+(`cant_invite_self`). Built as specified, the workflow would have produced 24
+refusals and changed nothing.
+
+**What would achieve the intent instead.** All 24 channels are public, and the bot
+token carries `channels:join`. A public channel can be joined by the bot itself
+with `conversations.join` — the n8n Slack node's channel **join** operation — with
+the **same** SyncView Bot credential, one call per channel. The outcome is the one
+asked for: the bot becomes a member of all 24. It is a different API call from the
+one specified, though, so it is proposed here and **not substituted quietly**, per
+the standing rule that an instruction which cannot be right is raised before
+anything runs.
+
+#### Holding
+
+Waiting for the owner to approve the join-based one-off. The notifications gate is
+unchanged: **Bot membership 7 of 31. Waiting for the owner's go-ahead to enable
+the sender.**
+
 ### 2026-09-18 — BOT MEMBERSHIP MEASURED: the SyncView bot is in 7 of the 31 creative channels and missing from 24 — while it IS in all 26 shared client channels. The sender cannot deliver for most clients as things stand. D36 extended to the bot token
 
 Storage session, read only. Holding at the notifications gate.

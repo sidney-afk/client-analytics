@@ -3,11 +3,24 @@
  * One-off catch-up for calendar posts whose component status lags the linked
  * production card.
  *
- *   node scripts/native-calendar-status-backfill.js                 # DRY-RUN
- *   node scripts/native-calendar-status-backfill.js --apply
- *   node scripts/native-calendar-status-backfill.js --since=2026-09-18T00:00:00Z
- *
  * DRY-RUN IS THE DEFAULT. `--apply` is the only thing that writes.
+ *
+ * RUN IT FROM ANY DIRECTORY. The path below is absolute, so there is no `cd` to
+ * work out and no working directory to infer — a fresh PowerShell window at the
+ * default prompt is exactly right. Windows PowerShell, as written:
+ *
+ *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js"
+ *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js" --apply
+ *   node "$env:USERPROFILE\client-analytics\scripts\native-calendar-status-backfill.js" --since=2026-09-18T00:00:00Z
+ *
+ * `$env:USERPROFILE` is expanded by the shell before node sees it, so this is
+ * an absolute path, not a relative one dressed up — the same form the F27
+ * capture script is handed over with, and for the same reason. On a POSIX
+ * checkout, pass the absolute path to this same file instead.
+ *
+ * The script itself reads nothing relative to the current directory. Verified
+ * as written from an unrelated directory: with no key it refuses on the key,
+ * and with one it reaches the RPC — never on "cannot find module".
  *
  * WHY THIS EXISTS SEPARATELY FROM THE TRIGGER.
  *

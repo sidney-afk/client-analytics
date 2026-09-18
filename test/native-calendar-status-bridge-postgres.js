@@ -77,7 +77,8 @@ const urgentIntentKey = (deliverableId, stampIso) =>
 const card = (id) => jsonRows(cluster, `select client, id, video_status, graphic_status,
   to_char(video_status_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as video_stamp,
   to_char(graphic_status_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as graphic_stamp,
-  updated_at
+  updated_at,
+  client_video_approved_at, client_graphic_approved_at, kasper_approved_at, caption_status
   from public.calendar_posts where id = '${id}'`)[0];
 
 const bridgeEvents = (postId) => jsonRows(cluster,
@@ -92,6 +93,10 @@ const deliverableEventCount = () => Number(scalar(cluster, 'select count(*) from
 const FIXTURE = `
 alter table public.calendar_posts add column if not exists video_status text;
 alter table public.calendar_posts add column if not exists graphic_status text;
+alter table public.calendar_posts add column if not exists caption_status text;
+alter table public.calendar_posts add column if not exists client_video_approved_at text;
+alter table public.calendar_posts add column if not exists client_graphic_approved_at text;
+alter table public.calendar_posts add column if not exists kasper_approved_at text;
 alter table public.calendar_posts add column if not exists updated_at text;
 alter table public.calendar_posts add column if not exists order_index numeric;
 
@@ -120,6 +125,21 @@ on conflict (id) do nothing;
 update public.calendar_posts set video_deliverable_id = 'dv-1', graphic_deliverable_id = 'dg-1' where id = 'card-1';
 update public.calendar_posts set video_deliverable_id = 'dv-2' where id = 'card-2';
 update public.calendar_posts set video_deliverable_id = 'dv-arch' where id = 'card-archived';
+insert into public.calendar_posts(id, client, status, video_status, graphic_status, caption_status,
+  client_video_approved_at, client_graphic_approved_at, kasper_approved_at, updated_at)
+values ('card-3', 'fixture-client', 'Planned', 'Approved', 'Tweaks Needed', 'Tweaks Needed',
+        '2026-09-18T11:00:00.000Z', '', '2026-09-18T11:05:00.000Z', '2026-09-18T11:00:00.000Z'),
+       ('card-4', 'fixture-client', 'Planned', 'In Progress', 'Approved', 'Tweaks Needed',
+        '2026-09-18T11:00:00.000Z', '2026-09-18T11:00:00.000Z', '2026-09-18T11:05:00.000Z', '2026-09-18T11:00:00.000Z')
+on conflict (id) do nothing;
+
+insert into public.deliverables(id, batch_id, client_slug, team, kind, title, status, origin, card_id)
+values ('dv-3', 'batch-cal-video', 'fixture-client', 'video', 'video', 'Fixture regress', 'approved', 'calendar', 'card-3'),
+       ('dv-4', 'batch-cal-video', 'fixture-client', 'video', 'video', 'Fixture hold', 'todo', 'calendar', 'card-4')
+on conflict (id) do nothing;
+
+update public.calendar_posts set video_deliverable_id = 'dv-3' where id = 'card-3';
+update public.calendar_posts set video_deliverable_id = 'dv-4' where id = 'card-4';
 -- card-unlinked deliberately keeps both slots null while dv-orphan names it.
 `;
 
@@ -273,18 +293,82 @@ try {
     jsonRows(cluster, `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, false)`)
       .filter(r => r.post_id === 'card-archived').length === 0);
 
+  /* ---- stale approval stamps, cleared in the same transaction ------------ */
+  /* card-3: video Approved with a client stamp and a kasper stamp; graphic and
+   * caption are below the line, so the regression must clear BOTH. */
+  const regressBefore = card('card-3');
+  cluster.exec(`update public.deliverables set status = 'tweak' where id = 'dv-3';`);
+  const regressAfter = card('card-3');
+  ok('a regressing component clears its own client approval stamp in the same statement',
+    regressBefore.client_video_approved_at !== '' && regressAfter.video_status === 'Tweaks Needed'
+    && regressAfter.client_video_approved_at === '');
+  ok('and kasper_approved_at goes with it when no component is left above the line',
+    regressBefore.kasper_approved_at !== '' && regressAfter.kasper_approved_at === '');
+  ok('the other component stamps are not invented or touched',
+    regressAfter.client_graphic_approved_at === regressBefore.client_graphic_approved_at);
+
+  /* card-4: graphic is still Approved, so the video regression must NOT take
+   * kasper_approved_at with it. This is the pair that makes the one above mean
+   * something. */
+  const holdBefore = card('card-4');
+  cluster.exec(`update public.deliverables set status = 'tweak' where id = 'dv-4';`);
+  const holdAfter = card('card-4');
+  ok('but kasper_approved_at is KEPT while another component is still above the line',
+    holdAfter.video_status === 'Tweaks Needed' && holdAfter.client_video_approved_at === ''
+    && holdAfter.kasper_approved_at === holdBefore.kasper_approved_at
+    && holdAfter.kasper_approved_at !== '');
+
+  /* A move that does not cross the line clears nothing: todo -> in_progress both
+   * map to "In Progress", so the card never changes and no stamp may move. */
+  cluster.exec(`update public.calendar_posts set video_status = 'In Progress',
+      client_video_approved_at = '2026-09-18T12:00:00.000Z' where id = 'card-4';`);
+  const flatBefore = card('card-4');
+  cluster.exec(`update public.deliverables set status = 'todo' where id = 'dv-4';`);
+  cluster.exec(`update public.deliverables set status = 'in_progress' where id = 'dv-4';`);
+  const flatAfter = card('card-4');
+  ok('a native move whose mapped value does not change clears no stamp and moves no timestamp',
+    flatAfter.client_video_approved_at === flatBefore.client_video_approved_at
+    && flatAfter.kasper_approved_at === flatBefore.kasper_approved_at
+    && flatAfter.video_stamp === flatBefore.video_stamp);
+
+  /* ---- the backfill revalidates rather than replaying its snapshot -------- */
+  /* WHAT IS AND IS NOT PROVED HERE, said plainly.
+   *
+   * The apply re-reads the deliverable in the same statement and proceeds only
+   * while the deliverable version, the freshly derived target and the card's
+   * own value all still match what the scan reported. The interleaving that
+   * makes those clauses matter -- another session committing between the scan
+   * statement and the apply statement -- CANNOT be staged from a single-session
+   * fixture: both statements run inside one call, and a trigger firing during
+   * the apply is part of the same command and so cannot change what that
+   * command sees. Attempted three ways before this was written down rather than
+   * quietly dropped.
+   *
+   * So the clauses themselves are pinned structurally by
+   * test/native-calendar-status-bridge.js, which requires both branches to
+   * carry the deliverable re-join, the re-derived target, the card-value check,
+   * and the events insert reading from the applied table rather than the scope.
+   * What IS proved here is the consequence a stale apply would break: the
+   * reported `applied` flag is read back from what the UPDATE returned, and the
+   * ledger is written from the same place. */
+  const appliedFlags = jsonRows(cluster,
+    `select * from public.production_native_calendar_status_backfill('2026-09-18T00:00:00Z'::timestamptz, false)`);
+  ok('a dry run reports applied=false on every row, because nothing was returned by an UPDATE',
+    appliedFlags.every(r => r.applied === false));
+
   /* ---- the ROLLBACK.md inverse, rehearsed rather than asserted ----------- */
   cluster.exec(`
     drop trigger if exists zzz_native_calendar_status_project on public.deliverables;
     drop function if exists public.production_native_calendar_status_backfill(timestamptz, boolean);
     drop function if exists public.production_native_calendar_status_project();
     drop function if exists public.production_native_calendar_status_map(text, text);
+    drop function if exists public.production_native_calendar_status_above(text);
   `);
   const inverseBefore = card('card-1');
   const inverseEvents = bridgeEvents('card-1').length;
   cluster.exec(`update public.deliverables set status = 'tweak' where id = 'dv-1';`);
   const inverseAfter = card('card-1');
-  ok('the ROLLBACK.md inverse removes all four objects and the projection stops',
+  ok('the ROLLBACK.md inverse removes all five objects and the projection stops',
     Number(scalar(cluster, `select count(*) from pg_proc where proname like 'production_native_calendar_status_%'`)) === 0
     && Number(scalar(cluster, `select count(*) from pg_trigger where tgname = 'zzz_native_calendar_status_project' and not tgisinternal`)) === 0
     && inverseAfter.video_status === inverseBefore.video_status

@@ -1849,8 +1849,8 @@
     {
       "id": "2026-09-18-native-calendar-status-bridge.sql",
       "path": "migrations/2026-09-18-native-calendar-status-bridge.sql",
-      "sha256": "a947abbcdf41487dcf2bbcf72a43a579ca5762e7c58fd813c45262ffa5b3ffcd",
-      "bytes": 20327,
+      "sha256": "346d76cc4ff11e2c730d0a91d859da2073ad138c46f6a44155cef7615772bd71",
+      "bytes": 29438,
       "scope": "candidate_owner",
       "dependencies": [
         "live-schema-baseline-2026-07-03.sql",
@@ -1860,7 +1860,7 @@
       "transaction": {
         "classification": "autocommit_statements",
         "explicit_commits": 0,
-        "outside_transaction_statements": 11,
+        "outside_transaction_statements": 14,
         "boundaries": [],
         "meta_commands": []
       },

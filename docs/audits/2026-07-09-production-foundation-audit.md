@@ -567,6 +567,12 @@ cannot reach any notification trigger, and cannot move a card whose own
 No read, request, gate or authority path is touched, and no Edge Function
 changes, so no fingerprint moves and neither F27 lane is involved.
 
+It clears `client_<component>_approved_at` and `kasper_approved_at` under the
+page's own conditions when the component it moves regresses below the
+client-approval line. That is a narrowing of what the card asserts, never a
+widening: it can only ever blank a sign-off that the component's new status has
+already invalidated, and it can never set one.
+
 The one thing it can do that nothing else could is move a calendar component
 status without a calendar write, which is the point: that value had no
 server-side writer at all once Linear stopped carrying it.

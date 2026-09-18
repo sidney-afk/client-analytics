@@ -123,6 +123,27 @@
 --     deliverable would write a status onto a row no one linked.
 --   * It does not touch `sample_reviews`. Samples carry their own review
 --     lifecycle and are not this regression.
+-- ============================================================
+-- STALE APPROVAL STAMPS, CLEARED IN THE SAME TRANSACTION.
+--
+-- A component that regresses -- `approved` -> `tweak` is the ordinary case --
+-- leaves the client's sign-off stamp behind if only the status moves, so the
+-- card reads "Tweaks Needed" while still carrying a client approval, and a
+-- reload does not repair it. `_calClearStaleApprovals` in index.html is the
+-- rule the calendar's own writes apply, and this mirrors it for the component
+-- that regressed:
+--
+--   * `client_<component>_approved_at` is cleared when the new value is not one
+--     of {Client Approval, Approved, Scheduled, Posted};
+--   * `kasper_approved_at` is cleared when, after the change, NONE of the three
+--     components (video, graphic, caption) is above that line.
+--
+-- Scoped to the component this projection moves, deliberately. The page's rule
+-- sweeps every component, but a stamp that was already stale on a component
+-- this change did not touch was stale before it too, and repairing it here
+-- would be this projection making a change nothing asked it to make. Title is
+-- outside `CAL_COMPONENTS` and outside this projection entirely.
+--
 --   * It does not recompute the card's OVERALL `status` column. That is
 --     `computeOverallStatus` plus `_calClearStaleApprovals` in index.html --
 --     approval-clearing logic with client-visible consequences that has never
@@ -180,6 +201,31 @@ $fn$;
 
 revoke all on function public.production_native_calendar_status_map(text, text) from public, anon, authenticated;
 grant execute on function public.production_native_calendar_status_map(text, text) to service_role;
+
+-- ------------------------------------------------------------
+-- "Is this component status above the client-approval line?"
+--
+-- Mirrored from `_calClearStaleApprovals` in index.html, whose set is
+-- {Client Approval, Approved, Scheduled, Posted} and which tests it against
+-- `_calNormStatus(...)`. That normaliser can only ever produce one of these
+-- four from a case-insensitive match of the same name -- its other branches
+-- produce `In Progress`, `Kasper Approval` or `For SMM Approval`, none of which
+-- is in the set -- so a case-folded comparison against the four literals is the
+-- exact SQL equivalent, not an approximation. Proved that way, over every
+-- calendar status and every legacy spelling the normaliser handles, by
+-- test/native-calendar-status-bridge.js.
+-- ------------------------------------------------------------
+create or replace function public.production_native_calendar_status_above(p_status text)
+returns boolean
+language sql
+immutable
+set search_path = public, pg_temp
+as $fn$
+  select lower(btrim(coalesce(p_status, ''))) in ('client approval', 'approved', 'scheduled', 'posted');
+$fn$;
+
+revoke all on function public.production_native_calendar_status_above(text) from public, anon, authenticated;
+grant execute on function public.production_native_calendar_status_above(text) to service_role;
 
 -- ------------------------------------------------------------
 -- The projection itself.
@@ -245,6 +291,17 @@ begin
     -- See the notification note at the top of this file.
     update public.calendar_posts p
        set video_status = v_target,
+           client_video_approved_at = case
+             when public.production_native_calendar_status_above(v_target) then p.client_video_approved_at
+             when coalesce(p.client_video_approved_at, '') = '' then p.client_video_approved_at
+             else '' end,
+           kasper_approved_at = case
+             when coalesce(p.kasper_approved_at, '') = '' then p.kasper_approved_at
+             when public.production_native_calendar_status_above(v_target)
+               or public.production_native_calendar_status_above(p.graphic_status)
+               or public.production_native_calendar_status_above(p.caption_status)
+               then p.kasper_approved_at
+             else '' end,
            updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
      where p.client = new.client_slug
        and p.id = v_card_id
@@ -256,6 +313,17 @@ begin
       where p.client = new.client_slug and p.id = v_card_id and p.graphic_deliverable_id = new.id;
     update public.calendar_posts p
        set graphic_status = v_target,
+           client_graphic_approved_at = case
+             when public.production_native_calendar_status_above(v_target) then p.client_graphic_approved_at
+             when coalesce(p.client_graphic_approved_at, '') = '' then p.client_graphic_approved_at
+             else '' end,
+           kasper_approved_at = case
+             when coalesce(p.kasper_approved_at, '') = '' then p.kasper_approved_at
+             when public.production_native_calendar_status_above(v_target)
+               or public.production_native_calendar_status_above(p.video_status)
+               or public.production_native_calendar_status_above(p.caption_status)
+               then p.kasper_approved_at
+             else '' end,
            updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
      where p.client = new.client_slug
        and p.id = v_card_id
@@ -326,12 +394,18 @@ begin
 
   create temporary table if not exists native_calendar_backfill_scope (
     client text, post_id text, component text, deliverable_id text,
-    card_status text, target_status text, deliverable_status_at timestamptz
+    card_status text, target_status text, deliverable_status_at timestamptz,
+    deliverable_updated_at timestamptz
   ) on commit drop;
   delete from native_calendar_backfill_scope;
 
+  create temporary table if not exists native_calendar_backfill_applied (
+    post_id text, component text, deliverable_id text
+  ) on commit drop;
+  delete from native_calendar_backfill_applied;
+
   insert into native_calendar_backfill_scope
-  select p.client, p.id, s.component, d.id, s.card_status, m.target_status, d.status_at
+  select p.client, p.id, s.component, d.id, s.card_status, m.target_status, d.status_at, d.updated_at
   from public.calendar_posts p
   join lateral (values
     ('video', p.video_deliverable_id, p.video_status),
@@ -350,23 +424,91 @@ begin
     and s.card_status is distinct from m.target_status;
 
   if v_apply then
-    update public.calendar_posts p
-       set video_status = b.target_status,
-           updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-      from native_calendar_backfill_scope b
-     where b.component = 'video'
-       and p.client = b.client and p.id = b.post_id
-       and p.video_deliverable_id = b.deliverable_id
-       and p.video_status is distinct from b.target_status;
+    /* COMPARE AND SET, not "apply the snapshot".
+     *
+     * The rows above were read a statement ago. Between then and now the
+     * trigger may have projected the same card (a concurrent native change),
+     * or a human may have saved it from the calendar. Writing the snapshot's
+     * target at that point would overwrite a NEWER correct value with an older
+     * one, and the unconditional event insert would then report a row as
+     * applied that it had in fact clobbered or skipped.
+     *
+     * So each update re-reads the deliverable IN THE SAME STATEMENT and
+     * re-derives the target from its live status, and proceeds only when all
+     * four still hold: the deliverable has not moved (`status_at` and
+     * `updated_at` both match the snapshot), the freshly mapped target equals
+     * the one that was reported, the card still holds exactly the value the
+     * scan saw, and that value still differs from the target. Anything else
+     * leaves the row alone -- correctly, because a concurrent native change has
+     * already been projected by the trigger.
+     *
+     * The events rows are then written from `native_calendar_backfill_applied`,
+     * which holds only rows an UPDATE actually returned, so the ledger cannot
+     * claim a projection that did not happen. A second run finds an empty scope
+     * and writes nothing at all, so re-running still re-stamps no
+     * `video_status_at` and re-opens no urgent tweak round.
+     */
+    with upd as (
+      update public.calendar_posts p
+         set video_status = b.target_status,
+             client_video_approved_at = case
+               when public.production_native_calendar_status_above(b.target_status) then p.client_video_approved_at
+               when coalesce(p.client_video_approved_at, '') = '' then p.client_video_approved_at
+               else '' end,
+             kasper_approved_at = case
+               when coalesce(p.kasper_approved_at, '') = '' then p.kasper_approved_at
+               when public.production_native_calendar_status_above(b.target_status)
+                 or public.production_native_calendar_status_above(p.graphic_status)
+                 or public.production_native_calendar_status_above(p.caption_status)
+                 then p.kasper_approved_at
+               else '' end,
+             updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        from native_calendar_backfill_scope b
+        join public.deliverables d
+          on d.id = b.deliverable_id
+         and d.status_at is not distinct from b.deliverable_status_at
+         and d.updated_at is not distinct from b.deliverable_updated_at
+         and public.production_native_calendar_status_map(d.status, d.origin) is not distinct from b.target_status
+       where b.component = 'video'
+         and p.client = b.client and p.id = b.post_id
+         and p.video_deliverable_id = b.deliverable_id
+         and lower(btrim(coalesce(p.status, ''))) <> 'archived'
+         and p.video_status is not distinct from b.card_status
+         and p.video_status is distinct from b.target_status
+      returning b.post_id, b.component, b.deliverable_id
+    )
+    insert into native_calendar_backfill_applied select upd.post_id, upd.component, upd.deliverable_id from upd;
 
-    update public.calendar_posts p
-       set graphic_status = b.target_status,
-           updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-      from native_calendar_backfill_scope b
-     where b.component = 'graphic'
-       and p.client = b.client and p.id = b.post_id
-       and p.graphic_deliverable_id = b.deliverable_id
-       and p.graphic_status is distinct from b.target_status;
+    with upd as (
+      update public.calendar_posts p
+         set graphic_status = b.target_status,
+             client_graphic_approved_at = case
+               when public.production_native_calendar_status_above(b.target_status) then p.client_graphic_approved_at
+               when coalesce(p.client_graphic_approved_at, '') = '' then p.client_graphic_approved_at
+               else '' end,
+             kasper_approved_at = case
+               when coalesce(p.kasper_approved_at, '') = '' then p.kasper_approved_at
+               when public.production_native_calendar_status_above(b.target_status)
+                 or public.production_native_calendar_status_above(p.video_status)
+                 or public.production_native_calendar_status_above(p.caption_status)
+                 then p.kasper_approved_at
+               else '' end,
+             updated_at = to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+        from native_calendar_backfill_scope b
+        join public.deliverables d
+          on d.id = b.deliverable_id
+         and d.status_at is not distinct from b.deliverable_status_at
+         and d.updated_at is not distinct from b.deliverable_updated_at
+         and public.production_native_calendar_status_map(d.status, d.origin) is not distinct from b.target_status
+       where b.component = 'graphic'
+         and p.client = b.client and p.id = b.post_id
+         and p.graphic_deliverable_id = b.deliverable_id
+         and lower(btrim(coalesce(p.status, ''))) <> 'archived'
+         and p.graphic_status is not distinct from b.card_status
+         and p.graphic_status is distinct from b.target_status
+      returning b.post_id, b.component, b.deliverable_id
+    )
+    insert into native_calendar_backfill_applied select upd.post_id, upd.component, upd.deliverable_id from upd;
 
     insert into public.calendar_post_events
       (client, post_id, ts, actor, role, action, component, from_status, to_status, source, payload)
@@ -377,13 +519,22 @@ begin
              'deliverable_status_at', b.deliverable_status_at,
              'since', p_since,
              'via', 'backfill')
-    from native_calendar_backfill_scope b;
+    from native_calendar_backfill_scope b
+    join native_calendar_backfill_applied a
+      on a.post_id = b.post_id and a.component = b.component and a.deliverable_id = b.deliverable_id;
   end if;
 
+  /* `applied` is per row, read back from what the UPDATE returned -- never a
+   * blanket echo of the p_apply flag. A dry run reports false everywhere; an
+   * apply reports false for a row a concurrent change took out from under it,
+   * which is the signal that row was not projected here. */
   return query
     select b.client, b.post_id, b.component, b.deliverable_id,
-           b.card_status, b.target_status, b.deliverable_status_at, v_apply
+           b.card_status, b.target_status, b.deliverable_status_at,
+           (a.post_id is not null) as applied
     from native_calendar_backfill_scope b
+    left join native_calendar_backfill_applied a
+      on a.post_id = b.post_id and a.component = b.component and a.deliverable_id = b.deliverable_id
     order by b.deliverable_status_at asc, b.client asc, b.post_id asc, b.component asc;
 end;
 $fn$;

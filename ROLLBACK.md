@@ -1212,19 +1212,23 @@ fix the card.
 - It issues no grant and no revoke beyond removing the three functions' own.
   Nothing else's ACL is touched.
 - It does not revert `scripts/linear-exit-deploy-preflight.js`. **If this inverse
-  is applied, remove the three `production_native_calendar_status_*` ROUTINES
+  is applied, remove the four `production_native_calendar_status_*` ROUTINES
   rows and the `deliverables.zzz_native_calendar_status_project` TRIGGERS row in
   the same change**, or the Linear-exit deploy preflight will refuse with
-  `CONTRACT_ABSENT` on four keys and no production-write release can dispatch.
+  `CONTRACT_ABSENT` on five keys and no production-write release can dispatch.
   The install inventory entry in
   `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_4.json` and
   its `CANDIDATE`/`DEPENDENCIES` entries in
   `scripts/linear-exit-install-manifest.js` come out with it.
 
+Also removes the stale-approval clearing the projection performs, so a component
+that regresses after this inverse keeps its client sign-off stamp again. That is
+part of what it restores, not an oversight.
+
 **Rehearsed on 2026-09-18** against a disposable PostgreSQL carrying the real
 migration chain, as the last two assertions of
 `test/native-calendar-status-bridge-postgres.js`, so the rehearsal re-runs every
-time that lane does rather than being a dated claim: after the inverse all four
+time that lane does rather than being a dated claim: after the inverse all five
 objects are gone, the identical native status change leaves the card and its
 stamp untouched (the regression, reproduced), and every value, stamp and event
 row the bridge had already written is unchanged.
@@ -1239,13 +1243,14 @@ The inverse, in full:
 -- column is the urgent ping's dedupe key and moving it back re-opens tweak
 -- rounds that were already pinged.
 -- It also does NOT revert scripts/linear-exit-deploy-preflight.js: remove the
--- three production_native_calendar_status_* ROUTINES rows and the
+-- four production_native_calendar_status_* ROUTINES rows and the
 -- deliverables.zzz_native_calendar_status_project TRIGGERS row in the same
--- change, or the deploy preflight refuses on four keys.
+-- change, or the deploy preflight refuses on five keys.
 begin;
 drop trigger if exists zzz_native_calendar_status_project on public.deliverables;
 drop function if exists public.production_native_calendar_status_backfill(timestamptz, boolean);
 drop function if exists public.production_native_calendar_status_project();
 drop function if exists public.production_native_calendar_status_map(text, text);
+drop function if exists public.production_native_calendar_status_above(text);
 commit;
 ```

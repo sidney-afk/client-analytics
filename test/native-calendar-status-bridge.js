@@ -23,7 +23,7 @@
  * which is a defect if it silently changes:
  *   * the trigger carries no WHEN clause, because the Linear-exit deploy
  *     preflight requires `tgqual is null` on every trigger it pins;
- *   * the deploy preflight carries a row for each of the three new routines,
+ *   * the deploy preflight carries a row for each of the four new routines,
  *     with the fifth element false, because none of them is SECURITY DEFINER;
  *   * the event rows use a source distinct from every existing writer's.
  */
@@ -116,6 +116,69 @@ ok('the parsed SQL mapper actually produces the calendar values, not a blanket n
 ok('and the page mapper it is compared against is the real one, not an empty stub',
   pageMap('approved', 'calendar') === 'Approved');
 
+/* ---- the stale-approval rule, page vs SQL -------------------------------- */
+/* `_calClearStaleApprovals` decides "is this component still signed off" by
+ * testing `_calNormStatus(status)` against {Client Approval, Approved,
+ * Scheduled, Posted}. The migration tests a case-folded literal set instead,
+ * because the normaliser's other branches cannot produce any of those four.
+ * That is a claim about the normaliser, so it is executed rather than argued:
+ * the page's own two functions are run over every calendar status, every legacy
+ * spelling the normaliser rewrites, and junk, and compared with the SQL
+ * predicate parsed out of the migration. */
+const pageNorm = new Function(
+  grabFunc(page, '_calNormStatus').replace(/CAL_STATUSES/g, 'CAL_STATUSES')
+  + ';' + (page.match(/^\s*const CAL_STATUSES\s*=.*;\s*$/m) || [''])[0]
+  + ';return _calNormStatus;')();
+const sqlAbove = (() => {
+  const body = sql.match(
+    /create or replace function public\.production_native_calendar_status_above\([\s\S]*?\bas \$fn\$([\s\S]*?)\$fn\$;/);
+  assert.ok(body, 'the migration no longer defines production_native_calendar_status_above');
+  // The body's other literal is coalesce's empty string; the set is the four
+  // non-empty ones, and requiring exactly four is what makes a fifth arm fail.
+  const set = [...body[1].matchAll(/'([^']*)'/g)].map(m => m[1]).filter(Boolean);
+  assert.ok(set.length === 4, 'the above-set could not be parsed out of the migration');
+  return (status) => set.includes(String(status || '').trim().toLowerCase());
+})();
+const ABOVE = new Set(['Client Approval', 'Approved', 'Scheduled', 'Posted']);
+const pageAbove = (status) => ABOVE.has(pageNorm(status));
+const statusProbes = ['N/A', 'In Progress', 'For SMM Approval', 'Kasper Approval', 'Client Approval',
+  'Tweaks Needed', 'Approved', 'Scheduled', 'Posted', '', '   ', 'draft', 'Draft', 'smm approval',
+  'kasper approval', 'for kasper approval', 'APPROVED', '  approved  ', 'scheduled', 'POSTED',
+  'client approval', 'not_a_status', 'Approved-ish'];
+const aboveDisagreements = statusProbes.filter(s => pageAbove(s) !== sqlAbove(s));
+ok(`the migration's approval-line test agrees with _calNormStatus + _calClearStaleApprovals on all ${statusProbes.length} spellings`
+  + (aboveDisagreements.length ? ' — ' + aboveDisagreements.map(s => JSON.stringify(s)).join(', ') : ''),
+  aboveDisagreements.length === 0);
+ok('and the parsed predicate is discriminating, not constant',
+  sqlAbove('Approved') === true && sqlAbove('Tweaks Needed') === false
+  && pageAbove('Approved') === true && pageAbove('Tweaks Needed') === false);
+
+/* The projection must clear the stamps in the SAME statement that moves the
+ * status, or a reload shows "Tweaks Needed" beside a live client sign-off. */
+for (const [label, needle] of [
+  ['the video branch clears the component stamp when the new value is below the line',
+    /set video_status = v_target,\s*client_video_approved_at = case/],
+  ['the graphic branch does the same',
+    /set graphic_status = v_target,\s*client_graphic_approved_at = case/],
+]) ok(label, needle.test(sql));
+ok('kasper_approved_at is cleared only when no component is above the line, all three tested',
+  (sql.match(/kasper_approved_at = case/g) || []).length === 4
+  && /production_native_calendar_status_above\(p\.caption_status\)/.test(sql));
+
+/* ---- the backfill re-reads rather than replaying its snapshot ------------ */
+ok('the backfill scope records the deliverable version it read',
+  /deliverable_updated_at timestamptz/.test(sql));
+ok('each apply re-joins deliverables and re-derives the target in the same statement',
+  (sql.match(/and public\.production_native_calendar_status_map\(d\.status, d\.origin\) is not distinct from b\.target_status/g) || []).length === 2
+  && (sql.match(/and d\.updated_at is not distinct from b\.deliverable_updated_at/g) || []).length === 2);
+ok('and applies only while the card still holds the value the scan saw',
+  (sql.match(/_status is not distinct from b\.card_status/g) || []).length === 2);
+ok('the events rows come from rows an UPDATE actually returned, not from the scope',
+  /join native_calendar_backfill_applied a/.test(sql)
+  && /insert into native_calendar_backfill_applied select upd\.post_id, upd\.component, upd\.deliverable_id from upd;/.test(sql));
+ok('and `applied` is read back per row rather than echoing the flag',
+  /\(a\.post_id is not null\) as applied/.test(sql));
+
 /* ---- the structural pins ------------------------------------------------ */
 const triggerStatement = sql.match(
   /create trigger zzz_native_calendar_status_project([\s\S]*?);/);
@@ -130,6 +193,7 @@ ok('the event source is distinct from every existing calendar_post_events writer
   /'native-bridge'/.test(sql) && !/'ui'\s*,\s*$/m.test(sql));
 
 const expectedRoutines = [
+  'production_native_calendar_status_above(text)',
   'production_native_calendar_status_map(text,text)',
   'production_native_calendar_status_project()',
   'production_native_calendar_status_backfill(timestamp with time zone,boolean)',

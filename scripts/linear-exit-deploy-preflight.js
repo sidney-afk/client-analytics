@@ -74,6 +74,7 @@ const ROUTINES = Object.freeze([
   // both calendar tables, so the projection needs no elevation and is granted
   // none. The fifth element records that; a row without it defaults to true and
   // fails the live gate on a database that matches the migration exactly.
+  ['production_native_calendar_status_above(text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_above', 'public, pg_temp', false],
   ['production_native_calendar_status_map(text,text)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_map', 'public, pg_temp', false],
   ['production_native_calendar_status_project()', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_project', 'public, pg_temp', false],
   ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-status-bridge.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],

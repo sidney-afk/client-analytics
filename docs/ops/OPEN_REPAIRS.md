@@ -26414,6 +26414,14 @@ and `test/native-calendar-status-bridge-postgres.js` (32 assertions on a real
 disposable PostgreSQL, including a CONTROL that drops the trigger and reproduces
 the regression, and the `ROLLBACK.md` inverse rehearsed in the same lane).
 
+**Amended before merge, after review.** The first draft moved the status and
+left the approval stamps, so a regressing component showed "Tweaks Needed" beside
+a live client sign-off — the stamps are stored, and unlike the roll-up nothing
+recomputes them on reload. The projection now clears them under
+`_calClearStaleApprovals`'s own conditions, scoped to the component that
+regressed. The backfill's apply also re-reads the deliverable in the same
+statement and logs only rows an UPDATE returned.
+
 **Not done here.** The card's overall `status` roll-up is still recomputed only
 by the next calendar write; `computeOverallStatus` and `_calClearStaleApprovals`
 have no server-side twin and inventing a second one in SQL is how the two drift.

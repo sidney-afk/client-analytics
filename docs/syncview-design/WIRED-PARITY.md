@@ -1257,6 +1257,13 @@ said so.
     Linear and gets reverted. That expectation is about the column on every
     write path, not about one caller, and `production-write` is not the only
     writer of `deliverables.status`. Full reasoning in the migration's header.
+-   **Stale approval stamps go with it.** A component regressing below the
+    client-approval line has its `client_<component>_approved_at` cleared in the
+    same statement, and `kasper_approved_at` too when no component is left above
+    that line — `_calClearStaleApprovals`'s rule, scoped to the component that
+    regressed. Without it a card reads "Tweaks Needed" beside a live client
+    sign-off and a reload does not repair it, because reload recomputes the
+    roll-up and not the stored stamps.
 -   **What does NOT move.** The card's overall `status` roll-up, which is still
     `computeOverallStatus` plus `_calClearStaleApprovals` in `index.html` and is
     still recomputed by the next calendar write — no server-side twin was

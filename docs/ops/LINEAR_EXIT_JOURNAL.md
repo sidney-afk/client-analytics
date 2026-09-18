@@ -30,6 +30,65 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Codex found the approval stamps, and the one thing I could not stage I wrote down instead of quietly dropping
+
+Three findings on #1422, all three correct, all three addressed on the
+supervisor's ruling.
+
+**The P1 that matters most was a hole in my own reasoning, not in my code.**
+The migration's header lists what the projection deliberately does not do, and
+one of those lines — that it does not recompute the overall `status` roll-up,
+because `computeOverallStatus` and `_calClearStaleApprovals` have no server-side
+twin and inventing one is how two copies drift — reads as a careful boundary.
+It was also the cover under which a real defect walked past. Those two functions
+do different jobs. The roll-up is derived and a reload recomputes it. The
+approval STAMPS are stored, and nothing recomputes them: a component regressing
+`approved` → `tweak` left `client_video_approved_at` and possibly
+`kasper_approved_at` populated, so the card read "Tweaks Needed" while still
+carrying a client's sign-off, and would have gone on reading that way.
+
+The lesson is narrow and worth keeping: **a sentence saying "I am not copying
+that logic" is a decision about one function, and it does not extend to every
+function named in the same breath.** I had bundled two and reasoned about one.
+
+The fix mirrors the page's rule for the component that regressed only — the
+other components' stamps were stale before this change too, and repairing them
+here would be this projection making a change nothing asked of it.
+
+**The mapping-drift guard needed a second half, and it turned out to be a
+provable claim rather than an assumption.** The page tests
+`_calNormStatus(status)` against {Client Approval, Approved, Scheduled, Posted};
+the SQL tests a case-folded literal set. Those are only the same thing if the
+normaliser can never produce one of those four from a value that does not
+already spell it — true, because its other branches produce `In Progress`,
+`Kasper Approval` or `For SMM Approval`. Stated that way it is an argument; so
+it is executed instead, over 23 spellings including the legacy ones the
+normaliser rewrites, and seen to fail on a planted one-character drift before
+being accepted.
+
+**And the one I could not prove.** The P2 race fix re-reads the deliverable in
+the same statement as the apply and proceeds only while the deliverable version,
+the freshly derived target and the card's own value all still match the scan.
+The interleaving that makes those clauses matter — another session committing
+between the scan statement and the apply statement — is not stageable from a
+single-session fixture: both run inside one call, and a trigger firing during
+the apply is part of the same command, so it cannot change what that command
+sees. Tried three ways (a statement-level writer on the card, one on the
+deliverable, a hand-seeded stale scope) and none of them is the thing.
+
+So the clauses are pinned structurally and the consequence a stale apply would
+break — `applied` read back per row from what the UPDATE returned, and the
+events rows written from that same set — is measured. **This is written in the
+test file, the PR and here rather than left as a green tick**, because
+"32 assertions passed" would otherwise carry an implied claim the suite does not
+make. That is the composite-claim rule applied to my own evidence: read from the
+code, or assumed about the platform, labelled separately.
+
+**Third finding, the cheap one:** the backfill's usage block used a bare
+`node scripts/…`, which only works from the repository root. Now absolute, via
+`$env:USERPROFILE`, and executed as written from an unrelated directory before
+being handed over — it refuses on the missing key, never on a missing module.
+
 ### 2026-09-18 — The flip cut the calendar's only supply of production statuses, and the question that decided the fix was what the reconciler's ledger expects
 
 Priority regression, reported the same day the ordinary receipts went native.
@@ -112,8 +171,8 @@ inside the lane so it re-runs rather than being a dated claim.
 
 **Two knock-ons worth naming rather than discovering later.**
 
-- The four new preflight keys take the Linear-exit deploy preflight from **161**
-  to **165** expected objects. Measured with the shipped code's own
+- The five new preflight keys take the Linear-exit deploy preflight from **161**
+  to **166** expected objects. Measured with the shipped code's own
   `expectedObjects().keys.length` on `main` and on this branch, not counted by
   hand — and worth saying plainly that the widely-quoted **156** is a figure
   from the 2026-09-17 run and has been stale since; four migrations have added

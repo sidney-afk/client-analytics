@@ -56,6 +56,21 @@ One repair falls out: `urgentSnapshot` requires the card to read `Tweaks
 Needed`, so the urgent ping has been unreachable on natively-changed cards since
 the flip and is reachable again.
 
+**Amended 2026-09-18, before merge, after review found three defects.** The
+biggest: a component regressing `approved` -> `tweak` kept its client approval
+stamp, so the card read "Tweaks Needed" beside a live sign-off and nothing
+recomputed it. The projection now mirrors `_calClearStaleApprovals` for the
+component that regressed, clearing `client_<component>_approved_at` and, when no
+component is left above the client-approval line, `kasper_approved_at` — in the
+same statement that moves the status. The header line saying this projection
+does not copy `computeOverallStatus` was right and had quietly been read as
+covering `_calClearStaleApprovals` too; they do different jobs, and only the
+first is recomputed on reload. The backfill's apply now re-reads the deliverable
+in the same statement and writes its events rows only from what an UPDATE
+returned, so a row a concurrent change took out from under it reports
+`applied: false` rather than being clobbered and logged. And the usage block is
+absolute, run as written from an unrelated directory before being handed over.
+
 Proofs: `test/native-calendar-status-bridge.js` executes
 `_calMapNativeStatusStrict` out of `index.html`, parses the migration's `case`
 arms out of the SQL and compares them over all 90 status/origin pairs — seen to

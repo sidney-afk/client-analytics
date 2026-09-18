@@ -30,6 +30,61 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — LABEL CATALOG FLIPPED NATIVE at 20:02:56.157Z on the owner's go-ahead, version `f55a7dd2`. Served applicable labels are video 2 and graphics 6, not "27". Kill switch: mode hold
+
+Storage session. The owner's go-ahead:
+
+> Flip the label catalog to native, version f55a7dd2.
+
+#### The flip
+
+`4-capability-flag.sql` from the attested package was run **unedited**, after its
+hash was checked (`9269de8b…150b`). It follows the staging pattern:
+`service_role` via `set local role`, one transaction, committed only after
+exactly one row was updated and the flag read back exactly as required.
+
+| | Value |
+|---|---|
+| **Flip (transaction time, UTC)** | **2026-09-18T20:02:56.157Z** (committed by 20:02:56.537Z) |
+| Rows updated | 1 |
+| Flag before | `{"mode":"provider","version_id":null,"schema_version":1}` |
+| **Flag after** | **exactly** `{"mode":"native","version_id":"f55a7dd2-dcda-4ae4-9c00-7abe7dcd2152","schema_version":1}`, `updated_by` `b7-label-catalog-capture` |
+| `production_label_catalog_capability()` | the same value |
+
+**Kill switch** (containment; not run): set the flag's value to
+`{"schema_version":1,"mode":"hold","version_id":null}`. `provider` is not real
+containment once Linear is gone.
+
+#### What is served (read-only, rolled back)
+
+| Team | `read_attested` | `read_version` | From the stored manifest: the team's own plus workspace-scoped labels, retired, applicable |
+|---|---|---|---|
+| video | ok, **2** served | ok, **2** served | 21, 19 retired, **2** |
+| graphics | ok, **6** served | ok, **6** served | 9, 3 retired, **6** |
+
+The results were the same before and after the flip. The manifest itself: **46
+labels, 19 retired, 27 not retired.**
+
+**CORRECTION to the expectation in the instruction.** The instruction said "46 labels
+with 19 retired excluded, so 27 applicable". 27 is the whole-workspace figure.
+Serving is **per team**: that team's labels plus the workspace-scoped ones, with
+retired, archived and groups removed. The 19 non-retired labels of the two other
+teams (`d77dc414…` 16, `51aaf4a4…` 3) are never served to either team. So the
+applicable counts are **video 2** (18 − 16, plus 3 − 3 workspace-scoped) and
+**graphics 6** (6 − 0, plus 0). This was stated before the flip. It is recorded
+as the measured result, not as a defect.
+
+**Consequence worth knowing:** a video card can now be given only 2 labels. Labels
+already on a card, retired ones included, still display and can be removed.
+
+#### First label rows
+
+At the flip, mirror_outbox's high-water mark was `10531`. **No `labels` operation
+row since then**, and 0 failed rows (checked 20:03:04Z). A watcher polls every
+minute for up to an hour, and the result is recorded in a following entry.
+
+**Holding.**
+
 ### 2026-09-18 — PRODUCTION-WRITE DEPLOYED AT THE RETIRED-AWARE COMMIT: run `35388505375` at `b7c30c74`, 13 PASS, 0 FAIL, 0 ERROR. production-write is now version 77, source `9dd41919d169`. The label flag is untouched
 
 Storage session, watching the owner's dispatch.

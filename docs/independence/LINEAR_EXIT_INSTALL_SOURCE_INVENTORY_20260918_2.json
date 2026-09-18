@@ -1727,8 +1727,8 @@
     {
       "id": "2026-09-18-native-label-empty-state-seed.sql",
       "path": "migrations/2026-09-18-native-label-empty-state-seed.sql",
-      "sha256": "5cbf71ca3ed9eae3efa52c85d0d0286a767247223c8b9ed847a309eaa6504440",
-      "bytes": 7593,
+      "sha256": "e34ffbfd0d153b9b782eff8fef668c1ef53edd20868bcede3719f71254f0c10d",
+      "bytes": 9609,
       "scope": "candidate_owner",
       "dependencies": [
         "2026-07-06-b1-linear-data-model.sql",
@@ -1741,12 +1741,12 @@
         "boundaries": [
           {
             "index": 0,
-            "line": 29,
+            "line": 63,
             "kind": "begin"
           },
           {
             "index": 7,
-            "line": 135,
+            "line": 169,
             "kind": "commit"
           }
         ],

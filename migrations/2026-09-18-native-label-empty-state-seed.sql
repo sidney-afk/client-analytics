@@ -1,3 +1,37 @@
+-- ============================================================================
+-- CORRECTION, 2026-09-18, AFTER THIS MIGRATION WAS APPLIED. The WHY paragraph
+-- below is WRONG on its central claim and is kept as written, because it is the
+-- reasoning that produced this file and the record should show it.
+--
+-- IT SAYS native intake stamps no labels relation. It does. The stamp is in the
+-- GATEWAY, not in SQL:
+--
+--   handleIntakeCreate    supabase/functions/production-write/index.ts:7705
+--   handleComponentFill   supabase/functions/production-write/index.ts:7081
+--
+-- both writing, when the team's native epoch is set,
+--   linear_raw.issue = {"labelIds":[],"labels":{"nodes":[],
+--                        "pageInfo":{"hasNextPage":false,"endCursor":null}}}
+-- which is exactly the shape this migration seeds. The 7081 site even says so
+-- in its own comment: "A newly created native component has a known empty label
+-- selection." The search behind the wrong claim covered migrations/*.sql only,
+-- so it could not have found a stamp written in TypeScript. Searching one layer
+-- and concluding about the system is the mistake, not the missing grep.
+--
+-- MEASURED LIVE: every native-intake card already carried the complete empty
+-- relation before this ran. The backfill touched 9 rows, none of them from
+-- native intake -- 6 provider-era real cards from 2026-09-15 and 3 old test
+-- cards -- all of which lack a Linear issue for other reasons.
+--
+-- APPLIED ANYWAY, on the owner's decision: the deploy gate pins this file, and
+-- "no labels" is a truthful statement about a card that has no issue. So the
+-- 9 rows are correctly seeded and the trigger remains correct and cheap for
+-- exactly that population; it is simply not the population the note below
+-- predicted.
+--
+-- NO SQL IS CHANGED BY THIS CORRECTION. Only these comment lines were added,
+-- so every routine body and its pinned digest are byte-identical.
+-- ============================================================================
 -- Draft/unapplied. Additive. No grant is widened, no flag moves, no provider
 -- call is made, and no existing routine body is replaced.
 --

@@ -78034,7 +78034,7 @@
         const canSetVerdict = testState === 'sent' && !verdict;
         let statusNote = '';
         if (!testsEnabled && !testState) statusNote = 'Practical test emails are not enabled yet.';
-        else if (testsEnabled && !preview && !testState) statusNote = 'The shared materials link is not configured yet.';
+        else if (testsEnabled && !preview && !testState) statusNote = 'This applicant has no usable email address on file.';
         else if (testState === 'queued' || testState === 'dispatching') statusNote = 'Practical test email is being sent.';
         else if (testState === 'failed') statusNote = 'The email was not sent before delivery began. You can retry it deliberately.';
         else if (testState === 'delivery_uncertain') statusNote = 'Delivery needs confirmation before another practical test can be sent.';
@@ -78251,9 +78251,7 @@
             if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
             _hpState.actionError = (e && e.message === 'feature_disabled')
                 ? 'Practical test emails are not enabled yet.'
-                : (e && e.message === 'practical_test_materials_not_configured')
-                    ? 'The shared materials link is not configured yet.'
-                    : _hpDisplayError(e && e.message, 'Could not queue the practical test.');
+                : _hpDisplayError(e && e.message, 'Could not queue the practical test.');
             if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
         } finally {
             if (request !== _hpState.actionRequest) return;

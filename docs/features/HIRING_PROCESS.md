@@ -134,11 +134,12 @@ Video Editor gets a third stage in between:
    That queues a durable practical-test email job (`hiring_practical_test_jobs`,
    one per application, same claim/authorize/record/retry shape as the
    interview-invite outbox, gated by its own independent kill switch
-   `hiring_practical_tests_enabled`, default `false`). Like the interview
-   calendar link, the shared raw-footage/reference-edit materials link is a
-   server-configured secret (`HIRING_PRACTICAL_TEST_MATERIALS_URL`, one Drive
-   folder link containing both), never accepted from the browser — the same
-   link and instructions go out to every Video Editor applicant. The email
+   `hiring_practical_tests_enabled`, default `false`). The shared raw-footage/
+   reference-edit materials link is a fixed constant in the Edge Function
+   source (`PRACTICAL_TEST_MATERIALS_URL`, one Drive folder link containing
+   both — not a secret, since it already goes out in every applicant's
+   email), never accepted from the browser — the same link and instructions
+   go out to every Video Editor applicant. The email
    asks the applicant to upload their finished cut to a Drive folder with link
    sharing on and reply to the email (same `hello@synchrosocial.com` mailbox
    the interview invite sends from) with that link; Kasper reads that reply

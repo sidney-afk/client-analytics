@@ -57,7 +57,11 @@ const INTERVIEW_EVENT_URL_ENV: Record<string, string> = {
   "client-success-content-manager": "HIRING_INTERVIEW_EVENT_URL",
   "video-editor": "HIRING_INTERVIEW_EVENT_URL_VIDEO_EDITOR",
 };
-const PRACTICAL_TEST_MATERIALS_URL_ENV = "HIRING_PRACTICAL_TEST_MATERIALS_URL";
+// Not a secret: this exact link already goes out in every Video Editor
+// practical-test email, so there's nothing gained by keeping it out of the
+// (public) repo. Hardcoded rather than env-configured for that reason.
+const PRACTICAL_TEST_MATERIALS_URL =
+  "https://drive.google.com/drive/folders/13eNElkoiwGAzykWDLDuqHI-ntR9oeiCc?usp=sharing";
 
 type JsonMap = Record<string, unknown>;
 type ApplicationRow = {
@@ -251,23 +255,11 @@ function buildInvitePreview(
   };
 }
 
-function configuredPracticalTestMaterialsUrl(): string | null {
-  const configured = clean(Deno.env.get(PRACTICAL_TEST_MATERIALS_URL_ENV));
-  if (!configured) return null;
-  try {
-    const url = new URL(configured);
-    return url.protocol === "https:" ? url.href : null;
-  } catch (_error) {
-    return null;
-  }
-}
-
 function buildPracticalTestPreview(
   application: ApplicationRow,
-  materialsUrl = configuredPracticalTestMaterialsUrl(),
 ): PracticalTestPreview | null {
   const recipient = clean(application.email).toLowerCase();
-  if (!materialsUrl || !recipient || !recipient.includes("@")) return null;
+  if (!recipient || !recipient.includes("@")) return null;
   return {
     recipient,
     subject: "Your practical test — Video Editor at Synchro Social",
@@ -277,7 +269,7 @@ function buildPracticalTestPreview(
       "Thanks for applying for the Video Editor role at Synchro Social. The next step is a short practical test.",
       "",
       "The raw footage and a reference edit (so you can see the result we're looking for) are both in this shared folder:",
-      materialsUrl,
+      PRACTICAL_TEST_MATERIALS_URL,
       "",
       "Watch the reference edit, then re-cut the raw footage to match its pacing, structure, and hook style as closely as you can.",
       "",
@@ -548,10 +540,9 @@ async function retryInvite(
   };
 }
 
-// Video Editor round 2. Like the interview link, the shared materials
-// folder is server-configured (HIRING_PRACTICAL_TEST_MATERIALS_URL), never
-// accepted from the browser — the same fixed link and instructions go out
-// for every applicant, so there is nothing per-applicant left to type.
+// Video Editor round 2. The shared materials link is a fixed constant, never
+// accepted from the browser — the same link and instructions go out for
+// every applicant, so there is nothing per-applicant left to type.
 async function queuePracticalTest(
   db: SupabaseClient,
   applicationId: string,
@@ -564,19 +555,16 @@ async function queuePracticalTest(
   if (applicationRole(application) !== "video-editor") {
     throw new HiringApplicationsError(409, "wrong_role");
   }
-  const materialsUrl = configuredPracticalTestMaterialsUrl();
-  const preview = buildPracticalTestPreview(application, materialsUrl);
-  if (!preview || !materialsUrl) {
-    throw new HiringApplicationsError(503, "practical_test_materials_not_configured");
-  }
+  const preview = buildPracticalTestPreview(application);
+  if (!preview) throw new HiringApplicationsError(400, "invalid_invite");
   const { data, error } = await db.rpc("hiring_queue_practical_test_v1", {
     p_application_id: applicationId,
     p_expected_state_version: stateVersion,
     p_recipient_email: preview.recipient,
     p_subject: preview.subject,
     p_body: preview.body,
-    p_raw_footage_url: materialsUrl,
-    p_reference_edit_url: materialsUrl,
+    p_raw_footage_url: PRACTICAL_TEST_MATERIALS_URL,
+    p_reference_edit_url: PRACTICAL_TEST_MATERIALS_URL,
     p_actor: "staff-admin",
   });
   if (error) rpcError(error);

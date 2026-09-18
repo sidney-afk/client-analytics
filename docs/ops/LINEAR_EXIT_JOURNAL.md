@@ -30,6 +30,124 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Two phase 7 questions answered from source, reading only. `native_brief_media`'s on value is `required` and switching it changes nothing anyone can see; `native_assignment_epochs` has four activation requirements, two of them already evidenced
+
+Cloud session. No flag, no write, no deploy. Both answers are read out of the
+installed source rather than from any doc's summary of it.
+
+#### 1. `native_brief_media` — the on value is `"required"`, and that is the whole list
+
+`supabase/functions/_shared/native-brief-media.mjs` accepts exactly two mode
+strings and nothing else:
+
+```js
+if (flag.error || !flag.data || !['off', 'required'].includes(flag.data.value?.mode)
+    || flag.data.value?.contract !== BRIEF_MEDIA_CONTRACT) return result;
+```
+
+So the answer to the previous entry's open question is **`required`**. Any other
+string, including `on`, `live` or `native`, falls into the same silent fallback
+as a missing flag.
+
+The full on value is more than the mode. With `mode: "required"` the module also
+requires, or it returns the fallback:
+
+| Field | Required value |
+|---|---|
+| `mode` | `"required"` |
+| `contract` | `"native_brief_media_v1"` |
+| `recovery_contract` | `"native_brief_media_recovery_v1"` |
+| `recovery_receipt_sha256` | 64 lowercase hex characters |
+| `coverage_receipt_sha256` | 64 lowercase hex characters |
+| `owner_deferred_references` | absent, or an array of at most 20 entries |
+
+**What happens on the first brief carrying a provider-hosted image, once it is
+on.** The single caller is `handleDescriptionRead` in
+`supabase/functions/production-write/index.ts:5580`, the staff-only description
+read, which returns `media: await projectBriefMedia(...)` beside the row. On that
+first brief:
+
+1. The module scans the brief text for `uploads.linear.app` URLs at exact UTF-16
+   offsets. A brief with none returns `complete: true` and the brief unchanged.
+2. With one or more, it looks for **already verified copies** in
+   `native_brief_media_occurrences` for that exact original URL within the same
+   deliverable, client, team and source entity.
+3. **Nothing in the installed source ever writes that table.** The module's own
+   header says it never writes a brief and never fetches the provider, and the
+   migration only creates the table and the private bucket. So the lookup finds
+   nothing, `!matches.length` is true, and the call returns
+   `{mode: "required", complete: false, unresolved: <count>, render_brief: null,
+   reason: "media_unavailable"}`.
+4. **The browser never reads any of it.** `render_brief`, `media_unavailable` and
+   `not_enabled` appear **zero** times in `index.html`; its only `.media` match is
+   a stylesheet attribute. The projection is computed, returned, and ignored.
+
+So turning this flag on changes one string in a staff API response, from
+`not_enabled` to `media_unavailable`, and changes nothing a person can see. It
+is not a capability that can be "watched flowing through real work" until
+something populates the occurrence table.
+
+**An operator trap worth knowing before tomorrow:** an incomplete on value — say
+`mode: "required"` with the recovery receipt hashes missing — returns exactly the
+same `media_unavailable` as a correct on value with no copies yet. The response
+cannot tell those two apart. Only `off` produces its own distinct `not_enabled`.
+
+**Rollback** is `mode: "off"`, restoring the `not_enabled` response. Occurrence
+rows and any stored objects are retained by design, and because nothing consumes
+the projection, the rollback is as invisible as the activation.
+
+#### 2. `native_assignment_epochs` — the exact values, then the requirements one by one
+
+Read from `production_assignment_epoch(p_team text)` in
+`migrations/2026-09-06-native-existing-assignment.sql`, which is the function
+every writer and the receipt guard call:
+
+| Intent | Exact per-team value | What the function does |
+|---|---|---|
+| Current | `{"mode":"provider","epoch":null}` | returns `''`; provider eligibility and pending mirror contract, unchanged. A **non-null** epoch in provider mode raises `assignment_authority_unavailable` |
+| **On** | `{"mode":"native","epoch":"<epoch>"}` where `<epoch>` matches `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$` | returns the epoch; native admission with an atomic terminal receipt |
+| **Hold** | `{"mode":"hold"}` | raises `assignment_authority_unavailable` **before any epoch check**, so hold needs no epoch and tolerates a stale one |
+
+Both teams are independent keys under the same flag row, so one team can be
+`native` while the other stays `provider`. Any mode outside those three, a
+non-object team entry, or a non-object flag value raises the same refusal: there
+is no silent provider fallback.
+
+Now the doc's activation requirements, item by item.
+
+| # | `NATIVE_EXISTING_ASSIGNMENT.md` requires | Evidence today |
+|---|---|---|
+| 1 | **Schema and restore integration before installation or activation**: capture and reconstruct the five functions, the two triggers, service-only grants and the seeded capability row | **Partly evidenced, and the objects exist live.** The five are `production_assignee_write`, `production_assignment_context`, `production_assignment_epoch`, `production_native_assignment_receipt_guard`, `production_native_assignment_truncate_guard`; the two triggers are `zzz_native_assignment_receipt_guard` and `zzz_native_assignment_truncate_guard` — counted from the migration, matching the doc. That `production_assignment_epoch(text)` is live is not an assumption: it is one of the ten keys the step 19 preflight named, and PR #1408 revoked `EXECUTE` on it, applied and measured. The migration is also listed in `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260910.json` |
+| 2 | **Restore tools must preserve terminal receipt payload and state and accommodate the retained receipt DELETE/TRUNCATE guards**; data-only packages are not proof | **Evidenced, with the doc's own limit.** The private v6 restore extension passed 15 PostgreSQL and handler groups; all 35 restored table images matched, including the original terminal receipt and a later human assignment; replay preserved the later assignment; a late COPY failure preserved retained target rows and trigger states. The doc itself says this closes the bounded data and trigger probe, **not** the authenticated full-schema reconstruction, installed permissions or external F27 recovery gates |
+| 3 | **The reviewed migration and gateway must be in a future exact-source manual release** | **Not checkable against anything current.** The doc pins the reviewed gateway at `2b6c718` as `8aeb7197…`, five files, unchanged entrypoint. That string appears in exactly one place in the repository today: this document. The Section 4 lane now pins `LINEAR_OUTBOUND_SOURCE_SHA256 = f59b6206e3cc…`, the value the step 19 attestation confirmed live. The pin has moved since that review, so this item needs re-stating against today's source before it can be ticked |
+| 4 | **Release holds**: full drainer and F27 compatibility, G8 provider cutoff, schema recovery, served closure, live and operator proof | **Open, all five.** The doc is explicit that the gateway making no provider request does not prove zero worker traffic, because the full worker can read its provider viewer with an empty selection and emergency F27 replay deliberately selects skipped rows under a separate operator protocol |
+
+**What the storage session would have to capture**, in the order the doc implies:
+
+1. An **authenticated full-schema reconstruction** covering the five functions,
+   two triggers, service-only grants and the seeded row — not a data-only
+   package, and not the bounded v6 probe again.
+2. **Installed permissions** for those objects as they now stand, which is newly
+   worth re-reading because PR #1408 changed exactly this surface: `EXECUTE` on
+   `production_assignment_epoch(text)` was revoked from `service_role` on
+   2026-09-17. Whatever calls that function live does so through a
+   `SECURITY DEFINER` chain or a trigger, and that should be confirmed rather
+   than assumed before native admission is switched on.
+3. A **live or operator proof** of one real assignment and one exact replay, the
+   thing the doc lists as unclaimed.
+
+Item 2 is the one that has changed since the document was written, and it is the
+one that would be embarrassing to discover during a flip rather than before it.
+
+#### Not done
+
+- No flag set, nothing written, nothing deployed, no live call made beyond the
+  read-only flag read already recorded.
+- Neither capability is recommended for tomorrow by this entry. The previous
+  entry's recommendation stands: `native_intake_epochs` first. On what is written
+  above, `native_brief_media` should move **later**, not earlier, because there
+  is no observable behavior to accept in step 27.
+
 ### 2026-09-18 — STEP 27 ENABLED, capability 1: `native_intake_epochs`, video. The whole post is now native: batch and both children skipped as native-only, nothing drained to Linear, no notification
 
 Phase 7, capability 1, second and last team. Storage session on the owner's

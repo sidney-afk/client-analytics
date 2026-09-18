@@ -242,6 +242,33 @@ SOURCE_ONLY search of the current browser, Edge functions, scripts and scheduled
 | linear-inbound / linear-outbound and b1-linear-incremental-refresh, linear-deliverables-reconcile, linear-outbound-drain schedules | Establish the website-side gates/authority and zero pending provider-bound work; prove legacy inbound/mirror work cannot overwrite native state or remain required. Do not disable unrelated automations or modify Linear itself. |
 | Historical Linear import/link UI and retained URL fields | Distinguish optional historical references from required fetches. Any still-supported import that needs Linear must be explicitly replaced, excluded by owner decision or documented as a remaining dependency. |
 
+### Step 28 closures recorded so far
+
+One row per capability that has finished step 27. A capability appears here only
+after every one of its acceptance checks is measured; a flag being on is not a
+closure.
+
+#### Labels — `production_native_label_catalog`, recorded 2026-09-18
+
+> **Withdrawn and restored the same day, and both are on the record.** This
+> closure was first written while acceptance check 6 was two of its three
+> refusals — a Codex P1 on #1420 caught it and it was marked withdrawn. Check 6b
+> has since been measured offline and its clause amended to accept either
+> refusal code, so step 27 is complete and this closure stands. Nothing in the
+> body below changed: the gate, the replacement, the bounded sense of
+> "unreachable" and the scope limits were never what was wrong. Only its
+> completeness was.
+
+| | |
+|---|---|
+| **Table row it acts on** | *"production-write provider label/metadata branches and Linear credential reads"* — the **label** half only. See the scope note below. |
+| **The exact gate** | `production_label_catalog_capability()`. It returns `native` only for a runtime flag row of `{"schema_version":1,"mode":"native","version_id":…}`; `provider` and `hold` are the other two modes. Live since **2026-09-18T20:02:56Z** on catalog version `f55a7dd2`, deployed at `b7c30c74` with `production-write` **v77**. |
+| **The accepted replacement** | The staged and attested catalog in `production_label_catalog_versions`, served through `production_label_catalog_read_version` and read by `production_label_catalog_read_attested`. The read path makes **no Linear request at all** (`index.ts:5608-5618`, check 1, seen by the owner). The write path fingerprints one full set, commits canonical native nodes under CAS, and returns that selected set; `zzz_native_label_receipt_guard` on `mirror_outbox` holds the receipt shape. Proven by step 27 checks 1, 2 (receipts **10536**, **10537**), 3, 4 and 6-409 (receipt **10579**, journal `edf78a6a`), 5, 6-403 (offline, `test/production-write-gateway.js`) and 7 (video, then graphics on receipts **10575** and **10576**). |
+| **Why the legacy route is unreachable** | For supported label work, while the capability is `native`: the provider branch is selected by this one gate and nothing else consults the provider catalog on either the read or the write path, so no supported label operation can issue a provider request. The refusals fire rather than falling back — a `native` mode with nothing staged answers **503** from `production_label_catalog_read_attested` instead of reaching Linear, and a client principal is refused **403** before any route is chosen. |
+| **What that does NOT claim** | The provider branch is **switched off, not removed.** `mode:"provider"` still exists and is still selectable: that is deliberate, because `mode:"hold"` is the kill switch and the modes share one flag. So "unreachable" here means *no supported label operation reaches it while the capability is native*, not *the code path is gone*. Anyone who can write the runtime flag can reach it again in one statement, which is the property the rollback depends on. |
+| **Scope: this row is only partly closed** | The same table row also covers **metadata branches, Linear credential reads, intake and assignment**. Labels closes none of those. The row stays open until the capabilities behind them finish their own step 27 and are recorded here. |
+| **Not measured by this session** | Checks 1, 3 and 5 are the owner's and the supervisor's; checks 4, 6-409 and 7-graphics are the storage session's, whose primary record is journal `edf78a6a` — not reachable from this repository at the time of writing and therefore not read here. Only the 403 half of check 6 was measured in this repository. |
+
 Therefore the dormant installation plus the one-line n8n edit does NOT, by itself, finish website independence. Capability acceptance must explicitly close these paths. Actual Linear retirement cannot be used as a shortcut for missing website replacements.
 
 ## Recovery review and approval limits

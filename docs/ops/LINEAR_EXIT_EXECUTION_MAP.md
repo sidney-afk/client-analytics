@@ -30,7 +30,7 @@ capability**, so a single number out of 28 stops being meaningful there — repo
 the capability by name and its own step:
 
 ```
-Phase 7 of 7 · labels: step 27 in progress (4 of 7 checks) · next: checks 4, 6, 7-graphics
+Phase 7 of 7 · labels: ✅ through step 28 (7 of 7 checks, check 6 three of three) · next: the next capability's step 26
 ```
 
 A step is complete only when its **Done when** column is satisfied and its
@@ -319,10 +319,22 @@ next. Linear stays running underneath the whole time.
 
 | Capability | Flag | Step | Evidence |
 |---|---|---|---|
-| **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | **27 IN PROGRESS** — 4 of 7 checks measured | Deployed at `b7c30c74`, `production-write` v77; version read back from `production_label_catalog_versions` at 19:45Z. **Measured:** check 1 (read, seen by the owner), check 2 (receipts **10536**, **10537**), check 3 (row changed, updated 20:08:02Z), check 5 (labels debt 0 before and after). **Remaining: check 4 (replay), check 6 (refusals), check 7 on graphics** — video only so far. Check 4 is **only satisfiable by a staff principal**; the replay shortcut excludes the test client. Served per team: video **2**, graphics **6** — not 27 workspace-wide; see the procedure for why the filter makes those different questions. Kill switch: `mode:"hold"`. |
+| **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | ✅ **28 COMPLETE** — through phase 7 | Deployed at `b7c30c74`, `production-write` v77; version read back from `production_label_catalog_versions` at 19:45Z. **All 7 acceptance checks measured:** 1 (read, owner), 2 (receipts **10536**, **10537**), 3 (row changed, updated 20:08:02Z), 4 and 6-409 (storage session on the test card, receipt **10579**, journal `edf78a6a`), 5 (labels debt 0 before and after), 6-403 (offline, `test/production-write-gateway.js` — a client principal is refused `403 operation_forbidden`), 7 (video, then graphics on receipts **10575** and **10576**). **Check 6 across all three refusals:** 6a (client → 403, offline), 6b (a staff role outside `admin|smm` → 403 `operation_forbidden` from the policy table, offline, with a policy-flip control), 6c (stale version → 409, receipt 10579). 6b's clause was **amended on 2026-09-18** to accept either refusal code, because it named `native_label_scope_forbidden`, which the role refusal never reaches. Check 4 remains **only satisfiable by a staff principal** — it passed on the test *card*, not as the test *client*. Served per team: video **2**, graphics **6**. Kill switch: `mode:"hold"`. |
 
-Step 28 for labels is **not reachable** until step 27's remaining checks are
-done. A capability is not through phase 7 because its flag is on.
+**Labels is the first capability through phase 7**, on the second attempt at
+saying so. The first was withdrawn the same day after a Codex P1 established
+that check 6 names three refusals and only two were measured; check 6b is now
+measured and its clause amended, and the closure in
+[the checkpoint's dependency table](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md#step-28-closures-recorded-so-far)
+is restored. Both the withdrawal and the restoration are kept on the record.
+
+A capability is not through phase 7 because its flag is on, and not because six
+of seven checks passed. It is through when every acceptance check is measured —
+**including each clause of a check that has several** — and the closure is
+recorded with the exact gate, the accepted replacement, and the sense in which
+the legacy route is unreachable. For labels that sense is already known to be
+bounded: the provider branch is switched off, not removed, because the kill
+switch shares its flag.
 
 Procedure and its corrections:
 [step 26/27 for native labels](LINEAR_EXIT_STEP26_NATIVE_LABELS.md). Three of

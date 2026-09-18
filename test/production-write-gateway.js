@@ -1228,6 +1228,129 @@ function extractFunction(name, bodyMarker = '{') {
   ok(/\[functions\.production-write\][\s\S]{0,40}verify_jwt = false/.test(config),
     'Edge config exposes production-write for custom fail-closed browser auth');
 
+  /* Linear exit, step 27, check 6 (403 half).
+   *
+   * Nothing offline asserted this before. The nearest three all measured
+   * something else: the assertion above at `handleLabelsRead` is the labels
+   * READ, the `brief`-leakage assertion is a regex on this guard's condition
+   * that never mentions the status, and the auth matrix's `labels: false` row
+   * exercises `clientOperationAllowed`, which the labels WRITE path never
+   * calls -- it is refused earlier and unconditionally, right here. A green
+   * suite was therefore not evidence that a client principal is refused a
+   * labels write, which is what check 6 claims.
+   *
+   * So run the guard's real bytes rather than matching them. The slice is
+   * anchored on the exact source text: if the guard moves or is reworded this
+   * fails loudly instead of quietly asserting nothing.
+   */
+  const clientWriteGuardHead = '  if ((operation === "labels" || operation === "description" || operation === "attachment")';
+  const clientWriteGuardStart = edge.indexOf(clientWriteGuardHead);
+  const clientWriteGuardEnd = clientWriteGuardStart >= 0
+    ? edge.indexOf('\n  }', clientWriteGuardStart) + 4
+    : -1;
+  const clientWriteGuard = clientWriteGuardStart >= 0 ? edge.slice(clientWriteGuardStart, clientWriteGuardEnd) : '';
+  ok(clientWriteGuardStart >= 0
+    && /principal\.kind === "client"/.test(clientWriteGuard)
+    && /throw new GatewayError\(403, "operation_forbidden"\);/.test(clientWriteGuard),
+  'the client write guard is still present in production-write and still throws 403 operation_forbidden');
+  const guardContext = vm.createContext({
+    GatewayError: class GatewayError extends Error {
+      constructor(status, code) { super(code); this.status = status; this.code = code; }
+    },
+  });
+  vm.runInContext(
+    'this.clientWriteGuard = function (operation, principal) {\n'
+    + clientWriteGuard + '\n'
+    + '  return "reached_the_write";\n};',
+    guardContext);
+  const guardOutcome = (operation, kind) => {
+    try { return guardContext.clientWriteGuard(operation, { kind }); }
+    catch (error) { return `${error.status}:${error.code}`; }
+  };
+  ok(guardOutcome('labels', 'client') === '403:operation_forbidden',
+  'a CLIENT principal is refused a labels write with 403 operation_forbidden (step 27 check 6)');
+  ok(guardOutcome('description', 'client') === '403:operation_forbidden'
+    && guardOutcome('attachment', 'client') === '403:operation_forbidden',
+  'the same guard refuses a client principal on description and attachment writes');
+  ok(guardOutcome('labels', 'staff') === 'reached_the_write'
+    && guardOutcome('labels', 'service') === 'reached_the_write',
+  'the guard refuses on principal kind alone and does not block non-client labels writes');
+  ok(guardOutcome('status', 'client') === 'reached_the_write'
+    && guardOutcome('comment', 'client') === 'reached_the_write',
+  'the guard is scoped to the three authored-content operations and leaves client status and comment to their own policy');
+
+  /* Linear exit, step 27, check 6b: a staff role outside admin|smm cannot
+   * write labels natively.
+   *
+   * Per the supervisor's ruling on 2026-09-18, the clause is about the OUTCOME,
+   * not about which of the two refusals fires first. A creative's labels write
+   * is stopped by the policy table at `index.ts:5925-5931` with 403
+   * `operation_forbidden`, before the native-label gate at 6425-6427 that
+   * answers `native_label_scope_forbidden`. Either code satisfies the clause;
+   * this is the one that actually fires.
+   *
+   * The PG parity lane's five `native_label_scope_forbidden` assertions do NOT
+   * cover this: every one of them is about the test_only / auth_kind binding.
+   * Same code, different cause, different question.
+   *
+   * Executed, not matched -- the guard's real bytes against the REAL policy
+   * module. `lower` and `clean` are local equivalents here because they only
+   * shape the context object; `staffOperationAllowed` returns false for
+   * (creative, labels) before reading any of it, which the flip below proves.
+   */
+  /* Anchored on the unique `staffOperationAllowed(...)` call rather than on
+     `if (principal.kind === "staff"`, which appears five times in this file --
+     the first attempt sliced the wrong one of them and the assertions below
+     silently passed a guard that was not this guard. */
+  const roleGuardCall = '&& !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus, {';
+  const roleGuardCallAt = edge.indexOf(roleGuardCall);
+  const roleGuardStart = roleGuardCallAt >= 0
+    ? edge.lastIndexOf('  if (principal.kind === "staff"', roleGuardCallAt)
+    : -1;
+  const roleGuardEnd = roleGuardStart >= 0 ? edge.indexOf('\n  }', roleGuardCallAt) + 4 : -1;
+  const roleGuard = roleGuardStart >= 0 ? edge.slice(roleGuardStart, roleGuardEnd) : '';
+  ok(roleGuardStart >= 0
+    && /staffOperationAllowed\(principal\.keyRole, operation/.test(roleGuard)
+    && /throw new GatewayError\(403, "operation_forbidden"\);/.test(roleGuard),
+  'the staff role guard is still present in production-write and still throws 403 operation_forbidden');
+  const roleGuardRunner = allowed => {
+    const context = vm.createContext({
+      GatewayError: class GatewayError extends Error {
+        constructor(status, code) { super(code); this.status = status; this.code = code; }
+      },
+      staffOperationAllowed: allowed,
+      lower: value => String(value == null ? '' : value).trim().toLowerCase(),
+      clean: value => String(value == null ? '' : value).trim(),
+    });
+    vm.runInContext(
+      'this.roleGuard = function (principal, operation, team, nextStatus, existing) {\n'
+      + roleGuard + '\n'
+      + '  return "reached_the_write";\n};',
+      context);
+    return (keyRole, operation) => {
+      try {
+        return context.roleGuard(
+          { kind: 'staff', keyRole, memberTeam: 'video', memberId: 'member-self' },
+          operation, 'video', '', { status: 'in_progress', assignee_id: 'member-self' });
+      } catch (error) { return `${error.status}:${error.code}`; }
+    };
+  };
+  const realPolicyGuard = roleGuardRunner(policy.staffOperationAllowed);
+  ok(realPolicyGuard('creative', 'labels') === '403:operation_forbidden',
+  'a CREATIVE principal is refused a labels write with 403 operation_forbidden (step 27 check 6b)');
+  ok(realPolicyGuard('admin', 'labels') === 'reached_the_write'
+    && realPolicyGuard('smm', 'labels') === 'reached_the_write',
+  'admin and SMM still reach the labels write, so 6b refuses the role and not the operation');
+  ok(realPolicyGuard('creative', 'comment') === 'reached_the_write',
+  'the same creative principal still reaches its own legal operations');
+  /* THE FLIP that makes the line above mean what it says. If the guard refused
+     a creative for any reason other than the policy row -- a missing team, a
+     context field, the extraction itself -- the refusal would survive a policy
+     that permits it. It does not. */
+  const flippedPolicyGuard = roleGuardRunner(() => true);
+  ok(flippedPolicyGuard('creative', 'labels') === 'reached_the_write',
+  'flipping the policy row to allow it lets the creative through, so the refusal above IS the policy row');
+
   if (failures) {
     console.error(`\n${failures} production-write gateway check(s) failed`);
     process.exit(1);

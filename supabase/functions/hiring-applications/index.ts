@@ -57,6 +57,7 @@ const INTERVIEW_EVENT_URL_ENV: Record<string, string> = {
   "client-success-content-manager": "HIRING_INTERVIEW_EVENT_URL",
   "video-editor": "HIRING_INTERVIEW_EVENT_URL_VIDEO_EDITOR",
 };
+const PRACTICAL_TEST_MATERIALS_URL_ENV = "HIRING_PRACTICAL_TEST_MATERIALS_URL";
 
 type JsonMap = Record<string, unknown>;
 type ApplicationRow = {
@@ -194,25 +195,6 @@ function parseListRole(value: unknown): string | null {
   return role;
 }
 
-function requireHttpsUrl(body: JsonMap, field: string): string {
-  const value = clean(body[field]);
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") throw new Error("not_https");
-    return url.href;
-  } catch (_error) {
-    throw new HiringApplicationsError(400, "invalid_invite");
-  }
-}
-
-function requireInstructions(body: JsonMap): string {
-  const value = clean(body.instructions);
-  if (!value || value.length > 4_000) {
-    throw new HiringApplicationsError(400, "invalid_invite");
-  }
-  return value;
-}
-
 function applicationRole(application: ApplicationRow): string {
   const role = clean(application.role_slug).toLowerCase();
   return ROLE_SLUGS.has(role) ? role : "client-success-content-manager";
@@ -269,14 +251,23 @@ function buildInvitePreview(
   };
 }
 
+function configuredPracticalTestMaterialsUrl(): string | null {
+  const configured = clean(Deno.env.get(PRACTICAL_TEST_MATERIALS_URL_ENV));
+  if (!configured) return null;
+  try {
+    const url = new URL(configured);
+    return url.protocol === "https:" ? url.href : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function buildPracticalTestPreview(
   application: ApplicationRow,
-  rawFootageUrl: string,
-  referenceEditUrl: string,
-  instructions: string,
+  materialsUrl = configuredPracticalTestMaterialsUrl(),
 ): PracticalTestPreview | null {
   const recipient = clean(application.email).toLowerCase();
-  if (!recipient || !recipient.includes("@")) return null;
+  if (!materialsUrl || !recipient || !recipient.includes("@")) return null;
   return {
     recipient,
     subject: "Your practical test — Video Editor at Synchro Social",
@@ -285,16 +276,12 @@ function buildPracticalTestPreview(
       "",
       "Thanks for applying for the Video Editor role at Synchro Social. The next step is a short practical test.",
       "",
-      "Raw footage:",
-      rawFootageUrl,
+      "The raw footage and a reference edit (so you can see the result we're looking for) are both in this shared folder:",
+      materialsUrl,
       "",
-      "A reference edit, so you can see the result we're looking for:",
-      referenceEditUrl,
+      "Watch the reference edit, then re-cut the raw footage to match its pacing, structure, and hook style as closely as you can.",
       "",
-      "Instructions:",
-      instructions,
-      "",
-      "Reply to this email with a shareable link to your finished edit when you're done.",
+      "When you're done, upload your finished cut to a new Google Drive folder, turn on link sharing (set to \"Anyone with the link\" as Viewer), and reply to this email with that link.",
       "",
       "Looking forward to seeing what you make,",
       "Synchro Social",
@@ -354,6 +341,7 @@ function applicationDetail(
   const practicalTestState = clean(practicalTestJob?.state).toLowerCase() || null;
   const practicalTestFailureCode = safeFailureCode(practicalTestJob?.failure_code);
   const verdict = clean(row.practical_test_verdict).toLowerCase() || null;
+  const practicalTestPreview = role === "video-editor" ? buildPracticalTestPreview(row) : null;
   return {
     id: clean(row.id),
     name: clean(row.name),
@@ -378,6 +366,7 @@ function applicationDetail(
     invites_enabled: invitesEnabled,
     invite_preview: preview,
     practical_tests_enabled: practicalTestsEnabled,
+    practical_test_preview: practicalTestPreview,
     practical_test_state: practicalTestState,
     practical_test_failure_code: practicalTestFailureCode,
     practical_test_retry_available: practicalTestsEnabled
@@ -554,16 +543,14 @@ async function retryInvite(
   };
 }
 
-// Video Editor round 2. Unlike the interview link, the raw-footage and
-// reference-edit links and the instructions text are legitimately supplied
-// by the (admin-authenticated) browser, per applicant, at send time — they
-// are not a server secret. They are validated (https only, bounded length)
-// and stored durably on the queued job, never accepted again once queued.
+// Video Editor round 2. Like the interview link, the shared materials
+// folder is server-configured (HIRING_PRACTICAL_TEST_MATERIALS_URL), never
+// accepted from the browser — the same fixed link and instructions go out
+// for every applicant, so there is nothing per-applicant left to type.
 async function queuePracticalTest(
   db: SupabaseClient,
   applicationId: string,
   stateVersion: number,
-  body: JsonMap,
 ): Promise<JsonMap> {
   if (!await practicalTestsEnabled(db)) {
     throw new HiringApplicationsError(503, "feature_disabled");
@@ -572,19 +559,19 @@ async function queuePracticalTest(
   if (applicationRole(application) !== "video-editor") {
     throw new HiringApplicationsError(409, "wrong_role");
   }
-  const rawFootageUrl = requireHttpsUrl(body, "raw_footage_url");
-  const referenceEditUrl = requireHttpsUrl(body, "reference_edit_url");
-  const instructions = requireInstructions(body);
-  const preview = buildPracticalTestPreview(application, rawFootageUrl, referenceEditUrl, instructions);
-  if (!preview) throw new HiringApplicationsError(400, "invalid_invite");
+  const materialsUrl = configuredPracticalTestMaterialsUrl();
+  const preview = buildPracticalTestPreview(application, materialsUrl);
+  if (!preview || !materialsUrl) {
+    throw new HiringApplicationsError(503, "practical_test_materials_not_configured");
+  }
   const { data, error } = await db.rpc("hiring_queue_practical_test_v1", {
     p_application_id: applicationId,
     p_expected_state_version: stateVersion,
     p_recipient_email: preview.recipient,
     p_subject: preview.subject,
     p_body: preview.body,
-    p_raw_footage_url: rawFootageUrl,
-    p_reference_edit_url: referenceEditUrl,
+    p_raw_footage_url: materialsUrl,
+    p_reference_edit_url: materialsUrl,
     p_actor: "staff-admin",
   });
   if (error) rpcError(error);
@@ -699,7 +686,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ ok: true, ...result, message: "Practical test verdict recorded." });
     }
     if (action === "queue_practical_test") {
-      const result = await queuePracticalTest(db, applicationId, stateVersion, body);
+      const result = await queuePracticalTest(db, applicationId, stateVersion);
       return json({
         ok: true,
         ...result,

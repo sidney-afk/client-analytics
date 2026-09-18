@@ -77780,10 +77780,6 @@
         listController: null,
         detailController: null,
         actionController: null,
-        // In-memory-only draft for the Video Editor practical-test compose
-        // fields. Not written to browser storage anywhere, and reset
-        // whenever a different application is selected.
-        practicalDraft: { raw: '', edit: '', instructions: '' },
     };
 
     function _hpEsc(value) { return _calEsc(String(value == null ? '' : value)); }
@@ -77850,7 +77846,6 @@
         _hpState.detailError = '';
         _hpState.actionMessage = '';
         _hpState.actionError = '';
-        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
         const mounted = document.getElementById('kasperContent');
         if (mounted && document.getElementById('hpBody')) {
             mounted.textContent = '';
@@ -78003,6 +77998,11 @@
                 <div class="hp-section-title">Application</div>
                 <div class="hp-person-meta">Submitted ${_hpEsc(submitted)}${detail.when_can_start ? ' · Can start: ' + _hpEsc(detail.when_can_start) : ''}${recordUrl ? ' · <a class="hp-link" href="' + _hpEsc(recordUrl) + '" target="_blank" rel="noopener noreferrer">Open in iClosed</a>' : ''}</div>
                 ${videoUrl ? `<a class="hp-video" href="${_hpEsc(videoUrl)}" target="_blank" rel="noopener noreferrer">Open applicant video</a>` : ''}
+                <div class="hp-actions">
+                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'reviewing' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'reviewing\')"' + actionDisabled + '>Mark in review</button>' : ''}
+                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'hold' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'hold\')"' + actionDisabled + '>Put on hold</button>' : ''}
+                    ${!deliveryPending && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) ? '<button type="button" class="hp-action danger" onclick="_hpSetStatus(\'rejected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
+                </div>
             </div>
             <div class="hp-section">
                 <div class="hp-section-title">Answers</div>
@@ -78016,9 +78016,6 @@
                 <div class="hp-actions">
                     ${canQueue ? '<button type="button" class="hp-action primary" id="hpInviteButton" onclick="_hpQueueInvite()"' + actionDisabled + '>Send interview invite</button>' : ''}
                     ${canRetry ? '<button type="button" class="hp-action primary" id="hpRetryInviteButton" onclick="_hpRetryInvite()"' + actionDisabled + '>Retry interview invite</button>' : ''}
-                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'reviewing' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'reviewing\')"' + actionDisabled + '>Mark in review</button>' : ''}
-                    ${!deliveryPending && !['rejected', 'withdrawn', 'interview_booked'].includes(status) && status !== 'hold' ? '<button type="button" class="hp-action" onclick="_hpSetStatus(\'hold\')"' + actionDisabled + '>Put on hold</button>' : ''}
-                    ${!deliveryPending && !['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status) ? '<button type="button" class="hp-action danger" onclick="_hpSetStatus(\'rejected\')"' + actionDisabled + '>Mark not moving forward</button>' : ''}
                 </div>
                 <div class="hp-action-status${_hpState.actionError ? ' error' : ''}" id="hpActionStatus">${_hpEsc(_hpState.actionError || _hpState.actionMessage || existingNote)}</div>
             </div>
@@ -78029,28 +78026,23 @@
         const testState = String(detail.practical_test_state || '').trim().toLowerCase();
         const verdict = String(detail.practical_test_verdict || '').trim().toLowerCase();
         const sent = detail.practical_test_sent || null;
-        const draft = _hpState.practicalDraft;
+        const preview = detail.practical_test_preview || null;
         const terminal = ['invited', 'interview_booked', 'rejected', 'withdrawn'].includes(status);
-        const canQueueTest = testsEnabled && !terminal && !testState;
+        const canQueueTest = testsEnabled && !!preview && !terminal && !testState;
         const canRetryTest = testsEnabled && detail.practical_test_retry_available === true && testState === 'failed';
         const canSetVerdict = testState === 'sent' && !verdict;
         let statusNote = '';
         if (!testsEnabled && !testState) statusNote = 'Practical test emails are not enabled yet.';
+        else if (testsEnabled && !preview && !testState) statusNote = 'The shared materials link is not configured yet.';
         else if (testState === 'queued' || testState === 'dispatching') statusNote = 'Practical test email is being sent.';
         else if (testState === 'failed') statusNote = 'The email was not sent before delivery began. You can retry it deliberately.';
         else if (testState === 'delivery_uncertain') statusNote = 'Delivery needs confirmation before another practical test can be sent.';
         else if (verdict === 'passed') statusNote = 'Verdict: passed. The final interview invite is unlocked below.';
         else if (verdict === 'not_selected') statusNote = 'Verdict: not moving forward.';
+        const shown = sent || preview;
         return `<div class="hp-preview">
             <div class="hp-section-title">Practical test</div>
-            ${canQueueTest ? `
-                <label class="hp-field-label" for="hpPracticalRaw">Raw footage link</label>
-                <input type="url" id="hpPracticalRaw" class="hp-input" placeholder="https://drive.google.com/..." value="${_hpEsc(draft.raw)}" oninput="_hpUpdatePracticalDraft('raw', this.value)">
-                <label class="hp-field-label" for="hpPracticalEdit">Reference edit link</label>
-                <input type="url" id="hpPracticalEdit" class="hp-input" placeholder="https://drive.google.com/..." value="${_hpEsc(draft.edit)}" oninput="_hpUpdatePracticalDraft('edit', this.value)">
-                <label class="hp-field-label" for="hpPracticalInstructions">Instructions</label>
-                <textarea id="hpPracticalInstructions" class="hp-input hp-textarea" rows="4" placeholder="What should they do with the footage?" oninput="_hpUpdatePracticalDraft('instructions', this.value)">${_hpEsc(draft.instructions)}</textarea>
-            ` : (sent ? `<div class="hp-preview-meta"><span><b>Subject:</b> ${_hpEsc(sent.subject)}</span></div><div class="hp-email">${_hpEsc(sent.body)}</div>` : '')}
+            ${shown ? `<div class="hp-preview-meta"><span><b>To:</b> ${_hpEsc((sent && sent.recipient) || (preview && preview.recipient) || detail.email || '')}</span><span><b>Subject:</b> ${_hpEsc(shown.subject)}</span></div><div class="hp-email">${_hpEsc(shown.body)}</div>` : ''}
             <div class="hp-actions">
                 ${canQueueTest ? '<button type="button" class="hp-action primary" id="hpPracticalSendButton" onclick="_hpQueuePracticalTest()"' + actionDisabled + '>Send practical test</button>' : ''}
                 ${canRetryTest ? '<button type="button" class="hp-action primary" onclick="_hpRetryPracticalTest()"' + actionDisabled + '>Retry practical test</button>' : ''}
@@ -78059,10 +78051,6 @@
             </div>
             ${statusNote ? `<div class="hp-action-status">${_hpEsc(statusNote)}</div>` : ''}
         </div>`;
-    }
-    function _hpUpdatePracticalDraft(field, value) {
-        if (!['raw', 'edit', 'instructions'].includes(field)) return;
-        _hpState.practicalDraft[field] = String(value == null ? '' : value);
     }
     function _hpPaint() { _hpRenderRoles(); _hpRenderFilters(); _hpRenderList(); _hpRenderDetail(); }
     async function _hpLoadList(force) {
@@ -78112,7 +78100,6 @@
         _hpState.detailError = '';
         _hpState.actionError = '';
         _hpState.actionMessage = '';
-        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
         _hpPaint();
         _hpLoadList(true);
     }
@@ -78124,7 +78111,6 @@
         _hpState.detailError = '';
         _hpState.actionError = '';
         _hpState.actionMessage = '';
-        _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
         _hpPaint();
         _hpLoadDetail(clean, true);
     }
@@ -78241,15 +78227,6 @@
     async function _hpQueuePracticalTest() {
         const detail = _hpState.detail;
         if (!detail || _hpState.sending) return;
-        const draft = _hpState.practicalDraft;
-        const raw = String(draft.raw || '').trim();
-        const edit = String(draft.edit || '').trim();
-        const instructions = String(draft.instructions || '').trim();
-        if (!raw || !edit || !instructions) {
-            _hpState.actionError = 'Add the raw footage link, the reference edit link, and instructions before sending.';
-            _hpRenderDetail();
-            return;
-        }
         _hpAbort('actionController');
         const controller = new AbortController();
         _hpState.actionController = controller;
@@ -78261,18 +78238,18 @@
         try {
             const data = await _hpCall({
                 action: 'queue_practical_test', application_id: detail.id, state_version: detail.state_version,
-                raw_footage_url: raw, reference_edit_url: edit, instructions,
             }, controller);
             if (request !== _hpState.actionRequest) return;
             _hpState.actionMessage = data.message || 'Practical test queued for delivery.';
-            _hpState.practicalDraft = { raw: '', edit: '', instructions: '' };
             await _hpLoadDetail(detail.id, true);
             await _hpLoadList(true);
         } catch (e) {
             if (request !== _hpState.actionRequest || (e && e.name === 'AbortError')) return;
             _hpState.actionError = (e && e.message === 'feature_disabled')
                 ? 'Practical test emails are not enabled yet.'
-                : _hpDisplayError(e && e.message, 'Could not queue the practical test.');
+                : (e && e.message === 'practical_test_materials_not_configured')
+                    ? 'The shared materials link is not configured yet.'
+                    : _hpDisplayError(e && e.message, 'Could not queue the practical test.');
             if (e && e.message === 'state_conflict') _hpLoadDetail(detail.id, true);
         } finally {
             if (request !== _hpState.actionRequest) return;

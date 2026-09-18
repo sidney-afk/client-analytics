@@ -256,7 +256,7 @@ const FAILURE_CLASSES = Object.freeze([
   [/native intake produced a Linear issue/i, 'native_intake_linear_issue_present'],
   [/native intake create receipt is not a native-only receipt/i, 'native_intake_receipt_invalid'],
   [/native intake did not write exactly one batch and one item create receipt/i, 'native_intake_receipt_missing'],
-  [/native card left non-native mirror rows behind/i, 'native_intake_provider_mirror_rows'],
+  [/native cleanup archive timed out/i, 'native_cleanup_archive_timeout'],
   [/native description readback timed out/i, 'native_description_readback_timeout'],
   [/native fixture row disappeared/i, 'native_intake_row_missing'],
   [/due\/assignee clear did not reach the native row/i, 'due_assignee_clear_not_native'],
@@ -443,13 +443,60 @@ function nativeCreateReceiptOk(row, epoch) {
  * here is the difference between last night's misleading linkage timeout and a
  * report that says which operation is stuck on the provider lane.
  */
-const NATIVE_TERMINAL_MARKERS = ['native_ordinary', 'native_assignment', 'native_labels', 'native_only'];
+const NATIVE_TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NATIVE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NATIVE_ORDINARY_OPERATIONS = [
+  'status', 'due', 'title', 'priority', 'archive', 'restore', 'parent', 'description', 'attachment',
+];
+const NATIVE_COMMENT_OPERATIONS = ['comment', 'edit', 'delete', 'resolve', 'unresolve'];
 
+/*
+ * The COMPLETE typed-receipt contract, not "skipped plus one boolean".
+ *
+ * A lone `linear_result` flag is forgeable by any writer that can set a
+ * terminal status: it proves nothing about the payload marker the admission
+ * RPC minted. This mirrors the non-create arms of
+ * `production_syncview_retirement_typed_native_receipt`
+ * (migrations/2026-09-10-syncview-retirement-native-ordinary-recognizer.sql:16-38)
+ * so a malformed pseudo-native row reads as unsettled, exactly as the database
+ * recognizer reads it.
+ */
 function nativeMirrorRowSettled(row) {
-  if (!row) return false;
+  if (!row || clean(row.status) !== 'skipped') return false;
   const result = parseJson(row.linear_result);
-  return clean(row.status) === 'skipped'
-    && NATIVE_TERMINAL_MARKERS.some(key => result[key] === true);
+  const payload = parseJson(row.payload);
+  const operation = clean(row.operation);
+
+  if (operation === 'assignee') {
+    const epoch = clean(payload._native_assignment_epoch);
+    return !!epoch && result.native_assignment === true && clean(result.epoch) === epoch;
+  }
+  if (operation === 'labels') {
+    const version = clean(payload._native_label_catalog_version);
+    return NATIVE_UUID_RE.test(version)
+      && result.native_labels === true
+      && clean(result.catalog_version) === version;
+  }
+
+  const marker = parseJson(payload._native_ordinary_receipt);
+  if (Number(marker.schema) !== 1 || String(marker.schema) !== '1') return false;
+  const epoch = clean(marker.epoch);
+  const owner = clean(marker.owner);
+  const native = clean(marker.operation);
+  if (!NATIVE_EPOCH_RE.test(epoch) || !NATIVE_TOKEN_RE.test(clean(marker.token))) return false;
+  if (result.native_ordinary !== true
+    || clean(result.epoch) !== epoch
+    || clean(result.owner) !== owner
+    || clean(result.operation) !== native) return false;
+  if (owner === 'deliverable') {
+    return clean(row.entity) === 'deliverable'
+      && operation === native
+      && NATIVE_ORDINARY_OPERATIONS.includes(native);
+  }
+  return owner === 'comment'
+    && clean(row.entity) === 'comment'
+    && operation === 'comment'
+    && NATIVE_COMMENT_OPERATIONS.includes(native);
 }
 
 /*
@@ -462,6 +509,45 @@ function unsettledNativeMirrorRows(rows) {
     .filter(row => !nativeMirrorRowSettled(row))
     .map(row => `${clean(row && row.operation) || 'unknown'}:${clean(row && row.status) || 'unknown'}`)
     .sort();
+}
+
+/*
+ * WHY THE FOLLOW-UP ROWS ARE REPORTED AND NOT ASSERTED (Codex P1 on #1412).
+ *
+ * The first draft of this change made "every follow-up mirror row is terminal
+ * and native" a hard assertion. It can never pass on this drill, in either
+ * mode, and a gate with no reachable green is worse than no gate:
+ *
+ *  - `provider` mode (the installed default): the TEST write passes straight
+ *    through `production_native_ordinary_event`
+ *    (migrations/2026-09-12-native-ordinary-envelope-repair.sql:10) and an
+ *    ordinary provider row is enqueued against a card with no Linear issue.
+ *    Not native, so the assertion fails.
+ *  - `native` mode: the same function's scope check refuses any `test_only`
+ *    envelope outright with `native_ordinary_receipt_scope_forbidden` (`:21`),
+ *    and `production_native_ordinary_receipt_admissions` carries
+ *    `check (test_only = false)`. `production_assignment_context` refuses a
+ *    TEST write the same way once its epoch is on
+ *    (migrations/2026-09-06-native-existing-assignment.sql:72-75). The drill
+ *    would die at the mutation, before verification.
+ *
+ * There is no TEST-capable native follow-up contract to assert against. So the
+ * drill RECORDS what the follow-up rows actually did, by operation and status,
+ * and names the assertion it therefore did not make. When such a contract
+ * exists this becomes the gate, unchanged.
+ */
+function nativeMirrorRowStates(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const states = {};
+  for (const row of list) {
+    const key = `${clean(row && row.operation) || 'unknown'}:${clean(row && row.status) || 'unknown'}`;
+    states[key] = Number(states[key] || 0) + 1;
+  }
+  return {
+    rows: list.length,
+    settled_native: list.filter(nativeMirrorRowSettled).length,
+    by_operation_status: Object.fromEntries(Object.keys(states).sort().map(key => [key, states[key]])),
+  };
 }
 
 /*
@@ -942,27 +1028,15 @@ async function verifyNativeFixture(asset) {
   assert(asset.echoUnexpected === 0, `${asset.team} produced a foreign-write/echo storm event`);
 
   /*
-   * ONE ADDITION BEYOND "expect native-only rows and no Linear issue", stated
-   * rather than buried.
-   *
-   * The intake epoch terminalizes the CREATE. It says nothing about the nine
-   * follow-up mutations this drill makes, whose own capabilities
-   * (`production_native_ordinary_receipts`, `native_assignment_epochs`,
-   * `native_label_catalog`) are separate and default to `provider`. On the
-   * provider lane those rows are enqueued pending against a card that has no
-   * Linear issue, and can only fail -- which is what happened on
-   * 2026-09-18 run 35327383049.
-   *
-   * Without this assertion the drill would go GREEN while every follow-up
-   * mirror row failed nightly: a check that confirms something happened
-   * without confirming it was right, which is the exact failure this file
-   * already documents twice.
+   * REPORTED, NOT ASSERTED -- see nativeMirrorRowStates() for why this cannot
+   * be a gate on the TEST lane. The intake epoch terminalizes the CREATE only;
+   * the nine follow-up mutations are governed by separate capabilities that
+   * structurally exclude TEST writes. Recording the real states keeps the fact
+   * visible instead of letting a green run imply it was proved.
    */
-  const unsettled = unsettledNativeMirrorRows(
+  asset.followupMirror = nativeMirrorRowStates(
     (await fixtureMirrorRows(asset)).filter(candidate => clean(candidate.operation) !== 'create'),
   );
-  assert(unsettled.length === 0,
-    `${asset.team} native card left non-native mirror rows behind: ${unsettled.join(' ')}`);
 
   asset.nativeIntake = { epoch_present: !!epoch, create_receipts: 2 };
   asset.linear = null;
@@ -1366,6 +1440,32 @@ async function cleanupAsset(asset) {
       const data = await linear('query ProductionWriteDrillCleanup($id: String!) { issue(id: $id) { archivedAt } }', { id: asset.linear.id });
       return data.issue && data.issue.archivedAt;
     });
+    return;
+  }
+  /*
+   * A NATIVE FIXTURE STILL HAS TO PROVE ITS ARCHIVE (Codex P1 on #1412).
+   *
+   * The Linear readback above is the only proof cleanup ever had, and
+   * `asset.linear` is null on the native lane -- so without this, a native run
+   * skipped the guard entirely and still reported `cleanup_ok: true`. The
+   * archive is a real write with a real authority: read it back from the row
+   * it actually changed.
+   *
+   * The archive write itself still enqueues a provider mirror row, for the
+   * same reason the follow-ups do, and that row is recorded rather than
+   * asserted -- see nativeMirrorRowStates(). The drill cannot fix a gateway
+   * that has no TEST-native archive path; it can refuse to claim a clean
+   * cleanup it did not verify.
+   */
+  if (asset.nativeIntake) {
+    await poll(`${asset.team} native cleanup archive`, async () => {
+      const rows = await rest(`deliverables?select=id,status&id=eq.${encodeURIComponent(asset.row.id)}&limit=1`);
+      const row = rows[0];
+      return row && clean(row.status).toLowerCase() === 'archived' ? row : null;
+    });
+    asset.cleanupMirror = nativeMirrorRowStates(
+      (await fixtureMirrorRows(asset)).filter(candidate => clean(candidate.operation) === 'archive'),
+    );
   }
 }
 
@@ -1467,6 +1567,15 @@ async function main() {
     native_intake_by_team: Object.fromEntries(assets
       .filter(asset => asset.nativeIntake)
       .map(asset => [asset.team, asset.nativeIntake])),
+    // What the follow-up and cleanup mirror rows actually did on a native
+    // card, by operation and status. Counts only -- never a payload or an id.
+    // This is an observation, not a gate: see nativeMirrorRowStates().
+    native_followup_mirror_by_team: Object.fromEntries(assets
+      .filter(asset => asset.followupMirror)
+      .map(asset => [asset.team, asset.followupMirror])),
+    native_cleanup_mirror_by_team: Object.fromEntries(assets
+      .filter(asset => asset.cleanupMirror)
+      .map(asset => [asset.team, asset.cleanupMirror])),
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),
@@ -1488,8 +1597,12 @@ async function main() {
       ...(DESCRIPTION_ROUNDTRIP_ENFORCED ? [] : ['description_roundtrip']),
       ...(assets.some(asset => asset.graphicsApprovalParked) ? ['graphics_approval_artifact'] : []),
       // Named, never silently dropped: a native fixture is not reconciled
-      // against Linear because it has no Linear counterpart.
-      ...(assets.some(asset => asset.nativeIntake) ? ['linear_reconcile_native_intake'] : []),
+      // against Linear because it has no Linear counterpart, and its follow-up
+      // mirror rows have no TEST-capable native contract to be asserted
+      // against yet -- they are reported instead.
+      ...(assets.some(asset => asset.nativeIntake)
+        ? ['linear_reconcile_native_intake', 'native_followup_mirror_settlement']
+        : []),
     ],
     graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
     // Why an owner-supplied artifact URL was refused, if it was. `null` means
@@ -1526,6 +1639,7 @@ module.exports = {
   nativeIntakeEnabled,
   nativeIntakeLanes,
   nativeMirrorRowSettled,
+  nativeMirrorRowStates,
   reconcilableAssets,
   unsettledNativeMirrorRows,
   parentTeamKey,

@@ -12,6 +12,7 @@ const {
   nativeIntakeEnabled,
   nativeIntakeLanes,
   nativeMirrorRowSettled,
+  nativeMirrorRowStates,
   reconcilableAssets,
   stableJson,
   unsettledNativeMirrorRows,
@@ -243,35 +244,82 @@ ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missi
   ok(!nativeCreateReceiptOk(null, epoch), 'a missing receipt is never accepted');
 }
 {
-  // Follow-up rows. Each native capability stamps its own marker; a provider
-  // row on a card with no Linear issue can only fail, and must be named.
-  ok(nativeMirrorRowSettled({ status: 'skipped', linear_result: { native_ordinary: true } }),
-    'an ordinary native receipt settles the row');
-  ok(nativeMirrorRowSettled({ status: 'skipped', linear_result: { native_assignment: true } }),
-    'a native assignment receipt settles the row');
-  ok(nativeMirrorRowSettled({ status: 'skipped', linear_result: { native_labels: true } }),
-    'a native label receipt settles the row');
-  ok(!nativeMirrorRowSettled({ status: 'failed', operation: 'status', linear_result: {} }),
-    'a failed provider row is never settled');
-  ok(!nativeMirrorRowSettled({ status: 'written', operation: 'status', linear_result: { issue_id: 'x' } }),
-    'a row that reached Linear is not a native settlement');
-  ok(!nativeMirrorRowSettled({ status: 'skipped', linear_result: { conflict: { decision: 'stale' } } }),
+  /*
+   * Follow-up rows, against the COMPLETE typed-receipt contract (Codex P2 on
+   * #1412). A lone `linear_result` boolean is forgeable by anything that can
+   * set a terminal status; the recognizer checks the payload marker, the
+   * epoch, the owner and the operation, and so does this.
+   */
+  const TOKEN = '11111111-2222-4333-8444-555555555555';
+  const EPOCH = 'ord.2026-09-15';
+  const ordinary = (over = {}) => ({
+    entity: 'deliverable',
+    operation: 'status',
+    status: 'skipped',
+    payload: { _native_ordinary_receipt: { schema: 1, epoch: EPOCH, owner: 'deliverable', operation: 'status', token: TOKEN } },
+    linear_result: { native_ordinary: true, epoch: EPOCH, owner: 'deliverable', operation: 'status' },
+    ...over,
+  });
+  ok(nativeMirrorRowSettled(ordinary()), 'a complete ordinary native receipt settles the row');
+  ok(!nativeMirrorRowSettled({ status: 'skipped', operation: 'status', linear_result: { native_ordinary: true } }),
+    'a lone native_ordinary flag with no payload marker is NOT a settlement');
+  ok(!nativeMirrorRowSettled(ordinary({ payload: { _native_ordinary_receipt: { schema: 1, epoch: EPOCH, owner: 'deliverable', operation: 'status', token: 'not-a-uuid' } } })),
+    'a marker with a malformed admission token is refused');
+  ok(!nativeMirrorRowSettled(ordinary({ linear_result: { native_ordinary: true, epoch: 'other', owner: 'deliverable', operation: 'status' } })),
+    'a result sealed under a different epoch than the marker is refused');
+  ok(!nativeMirrorRowSettled(ordinary({ operation: 'due' })),
+    'the row operation must equal the marker operation for a deliverable owner');
+  ok(!nativeMirrorRowSettled(ordinary({ entity: 'comment' })),
+    'a deliverable-owned marker on a comment row is refused');
+  ok(nativeMirrorRowSettled(ordinary({
+    entity: 'comment',
+    operation: 'comment',
+    payload: { _native_ordinary_receipt: { schema: 1, epoch: EPOCH, owner: 'comment', operation: 'edit', token: TOKEN } },
+    linear_result: { native_ordinary: true, epoch: EPOCH, owner: 'comment', operation: 'edit' },
+  })), 'a comment-owned receipt settles on a comment row whose operation stays `comment`');
+  ok(nativeMirrorRowSettled({ status: 'skipped', operation: 'assignee', payload: { _native_assignment_epoch: 'a1' }, linear_result: { native_assignment: true, epoch: 'a1' } }),
+    'a native assignment receipt settles when the epoch matches on both sides');
+  ok(!nativeMirrorRowSettled({ status: 'skipped', operation: 'assignee', payload: {}, linear_result: { native_assignment: true } }),
+    'an assignment flag with no payload epoch is refused');
+  ok(nativeMirrorRowSettled({ status: 'skipped', operation: 'labels', payload: { _native_label_catalog_version: '6d450520-d8d6-95dd-ad83-546dbc6c3e11' }, linear_result: { native_labels: true, catalog_version: '6d450520-d8d6-95dd-ad83-546dbc6c3e11' } }),
+    'a native label receipt settles when the catalog version matches on both sides');
+  ok(!nativeMirrorRowSettled(ordinary({ status: 'failed' })), 'a failed row is never settled, marker or not');
+  ok(!nativeMirrorRowSettled(ordinary({ status: 'written' })), 'a written row is never a native settlement');
+  ok(!nativeMirrorRowSettled({ status: 'skipped', operation: 'status', linear_result: { conflict: { decision: 'stale' } } }),
     'skipped for some other reason is not a native settlement');
 
   const rows = [
     { operation: 'status', status: 'failed', linear_result: {} },
     { operation: 'comment', status: 'pending', linear_result: {} },
-    { operation: 'due', status: 'skipped', linear_result: { native_ordinary: true } },
+    ordinary({ operation: 'due', payload: { _native_ordinary_receipt: { schema: 1, epoch: EPOCH, owner: 'deliverable', operation: 'due', token: TOKEN } }, linear_result: { native_ordinary: true, epoch: EPOCH, owner: 'deliverable', operation: 'due' } }),
   ];
   const unsettled = unsettledNativeMirrorRows(rows);
   ok(unsettled.length === 2 && unsettled.join(' ') === 'comment:pending status:failed',
-    'the unsettled report names operation and status, sorted and deduplicated of nothing else');
-  ok(!/payload|body|client|slug|dedup/i.test(unsettled.join(' ')),
+    'the unsettled report names operation and status only, sorted');
+  ok(!/payload|body|client|slug|dedup|token/i.test(unsettled.join(' ')),
     'the unsettled report is public-safe: operation and status only');
-  ok(unsettledNativeMirrorRows(rows.slice(2)).length === 0, 'a fully native card reports nothing unsettled');
-  ok(classifyFailure(new Error('video native card left non-native mirror rows behind: status:failed'))
-    === 'native_intake_provider_mirror_rows',
-    'follow-up rows stuck on the provider lane get their own classified code');
+
+  /*
+   * The follow-up rows are REPORTED, not asserted, because no TEST-capable
+   * native follow-up contract exists: provider mode leaves them non-native and
+   * native mode refuses the TEST envelope outright. An empty set must
+   * therefore read as zero rows, never as a pass.
+   */
+  const states = nativeMirrorRowStates(rows);
+  ok(states.rows === 3 && states.settled_native === 1,
+    'the observation counts every row and how many were genuinely native');
+  ok(states.by_operation_status['status:failed'] === 1
+    && states.by_operation_status['comment:pending'] === 1
+    && states.by_operation_status['due:skipped'] === 1,
+    'the observation is a per-operation/status tally');
+  ok(Object.keys(states.by_operation_status).join(',') === 'comment:pending,due:skipped,status:failed',
+    'the tally is key-sorted so two reports are comparable');
+  const empty = nativeMirrorRowStates([]);
+  ok(empty.rows === 0 && empty.settled_native === 0 && Object.keys(empty.by_operation_status).length === 0,
+    'an empty or missing row set reports zero rows rather than reading as settled');
+  ok(nativeMirrorRowStates(null).rows === 0, 'a missing row set is not an exception');
+  ok(!/native_intake_provider_mirror_rows/.test(source),
+    'the unreachable follow-up gate is gone: it could never pass on the TEST lane in either mode');
 }
 {
   ok(classifyFailure(new Error('video native intake produced a Linear issue'))
@@ -311,8 +359,16 @@ ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missi
     'the native verification refuses a Linear issue rather than merely not requiring one');
   ok(/intake_lane_by_team/.test(source),
     'the report states which intake lane each team drilled');
-  ok(/linear_reconcile_native_intake/.test(source),
-    'a green native run names the reconcile it did not perform');
+  ok(/linear_reconcile_native_intake/.test(source)
+    && /native_followup_mirror_settlement/.test(source),
+    'a green native run names both the reconcile and the follow-up settlement it did not prove');
+  ok(/native_followup_mirror_by_team/.test(source),
+    'the follow-up mirror rows are reported by operation and status rather than silently dropped');
+  const cleanup = source.slice(source.indexOf('async function cleanupAsset'));
+  ok(/asset\.nativeIntake[\s\S]{0,400}?native cleanup archive/.test(cleanup),
+    'a native fixture proves its archive natively instead of skipping the only cleanup readback');
+  ok(/native cleanup archive timed out/.test(source),
+    'the native cleanup archive has its own classified failure code');
 }
 
 if (failures) process.exit(1);

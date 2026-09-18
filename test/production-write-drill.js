@@ -394,8 +394,25 @@ ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missi
   const guarded = callSites.filter(row => source.split('\n')
     .slice(Math.max(0, row.index - 3), row.index)
     .some(line => /if \(asset\.followupSettlementRequired\) \{/.test(line)));
-  ok(callSites.length === 2 && guarded.length === 2,
-    `both settlement call sites are gated on the capability (${guarded.length}/${callSites.length})`);
+  ok(callSites.length === 1 && guarded.length === 1,
+    `the one settlement call site is gated on the capability (${guarded.length}/${callSites.length})`);
+
+  /*
+   * The cleanup archive is NOT that call site, and must never become one:
+   * cleanup writes through the service-only `deliverable-write` Edge Function,
+   * whose `deliverable_write` RPC never invokes
+   * `production_native_ordinary_event`, so its row is provider-style whatever
+   * the capabilities say. Asserting settlement there would redden the nightly
+   * straight after a successful native verification.
+   */
+  const cleanupBody = source.slice(source.indexOf('async function cleanupAsset'));
+  ok(!/unsettledNativeMirrorRows\(/.test(cleanupBody),
+    'cleanup never asserts native settlement on the archive row it cannot get a receipt for');
+  ok(/native_cleanup_mirror_settlement/.test(source),
+    'and a native run names that assertion rather than implying it');
+  ok(/rpc: "deliverable_write"/.test(
+    fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'deliverable-write', 'index.ts'), 'utf8')),
+    'the reason still holds: deliverable-write calls the non-native RPC');
   ok(/followup_lane_by_team/.test(source),
     'the report states which follow-up lanes each team drilled and whether the settlement was asserted');
   ok(/asset\.nativeIntake && !asset\.followupSettlementRequired/.test(source),

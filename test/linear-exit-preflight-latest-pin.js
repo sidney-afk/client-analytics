@@ -96,6 +96,42 @@ ok(violations.length === 0,
 ok(pinned.get('production_notification_intent_guard') === 'migrations/2026-09-18-notification-creative-channel.sql',
   'production_notification_intent_guard is pinned to the migration that last redefines it');
 
+/*
+ * THE OTHER HALF OF THE SAME CLASS (Codex P1 on #1413).
+ *
+ * A correct pin is worthless if the integrated install plan never installs the
+ * file it points at: `scripts/linear-exit-install-manifest.js` would then
+ * produce a database this very gate refuses, blocking every forward Edge
+ * release. So every migration the contract cites must be in the install
+ * inventory -- except the two the manifest COMPOSES into its atomic
+ * native-intake owner, which it installs as one generated entry rather than as
+ * files.
+ */
+{
+  const manifest = require('../scripts/linear-exit-install-manifest');
+  const inventory = new Set([...manifest.BASELINE, ...manifest.CANDIDATE]);
+  const composed = new Set([
+    '2026-09-05-native-only-intake.sql',
+    '2026-09-07-native-intake-named-append.sql',
+  ]);
+  const missing = citedFiles
+    .map(file => file.replace('migrations/', ''))
+    .filter(file => !inventory.has(file) && !composed.has(file));
+  ok(missing.length === 0,
+    missing.length === 0
+      ? 'every migration the contract cites is in the install inventory'
+      : 'cited but never installed by the integrated plan: ' + missing.join(', '));
+
+  /* And the inventory has to be orderable with the new edges in it. */
+  const order = manifest.build().dependency_order;
+  const after = (later, earlier) => order.indexOf(later) > order.indexOf(earlier);
+  ok(after('2026-09-18-native-test-client-parity.sql', '2026-09-12-native-ordinary-envelope-repair.sql')
+    && after('2026-09-18-native-test-client-parity.sql', '2026-09-06-native-existing-assignment.sql'),
+    'the parity migration installs after BOTH lanes it replaces bodies in');
+  ok(after('2026-09-18-notification-creative-channel.sql', '2026-09-09-native-notification-outbox.sql'),
+    'the notification migration installs after the outbox it replaces routines from');
+}
+
 /* The control: the rule must be seen to FIRE. A synthetic pair proves the
    comparison, without touching the real table. */
 {

@@ -1539,14 +1539,28 @@ async function cleanupAsset(asset) {
       const row = rows[0];
       return row && clean(row.status).toLowerCase() === 'archived' ? row : null;
     });
-    const archiveRows = (await fixtureMirrorRows(asset))
-      .filter(candidate => clean(candidate.operation) === 'archive');
-    asset.cleanupMirror = nativeMirrorRowStates(archiveRows);
-    if (asset.followupSettlementRequired) {
-      const unsettled = unsettledNativeMirrorRows(archiveRows);
-      assert(unsettled.length === 0,
-        `${asset.team} native card left non-native mirror rows behind: ${unsettled.join(' ')}`);
-    }
+    /*
+     * RECORDED, NEVER ASSERTED -- and this one is not a capability question
+     * (Codex P1 on #1413).
+     *
+     * Cleanup archives through the service-only `deliverable-write` Edge
+     * Function, which calls the `deliverable_write` RPC directly
+     * (supabase/functions/deliverable-write/index.ts). Only
+     * `production_deliverable_write` invokes
+     * `production_native_ordinary_event` and so mints the marker
+     * `nativeMirrorRowSettled` looks for; the production surface reaches it,
+     * this legacy owner does not. So the archive row is provider-style no
+     * matter how the capabilities are set, and asserting native settlement on
+     * it would turn the nightly red immediately after an otherwise successful
+     * native verification.
+     *
+     * Not fixed by routing cleanup through the production owner: that would
+     * change what cleanup exercises, and the service-only path is the point of
+     * it. The row is reported, and the assertion is named rather than implied.
+     */
+    asset.cleanupMirror = nativeMirrorRowStates(
+      (await fixtureMirrorRows(asset)).filter(candidate => clean(candidate.operation) === 'archive'),
+    );
   }
 }
 
@@ -1694,6 +1708,9 @@ async function main() {
       ...(assets.some(asset => asset.nativeIntake && !asset.followupSettlementRequired)
         ? ['native_followup_mirror_settlement']
         : []),
+      // The cleanup archive writes through the service-only legacy owner,
+      // which never mints a native receipt. Always named on a native run.
+      ...(assets.some(asset => asset.nativeIntake) ? ['native_cleanup_mirror_settlement'] : []),
     ],
     graphics_artifact_attached: assets.some(asset => asset.graphicsArtifactAttached === true),
     // Why an owner-supplied artifact URL was refused, if it was. `null` means

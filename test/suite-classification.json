@@ -247,6 +247,7 @@
     "linear-exit-credential-triple-storage.js",
     "linear-exit-deploy-preflight.js",
     "linear-exit-preflight-latest-pin.js",
+    "retirement-contract-body-pins.js",
     "linear-exit-followup-bundle.mjs",
     "linear-exit-followup-endpoint.mjs",
     "linear-exit-followup-supervisor.mjs",

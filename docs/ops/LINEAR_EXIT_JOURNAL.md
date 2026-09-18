@@ -30,6 +30,54 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — #1415 merged at `e1cb2236`. Two migrations are now on main and UNAPPLIED, and the label capture is invalidated by construction
+
+Cloud session, recording the outcome rather than the work. The supervisor merged
+#1415 at 19:33Z; `main` is `e1cb2236`. All six checks were green on the merged
+head `76a700d1`, and on `74e08f23` before it.
+
+#### What is on main but NOT in the database
+
+Neither migration in this PR has been applied. They are draft SQL on main:
+
+| file | sha256 | state |
+|---|---|---|
+| `2026-09-18-native-label-retired-state.sql` | `6c808729f0d004ce33d01be38cbf6be70175dc2e24939062be7da99d147f39e4` | on main, unapplied |
+| `2026-09-18-native-assignment-auth-kind-binding.sql` | `2c211c22ec37bc7e38aae0d574bd4e5fca3c3450d920d8aef790466d4d3ec661` | on main, unapplied |
+
+Also unchanged by the merge: no deploy, no dispatch, no flag flip, nothing
+inside Linear, no n8n workflow. The gateway change to the provider label catalog
+query is committed but **not deployed** — `production-write` still runs its
+previous source until a Section 4 dispatch says otherwise.
+
+#### ⚠ The standing consequence: the capture must be retaken
+
+`production_label_catalog_check_manifest` now **requires** `retiredAt` on every
+label, so any package taken with the previous exporter cannot be attested — it
+raises `label_catalog_label_invalid`. That refusal is the intended behaviour,
+not a side effect: the alternative is reading a silent absence as "nothing here
+is retired", when 19 of the 46 labels in the live workspace are.
+
+Nothing is invalidated *in place*, because no capture has ever been staged. The
+practical effect is only on packages sitting on the owner's machine.
+`docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` carries the warning as attestation
+item 5, where the owner reads what to verify.
+
+**B7 remains untaken**, and re-running `export` is now a prerequisite of it
+rather than a repeat of it.
+
+#### A pre-existing ledger finding, measured and NOT touched
+
+`OPEN_REPAIRS.md` carries **eight duplicated `## N.` headers**: 13, 14, 22, 23,
+175, 176, 177 and 180. This was checked because the house rule says to check
+after any merge — and the measurement says it is **not** this merge's doing. The
+duplicate set is byte-identical before (`37d7099c`) and after (`e1cb2236`), and
+the merge does not touch the file at all.
+
+Left alone deliberately. Renumbering is restructuring, the ledger is
+append-only, and the owner cares about it. Flagged here so the next session
+finds a measurement rather than re-deriving it.
+
 ### 2026-09-18 — PR #1415 is green on all six checks, and the unit lane could never have caught the one that went red
 
 Cloud session. Head `74e08f23`, six of six checks `success`: `unit`,

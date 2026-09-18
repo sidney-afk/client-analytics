@@ -490,7 +490,12 @@ const CANDIDATES = new Map([
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
     // Integrated main client status no-op authorization and due-bump guard.
     // Prepared canonical archive-lifecycle notification repair.
-    source: '4e716d1008d992d4681d91b59dd8e0f325c24b2f45de48f7aff1b85fc42f4b7b',
+    // Re-pinned 2026-09-18: the native label lane stops refusing the test
+    // client, so the TEST lane can rehearse it before a real client does.
+    // index.ts only -- closure membership stays at six and the entrypoint hash
+    // is unchanged, because that one hashes the PATH, not the file.
+    // Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: '4802d4c9a5ff430952eb55813532cd775f34ad1c180d8ee1741b8bbbc4c920ff',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

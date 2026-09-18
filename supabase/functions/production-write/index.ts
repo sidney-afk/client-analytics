@@ -6400,7 +6400,17 @@ async function handleEntityOperation(
       const config = await nativeLabelCatalogConfig(supabase, team);
       if (config.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
       if (config.mode === "native") {
-        if (principal.kind !== "staff" || principal.testOnly || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
+        // `principal.testOnly` used to be refused here alongside legacy parity.
+        // It is not the same kind of thing: legacy parity is a route this lane
+        // must never serve, while a TEST write is an ordinary write by the one
+        // client that exists to exercise it. Refusing it meant the first native
+        // label write that could ever succeed was on a real client, and step 27
+        // had no rehearsal at all. The SQL now records and compares `test_only`
+        // rather than refusing it (2026-09-18-native-label-test-client-parity.sql),
+        // and production_assert_authority still requires an active kind='test'
+        // client for it -- so a TEST write is validated AS a test write here
+        // rather than waved through.
+        if (principal.kind !== "staff" || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
         labelCatalogVersion = String(config.version_id);
         if (body.catalog_version !== labelCatalogVersion) throw new GatewayError(409, "native_label_catalog_changed");
         if (!nativeLabelSnapshot(existing)) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });

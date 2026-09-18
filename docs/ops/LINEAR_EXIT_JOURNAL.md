@@ -30,6 +30,81 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 26 PREPARED for capability 2 (`production_native_ordinary_receipts`) and capability 3 (`native_assignment_epochs`), both teams. Rehearsed and rolled back; nothing enabled
+
+Storage session, over the direct connection. Every write below happened inside a
+transaction that was rolled back, and both flag rows were re-read afterwards and
+are **byte-identical** to the pre-state. **Neither capability is enabled.**
+
+Pre-state, saved privately as `phase7-cap23-prepare-20260918/pre-state.private.json`,
+SHA-256 `6821e58511ea39c818691463c09c9fab9661ac3c1ea256b7b2fa62fb65efd632`:
+
+| Flag | Value |
+|---|---|
+| `production_native_ordinary_receipts` | video and graphics `{"mode":"provider","epoch":null}`, `schema_version: 1` |
+| `native_assignment_epochs` | video and graphics `{"mode":"provider","epoch":null}` |
+
+#### Capability 2: `production_native_ordinary_receipts`
+
+**Waits for the execution session's test-client parity migration** — not enabled
+until that is applied, by the owner's instruction.
+
+Per team: enable `{"mode":"native","epoch":"native-ordinary-<team>-20260918"}`
+inside the existing JSON, guarded on the team being `provider` and
+`schema_version` being `1`; read back through
+`public.production_native_ordinary_capability('<team>')`; then the rollback
+statement back to `{"mode":"provider","epoch":null}`.
+
+| Team | Rows enabled | Capability after enable | `schema_version` kept | Other team, in the same transaction | Capability after the rollback statement |
+|---|---|---|---|---|---|
+| video | 1 | `{"mode":"native","epoch":"native-ordinary-video-20260918"}` | **1** | provider, untouched | `{"mode":"provider","epoch":null}` |
+| graphics | 1 | `{"mode":"native","epoch":"native-ordinary-graphics-20260918"}` | **1** | provider, untouched | `{"mode":"provider","epoch":null}` |
+
+The function returns the team's own entry, so the expected readback is the entry
+itself — and it came back exactly. The rollback matters: this function refuses a
+`provider` entry whose epoch is anything but JSON `null`, so the rollback sets
+`"epoch":null` explicitly rather than removing the key.
+
+#### Capability 3: `native_assignment_epochs`
+
+Per team: enable `{"mode":"native","epoch":"native-assignment-<team>-20260918"}`,
+guarded on the team being `provider`; read back through
+`public.production_assignment_epoch('<team>')` **as `postgres`** — `service_role`
+no longer holds EXECUTE on that function since PR #1408, which this morning's
+permission reading confirmed does not break the chain; then the kill.
+
+| Team | Rows enabled | Epoch after enable | After `{"mode":"hold"}` |
+|---|---|---|---|
+| video | 1 | `native-assignment-video-20260918` | **refused: `assignment_authority_unavailable`** |
+| graphics | 1 | `native-assignment-graphics-20260918` | **refused: `assignment_authority_unavailable`** |
+
+**The safe kill is `hold`**, and it does exactly what it is for: every writer that
+asks for the epoch is refused, fail-closed, before any epoch check. It needs no
+epoch and tolerates a stale one.
+
+**Returning to `provider` is a separate decision**, per
+`docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`: it is not "how it was before", because
+native admissions may already have terminal receipts by then. So the prepared
+kill statement is `hold`, and no provider-return statement was prepared for this
+capability.
+
+#### The statements
+
+All eight, verbatim per team — capability 2 enable, readback and rollback;
+capability 3 enable, readback and hold — are saved privately as
+`phase7-cap23-prepare-20260918/phase7-cap23-statements.private.sql`,
+**SHA-256 `9a6d84d5deb67e8d57c9dd81ca12203a69fbc8cb44c9669876faba3ba0687cd0`**.
+They hold no ids or secrets, only flag values, and are kept beside the evidence so
+that what runs at step 27 is the file that was rehearsed.
+
+#### Standing by
+
+For the creative-channel migration: on the owner's word that it is merged, apply it
+live, run its readback, then run the prepared creative-id load
+(`dbd20a1e…`, 31 rows, one client excluded) and report the counts. The question of
+which sheet holds the 37 expected ids is still open and will be raised again before
+that load runs.
+
 ### 2026-09-18 — NOTIFICATIONS STEP 26 PREPARATION: nothing enabled. Every notification secret and gate is absent today, a runner key is generated and held privately, the creative-channel load is prepared and not run — and two measurements disagree with what was expected: the Slack bot's membership could not be measured, and the app's sheet carries 32 creative ids, not 37
 
 Storage session. Read only except for writing one protected key file and two

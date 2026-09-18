@@ -30,6 +30,58 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — STEP 27 ENABLED for native assignment, both teams: the owner's assignee change and change-back on a real native card each landed as a native `skipped` receipt with the video epoch. The assignee is back to the original, with no failures and no notifications. Graphics is enabled but not exercised
+
+Storage session. The owner's go-ahead:
+
+> enable native assignment for video and graphics, go
+
+#### The flip
+
+The prepared statements file (sha256 `9a6d84d5…`, verified before use) supplied
+both enable statements, and they were run as written. Each ran in its own
+transaction and had to update exactly one row. Readback was through
+`production_assignment_epoch`, run **as postgres**, because service_role no longer
+holds EXECUTE on it.
+
+| Team | Epoch | Flip (transaction time, UTC) | Rows | Readback |
+|---|---|---|---|---|
+| video | `native-assignment-video-20260918` | **2026-09-18T16:29:33.845Z** | 1 | that epoch |
+| graphics | `native-assignment-graphics-20260918` | **2026-09-18T16:29:34.330Z** | 1 | that epoch |
+
+The `production_native_ordinary_receipts` and `native_intake_epochs` rows were
+byte-identical before and after. The per-team safe kill, `{"mode":"hold"}`, was
+extracted beside the evidence and **not run**, because no change was refused.
+
+#### Evidence — assignee changed and changed back on a real native card
+
+Deliverable `del_dbb20054-e865-4008-879e-67086dac8f7f` (video, a real client,
+native, status `approved`). The target had an assignee before the test; who it
+was is kept privately.
+
+| mirror_outbox | Operation | Status | Receipt marker `_native_assignment_epoch` | `linear_result` | Assigns | UI event |
+|---|---|---|---|---|---|---|
+| `10420` | `assignee` | **`skipped`** | `native-assignment-video-20260918` | `native_assignment: true`, same epoch | another video editor | `119374`, 16:33:30.245Z |
+| `10421` | `assignee` | **`skipped`** | `native-assignment-video-20260918` | `native_assignment: true`, same epoch | the original assignee | `119375`, 16:33:33.932Z |
+
+Both rows have role admin, `test_only` false and `legacy_parity` false.
+
+- **The assignee is back to its original value**, and the status is still `approved`.
+- **Failed rows created since the flip: 0.** The failed total is 41, the same as
+  at the flip.
+- **Notification intents since the flip: 0.**
+- **Nothing else changed.** mirror_outbox gained only these two rows (skipped
+  1027 → 1029, every other status equal). Ordinary admissions are still 2. The
+  only other events since the flip are the system's own outbound summary,
+  incremental refresh and monitoring heartbeat, none of them on a deliverable. All
+  three flag rows are unchanged since the flip.
+
+**Graphics is enabled and reads back its epoch, but no graphics assignment was
+exercised in this test.**
+
+**STEP 27 is ENABLED and verified for native assignment, both teams.** It is
+not recorded as closed here, and step 28 for this capability is not recorded.
+
 ### 2026-09-18 — STEP 27 ENABLED and CLOSED for ordinary receipts, both teams: a status change on the test post and a staff comment on a real native card each landed as a native receipt, with no Linear egress, no new failures and the comment's notification delivered to the creative channel. STEP 28 CLOSED for native intake, both teams
 
 Storage session. The owner's go-ahead:

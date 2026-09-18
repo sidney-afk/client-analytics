@@ -475,6 +475,21 @@ test client.
   with no Linear issue. They cannot succeed and are untouched.
 - **Next gate: capability 3, native assignment,** on the owner's go-ahead.
 
+**Native assignment (`native_assignment_epochs`) — STEP 27 ENABLED 2026-09-18,
+both teams, verified.** Video flipped at 16:29:33.845Z and graphics at 16:29:34.330Z. Each
+reads back its epoch through `production_assignment_epoch`, run as postgres.
+
+The evidence is a real native card: the owner changed the assignee to another
+video editor and back. That produced two `assignee` receipts, both native and
+`skipped`, carrying the `_native_assignment_epoch` marker and the video epoch. The
+assignee ended at its original value. There were no new failed rows, no
+notification intents and no other changes.
+
+- The graphics lane is enabled and reads back its epoch, but no graphics
+  assignment was exercised in the test.
+- **Safe kill:** `{"mode":"hold"}` per team, prepared and unused. This is not a
+  return to provider.
+
 Recorded 2026-09-17 by the storage session on the owner's instruction. Two
 qualifications belong with it rather than under it:
 

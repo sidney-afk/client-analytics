@@ -30,6 +30,48 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — Label step 27 API checks on the TEST client's native video card: check 4 (byte-identical replay) MEASURED PASS on receipt `10579`; check 6 stale `catalog_version` MEASURED PASS (409); the 403 refusals NOT RUN
+
+Storage session, on the owner's instruction. Both checks ran against
+`production-write` using the admin staff key only. The actor header named the
+owner's own roster entry; the owner chose it by name, because two active admin
+roster entries exist. They ran on the test client's video card
+`del_3864d643-c120-44fc-99e9-b5b04848316f` and nowhere else. The flag read
+native, `f55a7dd2` throughout.
+
+**Check 4 (replay): MEASURED, PASS.**
+
+- **The write** added one of the 2 served video labels, taking the card from 0
+  labels to 1. It returned 200 with `catalog_version` `f55a7dd2…`.
+- **Its receipt** is mirror_outbox **`10579`**: `skipped`, marker
+  `_native_label_catalog_version` `f55a7dd2…`.
+- **The byte-identical re-send** used the same request id and the same body
+  bytes. It returned 200 with:
+  - `replayed: true`, `read_only: true`;
+  - `authority: syncview`, `authority_source: accepted_native_receipt`;
+  - `mirror.attempted: false`;
+  - the same `catalog_version`.
+- **No new row:** that request still has exactly 1 row, and the outbox high-water
+  mark was `10579` before and after the replay.
+- **The label stays on the test card**, as planned.
+
+**Check 6 (stale catalog): MEASURED, PASS.** The request used a new request id,
+the card's fresh `expected_updated_at` and a made-up stale version
+(`00000000-0000-4000-8000-000000000000`). It returned **409
+`native_label_catalog_changed`**. No row was created for that request, and the
+high-water mark stayed `10579`.
+
+**Check 6, the 403 `native_label_scope_forbidden` refusal: NOT RUN.** This session
+holds no client or editor principal; the only staff key it holds is the admin
+one. A client token was not taken from the database to stand in for one.
+
+**A first attempt wrote nothing, disclosed here.** The script's first run sent
+`expected_updated_at` truncated to milliseconds. The write and its byte-identical
+re-send both got 409 `write_conflict`, no row was created, and the high-water mark
+stayed `10578`. A second script bug stopped that run before check 6 was sent.
+Both bugs were fixed and the checks re-run. The results above are from the
+second run.
+
 ### 2026-09-18 — STEP 27 CLOSED for the native label catalog (`production_native_label_catalog`), version `f55a7dd2`: the owner's add and remove on a real native video card landed as two native `skipped` receipts. Graphics is not exercised; step 28 waits for real staff work per team
 
 Storage session, on the owner's instruction.

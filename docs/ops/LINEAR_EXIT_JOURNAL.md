@@ -36,6 +36,26 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: recovering reported receipts is not proof that old browsers are shut out
+
+A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The
+entries below, which cite earlier check numbers, are kept as written.
+
+- **Two questions, kept apart.** Check 3 now covers only **reported** browser-held
+  receipts, recovered or disposed of on their original identities. It states that
+  reported receipts do not represent every browser.
+- **Recovery continues after closure.** A receipt discovered later is still
+  recovered or disposed of on its original identity.
+- **New check 4.** Old browsers cannot create new legacy submissions. An old tab
+  runs the old code and posts straight to the legacy `video-form` /
+  `graphic-form` webhooks, so a browser hold cannot stop it. The legacy route may
+  be declared unreachable only on verified enforcement at that receiving
+  endpoint, or on equivalent bounded stale-browser evidence. Changing the
+  webhooks is separate approved work.
+
+Checks are renumbered: acceptance is 1–10 and closure is 11. Documentation
+only: no webhook, n8n, flag or database change.
+
 ### 2026-09-19 — native intake plan: browser-held receipts need a disposition, and the cutoff needs a fresh inventory
 
 Two further corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The

@@ -26521,7 +26521,10 @@ it still does two reads and still cannot refuse usefully.
 **Order.** The migration is a PREREQUISITE, not a follow-up: a database without
 the routine refuses the picker instead of degrading. Apply the migration, run
 the read-only deploy preflight from the owner's machine, then dispatch the
-F27 §4 lane. The routine is in the preflight `ROUTINES` list and in the install
+F27 §4 lane at
+https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml
+(`deploy-f27-section4-closures.yml`), which needs a sealed bundle captured
+minutes before the dispatch. The routine is in the preflight `ROUTINES` list and in the install
 manifest, so a database missing it stops the release at the gate rather than
 inside a dispatch.
 
@@ -26542,3 +26545,13 @@ this session, so its behaviour is argued from the statement, not measured. The
 house rule that a gate which has never run against its real target is untested
 applies: run the deploy preflight before dispatching, and expect the aggregate
 itself to be first exercised by the picker.
+
+**Amendment, same day — the two isolated PG17 lanes were red before their first
+assertion, and it was this change.** Adding the migration as a candidate owner
+made `scripts/linear-exit-install-manifest.js` disagree with the published
+inventory, which `plan()` in `test/helpers/linear-exit-install-step.js` verifies
+by STRICT equality, so every lane installing from it refused at setup. Re-issued
+as `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260919.json` with
+the eight references repointed — the same move #1428 made for the same reason.
+The frozen 2026-09-10 base still verifies, because `verifyFrozen` tolerates a
+new owner and nothing existing moved.

@@ -14,6 +14,12 @@ state. No client, staff, token, or other private value belongs in this file.
 | `LINEAR_TWEAK_COMMENTS_WEBHOOK` | `wlFetchTweakComments()` POSTs displayed issue IDs and renders up to three provider comments in the Tweak Needed popover, with a short cache. | `production-comments` has a staff-only legacy-feedback projection from the linked Calendar/Samples tweak cells, in addition to canonical native comments. It needs a valid native deliverable-to-card binding. | **Partial.** It covers bound native rows; it does not cover unbound legacy rows, rows whose feedback only survived at the provider, or foreign/provider-authority rows without a native mapping. |
 | `WORKLOAD_LINEAR_URL` / `workload-linear` | For `metadata`, validates active mirrored sub-issues then reads provider due dates and workload labels. For `set_due_date`, it authorizes a staff write, rechecks current provider team/authority, commits the provider due date, then best-effort updates `workload_issues`. | `production-write` already accepts native `due` writes from Workload with CAS; it also owns native `labels` writes and label receipts. The native snapshot carries verified due/label metadata. | **Built for SyncView-authoritative native rows.** It is not a substitute for a provider-authority/foreign team; those rows must remain explicit compatibility rows until their authority is migrated or they leave Workload. |
 
+> **Correction, 2026-09-19 (read from `index.html`):** the feedback row above
+> understates what is already wired. `wlFetchTweakComments()` already reads
+> **native** rows' feedback from `production-comments`. Only **legacy** rows
+> still read `LINEAR_TWEAK_COMMENTS_WEBHOOK`. The remaining feedback dependency
+> is the legacy rows, not the popover as a whole.
+
 `workload-linear` is source-only and deliberate-manual, with no CI deploy path.
 The current browser routes a SyncView-authoritative due-date write to
 `production-write`; its provider branch still calls `workload-linear`. Therefore
@@ -87,7 +93,7 @@ row is not native-writable, or any category above is uncounted.
    sub-issues, then create/link Calendar cards. The replacement must return the
    exact native card/deliverable links within that bounded window and retain its
    idempotent retry/recovery semantics.
-3. Route the popover to `production-comments` for native rows; render explicit
+3. *(Native rows already route to `production-comments`; see the correction above. What remains is the legacy rows.)* Route the popover to `production-comments` for native rows; render explicit
    incomplete/unmapped/source-unavailable states, never an empty comment list.
    Keep the legacy reader only for the explicitly retained provider rows during
    the compatibility window.

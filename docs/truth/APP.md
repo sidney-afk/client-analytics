@@ -347,8 +347,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Workload
 
-- Workload still reads its base issue set from the Linear-backed `workload_issues` mirror. F201/F40
-  candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
+- **Normal Workload loading is native.** `loadLinearIssues()` returns `wlFetchNativeSnapshot()` for
+  boot, explicit Refresh and snapshot adoption. The snapshot comes from the `workload-plan` Edge
+  Function and carries native rows plus rows explicitly marked `legacy`. The legacy rows are the
+  ones still sourced from the Linear-backed `workload_issues` mirror. Three Linear dependencies
+  remain on this page: (1) **post-create discovery**: `wlDiscoverProviderIssues()` reads the
+  `linear-issues` webhook, used only by the legacy Calendar post-create linker and its persisted
+  resume path; (2) **feedback for legacy rows**: `wlFetchTweakComments()` reads native rows' Tweak
+  Needed feedback from `production-comments` but legacy rows' from the `linear-tweak-comments`
+  webhook; (3) **metadata for Linear-authoritative rows**: due dates and labels, and due-date
+  writes, go through the `workload-linear` Edge Function, as described next. Exit plan:
+  `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
+- F201/F40 candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
   Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative
   IDs read `deliverables.due_date`, native deliverable identity/`updated_at`, and the complete
   native selected-label relation. The candidate retains the authority fingerprint and native CAS

@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: Workload truth documents now say normal loading is native, and name all three remaining Linear dependencies
+
+A Codex review found the Workload correction had not reached the current-truth
+documents, and that `REPO_MAP.md` called Calendar discovery "the remaining
+provider read". Read from `index.html`:
+
+- `loadLinearIssues()` returns `wlFetchNativeSnapshot()`.
+- The three remaining Linear dependencies are: post-create discovery
+  (`linear-issues`, legacy Calendar linker only); Tweak Needed feedback for legacy
+  rows (`linear-tweak-comments`; native rows already read `production-comments`);
+  and `workload-linear` for Linear-authoritative rows' due-date and label
+  metadata and due-date writes.
+
+`docs/truth/APP.md`, the execution map's Workload row, and `REPO_MAP.md` now say
+so. This is a source reading only; no live database or deployed function was
+checked. Earlier entries are unchanged.
+
 ### 2026-09-19 — owner clarification recorded: what the public repository protects
 
 Sidney clarified the public-repository rule, and it is now at the top of

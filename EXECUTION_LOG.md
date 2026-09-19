@@ -2,6 +2,49 @@
 
 All times are UTC unless noted.
 
+## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down
+
+**This is a discovery entry, not a record of an action taken.** No session in
+this log applied `migrations/2026-09-07-native-identifier-mint.sql`. It was
+found already installed by a read-only check on 2026-09-19, which is why it is
+being logged two days late and by someone who did not run it.
+
+**What is on the live database**, measured read-only:
+
+- the four routines `production_native_identifier_capability` / `_seed` /
+  `_allocate` / `_guard`, and the trigger
+  `zzz_production_native_identifier_mint` on `public.deliverables`;
+- **bodies verified**, not merely present: `md5(prosrc)` per routine against the
+  body between the committed migration's `$fn$` markers — all four match — plus
+  `prosecdef`, `provolatile` and `proconfig` as written, and a
+  `pg_get_triggerdef` identical to the migration's statement;
+- grants exactly as the migration writes them: both tables `postgres` only,
+  `capability` and `seed` to `service_role`, `allocate` and `guard` to nobody;
+- flag `production_native_identifier_mint` =
+  `{"schema_version":1,"video":{"mode":"provider"},"graphics":{"mode":"provider"}}`,
+  `updated_by` `native-identifier-mint`, `updated_at` **2026-09-17T16:14:54Z**;
+- **0 seed rows, 0 grants** — so the capability is applied and **inert**, which
+  is the state the migration is designed to install into. Nothing has minted.
+
+**The apply time is inferred, and is recorded as inferred.** 2026-09-17T16:14:54Z
+is the flag row's `updated_at`, and the migration writes that row, so it is the
+best available evidence rather than an observation of the apply. Who ran it, and
+through what, is not recorded anywhere this session can reach.
+
+**What this cost.** Three documents said the migration was source-only —
+`docs/ops/NATIVE_IDENTIFIER_MINT.md`'s status line, the execution map's phase 7
+row, and `docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` P1, which is the
+canonical operator route. An operator following the master sequence would have
+re-run an install of a non-idempotent-owner migration. All three are corrected
+in the same change as this entry.
+
+**The rule, for the third time in eight days** (the label catalog's B-1 was the
+second): *a status line is a claim about the world until something measures it,
+and agreement between documents is not measurement — it is usually one
+unverified sentence with copies.* Rollback rule 5 exists so the log is the thing
+that gets checked instead. It only works if an apply is written down when it
+happens.
+
 ## 2026-09-18 — the bridge's backfill could not be called at all, and the fixture could not have told us
 
 The bridge migration applied live at 22:38Z. The trigger half works: a native

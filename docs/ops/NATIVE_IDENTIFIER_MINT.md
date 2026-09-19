@@ -118,8 +118,50 @@ refreshing them normally while Linear is still connected.
 |---|---|---|
 | 1 | ~~Apply `migrations/2026-09-07-native-identifier-mint.sql`~~ **DONE — applied 2026-09-17, bodies verified 2026-09-19** | It is inert on install — both teams seed `provider` and allocation is refused without a seed row. Undo while `production_native_identifier_grants` is empty: drop the trigger, the four functions and the two tables, and delete the flag row. |
 | 2 | `select public.production_native_identifier_seed('video');` — record the returned `prefix`, `observed_provider_max` and `next_ordinal` | `delete from public.production_native_identifier_mint where team='video';` — safe **only** while no name has been handed out for that team. Once one has, deleting the cursor and re-seeding re-issues names. |
-| 3 | Same for `'graphics'` | Same. |
+| 3 | ⛔ **NOT `production_native_identifier_seed('graphics')` — that call always raises.** Graphics is **hand-seeded**, by owner decision 2026-09-19. Use the exact statement below. | `delete from public.production_native_identifier_mint where team='graphics';` — same caution: safe **only** while no name has been handed out for that team. |
 | 4 | Flip `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}` | Set the team back to `{"mode":"provider"}`. Stops new minting immediately; renames nothing, by design. |
+
+#### The exact graphics hand-seed statement for action 3
+
+`production_native_identifier_seed('graphics')` raises
+`native_identifier_prefix_ambiguous` every time (two prefixes on the team), so
+the row is inserted directly. **Every column without a default must be named,
+and `observed_provider_max` must be named too even though it has one** — leaving
+it out records `0`, which is not what was observed and destroys the only
+provenance the row carries:
+
+```sql
+insert into public.production_native_identifier_mint
+  (team, prefix, next_ordinal, observed_provider_max, seed_gap)
+values ('graphics', 'GRA', 107560, 7559, 100000);
+```
+
+`107560` is `7559 + 100000 + 1` — the same arithmetic the function performs,
+over `GRA`'s own maximum rather than the team-wide 12,851 that the twelve
+`VID`-named graphics rows contaminate it with. If the gap chosen on the day is
+not 100000, recompute `next_ordinal` as `7559 + gap + 1` and set `seed_gap` to
+match; the two must agree or the row lies about how it was derived.
+
+**Re-read `GRA`'s maximum immediately before running this**, from the query
+above grouped by prefix as well as team. 7,559 was measured 2026-09-19 and a
+provider write can move it.
+
+Read the row back before flipping anything:
+
+```sql
+select team, prefix, next_ordinal, observed_provider_max, seed_gap, seeded_at, seeded_by
+  from public.production_native_identifier_mint order by team;
+```
+
+Then confirm the capability agrees the team is seeded, which is the half of the
+gate a hand-written row could get wrong:
+
+```sql
+select public.production_native_identifier_capability('graphics');
+```
+
+It must return `seeded: true` while still reporting `mode: "provider"` — seeded
+and not yet flipped.
 
 Step 4 is what lane F's outbound-off step waits on. Do it per team, video first,
 and create one post on the test client `sidneylaruel` to confirm the name before

@@ -554,9 +554,27 @@ rather than asserted here: this capability closes the **naming** half of the
 it. What it does **not** close is anything about issue creation, linkage or the
 outbox itself, which outbound still owns.
 
-Record the exact gate, the accepted replacement, and evidence the legacy route is
-unreachable, in the checkpoint dependency table, the same way labels and ordinary
-receipts were recorded on 2026-09-19.
+**⛔ And the "legacy route unreachable" half of step 28 CANNOT be recorded at
+step 27 for this capability.** Every closure above it uses one bounded sense of
+unreachable: the provider branch is switched off, not removed — not selected
+while the capability is native. **That sense does not apply here.** With
+`linear_outbound_enabled` at `live`, a draining card still reaches
+`linear-outbound`, which still creates the Linear issue and still submits its
+identifier (`index.ts:834-869`); the trigger only refuses to let that name land
+on a row holding a native grant. The provider mint **runs**. What changes is
+whose name wins, not whether the provider route executes — and checks 5a–5c
+exercise exactly that branch.
+
+So the unreachability claim is **deferred to lane F's outbound-off step**, and
+the dependency row stays **open** after step 27 with this capability recorded
+against it as *replacement built and proven, legacy route still live*. The
+pre-written closure in the checkpoint says this in its own ⛔ rows. Recording
+"unreachable" on the strength of a green step 27 would close a dependency whose
+code is still executing on every draining card.
+
+Record the exact gate and the accepted replacement in the checkpoint dependency
+table, the same way labels and ordinary receipts were recorded on 2026-09-19 —
+and record the unreachability row as deferred, with what it is waiting on.
 
 ---
 

@@ -30,6 +30,131 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Native identifier mint, continued: video flipped at 03:22:56Z; the owner observed check 3; step 27 checks recorded per clause; graphics hand-seeded (GRA, next 8000) and flipped at 03:27:59Z; the backfill named all 45 nameless cards one-to-one (video 24, graphics 21). No notification, no outbox row
+
+Storage session. This continues the entry below, which stopped at step 7. The
+private package is `mint-20260919-1`.
+
+#### Step 7, re-run on the owner's go-ahead: as expected
+
+- **The fix:** the flip now binds the value as text and casts it to jsonb. It
+  checks, inside the transaction, that the stored value is exactly the intended
+  object (`jsonb_typeof = 'object'`), and rolls back otherwise.
+- **Flipped at 03:22:56.378Z:** before, provider/provider (the revert's own
+  value). After,
+  `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"provider"}}`,
+  an object.
+- **Service-role readback,** HTTP 200 for both:
+  - video
+    `{"mode":"native","team":"video","prefix":"VID","seeded":true,"flag_mode":"native","next_ordinal":15000,"schema_version":1}`
+  - graphics
+    `{"mode":"provider","team":"graphics","seeded":false,"flag_mode":"provider","schema_version":1}`
+
+#### Step 8 — video step 27 checks, per clause (read at 03:27:43Z)
+
+| # | Result | Exact query result |
+|---|---|---|
+| 1 | **PASS** | video `{"mode":"native","team":"video","prefix":"VID","seeded":true,"flag_mode":"native","next_ordinal":15001,"schema_version":1}`; graphics `{"mode":"provider","team":"graphics","seeded":false,"flag_mode":"provider","schema_version":1}`. The prefix and cursor match the seed; the cursor is 15000 plus the one name handed out. |
+| 2a | **PASS** (the owner's "check 4") | Card `del_670c2cb9-4ca0-4aef-908c-b7484984a778`: `team video`, on the test client (`true`), `linear_identifier VID-15000`, `identifier null`, `created_at 03:24:04.733Z`. The name matches `^VID-[0-9]+$` and is at least 15000. |
+| 2b | **PASS** | exactly one grant for that card: `VID-15000 / del_670c2cb9… / video / minted_at 03:24:07.349004Z / provider_identifier_refused null`. It is the **only** grant at read time, so no other client's card had been named. (`created_at` is the value the client sent; the create receipt is stamped 03:24:07.33Z, the same second the grant was minted.) |
+| 3 | **PASS, owner-observed** | The owner reports that the card above showed `VID-15000` in the Production list without a refresh. The screenshots are held by the owner. This session did not observe it. |
+| 4a | **PASS** | `next_ordinal` was 15000 before (seed readback and step 7 readback) and **15001** after. The owner's relayed "15001" was re-read here. |
+| 4b | **Offline, cited** | `qa/native-identifier-mint/sql-proof.js`, the 25-concurrent-allocation case, as the procedure says. Not attempted against production. |
+| 5 | **Native intake** | The card's only receipt is `mirror_outbox` **10608**, `create`, `skipped`, `_native_intake_epoch native-video-20260917`, and `linear_issue_uuid` is null. **5a, 5b and 5c are not applicable (native intake).** |
+| 5d | **PASS** | About 3.5 min after the create: `linear_issue_uuid` is still null, `linear_identifier` is still the minted `VID-15000`, and the create receipt is terminal `skipped`, so it has no drain. |
+| 6a | **PASS** | `select production_native_identifier_seed('video')`, in a rolled-back transaction, was refused with `55000 native_identifier_already_seeded`. |
+| 6b | **PASS** | `select production_native_identifier_capability('marketing')`, in a rolled-back transaction, was refused with `22023 native_identifier_team_invalid`. |
+| 6c | **PASS** | at step 5, above. |
+
+Notification intents at 03:27:43Z: 85 in total, 2 urgent, the newest created
+2026-09-18 21:49:10Z. Unchanged.
+
+#### Step 9 — graphics hand-seed, shape (ii): as expected
+
+- **Pre-check:** GRA on graphics is 2,661 rows, maximum **7,559**. The GRA
+  maximum across all teams is also 7,559, and graphics had no seed row.
+- **The write:** a direct `insert into production_native_identifier_mint` of
+  `('graphics','GRA',8000,7559,440)`, as the database owner. **The function's
+  derivation was deliberately overridden** by owner decision B-2 (ii): it would
+  have refused, or derived 12,851 from the 12 `VID`-named graphics rows, which
+  stay as they are.
+- **Readback:** `graphics | GRA | next_ordinal 8000 | observed_provider_max 7559
+  | seed_gap 440 | seeded_at 03:27:54.055511Z | seeded_by postgres`.
+
+#### Step 10 — graphics flip: as expected
+
+- **Flipped at 03:27:59.663059Z:** before, video native and graphics provider.
+  After, `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`,
+  an object.
+- **Service-role readback,** HTTP 200 for both:
+  - video
+    `{"mode":"native","team":"video","prefix":"VID","seeded":true,"flag_mode":"native","next_ordinal":15001,"schema_version":1}`
+  - graphics
+    `{"mode":"native","team":"graphics","prefix":"GRA","seeded":true,"flag_mode":"native","next_ordinal":8000,"schema_version":1}`
+- **Check 7** (graphics on real work) is **pending**. By owner decision it is
+  recorded on the first organic graphics card created after 03:27:59Z. None was
+  created before the backfill.
+
+#### Step 11 — backfill of nameless cards: as expected, one-to-one
+
+**The triggers were checked before the write.** All eight triggers on
+`deliverables` were read, along with the triggers on the tables they write to:
+- **Admission guard:** the gate is `open`, so the update is admitted.
+- **Ledger:** the ledger guard writes one `deliverable_events` row with
+  `action 'update'` and `source 'system'`.
+- **Outbound and notifications:** outbound enqueue and both notification
+  triggers return early unless `source = 'ui'`.
+- **Calendar bridge:** it fires only on a status change.
+- **Mint guard:** its UPDATE branch returns immediately when the old
+  `linear_identifier` is empty.
+
+**The statement,** run once per team in its own transaction, as `postgres`:
+`update public.deliverables d set linear_identifier =
+public.production_native_identifier_allocate(d.team, d.id) where d.team = $team
+and coalesce(btrim(d.linear_identifier),'') = '' and
+coalesce(btrim(d.identifier),'') = ''`. It selects only still-nameless rows, so
+it is safe to re-run.
+
+**Commit rule:** each transaction committed only if every row of the table below
+held. Otherwise it rolled back.
+
+| | video | graphics |
+|---|---|---|
+| Targeted (nameless, locked `for update`) | 24 | 21 |
+| Updated | 24 | 21 |
+| Still nameless after | 0 | 0 |
+| New grants / distinct deliverables | 24 / 24 | 21 / 21 |
+| Grants cover exactly the targeted ids | true | true |
+| Each row's name equals its grant | true | true |
+| All names prefixed / all distinct | true / true | true / true |
+| Already-named cards (count and md5 of id, both names) unchanged | true | true |
+| New `mirror_outbox` rows in the transaction | **0** | **0** |
+| New notification intents in the transaction | **0** | **0** |
+| New `deliverable_events` | 24 × `update/system` | 21 × `update/system` |
+| Names issued | **VID-15001 … VID-15024** | **GRA-8000 … GRA-8020** |
+| Cursor before → after | 15001 → **15025** | 8000 → **8021** |
+| Committed | 03:28:51Z | 03:28:54Z |
+
+**After both teams:**
+- **Nameless video or graphics cards:** 0.
+- **Grants:** video 25 (25 distinct cards), graphics 21 (21 distinct).
+- **Notification intents:** 85 in total, 2 urgent, the same newest, before and
+  after.
+- **New outbox rows:** 0.
+- **New `deliverable_events`:** 45.
+
+#### Final capability readback, service role, 03:29:02Z (verbatim)
+
+- video: `{"mode": "native", "team": "video", "prefix": "VID", "seeded": true, "flag_mode": "native", "next_ordinal": 15025, "schema_version": 1}`
+- graphics: `{"mode": "native", "team": "graphics", "prefix": "GRA", "seeded": true, "flag_mode": "native", "next_ordinal": 8021, "schema_version": 1}`
+
+**Open:**
+- **Check 7:** pending the first organic graphics card.
+- **Steps 1, 12 and 13:** docs, step 28 and the lane F handover belong to the
+  execution session.
+- **Not touched:** the 12 `VID`-named graphics rows were not touched, and no
+  named card was renamed.
+- **No notification sent.**
 ### 2026-09-19 — Native identifier mint: steps 0, 5 and 6 done as expected. Step 7's video flip wrote the flag as a JSON **string**, the capability refused both teams for 16 s (03:16:53–03:17:09Z), and it was reverted to the exact prior value. STOPPED; video is seeded but not native
 
 Storage session, following `docs/ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md`

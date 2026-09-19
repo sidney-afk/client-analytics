@@ -36,6 +36,25 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: every reported receipt, and a separate refusal test per legacy endpoint
+
+Final scope corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier
+entries are kept as written.
+
+- **Check 3** covers every reported browser-held receipt, whoever reported it
+  (staff, clients, videographers) and through any channel. A receipt reported
+  without its identity stays unresolved until the identity is recovered. It
+  still makes no claim about browsers that were not reported.
+- **Check 4** is now per endpoint. The video (`video-form`) and graphics
+  (`graphic-form`) legacy webhooks each need their own evidence. That is either
+  verified enforcement at the endpoint, with a separately run refusal test
+  matched by its own correlation identifier and verified zero side effects, or
+  bounded stale-browser evidence for that endpoint. A refusal on one endpoint is
+  never evidence for the other.
+
+Documentation only: no test was run, and no webhook, n8n, flag or database
+change was made.
+
 ### 2026-09-19 — native intake plan: recovering reported receipts is not proof that old browsers are shut out
 
 A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The

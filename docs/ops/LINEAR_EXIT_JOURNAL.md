@@ -36,6 +36,224 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: the correlated telemetry row is exempt from check 4's forbidden writes
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries
+are kept as written.
+
+Check 4 forbade "a row representing work in the legacy submission sheet" while
+also requiring the correlated telemetry row that `LOG_SUBMISSION_WEBHOOK`
+writes. An old browser fires that request before the form post, so the row is
+expected on every refused submission. The blanket prohibition is removed and the
+row is explicitly exempt, including its row in the submission log sheet. The
+requirement that survives is downstream: that row may create or queue no
+business work — no card, deliverable, batch, calendar post, queue or outbox
+entry, notification, Linear issue or Slack message — verified for the same
+correlation identifier.
+
+Documentation only: no test was run and no workflow was changed.
+
+### 2026-09-19 — native intake plan: the tested page is the executing navigation response, not a separate download
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries
+are kept as written.
+
+- **Check 8** now requires the browser harness to capture the exact HTML
+  navigation response that executed the Submit/retry journey, from its own
+  network record, and to hash those bytes with the final URL and any redirect
+  chain. A separate download of the same URL does not identify the tested page:
+  it can be a different build, a cached copy or a different edge response. If
+  the journey navigates more than once, each executing response is captured and
+  the hashes must agree. Those captured bytes are what is matched to the
+  deployment artifact.
+- **Check 11** compares against that tested identity. If the build differs, the
+  journey is re-run and its executing navigation response captured again; a
+  fresh fetch without re-running the journey does not satisfy it.
+
+Documentation only: no browser journey was run and no workflow was changed.
+
+### 2026-09-19 — native intake plan: the served-build binding names the deployment and how the served page is compared
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The previous
+wording said to record "the Pages release identity, commit SHA and page hash"
+without saying where they come from or what the served page is compared against.
+Earlier entries are kept as written.
+
+- **Identity comes from the deployment.** Check 8 now reads the latest
+  **successful** Pages deployment: its build identity, status, `created_at` and
+  published commit SHA. An unsuccessful build is not evidence.
+- **The comparison was inspected, not assumed.** Publishing is a legacy (Jekyll)
+  build from `main` at the repository root, on the custom domain. There is no
+  `_config.yml`, no `.nojekyll` and no front matter in `index.html`. Measured
+  on 2026-09-19, the served page is byte-identical to the repository blob at the
+  deployed commit: same length, same SHA-256. The plan states the comparison on
+  that basis, and says to re-establish it against the published artifact if the
+  publishing mode ever changes in a way that can transform files.
+- **Three values recorded:** deployment identity, commit SHA, served-content
+  hash. A weak `ETag` is not a content hash.
+- **Check 11** repeats the whole binding before the cutoff. A mismatch, or
+  evidence that cannot be obtained, blocks the cutoff until check 8 is re-run
+  on the build actually served.
+
+The only live action was one read-only fetch of the public site to measure the
+published-versus-repository comparison. No browser journey was run and no
+workflow was changed.
+
+### 2026-09-19 — native intake plan: the old-browser telemetry request, and Submit evidence bound to the served build
+
+Two corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, read from
+`index.html`. Earlier entries are kept as written.
+
+- **The sequence has two requests, not one.** Before it posts the form, an old
+  browser fires a separate fire-and-forget telemetry request to
+  `LOG_SUBMISSION_WEBHOOK` (`log-linear-submission`) carrying the client name,
+  mode, prepared receipt keys and payload. Check 4 now exercises the complete
+  sequence and correlates the telemetry row, the refusal response and the
+  execution record by the test identifier. Telemetry is permitted and retained;
+  what a refused submission may not do is cause a **business mutation**. The
+  check states that this telemetry endpoint keeps receiving from old browsers
+  after the form endpoints refuse, and verifies it creates no business work.
+- **Submit evidence is bound to the served build.** Check 8 records the Pages
+  release identity, its commit SHA and a hash of the served page, read from the
+  served site. Check 11 re-reads them immediately before the cutoff; if the
+  served build changed or cannot be read, the browser acceptance journey is
+  re-run on the build actually served before the cutoff may proceed.
+
+Documentation only: no browser journey was run and no workflow was changed.
+
+### 2026-09-19 — native intake plan consistency pass: diagnostic refusal records allowed, stale check range fixed
+
+Three corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, all found by
+reading the whole plan. Earlier entries are kept as written.
+
+- **Check 4:** a refusal must cause zero **business** side effects. The earlier
+  ban on any "log row" contradicted the requirement for a correlated refusal
+  and execution record. The endpoint's refusal response, its execution record
+  and a refusal log entry carrying the correlation identifier are now explicitly
+  permitted and required, as the evidence. Only records that create, change or
+  queue business work count as side effects.
+- **The closing "Order" paragraph** said "Checks 1–8". It now says 1–10, and
+  lists reported-receipt recovery and endpoint enforcement among the evidence.
+- **Check 1** said checks 3 and 4 cover browser-held receipts. Check 3 covers
+  reported receipts; check 4 covers new submissions from old browsers.
+
+No other ordering conflicts or unsupported claims were found. Documentation
+only.
+
+### 2026-09-19 — native intake plan: endpoint enforcement is the only way to show the legacy route is unreachable
+
+Check 4 no longer offers "bounded stale-browser evidence" as an alternative. Both
+legacy webhooks, `video-form` and `graphic-form`, need verified enforcement at
+the endpoint, each with:
+
+- its own separately correlated refusal test and zero-side-effect evidence;
+- evidence bound to the deployed version;
+- the pre-cutoff re-read in check 11.
+
+Elapsed time and a stale-browser bound are listed explicitly as non-evidence.
+The Gate 0 wording and the Step 28 closure sentence now say the same. The two
+Gate 0 questions are named "recovery" and "unreachability" rather than (a) and
+(b), so they are not confused with the removed option. Earlier entries that
+describe option (b) are kept as written. Documentation only: no workflow was
+read or changed.
+
+### 2026-09-19 — native intake plan: endpoint refusal evidence is bound to the deployed version, and drift blocks the cutoff
+
+A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier
+entries are kept as written.
+
+- **Check 4:** each legacy endpoint's refusal and zero-side-effect evidence is
+  bound to the version that produced it. At test time Storage records the
+  serving workflow identity, its active version identifier and a hash of the
+  deployed refusal guard, read from the automation platform, not the repository.
+- **Closure check 11:** immediately before the flag change, Storage re-reads all
+  three for both endpoints and compares them with check 4's bound values. Any
+  drift blocks the cutoff until that endpoint is revalidated against the new
+  version: a changed version, a changed or missing guard, a different serving
+  workflow, or an unreadable version.
+
+Documentation only: no test was run and no workflow was read or changed.
+
+### 2026-09-19 — native intake plan: every reported receipt, and a separate refusal test per legacy endpoint
+
+Final scope corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier
+entries are kept as written.
+
+- **Check 3** covers every reported browser-held receipt, whoever reported it
+  (staff, clients, videographers) and through any channel. A receipt reported
+  without its identity stays unresolved until the identity is recovered. It
+  still makes no claim about browsers that were not reported.
+- **Check 4** is now per endpoint. The video (`video-form`) and graphics
+  (`graphic-form`) legacy webhooks each need their own evidence. That is either
+  verified enforcement at the endpoint, with a separately run refusal test
+  matched by its own correlation identifier and verified zero side effects, or
+  bounded stale-browser evidence for that endpoint. A refusal on one endpoint is
+  never evidence for the other.
+
+Documentation only: no test was run, and no webhook, n8n, flag or database
+change was made.
+
+### 2026-09-19 — native intake plan: recovering reported receipts is not proof that old browsers are shut out
+
+A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The
+entries below, which cite earlier check numbers, are kept as written.
+
+- **Two questions, kept apart.** Check 3 now covers only **reported** browser-held
+  receipts, recovered or disposed of on their original identities. It states that
+  reported receipts do not represent every browser.
+- **Recovery continues after closure.** A receipt discovered later is still
+  recovered or disposed of on its original identity.
+- **New check 4.** Old browsers cannot create new legacy submissions. An old tab
+  runs the old code and posts straight to the legacy `video-form` /
+  `graphic-form` webhooks, so a browser hold cannot stop it. The legacy route may
+  be declared unreachable only on verified enforcement at that receiving
+  endpoint, or on equivalent bounded stale-browser evidence. Changing the
+  webhooks is separate approved work.
+
+Checks are renumbered: acceptance is 1–10 and closure is 11. Documentation
+only: no webhook, n8n, flag or database change.
+
+### 2026-09-19 — native intake plan: browser-held receipts need a disposition, and the cutoff needs a fresh inventory
+
+Two further corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The
+entry below, which cites the earlier check numbers, is kept as written.
+
+- **A visible hold is not a disposition.** New check 3: every browser-held
+  legacy receipt must reach terminal recovery on its original identity, or an
+  explicit approved disposition recorded against that identity. The hold (check
+  2) is necessary but does not pass it.
+- **A fresh inventory at the moment of cutoff.** The closure check now requires
+  Storage to rerun the server-visible disposition inventory immediately before
+  the flag change, not reuse check 1's. The cutoff proceeds only if no
+  unfinished server-visible identity is left without a disposition.
+
+The checks are renumbered: acceptance before cutoff is now checks 1–9, and
+closure after cutoff is check 10. No live drill, submission, flag change or
+database access occurred.
+
+### 2026-09-19 — native intake plan corrected: acceptance before cutoff, closure after it
+
+A Codex review of `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md` found four gaps.
+They are corrected in the plan. The earlier intake entries below are kept as
+written.
+
+- **Circular ordering:** the cutoff was gated on "Step 27" while Step 27's last
+  check *was* the cutoff. Acceptance is now checks 1–8, all before the cutoff.
+  Closure is check 9, after it. The cutoff is gated on checks 1–8.
+- **Native intake not proven:** a drill can pass on the provider lane. Check 5 now
+  requires, for each team, a `native_intake_epochs` readback showing it enabled
+  and a drill report with `intake_lane_by_team` = `native_intake`.
+- **Browser Submit not exercised:** the drill calls `production-write` directly.
+  Check 6 now requires a successful Submit through `_submitLinearFormRoutedOnce`
+  (never `_submitLinearFormLegacy`), and a retry accepted on the same identity
+  with no duplicate card.
+- **Server-visible versus browser-held receipts:** a legacy receipt is written to
+  `localStorage` before its webhook request, so it may never reach the server.
+  Gate 0 and check 1 now cover server-visible identities only. Browser-held
+  receipts are covered by the check 2 hold.
+
+No live drill, submission, flag change or database access occurred.
+
 ### 2026-09-19 — PR #1432 consistency pass: check 15 inventory marked preliminary, and acceptance separated from closure
 
 - **An omission corrected.** Check 15's realtime-subscription list left out the
@@ -13151,6 +13369,36 @@ The label-catalog exporter no longer supplies a target when `SUPABASE_URL` is ab
 The exporter now canonicalizes a parsed HTTPS origin and refuses URL credentials, query, fragment, and non-root path forms before any network request.
 
 ---
+
+### 2026-09-19 — Intake closure documentation corrected after review
+
+The intake plan had joined two different routes under the outbound flag. Current
+source shows that outbound-off stops ordinary real-client, non-parity native
+drains, including a straddling batch's normal drain, while direct browser legacy
+webhook submission bypasses the flag. The plan now separates those paths,
+preserves TEST/parity exceptions, requires identity-preserving disposition for
+unfinished legacy work, and names all four browser fallback exits.
+
+This was documentation-only: no live read, flag change, deployment, database
+installation, workflow edit, or merge occurred. The public plan also now
+distinguishes browser publication from database installation and Section 4
+function deployment, and records the confirmed private location of the modular
+strategy without copying it into the repository.
+
+### 2026-09-19 — Native intake acceptance and evidence wording corrected
+
+The plan now requires successful ordinary native intake before final cutoff:
+offline coverage plus a later Storage-authorized TEST drill for both teams,
+with intended cards and terminal receipts, identity-preserving retry without a
+duplicate card, and no legacy-webhook submission. The replacement is accepted
+before cutoff; full legacy-route closure is recorded only after cutoff, so the
+ordering is not circular.
+
+The original identity-exposure result remains historical evidence. The later
+repeat was blocked because it would contact prohibited live infrastructure. An
+identical published tree supports content equivalence, but does not by itself
+reproduce the same comparison inputs or live identity data; it is not recorded
+as a substitute check. No live execution occurred.
 
 Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·
 [execution map](LINEAR_EXIT_EXECUTION_MAP.md) ·

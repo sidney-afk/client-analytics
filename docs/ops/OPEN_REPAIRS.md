@@ -26999,3 +26999,22 @@ against the real base branch one of them passes. Both are now fixed:
 
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
+
+## 217. [2026-09-19, DOCUMENTATION CORRECTED — implementation remains open] Native intake closure had conflated the outbound drain with direct browser legacy submission
+
+The first Step 26 intake plan treated a straddling batch and the browser legacy
+fallback as if one outbound switch governed both. Current source says otherwise:
+for ordinary real-client, non-parity native work, `linear_outbound_enabled=off`
+stops normal drain selection, while TEST/parity retain their explicit exceptions;
+the browser legacy path posts directly and bypasses that switch.
+
+The correction also removes the proposed batch-age prerequisite, requires a
+read-only disposition for unfinished legacy identities, adds the missing
+storage-read failure to the browser exits, and makes unenrolled clients a visible
+hold rather than automatic enrollment or legacy submission. SQL observability,
+if selected, requires an additive migration plus Storage-authorized installation
+and readback; it cannot ship through GitHub Pages. A flag-only cutoff uses the
+canonical Storage flag-control procedure, not the Section 4 function deploy.
+
+No production behavior changed in this repair. The browser closure, any optional
+observability, and the final cutoff remain separate future work.

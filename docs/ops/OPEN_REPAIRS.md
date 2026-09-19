@@ -26451,6 +26451,17 @@ the bridge compares, so there is no value a backfill could write for them that
 would be correct. That is a scope statement, not a residual failure, so this
 entry is closed.
 
+**Correction, 2026-09-19, same day.** The paragraph immediately above overclaims.
+`pre_bridge` in the drift check is a pure date cutoff (moved before
+`BRIDGE_GO_LIVE`); nothing in the classifier or in the backfill itself tests for
+"published without the component," so that reason applies to at least some of
+the rows still listed, not to the pre-bridge backlog as a whole — caught by a
+Codex review comment on #1428 before this entry misled anyone into treating the
+whole remaining list as explained. The script's wording is corrected to say so
+explicitly. Entry stays closed on its actual subject — the backfill has run —
+but the residual pre-bridge backlog itself is not fully accounted for and
+remains open as a fact, just not as an item this entry was ever tracking.
+
 ## 213. [2026-09-18, OPEN] The live project's REST origin is a default in at least one more script
 
 `scripts/native-calendar-status-backfill.js` shipped with the production

@@ -36,6 +36,25 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan consistency pass: diagnostic refusal records allowed, stale check range fixed
+
+Three corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, all found by
+reading the whole plan. Earlier entries are kept as written.
+
+- **Check 4:** a refusal must cause zero **business** side effects. The earlier
+  ban on any "log row" contradicted the requirement for a correlated refusal
+  and execution record. The endpoint's refusal response, its execution record
+  and a refusal log entry carrying the correlation identifier are now explicitly
+  permitted and required, as the evidence. Only records that create, change or
+  queue business work count as side effects.
+- **The closing "Order" paragraph** said "Checks 1–8". It now says 1–10, and
+  lists reported-receipt recovery and endpoint enforcement among the evidence.
+- **Check 1** said checks 3 and 4 cover browser-held receipts. Check 3 covers
+  reported receipts; check 4 covers new submissions from old browsers.
+
+No other ordering conflicts or unsupported claims were found. Documentation
+only.
+
 ### 2026-09-19 — native intake plan: endpoint enforcement is the only way to show the legacy route is unreachable
 
 Check 4 no longer offers "bounded stale-browser evidence" as an alternative. Both

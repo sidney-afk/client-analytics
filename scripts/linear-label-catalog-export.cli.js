@@ -76,14 +76,20 @@ function required(name, value) {
 }
 
 function requiredSupabaseUrl(env) {
-  const url = clean(env.SUPABASE_URL).replace(/\/+$/, '');
-  if (!url) {
+  const text = clean(env.SUPABASE_URL);
+  if (!text) {
     throw new Error('SUPABASE_URL is required — this script has no default project, so that an unset variable refuses rather than guessing production.');
   }
-  if (!/^https:\/\/[^/]+$/.test(url)) {
+  let url;
+  try {
+    url = new URL(text);
+  } catch (_) {
     throw new Error('SUPABASE_URL must be an https origin with no path, e.g. https://<project-ref>.supabase.co');
   }
-  return url;
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+    throw new Error('SUPABASE_URL must be an https origin with no path, e.g. https://<project-ref>.supabase.co');
+  }
+  return url.origin;
 }
 
 /* ---------------------------------------------------------------- transport */

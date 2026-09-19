@@ -30,6 +30,44 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Native intake open-load migration (main `0b2f16ae`, editor picker fix) APPLIED; grants read back as the migration intends; preflight PASS with 167 objects. Nothing dispatched
+
+Storage session, on the owner's instruction. It ran from a clean worktree
+detached at `0b2f16ae6863482caf410b5137d5f77af65d2ad4`, which `origin/main`
+contains. The private package is `open-load-20260919-1`.
+
+#### Migration: APPLIED
+
+- **File:** `migrations/2026-09-19-native-intake-open-load.sql`, sha256
+  `a3b48803…adc2`. The file's git blob equals the committed blob at
+  `0b2f16ae`, and the worktree was clean.
+- **Pre-state:** read-only, `production_native_intake_open_load` was
+  **absent**.
+- **How it ran:** unedited, as `postgres`, as one simple-query message. The file
+  carries its own `begin`/`commit`. It ran from 05:39:34.710Z to 05:39:34.859Z
+  with no notices.
+
+#### Readback
+
+| Property | Value |
+|---|---|
+| Function | `production_native_intake_open_load(text)` **present**, returns `jsonb`, owner `postgres` |
+| Options | **not** security definer, `stable`, `search_path=public, pg_temp`, as the migration says |
+| Body | live `md5(prosrc)` `e96133a5…` **equals** the committed body between the `$fn$` markers |
+| ACL | `{postgres=X/postgres,service_role=X/postgres}` |
+| The four roles the revoke names | `PUBLIC`: no EXECUTE · `anon`: **false** · `authenticated`: **false** · `service_role`: **true** (granted back, EXECUTE only) |
+| Call as `service_role` | read-only and rolled back: `production_native_intake_open_load('video')` returns an `object` with **4** editor keys. Counts only, no ids recorded |
+
+#### Preflight: PASS
+
+Read-only, from the same worktree:
+`{"status":"PASS","contract":"linear-exit-production-write-sql-v6","checked_objects":167,"read_only":true}`.
+It was **166** on 2026-09-18. The extra object is this function, which the
+preflight's `ROUTINES` table pins at `0b2f16ae` (line 87, with
+`security definer = false`).
+
+**Nothing dispatched.** No Edge Function was deployed, no workflow was run and
+no flag changed.
 ### 2026-09-19 — Native identifier mint, continued: video flipped at 03:22:56Z; the owner observed check 3; step 27 checks recorded per clause; graphics hand-seeded (GRA, next 8000) and flipped at 03:27:59Z; the backfill named all 45 nameless cards one-to-one (video 24, graphics 21). No notification, no outbox row
 
 Storage session. This continues the entry below, which stopped at step 7. The

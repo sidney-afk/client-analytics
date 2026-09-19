@@ -36,6 +36,17 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: a second, structural search for browser mirror reads, reconciled with the first
+
+As AGENTS.md requires, the literal `workload_issues` search now has a
+differently built companion. That second search enumerates every PostgREST and
+supabase-js access in the browser-served files and resolves each target
+relation, including the five dynamic ones: tables passed into `readPage`,
+`_prodRestRows`, `_kedRestPage`/`_kedRestIn`, and the legacy-source helper. None
+of those resolves to the mirror. Both searches find the same four reads in
+`index.html` and nothing else. Check 15 now requires both searches at closure,
+and fails if they disagree. Earlier entries are unchanged.
+
 ### 2026-09-19 — PR #1432 correction: check 15 now covers every browser reader of the mirror
 
 One complete search of the browser-served files for `workload_issues` found four

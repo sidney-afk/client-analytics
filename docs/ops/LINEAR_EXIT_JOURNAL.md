@@ -1,4 +1,6 @@
-# Linear exit: running journal
+### 2026-09-19 — Step 29c filed: one quiet, consolidated problem-message design; native-health pages retained, three Linear-reconcile drift pages proposed for retirement with their scheduled pager, and no workflow, relay, database, n8n, flag, deployment, or Slack message changed.
+
+
 
 Why this file exists: the checkpoint records **where we are**. Nothing recorded
 **how we got here or why**. Chat sessions end. Without this, the next session

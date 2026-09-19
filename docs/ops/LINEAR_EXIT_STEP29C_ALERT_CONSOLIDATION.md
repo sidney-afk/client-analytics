@@ -1,61 +1,41 @@
 # Linear exit — step 29c alert consolidation
 
-**Design only.** This changes no workflow, scheduled job, relay, database, n8n automation, runtime flag, or Slack destination.
+**Design only.** This proposes a later change; it retires no alert, workflow, relay, database path, n8n automation, flag, or Slack destination.
 
-## Current alerts, in plain language
+## Coverage and unresolved names
 
-| Current alert | Plain meaning | 29c disposition |
+Step 29b verifies the producers listed below. The execution map also names **edge anomaly** and **mirror-events-stale**. The inventory does not identify distinct producers with either exact name. `edge anomaly` may be the relay's generic rendering of typed alerts, but that is an inference, not a verified mapping. `mirror-events-stale` may describe a stale mirror/outbox monitor, but no verified producer is named in the inventory. Both remain **unresolved** until the retirement pass traces their delivered payloads to a producer; neither may be silently absorbed or retired by this design.
+
+| Alert | Plain meaning | Proposed treatment |
 |---|---|---|
-| `monitoring_heartbeat_stale` | A scheduled safety check has not reported back when it should. | Keep only for active retained lanes; render in the digest. |
-| `monitoring_lane_failing` | A scheduled safety check ran but reported a failure. | Keep only for active retained lanes; render in the digest. |
-| `monitoring_selftest` | A person tested the alert route; it is not a product problem. | Manual labelled test only; never open an incident. |
-| `reconcile_repair_list_size` | For two checks in a row, the Linear comparison found work it thinks needs repair. | Retire with the Linear reconcile pager: Linear is frozen. |
-| `reconcile_linkage_actionable` | For two checks in a row, the Linear comparison found a link it thinks needs a fix. | Retire with the Linear reconcile pager. A native check needs native truth. |
-| `reconcile_outbound_diff_count` | For two checks in a row, Linear differs from the native record. | Retire: native writes intentionally leave Linear unchanged. |
-| Samples nightly | The overnight Samples test failed. | Keep the condition, replace direct webhook; split Linear-deep assertions from native evidence first. |
-| Calendar nightly | The overnight Calendar test failed. | Keep the condition, replace direct webhook. |
-| `n8n_quota_80` | Automation use reached 80% of this month's allowance. | Keep as one monthly quota incident. |
-| `n8n_quota_90` | Automation use reached 90% of this month's allowance. | Escalate the 80% incident; do not open a second one. |
+| `monitoring_heartbeat_stale` | A scheduled safety check has not reported back on time. | Keep for active retained lanes; digest item. |
+| `monitoring_lane_failing` | A scheduled safety check ran but failed. | Keep for active retained lanes; digest item. |
+| `monitoring_selftest` | A person tested delivery; not a product problem. | Manual labelled test outside incident state. |
+| `reconcile_repair_list_size` | A Linear comparison repeatedly found work it thinks needs repair. | Do not retire yet; classify against native/legacy truth first. |
+| `reconcile_linkage_actionable` | A Linear comparison repeatedly found a link it thinks needs attention. | Do not retire yet; linkage may still expose legacy dependencies. |
+| `reconcile_outbound_diff_count` | Linear differs from the native record. | Candidate for retirement only after proving no retained path requires the comparison. |
+| Samples nightly | The overnight Samples test failed. | Keep condition; split Linear-deep assertions from native evidence. |
+| Calendar nightly | The overnight Calendar test failed. | Keep condition. |
+| `n8n_quota_80` / `n8n_quota_90` | Automation use crossed 80% / 90% of the monthly allowance. | One monthly incident; 90% escalates it. |
 | `backup_freshness` | A verified recovery backup is overdue. | Keep. |
 
-Only the three `reconcile_*` alerts are already semantically obsolete because native writes send Linear nothing. Watchdog alerts are not dead by themselves: they become noise only when their lanes are formally retired. The native production-write drill remains useful; remove its incidental Linear credential requirement before retaining it.
+Native writes leaving Linear unchanged makes outbound-difference comparisons misleading and can make repair counts noisy. It does **not** prove every repair or linkage finding is irrelevant while legacy browser queues, provider routes, foreign/legacy rows, or transition dependencies remain.
 
-## Proposed single problem message
+### Reconcile-alert retirement prerequisites
+
+A later approved retirement must establish all of these with measured evidence: (1) the scheduled reconciler and each alert class are traced to their current inputs and consumers; (2) no retained legacy browser queue, provider route, foreign-team row, repair procedure, or cutoff/recovery obligation depends on that comparison; (3) each still-actionable native condition has a defined native source and separate alert or documented owner disposition; (4) the workflow schedule is disabled and watchdog registry reconciled in the same change; and (5) the named execution-map alerts above are resolved or explicitly retained. Until then, these are retirement candidates, not obsolete alerts.
+
+## Proposed single message and quiet default
 
 ```text
 SyncView needs attention — 3 open problems (1 new)
-1. Backup: no verified recovery backup within 7 hours. First seen: 06:10 UTC.
+1. Backup: no verified recovery backup within 7 hours.
 2. Calendar nightly: last scheduled test failed. Run: <run reference>.
-3. Monitoring: native notification sender has not checked in within 360 minutes.
+3. Monitoring: a retained lane has not checked in within its window.
 ```
 
-One delivery is the complete set of open retained problems, not one monitor's local view. It uses the existing private operator route and only public-safe aggregates and run references. The current relay's one-line field is too short: the implementation must render a bounded multi-line digest or look up a public-safe summary by run reference. It must never silently truncate incidents.
+Retained producers write public-safe open/update/resolve incident state; a consolidator reads all open incidents and sends one current digest only for a new problem, severity increase, or material evidence change. A deterministic fingerprint suppresses unchanged repeats. Healthy checks and recoveries are quiet. The manual self-test is separate. The consolidator itself needs an independently observable fallback, or its failure would look like healthy quiet. The relay must render the complete bounded digest rather than silently truncate incidents.
 
-Each stored incident has a stable key, severity, plain one-sentence summary, first/last seen timestamps, bounded public-safe evidence references, and `open`, `updated`, or `resolved` state. A stale heartbeat and a failed heartbeat stay separate because one did not report and the other reported failure.
+## Later implementation scope
 
-## Trigger and quiet default
-
-1. A retained producer records an open or materially updated incident; it does not post directly.
-2. A consolidation runner coalesces for five minutes, reads all open incidents, and sends one digest for a new problem, severity increase, or material evidence change.
-3. A deterministic fingerprint of ordered incident keys, severity, and evidence revision suppresses unchanged repeats.
-4. A healthy result resolves only its matching incident. Recovery and healthy schedules are quiet: no all-clear or healthy-heartbeat message.
-5. The manual self-test bypasses incident state and sends one labelled test message through the final relay path.
-
-With no open retained incidents, the runner posts nothing. The consolidator itself needs a retained heartbeat/failure check with an independently observable, bounded public-safe fallback; otherwise a broken consolidator would look like a healthy quiet system. That fallback is the sole exception to the one-message rule.
-
-## Required later changes
-
-| Area | Later change | Guardrail |
-|---|---|---|
-| Incident model | Durable public-safe incident lifecycle store and shared open/update/resolve helper. | Idempotency, producer identity, bounded evidence; no client data, names, secrets, or Slack payloads. |
-| Consolidator | One scheduled digest runner with offline coalescing, dedupe, resolution, and quiet-behaviour tests. | Read all open incidents; never use a producer-local latch as global truth. |
-| Relay | Support bounded multi-line digest and delivery receipt. | Reject unsafe or oversize fields rather than lose incidents. |
-| Watchdog | Replace direct `sendAlert` calls with incident writes; exclude lanes only when formally retired with scheduled hosts disabled. | Preserve independent stale and ran-and-failed keys. |
-| Nightlies | Replace both direct `curl` posts with incident writes. | Do not degrade scheduled failures to a log-only warning. |
-| Quota and backup | Replace direct posts with incident updates. | Preserve monthly threshold dedupe and verified-backup semantics. |
-| Linear pager | Retire its script and scheduled caller instead of translating its drift alerts. | Disable schedule and reconcile watchdog registry in the same approved change. |
-| Docs/tests | Update monitoring docs and inventory; test producer, digest, relay, retry, dedupe, and fallback path. | Use only an approved internal test destination. |
-
-## Acceptance
-
-Build the new path before removing any existing producer, migrate one retained producer at a time, then retire the Linear pager with its workflow. Re-run the Step 29b inventory and prove every remaining active alert has one route. Success is silence when retained checks are healthy; one complete readable message for one or many open problems; no unchanged duplicate; visible severity escalation; and independently detectable consolidator failure.
+Add a public-safe incident store, a consolidation runner, relay support for a bounded multi-line digest, and tests for coalescing, dedupe, resolution, fallback, and complete rendering. Move retained watchdog, nightly, quota, and backup producers one at a time only after proof. Update monitoring docs and rerun the inventory. This design changes nothing now.

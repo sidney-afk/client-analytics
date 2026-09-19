@@ -26576,10 +26576,23 @@ The `unit` lane failed five isolated-PostgreSQL suites
 `native-intake-reconcile`), all for the same reason and all correctly: those
 fixtures build their database from a pinned chain of migrations, the new routine
 was not in it, and the gateway therefore refused exactly as it will against any
-database that has not had the migration applied. The routine is now installed by
-`scripts/native-intake-manifest/harness.js` alongside the browser projection it
-reads, both extracted verbatim from the repository, which is where that file's
-own note already said a new migration the gateway depends on has to land.
+database that has not had the migration applied. The routine is now installed by the five
+intake chains themselves, alongside the browser projection it reads, both
+extracted verbatim from the repository
+(`test/helpers/intake-open-load-fixture.js`, with an inline twin inside
+`test/native-assignee-eligibility.js`'s `applyChain` because two suites extract
+that function's source and re-evaluate it with only fs/path/__dirname bound).
+
+**And the first attempt at that was wrong in the other direction, caught by the
+same CI.** It installed out of `scripts/native-intake-manifest/harness.js`, so
+EVERY lane on that harness got the view — including four that install the real
+`production_deliverables_browser_v1` from the attachments migration a moment
+later, which then failed `relation ... already exists`
+(`native-ordinary-receipts-postgres`, `native-test-client-parity-postgres`,
+`native-assignment-auth-kind-postgres`, `native-label-seed-parity-postgres`).
+A fixture helper must not install what a lane's own migration chain installs;
+the helper now says so in its header, and all ten lanes were run against a real
+PostgreSQL 16 before this was pushed.
 
 Two picker journeys had to change shape with it: they injected an inflated exact
 count on the two row reads to prove a truncated read is refused, and those reads

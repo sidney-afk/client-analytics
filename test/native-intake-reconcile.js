@@ -10,6 +10,7 @@ const os = require('os');
 const { fromRepository } = require('../scripts/native-intake-named-append-compose.js');
 const { spawnSync } = require('child_process');
 const { bootCluster, connectionEnv } = require('../scripts/native-intake-manifest/harness.js');
+const { installIntakeOpenLoad } = require('./helpers/intake-open-load-fixture.js');
 if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.INTAKE_MANIFEST_REQUIRE_POSTGRES !== '1') {
   console.log('SKIP native intake reconcile: disposable PostgreSQL not explicitly required');
   process.exit(0);
@@ -89,6 +90,8 @@ try {
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-06-18-atomic-comment-merge.sql'));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-reconcile.sql'));
 
+  // The gateway counts open work in SQL now; see the helper's header.
+  installIntakeOpenLoad(cluster);
   const r = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve(__dirname, '../scripts/native-intake-reconcile/lane.mjs')], {
     encoding: 'utf8', timeout: 300000, maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env, ...connectionEnv(cluster) }, windowsHide: true,

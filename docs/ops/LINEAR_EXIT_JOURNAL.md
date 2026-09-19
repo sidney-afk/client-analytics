@@ -36,6 +36,25 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: the tested page is the executing navigation response, not a separate download
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries
+are kept as written.
+
+- **Check 8** now requires the browser harness to capture the exact HTML
+  navigation response that executed the Submit/retry journey, from its own
+  network record, and to hash those bytes with the final URL and any redirect
+  chain. A separate download of the same URL does not identify the tested page:
+  it can be a different build, a cached copy or a different edge response. If
+  the journey navigates more than once, each executing response is captured and
+  the hashes must agree. Those captured bytes are what is matched to the
+  deployment artifact.
+- **Check 11** compares against that tested identity. If the build differs, the
+  journey is re-run and its executing navigation response captured again; a
+  fresh fetch without re-running the journey does not satisfy it.
+
+Documentation only: no browser journey was run and no workflow was changed.
+
 ### 2026-09-19 — native intake plan: the served-build binding names the deployment and how the served page is compared
 
 A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The previous

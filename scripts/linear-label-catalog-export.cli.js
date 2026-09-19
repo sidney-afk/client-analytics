@@ -75,6 +75,23 @@ function required(name, value) {
   return text;
 }
 
+function requiredSupabaseUrl(env) {
+  const text = clean(env.SUPABASE_URL);
+  if (!text) {
+    throw new Error('SUPABASE_URL is required — this script has no default project, so that an unset variable refuses rather than guessing production.');
+  }
+  let url;
+  try {
+    url = new URL(text);
+  } catch (_) {
+    throw new Error('SUPABASE_URL must be an https origin with no path, e.g. https://<project-ref>.supabase.co');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+    throw new Error('SUPABASE_URL must be an https origin with no path, e.g. https://<project-ref>.supabase.co');
+  }
+  return url.origin;
+}
+
 /* ---------------------------------------------------------------- transport */
 
 function linearTransport(apiKey) {
@@ -295,11 +312,18 @@ function packageDigest(entries) {
 
 /* --------------------------------------------------------------- subcommand */
 
-async function runExport(args) {
+async function runExport(args, env = process.env) {
   const out = required('--out', args.get('out'));
   fs.mkdirSync(out, { recursive: true });
 
   const fixturePath = clean(args.get('fixture'));
+  const cardStateFile = clean(args.get('card-state-file'));
+  /* Resolve this before any Linear call: a live card-state export without a
+   * named project must refuse locally, not make partial external reads first.
+   * Fixture, supplied-row, and skipped-card-state modes make no Supabase read. */
+  const liveCardStateUrl = !args.has('skip-card-state') && !fixturePath && !cardStateFile
+    ? requiredSupabaseUrl(env)
+    : null;
   const pageSize = Number(args.get('page-size') || (fixturePath ? 0 : LIMITS.MAX_NODES_PER_PAGE)) || LIMITS.MAX_NODES_PER_PAGE;
   const verifyPageSize = Number(args.get('verify-page-size') || 0) || Math.max(1, Math.floor(pageSize / 2));
 
@@ -375,14 +399,12 @@ async function runExport(args) {
   let cardState = null;
   if (!args.has('skip-card-state')) {
     let rows = null;
-    const cardStateFile = clean(args.get('card-state-file'));
     if (cardStateFile) {
       rows = JSON.parse(fs.readFileSync(cardStateFile, 'utf8'));
     } else if (fixture) {
       rows = fixture.activeCards || [];
     } else {
-      const supabaseUrl = clean(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
-      rows = await readActiveCards(supabaseUrl, required('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY));
+      rows = await readActiveCards(liveCardStateUrl, required('SUPABASE_SERVICE_ROLE_KEY', env.SUPABASE_SERVICE_ROLE_KEY));
     }
     cardState = await captureCardState(rows, call, {
       repair: !args.has('no-repair-read'),
@@ -532,11 +554,11 @@ the SQL editor instead of PostgREST, --skip-card-state, --no-repair-read,
 The package it writes is PRIVATE. Write it outside the repository.
 `;
 
-async function main(argv) {
+async function main(argv, env = process.env) {
   const { args, command } = parseArgs(argv);
   if (args.has('help') || command === 'help') { process.stdout.write(USAGE); return 0; }
   let code = 1;
-  if (command === 'export') code = await runExport(args);
+  if (command === 'export') code = await runExport(args, env);
   else if (command === 'attest') code = await runAttest(args);
   else if (command === 'verify') code = await runVerify(args);
   else { process.stderr.write(`unknown command: ${command}\n\n${USAGE}`); code = 2; }
@@ -544,7 +566,7 @@ async function main(argv) {
   return code;
 }
 
-module.exports = { main, capturePages, reconcile, archivedEvidence, captureCardState, readSelectedLabels, fixtureTransport, packageDigest, CATALOG_QUERY, WORKSPACE_QUERY, SELECTED_LABELS_QUERY };
+module.exports = { main, runExport, requiredSupabaseUrl, capturePages, reconcile, archivedEvidence, captureCardState, readSelectedLabels, fixtureTransport, packageDigest, CATALOG_QUERY, WORKSPACE_QUERY, SELECTED_LABELS_QUERY };
 
 if (require.main === module) {
   main(process.argv.slice(2)).catch(error => {

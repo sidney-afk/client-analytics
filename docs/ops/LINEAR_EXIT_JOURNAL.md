@@ -12975,6 +12975,14 @@ Two sessions can write the same ledger number on the same day, and the merge is
 where you find out. Checking for duplicate `## N.` headers after a merge is
 already the house rule; this is the case it was written for.
 
+### 2026-09-19 — A public exporter cannot guess its target
+
+The label-catalog exporter no longer supplies a target when `SUPABASE_URL` is absent: its live REST branch refuses before transport, while offline fixture and supplied-row modes stay target-free.
+
+### 2026-09-19 — An origin check must parse the origin
+
+The exporter now canonicalizes a parsed HTTPS origin and refuses URL credentials, query, fragment, and non-root path forms before any network request.
+
 ---
 
 ### 2026-09-19 — Intake closure documentation corrected after review

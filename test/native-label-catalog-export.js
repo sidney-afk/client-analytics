@@ -40,6 +40,12 @@ function check(name, fn) {
   console.log(`OK  ${name}`);
 }
 
+async function checkAsync(name, fn) {
+  await fn();
+  passed += 1;
+  console.log(`OK  ${name}`);
+}
+
 function uuid(n) {
   const hex = String(n).padStart(12, '0');
   return `00000000-0000-4000-8000-${hex}`;
@@ -209,14 +215,14 @@ let verifyCode;
 })().then(() => {
   process.stdout.write = silence;
   process.exitCode = 0;
-  runAssertions();
+  return runAssertions();
 }).catch(error => {
   process.stdout.write = silence;
   console.error(error);
   process.exit(1);
 });
 
-function runAssertions() {
+async function runAssertions() {
   process.env.LINEAR_VIDEO_TEAM_ID = previous.video;
   process.env.LINEAR_GRAPHICS_TEAM_ID = previous.graphics;
 
@@ -456,6 +462,44 @@ function runAssertions() {
       assert.match(cli.CATALOG_QUERY, new RegExp(`\\b${field}\\b`));
     }
     assert.match(cli.CATALOG_QUERY, /hasNextPage endCursor/);
+  });
+
+  await checkAsync('the live card-state path refuses offline when SUPABASE_URL is unset', async () => {
+    const args = new Map([['out', path.join(out, 'missing-supabase-url')]]);
+    await assert.rejects(
+      () => cli.runExport(args, { SUPABASE_SERVICE_ROLE_KEY: 'offline-test-key' }),
+      /SUPABASE_URL is required — this script has no default project/,
+    );
+  });
+
+  check('SUPABASE_URL accepts only a canonical HTTPS origin', () => {
+    assert.equal(cli.requiredSupabaseUrl({ SUPABASE_URL: 'https://EXAMPLE.test:443/' }), 'https://example.test');
+    for (const value of [
+      'http://example.test',
+      'https://user@example.test',
+      'https://user:password@example.test',
+      'https://example.test/rest/v1',
+      'https://example.test/?query=value',
+      'https://example.test/#fragment',
+      'not a URL',
+    ]) {
+      assert.throws(
+        () => cli.requiredSupabaseUrl({ SUPABASE_URL: value }),
+        /SUPABASE_URL must be an https origin with no path/,
+        value,
+      );
+    }
+  });
+
+  await checkAsync('malformed SUPABASE_URL values refuse before any network request', async () => {
+    const args = new Map([['out', path.join(out, 'malformed-supabase-url')]]);
+    for (const value of ['http://example.test', 'https://user@example.test', 'https://example.test/path?x=1#y']) {
+      await assert.rejects(
+        () => cli.runExport(args, { SUPABASE_URL: value, SUPABASE_SERVICE_ROLE_KEY: 'offline-test-key' }),
+        /SUPABASE_URL must be an https origin with no path/,
+        value,
+      );
+    }
   });
 
   check('nothing in the exporter writes to Linear or to Postgres', () => {

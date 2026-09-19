@@ -284,8 +284,25 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // worker/checker lane declarations. All four use the existing heartbeat
   // reader/relay, with provisional 360-minute freshness; no new dependency,
   // network adapter, or reconciler mutation path enters this closure.
+  //
+  // Re-reviewed 2026-09-19: register one lane, `card_calendar_drift`, for the
+  // card-vs-calendar drift check (`card-calendar-status-drift.yml`, hourly at
+  // :27, 240-minute freshness). Registered WITH its workflow rather than after
+  // an audit found the lane dark, which is how `production_shadow_audit` came
+  // to be here.
+  //
+  // Reviewed effect on THIS lane: none. The change is one entry appended to the
+  // LANES array and a comment — data consumed by the existing `--check` reader
+  // exactly as the other entries are. It adds no import, no command, no network
+  // adapter, no filesystem or child-process work, and no reconciler entrypoint
+  // or mutation path. Closure MEMBERSHIP is unchanged: no file entered or left,
+  // and no new dependency is reachable. The lane is deliberately not
+  // `retires_with: 'linear'` — the calendar bridge it watches exists because
+  // the Linear round trip stopped carrying native writes, so it outlives the
+  // exit rather than dying with it. This pin records those source bytes and
+  // approves nothing else. (Previous pin: b193214e...)
   'scripts/monitoring-watchdog.js':
-    'b193214e7db5b8ee12a1633670f4b292aadcaf01421963c1c6b71b9067639bb4',
+    '818610683fd88273de35de8c8be6d37e9c889742ca3feaa587abcddde2fba563',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

@@ -12934,6 +12934,10 @@ already the house rule; this is the case it was written for.
 
 The label-catalog exporter no longer supplies a target when `SUPABASE_URL` is absent: its live REST branch refuses before transport, while offline fixture and supplied-row modes stay target-free.
 
+### 2026-09-19 — An origin check must parse the origin
+
+The exporter now canonicalizes a parsed HTTPS origin and refuses URL credentials, query, fragment, and non-root path forms before any network request.
+
 ---
 
 Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·

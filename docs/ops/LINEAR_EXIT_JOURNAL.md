@@ -12947,6 +12947,21 @@ distinguishes browser publication from database installation and Section 4
 function deployment, and records the confirmed private location of the modular
 strategy without copying it into the repository.
 
+### 2026-09-19 — Native intake acceptance and evidence wording corrected
+
+The plan now requires successful ordinary native intake before final cutoff:
+offline coverage plus a later Storage-authorized TEST drill for both teams,
+with intended cards and terminal receipts, identity-preserving retry without a
+duplicate card, and no legacy-webhook submission. The replacement is accepted
+before cutoff; full legacy-route closure is recorded only after cutoff, so the
+ordering is not circular.
+
+The original identity-exposure result remains historical evidence. The later
+repeat was blocked because it would contact prohibited live infrastructure. An
+identical published tree supports content equivalence, but does not by itself
+reproduce the same comparison inputs or live identity data; it is not recorded
+as a substitute check. No live execution occurred.
+
 Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·
 [execution map](LINEAR_EXIT_EXECUTION_MAP.md) ·
 [owner sitting page](LINEAR_EXIT_OWNER_SITTING_20260915.md) ·

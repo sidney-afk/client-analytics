@@ -49,12 +49,13 @@ The native-pending receipt remains on its native recovery path. Holds must neith
 | 2 | All four browser exits show their specified visible holds. | Offline browser tests for saved receipt, throwing storage read, missing helper, and `false` routing; confirm zero legacy webhook request. |
 | 3 | Unenrolled clients are held, not enrolled or submitted automatically. | Offline test asserts visible hold and no mutation attempt. |
 | 4 | Native pending submissions retain their existing identity. | Offline recovery test; no cross-epoch or cross-request reroute. |
-| 5 | Browser closure is verified independently of empty-epoch outbox checks. | Source/browser tests acknowledge the outbox query cannot see direct-webhook bypass. |
-| 6 | If observability is SQL, its additive migration is installed by authorized Storage and read back; if browser-only, publication and source tests are recorded. | Installation/readback or served-browser/source evidence. |
-| 7 | Final ordinary-real-row outbound cutoff occurs through Storage only after checks 1–6 and all other final-cutoff dependencies are accepted. | Flag-control receipt and readback of `linear_outbound_enabled`; TEST/parity behavior checked explicitly. |
+| 5 | Ordinary native intake succeeds for both teams. | Offline coverage, then a later Storage-authorized TEST drill for each team: intended cards and terminal receipts exist; a retry keeps the request identity and creates no duplicate card; and no legacy webhook submission occurs. Live execution remains deferred. |
+| 6 | Browser closure is verified independently of empty-epoch outbox checks. | Source/browser tests acknowledge the outbox query cannot see direct-webhook bypass. |
+| 7 | If observability is SQL, its additive migration is installed by authorized Storage and read back; if browser-only, publication and source tests are recorded. | Installation/readback or served-browser/source evidence. |
+| 8 | Final ordinary-real-row outbound cutoff occurs through Storage only after checks 1–7 and all other final-cutoff dependencies are accepted. | Flag-control receipt and readback of `linear_outbound_enabled`; TEST/parity behavior checked explicitly. |
 
 ## Step 28 — closure sense and ordering
 
-Browser fallback closure may precede final outbound cutoff. It is complete when the four browser exits cannot make a direct webhook submission and recovery holds preserve identity.
+Accept the browser/native-intake replacement before final outbound cutoff: its holds, ordinary native intake acceptance, and identity-preserving recovery are its own evidence. This avoids making the replacement depend on the cutoff it enables.
 
-Final cutoff is not full Linear independence. It remains gated on accepted identifier-mint, intake, Workload, urgent-assignee lookup, brief media, and card-materialization replacements, plus Step 27. Only then may Storage perform the flag-control procedure that stops ordinary real-client outbound drains. TEST/parity exceptions remain explicit, and a quiet outbox epoch is not evidence against direct-webhook bypass.
+Final cutoff is not full Linear independence. It remains gated on accepted identifier-mint, intake, Workload, urgent-assignee lookup, brief media, and card-materialization replacements, plus Step 27. Only then may Storage perform the flag-control procedure that stops ordinary real-client outbound drains. Record **full legacy-route closure only after that cutoff**. TEST/parity exceptions remain explicit, and a quiet outbox epoch is not evidence against direct-webhook bypass.

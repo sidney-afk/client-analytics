@@ -16,18 +16,9 @@ const applyChain=new Function('fs','path','__dirname',extractFunction(existing,'
 let cluster, passed=false;
 try {
   cluster=bootCluster(); applyChain(cluster);
-  // The intake foundation omits this read view. Install only the six columns
-  // this lane consumes, extracting the real parent CASE verbatim; unrelated
-  // artifact/label columns and their installation are outside this fixture.
-  const view=fs.readFileSync(path.join(__dirname,'../migrations/2026-08-23-attribution-slug-guard-widening.sql'),'utf8');
-  const parentEnd=view.indexOf('END AS raw_issue_parent_id');
-  const parentStart=view.lastIndexOf('CASE',parentEnd);
-  if(parentStart<0||parentEnd<parentStart) throw Error('browser-view parent expression drift');
-  const parent=view.slice(parentStart,parentEnd+'END AS raw_issue_parent_id'.length);
-  cluster.exec(`create view public.production_deliverables_browser_v1 as
-    select d.id,d.assignee_id,d.linear_issue_uuid,d.team,d.status,${parent}
-    from public.deliverables d cross join lateral jsonb_to_record(
-      case when jsonb_typeof(d.linear_raw)='object' then d.linear_raw else '{}'::jsonb end) root(issue jsonb);`);
+  // The browser projection and the open-work aggregate are installed by
+  // bootCluster (they moved into the harness when the count moved into SQL,
+  // because every lane on that foundation needs them, not just this one).
   const result=spawnSync(process.execPath,['--experimental-strip-types',path.join(__dirname,'../scripts/native-intake-manifest/editor-projection-lane.mjs')],{
     env:{...process.env,...connectionEnv(cluster)},encoding:'utf8',windowsHide:true,timeout:180000,maxBuffer:4*1024*1024});
   process.stdout.write(result.stdout||''); process.stderr.write(result.stderr||'');

@@ -101,6 +101,51 @@ create unique index if not exists calendar_posts_client_id_nir on public.calenda
 create unique index if not exists sample_reviews_client_id_nir on public.sample_reviews (client, id);
 `;
 
+/*
+ * THE OPEN-WORK COUNT LIVES IN THE DATABASE (2026-09-19).
+ *
+ * `production_native_intake_open_load` replaced the two full reads the gateway
+ * used to count open video work with in TypeScript, because the parent half had
+ * reached 3,232 rows against PostgREST's 1,000-row cap and the Create Post
+ * editor picker -- correctly -- refused the truncated answer. Every lane on this
+ * harness runs intake or the picker, so a fixture without the routine makes the
+ * gateway refuse, which is exactly what it does against a database the migration
+ * has not been applied to. Same rule as the CHAIN note above: a new migration
+ * the gateway depends on has to land here too.
+ *
+ * Two objects, both taken VERBATIM from the repository rather than modelled:
+ *
+ *  - the browser projection's real `raw_issue_parent_id` CASE. The intake chain
+ *    omits that view, and a `language sql` function is parsed and validated at
+ *    CREATE time, so the view has to exist first. Only the six columns these
+ *    lanes consume are projected; artifact, label and attribution columns stay
+ *    outside the fixture. This block was inline in
+ *    test/native-intake-editor-projection.js, which is the only lane that had
+ *    needed it before the count moved into SQL.
+ *
+ *  - the migration's own function body, located by its declaration and closing
+ *    dollar tag. Its `revoke`/`grant` lines are deliberately NOT applied: they
+ *    name hosted roles a disposable cluster does not have, and the ACL is what
+ *    the deploy preflight proves against the real database.
+ *
+ * Both seams throw on drift rather than quietly installing something else.
+ */
+function installIntakeOpenLoad(cluster) {
+  const view = fs.readFileSync(path.join(MIGRATIONS, '2026-08-23-attribution-slug-guard-widening.sql'), 'utf8');
+  const parentEnd = view.indexOf('END AS raw_issue_parent_id');
+  const parentStart = view.lastIndexOf('CASE', parentEnd);
+  if (parentStart < 0 || parentEnd < parentStart) throw new Error('browser-view parent expression drift');
+  cluster.exec(`create view public.production_deliverables_browser_v1 as
+    select d.id,d.assignee_id,d.linear_issue_uuid,d.team,d.status,${view.slice(parentStart, parentEnd + 'END AS raw_issue_parent_id'.length)}
+    from public.deliverables d cross join lateral jsonb_to_record(
+      case when jsonb_typeof(d.linear_raw)='object' then d.linear_raw else '{}'::jsonb end) root(issue jsonb);`);
+  const migration = fs.readFileSync(path.join(MIGRATIONS, '2026-09-19-native-intake-open-load.sql'), 'utf8');
+  const start = migration.indexOf('create function public.production_native_intake_open_load(');
+  const end = migration.indexOf('$fn$;', start);
+  if (start < 0 || end < start) throw new Error('open-load function seam drift');
+  cluster.exec(migration.slice(start, end + '$fn$;'.length));
+}
+
 function bootCluster() {
   const cluster = new Cluster();
   cluster.start();
@@ -108,6 +153,7 @@ function bootCluster() {
   for (const file of CHAIN) cluster.runFile(path.join(MIGRATIONS, file));
   cluster.exec('alter database ' + cluster.db + ' set check_function_bodies = on;');
   for (const file of SUBJECTS) cluster.runFile(path.join(MIGRATIONS, file));
+  installIntakeOpenLoad(cluster);
   cluster.exec(FIXTURE_SQL);
   return cluster;
 }

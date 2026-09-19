@@ -26539,12 +26539,25 @@ reporting. The statuses in the SQL are pinned against the gateway's declared
 the SQL in `test/editor-count-excludes-parents.js` and
 `test/deliverable-counts-exclude-parents.js`.
 
-**Not done here.** The SQL function has not been executed against a real
-PostgreSQL in this change — there is no disposable-database lane in reach of
-this session, so its behaviour is argued from the statement, not measured. The
-house rule that a gate which has never run against its real target is untested
-applies: run the deploy preflight before dispatching, and expect the aggregate
-itself to be first exercised by the picker.
+**Correction to this entry's own first draft: the function HAS been executed.**
+It first said the SQL was argued from the statement rather than measured,
+because no disposable-database lane was in reach. That was true of the session's
+first hour and stopped being true: a PostgreSQL 16 server was installed locally
+and the native intake lanes were run against it. `production_native_intake_open_load`
+now answers the real gateway handler over a real database in
+`test/native-intake-editor-projection.js` — 45 of 45 checks, including the
+batch-parent exclusion (an editor holding one real video and one parent row
+counts 1) and a journey that PARKS the routine out of the way and gets the 503
+back, which is the state a deploy passes through if the SQL is not applied
+first. `native-assignee-eligibility`, `native-intake-manifest`,
+`native-intake-completion`, `native-intake-reconcile` and
+`native-existing-assignment` pass on the same server.
+
+What remains unmeasured is narrower and still real: the ACL. The migration's
+`revoke`/`grant` lines are not applied in those fixtures — they name hosted
+roles a disposable cluster does not have — so "service_role and nobody else can
+execute it" is proven by the deploy preflight against the live database, not
+here. Run that preflight from the owner's machine BEFORE dispatching.
 
 **Amendment, same day — the two isolated PG17 lanes were red before their first
 assertion, and it was this change.** Adding the migration as a candidate owner
@@ -26555,3 +26568,21 @@ as `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260919.json` with
 the eight references repointed — the same move #1428 made for the same reason.
 The frozen 2026-09-10 base still verifies, because `verifyFrozen` tolerates a
 new owner and nothing existing moved.
+
+**Second amendment — five more lanes were red, and that was this change too.**
+The `unit` lane failed five isolated-PostgreSQL suites
+(`native-assignee-eligibility`, `native-intake-completion`,
+`native-intake-editor-projection`, `native-intake-manifest`,
+`native-intake-reconcile`), all for the same reason and all correctly: those
+fixtures build their database from a pinned chain of migrations, the new routine
+was not in it, and the gateway therefore refused exactly as it will against any
+database that has not had the migration applied. The routine is now installed by
+`scripts/native-intake-manifest/harness.js` alongside the browser projection it
+reads, both extracted verbatim from the repository, which is where that file's
+own note already said a new migration the gateway depends on has to land.
+
+Two picker journeys had to change shape with it: they injected an inflated exact
+count on the two row reads to prove a truncated read is refused, and those reads
+no longer exist. The same contract is now asserted against the aggregate — a
+parked routine, a null, an array, a non-integer and a negative count are each a
+503 — plus a journey proving the picker answers again once the routine is back.

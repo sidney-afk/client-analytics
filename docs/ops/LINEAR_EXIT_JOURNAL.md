@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 consistency pass: check 15 inventory marked preliminary, and acceptance separated from closure
+
+- **An omission corrected.** Check 15's realtime-subscription list left out the
+  two `client_credentials_rev` subscriptions, and under-counted `calendar_posts`.
+  The total of 16 was right; the list is now complete for what was recorded.
+- **Preliminary evidence.** The search inventory is labelled preliminary source
+  evidence, not closure proof. The check itself still requires both independent
+  searches to be repeated and reconciled on the actual closure commit.
+  Completeness wording the recorded evidence did not support is removed.
+- **One ordering conflict fixed**, found by reading the whole plan. Checks 14
+  and 15 are closure checks, taken after acceptance and before the mirror
+  reconcile stops. Acceptance is now stated as checks 1–13, in check 15 and in
+  the Step 28 closure sentence.
+
+Earlier entries, including those that called the inventory complete, are kept as
+written.
+
 ### 2026-09-19 — PR #1432 correction: the structural search's target inventory was incomplete
 
 The previous entry reported that the structural search had resolved every

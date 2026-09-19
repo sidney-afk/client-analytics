@@ -1,5 +1,12 @@
 # Workload needs a native source — scope
 
+> **Historical in part (marked 2026-09-19).** This scoping document predates the
+> native snapshot. Its descriptions of how Workload **loads** (§1) and of the
+> `linear-issues` **fallback** (§4b) are obsolete. Normal loading is native, and
+> there is no fallback from the snapshot to Linear. For the current state and the
+> exit plan, see [`LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`](LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md).
+> The rest is kept as the record of the design work.
+
 **Why this file exists.** Owner, 2026-09-01: *"we have to think about leaving
 linear soon, like in a week we'll remove anything regarding linear."* That is not
 reachable today, and the reason is one sentence: **the Workload board is the only
@@ -12,6 +19,11 @@ in live work — 40 rows across 10 active clients — and is not a future risk.
 ---
 
 ## 1. What Workload reads today
+
+> **Historical (2026-09-19):** "today" here means before the native snapshot.
+> The board now loads from `wlFetchNativeSnapshot()`. The n8n reconcile into
+> `workload_issues` still runs and supplies only the `legacy` rows. See the
+> [current plan](LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md).
 
 ```
 Linear  ──(n8n reconcile, ~10 min)──▶  public.workload_issues  ──(REST)──▶  board
@@ -165,7 +177,7 @@ again. Eight, all live — every one is actually fetched today:
 
 | endpoint | called from | direction |
 |---|---|---|
-| `linear-issues` | `loadLinearIssues` | read — **Workload's fallback source**; v2 falls back here on any Supabase failure so the board can never blank |
+| `linear-issues` | `loadLinearIssues` | read — *historical:* **Workload's fallback source** at the time of writing; no longer a fallback (now used only by legacy Calendar post-create discovery, see the [current plan](LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md)); v2 falls back here on any Supabase failure so the board can never blank |
 | `linear-tweak-comments` | `_wlLegacyFetchTweakComments` | read — the Tweak Needed popover, **non-native rows only** since the lane D exit work; native rows read `production-comments` |
 | `linear-projects` | `fetchLinearProjects` | read |
 | `linear-subissues` | `_calSyncStatusFromLinear` | read |
@@ -178,7 +190,7 @@ Three consequences for the exit estimate:
 
 - **The Workload board is not the only surface.** Five of the eight are the
   calendar's legacy Linear path, not Workload's.
-- **`linear-issues` is Workload's safety net, and it dies with Linear.** The v2
+- *(Historical, 2026-09-19: this fallback no longer exists. The native snapshot does not fall back to Linear; see the [current plan](LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md).)* **`linear-issues` is Workload's safety net, and it dies with Linear.** The v2
   rollout's whole rollback story is "any Supabase failure falls back to the
   webhook, so v2 can never blank the board". After the exit there is no fallback,
   so the native source has to be reliable enough to stand without one — that is a

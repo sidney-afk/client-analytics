@@ -356,7 +356,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   resume path; (2) **feedback for legacy rows**: `wlFetchTweakComments()` reads native rows' Tweak
   Needed feedback from `production-comments` but legacy rows' from the `linear-tweak-comments`
   webhook; (3) **metadata for Linear-authoritative rows**: due dates and labels, and due-date
-  writes, go through the `workload-linear` Edge Function, as described next. Exit plan:
+  writes, go through the `workload-linear` Edge Function, as described next. Behind all three, a
+  background n8n reconcile keeps rebuilding `workload_issues` from Linear; it supplies the legacy
+  rows and must not stop until nothing depends on them. Exit plan:
   `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
 - F201/F40 candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
   Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative

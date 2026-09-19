@@ -36,6 +36,19 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: the background Workload mirror reconcile is inventoried, and the old scoping document is marked historical
+
+The Workload exit plan named three browser dependencies but not the background
+n8n reconcile that rebuilds `workload_issues` from Linear. That reconcile
+supplies every `legacy` row the native snapshot serves, and the rows
+`workload-linear` validates against. The plan now inventories it and counts
+what depends on it in Gate 0. New check 14 requires a measured native
+replacement, or zero dependent legacy rows and routes, before it stops, and it
+retires last. `APP.md`, the execution map and `REPO_MAP.md` name it too.
+`WORKLOAD_NATIVE_SOURCE.md`'s loading and fallback descriptions are marked
+historical and point to the current plan. The live n8n workflow was not re-read.
+Earlier entries are unchanged.
+
 ### 2026-09-19 — PR #1432 correction: Workload truth documents now say normal loading is native, and name all three remaining Linear dependencies
 
 A Codex review found the Workload correction had not reached the current-truth

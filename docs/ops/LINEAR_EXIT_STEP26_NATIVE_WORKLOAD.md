@@ -13,6 +13,7 @@ state. No client, staff, token, or other private value belongs in this file.
 | `LINEAR_ISSUES_WEBHOOK` | Normal `loadLinearIssues()` already returns `wlFetchNativeSnapshot()` for boot, refresh, and snapshot adoption. The remaining caller is `wlDiscoverProviderIssues()`: a side-effect-free, no-cache provider read used only by the legacy Calendar post-create linker. | `workload_native_snapshot_v1()` is the normal rendered source and returns native rows, compatible plan rows, roster, authority, and native metadata. `workload-plan` already resolves native IDs without rewriting saved plan keys. | **Normal Workload reading is replaced. The post-create discovery dependency is not.** It must have a native replacement or reach zero dependent legacy rows before this webhook can retire. |
 | `LINEAR_TWEAK_COMMENTS_WEBHOOK` | `wlFetchTweakComments()` POSTs displayed issue IDs and renders up to three provider comments in the Tweak Needed popover, with a short cache. | `production-comments` has a staff-only legacy-feedback projection from the linked Calendar/Samples tweak cells, in addition to canonical native comments. It needs a valid native deliverable-to-card binding. | **Partial.** It covers bound native rows; it does not cover unbound legacy rows, rows whose feedback only survived at the provider, or foreign/provider-authority rows without a native mapping. |
 | `WORKLOAD_LINEAR_URL` / `workload-linear` | For `metadata`, validates active mirrored sub-issues then reads provider due dates and workload labels. For `set_due_date`, it authorizes a staff write, rechecks current provider team/authority, commits the provider due date, then best-effort updates `workload_issues`. | `production-write` already accepts native `due` writes from Workload with CAS; it also owns native `labels` writes and label receipts. The native snapshot carries verified due/label metadata. | **Built for SyncView-authoritative native rows.** It is not a substitute for a provider-authority/foreign team; those rows must remain explicit compatibility rows until their authority is migrated or they leave Workload. |
+| Background mirror reconcile (server-side, not a browser call) | The background n8n reconcile that rebuilds `workload_issues` from Linear (about every 10 minutes, per `docs/ops/WORKLOAD_NATIVE_SOURCE.md` §1). It is the source of every `legacy` row the native snapshot still serves, of the `workload_issues` rows `workload-linear` validates against, and of the `synced_at` watermark. | None yet. Native rows do not depend on it; legacy and provider-authority rows do. | **Not replaced.** It may retire only after a measured native replacement for what its rows supply, or a measured zero of legacy rows (and of the routes above) that still depend on it. Stopping it earlier silently freezes those rows. The live n8n workflow itself was not re-read for this plan. |
 
 > **Correction, 2026-09-19 (read from `index.html`):** the feedback row above
 > understates what is already wired. `wlFetchTweakComments()` already reads
@@ -79,6 +80,11 @@ aggregate counts and pass/fail receipts in the public checkpoint.
 7. Confirm every retained provider-authority/foreign row has its required
    provider route and an independently measured replacement plan. Do not count
    a hidden native control as a replacement.
+8. Measure what still depends on the background mirror reconcile: the count of
+   `legacy` rows the snapshot serves from `workload_issues`, and of rows
+   `workload-linear` or the feedback fallback resolve through it. Record the
+   reconcile's current schedule and last successful run from its own evidence
+   (`workload-source-freshness` measures the watermark, not the job).
 
 Stop if the snapshot is incomplete, a prerequisite is absent, a claimed native
 row is not native-writable, or any category above is uncounted.
@@ -141,6 +147,7 @@ row is not native-writable, or any category above is uncounted.
 | 11 | Failure is legible. | Simulated snapshot timeout/error preserves the last verified snapshot or shows a clear unavailable state; it never silently calls the provider fallback. |
 | 12 | Release provenance is exact. | SQL receipt, reviewed commit SHA, function fingerprint readbacks, and browser release identity agree; no function is inferred deployed from a merge. |
 | 13 | No public exposure regresses. | `node scripts/repo-identity-exposure-check.js --diff="origin/main"` passes on the final commit. The first attempt could not run it: authorized execution was not available, and no substitute was used. **Update, 2026-09-19:** Storage then ran it with authorized access against `origin/main` `0b2f16ae` on candidate `6a0ea50d`. It **passed**: 53 roster terms checked, 0 client slugs and 0 staff names added, in 0 files. The abbreviated commits above are superseded as evidence: the authoritative result for the final commit, with the full checked head and base SHAs, is the [PR #1432 exposure receipt](https://github.com/sidney-afk/client-analytics/pull/1432#issuecomment-5744603087). |
+| 14 | The background mirror reconcile is replaced or no longer needed before it stops. | Read-only aggregate: either a measured native replacement supplies every row the mirror still feeds, or zero legacy rows and zero dependent routes remain. Only then may the reconcile be disabled, together with its watchdog/freshness lane, in one approved change. A quiet board or a stale watermark is not evidence either way. |
 
 ## Step 28 — closure sense
 
@@ -150,7 +157,9 @@ equivalent native handoff or zero remaining callers/resumable jobs. Every
 retained legacy/foreign provider route must likewise have an equivalent native
 route or zero remaining dependent rows. Then retire the three browser
 dependencies in order: provider discovery, provider feedback fallback, and
-`workload-linear` route/function. Preserve the checkpoint with aggregate
+`workload-linear` route/function. Retire the background mirror reconcile
+**last**, and only when check 14 passes: every route above reads the rows it
+supplies, so stopping it first would freeze them. Preserve the checkpoint with aggregate
 evidence and the exact rollback boundary.
 
 Do not call this closed because a native view, a gateway, or a flag exists. The

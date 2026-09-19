@@ -26509,6 +26509,23 @@ two files: a grep for the project ref finds it in several more, and whether each
 is a default (dangerous) or a documented constant in a read-only diagnostic
 (merely public) has not been measured.
 
+**Amendment, 2026-09-19 — exporter guard completed.**
+`scripts/linear-label-catalog-export.cli.js` now has no default project URL.
+Its live card-state REST path requires `SUPABASE_URL` before it can make a
+request, uses the same missing-variable and origin-shape refusal as
+`native-calendar-status-backfill.js`, and is covered by an offline regression
+test that proves the unset path refuses without reaching a transport. Fixture,
+`--card-state-file`, and `--skip-card-state` modes remain offline because they
+do not make that REST read. A two-shape sweep of `scripts/` found other
+hard-coded project URLs; they are deliberately not changed by this exporter-only
+repair and are listed in the PR body for their separate classification.
+
+**Second amendment, 2026-09-19 — URL parser validation.** The exporter now
+parses `SUPABASE_URL` rather than relying on a regular expression. It permits
+only a canonical HTTPS origin, rejecting credentials, queries, fragments, and
+any non-root path before the exporter starts any network work; offline tests
+cover both those refusals and accepted canonical origins.
+
 **2026-09-19 amendment — unrelated documentation defect found while correcting
 the native Workload exit scope.** `loadLinearIssues()` is already native: it
 returns `wlFetchNativeSnapshot()` for normal Workload boot and refresh. The
@@ -26982,4 +26999,3 @@ against the real base branch one of them passes. Both are now fixed:
 
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
-

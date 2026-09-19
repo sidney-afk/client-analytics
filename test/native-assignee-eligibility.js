@@ -35,6 +35,40 @@ function applyChain(cluster) {
     if (start < 0 || end < start) throw new Error('F27 function seam drift: ' + name);
     cluster.exec(f27.slice(start, end + 5));
   }
+  /*
+   * The gateway counts open work in the DATABASE as of 2026-09-19
+   * (`production_native_intake_open_load`), so this chain has to install it --
+   * without it the gateway refuses, which is the correct behaviour against a
+   * database the migration has not been applied to.
+   *
+   * The browser projection comes first because a `language sql` function is
+   * parsed and validated at CREATE time; this chain omits that view, and only
+   * the six columns these lanes consume are projected, with the real
+   * `raw_issue_parent_id` CASE extracted verbatim. The migration's
+   * `revoke`/`grant` lines are deliberately not applied: they name hosted roles
+   * a disposable cluster does not have, and the ACL is what the deploy
+   * preflight proves. Both seams throw on drift.
+   *
+   * This is the INLINE TWIN of test/helpers/intake-open-load-fixture.js and has
+   * to be: test/native-intake-editor-projection.js and
+   * test/native-existing-assignment.js extract this function's source and
+   * re-evaluate it with only fs, path and __dirname bound, so it cannot require
+   * that module. Change one, change the other.
+   */
+  const browserView = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-08-23-attribution-slug-guard-widening.sql'), 'utf8');
+  const parentEnd = browserView.indexOf('END AS raw_issue_parent_id');
+  const parentStart = browserView.lastIndexOf('CASE', parentEnd);
+  if (parentStart < 0 || parentEnd < parentStart) throw new Error('browser-view parent expression drift');
+  cluster.exec('create view public.production_deliverables_browser_v1 as\n'
+    + '    select d.id,d.assignee_id,d.linear_issue_uuid,d.team,d.status,'
+    + browserView.slice(parentStart, parentEnd + 'END AS raw_issue_parent_id'.length) + '\n'
+    + "    from public.deliverables d cross join lateral jsonb_to_record(\n"
+    + "      case when jsonb_typeof(d.linear_raw)='object' then d.linear_raw else '{}'::jsonb end) root(issue jsonb);");
+  const openLoad = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-09-19-native-intake-open-load.sql'), 'utf8');
+  const openLoadStart = openLoad.indexOf('create function public.production_native_intake_open_load(');
+  const openLoadEnd = openLoad.indexOf('$fn$;', openLoadStart);
+  if (openLoadStart < 0 || openLoadEnd < openLoadStart) throw new Error('open-load function seam drift');
+  cluster.exec(openLoad.slice(openLoadStart, openLoadEnd + '$fn$;'.length));
   const triggerStart = f27.indexOf('create trigger track_b_f27_hold_guard\n');
   const triggerEnd = f27.indexOf('for each row execute function public.track_b_f27_hold_guard();', triggerStart);
   if (triggerStart < 0 || triggerEnd < triggerStart) throw new Error('F27 trigger seam drift');

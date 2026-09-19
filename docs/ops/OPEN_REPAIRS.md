@@ -26790,3 +26790,153 @@ also compare against a click target, but they select a card rather than
 dismiss a dialog holding a draft, so the same-press/same-release ambiguity has
 no data to lose — out of the class this fix addresses, not a missed instance
 of it.
+
+## 216. [2026-09-19, FIXED — MIGRATION REQUIRED, then DEPLOY REQUIRED (F27 §4)] The Create Post editor picker greyed out because it counted 3,232 rows through a 1,000-row window
+
+**This is the fix for 214 above.** The owner's report and this entry were
+written in parallel on the same day and both claimed the number; 214 keeps it
+because it merged first, and this one moved to 216. 214 stays OPEN as written
+— nothing in it is rewritten here — and what follows is what was done about
+it: the count moved into the database, so the picker stops refusing an answer
+it cannot complete.
+
+**What the SMM saw.** The Video editor dropdown in Create Post greyed out: no
+editor could be chosen, and the dialog offered no reason.
+
+**Why.** The native picker answers "how much open video work does each editor
+hold" by counting two populations — every live video deliverable, and every
+`production_deliverables_browser_v1` row carrying a `raw_issue_parent_id`, so
+that batch parents (a container nobody can complete) are not charged to
+anyone. Both were DOWNLOADED and counted in the Edge Function. The parent
+population has reached 3,232 rows. PostgREST caps a single request at 1,000
+and `limit` cannot raise it, so the read came back truncated, the picker's own
+`completeIntakeEditorRows` check refused it — correctly; a truncated read is an
+unavailable count, not evidence that an editor is free — and the 503 is what
+greyed the control out.
+
+The refusal was right and the read was wrong. Nothing here needed a bigger
+window: the answer is an aggregate, one number per editor.
+
+**Fix.** `migrations/2026-09-19-native-intake-open-load.sql` adds
+`production_native_intake_open_load(text)`, which returns one count per editor
+with the live-status filter and the batch-parent exclusion inside the same
+statement. Both native paths take it: `handleIntakeEditorOptions` (the picker)
+and `autoAssigneeForIntake` (the silent Submit-tab pick). No row limit is left
+to reach and there is no second read to keep consistent with the first.
+
+**The other half, which nobody had looked at.** The auto-assign path had no
+completeness check at all. Its open-work read was subject to the same cap, so
+once that population crossed 1,000 it had been balancing on a silently
+truncated count — the failure mode the picker was refusing to have. It now gets
+the same aggregate or a refusal.
+
+**What changed about degradation, deliberately.** The old parent read degraded
+to an empty set on failure, on the argument that a skewed suggestion beats a
+refused submission. Count and exclusion are now one statement, so there is no
+half to lose; a count that cannot be established is refused rather than
+reported as a load. The BROWSER's provider-lane loader keeps its degradation —
+it still does two reads and still cannot refuse usefully.
+
+**Order.** The migration is a PREREQUISITE, not a follow-up: a database without
+the routine refuses the picker instead of degrading. Apply the migration, run
+the read-only deploy preflight from the owner's machine, then dispatch the
+F27 §4 lane at
+https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml
+(`deploy-f27-section4-closures.yml`), which needs a sealed bundle captured
+minutes before the dispatch. The routine is in the preflight `ROUTINES` list and in the install
+manifest, so a database missing it stops the release at the gate rather than
+inside a dispatch.
+
+**Proof.** `test/production-write-gateway.js` runs the real handler against a
+supabase double whose row reads answer exactly like the live API at the cap —
+1,000 rows of a 3,232-row population — and asserts counts of 2,300 and 1,001
+survive intact, that no open-work or parent rows are pulled at all, and that a
+count that cannot be established is refused. A CONTROL feeds that same capped
+shape to the completeness check and reproduces the 503 the dropdown was
+reporting. The statuses in the SQL are pinned against the gateway's declared
+`INTAKE_LOAD_LIVE_STATUSES`, and the parent-exclusion symmetry is re-pointed at
+the SQL in `test/editor-count-excludes-parents.js` and
+`test/deliverable-counts-exclude-parents.js`.
+
+**Correction to this entry's own first draft: the function HAS been executed.**
+It first said the SQL was argued from the statement rather than measured,
+because no disposable-database lane was in reach. That was true of the session's
+first hour and stopped being true: a PostgreSQL 16 server was installed locally
+and the native intake lanes were run against it. `production_native_intake_open_load`
+now answers the real gateway handler over a real database in
+`test/native-intake-editor-projection.js` — 45 of 45 checks, including the
+batch-parent exclusion (an editor holding one real video and one parent row
+counts 1) and a journey that PARKS the routine out of the way and gets the 503
+back, which is the state a deploy passes through if the SQL is not applied
+first. `native-assignee-eligibility`, `native-intake-manifest`,
+`native-intake-completion`, `native-intake-reconcile` and
+`native-existing-assignment` pass on the same server.
+
+What remains unmeasured is narrower and still real: the ACL. The migration's
+`revoke`/`grant` lines are not applied in those fixtures — they name hosted
+roles a disposable cluster does not have — so "service_role and nobody else can
+execute it" is proven by the deploy preflight against the live database, not
+here. Run that preflight from the owner's machine BEFORE dispatching.
+
+**Amendment, same day — the two isolated PG17 lanes were red before their first
+assertion, and it was this change.** Adding the migration as a candidate owner
+made `scripts/linear-exit-install-manifest.js` disagree with the published
+inventory, which `plan()` in `test/helpers/linear-exit-install-step.js` verifies
+by STRICT equality, so every lane installing from it refused at setup. Re-issued
+as `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260919.json` with
+the eight references repointed — the same move #1428 made for the same reason.
+The frozen 2026-09-10 base still verifies, because `verifyFrozen` tolerates a
+new owner and nothing existing moved.
+
+**Second amendment — five more lanes were red, and that was this change too.**
+The `unit` lane failed five isolated-PostgreSQL suites
+(`native-assignee-eligibility`, `native-intake-completion`,
+`native-intake-editor-projection`, `native-intake-manifest`,
+`native-intake-reconcile`), all for the same reason and all correctly: those
+fixtures build their database from a pinned chain of migrations, the new routine
+was not in it, and the gateway therefore refused exactly as it will against any
+database that has not had the migration applied. The routine is now installed by the five
+intake chains themselves, alongside the browser projection it reads, both
+extracted verbatim from the repository
+(`test/helpers/intake-open-load-fixture.js`, with an inline twin inside
+`test/native-assignee-eligibility.js`'s `applyChain` because two suites extract
+that function's source and re-evaluate it with only fs/path/__dirname bound).
+
+**And the first attempt at that was wrong in the other direction, caught by the
+same CI.** It installed out of `scripts/native-intake-manifest/harness.js`, so
+EVERY lane on that harness got the view — including four that install the real
+`production_deliverables_browser_v1` from the attachments migration a moment
+later, which then failed `relation ... already exists`
+(`native-ordinary-receipts-postgres`, `native-test-client-parity-postgres`,
+`native-assignment-auth-kind-postgres`, `native-label-seed-parity-postgres`).
+A fixture helper must not install what a lane's own migration chain installs;
+the helper now says so in its header, and all ten lanes were run against a real
+PostgreSQL 16 before this was pushed.
+
+Two picker journeys had to change shape with it: they injected an inflated exact
+count on the two row reads to prove a truncated read is refused, and those reads
+no longer exist. The same contract is now asserted against the aggregate — a
+parked routine, a null, an array, a non-integer and a negative count are each a
+503 — plus a journey proving the picker answers again once the routine is back.
+
+**Third amendment — the last two `unit` failures were mine as well, and the
+entry's own "pre-existing" claim was wrong.** They were called pre-existing on
+the strength of a control run against a local `main` that was 20 commits stale;
+against the real base branch one of them passes. Both are now fixed:
+
+- `linear-exit-write-diagnostics-handlers` pins the sha256 of
+  `production-write/index.ts` (WR-101's composition refuses on
+  `WR101_SOURCE_DRIFT`), so any gateway edit has to re-pin it, exactly like the
+  deploy fingerprint. Re-pinned to the current bytes.
+- `native-intake-editor-browser` FREEZES four gateway symbols byte-for-byte
+  against the reviewed catch-up merge, and `autoAssigneeForIntake` is one of
+  them. The guard did its job. Rather than re-baseline the whole symbol against
+  a commit nobody has reviewed, the one contiguous region that changed is named
+  in the suite as an exact before/after pair — the same treatment
+  `handleIntakeCreate`'s additive routing metadata already gets — so everything
+  else in that function must still be byte-identical and any other drift still
+  fails.
+
+The lesson is the cheap one: a control run proves nothing if it is run against
+the wrong base. `git fetch origin main` first, every time.
+

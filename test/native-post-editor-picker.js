@@ -48,8 +48,15 @@ ok(normalise(serverStatuses) === 'in_progress,todo,tweak',
 // ---- The gateway stopped counting finished work ----------------------------
 ok(!/\.neq\("status", "duplicate"\)/.test(gateway),
   'the lifetime tally is gone — it never fell, so it ranked seniority rather than freedom');
-ok(/\.in\("status", INTAKE_LOAD_LIVE_STATUSES/.test(gateway),
-  'the balancer reads only open video work');
+/* 2026-09-19: the balancer stopped reading rows at all -- the population had
+   passed PostgREST's 1,000-row cap and the picker refused the truncated
+   answer, greying the Video editor dropdown out. INTAKE_LOAD_LIVE_STATUSES is
+   still the declared population; the SQL aggregate is what applies it, and
+   test/production-write-gateway.js pins the two together. */
+ok(/intakeOpenLoad\(supabase, "video", "assignee_load_unavailable"\)/.test(gateway)
+  && /status = any \(array\['todo', 'in_progress', 'tweak'\]\)/.test(
+    fs.readFileSync(path.join(ROOT, 'migrations', '2026-09-19-native-intake-open-load.sql'), 'utf8')),
+  'the balancer counts only open video work, now in the aggregate that counts it');
 
 // ---- 2: an override is accepted, validated, and video-only ------------------
 ok(/normalizeTeam\(item\.team\) !== "video"/.test(gateway),

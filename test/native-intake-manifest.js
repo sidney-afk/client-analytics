@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 const { bootCluster, connectionEnv } = require('../scripts/native-intake-manifest/harness.js');
+const { installIntakeOpenLoad } = require('./helpers/intake-open-load-fixture.js');
 if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.INTAKE_MANIFEST_REQUIRE_POSTGRES !== '1') {
   console.log('SKIP native intake manifest: disposable PostgreSQL not explicitly required');
   process.exit(0);
@@ -22,6 +23,8 @@ try {
   cluster.exec(filming.slice(0, seed));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-root-manifest.sql'));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-only-intake.sql'));
+  // The gateway counts open work in SQL now; see the helper's header.
+  installIntakeOpenLoad(cluster);
   for (const negative of ['1', '0']) {
   const r = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve(__dirname, '../scripts/native-intake-manifest/gateway-lane.mjs')], {
     encoding: 'utf8', timeout: 180000, maxBuffer: 1024 * 1024,

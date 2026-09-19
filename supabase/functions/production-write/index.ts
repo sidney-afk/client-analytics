@@ -210,8 +210,14 @@ const STARTED_STATUSES_AT_CREATE = new Set(["in_progress"]);
  * never started; terminal states speak for themselves. A row that bounces back
  * out of an approval column into `tweak` re-enters the count, which is right —
  * the editor owes that work again.
+ *
+ * The counting itself moved into `production_native_intake_open_load`, so this
+ * list no longer filters a query here. It stays as the declared contract the
+ * SQL must match: test/production-write-gateway.js compares the two and fails
+ * on any drift between them.
  */
 const INTAKE_LOAD_LIVE_STATUSES = Object.freeze(["todo", "in_progress", "tweak"]);
+void INTAKE_LOAD_LIVE_STATUSES;
 
 function intakeCreateStatus(
   raw: unknown,
@@ -3151,11 +3157,7 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nat
    * so this number is now visible to whoever creates a post — which is the
    * other reason it had to stop being a lifetime tally.
    */
-  const { data: deliverables, error: loadError } = await supabase.from("deliverables")
-    .select("assignee_id,status,linear_issue_uuid")
-    .eq("team", "video")
-    .in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]);
-  if (loadError) throw new GatewayError(503, "assignee_load_unavailable");
+  const counted = await intakeOpenLoad(supabase, "video", "assignee_load_unavailable");
   /*
    * A BATCH PARENT IS NOT ON ANYONE'S PLATE.
    *
@@ -3166,31 +3168,17 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nat
    * happened to hold fewer briefs, not fewer videos. A row is a parent when
    * some other row names its issue as `raw_issue_parent_id`; children may sit
    * in any status, so the parent set is read over the whole team rather than
-   * derived from the open rows alone. If this read fails the count proceeds
-   * uncorrected — a slightly skewed suggestion beats a refused submission.
+   * derived from the open rows alone.
    *
-   * The read goes to production_deliverables_browser_v1, NOT the deliverables
-   * table: raw_issue_parent_id is a view-derived column and does not exist on
-   * the table. The first shipped version asked the table for it, PostgREST
-   * answered 42703, and because a failed read here degrades to an empty set BY
-   * DESIGN, the correction silently never applied (found 2026-08-27 when the
-   * same wrong column killed the B1 import lane, which does NOT degrade).
+   * The exclusion now happens inside the same SQL aggregate as the count, so
+   * the two populations can no longer disagree and there is no second read to
+   * degrade. It also ends this path's older hazard in the other direction: the
+   * open-work read here had no completeness check, so once the live population
+   * passed PostgREST's 1,000-row cap it had been balancing on a silently
+   * truncated count. One aggregate, or a refusal.
    */
-  let parentUuids = new Set<string>();
-  try {
-    const { data: parentRows } = await supabase.from("production_deliverables_browser_v1")
-      .select("raw_issue_parent_id")
-      .eq("team", "video")
-      .not("raw_issue_parent_id", "is", null);
-    parentUuids = new Set(((parentRows || []) as JsonMap[])
-      .map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
-  } catch (_) { parentUuids = new Set<string>(); }
-  const load = new Map(editors.map(member => [clean(member.id), 0]));
-  for (const row of (deliverables || []) as JsonMap[]) {
-    if (parentUuids.has(clean(row.linear_issue_uuid))) continue;
-    const id = clean(row.assignee_id);
-    if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
-  }
+  const load = new Map(editors.map(member =>
+    [clean(member.id), Number(counted.get(clean(member.id)) || 0)]));
   editors.sort((left, right) =>
     Number(load.get(clean(left.id)) || 0) - Number(load.get(clean(right.id)) || 0)
     || clean(left.name).localeCompare(clean(right.name))
@@ -3790,6 +3778,46 @@ function completeIntakeEditorRows(result: { data: unknown; error: unknown; count
   return result.data as JsonMap[];
 }
 
+/*
+ * OPEN WORK IS COUNTED BY THE DATABASE, NEVER DOWNLOADED.
+ *
+ * Both native paths used to build this number in TypeScript out of two full
+ * reads: every live video deliverable, and every browser-view row carrying a
+ * parent id so batch parents could be excluded. The second population reached
+ * 3,232 rows. PostgREST caps a request at 1,000 and `limit` cannot raise it,
+ * so the picker's completeness check refused (correctly -- a truncated read is
+ * an unavailable count, not evidence that an editor is free) and the browser
+ * greyed the Video editor dropdown out. The auto-assign path had no such check
+ * and had therefore been balancing on a silently truncated population.
+ *
+ * `production_native_intake_open_load` returns one number per editor, so there
+ * is no row limit to reach and no second read to keep consistent with the
+ * first. Statuses and the parent exclusion live in the SQL and are pinned
+ * against INTAKE_LOAD_LIVE_STATUSES by test/production-write-gateway.js.
+ *
+ * It refuses rather than degrades. The previous parent-correction degraded to
+ * an empty set on failure, which is how a wrong column sat undetected for
+ * weeks; a count that cannot be established must not be reported as a load.
+ * The migration is therefore a PREREQUISITE of this deploy, not a follow-up.
+ */
+async function intakeOpenLoad(
+  supabase: SupabaseClient,
+  team: string,
+  failCode: string,
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase.rpc("production_native_intake_open_load", { p_team: team });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GatewayError(503, failCode);
+  }
+  const load = new Map<string, number>();
+  for (const [id, count] of Object.entries(data as JsonMap)) {
+    const total = Number(count);
+    if (!clean(id) || !Number.isSafeInteger(total) || total < 0) throw new GatewayError(503, failCode);
+    load.set(clean(id), total);
+  }
+  return load;
+}
+
 async function handleIntakeEditorOptions(
   supabase: SupabaseClient,
   req: Request,
@@ -3824,19 +3852,9 @@ async function handleIntakeEditorOptions(
     .eq("active", true).eq("team", "video").limit(10000));
   const editors = nativeIntakePool(members, "video");
   if (!editors.length) throw new GatewayError(409, "video_assignee_pool_unavailable");
-  const openRows = completeIntakeEditorRows(await supabase.from("deliverables")
-    .select("id,assignee_id,status,linear_issue_uuid", { count: "exact" })
-    .eq("team", "video").in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]).limit(10000));
-  const parentRows = completeIntakeEditorRows(await supabase.from("production_deliverables_browser_v1")
-    .select("id,raw_issue_parent_id", { count: "exact" })
-    .eq("team", "video").not("raw_issue_parent_id", "is", null).limit(10000));
-  const parents = new Set(parentRows.map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
-  const load = new Map(editors.map(member => [clean(member.id), 0]));
-  for (const row of openRows) {
-    if (parents.has(clean(row.linear_issue_uuid))) continue;
-    const id = clean(row.assignee_id);
-    if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
-  }
+  const counted = await intakeOpenLoad(supabase, "video", "intake_editor_options_unavailable");
+  const load = new Map(editors.map(member =>
+    [clean(member.id), Number(counted.get(clean(member.id)) || 0)]));
   // Same eligibility, work population and tie order as autoAssigneeForIntake.
   // Only minimal display fields leave the authenticated gateway.
   editors.sort((left, right) => Number(load.get(clean(left.id)) || 0) - Number(load.get(clean(right.id)) || 0)

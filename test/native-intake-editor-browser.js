@@ -29,8 +29,95 @@ let checks=0;
 function pass(label){checks++;console.log('ok '+label);}
 assert.equal(extractFunction(html,'_calLegacyVideoEditorPool').replace('_calLegacyVideoEditorPool','_calNativeVideoEditorPool'),extractFunction(oldHtml,'_calNativeVideoEditorPool'));
 pass('provider browser loader body remains exact');
-for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleCreateOptions']) {
+for(const symbol of ['intakeAssigneePool','assertEligibleAssignee','handleCreateOptions']) {
  assert.equal(extractFunction(gateway,symbol),extractFunction(gatewaySymbolSource,symbol));pass(symbol+' remains exact');
+}
+/*
+ * autoAssigneeForIntake is no longer byte-equal to the reviewed baseline, and
+ * that is the point of this guard working. The open-work count moved into the
+ * database on 2026-09-19 (`production_native_intake_open_load`): the parent
+ * half of what this function used to download had reached 3,232 rows against
+ * PostgREST's 1,000-row cap, so the picker refused the truncated answer and the
+ * Create Post Video editor dropdown greyed out, while this path -- which had no
+ * completeness check at all -- had been balancing on a truncated count.
+ *
+ * Rather than re-baseline the whole symbol, the exact bytes that changed are
+ * named here, the same way this suite already treats handleIntakeCreate's
+ * additive routing metadata: everything outside this one contiguous region must
+ * still be byte-identical to the reviewed baseline, and each literal must occur
+ * exactly once on its own side. Any other drift in this function still fails.
+ */
+const OPEN_LOAD_WAS = `  const { data: deliverables, error: loadError } = await supabase.from("deliverables")
+    .select("assignee_id,status,linear_issue_uuid")
+    .eq("team", "video")
+    .in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]);
+  if (loadError) throw new GatewayError(503, "assignee_load_unavailable");
+  /*
+   * A BATCH PARENT IS NOT ON ANYONE'S PLATE.
+   *
+   * Measured 2026-08-27: 75 of 535 open deliverable rows are batch parent
+   * issues — the container that titles a batch and carries its brief — about
+   * 30 of them assigned to a person. Counting them here charged an editor for
+   * a row nobody can complete, so the "freest" pick drifted toward whoever
+   * happened to hold fewer briefs, not fewer videos. A row is a parent when
+   * some other row names its issue as \`raw_issue_parent_id\`; children may sit
+   * in any status, so the parent set is read over the whole team rather than
+   * derived from the open rows alone. If this read fails the count proceeds
+   * uncorrected — a slightly skewed suggestion beats a refused submission.
+   *
+   * The read goes to production_deliverables_browser_v1, NOT the deliverables
+   * table: raw_issue_parent_id is a view-derived column and does not exist on
+   * the table. The first shipped version asked the table for it, PostgREST
+   * answered 42703, and because a failed read here degrades to an empty set BY
+   * DESIGN, the correction silently never applied (found 2026-08-27 when the
+   * same wrong column killed the B1 import lane, which does NOT degrade).
+   */
+  let parentUuids = new Set<string>();
+  try {
+    const { data: parentRows } = await supabase.from("production_deliverables_browser_v1")
+      .select("raw_issue_parent_id")
+      .eq("team", "video")
+      .not("raw_issue_parent_id", "is", null);
+    parentUuids = new Set(((parentRows || []) as JsonMap[])
+      .map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+  } catch (_) { parentUuids = new Set<string>(); }
+  const load = new Map(editors.map(member => [clean(member.id), 0]));
+  for (const row of (deliverables || []) as JsonMap[]) {
+    if (parentUuids.has(clean(row.linear_issue_uuid))) continue;
+    const id = clean(row.assignee_id);
+    if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
+  }
+`;
+const OPEN_LOAD_IS = `  const counted = await intakeOpenLoad(supabase, "video", "assignee_load_unavailable");
+  /*
+   * A BATCH PARENT IS NOT ON ANYONE'S PLATE.
+   *
+   * Measured 2026-08-27: 75 of 535 open deliverable rows are batch parent
+   * issues — the container that titles a batch and carries its brief — about
+   * 30 of them assigned to a person. Counting them here charged an editor for
+   * a row nobody can complete, so the "freest" pick drifted toward whoever
+   * happened to hold fewer briefs, not fewer videos. A row is a parent when
+   * some other row names its issue as \`raw_issue_parent_id\`; children may sit
+   * in any status, so the parent set is read over the whole team rather than
+   * derived from the open rows alone.
+   *
+   * The exclusion now happens inside the same SQL aggregate as the count, so
+   * the two populations can no longer disagree and there is no second read to
+   * degrade. It also ends this path's older hazard in the other direction: the
+   * open-work read here had no completeness check, so once the live population
+   * passed PostgREST's 1,000-row cap it had been balancing on a silently
+   * truncated count. One aggregate, or a refusal.
+   */
+  const load = new Map(editors.map(member =>
+    [clean(member.id), Number(counted.get(clean(member.id)) || 0)]));
+`;
+{
+ const baselineBody=extractFunction(gatewaySymbolSource,'autoAssigneeForIntake');
+ const currentBody=extractFunction(gateway,'autoAssigneeForIntake');
+ assert.equal(baselineBody.split(OPEN_LOAD_WAS).length,2);
+ assert.equal(currentBody.split(OPEN_LOAD_IS).length,2);
+ assert.equal(currentBody,baselineBody.replace(OPEN_LOAD_WAS,OPEN_LOAD_IS));
+ pass('autoAssigneeForIntake differs from the baseline by exactly the SQL open-load swap');
 }
 // Accepted native intake now adds routing metadata to its terminal response.
 // Remove ONLY these exact additive bytes before pinning the entire historical

@@ -78,10 +78,29 @@ try {
     reset();net.linear='down';faults.mutate=(table,r)=>table==='team_members'?mutate(r):r;
     const r=await post(options());nativePass('native-roster-'+label+'-refused',r.status===503&&!r.json.editors,r);
   }
-  for(const table of ['deliverables','production_deliverables_browser_v1']) {
-    reset();net.linear='down';faults.mutate=(name,r)=>name===table?({...r,count:r.count+1}):r;
-    const r=await post(options());nativePass('incomplete-'+table+'-refused',r.status===503&&!r.json.editors,r);
+  /* THE COMPLETENESS CONTRACT MOVED WITH THE COUNT (2026-09-19).
+     It used to read "a truncated row read is an unavailable answer, never
+     evidence that an editor is free" and was injected by inflating the exact
+     count of the two row reads. Those reads are gone -- the parent half had
+     reached 3,232 rows against PostgREST's 1,000-row cap, which is what greyed
+     the picker out -- so the same contract is now asserted against the
+     aggregate: an answer that cannot be established is a refusal.
+     The first case is the one a deploy actually passes through if the SQL is
+     not applied first, so it is exercised as the real thing rather than a
+     fault: the routine is parked out of the way and put back. */
+  reset();net.linear='down';
+  await sql('alter function public.production_native_intake_open_load(text) rename to production_native_intake_open_load_parked');
+  const absent=await post(options());
+  nativePass('open-load-absent-refused',absent.status===503&&!absent.json.editors,absent);
+  await sql('alter function public.production_native_intake_open_load_parked(text) rename to production_native_intake_open_load');
+  const present=await post(options());
+  nativePass('open-load-restored-answers-again',present.status===200&&present.json.editors.length===3,present);
+  for(const [label,value] of [['null',null],['array',[]],['non-integer',{[A]:'lots'}],['negative',{[A]:-1}]]) {
+    reset();net.linear='down';
+    hooks.afterRpc=(name,args,result)=>name==='production_native_intake_open_load'?{data:value,error:null}:result;
+    const r=await post(options());nativePass('open-load-'+label+'-refused',r.status===503&&!r.json.editors,r);
   }
+  hooks.afterRpc=null;
   reset();net.linear='down';
   await sql("update public.syncview_runtime_flags set value='{}' where key='native_intake_epochs'");
   const unknown=await post(options());nativePass('unreadable-epoch-does-not-fallback',unknown.status>=400&&!unknown.json.lane,unknown);

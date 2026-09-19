@@ -12907,6 +12907,29 @@ It pins a git commit. The description was given to the owner before the file had
 been read closely enough, and was corrected on contact with the actual code. See
 D9.
 
+### 2026-09-19 — The editor-picker regression was not in the ledger
+
+The work was handed over as "the editor picker regression recorded in
+OPEN_REPAIRS.md". It was not recorded there: the ledger's entries run to 213 and
+none of them describes the picker, the 3,232-row parent population or the
+greyed-out dropdown. The mechanism in the handover was accurate and matched the
+code, so the fix went ahead on that description rather than on an entry, and the
+entry was written afterwards as 214. Saying the ledger already held it would
+have been the easy thing and would have been false.
+
+### 2026-09-19 — The ledger entry moved to 216, and the note above is now half wrong
+
+The note above says the editor-picker regression was not in the ledger and that
+the entry was written afterwards as 214. The first half holds for the moment it
+was written; the second no longer does. The owner filed the same regression from
+the other side the same day — his report merged first and took 214, with an
+unrelated entry taking 215 — so the fix entry moved to **216** when main was
+merged in. Nothing in 214 was rewritten; 216 opens by pointing at it.
+
+Two sessions can write the same ledger number on the same day, and the merge is
+where you find out. Checking for duplicate `## N.` headers after a merge is
+already the house rule; this is the case it was written for.
+
 ---
 
 Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·

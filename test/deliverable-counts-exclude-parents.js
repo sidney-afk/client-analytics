@@ -178,9 +178,16 @@ const rows = [
      with the reason it does not need to. */
   const PARENT_AWARE = {
     _calLegacyVideoEditorPool: [2, 'freest-editor suggestion, PROVIDER lane — the count read plus the parent-uuid read it excludes with. Renamed 2026-09-08 when the native lane moved to the gateway; the body is byte-for-byte what _calNativeVideoEditorPool held'],
-    handleIntakeEditorOptions: [2, 'the same suggestion in the NATIVE lane, computed server-side — the open-work read plus the parent-uuid read it excludes with, symmetric with the browser loader above and with autoAssigneeForIntake below'],
     _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
-    autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
+    /* handleIntakeEditorOptions and autoAssigneeForIntake HELD two queries
+       each until 2026-09-19 and now hold none: the open-work read plus its
+       parent-uuid read became one SQL aggregate,
+       production_native_intake_open_load, because the parent population had
+       reached 3,232 rows against PostgREST's 1,000-row cap and the picker
+       refused the truncated answer. The registry's job is unchanged -- if
+       either function ever reads deliverable rows again it lands here
+       UNREGISTERED -- and the exclusion they used to do is asserted against
+       the SQL below and in test/editor-count-excludes-parents.js. */
   };
   const EXEMPT = {
     _prodBrowserProjectionRows: [3, 'Two safe-view reads plus an exact missing-column error identifier; loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
@@ -258,8 +265,17 @@ const rows = [
   const assignSrc = gateway.slice(assignStart, assignEnd);
   ok(assignStart >= 0 && assignEnd > assignStart && assignSrc.length < 8000,
     'the auto-assign slice covers exactly that function (harness is not vacuous)');
-  ok(/parentUuids\.has\(clean\(row\.linear_issue_uuid\)\)/.test(assignSrc),
-    'the gateway auto-assign excludes parent rows, symmetrically');
+  /* The gateway's half of the exclusion moved into SQL on 2026-09-19. What
+     this asserts is the same property in its new home: the auto-assign takes
+     the aggregate, and the aggregate excludes parents. */
+  ok(/intakeOpenLoad\(supabase, "video", "assignee_load_unavailable"\)/.test(assignSrc)
+    && !/parentUuids/.test(assignSrc),
+    'the gateway auto-assign counts through the SQL aggregate and holds no parent set of its own');
+  const openLoadSql = fs.readFileSync(
+    path.join(ROOT, 'migrations', '2026-09-19-native-intake-open-load.sql'), 'utf8');
+  ok(/raw_issue_parent_id is not null/.test(openLoadSql)
+    && /not exists \(/.test(openLoadSql),
+    'and that aggregate excludes parent rows, symmetrically with the browser loader');
 
   if (failures) {
     console.error(`\n${failures} deliverable-count check(s) failed`);

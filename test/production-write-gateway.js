@@ -1083,10 +1083,15 @@ function extractFunction(name, bodyMarker = '{') {
    * outright -- that team assigns by its single default_for_team designer -- so
    * the refusal code stays, narrowed to graphics, and the choice is validated
    * through the same assertEligibleAssignee every other assignee write uses.
+   *
+   * 2026-09-19: the counting itself moved into the database (the live
+   * population passed PostgREST's 1,000-row cap). INTAKE_LOAD_LIVE_STATUSES is
+   * still the declared population and is now pinned against the SQL that
+   * counts it, lower down this file.
    */
   ok(/autoAssigneeForIntake/.test(edge)
     && /INTAKE_LOAD_LIVE_STATUSES = Object\.freeze\(\["todo", "in_progress", "tweak"\]\)/.test(edge)
-    && /\.in\("status", INTAKE_LOAD_LIVE_STATUSES/.test(edge)
+    && /intakeOpenLoad\(supabase, "video", "assignee_load_unavailable"\)/.test(edge)
     && !/\.neq\("status", "duplicate"\)/.test(edge)
     && /default_for_team/.test(edge)
     && /intake_assignee_override_not_allowed/.test(edge)
@@ -1350,6 +1355,173 @@ function extractFunction(name, bodyMarker = '{') {
   const flippedPolicyGuard = roleGuardRunner(() => true);
   ok(flippedPolicyGuard('creative', 'labels') === 'reached_the_write',
   'flipping the policy row to allow it lets the creative through, so the refusal above IS the policy row');
+
+  /*
+   * THE EDITOR PICKER ABOVE THE PAGE CAP.
+   *
+   * The picker counted open video work by downloading the population: every
+   * live video deliverable, plus every browser-view row carrying a parent id.
+   * The parent read reached 3,232 rows, PostgREST caps a request at 1,000
+   * whatever `limit` says, the completeness check refused the partial answer,
+   * and the browser greyed the Video editor dropdown out.
+   *
+   * These checks run the real handler with a supabase double whose row reads
+   * ANSWER LIKE THE LIVE API DOES AT THE CAP. If the counting ever moves back
+   * into the gateway, the double delivers 1,000 rows of a 3,232-row population
+   * and the assertions below fail the way production did.
+   */
+  const stripTypes = source => source
+    .replace(/\): Promise<[^;{]*> \{/, ') {')
+    .replace(/\): JsonMap\[\] \{/, ') {')
+    .replace(/: \{ data: unknown; error: unknown; count: unknown \}/, '')
+    .replace(/<string, number>/g, '')
+    .replace(/ as unknown as string\[\]/g, '')
+    .replace(/ as JsonMap\[\]/g, '')
+    .replace(/ as JsonMap/g, '')
+    .replace(/: SupabaseClient/g, '')
+    .replace(/: Request/g, '')
+    .replace(/: JsonMap/g, '')
+    .replace(/: string/g, '');
+
+  const OPEN_LOAD_RPC = 'production_native_intake_open_load';
+  const CAP = 1000;
+  const POPULATION = 3232;
+  const editorsRoster = [
+    { id: 'aaaaaaaa-0000-4000-8000-000000000001', name: 'Editor One', role: 'editor', team: 'video', linear_user_id: 'lin-1', active: true },
+    { id: 'aaaaaaaa-0000-4000-8000-000000000002', name: 'Editor Two', role: 'editor', team: 'video', linear_user_id: 'lin-2', active: true },
+    { id: 'aaaaaaaa-0000-4000-8000-000000000003', name: 'Editor Three', role: 'editor', team: 'video', linear_user_id: 'lin-3', active: true },
+  ];
+  // Two of the three hold counts that only exist ABOVE the cap: 2,300 and
+  // 1,001 open rows cannot be seen at all by a reader capped at 1,000.
+  const liveCounts = {
+    'aaaaaaaa-0000-4000-8000-000000000001': 2300,
+    'aaaaaaaa-0000-4000-8000-000000000002': 1001,
+  };
+  const intakeContext = {
+    console,
+    Number,
+    Object,
+    Map,
+    Set,
+    Array,
+    JSON,
+    String,
+    clean: value => String(value == null ? '' : value).trim(),
+    lower: value => String(value == null ? '' : value).trim().toLowerCase(),
+    parseJson: value => (value && typeof value === 'object' ? value : {}),
+    surfaceFor: body => String(body.surface || ''),
+    nativeIntakePool: policy.nativeIntakePool,
+    json: (body, status = 200) => ({ status, body }),
+    authenticate: async () => ({ kind: 'staff', keyRole: 'admin', client: { slug: 'sidneylaruel', active: true } }),
+    clientBySlug: async () => ({ slug: 'sidneylaruel', active: true }),
+    authorityFor: async () => 'syncview',
+    rpc: async () => ({ video: 'epoch-v1', graphics: 'epoch-g1' }),
+  };
+  intakeContext.GatewayError = class GatewayError extends Error {
+    constructor(status, code, details) {
+      super(code);
+      this.status = status;
+      this.code = code;
+      this.details = details;
+    }
+  };
+  vm.createContext(intakeContext);
+  // completeIntakeEditorRows declares an inline parameter type, so its body
+  // brace is not the first one after the name.
+  for (const [name, marker] of [
+    ['completeIntakeEditorRows', '): JsonMap[] {'],
+    ['intakeOpenLoad', '{'],
+    ['handleIntakeEditorOptions', '{'],
+  ]) {
+    vm.runInContext(stripTypes(extractFunction(name, marker)), intakeContext);
+  }
+
+  /* The double. `from()` answers exactly like PostgREST at the cap: the body
+     is truncated to 1,000 rows while the exact count reports the real 3,232. */
+  const supabaseDouble = ({ openLoad, rpcError = null }) => {
+    const tables = [];
+    const builder = table => {
+      const result = table === 'team_members'
+        ? { data: editorsRoster, error: null, count: editorsRoster.length }
+        : { data: Array.from({ length: CAP }, (unused, index) => ({ id: `row-${index}`, assignee_id: editorsRoster[0].id })), error: null, count: POPULATION };
+      const chain = {
+        select: () => chain, eq: () => chain, in: () => chain, not: () => chain, limit: () => chain,
+        then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+      };
+      return chain;
+    };
+    return {
+      tablesRead: tables,
+      from(table) { tables.push(table); return builder(table); },
+      rpc: async (name, args) => (name === OPEN_LOAD_RPC
+        ? { data: rpcError ? null : openLoad, error: rpcError, args }
+        : { data: null, error: { message: 'unexpected_rpc:' + name } }),
+    };
+  };
+
+  const runPicker = async double => {
+    try {
+      return await intakeContext.handleIntakeEditorOptions(double, {}, { surface: 'calendar', client_slug: 'sidneylaruel' });
+    } catch (error) { return { status: error.status, code: error.code }; }
+  };
+
+  const capped = supabaseDouble({ openLoad: liveCounts });
+  const answer = await runPicker(capped);
+  ok(answer.status === 200 && answer.body && answer.body.lane === 'native'
+    && Array.isArray(answer.body.editors) && answer.body.editors.length === 3,
+  'the picker answers 200 with the native editor projection while the live population is above the page cap');
+  ok(JSON.stringify((answer.body.editors || []).map(row => [row.name, row.openCount]))
+    === JSON.stringify([['Editor Three', 0], ['Editor Two', 1001], ['Editor One', 2300]]),
+  'counts ABOVE the 1,000-row cap survive intact (2,300 and 1,001) and still order freest-first');
+  ok(!capped.tablesRead.includes('deliverables')
+    && !capped.tablesRead.includes('production_deliverables_browser_v1'),
+  'no open-work rows are pulled at all: the count comes from one aggregate, never a paged read');
+
+  /* THE CONTROL. Hand the gateway's own completeness check the shape the live
+     API returns at the cap -- 1,000 rows of 3,232 -- and it refuses with the
+     exact code the greyed-out dropdown was reporting. That refusal is correct;
+     it is the read that had to change. */
+  let cappedRefusal = null;
+  try {
+    intakeContext.completeIntakeEditorRows({
+      data: Array.from({ length: CAP }, (unused, index) => ({ id: 'row-' + index })),
+      error: null,
+      count: POPULATION,
+    });
+  } catch (error) { cappedRefusal = `${error.status}:${error.code}`; }
+  ok(cappedRefusal === '503:intake_editor_options_unavailable',
+  'CONTROL: a 1,000-of-3,232 capped read is still refused as unavailable, which is the regression this replaces');
+
+  const refused = await runPicker(supabaseDouble({ openLoad: null, rpcError: { message: 'undefined_function' } }));
+  ok(refused.status === 503 && refused.code === 'intake_editor_options_unavailable',
+  'a count that cannot be established is refused, never reported as an editor being free');
+  const malformed = await runPicker(supabaseDouble({ openLoad: { 'aaaaaaaa-0000-4000-8000-000000000001': 'lots' } }));
+  ok(malformed.status === 503 && malformed.code === 'intake_editor_options_unavailable',
+  'a non-integer count is refused rather than coerced to zero');
+
+  /* The statuses counted now live in SQL. This is the pin that stops the two
+     copies drifting apart in silence. */
+  {
+    const openLoadSql = read('migrations/2026-09-19-native-intake-open-load.sql');
+    const declared = [...edge.match(/const INTAKE_LOAD_LIVE_STATUSES = Object\.freeze\(\[([^\]]*)\]\)/)[1]
+      .matchAll(/"([a-z_]+)"/g)].map(match => match[1]);
+    const inSql = [...(openLoadSql.match(/status = any \(array\[([^\]]*)\]\)/) || [, ''])[1]
+      .matchAll(/'([a-z_]+)'/g)].map(match => match[1]);
+    ok(declared.length === 3 && JSON.stringify(declared) === JSON.stringify(inSql),
+    'the SQL aggregate counts exactly the gateway statuses INTAKE_LOAD_LIVE_STATUSES declares');
+    ok(/not exists\s*\(\s*select 1 from parents/i.test(openLoadSql)
+      && /raw_issue_parent_id/.test(openLoadSql),
+    'the SQL excludes batch parents, so the aggregate keeps the population the gateway used to compute');
+    const openLoadStatements = openLoadSql.replace(/^\s*--.*$/gm, '');
+    ok(!/\blimit\b/i.test(openLoadStatements) && !/\boffset\b/i.test(openLoadStatements),
+    'the aggregate carries no row limit and no paging: there is no cap left to raise');
+    ok(/revoke all on function public\.production_native_intake_open_load\(text\)\s*\n?\s*from public, anon, authenticated, service_role;/.test(openLoadSql)
+      && /grant execute on function public\.production_native_intake_open_load\(text\)\s*\n?\s*to service_role;/.test(openLoadSql),
+    'the migration revokes from all four roles by name and grants back only service_role EXECUTE');
+    const preflightSource = read('scripts/linear-exit-deploy-preflight.js');
+    ok(preflightSource.includes("['production_native_intake_open_load(text)', 'migrations/2026-09-19-native-intake-open-load.sql'"),
+    'the new routine is in the deploy preflight ROUTINES list, so a database missing it stops the release at the gate');
+  }
 
   if (failures) {
     console.error(`\n${failures} production-write gateway check(s) failed`);

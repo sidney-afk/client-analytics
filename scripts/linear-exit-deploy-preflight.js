@@ -81,6 +81,10 @@ const ROUTINES = Object.freeze([
   // bridge migration's version refuses on every API call with 21000, so the
   // body a live database must hold is the one in the file below.
   ['production_native_calendar_status_backfill(timestamp with time zone,boolean)', 'migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql', 'production_native_calendar_status_backfill', 'public, pg_temp', false],
+  // The intake open-work count. Not SECURITY DEFINER: service_role already
+  // reads `deliverables` and the browser projection directly, so the aggregate
+  // needs no elevation and is granted none.
+  ['production_native_intake_open_load(text)', 'migrations/2026-09-19-native-intake-open-load.sql', 'production_native_intake_open_load', 'public, pg_temp', false],
 ]);
 
 const PRIVATE_ROUTINES = new Set([

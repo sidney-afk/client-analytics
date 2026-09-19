@@ -376,7 +376,18 @@ jobs:
       # production-write v69, 2026-09-07.)
       # Integrated main client status no-op authorization and due-bump guard.
       # Prepared canonical archive-lifecycle notification repair; not deployed.
-      PRODUCTION_WRITE_SOURCE_SHA256: 9dd41919d1690b6035146fad49504aa8d08fbc990efa62ac55ddd66abf5994aa
+      # Re-pinned 2026-09-19: the Create Post editor picker's open-work count
+      # moves into the database. production_native_intake_open_load(text)
+      # returns one number per editor; the gateway stops downloading the two
+      # populations it used to count, the parent half of which had reached
+      # 3,232 rows against PostgREST's 1,000-row cap -- the refusal that greyed
+      # the Video editor dropdown out. index.ts only, no new import, file count
+      # unchanged at 6.
+      # PREREQUISITE: migrations/2026-09-19-native-intake-open-load.sql must be
+      # applied BEFORE this lane is dispatched. The gateway refuses rather than
+      # degrades when the count cannot be established.
+      # (Previous pin: 9dd41919d1... -- production-write, 2026-09-18.)
+      PRODUCTION_WRITE_SOURCE_SHA256: 9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

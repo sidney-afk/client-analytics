@@ -1217,7 +1217,7 @@ fix the card.
   the same change**, or the Linear-exit deploy preflight will refuse with
   `CONTRACT_ABSENT` on five keys and no production-write release can dispatch.
   The install inventory entry in
-  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260918_5.json` and
+  `docs/independence/LINEAR_EXIT_INSTALL_SOURCE_INVENTORY_20260919.json` and
   its `CANDIDATE`/`DEPENDENCIES` entries in
   `scripts/linear-exit-install-manifest.js` come out with it.
 - **The backfill repair comes out with it too.**

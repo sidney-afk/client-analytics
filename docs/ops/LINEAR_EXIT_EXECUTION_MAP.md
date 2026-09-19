@@ -17,17 +17,17 @@ Preparation only. Publishing this map authorizes nothing. Every step marked
 
 ## How to report progress
 
-Count completed steps out of 29 (step 29 is the Close-out sweep, added
-2026-09-19). Report it like this at the start of every
+Count completed steps out of 30 (29 is the Close-out sweep, with sub-items
+29a-29c, and 30 is the Handoff brief; both added 2026-09-19). Report it like this at the start of every
 execution session and after every completed step:
 
 ```
-Phase 3 of 7 · step 14 of 29 · 48% complete · next: 15 (verify installed catalog)
+Phase 3 of 7 · step 14 of 30 · 47% complete · next: 15 (verify installed catalog)
 ```
 
 **Current position, 2026-09-18:** phase 7 is under way and the counter above is
 only an example of the format. Phase 7 repeats steps 26 to 28 **per
-capability**, so a single number out of 29 stops being meaningful there — report
+capability**, so a single number out of 30 stops being meaningful there — report
 the capability by name and its own step:
 
 ```
@@ -378,8 +378,8 @@ installed but not wired** (SQL is in the repo and nothing calls it from
 |---|---|---|---|
 | **Ordinary receipts** | `production_native_ordinary_receipts` (gate `production_native_ordinary_capability`) | **native** since 2026-09-18T16:13:49Z. ✅ **step 28 recorded 2026-09-19** — see the status row above and the checkpoint closure. | Checkpoint row *"production-write provider label/metadata branches and Linear credential reads"* — the **metadata** half. **Closed.** |
 | **Assignment** | `native_assignment_epochs` | **native** since 2026-09-18T16:29:34Z. ✅ **step 28 recorded 2026-09-19**. | The **assignment** half of the same provider-branch row. **Closed.** |
-| **Calendar bridge** | none — an AFTER UPDATE trigger, not a flag | **native.** Applied live 2026-09-18T22:38Z; the trigger half worked from the apply. Its backfill refused every call until `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, and **the backfill has still never been run** — the cards that already lagged at the flip are still lagging. **Open note carried from the 2026-09-19 closures: the trigger has not yet been observed on a genuine editor change** — it is correct-by-construction, not yet correct-by-measurement, until the next real status change lands. | OPEN_REPAIRS **212** (the backfill has still never run). No checkpoint row: the bridge repairs a hole the exit *opened*, rather than replacing a Linear dependency. |
-| **Card-vs-calendar watcher** | none — a CI lane | **code installed but not wired.** Script, unit suite, fixture and `card-calendar-status-drift.yml` land in this PR; the lane cannot pass until the repository secret **`SUPABASE_URL`** is set, which is an owner action. Registered as watchdog lane `card_calendar_drift`. | Nothing in the checkpoint. It is the measurement that the calendar bridge is holding — the reconciler cannot be, because it compares the two surfaces through Linear and native receipts send Linear nothing. |
+| **Calendar bridge** | none — an AFTER UPDATE trigger, not a flag | **native.** Applied live 2026-09-18T22:38Z; the trigger half worked from the apply. Its backfill refused every call until `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, and **the backfill has still never been run** — the cards that already lagged at the flip are still lagging. **OBSERVED LIVE 2026-09-19: the trigger fired correctly on six real editor changes between 00:50Z and 00:56Z.** That closes the open note carried from the 2026-09-19 closures — the bridge is now correct-by-measurement on genuine work, not only by construction. The remaining gap is historical, not mechanical: the pre-bridge backlog the watcher lists. | OPEN_REPAIRS **212** (the backfill has still never run). No checkpoint row: the bridge repairs a hole the exit *opened*, rather than replacing a Linear dependency. |
+| **Card-vs-calendar watcher** | none — a CI lane | **native.** Merged in #1425 and running hourly on `main`; `SUPABASE_URL` is set, so the lane reads. Its FIRST live run (35411363894) went red on 27 slots, 25 of which last changed between April and 2026-08-24 — before the trigger existed. The trigger fires on a change and does not reconcile history, so those are backlog, not bridge failure; a **pre-bridge** bucket now counts and lists them and never gates, and the gate fires only on a deliverable that moved at or after go-live `2026-09-18T22:38:14Z`. Registered as watchdog lane `card_calendar_drift`. | Nothing in the checkpoint. It is the measurement that the calendar bridge is holding — the reconciler cannot be, because it compares the two surfaces through Linear and native receipts send Linear nothing. It also now carries the live observation of the trigger itself, below. |
 | **Intake form path** | `native_intake_epochs` | **unknown, verify** — live flag value not recorded. The most wired of the remaining set: read from `index.html` (2), two Edge Functions and nine scripts. | Checkpoint row *"Intake: VIDEO_FORM_WEBHOOK and legacy dispatch selection"*, plus the **intake** half of the provider-branch row. |
 | **Workload page** | **unknown, verify** — no single flag key identified in this repository | **unknown, verify.** The checkpoint records the dependency as three `index.html` calls plus the `workload-linear` function; whether a native replacement is wired was not established here. `scripts/workload-native-visibility-check.js` and `workload-source-freshness.yml` measure the native side. | Checkpoint row *"Workload: index.html LINEAR_ISSUES_WEBHOOK, LINEAR_TWEAK_COMMENTS_WEBHOOK and WORKLOAD_LINEAR_URL calls; workload-linear function"*. |
 | **Urgent editor assignee lookup** | `urgent_video_destination` | **code installed but not wired.** The flag is read by two migrations and two scripts, and by nothing in `index.html` or any Edge Function. The checkpoint notes that removing the displayed URL leaves the Linear lookup input intact — so the lookup is the part that has to be accepted or rerouted, not the link. | Checkpoint row *"Legacy urgent editor assignee lookup"*. |
@@ -435,7 +435,10 @@ whole system, including the things no capability ever owned.
 
 | # | Step | Who | Done when |
 |---|---|---|---|
-| 29 | Whole-system health check after the last capability closes. Sweep for anything still pointing at Linear: GitHub Actions workflows and secrets, n8n workflows (read only, list them, do not edit), Edge Function env references, `index.html` calls, scripts, docs. Report per item: removed, intentionally kept, or dead. Nothing is retired in this step. | Owner + session | The sweep report is journaled with zero unexplained items |
+| 29 | Whole-system health check after the last capability closes. Sweep for anything still pointing at Linear: GitHub Actions workflows and secrets, n8n workflows (read only, list them, do not edit), Edge Function env references, `index.html` calls, scripts, docs. Report per item: removed, intentionally kept, or dead. **Nothing is retired in this step.** Broken into 29a-29c below. | Owner + session | All three sub-items are done, and the sweep report is journaled with zero unexplained items |
+| 29a | **Functional pass by the owner, on the live site, with Linear gone.** Four surfaces, used as a person uses them, not as a checklist of selectors: **Submit tab, Workload, Calendar, Samples.** This is the only item in the map that asks whether the thing actually works for the person who uses it, rather than whether a gate passes. | Owner | The owner records each of the four as working, or files what is broken |
+| 29b | **Sweep GitHub Actions workflows, schedules, watchers and monitors** for anything that still assumes Linear — mirror staleness, Linear inbound, the reconciler lanes, and anything else on a schedule. Report per item: **keep, retire, or rewrite.** **Retire nothing in this step**, including anything the report marks "retire": the classification is the deliverable. | Owner + session | Every scheduled or watching thing is classified keep / retire / rewrite, with a reason, and nothing has been retired |
+| 29c | **Inventory the Slack bot messages SyncView sends the owner.** Every alert actually received, the **edge anomaly alert** and the **mirror-events-stale watcher** among them. For each, one plain sentence saying what it means — plain enough to be useful at 7am on a phone. Then propose **a single consolidated problem message with a quiet default**: silence when nothing is wrong, one message when something is. | Owner + session | The inventory exists with a one-sentence meaning per alert, and a consolidated message is proposed. **The owner decides the final shape** — this step proposes, it does not change what is sent |
 
 "Zero unexplained items" is the whole bar, and it is deliberately not "zero
 items". An intentionally-kept Linear reference is a passing result once it says
@@ -443,6 +446,65 @@ why it is kept; an item nobody can classify is the failure, because that is the
 one that later surprises somebody. Read-only on n8n is not a formality either —
 those workflows are production sales automation and are never edited without the
 owner's explicit go-ahead in the same request.
+
+**29a is deliberately first and deliberately the owner's.** Every other item in
+this map measures machinery, and machinery has been green while the surface was
+wrong before — the calendar lagged for a day with every gate passing, because
+nothing compared the two things a person actually looks at. A functional pass by
+the person who uses the site is the one check that cannot be satisfied by a
+passing test.
+
+**29b classifies and stops.** "Retire" in that report means *recommended for
+retirement*, and acting on it is a separate decision with its own go-ahead —
+see **Out of scope** below, which is not softened by anything in this step.
+
+**29c is about noise, which is a correctness problem.** An owner who receives
+several alerts they cannot tell apart is an owner who stops reading them, and
+then the one that mattered arrives into a habit of ignoring. The quiet default
+is the point: silence when nothing is wrong is what makes a message mean
+something when it arrives.
+
+---
+
+## Handoff
+
+Runs after Close-out. The Linear exit ends here; this step hands the next piece
+of work to a session that was not present for any of it.
+
+| # | Step | Who | Done when |
+|---|---|---|---|
+| 30 | **Write a modular plan brief for a new session.** Read first: the docs for the modular website strategy, plus `docs/ops/LINEAR_EXIT_JOURNAL.md`, this execution map, and `docs/ops/OPEN_REPAIRS.md`. The brief is for somebody with none of this context, so it carries the constraints rather than assuming them. | Owner + session | The brief exists and the owner has read it |
+
+**The owner's constraints, verbatim, because a paraphrase would lose them:**
+
+> much lighter process than the Linear exit (no backup ceremony unless a step is
+> destructive), target well under a month, and the site keeps taking ordinary
+> changes during the work without anything breaking.
+
+All three are reactions to how the Linear exit actually went, and a brief that
+quietly re-imports this map's shape would be the failure mode. Taking them in
+turn:
+
+- **"No backup ceremony unless a step is destructive"** is a test applied per
+  step, not a blanket removal. The capture, the encrypted upload, the isolated
+  restore — those existed because the Linear exit moved data that could not be
+  got back. A step that only adds or reorganises code does not earn them, and
+  making it perform them anyway is how a month becomes three.
+- **"Well under a month"** is a constraint on the plan's shape, not a promise to
+  hurry. A plan that can only be delivered by working faster has not met it; a
+  plan cut into pieces that each land on their own has.
+- **"The site keeps taking ordinary changes"** is the hardest of the three and
+  the one to design around first. It rules out a long-lived branch that diverges
+  from `main` — this repository has already paid for one of those, in the
+  hand-resolved catch-up recorded under Phase 1 — and it means every piece has
+  to be shippable while the next is still being built.
+
+**One honest gap in this step as written.** No document describing a modular
+website strategy was findable anywhere under `docs/` when step 30 was added
+(2026-09-19). So the first thing this step does is establish whether that
+strategy exists somewhere outside the repository or has yet to be written, and
+say which — it is not a reading assignment that can be silently skipped because
+its source could not be found.
 
 ---
 

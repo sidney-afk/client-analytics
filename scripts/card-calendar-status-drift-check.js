@@ -67,8 +67,14 @@
  *                   that to 'video' and never projects the graphic slot.
  *   unresolved      the card names a deliverable id that did not read back.
  *   agree           the slot already holds the mapped value.
- *   DRIFT           everything else: the trigger would have written this slot
- *                   and it does not hold the projected value.
+ *   pre_bridge      the two disagree, but the deliverable last moved BEFORE the
+ *                   trigger existed (see BRIDGE_GO_LIVE). The trigger fires on
+ *                   a change and does not reconcile history, so this is the
+ *                   backlog the bridge was built to stop growing, not a failure
+ *                   of the bridge. Counted and LISTED, never gating.
+ *   DRIFT           everything else: the deliverable moved at or after go-live,
+ *                   the trigger would have written this slot, and it does not
+ *                   hold the projected value.
  *
  * The comparison is an exact string comparison, because the trigger's guard is
  * `p.video_status is distinct from v_target` on the raw column. A case-folded
@@ -85,7 +91,9 @@
  *   node scripts/card-calendar-status-drift-check.js [--json] [--gate] [--limit=N]
  *
  * Exit 0 by default, so a human can read it without the shell arguing. `--gate`
- * exits 1 on any drift, which is how CI runs it.
+ * exits 1 on any DRIFT, which is how CI runs it -- never on a pre-bridge row,
+ * which is a backlog this gate cannot speak to and which would otherwise hold
+ * the lane permanently red.
  *
  * ------------------------------------------------------------------
  * PUBLIC SAFETY. The report prints calendar post ids, deliverable ids,
@@ -152,8 +160,24 @@ const SLOTS = Object.freeze([
   Object.freeze({ component: 'graphic', deliverableColumn: 'graphic_deliverable_id', statusColumn: 'graphic_status' }),
 ]);
 
+/* WHEN THE BRIDGE TRIGGER WENT LIVE.
+ *
+ * `migrations/2026-09-18-native-calendar-status-bridge.sql` was applied to
+ * production at this instant, measured by the storage session that applied it
+ * and recorded in docs/ops/LINEAR_EXIT_JOURNAL.md and REPO_MAP.md. It is the
+ * moment `production_native_calendar_status_after` began to exist.
+ *
+ * It is a constant here, once, rather than a literal repeated at each use: this
+ * value is the whole boundary between "the bridge failed" and "the bridge was
+ * not there yet", and a second copy that drifted from the first would move that
+ * boundary silently. If the trigger is ever dropped and reinstalled, this is
+ * the one line to change, and the fixture either side of it will say whether
+ * the change took. */
+const BRIDGE_GO_LIVE = '2026-09-18T22:38:14Z';
+const BRIDGE_GO_LIVE_MS = Date.parse(BRIDGE_GO_LIVE);
+
 const BUCKETS = Object.freeze([
-  'drift', 'agree', 'unmapped', 'archived', 'out_of_scope', 'link_asymmetric', 'shadowed', 'unresolved',
+  'drift', 'pre_bridge', 'agree', 'unmapped', 'archived', 'out_of_scope', 'link_asymmetric', 'shadowed', 'unresolved',
 ]);
 
 function clean(value) { return String(value == null ? '' : value).trim(); }
@@ -192,7 +216,36 @@ function classifySlot(card, slot, deliverable, mapNative) {
      compare exactly. A null column is distinct from any non-null target, in the
      trigger and here alike. */
   const raw = card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]);
-  return { bucket: raw === target ? 'agree' : 'drift', target };
+  if (raw === target) return { bucket: 'agree', target };
+
+  /* A disagreement the bridge was never present for.
+     ------------------------------------------------------------------
+     The trigger fires on a CHANGE. It does not reconcile history, and it never
+     claimed to: the cards that were already behind when it was installed are
+     the backfill's job, and the backfill has still never been run
+     (OPEN_REPAIRS 212). So a slot whose deliverable last moved BEFORE the
+     trigger existed is not evidence that the bridge is failing -- it is
+     evidence of the gap the bridge was built to stop widening.
+
+     The first live run of this lane went red on exactly that: 27 slots, 25 of
+     them last changed between April and 2026-08-24. Gating on those would have
+     made the lane permanently red for a backlog it cannot speak to, which is
+     the same crying-wolf failure the buckets above exist to prevent -- a gate
+     that is always red is a gate nobody reads.
+
+     They are counted and LISTED, not hidden. The backlog is real and somebody
+     should decide about it; it is simply not this gate's question.
+
+     A missing `status_at` is treated as pre-bridge, because it cannot be shown
+     to be at or after go-live and the conservative direction for a gate is to
+     under-report. The backfill draws the same line the same way, with
+     `d.status_at is not null and d.status_at >= p_since`. */
+  const movedAt = Date.parse(clean(deliverable.status_at));
+  if (!Number.isFinite(movedAt) || movedAt < BRIDGE_GO_LIVE_MS) {
+    return { bucket: 'pre_bridge', target };
+  }
+
+  return { bucket: 'drift', target };
 }
 
 /* Re-judge drift candidates against a FRESH read of both sides.
@@ -227,15 +280,17 @@ function classify(cards, deliverablesById, mapNative) {
   for (const b of BUCKETS) totals[b] = 0;
   const byComponent = { video: 0, graphic: 0 };
   const drift = [];
+  const preBridge = [];
 
   for (const card of cards || []) {
     for (const slot of SLOTS) {
-      const verdict = classifySlot(card, slot, (deliverablesById || {})[clean(card[slot.deliverableColumn])], mapNative);
+      const deliverable = (deliverablesById || {})[clean(card[slot.deliverableColumn])];
+      const verdict = classifySlot(card, slot, deliverable, mapNative);
       if (!verdict) continue;
       totals[verdict.bucket]++;
-      if (verdict.bucket !== 'drift') continue;
-      byComponent[slot.component]++;
-      drift.push({
+      if (verdict.bucket !== 'drift' && verdict.bucket !== 'pre_bridge') continue;
+
+      const row = {
         post_id: clean(card.id),
         deliverable_id: clean(card[slot.deliverableColumn]),
         component: slot.component,
@@ -243,13 +298,24 @@ function classify(cards, deliverablesById, mapNative) {
            reason this row drifted is a stray space, a trimmed report would
            show the two sides as identical and read like a bug in the check. */
         calendar_status: card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]),
-        deliverable_status: clean((deliverablesById[clean(card[slot.deliverableColumn])] || {}).status) || null,
+        deliverable_status: clean((deliverable || {}).status) || null,
+        /* The date is the WHOLE argument for a pre-bridge row, so it is
+           reported rather than left for somebody to go and look up. */
+        deliverable_status_at: clean((deliverable || {}).status_at) || null,
         expected: verdict.target,
-      });
+      };
+
+      if (verdict.bucket === 'pre_bridge') { preBridge.push(row); continue; }
+      byComponent[slot.component]++;
+      drift.push(row);
     }
   }
-  drift.sort((a, b) => a.post_id.localeCompare(b.post_id) || a.component.localeCompare(b.component));
-  return { totals, by_component: byComponent, drift };
+  const order = (a, b) => a.post_id.localeCompare(b.post_id) || a.component.localeCompare(b.component);
+  drift.sort(order);
+  /* Oldest first: the top of this list is the oldest thing the calendar has
+     been wrong about, which is the one worth deciding about. */
+  preBridge.sort((a, b) => clean(a.deliverable_status_at).localeCompare(clean(b.deliverable_status_at)) || order(a, b));
+  return { totals, by_component: byComponent, drift, pre_bridge: preBridge };
 }
 
 async function rest(pathAndQuery) {
@@ -307,7 +373,7 @@ async function main() {
   /* Read the deliverables side whole rather than querying per card: one paged
      scan is a few requests, a per-card lookup is thousands. */
   const deliverablesById = {};
-  for (const row of await pageAll('deliverables', 'id,status,origin,card_id,client_slug')) {
+  for (const row of await pageAll('deliverables', 'id,status,status_at,origin,card_id,client_slug')) {
     const id = clean(row.id);
     if (wanted.has(id)) deliverablesById[id] = row;
   }
@@ -348,7 +414,7 @@ async function main() {
         freshCards[clean(row.id)] = row;
       }
       const freshDlv = {};
-      for (const row of await rest('deliverables?select=id,status,origin,card_id,client_slug'
+      for (const row of await rest('deliverables?select=id,status,status_at,origin,card_id,client_slug'
         + '&id=in.(' + dlvIds.map(encodeURIComponent).join(',') + ')')) {
         freshDlv[clean(row.id)] = row;
       }
@@ -367,6 +433,7 @@ async function main() {
   const report = Object.assign(
     {
       generated_at: new Date().toISOString(),
+      bridge_go_live: BRIDGE_GO_LIVE,
       cards_scanned: cards.length,
       linked_slots_scanned: linkedSlots,
       distinct_deliverables_linked: wanted.size,
@@ -385,7 +452,8 @@ async function main() {
       console.log('Candidates that settled on re-read (an edit was in flight mid-scan): ' + report.settled_by_recheck);
     }
     console.log('');
-    console.log('  DRIFT            ' + t.drift + '   the bridge would have written this slot and it holds something else');
+    console.log('  DRIFT            ' + t.drift + '   moved at/after go-live, the bridge would have written it, and it holds something else');
+    console.log('  pre-bridge       ' + t.pre_bridge + '   disagrees, but last moved before the trigger existed (' + BRIDGE_GO_LIVE + ')');
     console.log('  agree            ' + t.agree + '   already holds the mapped value');
     console.log('  unmapped         ' + t.unmapped + '   no calendar equivalent; the card is left as it was, correctly');
     console.log('  archived         ' + t.archived + '   out of scope for the trigger, the backfill and the reconciler');
@@ -412,6 +480,21 @@ async function main() {
     } else {
       console.log('');
       console.log('No linked slot disagrees with its deliverable. The bridge is holding.');
+    }
+    if (report.pre_bridge && report.pre_bridge.length) {
+      console.log('');
+      console.log('Pre-bridge backlog, oldest first (post id, deliverable id, component, calendar -> expected, last moved):');
+      for (const d of report.pre_bridge.slice(0, LIMIT)) {
+        console.log('  ' + d.post_id.padEnd(40) + ' ' + d.deliverable_id.padEnd(40) + ' ' + d.component.padEnd(8)
+          + ' ' + (d.calendar_status == null ? '(none)' : JSON.stringify(d.calendar_status)).padEnd(20) + ' -> ' + String(d.expected).padEnd(18)
+          + ' ' + (d.deliverable_status_at || '(no status_at)'));
+      }
+      if (report.pre_bridge.length > LIMIT) console.log('  ... and ' + (report.pre_bridge.length - LIMIT) + ' more (use --json or --limit=N)');
+      console.log('');
+      console.log('These are NOT gating and never will be: the trigger fires on a change and does');
+      console.log('not reconcile history. They are the backlog that existed when it was installed,');
+      console.log('and clearing them is what production_native_calendar_status_backfill is for -- it');
+      console.log('has still never been run (OPEN_REPAIRS 212).');
     }
     if (t.link_asymmetric) {
       console.log('');

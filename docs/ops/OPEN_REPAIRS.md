@@ -26490,6 +26490,12 @@ do not make that REST read. A two-shape sweep of `scripts/` found other
 hard-coded project URLs; they are deliberately not changed by this exporter-only
 repair and are listed in the PR body for their separate classification.
 
+**Second amendment, 2026-09-19 — URL parser validation.** The exporter now
+parses `SUPABASE_URL` rather than relying on a regular expression. It permits
+only a canonical HTTPS origin, rejecting credentials, queries, fragments, and
+any non-root path before the exporter starts any network work; offline tests
+cover both those refusals and accepted canonical origins.
+
 ## 214. [2026-09-19, OPEN — REGRESSION, not intended] The Create Post editor picker is disabled because a completeness guard fires on a read PostgREST truncates at 1000 rows
 
 Owner observation during the identifier-mint check 3 walkthrough on the test
@@ -26950,4 +26956,3 @@ against the real base branch one of them passes. Both are now fixed:
 
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
-

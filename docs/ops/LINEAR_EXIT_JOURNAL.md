@@ -36,6 +36,172 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 consistency pass: check 15 inventory marked preliminary, and acceptance separated from closure
+
+- **An omission corrected.** Check 15's realtime-subscription list left out the
+  two `client_credentials_rev` subscriptions, and under-counted `calendar_posts`.
+  The total of 16 was right; the list is now complete for what was recorded.
+- **Preliminary evidence.** The search inventory is labelled preliminary source
+  evidence, not closure proof. The check itself still requires both independent
+  searches to be repeated and reconciled on the actual closure commit.
+  Completeness wording the recorded evidence did not support is removed.
+- **One ordering conflict fixed**, found by reading the whole plan. Checks 14
+  and 15 are closure checks, taken after acceptance and before the mirror
+  reconcile stops. Acceptance is now stated as checks 1–13, in check 15 and in
+  the Step 28 closure sentence.
+
+Earlier entries, including those that called the inventory complete, are kept as
+written.
+
+### 2026-09-19 — PR #1432 correction: the structural search's target inventory was incomplete
+
+The previous entry reported that the structural search had resolved every
+dynamic target. It had not.
+
+- **Missed call sites:** its helper-target list came from single-line matches, so
+  it missed the three call sites that pass `deliverables` (`readPage`,
+  `_prodRestRows`, `_kedRestIn`), each of which breaks the line before its
+  argument.
+- **Missed access form:** it also did not cover realtime subscriptions.
+
+The search now parses every helper call site across line breaks. It classifies
+all five supabase-js clients (no `.from` table query exists) and resolves all 16
+realtime subscriptions. The reconciled result is unchanged: the same four
+`index.html` reads, and no other browser access reaches `workload_issues`.
+Check 15 now describes the corrected search. That entry is kept as written.
+
+### 2026-09-19 — PR #1432 correction: a second, structural search for browser mirror reads, reconciled with the first
+
+As AGENTS.md requires, the literal `workload_issues` search now has a
+differently built companion. That second search enumerates every PostgREST and
+supabase-js access in the browser-served files and resolves each target
+relation, including the five dynamic ones: tables passed into `readPage`,
+`_prodRestRows`, `_kedRestPage`/`_kedRestIn`, and the legacy-source helper. None
+of those resolves to the mirror. Both searches find the same four reads in
+`index.html` and nothing else. Check 15 now requires both searches at closure,
+and fails if they disagree. Earlier entries are unchanged.
+
+### 2026-09-19 — PR #1432 correction: check 15 now covers every browser reader of the mirror
+
+One complete search of the browser-served files for `workload_issues` found four
+readers, all in `index.html`: the early prefetch; `_wlV2FetchIssues()`;
+`_wlV2FetchLatestWatermark()`, which the previous entry missed; and
+`wlNativeDiff()`. The watermark reader's two callers are dead: one has no
+callers, and the other sits behind the constant-`false` `shouldRebaseMirror` in
+`wlManualRefresh()`. Check 15 records the complete inventory and passes only when
+the same search, re-run at closure, finds no browser read. The only other match is
+an n8n code backup, which is not browser code. Earlier entries are unchanged.
+
+### 2026-09-19 — PR #1432 correction: the browser's own mirror reads are inventoried
+
+Two more `workload_issues` readers, found in `index.html` and now in the
+Workload plan's inventory:
+
+- **The early head-script prefetch.** It still fires on page load, but normal
+  native loading never uses its result. Its only consumer, `_wlV2FetchIssues()`,
+  is reached only through a forced call that skips the mirror, and through a
+  function with no callers.
+- **`wlNativeDiff()`**, the `?wlnative=1` acceptance comparison.
+
+New check 15 requires the prefetch and its unreachable consumers to be removed,
+and the diff's mirror dependency to be retired, before closure. The diff stays
+available until acceptance is recorded. Step 28 orders both before the mirror
+reconcile stops. Earlier entries are unchanged.
+
+### 2026-09-19 — PR #1432 correction: the background Workload mirror reconcile is inventoried, and the old scoping document is marked historical
+
+The Workload exit plan named three browser dependencies but not the background
+n8n reconcile that rebuilds `workload_issues` from Linear. That reconcile
+supplies every `legacy` row the native snapshot serves, and the rows
+`workload-linear` validates against. The plan now inventories it and counts
+what depends on it in Gate 0. New check 14 requires a measured native
+replacement, or zero dependent legacy rows and routes, before it stops, and it
+retires last. `APP.md`, the execution map and `REPO_MAP.md` name it too.
+`WORKLOAD_NATIVE_SOURCE.md`'s loading and fallback descriptions are marked
+historical and point to the current plan. The live n8n workflow was not re-read.
+Earlier entries are unchanged.
+
+### 2026-09-19 — PR #1432 correction: Workload truth documents now say normal loading is native, and name all three remaining Linear dependencies
+
+A Codex review found the Workload correction had not reached the current-truth
+documents, and that `REPO_MAP.md` called Calendar discovery "the remaining
+provider read". Read from `index.html`:
+
+- `loadLinearIssues()` returns `wlFetchNativeSnapshot()`.
+- The three remaining Linear dependencies are: post-create discovery
+  (`linear-issues`, legacy Calendar linker only); Tweak Needed feedback for legacy
+  rows (`linear-tweak-comments`; native rows already read `production-comments`);
+  and `workload-linear` for Linear-authoritative rows' due-date and label
+  metadata and due-date writes.
+
+`docs/truth/APP.md`, the execution map's Workload row, and `REPO_MAP.md` now say
+so. This is a source reading only; no live database or deployed function was
+checked. Earlier entries are unchanged.
+
+### 2026-09-19 — owner clarification recorded: what the public repository protects
+
+Sidney clarified the public-repository rule, and it is now at the top of
+`AGENTS.md`. Protect credentials, client names, client slugs, and share tokens.
+Ordinary filesystem paths, evidence locations, technical identifiers, and staff
+names are not prohibited merely because they identify something. A path or
+identifier that contains an actual protected value remains protected. This
+supersedes the broader hygiene instructions behind the PR #1432 cleanup. That
+cleanup's completed redactions of staff names and personal path segments are
+kept rather than restored, and the cleanup is not being expanded.
+
+### 2026-09-19 — PR #1432 follow-up correction: attribution repair relabelled unvalidated; one missed staff identity redacted
+
+Two corrections to the entry below, which is kept as written:
+
+- **`OPEN_REPAIRS.md` item 23:** the revised attribution-repair SQL was never
+  executed, and a schema check does not validate a repair. It is now labelled
+  prepared, unvalidated, with execution deferred, in place of "SQL ready". It
+  needs its own validation and an explicit go-ahead before anyone runs it. It was
+  not run.
+- **A missed identity:** the cleanup missed a staff member's full name written
+  in lowercase, joined into one word with the accents removed, in the paragraph
+  on a mis-teamed Workload row. It is now described as `staff-F`'s normalized
+  name. The cleanup had matched names word by word, so a joined form slipped
+  through. A recheck of both redacted files for joined full-name forms of every
+  roster member now finds none.
+
+### 2026-09-19 — PR #1432 review corrections: redacted command blocks made safe, Workload plan mapped, exposure evidence bound to a receipt
+
+A Codex review of the redaction found four defects, corrected here without
+rewriting earlier entries:
+
+- **The open attribution repair in `OPEN_REPAIRS.md` item 23** had its test-client
+  slug replaced by display text inside a SQL string, so pasting it would have
+  written that text as the slug. It now takes the slug from one marked setting,
+  and a guard refuses unless the value is a `test`-kind client and is the slug
+  the card's own batch carries. It was not executed.
+- **Six historical PowerShell blocks in this journal** had a personal path segment
+  replaced by `<owner>`, which is not a runnable path. They are now marked as
+  non-runnable redacted records of commands that already ran. They were not
+  re-run to validate them. The other redacted code blocks in this change are
+  recorded output, not inputs, and are unchanged.
+- **`REPO_MAP.md`** now routes to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
+- **Step 27 check 13** cited abbreviated earlier commits. It now points to a
+  PR comment receipt that records the exposure result with the full checked head
+  and base SHAs. The receipt lives outside the commit, so no commit has to embed
+  its own hash.
+
+### 2026-09-19 — native Workload exposure check: PASSED (follow-up to the entry below, which is kept as written)
+
+The entry below records that the required identity-exposure check could not be
+run at the time. Storage later ran `node scripts/repo-identity-exposure-check.js
+--diff="origin/main"` with authorized access against freshly fetched
+`origin/main` `0b2f16ae`. It passed on `6a0ea50d` and on `178f210b`: 53 roster
+terms checked, 0 client slugs and 0 staff names added, in 0 files.
+
+### 2026-09-19 — native Workload scope corrected: normal board loading was
+already native; the remaining provider issue read is the legacy Calendar
+post-create/link-resume discovery path. Retirement now requires an equivalent
+native acknowledgement or a measured zero of dependent callers, resumable jobs,
+and retained provider rows. The required public identity-exposure check remains
+unverified because authorized execution was unavailable; no substitute is
+claimed.
+
 ### 2026-09-19 — Step 29c correction: live pager scope narrowed by Storage
 
 Storage's read-only inspection verified six live conditions from the incremental-refresh and outbound pager scripts: `incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`. It also verified the separate `mirror_stale` producer. The code defines `outbound_oldest_pending`, but Storage did not find it in the current live pager; that observation does not establish whether it was installed earlier.
@@ -711,7 +877,7 @@ accepted-receipt replay shortcut is gated on
 `principal.kind === "staff" && ! principal.testOnly` (`index.ts:5977-5978`), so
 a test-client replay never reaches it and falls through to a generic response
 carrying none of `replayed`, `read_only` or `authority_source`. Running check 4
-as `sidneylaruel` fails it for a reason unrelated to idempotency. So the test
+as `<test-client>` fails it for a reason unrelated to idempotency. So the test
 client can exercise the label **write** lane — which is what #1414 was for — and
 **cannot** exercise replay. My note that check 7 no longer needed a named real
 client was wrong on the same point and is withdrawn.
@@ -929,7 +1095,7 @@ Found by reading, not by running. All three layers refuse `test_only`:
 
 So step 27 has **no TEST lane at all**, and the first native label write that can
 ever succeed is on a real client — colliding with "Mutate only the test client
-`sidneylaruel`". #1413 fixed precisely this shape for the ordinary and assignment
+`<test-client>`". #1413 fixed precisely this shape for the ordinary and assignment
 lanes and left the third untouched, because nobody had looked at it. Two honest
 resolutions, both owner decisions: extend the parity migration to this lane, or
 name a real client in the go-ahead.
@@ -3535,7 +3701,7 @@ steps 14 and 15 only if both equal `18697ad2…`.
 
 #### The read
 
-- **Reader:** `D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-plan-hashes.private.cjs`,
+- **Reader:** `D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-plan-hashes.private.cjs`,
   SHA-256 `b6aecfe38bae1cf452519d4e06f7948e0210940f58776470686ff53600cd9d48`
   (4,081 bytes), unchanged before and after.
 - **Connection:** the same pattern as the step 12 and 14 wrapper: password
@@ -3755,7 +3921,7 @@ inferred here. The runbook promises no duration.
 
 #### Step 15: verifier written and hashed, NOT run
 
-`D:/Sidney/Codex/2026-09-13-final-review-repairs/verify-install-state.private.cjs`,
+`D:/<owner>/Codex/2026-09-13-final-review-repairs/verify-install-state.private.cjs`,
 SHA-256 **`b1a2cdbd1c94a00cbf5a9b53c78ae9b533333be08abeff2210ad10cb34837b32`**,
 7,211 bytes.
 
@@ -3910,7 +4076,7 @@ Wrappers were hashed in the same process, all as proven: catalog read
 
 | Item | Value |
 |---|---|
-| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-flags-20260917-1/pre-state-flags.private.json` |
+| **File** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-flags-20260917-1/pre-state-flags.private.json` |
 | **SHA-256** | **`7346703619777aeba94c426d8ce19243da70f5a43e8bddfbf3e2e51a528ed63a`** |
 | Bytes | 125,217; sorted keys (re-serialisation reproduces it byte for byte) |
 | SHA-256 of its `compare` section | `48b3f5eab40a9bbdb79791a586d86ac295bb4d25ada4b4d3ea1517d292bf559c` |
@@ -4458,10 +4624,10 @@ re-checked against the value below, so what ran is what was recorded.
 
 | Item | Value |
 |---|---|
-| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs` |
+| **File** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs` |
 | **SHA-256** | **`ddec698855b672677018fe6ceaf68e83718de50a23c75e46c7f83aaa5b765b45`** |
 | Bytes | 8,952 |
-| Operator it drives | `scripts/linear-exit-install-operator.js` from checkout `D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes` |
+| Operator it drives | `scripts/linear-exit-install-operator.js` from checkout `D:/<owner>/Codex/2026-09-13-linear-exit-review-fixes` |
 | Driver | `operator-runtime/node_modules/postgres`, version 3.4.7, as the runbook specifies |
 
 #### Behaviour: the only difference from the operator's `main()` is where the config comes from
@@ -4523,9 +4689,13 @@ never retries.
 
 #### The step 12 invocation, as it will run from a Windows PowerShell 5.1 host
 
-```powershell
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/Sidney/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/Sidney/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
+> **Redacted historical record, not runnable as written.** `<owner>` stands for a
+> withheld path segment. These commands already ran on the recorded date; they
+> are kept as the record, not as instructions to repeat.
+
+```text
+node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
+node D:/<owner>/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/<owner>/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/<owner>/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
 ```
 
 The first line is a fresh catalog read for the wrapper's one-hour window. **It is
@@ -5313,7 +5483,7 @@ workflow or worker was touched.
 
 | Item | Value |
 |---|---|
-| **Snapshot** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json` |
+| **Snapshot** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json` |
 | **SHA-256** | **`ad3bdf6a3d6c61f14f20725a5c0b7ed7247352bb1c6abf02c328d1796dc43033`** |
 | Bytes | 161,316 |
 | SHA-256 of its `compare` section alone | `eea5512f3395e7b96104b955d80dee3eb21ddcf91d89f614ae4f565adf18c27c` |
@@ -5964,7 +6134,7 @@ is consistent with Windows' built-in zip, which is inference only.
 anything that is not a Storage export. **The owner fixed the method below. No
 new script is written for it.**
 
-#### Names, all under `D:/Sidney/Codex/2026-09-13-final-review-repairs`, local date 2026-09-16
+#### Names, all under `D:/<owner>/Codex/2026-09-13-final-review-repairs`, local date 2026-09-16
 
 | Use | Name |
 |---|---|
@@ -5979,16 +6149,24 @@ new script is written for it.**
 
 1. **Catalog read, then the capture immediately after it, with nothing between.**
    The refresh wrapper refuses a receipt older than one hour.
-   ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
    ```
    If the capture refuses `SOURCE_CHANGED`, that is the concurrent-write check
    working. It is reported as such and retried **once**, in a quieter moment,
    with a fresh catalog read and new names (`-7`, `-2`).
 2. **Local restore before any upload** (sitting page, step 9):
-   ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
    ```
 3. **Manifest confirmation, by the owner's ruling.** The manifest stays sealed;
    it is **not** decrypted outside the wrappers. It is confirmed through the
@@ -6002,9 +6180,13 @@ new script is written for it.**
    `restore()` refuses unless the manifest's count equals its own evidence and
    the restored evidence equals the manifest's exactly.
 4. **Packaging, the owner's fixed method:**
-   ```powershell
-   Compress-Archive -Path 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
-   (Get-FileHash -LiteralPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
+   Compress-Archive -Path 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
+   (Get-FileHash -LiteralPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
    ```
    Hashed **once, when made. That is the upload hash.** Without `-Force`,
    `Compress-Archive` refuses an existing destination.
@@ -6016,9 +6198,13 @@ new script is written for it.**
      evidence directory.** It is never a copy of the original zip. This is the
      same mechanism as 2026-09-14's `drive-downloaded-database-encrypted`.
 7. **Verify the Windows download, no new script:**
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    (Get-FileHash -LiteralPath '<downloaded zip in the evidence directory>' -Algorithm SHA256).Hash.ToLower()   # must equal the upload hash
-   Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
+   Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
    ```
    Then **every extracted member** is compared by SHA-256 and size with the file
    of the same name in `day-database-20260916-1\encrypted`. The member sets must
@@ -6029,8 +6215,12 @@ new script is written for it.**
    > *include* those two: 42 chunks plus two. Tonight's count is whatever the
    > capture produces, and every member is compared.
 8. **Step 10 restore of the Windows download:**
-   ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
    ```
    Then the same independent catalog hash and table count check on the scratch
    cluster.
@@ -6175,7 +6365,7 @@ same host arrangement as the proof read `day-catalog-20260916-4`.
 
 - **Command**, from a **Windows PowerShell 5.1** host (5.1.26100.9444), the
   reviewed command from the handover section 4.2:
-  `node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-5`
+  `node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-5`
 - **Wrapper SHA-256**, hashed in the same process immediately before the run:
   `6b6e2fe7248d08f627dbf91319211ed11a9a5e1743a66b2fd327f9d595e9bb56`. That is the
   version recorded in the entry "Storage session: the private catalog wrapper now
@@ -7148,7 +7338,7 @@ their own entries.
 
 #### What changed in the private file, described so it can be checked without seeing it
 
-`D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs`
+`D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs`
 maps a live catalog's canonical hash to a profile name. On line 18 it held a
 two-entry object literal, `observed67` (`809c5dc7…`) and `observed67_optout`
 (`f5ed8a38…`), and nothing else.
@@ -7946,7 +8136,7 @@ on the owner's machine, with PostgreSQL 17, ICU `en-US` on loopback and the
 private observed inputs:
 
 - **Before:** a separate git worktree at `05bf19f6`, the parent of
-  `808bca20`, at `D:/Sidney/Codex/2026-09-16-runner-before-05bf19f6`.
+  `808bca20`, at `D:/<owner>/Codex/2026-09-16-runner-before-05bf19f6`.
 - **After:** the checkout at `808bca20`.
 - **Differences between the trees:** `git diff --stat` shows exactly one code
   file, the runner. `run-portable.ps1` and the Deno worker are byte-identical.
@@ -10698,7 +10888,7 @@ plan if someone can actually reach a PG17 server.
 existing generator can be pointed at.
 
 **It is not missing from the project, only from here.** The owner's machine has
-PG17 at `D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`, which
+PG17 at `D:/<owner>/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`, which
 the installation runbook already uses, and the portable runner accepts it via
 `-PgBin`. So B10 is blocked on **the Windows machine**, not on effort and not on
 a capability nobody has.

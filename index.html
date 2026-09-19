@@ -22016,7 +22016,12 @@
     function updateLinearTitle() {
         const el = document.getElementById('linearTitleDisplay');
         if (!el) return;
-        const t = buildLinearTitle();
+        const input = document.getElementById('linearClientSearch');
+        const hold = _linearSubmissionHoldRead();
+        const holdMatches = hold
+            && hold.client_name === String(input && input.value || '').trim()
+            && hold.client_slug === String(input && input.dataset && input.dataset.clientSlug || '').trim();
+        const t = holdMatches ? hold.computed_title : buildLinearTitle();
         el.textContent = t || 'Select a client…';
         el.classList.toggle('empty', !t);
         saveLinearForm();
@@ -50203,6 +50208,7 @@
 
     function renderLinearView() {
         const saved = loadLinearForm();
+        const heldSubmission = _linearSubmissionHoldRead();
         const savedClient = saved.client || '';
         const savedClientSlug = saved.clientSlug || '';
         const savedGeneralDrive = saved.generalDrive || '';
@@ -50218,7 +50224,10 @@
         }
 
         let titleDisplay = 'Select a client…';
-        if (savedClient) {
+        if (heldSubmission && heldSubmission.client_name === String(savedClient).trim()
+            && heldSubmission.client_slug === String(savedClientSlug).trim()) {
+            titleDisplay = heldSubmission.computed_title;
+        } else if (savedClient) {
             const d = new Date();
             titleDisplay = `${savedClient} · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         }
@@ -51484,6 +51493,7 @@
         if (heldSnapshot && heldSnapshot.hold.legacy_receipt_present) {
             return _linearHoldSubmission(mode, 'saved_legacy_receipt');
         }
+        let heldDraft = null;
         if (heldSnapshot) {
             let currentDraft;
             try { currentDraft = _linearDraftSnapshot(clientName); }
@@ -51494,10 +51504,13 @@
                 || heldSnapshot.hold.draft_raw !== currentDraft.form_raw) {
                 return _linearHoldSubmission(mode, 'held_submission_conflict');
             }
+            heldDraft = JSON.parse(currentDraft.form_raw);
         }
         const title = heldSnapshot ? heldSnapshot.hold.computed_title : buildLinearTitle();
         const notes = document.getElementById('linearNotes')?.value?.trim() || '';
-        const filmingPlans = _linearResolvedPlanUrl || '';
+        const filmingPlans = heldSnapshot
+            ? String(heldDraft && heldDraft.filmingPlans || '').trim()
+            : (_linearResolvedPlanUrl || '');
         const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
         const videos = [];
         let number = 1;

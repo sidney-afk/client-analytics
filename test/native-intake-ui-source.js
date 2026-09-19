@@ -340,9 +340,12 @@ const result = {
   'a held native retry promotes its preallocated identity without changing it');
   ok(submit.includes('heldSnapshot.hold.computed_title')
     && submit.includes('heldSnapshot.hold.computed_due_dates[number - 1]')
+    && submit.includes("String(heldDraft && heldDraft.filmingPlans || '').trim()")
     && extract('_linearSubmissionHoldSnapshot').includes('hold.computed_due_dates')
+    && extract('renderLinearView').includes('heldSubmission.computed_title')
+    && extract('updateLinearTitle').includes('hold.computed_title')
     && extract('_linearIntakePurgeSensitiveState').includes('removeItem(LINEAR_INTAKE_HOLD_KEY)'),
-  'an overnight hold preserves its computed title and due dates and cannot cross a staff sign-out');
+  'an overnight hold preserves its visible title, filming plan, and due dates and cannot cross a staff sign-out');
   ok(submit.indexOf('const pendingNativeIntake = _linearIntakeRead()')
       < submit.indexOf('localStorage.getItem(LINEAR_RECEIPTS_KEY)')
     && submit.includes('if (!pendingNativeIntake)')

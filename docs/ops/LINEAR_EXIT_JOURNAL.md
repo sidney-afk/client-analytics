@@ -30,6 +30,14 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native Workload exposure check: PASSED (follow-up to the entry below, which is kept as written)
+
+The entry below records that the required identity-exposure check could not be
+run at the time. Storage later ran `node scripts/repo-identity-exposure-check.js
+--diff="origin/main"` with authorized access against freshly fetched
+`origin/main` `0b2f16ae`. It passed on `6a0ea50d` and on `178f210b`: 53 roster
+terms checked, 0 client slugs and 0 staff names added, in 0 files.
+
 ### 2026-09-19 — native Workload scope corrected: normal board loading was
 already native; the remaining provider issue read is the legacy Calendar
 post-create/link-resume discovery path. Retirement now requires an equivalent

@@ -2122,6 +2122,38 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'Calendar Create Post did not fall back to a new batch when no active batch exists');
     expect(calendarWrites.length === beforeNewCalendarWrites,
       'new-batch choice wrote a local card before native intake');
+    /*
+     * OPEN_REPAIRS 215 -- a press that starts inside the dialog (dragging to
+     * select text in the batch-name field, say) and releases on the backdrop
+     * must NOT dismiss the dialog. `click` dispatches at the nearest common
+     * ancestor of the mousedown and mouseup targets, so a naive
+     * `if (event.target === overlay) dismiss()` on the backdrop cannot tell
+     * that drag apart from an actual backdrop click -- both make
+     * `event.target === overlay` true at click time. This drives the exact
+     * shape of the bug: press inside `#calNativeBatchName`, release on the
+     * backdrop corner (outside the centered modal), and the overlay -- and
+     * the typed name -- must still be there.
+     */
+    const dragBatchNameField = page.locator('#calNativeBatchName');
+    await dragBatchNameField.fill('Drag-dismiss probe batch');
+    const dragFieldBox = await dragBatchNameField.boundingBox();
+    const dragOverlayBox = await page.locator('#calNativePostOverlay').boundingBox();
+    if (!dragFieldBox || !dragOverlayBox) {
+      throw new Error(marker() + 'drag-dismiss probe could not measure the batch-name field or the overlay');
+    }
+    await page.mouse.move(dragFieldBox.x + dragFieldBox.width / 2, dragFieldBox.y + dragFieldBox.height / 2);
+    await page.mouse.down();
+    // Release on the backdrop itself -- the overlay fills the viewport and
+    // centers its modal, so a corner is always backdrop, never modal content.
+    await page.mouse.move(dragOverlayBox.x + 2, dragOverlayBox.y + 2, { steps: 5 });
+    await page.mouse.up();
+    expect(await page.locator('#calNativePostOverlay').count() === 1,
+      'a press that began in the batch-name field and released on the backdrop closed Create Post');
+    expect(await dragBatchNameField.inputValue() === 'Drag-dismiss probe batch',
+      'the batch-name field lost its typed text after the drag-dismiss probe');
+    // Restore the untouched (empty) name so the assertions below still see the
+    // auto-generated "Calendar Fixture" batch title this probe must not change.
+    await dragBatchNameField.fill('');
     await page.locator('#calNativePostCreate').click();
     for (let i = 0; i < 100 && writes.length === beforeNewGatewayWrites; i++) {
       await new Promise(resolve => setTimeout(resolve, 20));

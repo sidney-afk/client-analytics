@@ -8140,7 +8140,7 @@
 </head>
 <body>
 <!-- Confirmation modal -->
-<div class="confirm-overlay" id="confirmOverlay" onclick="if(event.target===this)dismissConfirm()">
+<div class="confirm-overlay" id="confirmOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)dismissConfirm()">
     <div class="confirm-box">
         <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
         <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
@@ -8160,7 +8160,7 @@
      ticks and routes the component to Kasper, the client, or straight to
      Approved. The ✕ (and a backdrop click) just close it — closing is
      non-destructive, since nothing is applied until a route is picked. -->
-<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
+<div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calDismissResolveDest()">
     <div class="confirm-box resolve-dest-box">
         <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calDismissResolveDest()">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
@@ -8588,6 +8588,42 @@
 <script>
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
+    /*
+     * OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog
+     * overlays.
+     *
+     * Every dialog's backdrop closes it with `if (event.target === overlay)
+     * dismiss()`. That is not enough: the DOM dispatches `click` at the
+     * nearest common ancestor of the mousedown target and the mouseup
+     * target, so a press that starts on a field inside the dialog (e.g.
+     * drag-selecting text) and releases on the backdrop makes
+     * `event.target === overlay` true at click time too -- indistinguishable
+     * from an actual backdrop click. Drag-selecting text right-to-left near a
+     * dialog's edge routinely ends the drag outside it, so this is ordinary
+     * input, not an edge case.
+     *
+     * One delegated, capture-phase `mousedown` listener on `document` records
+     * on every press whether it began directly on a marked backdrop
+     * (`[data-backdrop-dismiss]`), not on one of its descendants. Capture
+     * phase is load-bearing: several dialog fields call
+     * `event.stopPropagation()` on their own `mousedown` (the Create Post
+     * batch-name field among them), which would stop a bubble-phase listener
+     * on the overlay from ever seeing those presses -- leaving a stale
+     * `true` from an earlier real backdrop press and letting the bug survive
+     * in a narrower, easier-to-miss form. Delegating at `document` also means
+     * a dialog whose markup is re-rendered (a fresh overlay element replacing
+     * the old one) is covered without re-arming anything, since there is
+     * nothing per-element to re-arm.
+     *
+     * Each backdrop's own click handler additionally requires
+     * `overlay._backdropPressBegan` (or `this._backdropPressBegan` inline)
+     * before dismissing, so a dismiss only fires when BOTH the press and the
+     * click landed on the backdrop itself.
+     */
+    document.addEventListener('mousedown', event => {
+        const backdrop = event.target && event.target.closest && event.target.closest('[data-backdrop-dismiss]');
+        if (backdrop) backdrop._backdropPressBegan = (event.target === backdrop);
+    }, true);
     function _syncviewThemeAllowed() {
         try {
             const q = new URLSearchParams(location.search);
@@ -9510,7 +9546,8 @@
     }
 
     function closeTranscriptModal(e) {
-        if (e && e.target !== document.getElementById('transcriptOverlay')) return;
+        const overlay = document.getElementById('transcriptOverlay');
+        if (e && (e.target !== overlay || !overlay._backdropPressBegan)) return;
         document.getElementById('transcriptOverlay').classList.remove('active');
         document.body.style.overflow = '';
     }
@@ -10940,7 +10977,8 @@
         }).join('');
         const overlay=document.createElement('div');
         overlay.className='detail-info-overlay open';
-        overlay.onclick=(e)=>{if(e.target===overlay){overlay.remove();document.body.style.overflow='';}};
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.onclick=(e)=>{if(e.target===overlay&&overlay._backdropPressBegan){overlay.remove();document.body.style.overflow='';}};
         overlay.innerHTML=`<div class="detail-info-modal"><div class="detail-info-modal-head"><span class="detail-info-modal-title">About ${name}</span><button class="detail-info-modal-close" onclick="this.closest('.detail-info-overlay').remove();document.body.style.overflow='';"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="detail-info-modal-body">${formatted}</div></div>`;
         document.body.appendChild(overlay);
         document.body.style.overflow='hidden';
@@ -10954,7 +10992,8 @@
         const reelCards=reels.map(r=>{const h=(r.handle||'unknown').replace(/^@/,'');return`<div class="mr-info-reel"><div><span class="mr-info-reel-handle">@${h}</span></div><span class="mr-info-reel-views">${r.views||'—'} views</span>${r.url?`<a class="source-link mr-info-reel-link" href="${r.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${_mrExternalLink}View ↗</a>`:''}</div>`;}).join('');
         const overlay=document.createElement('div');
         overlay.className='mr-info-overlay';
-        overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.onclick=(e)=>{if(e.target===overlay&&overlay._backdropPressBegan)overlay.remove();};
         overlay.innerHTML=`<div class="mr-info-modal"><div class="mr-info-modal-head"><span class="mr-info-modal-title">Supporting Reels (${reels.length})</span><button class="mr-info-modal-close" onclick="this.closest('.mr-info-overlay').remove()"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="mr-info-modal-body">${reelCards}</div></div>`;
         document.body.appendChild(overlay);
     }
@@ -22512,7 +22551,7 @@
                 ${toolbarRight}
             </div>
             <div class="sm-body" id="smBody">${_smLoaderHtml()}</div>
-            <div class="sm-comments-overlay" id="smCommentsOverlay" onclick="if(event.target===this)closeSmComments()">
+            <div class="sm-comments-overlay" id="smCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSmComments()">
                 <div class="sm-comments-modal" id="smCommentsModal" role="dialog" aria-modal="true"></div>
             </div>
             <div class="sm-flash" id="smFlash"></div>`;
@@ -24955,7 +24994,7 @@
         overlay._syncviewEntry = !!entry;
         // Entry mode IS the door: there is nothing behind it to dismiss to,
         // so backdrop clicks and Escape must not close it.
-        overlay.onclick = event => { if (event.target === overlay && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
         overlay._syncviewKeydown = event => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -25095,6 +25134,7 @@
             const overlay = document.createElement('div');
             overlay.id = 'staffIdentityOverlay';
             overlay.className = 'cal-import-overlay open staff-auth-overlay';
+            if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
             const result = new Promise(resolve => { overlay._syncviewResolve = resolve; });
             overlay.innerHTML = '<div class="staff-auth-card" role="dialog" aria-modal="true" aria-label="Preparing staff sign in" aria-busy="true" tabindex="-1"><div class="staff-auth-loading"><span class="staff-auth-spinner" aria-hidden="true"></span><strong>Preparing secure sign-in</strong><span>Loading the active staff roster…</span></div></div>';
             document.body.appendChild(overlay);
@@ -39548,26 +39588,26 @@
                 </div>
             </div>
             <div class="cal-body" id="calBody">${_calLoaderHtml()}</div>
-            <div class="cal-preview-overlay" id="calPreviewOverlay" onclick="if(event.target===this)closeCalPreview()">
+            <div class="cal-preview-overlay" id="calPreviewOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalPreview()">
                 <div class="cal-preview" id="calPreview"></div>
             </div>
-            <div class="cal-import-overlay" id="calImportOverlay" onclick="if(event.target===this)closeCalImport()">
+            <div class="cal-import-overlay" id="calImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalImport()">
                 <div class="cal-import-modal" id="calImportModal"></div>
             </div>
-            <div class="cal-import-overlay" id="calLinearImportOverlay" onclick="if(event.target===this)closeCalLinearImport()">
+            <div class="cal-import-overlay" id="calLinearImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalLinearImport()">
                 <div class="cal-import-modal" id="calLinearImportModal"></div>
             </div>
-            <div class="cal-import-overlay" id="calBulkLinkOverlay" onclick="if(event.target===this)closeCalBulkLinkOverlay()">
+            <div class="cal-import-overlay" id="calBulkLinkOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalBulkLinkOverlay()">
                 <div class="cal-import-modal" id="calBulkLinkModal"></div>
             </div>
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="cal-comments-overlay" id="calCommentsOverlay" onclick="if(event.target===this)closeCalComments()">
+            <div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalComments()">
                 <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
             </div>
-            <div class="cal-prompt-overlay" id="calPromptOverlay" onclick="if(event.target===this)_calCloseCaptionPromptModal()">
+            <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calCloseCaptionPromptModal()">
                 <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
             </div>
         `;
@@ -41006,13 +41046,14 @@
         overlay = document.createElement('div');
         overlay.id = 'thumbCompareOverlay';
         overlay.className = 'thumb-compare-overlay';
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
         overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-label="Previous and current thumbnail comparison" tabindex="-1">
             <header class="thumb-compare-head">
                 <button type="button" class="thumb-compare-close" onclick="_thumbCompareClose()" aria-label="Close thumbnail comparison"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </header>
             <div class="thumb-compare-content" id="thumbCompareContent" role="status" aria-live="polite"></div>
         </section>`;
-        overlay.addEventListener('click', e => { if (e.target === overlay) _thumbCompareClose(); });
+        overlay.addEventListener('click', e => { if (e.target === overlay && overlay._backdropPressBegan) _thumbCompareClose(); });
         overlay.addEventListener('keydown', _thumbCompareKeydown);
         document.body.appendChild(overlay);
         return overlay;
@@ -45031,7 +45072,8 @@
         const overlay = document.createElement('div');
         overlay.id = 'calNativePostOverlay';
         overlay.className = 'cal-import-overlay open';
-        overlay.onclick = event => { if (event.target === overlay) _calCloseNativePost(); };
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan) _calCloseNativePost(); };
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
@@ -54505,7 +54547,7 @@
                 { value: 'internal', label: 'Staff view (all visibility)' },
                 { value: 'client', label: 'Client-visible only' }
             ];
-            layer.innerHTML = '<div class="prod-create-bd" data-prod-archive-backdrop="1"><div class="prod-create-modal prod-archive-modal" data-prod-archive-modal="1">'
+            layer.innerHTML = '<div class="prod-create-bd" data-prod-archive-backdrop="1" data-backdrop-dismiss><div class="prod-create-modal prod-archive-modal" data-prod-archive-modal="1">'
                 + '<div class="prod-create-head"><div><h2>Archive asset repair</h2><p>Protected history · original private Linear URLs are never displayed</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseArchiveRepair()" aria-label="Close">&times;</button></div>'
                 + '<div class="prod-archive-controls"><div class="prod-create-field"><label>Roster client</label>' + _svSelectHtml('prodArchiveClient', clientItems, state.clientSlug, 'Choose client', { onchange: '_prodArchiveScopeChange("clientSlug",this.value)' }) + '</div>'
                 + '<div class="prod-create-field"><label>Team</label>' + _svSelectHtml('prodArchiveTeam', teamItems, state.team, 'Choose team', { onchange: '_prodArchiveScopeChange("team",this.value)' }) + '</div>'
@@ -54519,7 +54561,7 @@
             layer.style.pointerEvents = 'auto';
             const backdrop = layer.querySelector('[data-prod-archive-backdrop]');
             if (backdrop) backdrop.addEventListener('click', event => {
-                if (event.target === backdrop) _prodCloseArchiveRepair();
+                if (event.target === backdrop && backdrop._backdropPressBegan) _prodCloseArchiveRepair();
             });
         }
         async function _prodArchiveLoadList(append) {
@@ -56618,6 +56660,7 @@
             _prodLoadBriefs({ silent: true });
             const bd = document.createElement('div');
             bd.className = 'prod-cmd-bd';
+            if (typeof bd.setAttribute === 'function') bd.setAttribute('data-backdrop-dismiss', '');
             bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people…" spellcheck="false"><div class="prod-cmd-list"></div></div>';
             document.body.appendChild(bd);
             const inp = bd.querySelector('.prod-cmd-input');
@@ -56665,7 +56708,7 @@
                 }
             });
             bd.addEventListener('click', e => {
-                if (e.target === bd) close();
+                if (e.target === bd && bd._backdropPressBegan) close();
             });
             _prodState.paletteOpen = true;
             search();
@@ -57500,11 +57543,11 @@
         function _prodRenderCreateModal() {
             const layer = document.getElementById('prodLayer');
             if (!layer || !_prodState.createDraft) return;
-            layer.innerHTML = '<div class="prod-create-bd" data-prod-create-backdrop="1">' + _prodCreateFormHTML() + '</div>';
+            layer.innerHTML = '<div class="prod-create-bd" data-prod-create-backdrop="1" data-backdrop-dismiss>' + _prodCreateFormHTML() + '</div>';
             layer.style.pointerEvents = 'auto';
             const backdrop = layer.querySelector('[data-prod-create-backdrop]');
             if (backdrop) backdrop.addEventListener('click', event => {
-                if (event.target === backdrop) _prodCloseCreate();
+                if (event.target === backdrop && backdrop._backdropPressBegan) _prodCloseCreate();
             });
         }
         function _prodRenderCreateCatalog() {
@@ -68017,7 +68060,7 @@
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="cal-lightbox-close" type="button" onclick="closeSxrLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="cal-comments-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+            <div class="cal-comments-overlay" id="sxrCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSxrComments()">
                 <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
             </div>
         `;
@@ -80152,6 +80195,7 @@
         const platformItems = (CC_PLATFORM_OPTIONS.includes(platformValue) ? CC_PLATFORM_OPTIONS : [platformValue].concat(CC_PLATFORM_OPTIONS)).filter(Boolean);
         const ov = document.createElement('div');
         ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccEditClose">×</button><h3>${row ? 'Edit credential' : 'Add credential'}</h3><p>${scope === 'modal' ? _ccEsc(_ccState.modal.client) : 'Kasper credentials store'}</p></div>
             <div class="cal-import-body">
@@ -80169,7 +80213,7 @@
         const close = () => { _ccCloseSelect(); ov.remove(); };
         ov.querySelector('#ccEditClose').onclick = close;
         ov.querySelector('#ccEditCancel').onclick = close;
-        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
         ov.querySelector('#ccEditSave').onclick = async () => {
             const btn = ov.querySelector('#ccEditSave'); btn.disabled = true;
             try {
@@ -80289,11 +80333,12 @@
     function _ccOpenHistory(id, clientSlug) {
         const ov = document.createElement('div');
         ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" id="ccHistClose">×</button><h3>Credential history</h3><p>Every change, reveal, import, and reassignment.</p></div><div class="cal-import-body" id="ccHistBody">${_calLoaderHtml('Loading history…')}</div></div>`;
         document.body.appendChild(ov);
         const close = () => ov.remove();
         ov.querySelector('#ccHistClose').onclick = close;
-        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
         _ccApi('history', id ? { credential_id: id } : { client_slug: clientSlug })
             .then(json => { const body = ov.querySelector('#ccHistBody'); const events = json.events || []; body.innerHTML = events.length ? `<div class="cc-history-list">${events.map(_ccEventHtml).join('')}</div>` : '<div class="cc-empty">No history yet.</div>'; })
             .catch(e => { const body = ov.querySelector('#ccHistBody'); body.innerHTML = `<div class="cc-empty">${_ccEsc((e && e.message) || 'Could not load history')}</div>`; });
@@ -80371,6 +80416,7 @@
     async function _ccOpenOnboardingImport() {
         const ov = document.createElement('div');
         ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccObClose">&times;</button><h3>Import from onboarding</h3><p>Credentials clients entered on the onboarding form. Nothing is saved until you press Import, and everything imported is marked <strong>needs review</strong>.</p></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="ccObBody">Reading onboarding submissions...</div></div>
@@ -80379,7 +80425,7 @@
         document.body.appendChild(ov);
         const close = () => ov.remove();
         ov.querySelector('#ccObClose').onclick = close;
-        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
         const body = ov.querySelector('#ccObBody');
         const importBtn = ov.querySelector('#ccObImportBtn');
         const summary = ov.querySelector('#ccObSummary');
@@ -80558,6 +80604,7 @@
     function _ccOpenBulkImport() {
         const ov = document.createElement('div');
         ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccBulkClose">×</button><h3>Bulk import credentials</h3><p>Paste one account per line: Client name | platform | handle | password | notes</p></div>
             <div class="cal-import-body"><div class="cc-field full"><label>Paste credentials</label><textarea id="ccBulkText" style="min-height:170px;" placeholder="Jane Doe | instagram | @janedoe | password123 | 2FA backup…"></textarea></div><div id="ccBulkPreview"></div></div>
@@ -80566,7 +80613,7 @@
         document.body.appendChild(ov);
         const close = () => ov.remove();
         ov.querySelector('#ccBulkClose').onclick = close;
-        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
         let preview = null;
         const renderPreview = (rows) => {
             const box = ov.querySelector('#ccBulkPreview');
@@ -80598,10 +80645,14 @@
         catch (e) { if (e && e.status === 403) { try { showToast(e.message); } catch (_) {} } return; }
         _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
         let ov = document.getElementById('ccOverlay');
-        if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay cc-sensitive-overlay open'; document.body.appendChild(ov); }
+        if (!ov) {
+            ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay cc-sensitive-overlay open';
+            if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+            document.body.appendChild(ov);
+        }
         ov.classList.add('open');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
-        ov.onclick = e => { if (e.target === ov) _ccCloseModal(); };
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) _ccCloseModal(); };
         _ccPaintModal(); _ccLoadModal(false); _ccRevEnsureSubscribed('modal');
     }
 
@@ -85146,7 +85197,7 @@
 </script>
 
 <!-- Transcript preview modal -->
-<div id="transcriptOverlay" class="transcript-overlay" onclick="closeTranscriptModal(event)">
+<div id="transcriptOverlay" class="transcript-overlay" data-backdrop-dismiss onclick="closeTranscriptModal(event)">
     <div class="transcript-modal" onclick="event.stopPropagation()">
         <div class="transcript-modal-header">
             <div>

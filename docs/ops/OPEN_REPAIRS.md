@@ -26479,7 +26479,326 @@ two files: a grep for the project ref finds it in several more, and whether each
 is a default (dangerous) or a documented constant in a read-only diagnostic
 (merely public) has not been measured.
 
-## 214. [2026-09-19, FIXED — MIGRATION REQUIRED, then DEPLOY REQUIRED (F27 §4)] The Create Post editor picker greyed out because it counted 3,232 rows through a 1,000-row window
+## 214. [2026-09-19, OPEN — REGRESSION, not intended] The Create Post editor picker is disabled because a completeness guard fires on a read PostgREST truncates at 1000 rows
+
+Owner observation during the identifier-mint check 3 walkthrough on the test
+client: in Create Post the **Video editor** dropdown is disabled and stuck on
+*"Assigned automatically"*.
+
+**It is a regression. It is not how native assignment is meant to behave.** The
+picker exists because of an explicit owner request (2026-08-24, quoted in
+`index.html` above `_calNativeVideoEditorPool`): *"there should be a drop-down
+for the editor. By default, it should be the one that is the freest, and it
+should disclaim it, but people should be able to choose a different video
+editor."* Native assignment was supposed to make that picker **more** correct,
+not remove it — the whole point of moving the decision to `intake_editor_options`
+was that the browser could stop reproducing the gateway's eligibility rule.
+
+### What the symptom actually encodes
+
+The control is disabled on `state.videoEditorStatus === 'loading' || !editorItems.length`,
+and it reads *"Checking workloads…"* while loading. So **"Assigned automatically"
+plus disabled" means the pool read finished and produced nothing** — status
+`unavailable`, which is the `.catch` arm. It is not a slow network.
+
+### Root cause, measured 2026-09-19
+
+`handleIntakeEditorOptions` (`supabase/functions/production-write/index.ts:3793`)
+issues three reads through `completeIntakeEditorRows`, which refuses any read
+whose exact `count` disagrees with the rows returned:
+
+```ts
+if (result.error || !Array.isArray(result.data)
+    || !Number.isSafeInteger(result.count) || Number(result.count) !== result.data.length
+    ...) throw new GatewayError(503, "intake_editor_options_unavailable");
+```
+
+One of those three reads is over the 1000-row PostgREST ceiling:
+
+| read | rows | verdict |
+|---|---|---|
+| `team_members`, active video | 4 | fine |
+| `deliverables`, team video, live statuses | 354 | fine |
+| `production_deliverables_browser_v1`, team video, `raw_issue_parent_id` not null | **3,232** | **truncated** |
+
+Measured directly against the live REST endpoint with the browser key:
+
+```
+GET /rest/v1/production_deliverables_browser_v1?select=id&team=eq.video
+    &raw_issue_parent_id=not.is.null&limit=10000
+→ HTTP 206, content-range: 0-999/3232, 1000 rows returned
+```
+
+**`.limit(10000)` does not raise PostgREST's ceiling.** The server caps the
+response at 1000 regardless, and returns the true total in `content-range` —
+which is exactly the `count: "exact"` the guard compares against. So the guard
+sees 1000 ≠ 3232 and answers **503**, the browser's `!response.ok` branch
+throws, `videoEditorStatus` becomes `unavailable`, and the control renders
+disabled with its placeholder.
+
+### The guard is right; the read is wrong
+
+Nothing here should be loosened. `completeIntakeEditorRows` exists precisely so
+a truncated read is never mistaken for evidence that an editor has no work —
+which would rank the wrong person first, and is the same class as item 210's
+coin-flip deadline. **A silent 1000-row cap that changed who the dialog
+suggested would be a far worse bug than a disabled dropdown.** The guard failing
+closed is the system working.
+
+The defect is that the read was written as though `.limit()` controls the
+ceiling. Fix shape, in preference order:
+
+1. **Do not ship the parent set to the gateway at all.** The three reads exist
+   to compute one small thing: an open-video count per editor, excluding
+   parents. That is an aggregate. A `security definer` routine returning one row
+   per editor moves 4 rows instead of 3,586 and cannot be truncated.
+2. If it must stay in the gateway, **paginate with `.range()`** until the
+   returned count reaches the exact `count`, and keep the completeness guard on
+   the assembled total.
+
+Option 1 is the honest one. Option 2 keeps an O(rows) read on a dialog open.
+
+### Scope, and what is NOT broken
+
+- **Only the native lane reaches this.** In the provider lane the handler
+  returns `lane: "provider"` before these reads and the browser falls back to
+  `_calLegacyVideoEditorPool`. So the picker worked until the native intake
+  epoch went on, and broke without anything changing in the picker itself.
+- **Posts still get an editor.** The gateway assigns automatically at
+  submission through the same `nativeIntakePool`, so the placeholder is telling
+  the truth. What is lost is the owner's ability to *see who* and to *choose
+  someone else* — the entire feature.
+- Graphics is deliberately not offered here and is unaffected.
+- The roster is healthy: 4 active video editors, all with a Linear mapping, so
+  no eligibility rule is excluding anyone.
+
+### How it would have been caught
+
+`test/native-post-editor-picker.js` pins the browser against the contract, and
+the contract is satisfied — the gateway really does answer 503. Nothing in the
+suite builds a fixture over 1000 rows, because no test has a reason to. **The
+general form: a row-count ceiling is invisible to every test whose fixture is
+smaller than the ceiling, and production data crosses it silently.** A sweep for
+other `count: "exact"` reads with a `.limit()` above 1000 is worth its own pass;
+this entry does not claim to have run one.
+
+Not fixed here. Found while walking the identifier-mint step 27 checks; fixing
+it inside that PR would have widened a docs change into an Edge Function deploy.
+**Any fix is a `production-write` change and needs the F27 Section 4 lane**, with
+its sealed capture.
+
+## 215. [2026-09-19, OPEN — whole-repo pattern, 13 sites] A press that starts inside a dialog and ends outside it dismisses the dialog, losing everything typed
+
+Owner observation, same walkthrough: in the Create Post dialog, **drag-selecting
+text in the batch name field from right to left closes the whole form.** Press
+inside, release outside, dialog gone with every field in it.
+
+### Why it happens
+
+`index.html:45034`:
+
+```js
+overlay.onclick = event => { if (event.target === overlay) _calCloseNativePost(); };
+```
+
+The DOM dispatches `click` **at the nearest common ancestor of the mousedown
+target and the mouseup target**. Press in the batch-name input, release over the
+backdrop, and that ancestor is the overlay itself — so `event.target === overlay`
+is true and the handler cannot tell the difference between "the user clicked the
+backdrop to dismiss" and "the user finished a text selection out here". Both look
+identical at `click`.
+
+This is not exotic input. Selecting right-to-left in a field near the left edge
+of a dialog puts the release outside it as a matter of course, and so does
+overshooting a drag.
+
+The input's own `onmousedown="… event.stopPropagation();"` does **not** help:
+that stops the *mousedown* from bubbling, while `click` is a separate later
+event dispatched at the common ancestor.
+
+### Fix shape
+
+Record where the press began and only dismiss when it began on the backdrop:
+
+```js
+overlay.addEventListener('mousedown', e => { overlay._pressBeganOnOverlay = (e.target === overlay); }, true);
+overlay.onclick = event => {
+    if (event.target === overlay && overlay._pressBeganOnOverlay) _calCloseNativePost();
+};
+```
+
+**The `true` is load-bearing.** It registers on the capture phase, which runs on
+the way *down* and therefore still fires for presses inside the batch-name
+input despite that input's `stopPropagation()` on the bubble phase. A
+bubble-phase listener would never see those presses, so the flag would keep a
+stale `true` from an earlier backdrop press and the bug would survive in a
+narrower form — which is worse than leaving it, because it would then look
+fixed.
+
+A `pointerdown`/`pointerup` pair is equivalent and the repo already uses
+`pointerdown` with capture elsewhere (`_kasperOnPointerDown`, `index.html:79080`),
+including a comment about exactly this hazard: *"a button pressed, tearing that
+button out between pointerdown and click"*. So the house already knows this
+shape; the overlays never got it.
+
+### This is a class, not one line
+
+Thirteen dismiss sites share the unguarded pattern and **none** checks where the
+press began:
+
+`index.html` 8143, 8163, 22515, 24958, 39551, 39554, 39557, 39560, 39567, 39570,
+41015, 45034, 68020.
+
+Create Post is where it hurts most — the dialog holds a mode, a post count, a
+batch choice, a batch name, per-post names and an editor choice, and there is no
+draft recovery — but the sign-in overlay (24958), the comments overlays and the
+import dialogs all carry it. **The repair should be one shared helper applied to
+all thirteen, not a patch at 45034**, or this returns the next time someone
+drags in a different dialog.
+
+Two of the thirteen are deliberately *not* equivalent and need reading before
+they are swept: 24958 has an extra `!overlay._syncviewEntry` condition, and the
+confirm overlays at 8143/8163 are inline attributes rather than bound listeners.
+
+### Before any fix
+
+`index.html` change on a Production/Calendar write surface, so the offline
+browser gate must run before pushing:
+
+```
+node docs/syncview-design/tests/prod-write-gateway-browser.js
+```
+
+It is fully mocked, runs without a route to the live backend, and drives the
+Calendar dialog end to end — which is exactly the surface this touches. Per
+`CLAUDE.md`, skipping it is what put a red `production-polish` on #1353.
+`prod-boot-budget.js` also runs offline and should ride along.
+
+Not fixed here. Found during the identifier-mint step 27 walkthrough; it is a
+browser change with no relation to that capability and does not belong in its PR.
+
+**Amendment, 2026-09-19, later the same day — FIXED.** Fixed independently on `claude/beautiful-einstein-34h3m5` before this entry (session B's original report) had merged; the two described the same bug and this reconciles them into one entry per the numbering-collision note in CLAUDE.md.
+
+**What it was.** In the Create Post dialog, drag-selecting text in the batch
+name field from right to left — or any press that starts inside a dialog and
+releases on the backdrop — closed the whole dialog, discarding every field in
+it. Thirteen backdrop-dismiss sites across `index.html` shared the same
+unguarded pattern: `onclick="if(event.target===this)FN()"` (ten inline
+markup sites) or the JS equivalent `overlay.onclick = event => { if
+(event.target === overlay) FN(); }` (three JS-created overlays). The DOM
+dispatches `click` at the nearest common ancestor of the mousedown and mouseup
+targets, so a press in a field and a release on the backdrop makes
+`event.target === overlay` true at click time — indistinguishable from an
+actual backdrop click. The field's own `stopPropagation()` on `mousedown`
+does not help, since `click` is a separate, later event.
+
+**Fix.** One shared, delegated, capture-phase `mousedown` listener on
+`document`, added once near the top of the app script, records on every press
+whether it began directly on an element marked `data-backdrop-dismiss` (not on
+one of its descendants):
+
+```js
+document.addEventListener('mousedown', event => {
+    const backdrop = event.target && event.target.closest && event.target.closest('[data-backdrop-dismiss]');
+    if (backdrop) backdrop._backdropPressBegan = (event.target === backdrop);
+}, true);
+```
+
+Capture phase is load-bearing for the same reason session B's entry gives: the
+batch-name field's `stopPropagation()` on `mousedown` would stop a bubble-phase
+listener on the overlay from ever seeing that press. Delegating at `document`
+rather than arming each overlay individually also means a dialog whose markup
+is re-rendered (a fresh overlay element replacing the old one — several of
+these are inside `innerHTML` template re-renders, not static markup) is
+covered without anything to re-arm.
+
+Each of the thirteen sites' own dismiss check now additionally requires
+`overlay._backdropPressBegan` (or `this._backdropPressBegan` for the inline
+markup sites) before calling its dismiss function — true only when both the
+press and the click landed on the backdrop itself. All thirteen go through
+this one mechanism; none carries a bespoke per-dialog patch. Sites:
+`confirmOverlay`, `resolveDestOverlay`, `smCommentsOverlay`,
+`calPreviewOverlay`, `calImportOverlay`, `calLinearImportOverlay`,
+`calBulkLinkOverlay`, `calCommentsOverlay`, `calPromptOverlay`,
+`sxrCommentsOverlay` (marked via the `data-backdrop-dismiss` HTML attribute),
+and `staffIdentityOverlay`, `thumbCompareOverlay`, `calNativePostOverlay`
+(marked via `overlay.setAttribute('data-backdrop-dismiss', '')` at creation,
+guarded with a `typeof overlay.setAttribute === 'function'` check so a
+non-DOM test stub that stands in for the overlay in `test/create-post-picker.js`
+doesn't crash).
+
+**Proof.**
+- `node docs/syncview-design/tests/prod-write-gateway-browser.js` — new
+  assertion in the `calendar_native_intake` phase drives the exact shape of
+  the bug in a real (headless) browser: fills `#calNativeBatchName`, presses
+  down inside it, drags to a corner of `#calNativePostOverlay` (guaranteed to
+  be backdrop, since the overlay is `position: fixed; inset: 0` with the modal
+  centered inside it), and releases there. Confirmed to fail against the
+  pre-fix `index.html` with `a press that began in the batch-name field and
+  released on the backdrop closed Create Post`, and to pass with the fix.
+- `node test/resolve-route-chooser.js` — updated its static-markup assertion
+  for the new onclick pattern and added one asserting the
+  `data-backdrop-dismiss` marker is present.
+- `node test/create-post-picker.js` — the `_calOpenNativePost` open-flow test
+  exercises the new `overlay.setAttribute` call against a bare stub object;
+  guarded rather than left to crash the test.
+- `node test/run-all.js` — 564 of 566 suites pass; the same 2
+  (`test/native-intake-editor-browser.js`, `test/truth-sync.js`) fail
+  identically against unmodified `origin/main` in this sandbox (a missing git
+  blob in a shallow clone, and pre-existing doc-rollout findings unrelated to
+  this change) — not a regression.
+- `node docs/syncview-design/tests/prod-boot-budget.js` fails identically
+  against unmodified `origin/main` in this sandbox with no route to the live
+  backend (`net::ERR_CERT_AUTHORITY_INVALID` against fonts/CDN/Supabase/Sheets)
+  — the known CLAUDE.md caveat, not a regression from this change.
+
+**Not done here.** The two sites session B's entry flagged as not equivalent
+to the other eleven — `staffIdentityOverlay`'s extra `!overlay._syncviewEntry`
+condition, and the confirm overlays being inline attributes rather than bound
+listeners — were read and carried through unchanged rather than collapsed:
+the guard fix is orthogonal to both, and folding them together was not this
+fix's job.
+
+**Addendum, 2026-09-19, same day — "thirteen" was incomplete.** A Codex review
+on the PR (#1431) found the fix landed on only the thirteen sites session B's
+walkthrough had actually found, and a fresh sweep of `index.html` for the same
+`event.target === <overlay-like-thing>` shape turned up **eleven more**,
+missed by both sessions because they don't share one naming convention:
+Production's Create-issue backdrop (`_prodCloseCreate`, `data-prod-create-backdrop`)
+and its Archive-repair backdrop (`_prodCloseArchiveRepair`,
+`data-prod-archive-backdrop`), the Production command palette (`_prodOpenPalette`'s
+`bd` element), the transcript preview modal (`transcriptOverlay`, written as an
+inverted early-return — `if (e.target !== overlay) return;` — rather than the
+positive check, same bug underneath), the detail-info and MR-info popovers
+(`detail-info-overlay`, `mr-info-overlay`), and all five Kasper credential
+overlays (`_ccOpenEdit`, `_ccOpenHistory`, `_ccOpenOnboardingImport`,
+`_ccOpenBulkImport`, `_ccOpenModal`). All eleven now go through the identical
+`data-backdrop-dismiss` + `_backdropPressBegan` mechanism the original thirteen
+use — same helper, no new logic. The count in this entry's body above (and its
+"thirteen"/"eleven" markup-site counts) is now stale text describing the first
+pass; left as-is per the ledger's append-only rule rather than edited to match,
+since the code and this addendum are what's current. Sweep method used to find
+these: `grep` across `index.html` for every `.target === `/`.target !== `
+comparison, read each hit by hand rather than trusting the pattern's shape
+alone (the transcript modal's inverted early-return would have been missed by
+a positive-shape-only grep). No further ones found on a second pass after the
+fix.
+
+The one library-adjacent thing this pass deliberately left alone:
+`_calCardSelectClick`/`_sxrCardSelectClick`'s card-selection-checkbox overlays
+also compare against a click target, but they select a card rather than
+dismiss a dialog holding a draft, so the same-press/same-release ambiguity has
+no data to lose — out of the class this fix addresses, not a missed instance
+of it.
+
+## 216. [2026-09-19, FIXED — MIGRATION REQUIRED, then DEPLOY REQUIRED (F27 §4)] The Create Post editor picker greyed out because it counted 3,232 rows through a 1,000-row window
+
+**This is the fix for 214 above.** The owner's report and this entry were
+written in parallel on the same day and both claimed the number; 214 keeps it
+because it merged first, and this one moved to 216. 214 stays OPEN as written
+— nothing in it is rewritten here — and what follows is what was done about
+it: the count moved into the database, so the picker stops refusing an answer
+it cannot complete.
 
 **What the SMM saw.** The Video editor dropdown in Create Post greyed out: no
 editor could be chosen, and the dialog offered no reason.
@@ -26620,3 +26939,4 @@ against the real base branch one of them passes. Both are now fixed:
 
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
+

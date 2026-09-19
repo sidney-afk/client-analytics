@@ -26599,3 +26599,24 @@ count on the two row reads to prove a truncated read is refused, and those reads
 no longer exist. The same contract is now asserted against the aggregate — a
 parked routine, a null, an array, a non-integer and a negative count are each a
 503 — plus a journey proving the picker answers again once the routine is back.
+
+**Third amendment — the last two `unit` failures were mine as well, and the
+entry's own "pre-existing" claim was wrong.** They were called pre-existing on
+the strength of a control run against a local `main` that was 20 commits stale;
+against the real base branch one of them passes. Both are now fixed:
+
+- `linear-exit-write-diagnostics-handlers` pins the sha256 of
+  `production-write/index.ts` (WR-101's composition refuses on
+  `WR101_SOURCE_DRIFT`), so any gateway edit has to re-pin it, exactly like the
+  deploy fingerprint. Re-pinned to the current bytes.
+- `native-intake-editor-browser` FREEZES four gateway symbols byte-for-byte
+  against the reviewed catch-up merge, and `autoAssigneeForIntake` is one of
+  them. The guard did its job. Rather than re-baseline the whole symbol against
+  a commit nobody has reviewed, the one contiguous region that changed is named
+  in the suite as an exact before/after pair — the same treatment
+  `handleIntakeCreate`'s additive routing metadata already gets — so everything
+  else in that function must still be byte-identical and any other drift still
+  fails.
+
+The lesson is the cheap one: a control run proves nothing if it is run against
+the wrong base. `git fetch origin main` first, every time.

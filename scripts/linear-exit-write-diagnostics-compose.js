@@ -2,7 +2,7 @@
 const fs=require('fs'),path=require('path'),crypto=require('crypto');const root=path.resolve(__dirname,'..');
 function pinned(file,hash){const b=fs.readFileSync(path.join(root,file));if(crypto.createHash('sha256').update(b).digest('hex')!==hash)throw Error('WR101_SOURCE_DRIFT');return b.toString('utf8');}
 function once(source,from,to){if(source.split(from).length!==2)throw Error('WR101_SEAM_DRIFT');return source.replace(from,to);}
-function gateway(){let source=pinned('supabase/functions/production-write/index.ts','36d2bb233f7525c786308105b1cb504a83da08836ded78ca2f55780a6e62be2e');
+function gateway(){let source=pinned('supabase/functions/production-write/index.ts','b0282ec1dfb74cff5537fea5bd73b19a2b9adc03f49ef144e9da63da7a212d60');
  source='import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal } from "../_shared/write-refusal-diagnostics.mjs";\n'+source;
  source=once(source,'async function authenticate(','async function authenticateWithoutDiagnostics(');
  source+='\nasync function authenticate(supabase: SupabaseClient, req: Request, body: JsonMap, targetClientSlug: string): Promise<Principal> { const principal = await authenticateWithoutDiagnostics(supabase, req, body, targetClientSlug); captureVerifiedPrincipal(req, principal); return principal; }\n';

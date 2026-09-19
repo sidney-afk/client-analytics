@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: the structural search's target inventory was incomplete
+
+The previous entry reported that the structural search had resolved every
+dynamic target. It had not.
+
+- **Missed call sites:** its helper-target list came from single-line matches, so
+  it missed the three call sites that pass `deliverables` (`readPage`,
+  `_prodRestRows`, `_kedRestIn`), each of which breaks the line before its
+  argument.
+- **Missed access form:** it also did not cover realtime subscriptions.
+
+The search now parses every helper call site across line breaks. It classifies
+all five supabase-js clients (no `.from` table query exists) and resolves all 16
+realtime subscriptions. The reconciled result is unchanged: the same four
+`index.html` reads, and no other browser access reaches `workload_issues`.
+Check 15 now describes the corrected search. That entry is kept as written.
+
 ### 2026-09-19 — PR #1432 correction: a second, structural search for browser mirror reads, reconciled with the first
 
 As AGENTS.md requires, the literal `workload_issues` search now has a

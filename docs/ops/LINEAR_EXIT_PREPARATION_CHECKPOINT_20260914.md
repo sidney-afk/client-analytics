@@ -248,6 +248,13 @@ One row per capability that has finished step 27. A capability appears here only
 after every one of its acceptance checks is measured; a flag being on is not a
 closure.
 
+**One exception, added 2026-09-19 and marked so it cannot be mistaken for a
+closure:** a capability whose step 27 is being run right now may carry a
+**pre-written** entry — the form, with every measurement left as an unfilled
+`«…»` placeholder and a ⛔ header saying it closes nothing. It becomes a closure
+when the placeholders carry measurements and its ⏳ becomes ✅. The section
+heading still means what it says: **only the ✅ rows are recorded closures.**
+
 #### Labels — `production_native_label_catalog`, recorded 2026-09-18
 
 > **Withdrawn and restored the same day, and both are on the record.** This
@@ -299,7 +306,43 @@ closure.
 | **Why the legacy route is unreachable** | The bounded sense again: provider branch switched off, not removed, and still selectable as the kill switch. |
 | **What that does NOT claim** | No claim of deletion, and no claim of retirement. |
 
-#### Open notes carried forward from both closures
+#### Identifier mint — `production_native_identifier_mint`, ⏳ PRE-WRITTEN 2026-09-19, **NOT RECORDED**
+
+> ## ⛔ THIS CLOSES NOTHING YET. Every `«…»` below is an unfilled placeholder.
+>
+> Written ahead of the storage session's run so that the closure is reviewed
+> before it is true, not assembled afterwards from whatever happened to be
+> measured. **It is not evidence, it is a form.** A closure is recorded when
+> every placeholder carries a measurement and the ⏳ becomes ✅ — not before, and
+> not partially.
+>
+> **Why pre-writing is worth the risk of being read as a claim.** The labels
+> closure was written after the fact, said "STEP 27 PASSED" on two receipts that
+> proved one check, and had to be withdrawn when a review counted the clauses.
+> A form with named holes makes a missing measurement look like a missing
+> measurement. The risk it introduces is the opposite one — that a reader takes
+> the shape for the substance — which is what the ⛔ and the `«…»` are for.
+>
+> **Do not fill a placeholder from this repository.** The counts, receipts and
+> timestamps below belong to the storage session, which holds the live read and
+> the private evidence directories, exactly as the labels and ordinary-receipt
+> rows above record their source. Anything filled in here without that source
+> is a guess wearing a measurement's clothes.
+
+| | |
+|---|---|
+| **Table row it acts on** | **Candidate, not established:** the **naming** half of the `linear-outbound` dependency — the reason lane F's outbound-off step is gated on this capability. The execution map's phase 7 table records this column as *unknown, verify* for the identifier mint, and **confirming it against this table is part of step 28, not an input to it.** If no row matches, the honest entry is that this capability closes no existing row and the table gains one. |
+| **The exact gate** | `production_native_identifier_capability(p_team)`. It returns `native` only when the runtime flag says native for that team **and** a seed row exists in `production_native_identifier_mint` — the self-guard that makes a premature flip inert rather than half-armed, deliberately unlike `production_label_catalog_capability()`. Native since «video: TIMESTAMP» and «graphics: TIMESTAMP». |
+| **The accepted replacement** | The `zzz_production_native_identifier_mint` trigger on `public.deliverables`, allocating through `production_native_identifier_allocate` against a per-team cursor. Installed **2026-09-17**, bodies verified against the committed migration **2026-09-19** by `md5(prosrc)` per routine plus `prosecdef`/`provolatile`/`proconfig` and `pg_get_triggerdef`. Seeded: video «prefix, observed_provider_max, next_ordinal», graphics «prefix, next_ordinal» — **hand-seeded by owner decision**, see the scope note. |
+| **What was measured** | «N» grants in `production_native_identifier_grants`. Step 27 checks: 1 «», 2a «», 2b «», 3 «», 4a «», 4b «offline, qa/native-identifier-mint/sql-proof.js run id», 5 «path: native-intake or draining», 5a–5c «or "not applicable, native intake"», 5d «», 6a «», 6b «», 6c «», 7 «». **Report per check and per clause** — the labels closure was withdrawn for closing a check whose third clause had never been run. |
+| **The backfill** | Owner decision 2026-09-19: **yes.** «N rows named», one-to-one verified as «count(*) = count(distinct deliverable_id)» over the grants created in that window. **This is not a step 27 check** and the closure does not depend on it, but a closure recorded while the backfill is outstanding must say so, because the surface #1419's truncation was shipped for is not repaired until it runs. |
+| **Why the legacy route is unreachable** | Expected to be the **same bounded sense** as every row above: the provider mint at `linear-outbound:852`/`:868` is **switched off, not removed**, and `mode:"provider"` remains selectable as the rollback. Two properties are specific to this capability and must be stated rather than inherited: **(a)** name stability is **not** flag-gated — once a row carries a name from the grants table, the UPDATE branch refuses a provider overwrite whatever the flag says, so flipping back to `provider` stops new minting and renames nothing; and **(b)** provider-named rows are **not** protected, so `linear-inbound:810` keeps refreshing them normally while Linear is connected. |
+| **What that does NOT claim** | No claim that the provider mint code is deleted. No claim of retirement — that remains a separate later switch. And **no claim that outbound is off**: at the time of writing `linear_outbound_enabled` is `{"mode":"live"}`. This closure is what lane F's outbound-off step waits on; it is not that step. |
+| **Scope: the hand-seed is an override and is recorded as one** | Graphics could not be seeded by its own function — two prefixes on the team, so `production_native_identifier_seed` raises `native_identifier_prefix_ambiguous`. The owner chose the hand-seed from `GRA`'s own maximum (**7,559**) rather than the 12,851 the function would have derived from the contaminated set. **The twelve `VID`-named graphics rows still exist and are unrepaired**; the team/provider disagreement behind them is untouched by this closure and stays open. |
+| **Scope: the first flip is estate-wide** | The flag is keyed by team, not by client, so the first native name on a team could land on any client's card. Accepted by the owner 2026-09-19 as a timing decision rather than a scoping one. Recorded because the standing constraint *"mutate only the test client"* was knowingly set aside here, and a closure that does not say so misrepresents how the evidence was obtained. |
+| **Not measured by this session** | Everything above with a placeholder. This repository can re-derive none of it. |
+
+#### Open notes carried forward from the recorded closures
 
 These are recorded as open rather than resolved, because closing step 28 is not
 the same as having nothing left to watch.

@@ -9,10 +9,19 @@ file does not collide with
 [step 26/27 for native labels](LINEAR_EXIT_STEP26_NATIVE_LABELS.md). That file
 is this one's worked precedent and every shape below is borrowed from it.
 
-**Scoping only. Nothing in this file has been run and no code change has been
-written.** Everything marked *measured* is a read-only `select` issued against
-the live database on **2026-09-19**; everything else is a reading of committed
-source. No SQL was written, no flag was moved, no function was deployed.
+> **Status, 2026-09-19: the three owner decisions are taken and execution has
+> started elsewhere.** B-2 → **shape (ii)**, hand-seed graphics from `GRA`'s own
+> maximum. B-3 → **accepted**, the first flip is estate-wide for its team. B-4 →
+> **yes**, name the existing rows. Steps 0 and 5 to 11 of the order-of-operations
+> table are being run by the **storage session**; steps 1 and 12 were done from
+> this repository. **No result of that run is recorded in this file** — nothing
+> below has been amended to claim an outcome, and the step 27 table is still
+> entirely unmeasured.
+
+**Written as scoping, and still only scoping.** Everything marked *measured* is
+a read-only `select` issued against the live database on **2026-09-19**;
+everything else is a reading of committed source. From this repository: no SQL
+was written, no flag was moved, no function was deployed.
 
 Companion documents:
 [`NATIVE_IDENTIFIER_MINT.md`](NATIVE_IDENTIFIER_MINT.md) is what the source does
@@ -560,7 +569,7 @@ start at all.
 | # | Action | Who | Gate |
 |---|---|---|---|
 | 0 | Run Gate 0 and record all three results | session | none — read-only |
-| 1 | Correct `NATIVE_IDENTIFIER_MINT.md`'s status line and the execution map's phase 7 row against Gate 0 | session | docs only |
+| 1 | ~~Correct `NATIVE_IDENTIFIER_MINT.md`'s status line and the execution map's phase 7 row against Gate 0~~ **DONE 2026-09-19.** The map also gained a state, *applied and inert*, because its vocabulary had no cell for "on the live database but not called from code" and that gap is what produced the wrong row | session | docs only |
 | 2 | **DECISION** B-2: shape (i) fix the team/provider disagreement at its source, or shape (ii) seed graphics by hand from GRA's own maximum. **Re-keying our column alone is not an option** — a webhook undoes it | owner | recorded in the go-ahead |
 | 3 | **DECISION** B-3: accept that the first flip is estate-wide for that team, and pick the moment | owner | recorded in the go-ahead |
 | 4 | **DECISION** B-4: name the existing nameless rows, or accept they stay truncated. Re-count first — the cohort grows daily | owner | recorded in the go-ahead |
@@ -571,7 +580,7 @@ start at all.
 | 9 | Resolve B-2 by the decided shape; seed graphics; record both numbers | session | owner go-ahead |
 | 10 | Flip graphics to `native`; readback; check 7 | session + owner | owner go-ahead |
 | 11 | B-4's backfill, if decided — assigning `update`, one transaction per team, database owner, after both seeds, with the one-to-one verification | session | owner go-ahead |
-| 12 | Step 28: record the closure in the checkpoint dependency table | session | — |
+| 12 | Step 28: record the closure in the checkpoint dependency table. **PRE-WRITTEN 2026-09-19** as a form with unfilled `«…»` placeholders and a ⛔ header — it closes nothing until the storage session's measurements fill it and its ⏳ becomes ✅ | session | — |
 | 13 | Hand lane F its unblocked outbound-off step | session | separate |
 
 The last row is the point of all of it. Everything above exists so that when

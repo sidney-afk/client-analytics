@@ -34,6 +34,16 @@ the capability by name and its own step:
 Phase 7 of 7 · labels: ✅ through step 28 (7 of 7 checks, check 6 three of three) · next: the next capability's step 26
 ```
 
+**Current position, 2026-09-19:** the next capability is the **identifier mint**.
+Its step 26 procedure is written
+([here](LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md)), its three owner
+decisions are taken, and the seeding and per-team flip are being executed by the
+storage session. Reported as:
+
+```
+Phase 7 of 7 · identifier mint: step 26 in progress (applied and inert; owner decisions taken; 0 of 7 step-27 checks measured) · step 28 pre-written, not recorded
+```
+
 A step is complete only when its **Done when** column is satisfied and its
 evidence is recorded. A step that was started and stopped is not complete;
 report it as in progress with what remains. Never report a GATE as complete
@@ -372,7 +382,17 @@ this repository, so no row here asserts one it has not seen recorded.
 State vocabulary, used exactly: **native** (flipped and recorded), **on but
 step 27 unmeasured** (flag on, acceptance checks not all measured), **code
 installed but not wired** (SQL is in the repo and nothing calls it from
-`index.html` or an Edge Function), **not built**.
+`index.html` or an Edge Function), **applied and inert** (the SQL is *installed
+on the live database* and its gate is off), **not built**.
+
+**"Applied and inert" was added on 2026-09-19 because the vocabulary had no cell
+for it, and the gap cost a wrong row.** The identifier mint was recorded here as
+*code installed but not wired* — true of the repository, and read by everyone as
+"nothing has been applied". It had in fact been applied two days earlier. The
+two states are not the same and the difference decides whether a step is a
+deploy or a flag flip, so they now have separate names. Anything still marked
+*code installed but not wired* has, by definition, **not** been checked against
+the live database; that is a statement about this repository only.
 
 | Capability | Flag | State | Closes |
 |---|---|---|---|
@@ -383,7 +403,7 @@ installed but not wired** (SQL is in the repo and nothing calls it from
 | **Intake form path** | `native_intake_epochs` | **unknown, verify** — live flag value not recorded. The most wired of the remaining set: read from `index.html` (2), two Edge Functions and nine scripts. | Checkpoint row *"Intake: VIDEO_FORM_WEBHOOK and legacy dispatch selection"*, plus the **intake** half of the provider-branch row. |
 | **Workload page** | **unknown, verify** — no single flag key identified in this repository | **unknown, verify.** The checkpoint records the dependency as three `index.html` calls plus the `workload-linear` function; whether a native replacement is wired was not established here. `scripts/workload-native-visibility-check.js` and `workload-source-freshness.yml` measure the native side. | Checkpoint row *"Workload: index.html LINEAR_ISSUES_WEBHOOK, LINEAR_TWEAK_COMMENTS_WEBHOOK and WORKLOAD_LINEAR_URL calls; workload-linear function"*. |
 | **Urgent editor assignee lookup** | `urgent_video_destination` | **code installed but not wired.** The flag is read by two migrations and two scripts, and by nothing in `index.html` or any Edge Function. The checkpoint notes that removing the displayed URL leaves the Linear lookup input intact — so the lookup is the part that has to be accepted or rerouted, not the link. | Checkpoint row *"Legacy urgent editor assignee lookup"*. |
-| **Identifier mint** | `production_native_identifier_mint` (gate `production_native_identifier_capability`) | **code installed but not wired.** `migrations/2026-09-07-native-identifier-mint.sql` installs allocate / guard / seed / capability; the gate is referenced by that migration alone, and `production_native_identifier_allocate` is called from one script and from nothing in `index.html` or any Edge Function. | **unknown, verify** — no checkpoint row or OPEN_REPAIRS entry was identified for it here. |
+| **Identifier mint** | `production_native_identifier_mint` (gate `production_native_identifier_capability`) | **applied and inert**, corrected 2026-09-19 from *code installed but not wired*. Measured live: the four functions and `zzz_production_native_identifier_mint` are installed and their **bodies match** the committed migration (`md5(prosrc)` per routine, plus `prosecdef`/`provolatile`/`proconfig` and `pg_get_triggerdef`); the flag row was written **2026-09-17T16:14:54Z** and reads `provider` for both teams; **0 seed rows, 0 grants**. Nothing mints, and nothing calls the gate from `index.html` or an Edge Function — **because nothing needs to.** The capability is a `before insert or update` trigger on `deliverables`, so every creation path is covered without a gateway operation; "not wired" was the wrong test for this one. Seeding and the per-team flip are in progress under [the step 26/27 procedure](LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md); **no step 27 check is measured and no step 28 closure is recorded.** | The **naming** half of the `linear-outbound` dependency — the reason lane F's outbound-off step is gated on this capability. Candidate only, to be confirmed against the checkpoint's dependency table at step 28; a pre-written closure with unfilled placeholders sits in the checkpoint and closes nothing. |
 | **Brief media** | **unknown, verify** — no runtime-flag key identified; `migrations/2026-09-07-native-brief-media.sql` | **unknown, verify.** Referenced by one Edge Function and six scripts, so it is not inert, but no flag and no recorded step-27 measurement. | **unknown, verify** — likely the *"Historical Linear import/link UI and retained URL fields"* row, not established here. |
 | **Card materialization** | `native_card_materialization` | **code installed but not wired.** `migrations/2026-09-06-native-card-materialization-boundary.sql` is the only file in the repository that references the flag; nothing in `index.html`, any Edge Function or any script reads it. | **unknown, verify** — no checkpoint row or OPEN_REPAIRS entry identified. |
 | **Step 29 health check** | none — a procedure | **not built.** Step 29 is added to this map in this PR; no sweep has been run and nothing is journaled. | Closes nothing by itself. It is the whole-system check that every other row here has in fact been closed, removed or explained. |

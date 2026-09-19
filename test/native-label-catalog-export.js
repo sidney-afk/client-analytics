@@ -456,21 +456,21 @@ async function runAssertions() {
     }), /label_catalog_label_invalid/);
   });
 
-check('the capture asks Linear for archived labels and for exactly the eight fields', () => {
+  check('the capture asks Linear for archived labels and for exactly the eight fields', () => {
     assert.match(cli.CATALOG_QUERY, /includeArchived:\s*true/);
     for (const field of ['id', 'name', 'color', 'description', 'isGroup', 'archivedAt', 'retiredAt', 'team']) {
       assert.match(cli.CATALOG_QUERY, new RegExp(`\\b${field}\\b`));
     }
     assert.match(cli.CATALOG_QUERY, /hasNextPage endCursor/);
-});
+  });
 
-await checkAsync('the live card-state path refuses offline when SUPABASE_URL is unset', async () => {
-  const args = new Map([['out', path.join(out, 'missing-supabase-url')]]);
-  await assert.rejects(
-    () => cli.runExport(args, { SUPABASE_SERVICE_ROLE_KEY: 'offline-test-key' }),
-    /SUPABASE_URL is required — this script has no default project/,
-  );
-});
+  await checkAsync('the live card-state path refuses offline when SUPABASE_URL is unset', async () => {
+    const args = new Map([['out', path.join(out, 'missing-supabase-url')]]);
+    await assert.rejects(
+      () => cli.runExport(args, { SUPABASE_SERVICE_ROLE_KEY: 'offline-test-key' }),
+      /SUPABASE_URL is required — this script has no default project/,
+    );
+  });
 
   check('nothing in the exporter writes to Linear or to Postgres', () => {
     for (const file of ['scripts/linear-label-catalog-export.js', 'scripts/linear-label-catalog-export.cli.js']) {

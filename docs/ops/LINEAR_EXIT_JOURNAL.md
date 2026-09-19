@@ -36,6 +36,33 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: the served-build binding names the deployment and how the served page is compared
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The previous
+wording said to record "the Pages release identity, commit SHA and page hash"
+without saying where they come from or what the served page is compared against.
+Earlier entries are kept as written.
+
+- **Identity comes from the deployment.** Check 8 now reads the latest
+  **successful** Pages deployment: its build identity, status, `created_at` and
+  published commit SHA. An unsuccessful build is not evidence.
+- **The comparison was inspected, not assumed.** Publishing is a legacy (Jekyll)
+  build from `main` at the repository root, on the custom domain. There is no
+  `_config.yml`, no `.nojekyll` and no front matter in `index.html`. Measured
+  on 2026-09-19, the served page is byte-identical to the repository blob at the
+  deployed commit: same length, same SHA-256. The plan states the comparison on
+  that basis, and says to re-establish it against the published artifact if the
+  publishing mode ever changes in a way that can transform files.
+- **Three values recorded:** deployment identity, commit SHA, served-content
+  hash. A weak `ETag` is not a content hash.
+- **Check 11** repeats the whole binding before the cutoff. A mismatch, or
+  evidence that cannot be obtained, blocks the cutoff until check 8 is re-run
+  on the build actually served.
+
+The only live action was one read-only fetch of the public site to measure the
+published-versus-repository comparison. No browser journey was run and no
+workflow was changed.
+
 ### 2026-09-19 — native intake plan: the old-browser telemetry request, and Submit evidence bound to the served build
 
 Two corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, read from

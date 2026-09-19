@@ -542,6 +542,12 @@ versionId and condition hash, remove the guard, and record here why the #1041
 dead-man's switch is no longer sufficient. 4 mutations, all killed, including
 one that refuses only `--apply` and leaves the dry run pointed at production.
 
+### Amendment, 2026-09-19 — Step 29c live-pager inventory correction
+
+This item remains limited to the six retired soak definitions above. Storage's read-only inspection separately verified six live conditions from the incremental-refresh and outbound pager scripts (`incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`) and the distinct live `mirror_stale` producer. It did not find repository-defined `outbound_oldest_pending` in the current live pager; current absence does not establish whether it was installed earlier.
+
+The Step 29c design now requires every verified live direct condition either to join the consolidated incident message in a later approved change or to meet measured retirement criteria. It keeps the retired soak definitions separate, treats the `mirror_stale` to `mirror-events-stale` execution-map mapping as provisional pending payload evidence, and records the exact live keys for the Calendar and Samples reconciler stale/not-green checks (`calendar_reconcile_stale`, `calendar_reconcile_stale_not_green`, `samples_reconcile_stale`, `samples_reconcile_stale_not_green`) from the live pager code, without assuming existing rows cover them; no delivered payload has been observed for them. No live workflow or producer changed.
+
 ## 11. [closed] The #1041 failing-lane page: proven live, twice
 
 Proven end-to-end. First live traversal 2026-08-08 06:24:56Z

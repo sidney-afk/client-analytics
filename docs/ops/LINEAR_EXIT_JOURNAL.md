@@ -1,5 +1,11 @@
 # Linear exit: running journal
 
+
+
+
+
+
+
 Why this file exists: the checkpoint records **where we are**. Nothing recorded
 **how we got here or why**. Chat sessions end. Without this, the next session
 inherits the state but not the reasoning, and will either relitigate settled
@@ -93,6 +99,22 @@ native acknowledgement or a measured zero of dependent callers, resumable jobs,
 and retained provider rows. The required public identity-exposure check remains
 unverified because authorized execution was unavailable; no substitute is
 claimed.
+
+### 2026-09-19 — Step 29c correction: live pager scope narrowed by Storage
+
+Storage's read-only inspection verified six live conditions from the incremental-refresh and outbound pager scripts: `incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`. It also verified the separate `mirror_stale` producer. The code defines `outbound_oldest_pending`, but Storage did not find it in the current live pager; that observation does not establish whether it was installed earlier.
+
+The corrected design keeps those live conditions separate from the six retired `write-ui-soak-pager.js` definitions. It records the `mirror_stale` to `mirror-events-stale` execution-map match as provisional pending delivered wording or payload. It also brings `v2_stale`, `v2_nonzero`, and the Calendar/Samples reconciler stale and not-green checks into scope, with their exact live keys (`calendar_reconcile_stale`, `calendar_reconcile_stale_not_green`, `samples_reconcile_stale`, `samples_reconcile_stale_not_green`) supplied from Storage's read of the live pager code; no delivered payload has been observed for them, and existing rows are not assumed to cover them.
+
+No workflow, relay, database, n8n automation, runtime flag, Slack destination, or alert delivery changed.
+
+### 2026-09-19 — Step 29c correction: bounded alert-retirement design
+
+The first Step 29c draft made three verified documentation defects: it replaced this journal's title instead of appending an entry, called all three Linear-reconcile alerts obsolete without proving legacy dependencies absent, and omitted the execution map's named `edge anomaly` and `mirror-events-stale` alerts.
+
+The corrected design restores the journal title and preserves the existing record. It maps `edge anomaly` to generic relay framing, not a distinct producer, and treats `mirror-events-stale` as unresolved because the inventory identifies no verified exact producer. It now proposes, rather than performs, retirement: no reconcile alert may be retired until inputs and consumers are traced, legacy/provider/foreign-row/recovery dependencies are measured closed or explicitly retained, remaining actionable native conditions have a native signal or owner disposition, and the schedule plus watchdog registry change together.
+
+No workflow, relay, database, n8n automation, runtime flag, Slack destination, or alert delivery changed.
 
 ### 2026-09-19 — step 29b inventory filed: every workflow and lane classified keep/retire/rewrite, nothing retired, per `docs/ops/LINEAR_EXIT_STEP29B_INVENTORY.md`.
 

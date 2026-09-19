@@ -36,6 +36,22 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: the browser's own mirror reads are inventoried
+
+Two more `workload_issues` readers, found in `index.html` and now in the
+Workload plan's inventory:
+
+- **The early head-script prefetch.** It still fires on page load, but normal
+  native loading never uses its result. Its only consumer, `_wlV2FetchIssues()`,
+  is reached only through a forced call that skips the mirror, and through a
+  function with no callers.
+- **`wlNativeDiff()`**, the `?wlnative=1` acceptance comparison.
+
+New check 15 requires the prefetch and its unreachable consumers to be removed,
+and the diff's mirror dependency to be retired, before closure. The diff stays
+available until acceptance is recorded. Step 28 orders both before the mirror
+reconcile stops. Earlier entries are unchanged.
+
 ### 2026-09-19 — PR #1432 correction: the background Workload mirror reconcile is inventoried, and the old scoping document is marked historical
 
 The Workload exit plan named three browser dependencies but not the background

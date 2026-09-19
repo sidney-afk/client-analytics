@@ -39,6 +39,7 @@ const CANDIDATE=[
  '2026-09-18-native-label-retired-state.sql','2026-09-18-native-assignment-auth-kind-binding.sql',
  '2026-09-18-native-calendar-status-bridge.sql',
  '2026-09-18-native-calendar-backfill-temp-table-clear.sql',
+ '2026-09-19-native-intake-open-load.sql',
 ];
 const ATOMIC='atomic-native-intake';
 // Explicit minimum known edges, not inferred migration-date order. Their
@@ -97,6 +98,10 @@ const DEPENDENCIES={
  // Replaces the backfill routine in full, so it must land after the file that
  // first defined it -- otherwise the bare-delete version wins.
  '2026-09-18-native-calendar-backfill-temp-table-clear.sql':['2026-09-18-native-calendar-status-bridge.sql'],
+ // Aggregates open work per editor, so it installs after the data model that
+ // owns `deliverables` and after the migration that last defines the browser
+ // projection it reads `raw_issue_parent_id` from.
+ '2026-09-19-native-intake-open-load.sql':['2026-07-06-b1-linear-data-model.sql','2026-09-09-native-attribution-browser-projection.sql'],
 };
 function transactions(sql){
  const statements=splitSqlStatements(sql);let open=false,commits=0,outside=0;const boundaries=[],savepoints=[];

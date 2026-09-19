@@ -134,7 +134,7 @@ row is not native-writable, or any category above is uncounted.
 | 10 | The native/provider comparison is explained. | `wlNativeDiff()` receipt records all five categories from Gate 0, with a replacement-or-zero result for every non-zero provider-only/foreign count. |
 | 11 | Failure is legible. | Simulated snapshot timeout/error preserves the last verified snapshot or shows a clear unavailable state; it never silently calls the provider fallback. |
 | 12 | Release provenance is exact. | SQL receipt, reviewed commit SHA, function fingerprint readbacks, and browser release identity agree; no function is inferred deployed from a merge. |
-| 13 | No public exposure regresses. | `node scripts/repo-identity-exposure-check.js --diff="origin/main"` passes on the final commit. This remains unverified for this PR because authorized execution was not available and must not be substituted. |
+| 13 | No public exposure regresses. | `node scripts/repo-identity-exposure-check.js --diff="origin/main"` passes on the final commit. The first attempt could not run it: authorized execution was not available, and no substitute was used. **Update, 2026-09-19:** Storage then ran it with authorized access against `origin/main` `0b2f16ae` on candidate `6a0ea50d`. It **passed**: 53 roster terms checked, 0 client slugs and 0 staff names added, in 0 files. |
 
 ## Step 28 — closure sense
 

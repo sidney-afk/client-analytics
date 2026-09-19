@@ -14,9 +14,15 @@ is this one's worked precedent and every shape below is borrowed from it.
 > maximum. B-3 → **accepted**, the first flip is estate-wide for its team. B-4 →
 > **yes**, name the existing rows. Steps 0 and 5 to 11 of the order-of-operations
 > table are being run by the **storage session**; steps 1 and 12 were done from
-> this repository. **No result of that run is recorded in this file** — nothing
-> below has been amended to claim an outcome, and the step 27 table is still
-> entirely unmeasured.
+> this repository.
+>
+> **First results, as reported by the owner:** video seeded **03:16:47Z**
+> (`VID`, gap 1,064, cursor 15,000) and flipped to native; **check 3 passed**,
+> owner-observed at **03:24:04Z** on card `del_670c2cb9` showing **`VID-15000`
+> without a refresh**; **check 4a passed**, cursor 15,000 → 15,001. Everything
+> else — graphics, the backfill, and the remaining checks — is still unmeasured.
+> The measurements live in the checkpoint's step 28 form; the check table below
+> is **not** amended, so it stays the specification rather than the result.
 
 **Written as scoping, and still only scoping.** Everything marked *measured* is
 a read-only `select` issued against the live database on **2026-09-19**;
@@ -410,13 +416,20 @@ once. Measured against committed source:
 | `index.html` | **none for correctness.** `_prodAdapter` already resolves `displayId: linear_identifier \|\| identifier \|\| id`, so a minted name appears wherever a provider one does. |
 | `index.html`, `_prodIssueIdHTML` + `.prod-id` | **optional cleanup, not part of this step.** #1419's truncation and hover stop being load-bearing once B-4's cohort is named; removing it is a separate PR with its own browser-gate run, and it must not ride this one. |
 
-**The one caveat, and it is a step 27 check rather than a code change.** The
-gateway's `publicRow` projection *does* return `linear_identifier`, read off the
-stored row. Whether a freshly created card shows its new name **immediately** or
-only after the next fetch depends on whether the create path returns the row as
-it stands after the trigger has run. That is unmeasured here and it is check 3
-below. If it turns out the response predates the trigger, the fix is small and
-lives in the gateway's readback — but do not write it speculatively.
+**The one caveat — ✅ ANSWERED 2026-09-19, and the answer is "no code".** The
+gateway's `publicRow` projection returns `linear_identifier`, read off the
+stored row, so whether a freshly created card shows its new name **immediately**
+or only after the next fetch depended on whether the create path returns the row
+as it stands after the trigger has run. It does. Check 3 was observed by the
+owner at **03:24:04Z**: card `del_670c2cb9` showed **`VID-15000` in the
+Production list without a refresh**. So the create response carries the
+post-trigger name, **no `production-write` change is needed**, and the
+conditional deploy sketched in section (b) does not arise.
+
+Worth keeping for the next capability: the question was resolved by *looking at
+the screen once*, after being carried as an open risk that would have cost a
+Section 4 deploy with a sealed capture if it had gone the other way. It was
+cheap to ask and would have been expensive to assume.
 
 **So step 26 for this capability is not a deploy. It is four database actions and
 two document corrections.** That is unusual for phase 7 and it is the reason this
@@ -436,9 +449,9 @@ because getting it wrong is expensive in both directions. For the record:
 | `deploy-f27-section4-closures.yml` (`linear-outbound`, `production-write`, `deliverable-write`, `batch-write`) | **No.** No source under `supabase/functions/` changes, so there is nothing to deploy and no sealed rollback bundle to capture. |
 | `deploy-f27-linear-inbound.yml` (`linear-inbound`) | **No.** Same reason. |
 
-If check 3 turns out to need a gateway readback fix, **that** is a
-`production-write` change and it then needs the Section 4 lane with its full
-capture — captured minutes before dispatch, uploaded to the `SyncView Backups/`
+~~If check 3 turns out to need a gateway readback fix~~ — **it did not; check 3
+passed on 2026-09-19, see (a).** Had it needed one, **that** would have been a
+`production-write` change needing the Section 4 lane with its full capture — captured minutes before dispatch, uploaded to the `SyncView Backups/`
 Shared Drive root **before** the dispatch, and with nothing merged between the
 SHA handover and the owner's dispatch. Treat it as a separate step with its own
 go-ahead; do not fold a deploy into this step on the strength of a check that has

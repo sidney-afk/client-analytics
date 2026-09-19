@@ -495,7 +495,17 @@ const CANDIDATES = new Map([
     // index.ts only -- closure membership stays at six and the entrypoint hash
     // is unchanged, because that one hashes the PATH, not the file.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: '9dd41919d1690b6035146fad49504aa8d08fbc990efa62ac55ddd66abf5994aa',
+    // Re-pinned 2026-09-19: intake open work is counted by the database.
+    // production_native_intake_open_load(text) returns one number per editor,
+    // replacing two full reads whose parent half had reached 3,232 rows against
+    // a 1,000-row API cap -- which is what greyed the Create Post Video editor
+    // dropdown out. index.ts only: closure membership stays at six and the
+    // entrypoint hash is unchanged, because that one hashes the PATH.
+    // THE MIGRATION GOES IN FIRST. The gateway refuses when the count cannot be
+    // established, so a database without the routine refuses intake picks
+    // rather than degrading to a wrong load.
+    // Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: '9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

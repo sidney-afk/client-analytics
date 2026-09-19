@@ -26478,3 +26478,67 @@ in a hurry. The same sweep should check the rest of `scripts/` rather than these
 two files: a grep for the project ref finds it in several more, and whether each
 is a default (dangerous) or a documented constant in a read-only diagnostic
 (merely public) has not been measured.
+
+## 214. [2026-09-19, FIXED — MIGRATION REQUIRED, then DEPLOY REQUIRED (F27 §4)] The Create Post editor picker greyed out because it counted 3,232 rows through a 1,000-row window
+
+**What the SMM saw.** The Video editor dropdown in Create Post greyed out: no
+editor could be chosen, and the dialog offered no reason.
+
+**Why.** The native picker answers "how much open video work does each editor
+hold" by counting two populations — every live video deliverable, and every
+`production_deliverables_browser_v1` row carrying a `raw_issue_parent_id`, so
+that batch parents (a container nobody can complete) are not charged to
+anyone. Both were DOWNLOADED and counted in the Edge Function. The parent
+population has reached 3,232 rows. PostgREST caps a single request at 1,000
+and `limit` cannot raise it, so the read came back truncated, the picker's own
+`completeIntakeEditorRows` check refused it — correctly; a truncated read is an
+unavailable count, not evidence that an editor is free — and the 503 is what
+greyed the control out.
+
+The refusal was right and the read was wrong. Nothing here needed a bigger
+window: the answer is an aggregate, one number per editor.
+
+**Fix.** `migrations/2026-09-19-native-intake-open-load.sql` adds
+`production_native_intake_open_load(text)`, which returns one count per editor
+with the live-status filter and the batch-parent exclusion inside the same
+statement. Both native paths take it: `handleIntakeEditorOptions` (the picker)
+and `autoAssigneeForIntake` (the silent Submit-tab pick). No row limit is left
+to reach and there is no second read to keep consistent with the first.
+
+**The other half, which nobody had looked at.** The auto-assign path had no
+completeness check at all. Its open-work read was subject to the same cap, so
+once that population crossed 1,000 it had been balancing on a silently
+truncated count — the failure mode the picker was refusing to have. It now gets
+the same aggregate or a refusal.
+
+**What changed about degradation, deliberately.** The old parent read degraded
+to an empty set on failure, on the argument that a skewed suggestion beats a
+refused submission. Count and exclusion are now one statement, so there is no
+half to lose; a count that cannot be established is refused rather than
+reported as a load. The BROWSER's provider-lane loader keeps its degradation —
+it still does two reads and still cannot refuse usefully.
+
+**Order.** The migration is a PREREQUISITE, not a follow-up: a database without
+the routine refuses the picker instead of degrading. Apply the migration, run
+the read-only deploy preflight from the owner's machine, then dispatch the
+F27 §4 lane. The routine is in the preflight `ROUTINES` list and in the install
+manifest, so a database missing it stops the release at the gate rather than
+inside a dispatch.
+
+**Proof.** `test/production-write-gateway.js` runs the real handler against a
+supabase double whose row reads answer exactly like the live API at the cap —
+1,000 rows of a 3,232-row population — and asserts counts of 2,300 and 1,001
+survive intact, that no open-work or parent rows are pulled at all, and that a
+count that cannot be established is refused. A CONTROL feeds that same capped
+shape to the completeness check and reproduces the 503 the dropdown was
+reporting. The statuses in the SQL are pinned against the gateway's declared
+`INTAKE_LOAD_LIVE_STATUSES`, and the parent-exclusion symmetry is re-pointed at
+the SQL in `test/editor-count-excludes-parents.js` and
+`test/deliverable-counts-exclude-parents.js`.
+
+**Not done here.** The SQL function has not been executed against a real
+PostgreSQL in this change — there is no disposable-database lane in reach of
+this session, so its behaviour is argued from the statement, not measured. The
+house rule that a gate which has never run against its real target is untested
+applies: run the deploy preflight before dispatching, and expect the aggregate
+itself to be first exercised by the picker.

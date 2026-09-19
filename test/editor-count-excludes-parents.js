@@ -96,15 +96,33 @@ const pool = new Function(
   ok(degraded.find(e => e.id === 'ed-a').openCount === 3,
     'a failed parent read keeps the uncorrected count — a skewed suggestion beats a picker that cannot rank');
 
-  // ---- 2. the gateway runs the SAME rule -----------------------------------
-  ok(/select\("assignee_id,status,linear_issue_uuid"\)/.test(gateway),
-    'the gateway load read carries the uuid it needs to recognise a parent');
-  ok(/select\("raw_issue_parent_id"\)[\s\S]{0,120}not\("raw_issue_parent_id", "is", null\)/.test(gateway),
-    'and reads the parent set over the whole team, not just the open rows');
-  ok(/if \(parentUuids\.has\(clean\(row\.linear_issue_uuid\)\)\) continue;/.test(gateway),
-    'and skips parents in the same loop that counts');
-  ok(/catch \(_\) \{ parentUuids = new Set<string>\(\); \}/.test(gateway),
-    'with the same degradation: a failed parent read leaves the count uncorrected rather than refusing intake');
+  // ---- 2. the gateway runs the SAME rule, in SQL ---------------------------
+  /*
+   * 2026-09-19: the gateway stopped downloading the two populations to count
+   * them. The parent read had reached 3,232 rows against PostgREST's 1,000-row
+   * cap, so the picker refused and the Video editor dropdown greyed out. The
+   * rule did not change -- the place it runs did.
+   *
+   * The degradation contract changed with it, deliberately and on the gateway
+   * side only: count and exclusion are now one statement, so there is no
+   * second read left to fail halfway. A count that cannot be established is
+   * refused rather than reported. The BROWSER's provider loader above keeps
+   * its degradation, because a skewed suggestion still beats a picker that
+   * cannot rank.
+   */
+  const openLoadSql = fs.readFileSync(
+    path.join(ROOT, 'migrations', '2026-09-19-native-intake-open-load.sql'), 'utf8');
+  ok(/raw_issue_parent_id is not null/.test(openLoadSql)
+    && /from public\.production_deliverables_browser_v1 v\s*\n\s*where v\.team = p_team/.test(openLoadSql),
+    'the parent set is read over the whole team, not just the open rows');
+  ok(/not exists \(\s*\n?\s*select 1 from parents p where p\.issue_uuid = d\.linear_issue_uuid\)/.test(openLoadSql),
+    'and parents are excluded inside the same aggregate that counts');
+  ok(/intakeOpenLoad\(supabase, "video", "assignee_load_unavailable"\)/.test(gateway)
+    && /intakeOpenLoad\(supabase, "video", "intake_editor_options_unavailable"\)/.test(gateway),
+    'both gateway paths -- the auto pick and the picker projection -- take that one aggregate');
+  ok(!/select\("assignee_id,status,linear_issue_uuid"\)/.test(gateway)
+    && !/\.select\("raw_issue_parent_id"\)/.test(gateway),
+    'and neither downloads open-work or parent rows any more, so no page cap can truncate the count');
 
   // ---- 3. the symmetry that keeps the suggestion honest --------------------
   const browserStatuses = (html.match(/CAL_NATIVE_LIVE_VIDEO_STATUSES = \[([^\]]+)\]/) || [])[1];

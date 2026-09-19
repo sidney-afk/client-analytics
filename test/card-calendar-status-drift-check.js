@@ -24,7 +24,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = process.env.CARD_DRIFT_SRC || path.join(ROOT, 'scripts', 'card-calendar-status-drift-check.js');
-const { classify, classifySlot, loadMapper, SLOTS, BUCKETS } = require(SRC);
+const { classify, classifySlot, resettle, loadMapper, SLOTS, BUCKETS } = require(SRC);
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'card-calendar-status-drift.json'), 'utf8'));
 
@@ -118,10 +118,36 @@ ok(verdictFor('post-0003', 'video') === 'drift',
 ok(verdictFor('post-0011', 'video') === 'drift',
   'an empty calendar value is drift when the trigger would have written one');
 
+/* Whitespace. `"Approved "` is not equal to `"Approved"` for the trigger's
+   `is distinct from`, so the trigger WOULD rewrite that row. Trimming before
+   the comparison would report it agreeing and hide the whole class behind this
+   report's own claim to compare exactly. Raised by Codex on #1425. */
+ok(verdictFor('post-0013', 'video') === 'drift',
+  'a stray trailing space is drift, because it is not equality for the trigger either');
+
+const ws = report.drift.find(r => r.post_id === 'post-0013');
+ok(ws && ws.calendar_status === 'Approved ',
+  '...and the reported row keeps the raw value, so the stray space is visible rather than trimmed away');
+
 /* ---- the reported rows carry what a person needs and nothing else ---- */
 const rows = report.drift;
-ok(rows.length === t.drift && t.drift === 4,
-  'the drift list and the drift count agree, and the fixture produces the four expected rows');
+ok(rows.length === t.drift && t.drift === 5,
+  'the drift list and the drift count agree, and the fixture produces the five expected rows');
+
+/* Scope is counted per SLOT, not per distinct deliverable. The shadowed card
+   puts one deliverable in two slots and classify buckets both, so counting the
+   fetch set would under-state what was measured. Raised by Codex on #1425. */
+{
+  const linkedSlots = fixture.cards.reduce((n, c) =>
+    n + SLOTS.filter(s => String(c[s.deliverableColumn] || '').trim()).length, 0);
+  const distinct = new Set(fixture.cards.flatMap(c =>
+    SLOTS.map(s => String(c[s.deliverableColumn] || '').trim()).filter(Boolean))).size;
+  ok(linkedSlots > distinct,
+    'the fixture actually distinguishes the two counts (a shadowed deliverable occupies two slots)');
+  const bucketed = BUCKETS.reduce((n, b) => n + t[b], 0);
+  ok(bucketed === linkedSlots,
+    'every linked slot lands in exactly one bucket, so the published scope is the slot count and nothing is lost');
+}
 
 const FORBIDDEN = ['client', 'client_slug', 'name', 'caption', 'actor', 'title'];
 ok(rows.every(r => FORBIDDEN.every(k => !Object.prototype.hasOwnProperty.call(r, k))),
@@ -134,6 +160,52 @@ const first = rows.find(r => r.post_id === 'post-0001');
 ok(first && first.expected === 'For SMM Approval' && first.calendar_status === 'In Progress'
   && first.deliverable_status === 'smm_approval',
   'a reported row shows both sides and the value the trigger would have written');
+
+/* ---- the scan's own race, which is the reason resettle() exists ----
+
+   The two sides are read by two separate paged scans. The trigger writes
+   `deliverables` and `calendar_posts` in ONE transaction, so an edit landing
+   between the scans leaves the process holding the OLD card and the NEW
+   deliverable — which looks exactly like drift and is not. On a live estate
+   that would fail the gate and page the watchdog on an ordinary editor edit,
+   which is the crying-wolf failure this whole report is shaped to avoid.
+   Raised by Codex on #1425. */
+{
+  const candidate = {
+    post_id: 'post-race', deliverable_id: 'dlv-race', component: 'video',
+    calendar_status: 'In Progress', deliverable_status: 'smm_approval', expected: 'For SMM Approval',
+  };
+  const freshDlv = { 'dlv-race': { id: 'dlv-race', status: 'smm_approval', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel' } };
+
+  // The trigger had already written the card; the first scan simply read it too early.
+  const caughtUp = { 'post-race': { id: 'post-race', client: 'sidneylaruel', status: 'active',
+    video_status: 'For SMM Approval', graphic_status: '', video_deliverable_id: 'dlv-race', graphic_deliverable_id: '' } };
+  const a = resettle([candidate], caughtUp, freshDlv, mapNative);
+  ok(a.survivors.length === 0 && a.settled === 1,
+    'an edit in flight during the scan settles on re-read and is never reported as drift');
+
+  // Nothing is writing this card: the disagreement is real and must survive.
+  const stillBehind = { 'post-race': { id: 'post-race', client: 'sidneylaruel', status: 'active',
+    video_status: 'In Progress', graphic_status: '', video_deliverable_id: 'dlv-race', graphic_deliverable_id: '' } };
+  const b = resettle([candidate], stillBehind, freshDlv, mapNative);
+  ok(b.survivors.length === 1 && b.settled === 0 && b.survivors[0].expected === 'For SMM Approval',
+    'real drift survives the re-read, so settling the race does not blind the gate');
+
+  // The re-read is authoritative about BOTH sides, not just the card.
+  const c = resettle([candidate], stillBehind,
+    { 'dlv-race': { id: 'dlv-race', status: 'triage', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel' } },
+    mapNative);
+  ok(c.survivors.length === 0 && c.settled === 1,
+    'a deliverable that moved to an unmapped status on re-read settles too');
+
+  const d = resettle([candidate], {}, freshDlv, mapNative);
+  ok(d.survivors.length === 0 && d.settled === 1,
+    'a card that no longer reads back is settled, never reported on stale data');
+
+  const e = resettle([candidate], caughtUp, freshDlv, mapNative);
+  ok(e.survivors.every(r => !Object.prototype.hasOwnProperty.call(r, 'client')),
+    'resettled rows carry no client either');
+}
 
 /* ---- a clean world reports clean ---- */
 const cleanReport = classify(

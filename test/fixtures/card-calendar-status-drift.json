@@ -8,87 +8,212 @@
   "cards": [
     {
       "_case": "drift: the trigger would project For SMM Approval and the card is behind",
-      "id": "post-0001", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0001", "graphic_deliverable_id": ""
+      "id": "post-0001",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0001",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "agree: the graphic slot already holds the mapped value",
-      "id": "post-0002", "client": "sidneylaruel", "status": "active",
-      "video_status": "", "graphic_status": "Approved",
-      "video_deliverable_id": "", "graphic_deliverable_id": "dlv-0002"
+      "id": "post-0002",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "",
+      "graphic_status": "Approved",
+      "video_deliverable_id": "",
+      "graphic_deliverable_id": "dlv-0002"
     },
     {
       "_case": "drift is an EXACT comparison: the trigger's `is distinct from` would still rewrite this",
-      "id": "post-0003", "client": "sidneylaruel", "status": "active",
-      "video_status": "in progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0003", "graphic_deliverable_id": ""
+      "id": "post-0003",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "in progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0003",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "unmapped: triage has no calendar equivalent, so holding something else is correct",
-      "id": "post-0004", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0004", "graphic_deliverable_id": ""
+      "id": "post-0004",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0004",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "archived: out of scope for the trigger, the backfill and the reconciler alike",
-      "id": "post-0005", "client": "sidneylaruel", "status": "archived",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0005", "graphic_deliverable_id": ""
+      "id": "post-0005",
+      "client": "sidneylaruel",
+      "status": "archived",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0005",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "out_of_scope: a samples-origin deliverable never reaches the mapping",
-      "id": "post-0006", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0006", "graphic_deliverable_id": ""
+      "id": "post-0006",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0006",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "link_asymmetric: the deliverable points back at a different card",
-      "id": "post-0007", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0007", "graphic_deliverable_id": ""
+      "id": "post-0007",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0007",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "link_asymmetric: card_id agrees but client_slug does not, which the trigger joins on too",
-      "id": "post-0008", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-0008", "graphic_deliverable_id": ""
+      "id": "post-0008",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0008",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "shadowed: one deliverable in both slots resolves to video; the graphic slot is never projected",
-      "id": "post-0009", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "In Progress",
-      "video_deliverable_id": "dlv-0009", "graphic_deliverable_id": "dlv-0009"
+      "id": "post-0009",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "In Progress",
+      "video_deliverable_id": "dlv-0009",
+      "graphic_deliverable_id": "dlv-0009"
     },
     {
       "_case": "unresolved: the card names a deliverable id that did not read back",
-      "id": "post-0010", "client": "sidneylaruel", "status": "active",
-      "video_status": "In Progress", "graphic_status": "",
-      "video_deliverable_id": "dlv-missing", "graphic_deliverable_id": ""
+      "id": "post-0010",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-missing",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "an empty calendar value is still drift when the trigger would write one",
-      "id": "post-0011", "client": "fixture-client-two", "status": "active",
-      "video_status": "", "graphic_status": "",
-      "video_deliverable_id": "dlv-0011", "graphic_deliverable_id": ""
+      "id": "post-0011",
+      "client": "fixture-client-two",
+      "status": "active",
+      "video_status": "",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0011",
+      "graphic_deliverable_id": ""
     },
     {
       "_case": "a card with no linked slot at all is not scanned",
-      "id": "post-0012", "client": "fixture-client-two", "status": "active",
-      "video_status": "In Progress", "graphic_status": "In Progress",
-      "video_deliverable_id": "", "graphic_deliverable_id": ""
+      "id": "post-0012",
+      "client": "fixture-client-two",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "In Progress",
+      "video_deliverable_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "_case": "drift: a stray trailing space is not equality for the trigger, so it would be rewritten",
+      "id": "post-0013",
+      "client": "fixture-client-two",
+      "status": "active",
+      "video_status": "Approved ",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0013",
+      "graphic_deliverable_id": ""
     }
   ],
   "deliverables": [
-    { "id": "dlv-0001", "status": "smm_approval", "origin": "calendar", "card_id": "post-0001", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0002", "status": "approved", "origin": "calendar", "card_id": "post-0002", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0003", "status": "backlog", "origin": "calendar", "card_id": "post-0003", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0004", "status": "triage", "origin": "calendar", "card_id": "post-0004", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0005", "status": "smm_approval", "origin": "calendar", "card_id": "post-0005", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0006", "status": "smm_approval", "origin": "samples", "card_id": "post-0006", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0007", "status": "smm_approval", "origin": "calendar", "card_id": "post-9999", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0008", "status": "smm_approval", "origin": "calendar", "card_id": "post-0008", "client_slug": "fixture-client-two" },
-    { "id": "dlv-0009", "status": "tweak", "origin": "calendar", "card_id": "post-0009", "client_slug": "sidneylaruel" },
-    { "id": "dlv-0011", "status": "client_approval", "origin": "calendar", "card_id": "post-0011", "client_slug": "fixture-client-two" }
+    {
+      "id": "dlv-0001",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0001",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0002",
+      "status": "approved",
+      "origin": "calendar",
+      "card_id": "post-0002",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0003",
+      "status": "backlog",
+      "origin": "calendar",
+      "card_id": "post-0003",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0004",
+      "status": "triage",
+      "origin": "calendar",
+      "card_id": "post-0004",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0005",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0005",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0006",
+      "status": "smm_approval",
+      "origin": "samples",
+      "card_id": "post-0006",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0007",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-9999",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0008",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0008",
+      "client_slug": "fixture-client-two"
+    },
+    {
+      "id": "dlv-0009",
+      "status": "tweak",
+      "origin": "calendar",
+      "card_id": "post-0009",
+      "client_slug": "sidneylaruel"
+    },
+    {
+      "id": "dlv-0011",
+      "status": "client_approval",
+      "origin": "calendar",
+      "card_id": "post-0011",
+      "client_slug": "fixture-client-two"
+    },
+    {
+      "id": "dlv-0013",
+      "status": "approved",
+      "origin": "calendar",
+      "card_id": "post-0013",
+      "client_slug": "fixture-client-two"
+    }
   ]
 }

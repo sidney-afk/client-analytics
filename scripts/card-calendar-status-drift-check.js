@@ -184,8 +184,40 @@ function classifySlot(card, slot, deliverable, mapNative) {
   const target = mapNative(deliverable.status, deliverable.origin);
   if (target == null || target === '') return { bucket: 'unmapped', target: null };
 
-  // Exactly the trigger's `is distinct from` on the raw column.
-  return { bucket: clean(card[slot.statusColumn]) === target ? 'agree' : 'drift', target };
+  /* The trigger's `is distinct from` against the RAW column, untrimmed.
+     `clean()` here would be wrong in the one direction that matters: a stored
+     `"Approved "` is not equal to `"Approved"` as far as the trigger is
+     concerned, so the trigger WOULD rewrite it -- and trimming would report it
+     agreeing, hiding that whole class of rows behind this report's own claim to
+     compare exactly. A null column is distinct from any non-null target, in the
+     trigger and here alike. */
+  const raw = card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]);
+  return { bucket: raw === target ? 'agree' : 'drift', target };
+}
+
+/* Re-judge drift candidates against a FRESH read of both sides.
+   Pure, and exported, so the race this exists for can be tested offline
+   instead of only being argued about in a comment. A candidate survives only
+   if it still disagrees on rows read after the original scan; anything else --
+   it now agrees, the card moved to archived, the deliverable became unmapped,
+   the card is gone -- is counted as settled and never reported. */
+function resettle(candidates, freshCards, freshDeliverables, mapNative) {
+  const survivors = [];
+  let settled = 0;
+  for (const d of candidates || []) {
+    const card = (freshCards || {})[d.post_id];
+    const slot = SLOTS.find(s => s.component === d.component);
+    if (!card || !slot) { settled++; continue; }
+    const deliverable = (freshDeliverables || {})[clean(card[slot.deliverableColumn])];
+    const verdict = classifySlot(card, slot, deliverable, mapNative);
+    if (!verdict || verdict.bucket !== 'drift') { settled++; continue; }
+    survivors.push(Object.assign({}, d, {
+      calendar_status: card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]),
+      deliverable_status: clean((deliverable || {}).status) || null,
+      expected: verdict.target,
+    }));
+  }
+  return { survivors, settled };
 }
 
 /* The whole judgement over rows the caller has already read, so a fixture can
@@ -207,7 +239,10 @@ function classify(cards, deliverablesById, mapNative) {
         post_id: clean(card.id),
         deliverable_id: clean(card[slot.deliverableColumn]),
         component: slot.component,
-        calendar_status: clean(card[slot.statusColumn]) || null,
+        /* Raw, not trimmed, for the same reason the comparison is: if the
+           reason this row drifted is a stray space, a trimmed report would
+           show the two sides as identical and read like a bug in the check. */
+        calendar_status: card[slot.statusColumn] == null ? null : String(card[slot.statusColumn]),
         deliverable_status: clean((deliverablesById[clean(card[slot.deliverableColumn])] || {}).status) || null,
         expected: verdict.target,
       });
@@ -253,11 +288,19 @@ async function main() {
   const cards = await pageAll('calendar_posts',
     'id,client,status,video_status,graphic_status,video_deliverable_id,graphic_deliverable_id');
 
+  /* Two different counts, deliberately. `wanted` is the set of deliverable ids
+     to FETCH, so it is distinct. `linkedSlots` is the scope this report
+     publishes, and that is per slot: the shadowed case puts one deliverable in
+     two slots of one card, `classify` buckets both, and counting the set would
+     under-state what was actually measured. */
   const wanted = new Set();
+  let linkedSlots = 0;
   for (const card of cards) {
     for (const slot of SLOTS) {
       const id = clean(card[slot.deliverableColumn]);
-      if (id) wanted.add(id);
+      if (!id) continue;
+      linkedSlots++;
+      wanted.add(id);
     }
   }
 
@@ -269,20 +312,78 @@ async function main() {
     if (wanted.has(id)) deliverablesById[id] = row;
   }
 
+  const first = classify(cards, deliverablesById, mapNative);
+
+  /* Settle the scan's own race before calling anything drift.
+     ------------------------------------------------------------------
+     The two sides are read by two separate paged scans. The trigger updates
+     `deliverables` and `calendar_posts` in ONE transaction, so a status change
+     landing between the scans leaves this process holding the old card and the
+     new deliverable -- which looks exactly like drift and is not. On a live
+     estate an ordinary editor edit would therefore fail the gate and page the
+     watchdog, which is the crying-wolf failure this report was shaped to avoid.
+
+     So every candidate is re-read as a pair and re-judged, and only a candidate
+     that disagrees BOTH times is reported. An in-flight edit settles, because
+     the re-read sees the card the trigger already wrote. Real drift survives,
+     because nothing is writing that card.
+
+     This narrows the window rather than abolishing it -- a genuine repeatable
+     snapshot would need one transaction, which PostgREST does not give us. An
+     edit landing inside the re-read too would have to be a second write to the
+     same slot in that instant, and the next hourly run reports it. Erring
+     toward under-reporting is the right direction for a gate: a missed row is
+     caught an hour later, a false red teaches people to ignore the lane. */
+  let settledByRecheck = 0;
+  let drift = first.drift;
+  if (drift.length) {
+    const survivors = [];
+    for (let i = 0; i < drift.length; i += 100) {
+      const batch = drift.slice(i, i + 100);
+      const cardIds = [...new Set(batch.map(d => d.post_id))];
+      const dlvIds = [...new Set(batch.map(d => d.deliverable_id))];
+      const freshCards = {};
+      for (const row of await rest('calendar_posts?select=id,client,status,video_status,graphic_status,'
+        + 'video_deliverable_id,graphic_deliverable_id&id=in.(' + cardIds.map(encodeURIComponent).join(',') + ')')) {
+        freshCards[clean(row.id)] = row;
+      }
+      const freshDlv = {};
+      for (const row of await rest('deliverables?select=id,status,origin,card_id,client_slug'
+        + '&id=in.(' + dlvIds.map(encodeURIComponent).join(',') + ')')) {
+        freshDlv[clean(row.id)] = row;
+      }
+      const settled = resettle(batch, freshCards, freshDlv, mapNative);
+      survivors.push(...settled.survivors);
+      settledByRecheck += settled.settled;
+    }
+    /* Settled candidates are counted in their own field, not folded into
+       `agree`. On the re-read one may well be agreeing, but it may equally have
+       become archived or unmapped, and quietly reclassifying it as agreement
+       would be a precision this process did not measure. */
+    drift = survivors;
+    first.totals.drift = drift.length;
+  }
+
   const report = Object.assign(
     {
       generated_at: new Date().toISOString(),
       cards_scanned: cards.length,
-      linked_slots_scanned: wanted.size,
+      linked_slots_scanned: linkedSlots,
+      distinct_deliverables_linked: wanted.size,
+      settled_by_recheck: settledByRecheck,
     },
-    classify(cards, deliverablesById, mapNative));
+    first, { drift });
 
   if (AS_JSON) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     const t = report.totals;
     console.log('Calendar posts scanned: ' + report.cards_scanned
-      + '   linked deliverables resolved: ' + Object.keys(deliverablesById).length + '/' + report.linked_slots_scanned);
+      + '   linked slots: ' + report.linked_slots_scanned
+      + '   deliverables resolved: ' + Object.keys(deliverablesById).length + '/' + report.distinct_deliverables_linked);
+    if (report.settled_by_recheck) {
+      console.log('Candidates that settled on re-read (an edit was in flight mid-scan): ' + report.settled_by_recheck);
+    }
     console.log('');
     console.log('  DRIFT            ' + t.drift + '   the bridge would have written this slot and it holds something else');
     console.log('  agree            ' + t.agree + '   already holds the mapped value');
@@ -297,7 +398,10 @@ async function main() {
       console.log('Drifted slots (post id, deliverable id, component, calendar -> expected):');
       for (const d of report.drift.slice(0, LIMIT)) {
         console.log('  ' + d.post_id.padEnd(40) + ' ' + d.deliverable_id.padEnd(40) + ' ' + d.component.padEnd(8)
-          + ' ' + (d.calendar_status || '(none)').padEnd(18) + ' -> ' + d.expected
+          /* Quoted, so a stray leading or trailing space -- which is a whole
+             reason a row can drift -- is visible instead of looking identical
+             to the expected value and reading like a bug in this report. */
+          + ' ' + (d.calendar_status == null ? '(none)' : JSON.stringify(d.calendar_status)).padEnd(20) + ' -> ' + d.expected
           + '   [card ' + (d.deliverable_status || '(none)') + ']');
       }
       if (report.drift.length > LIMIT) console.log('  ... and ' + (report.drift.length - LIMIT) + ' more (use --json or --limit=N)');
@@ -326,4 +430,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { classify, classifySlot, loadMapper, SLOTS, BUCKETS };
+module.exports = { classify, classifySlot, resettle, loadMapper, SLOTS, BUCKETS };

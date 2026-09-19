@@ -30,6 +30,17 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — owner clarification recorded: what the public repository protects
+
+Sidney clarified the public-repository rule, and it is now at the top of
+`AGENTS.md`. Protect credentials, client names, client slugs, and share tokens.
+Ordinary filesystem paths, evidence locations, technical identifiers, and staff
+names are not prohibited merely because they identify something. A path or
+identifier that contains an actual protected value remains protected. This
+supersedes the broader hygiene instructions behind the PR #1432 cleanup. That
+cleanup's completed redactions of staff names and personal path segments are
+kept rather than restored, and the cleanup is not being expanded.
+
 ### 2026-09-19 — PR #1432 follow-up correction: attribution repair relabelled unvalidated; one missed staff identity redacted
 
 Two corrections to the entry below, which is kept as written:

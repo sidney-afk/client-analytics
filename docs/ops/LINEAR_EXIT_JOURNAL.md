@@ -36,6 +36,24 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: browser-held receipts need a disposition, and the cutoff needs a fresh inventory
+
+Two further corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The
+entry below, which cites the earlier check numbers, is kept as written.
+
+- **A visible hold is not a disposition.** New check 3: every browser-held
+  legacy receipt must reach terminal recovery on its original identity, or an
+  explicit approved disposition recorded against that identity. The hold (check
+  2) is necessary but does not pass it.
+- **A fresh inventory at the moment of cutoff.** The closure check now requires
+  Storage to rerun the server-visible disposition inventory immediately before
+  the flag change, not reuse check 1's. The cutoff proceeds only if no
+  unfinished server-visible identity is left without a disposition.
+
+The checks are renumbered: acceptance before cutoff is now checks 1–9, and
+closure after cutoff is check 10. No live drill, submission, flag change or
+database access occurred.
+
 ### 2026-09-19 — native intake plan corrected: acceptance before cutoff, closure after it
 
 A Codex review of `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md` found four gaps.

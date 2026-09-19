@@ -8140,7 +8140,7 @@
 </head>
 <body>
 <!-- Confirmation modal -->
-<div class="confirm-overlay" id="confirmOverlay" onclick="if(event.target===this)dismissConfirm()">
+<div class="confirm-overlay" id="confirmOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)dismissConfirm()">
     <div class="confirm-box">
         <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
         <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
@@ -8160,7 +8160,7 @@
      ticks and routes the component to Kasper, the client, or straight to
      Approved. The ✕ (and a backdrop click) just close it — closing is
      non-destructive, since nothing is applied until a route is picked. -->
-<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
+<div class="confirm-overlay" id="resolveDestOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calDismissResolveDest()">
     <div class="confirm-box resolve-dest-box">
         <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calDismissResolveDest()">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
@@ -8586,6 +8586,42 @@
     </div>
 </main>
 <script>
+    /*
+     * OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog
+     * overlays.
+     *
+     * Every dialog's backdrop closes it with `if (event.target === overlay)
+     * dismiss()`. That is not enough: the DOM dispatches `click` at the
+     * nearest common ancestor of the mousedown target and the mouseup
+     * target, so a press that starts on a field inside the dialog (e.g.
+     * drag-selecting text) and releases on the backdrop makes
+     * `event.target === overlay` true at click time too -- indistinguishable
+     * from an actual backdrop click. Drag-selecting text right-to-left near a
+     * dialog's edge routinely ends the drag outside it, so this is ordinary
+     * input, not an edge case.
+     *
+     * One delegated, capture-phase `mousedown` listener on `document` records
+     * on every press whether it began directly on a marked backdrop
+     * (`[data-backdrop-dismiss]`), not on one of its descendants. Capture
+     * phase is load-bearing: several dialog fields call
+     * `event.stopPropagation()` on their own `mousedown` (the Create Post
+     * batch-name field among them), which would stop a bubble-phase listener
+     * on the overlay from ever seeing those presses -- leaving a stale
+     * `true` from an earlier real backdrop press and letting the bug survive
+     * in a narrower, easier-to-miss form. Delegating at `document` also means
+     * a dialog whose markup is re-rendered (a fresh overlay element replacing
+     * the old one) is covered without re-arming anything, since there is
+     * nothing per-element to re-arm.
+     *
+     * Each backdrop's own click handler additionally requires
+     * `overlay._backdropPressBegan` (or `this._backdropPressBegan` inline)
+     * before dismissing, so a dismiss only fires when BOTH the press and the
+     * click landed on the backdrop itself.
+     */
+    document.addEventListener('mousedown', event => {
+        const backdrop = event.target && event.target.closest && event.target.closest('[data-backdrop-dismiss]');
+        if (backdrop) backdrop._backdropPressBegan = (event.target === backdrop);
+    }, true);
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     function _syncviewThemeAllowed() {
@@ -22512,7 +22548,7 @@
                 ${toolbarRight}
             </div>
             <div class="sm-body" id="smBody">${_smLoaderHtml()}</div>
-            <div class="sm-comments-overlay" id="smCommentsOverlay" onclick="if(event.target===this)closeSmComments()">
+            <div class="sm-comments-overlay" id="smCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSmComments()">
                 <div class="sm-comments-modal" id="smCommentsModal" role="dialog" aria-modal="true"></div>
             </div>
             <div class="sm-flash" id="smFlash"></div>`;
@@ -24955,7 +24991,7 @@
         overlay._syncviewEntry = !!entry;
         // Entry mode IS the door: there is nothing behind it to dismiss to,
         // so backdrop clicks and Escape must not close it.
-        overlay.onclick = event => { if (event.target === overlay && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
         overlay._syncviewKeydown = event => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -25095,6 +25131,7 @@
             const overlay = document.createElement('div');
             overlay.id = 'staffIdentityOverlay';
             overlay.className = 'cal-import-overlay open staff-auth-overlay';
+            if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
             const result = new Promise(resolve => { overlay._syncviewResolve = resolve; });
             overlay.innerHTML = '<div class="staff-auth-card" role="dialog" aria-modal="true" aria-label="Preparing staff sign in" aria-busy="true" tabindex="-1"><div class="staff-auth-loading"><span class="staff-auth-spinner" aria-hidden="true"></span><strong>Preparing secure sign-in</strong><span>Loading the active staff roster…</span></div></div>';
             document.body.appendChild(overlay);
@@ -39548,26 +39585,26 @@
                 </div>
             </div>
             <div class="cal-body" id="calBody">${_calLoaderHtml()}</div>
-            <div class="cal-preview-overlay" id="calPreviewOverlay" onclick="if(event.target===this)closeCalPreview()">
+            <div class="cal-preview-overlay" id="calPreviewOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalPreview()">
                 <div class="cal-preview" id="calPreview"></div>
             </div>
-            <div class="cal-import-overlay" id="calImportOverlay" onclick="if(event.target===this)closeCalImport()">
+            <div class="cal-import-overlay" id="calImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalImport()">
                 <div class="cal-import-modal" id="calImportModal"></div>
             </div>
-            <div class="cal-import-overlay" id="calLinearImportOverlay" onclick="if(event.target===this)closeCalLinearImport()">
+            <div class="cal-import-overlay" id="calLinearImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalLinearImport()">
                 <div class="cal-import-modal" id="calLinearImportModal"></div>
             </div>
-            <div class="cal-import-overlay" id="calBulkLinkOverlay" onclick="if(event.target===this)closeCalBulkLinkOverlay()">
+            <div class="cal-import-overlay" id="calBulkLinkOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalBulkLinkOverlay()">
                 <div class="cal-import-modal" id="calBulkLinkModal"></div>
             </div>
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="cal-comments-overlay" id="calCommentsOverlay" onclick="if(event.target===this)closeCalComments()">
+            <div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalComments()">
                 <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
             </div>
-            <div class="cal-prompt-overlay" id="calPromptOverlay" onclick="if(event.target===this)_calCloseCaptionPromptModal()">
+            <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calCloseCaptionPromptModal()">
                 <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
             </div>
         `;
@@ -41006,13 +41043,14 @@
         overlay = document.createElement('div');
         overlay.id = 'thumbCompareOverlay';
         overlay.className = 'thumb-compare-overlay';
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
         overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-label="Previous and current thumbnail comparison" tabindex="-1">
             <header class="thumb-compare-head">
                 <button type="button" class="thumb-compare-close" onclick="_thumbCompareClose()" aria-label="Close thumbnail comparison"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </header>
             <div class="thumb-compare-content" id="thumbCompareContent" role="status" aria-live="polite"></div>
         </section>`;
-        overlay.addEventListener('click', e => { if (e.target === overlay) _thumbCompareClose(); });
+        overlay.addEventListener('click', e => { if (e.target === overlay && overlay._backdropPressBegan) _thumbCompareClose(); });
         overlay.addEventListener('keydown', _thumbCompareKeydown);
         document.body.appendChild(overlay);
         return overlay;
@@ -45031,7 +45069,8 @@
         const overlay = document.createElement('div');
         overlay.id = 'calNativePostOverlay';
         overlay.className = 'cal-import-overlay open';
-        overlay.onclick = event => { if (event.target === overlay) _calCloseNativePost(); };
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan) _calCloseNativePost(); };
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
@@ -68017,7 +68056,7 @@
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="cal-lightbox-close" type="button" onclick="closeSxrLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="cal-comments-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+            <div class="cal-comments-overlay" id="sxrCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSxrComments()">
                 <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
             </div>
         `;

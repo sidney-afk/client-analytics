@@ -2,6 +2,8 @@
 
 All times are UTC unless noted.
 
+## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all thirteen dialog overlays (OPEN_REPAIRS 214)
+
 ## 2026-09-18 — the bridge's backfill could not be called at all, and the fixture could not have told us
 
 The bridge migration applied live at 22:38Z. The trigger half works: a native

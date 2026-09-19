@@ -222,9 +222,18 @@ function classifySlot(card, slot, deliverable, mapNative) {
      ------------------------------------------------------------------
      The trigger fires on a CHANGE. It does not reconcile history, and it never
      claimed to: the cards that were already behind when it was installed are
-     the backfill's job, and the backfill has still never been run
-     (OPEN_REPAIRS 212). So a slot whose deliverable last moved BEFORE the
-     trigger existed is not evidence that the bridge is failing -- it is
+     the backfill's job. The backfill has run twice against production --
+     2026-09-18 23:45Z (16 posts) and 2026-09-19 01:10Z (1 post).
+     `pre_bridge` here is purely a date cutoff (below) -- it says nothing about
+     WHY a given row still disagrees, and the backfill applies no
+     component-aware exclusion of its own. At least some of the rows still
+     listed below are posts that were published without the component being
+     compared, which is a real reason a backfill has nothing correct to write
+     for them (OPEN_REPAIRS 212) -- but that is a property of those specific
+     rows, not a blanket reason for the whole pre-bridge list, and the rest of
+     the backlog is not accounted for by it. So a slot whose deliverable last
+     moved BEFORE the trigger existed is not evidence that the bridge is
+     failing -- it is
      evidence of the gap the bridge was built to stop widening.
 
      The first live run of this lane went red on exactly that: 27 slots, 25 of
@@ -513,9 +522,12 @@ async function main() {
       if (report.pre_bridge.length > LIMIT) console.log('  ... and ' + (report.pre_bridge.length - LIMIT) + ' more (use --json or --limit=N)');
       console.log('');
       console.log('These are NOT gating and never will be: the trigger fires on a change and does');
-      console.log('not reconcile history. They are the backlog that existed when it was installed,');
-      console.log('and clearing them is what production_native_calendar_status_backfill is for -- it');
-      console.log('has still never been run (OPEN_REPAIRS 212).');
+      console.log('not reconcile history. production_native_calendar_status_backfill has run twice');
+      console.log('against production (2026-09-18 23:45Z, 16 posts; 2026-09-19 01:10Z, 1 post). At');
+      console.log('least some of the rows still listed here are posts published without the');
+      console.log('component being compared, so there is no correct value a backfill could write for');
+      console.log('them -- but that is a reason for those specific rows, not a blanket explanation for');
+      console.log('this whole list; the rest of the backlog remains open (OPEN_REPAIRS 212).');
     }
     if (t.link_asymmetric) {
       console.log('');

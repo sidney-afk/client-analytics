@@ -30,6 +30,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — step 29b inventory filed: every workflow and lane classified keep/retire/rewrite, nothing retired, per `docs/ops/LINEAR_EXIT_STEP29B_INVENTORY.md`.
+
 ### 2026-09-19 — the watcher's first live run was red, and it was right to be, about the wrong thing
 
 Two things happened within the hour. The bridge trigger was **observed firing

@@ -16,13 +16,25 @@ is this one's worked precedent and every shape below is borrowed from it.
 > table are being run by the **storage session**; steps 1 and 12 were done from
 > this repository.
 >
-> **First results, as reported by the owner:** video seeded **03:16:47Z**
-> (`VID`, gap 1,064, cursor 15,000) and flipped to native; **check 3 passed**,
-> owner-observed at **03:24:04Z** on card `del_670c2cb9` showing **`VID-15000`
-> without a refresh**; **check 4a passed**, cursor 15,000 → 15,001. Everything
-> else — graphics, the backfill, and the remaining checks — is still unmeasured.
-> The measurements live in the checkpoint's step 28 form; the check table below
-> is **not** amended, so it stays the specification rather than the result.
+> **The run is done except for one check.** Storage completed steps 8 to 11
+> (journal `e19e791c`): **both teams seeded and flipped native** — video
+> 03:16:47Z (`VID`, gap 1,064, cursor 15,000), graphics **hand-seeded** 03:27:54Z
+> (`GRA`, gap 440, cursor 8,000) and flipped 03:27:59Z — and the **backfill ran
+> at 03:29Z**, naming all 45 previously nameless rows. **Twelve of the thirteen
+> step-27 clauses passed. Check 7 is OPEN** and needs the first organic graphics
+> card after 03:27:59Z.
+>
+> Three things the run settled that this document had carried as risks: check 3
+> passed, so **no `production-write` readback fix is needed** and no deploy
+> arises; check 5 took the **native-intake** path, so 5a–5c are *not applicable*
+> rather than failed — the conditional written into check 5 is what stopped a
+> working mint reading as a failure; and check 6c was run **before** graphics was
+> seeded, which is the one check that becomes unmeasurable if taken in the wrong
+> order.
+>
+> **The measurements live in the checkpoint's step 28 form. The check table
+> below is deliberately NOT amended** — it stays the specification, so the
+> results cannot quietly rewrite the thing they were measured against.
 
 **Written as scoping, and still only scoping.** Everything marked *measured* is
 a read-only `select` issued against the live database on **2026-09-19**;

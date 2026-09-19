@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: the correlated telemetry row is exempt from check 4's forbidden writes
+
+A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries
+are kept as written.
+
+Check 4 forbade "a row representing work in the legacy submission sheet" while
+also requiring the correlated telemetry row that `LOG_SUBMISSION_WEBHOOK`
+writes. An old browser fires that request before the form post, so the row is
+expected on every refused submission. The blanket prohibition is removed and the
+row is explicitly exempt, including its row in the submission log sheet. The
+requirement that survives is downstream: that row may create or queue no
+business work — no card, deliverable, batch, calendar post, queue or outbox
+entry, notification, Linear issue or Slack message — verified for the same
+correlation identifier.
+
+Documentation only: no test was run and no workflow was changed.
+
 ### 2026-09-19 — native intake plan: the tested page is the executing navigation response, not a separate download
 
 A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries

@@ -3,7 +3,8 @@
     "Fixture for test/card-calendar-status-drift-check.js. Every id is synthetic and",
     "every client is the sanctioned test client or an obviously-invented one; no live",
     "client slug, card name or person appears here. Each card exercises exactly one",
-    "branch of the trigger's order of refusal, named in its own _case field."
+    "branch of the trigger's order of refusal, named in its own _case field.",
+    "status_at drives the pre-bridge cutoff. Existing rows sit after go-live so they stay drift; dlv-0014/0015 sit either side of it deliberately."
   ],
   "cards": [
     {
@@ -135,6 +136,36 @@
       "graphic_status": "",
       "video_deliverable_id": "dlv-0013",
       "graphic_deliverable_id": ""
+    },
+    {
+      "_case": "pre_bridge: disagrees, but the deliverable last moved BEFORE the trigger existed",
+      "id": "post-0014",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0014",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "_case": "drift: one second AFTER go-live is the bridge's responsibility",
+      "id": "post-0015",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0015",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "_case": "pre_bridge: a null status_at cannot be shown to be at/after go-live, so it does not gate",
+      "id": "post-0016",
+      "client": "sidneylaruel",
+      "status": "active",
+      "video_status": "In Progress",
+      "graphic_status": "",
+      "video_deliverable_id": "dlv-0016",
+      "graphic_deliverable_id": ""
     }
   ],
   "deliverables": [
@@ -143,77 +174,112 @@
       "status": "smm_approval",
       "origin": "calendar",
       "card_id": "post-0001",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0002",
       "status": "approved",
       "origin": "calendar",
       "card_id": "post-0002",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0003",
       "status": "backlog",
       "origin": "calendar",
       "card_id": "post-0003",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0004",
       "status": "triage",
       "origin": "calendar",
       "card_id": "post-0004",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0005",
       "status": "smm_approval",
       "origin": "calendar",
       "card_id": "post-0005",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0006",
       "status": "smm_approval",
       "origin": "samples",
       "card_id": "post-0006",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0007",
       "status": "smm_approval",
       "origin": "calendar",
       "card_id": "post-9999",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0008",
       "status": "smm_approval",
       "origin": "calendar",
       "card_id": "post-0008",
-      "client_slug": "fixture-client-two"
+      "client_slug": "fixture-client-two",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0009",
       "status": "tweak",
       "origin": "calendar",
       "card_id": "post-0009",
-      "client_slug": "sidneylaruel"
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0011",
       "status": "client_approval",
       "origin": "calendar",
       "card_id": "post-0011",
-      "client_slug": "fixture-client-two"
+      "client_slug": "fixture-client-two",
+      "status_at": "2026-09-19T00:52:00Z"
     },
     {
       "id": "dlv-0013",
       "status": "approved",
       "origin": "calendar",
       "card_id": "post-0013",
-      "client_slug": "fixture-client-two"
+      "client_slug": "fixture-client-two",
+      "status_at": "2026-09-19T00:52:00Z"
+    },
+    {
+      "id": "dlv-0014",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0014",
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-08-24T11:00:00Z"
+    },
+    {
+      "id": "dlv-0015",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0015",
+      "client_slug": "sidneylaruel",
+      "status_at": "2026-09-18T22:38:15Z"
+    },
+    {
+      "id": "dlv-0016",
+      "status": "smm_approval",
+      "origin": "calendar",
+      "card_id": "post-0016",
+      "client_slug": "sidneylaruel",
+      "status_at": null
     }
   ]
 }

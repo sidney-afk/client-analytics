@@ -304,12 +304,20 @@ closure.
 These are recorded as open rather than resolved, because closing step 28 is not
 the same as having nothing left to watch.
 
-1. **The calendar bridge trigger has not yet been observed on a genuine editor
-   change.** It is live and its mechanism is proved, but the next real status
-   change by a real editor is the first live observation of it, and that has not
-   happened yet. Until it does, the bridge is correct-by-construction rather than
-   correct-by-measurement. `card-calendar-status-drift.yml` is what will notice
-   if the construction is wrong.
+1. ~~**The calendar bridge trigger has not yet been observed on a genuine editor
+   change.**~~ **CLOSED 2026-09-19.** The trigger fired correctly on **six real
+   editor changes between 00:50Z and 00:56Z on 2026-09-19**. The bridge is now
+   correct-by-measurement on genuine work, not only by construction. The note is
+   struck through rather than deleted, because what it was worth is the record
+   that a live mechanism went a day unobserved, and how long that took to close.
+
+   What remains after it is a different thing and should not inherit its name:
+   the trigger projects a CHANGE and does not reconcile history, so the cards
+   already behind when it was installed are still behind. The watcher's first
+   live run measured that as 25 of 27 slots, last changed between April and
+   2026-08-24, and now buckets them as **pre-bridge** — counted and listed,
+   never gating. Clearing them is `production_native_calendar_status_backfill`,
+   which has still never been run (OPEN_REPAIRS 212).
 2. **Retirement activation is a separate later switch**, not implied by either
    closure above and not scheduled by them.
 3. **`production_syncview_retirement_activate_v2` exists — and whether it is the

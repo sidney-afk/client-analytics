@@ -30,6 +30,64 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — the watcher's first live run was red, and it was right to be, about the wrong thing
+
+Two things happened within the hour. The bridge trigger was **observed firing
+correctly on six real editor changes between 00:50Z and 00:56Z** — the first
+time it has been seen doing its job on genuine work rather than on a fixture,
+which closes the open note the step-28 closures carried. And the watcher that
+merged alongside it went red on its first live run.
+
+Both are true and they are not in tension, which is the point worth writing
+down.
+
+The run (35411363894) reported 27 disagreeing slots. **25 of them last changed
+between April and 2026-08-24.** The trigger was installed at 22:38:14Z on
+2026-09-18. It fires on a CHANGE; it does not reconcile history and never
+claimed to. So those 25 are not the bridge failing — they are the backlog that
+already existed when the bridge was installed, which is precisely the thing the
+bridge was built to stop growing.
+
+Gating on them would have been a slow way to destroy the lane. A gate that is
+red on day one for a backlog it cannot act on is a gate people learn to scroll
+past, and then the two real slots underneath are invisible for the same reason
+the drift was invisible before any of this existed. That is the same
+crying-wolf failure the seven existing buckets were shaped to avoid; this was
+simply an eighth case nobody had thought of, and the live estate found it in one
+run.
+
+**The fix is a `pre_bridge` bucket.** A disagreement whose deliverable last
+moved before go-live is counted and LISTED — with its date, because the date is
+the entire argument — and never gates. The gate now fires only on a deliverable
+that moved at or after go-live. Clearing the backlog is
+`production_native_calendar_status_backfill`, which owns that write, honours the
+urgent-ping dedupe key, and **has still never been run** (OPEN_REPAIRS 212).
+
+Three deliberate choices in it.
+
+**The go-live timestamp is one named constant**, `BRIDGE_GO_LIVE`, with a
+comment saying where the value comes from. It is the whole boundary between
+"the bridge failed" and "the bridge was not there yet", and a second copy that
+drifted from the first would move that boundary silently.
+
+**A missing `status_at` counts as pre-bridge.** It cannot be shown to be at or
+after go-live, and the conservative direction for a gate is to under-report: a
+missed row is caught on the next hourly run, a false red teaches people to
+ignore the lane. The backfill draws the same line the same way, with
+`d.status_at is not null and d.status_at >= p_since`.
+
+**The fixture sits one second either side of the cutoff**, so the assertion
+tests the boundary rather than the neighbourhood. Both directions were planted
+and seen to fail before this was accepted: removing the cutoff (everything
+gates, five assertions fail) and moving it two days late (real drift gets
+excused as backlog, five assertions fail). A cutoff is exactly the kind of
+change that can be wrong in either direction while looking right in one.
+
+The general lesson, which is the third time this repository has paid for a
+version of it: a gate's first run against the real estate is the first time it
+is actually tested. The fixtures were honest, the logic was right, and the
+thing it met on day one was a category the fixtures had no reason to contain.
+
 ### 2026-09-18 — the reconciler could not see native writes, so nothing was measuring the bridge
 
 The native calendar bridge trigger has been live since 22:38Z and it works. What

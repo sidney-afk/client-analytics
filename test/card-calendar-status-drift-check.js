@@ -24,7 +24,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = process.env.CARD_DRIFT_SRC || path.join(ROOT, 'scripts', 'card-calendar-status-drift-check.js');
-const { classify, classifySlot, resettle, loadMapper, SLOTS, BUCKETS } = require(SRC);
+const { classify, classifySlot, resettle, cleanSummary, loadMapper, SLOTS, BUCKETS } = require(SRC);
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'card-calendar-status-drift.json'), 'utf8'));
 
@@ -131,8 +131,8 @@ ok(ws && ws.calendar_status === 'Approved ',
 
 /* ---- the reported rows carry what a person needs and nothing else ---- */
 const rows = report.drift;
-ok(rows.length === t.drift && t.drift === 5,
-  'the drift list and the drift count agree, and the fixture produces the five expected rows');
+ok(rows.length === t.drift && t.drift === 6,
+  'the drift list and the drift count agree, and the fixture produces the six expected rows');
 
 /* Scope is counted per SLOT, not per distinct deliverable. The shadowed card
    puts one deliverable in two slots and classify buckets both, so counting the
@@ -161,6 +161,36 @@ ok(first && first.expected === 'For SMM Approval' && first.calendar_status === '
   && first.deliverable_status === 'smm_approval',
   'a reported row shows both sides and the value the trigger would have written');
 
+/* ---- the pre-bridge cutoff ----
+
+   The first live run of this lane went red with 27 slots, 25 of which last
+   changed between April and 2026-08-24 — before the trigger existed. The
+   trigger fires on a CHANGE and does not reconcile history, so those are the
+   backlog it was built to stop growing, not a failure of it. Gating on them
+   would have held the lane permanently red for a question it cannot answer,
+   which is the crying-wolf failure every other bucket here exists to prevent.
+
+   The boundary is one constant, and these two cards sit one second either side
+   of it, so the assertion tests the boundary rather than the neighbourhood. */
+ok(verdictFor('post-0014', 'video') === 'pre_bridge',
+  'a disagreement whose deliverable last moved before go-live is pre-bridge, not drift');
+ok(verdictFor('post-0015', 'video') === 'drift',
+  '...and one second after go-live it is drift, so the cutoff is the boundary and not a vague era');
+ok(verdictFor('post-0016', 'video') === 'pre_bridge',
+  'a null status_at cannot be shown to be at/after go-live, so it does not gate');
+
+{
+  const pre = report.pre_bridge.find(r => r.post_id === 'post-0014');
+  ok(pre && pre.deliverable_status_at === '2026-08-24T11:00:00Z',
+    'a pre-bridge row is LISTED with the date, which is the whole argument for it being pre-bridge');
+  ok(report.totals.pre_bridge === 2 && report.pre_bridge.length === 2,
+    'the pre-bridge count and list agree (post-0014 and the null-status_at row; post-0015 is drift)');
+  ok(!report.drift.some(r => r.post_id === 'post-0014' || r.post_id === 'post-0016'),
+    'nothing pre-bridge leaks into the gating list');
+  ok(report.pre_bridge.every(r => !Object.prototype.hasOwnProperty.call(r, 'client')),
+    'pre-bridge rows carry no client either');
+}
+
 /* ---- the scan's own race, which is the reason resettle() exists ----
 
    The two sides are read by two separate paged scans. The trigger writes
@@ -175,7 +205,8 @@ ok(first && first.expected === 'For SMM Approval' && first.calendar_status === '
     post_id: 'post-race', deliverable_id: 'dlv-race', component: 'video',
     calendar_status: 'In Progress', deliverable_status: 'smm_approval', expected: 'For SMM Approval',
   };
-  const freshDlv = { 'dlv-race': { id: 'dlv-race', status: 'smm_approval', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel' } };
+  const AFTER_GO_LIVE = '2026-09-19T00:52:00Z';
+  const freshDlv = { 'dlv-race': { id: 'dlv-race', status: 'smm_approval', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel', status_at: AFTER_GO_LIVE } };
 
   // The trigger had already written the card; the first scan simply read it too early.
   const caughtUp = { 'post-race': { id: 'post-race', client: 'sidneylaruel', status: 'active',
@@ -193,7 +224,7 @@ ok(first && first.expected === 'For SMM Approval' && first.calendar_status === '
 
   // The re-read is authoritative about BOTH sides, not just the card.
   const c = resettle([candidate], stillBehind,
-    { 'dlv-race': { id: 'dlv-race', status: 'triage', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel' } },
+    { 'dlv-race': { id: 'dlv-race', status: 'triage', origin: 'calendar', card_id: 'post-race', client_slug: 'sidneylaruel', status_at: AFTER_GO_LIVE } },
     mapNative);
   ok(c.survivors.length === 0 && c.settled === 1,
     'a deliverable that moved to an unmapped status on re-read settles too');
@@ -207,11 +238,30 @@ ok(first && first.expected === 'For SMM Approval' && first.calendar_status === '
     'resettled rows carry no client either');
 }
 
+/* ---- a passing run must not contradict its own listing ----
+
+   With post-go-live drift at zero but a pre-bridge backlog present, the old
+   wording printed "No linked slot disagrees with its deliverable" directly
+   above a list of slots that disagree. A reader who spots a report
+   contradicting itself stops trusting the report, not just that line. Raised by
+   Codex on #1426. */
+{
+  const withBacklog = cleanSummary({ drift: 0, pre_bridge: 3 }).join(' ');
+  ok(!/No linked slot disagrees/.test(withBacklog),
+    'a passing run with a pre-bridge backlog does not claim universal agreement');
+  ok(/POST-GO-LIVE/.test(withBacklog) && /3 pre-bridge slot/.test(withBacklog),
+    '...it says there is no post-go-live drift, and names the backlog it is still listing');
+
+  const trulyClean = cleanSummary({ drift: 0, pre_bridge: 0 }).join(' ');
+  ok(/No linked slot disagrees/.test(trulyClean),
+    'a genuinely clean world still gets the plain clean message');
+}
+
 /* ---- a clean world reports clean ---- */
 const cleanReport = classify(
   [{ id: 'post-clean', client: 'sidneylaruel', status: 'active', video_status: 'For SMM Approval',
      graphic_status: '', video_deliverable_id: 'dlv-clean', graphic_deliverable_id: '' }],
-  { 'dlv-clean': { id: 'dlv-clean', status: 'smm_approval', origin: 'calendar', card_id: 'post-clean', client_slug: 'sidneylaruel' } },
+  { 'dlv-clean': { id: 'dlv-clean', status: 'smm_approval', origin: 'calendar', card_id: 'post-clean', client_slug: 'sidneylaruel', status_at: '2026-09-19T00:52:00Z' } },
   mapNative);
 ok(cleanReport.totals.drift === 0 && cleanReport.totals.agree === 1 && cleanReport.drift.length === 0,
   'a world where the bridge is holding reports zero drift (the gate can actually go green)');

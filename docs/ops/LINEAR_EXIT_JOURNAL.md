@@ -30,6 +30,22 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 follow-up correction: attribution repair relabelled unvalidated; one missed staff identity redacted
+
+Two corrections to the entry below, which is kept as written:
+
+- **`OPEN_REPAIRS.md` item 23:** the revised attribution-repair SQL was never
+  executed, and a schema check does not validate a repair. It is now labelled
+  prepared, unvalidated, with execution deferred, in place of "SQL ready". It
+  needs its own validation and an explicit go-ahead before anyone runs it. It was
+  not run.
+- **A missed identity:** the cleanup missed a staff member's full name written
+  in lowercase, joined into one word with the accents removed, in the paragraph
+  on a mis-teamed Workload row. It is now described as `staff-F`'s normalized
+  name. The cleanup had matched names word by word, so a joined form slipped
+  through. A recheck of both redacted files for joined full-name forms of every
+  roster member now finds none.
+
 ### 2026-09-19 — PR #1432 review corrections: redacted command blocks made safe, Workload plan mapped, exposure evidence bound to a receipt
 
 A Codex review of the redaction found four defects, corrected here without

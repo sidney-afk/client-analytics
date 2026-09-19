@@ -1762,7 +1762,7 @@ against 976 raw foreign writes, which is why the raw count must never be the
 alarm. Still open: whether the reconciler may repair on its own, and an alarm on
 the engine's own count for the video flip.
 
-## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified, SQL ready
+## 23. [owner] `GRA-7112` is attributed to `unattributed` — identified; repair SQL prepared, unvalidated, execution deferred
 
 > **⚠️ DUPLICATE NUMBER.** Two entries claim `23`. **This one is the `GRA-7112` attribution row** and is the one meant by the foreign-write-strand entry in `PRE_FLIP_HEALTH_CHECK.md`. The other `23` is archiving no longer parking its sub-issues (2026-08-20), which is what `index.html` and `test/calendar-archive-parks-sub-issues.js` mean.
 
@@ -1785,11 +1785,14 @@ paste for the owner. It goes through `deliverable_write` rather than a raw
 UPDATE so the change is recorded as an event like every other status write, and
 it rebuilds the payload FROM the stored row so nothing else can move:
 
-> **Redacted for this public file.** The test client's slug is withheld. Put it
-> on the one marked line before running. The guard refuses unless that value is a
-> `test`-kind client **and** is the slug the card's own batch already carries, so
-> an unfilled or mistyped value cannot write. This SQL was not executed while it
-> was being redacted.
+> **Prepared, not validated. Execution is deferred.** Do not run this as written.
+> It was rewritten during the public-file redaction and has never been executed,
+> and checking that its columns exist does not validate the repair. Before anyone
+> runs it, it needs its own validation (for example against a disposable copy)
+> and an explicit go-ahead. The test client's slug is withheld from this public
+> file; it belongs on the one marked line. The guard refuses unless that value is
+> a `test`-kind client **and** is the slug the card's own batch already carries.
+> The earlier "one paste for the owner" wording above is superseded by this note.
 
 ```sql
 begin;
@@ -6178,7 +6181,7 @@ so the next divergence fails a test instead of being predicted again. The safe f
 
 ### 87.4 Workload silently deletes an assigned sub-issue whose assignee is not in the five-name hardcoded editor allowlist — **FIXED 2026-08-31** (PR #1185): same repair as 87.2; the predicate is about TEAM, and the comment now says so.
 
-**Verified by refutation attempt.** HOLDS on the user-visible harm, but the filing's supporting argument about the console diagnostic is wrong and the scale is one row. MECHANISM CONFIRMED. wlIsAllowedEditor (15511-15519) buckets by team FIRST: `if (wlTeamBucket(teamKey, teamName) === 'graphics') return WL_ALLOWED_GRAPHICS.has(norm); return WL_ALLOWED_EDITORS.has(norm);`. WL_INACTIVE_EDITORS is a separate check one line above. So the predicate is "not on this ROW'S team roster", while the comment at 16345-16347 justifies the drop as "Sub-issues stuck on FORMER editors". A current graphics designer assigned to a video-team row is dropped exactly like a departed one. The auditor read the predicate correctly. DATA CONFIRMED. I pulled VID-12809 from workload_issues: title "Thumbnail 3", status "Tweak Needed" (status_type started, so wlIsActiveStatus passes), due_date 2026-07-09 — 7+ weeks overdue — team_key VID / team_name "Video", assignee staff-F (<staff email>), client client-09, active=true, synced 2026-08-30T23:50Z. wlTeamBucket('VID','Video') returns 'video', WL_ALLOWED_EDITORS does not contain 'rocioperez', so it is dropped at 16348 before the tweaks bucket. Replaying the full bucketing: it is client-09's ONLY active sub-issue, so filtering Workload to client-09 yields a completely blank board — Team workload showing the three video editors at zero, an empty calendar, both strips empty, and no message, for the same reason as candidate 1 (hasAnyData at 17692 is unfiltered). This is a thumbnail deliverable filed on the video team: staff-F has 409 rows total, 407 on GRA/Graphics and only 2 on VID/Video, of which this is the only active sub-issue. So it is one mis-teamed row, not a class. WHERE THE FILING IS WRONG. The claim that "the one diagnostic an operator would reach for tells them the opposite of what happened" does not survive measurement. I replayed the reporting loop at 16297-16307 against live data: `graphicsPass` = {staff-F} — true, her 407 graphics-team rows do pass — and `videoDropped` = {"staff-F (1)"}, emitted as a console.warn that names exactly the row that was dropped. The diagnostic is correct today. The auditor's scenario (a graphics designer who is
+**Verified by refutation attempt.** HOLDS on the user-visible harm, but the filing's supporting argument about the console diagnostic is wrong and the scale is one row. MECHANISM CONFIRMED. wlIsAllowedEditor (15511-15519) buckets by team FIRST: `if (wlTeamBucket(teamKey, teamName) === 'graphics') return WL_ALLOWED_GRAPHICS.has(norm); return WL_ALLOWED_EDITORS.has(norm);`. WL_INACTIVE_EDITORS is a separate check one line above. So the predicate is "not on this ROW'S team roster", while the comment at 16345-16347 justifies the drop as "Sub-issues stuck on FORMER editors". A current graphics designer assigned to a video-team row is dropped exactly like a departed one. The auditor read the predicate correctly. DATA CONFIRMED. I pulled VID-12809 from workload_issues: title "Thumbnail 3", status "Tweak Needed" (status_type started, so wlIsActiveStatus passes), due_date 2026-07-09 — 7+ weeks overdue — team_key VID / team_name "Video", assignee staff-F (<staff email>), client client-09, active=true, synced 2026-08-30T23:50Z. wlTeamBucket('VID','Video') returns 'video', WL_ALLOWED_EDITORS does not contain staff-F's normalized name, so it is dropped at 16348 before the tweaks bucket. Replaying the full bucketing: it is client-09's ONLY active sub-issue, so filtering Workload to client-09 yields a completely blank board — Team workload showing the three video editors at zero, an empty calendar, both strips empty, and no message, for the same reason as candidate 1 (hasAnyData at 17692 is unfiltered). This is a thumbnail deliverable filed on the video team: staff-F has 409 rows total, 407 on GRA/Graphics and only 2 on VID/Video, of which this is the only active sub-issue. So it is one mis-teamed row, not a class. WHERE THE FILING IS WRONG. The claim that "the one diagnostic an operator would reach for tells them the opposite of what happened" does not survive measurement. I replayed the reporting loop at 16297-16307 against live data: `graphicsPass` = {staff-F} — true, her 407 graphics-team rows do pass — and `videoDropped` = {"staff-F (1)"}, emitted as a console.warn that names exactly the row that was dropped. The diagnostic is correct today. The auditor's scenario (a graphics designer who is
 
 **Correction as the verifier framed it.** Strike the console argument: measured live, the console.warn correctly reports "staff-F (1)" as dropped, and zero graphics-team rows are misreported as "passing through" — WL_ALLOWED_GRAPHICS covers the only graphics designer on staff, so the auditor's scenario has no instances. Scale is exactly one row (staff-F has 407 GRA rows and 2 VID rows, only this one active), so this is a single mis-teamed issue, not a systematic drop of current staff.
 

@@ -36,6 +36,28 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: the old-browser telemetry request, and Submit evidence bound to the served build
+
+Two corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, read from
+`index.html`. Earlier entries are kept as written.
+
+- **The sequence has two requests, not one.** Before it posts the form, an old
+  browser fires a separate fire-and-forget telemetry request to
+  `LOG_SUBMISSION_WEBHOOK` (`log-linear-submission`) carrying the client name,
+  mode, prepared receipt keys and payload. Check 4 now exercises the complete
+  sequence and correlates the telemetry row, the refusal response and the
+  execution record by the test identifier. Telemetry is permitted and retained;
+  what a refused submission may not do is cause a **business mutation**. The
+  check states that this telemetry endpoint keeps receiving from old browsers
+  after the form endpoints refuse, and verifies it creates no business work.
+- **Submit evidence is bound to the served build.** Check 8 records the Pages
+  release identity, its commit SHA and a hash of the served page, read from the
+  served site. Check 11 re-reads them immediately before the cutoff; if the
+  served build changed or cannot be read, the browser acceptance journey is
+  re-run on the build actually served before the cutoff may proceed.
+
+Documentation only: no browser journey was run and no workflow was changed.
+
 ### 2026-09-19 — native intake plan consistency pass: diagnostic refusal records allowed, stale check range fixed
 
 Three corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`, all found by

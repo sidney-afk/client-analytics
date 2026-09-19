@@ -2,9 +2,9 @@
 
 **Design only.** This proposes a later change; it retires no alert, workflow, relay, database path, n8n automation, flag, or Slack destination.
 
-## Coverage and unresolved names
+## Coverage and named execution-map alerts
 
-Step 29b verifies the producers listed below. The execution map also names **edge anomaly** and **mirror-events-stale**. The inventory does not identify distinct producers with either exact name. `edge anomaly` may be the relay's generic rendering of typed alerts, but that is an inference, not a verified mapping. `mirror-events-stale` may describe a stale mirror/outbox monitor, but no verified producer is named in the inventory. Both remain **unresolved** until the retirement pass traces their delivered payloads to a producer; neither may be silently absorbed or retired by this design.
+Step 29b verifies the producers listed below. The execution map also names **edge anomaly** and **mirror-events-stale**. **Edge anomaly is mapped:** `scripts/monitoring-alert-relay.js` is the verified relay that prefixes any typed alert with that phrase; it is message framing, not a separate monitor or producer. **Mirror-events-stale remains unresolved:** the inventory and repository search identify no exact producer or alert key. It must be traced from a delivered payload before any retirement decision; it cannot be silently absorbed by this design.
 
 | Alert | Plain meaning | Proposed treatment |
 |---|---|---|

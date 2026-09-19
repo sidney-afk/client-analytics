@@ -36,6 +36,14 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Step 29c correction: live pager scope narrowed by Storage
+
+Storage's read-only inspection verified six live conditions from the incremental-refresh and outbound pager scripts: `incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`. It also verified the separate `mirror_stale` producer. The code defines `outbound_oldest_pending`, but Storage did not find it in the current live pager; that observation does not establish whether it was installed earlier.
+
+The corrected design keeps those live conditions separate from the six retired `write-ui-soak-pager.js` definitions. It records the `mirror_stale` to `mirror-events-stale` execution-map match as provisional pending delivered wording or payload. It also brings `v2_stale`, `v2_nonzero`, and the Calendar/Samples reconciler stale and not-green checks into scope, with their exact live keys (`calendar_reconcile_stale`, `calendar_reconcile_stale_not_green`, `samples_reconcile_stale`, `samples_reconcile_stale_not_green`) supplied from Storage's read of the live pager code; no delivered payload has been observed for them, and existing rows are not assumed to cover them.
+
+No workflow, relay, database, n8n automation, runtime flag, Slack destination, or alert delivery changed.
+
 ### 2026-09-19 — Step 29c correction: bounded alert-retirement design
 
 The first Step 29c draft made three verified documentation defects: it replaced this journal's title instead of appending an entry, called all three Linear-reconcile alerts obsolete without proving legacy dependencies absent, and omitted the execution map's named `edge anomaly` and `mirror-events-stale` alerts.

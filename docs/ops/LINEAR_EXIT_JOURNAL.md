@@ -36,6 +36,14 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Step 29c correction: bounded alert-retirement design
+
+The first Step 29c draft made three verified documentation defects: it replaced this journal's title instead of appending an entry, called all three Linear-reconcile alerts obsolete without proving legacy dependencies absent, and omitted the execution map's named `edge anomaly` and `mirror-events-stale` alerts.
+
+The corrected design restores the journal title and preserves the existing record. It maps `edge anomaly` to generic relay framing, not a distinct producer, and treats `mirror-events-stale` as unresolved because the inventory identifies no verified exact producer. It now proposes, rather than performs, retirement: no reconcile alert may be retired until inputs and consumers are traced, legacy/provider/foreign-row/recovery dependencies are measured closed or explicitly retained, remaining actionable native conditions have a native signal or owner disposition, and the schedule plus watchdog registry change together.
+
+No workflow, relay, database, n8n automation, runtime flag, Slack destination, or alert delivery changed.
+
 ### 2026-09-19 — step 29b inventory filed: every workflow and lane classified keep/retire/rewrite, nothing retired, per `docs/ops/LINEAR_EXIT_STEP29B_INVENTORY.md`.
 
 ### 2026-09-19 — the watcher's first live run was red, and it was right to be, about the wrong thing

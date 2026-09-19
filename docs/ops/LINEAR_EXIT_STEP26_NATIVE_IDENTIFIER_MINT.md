@@ -49,7 +49,7 @@ in this repository.
 | **B-2** | `graphics` **cannot be seeded** — two prefixes, the seed refuses | owner decision |
 | **B-3** | There is no test-client rehearsal, because the flag is per *team*, not per client | owner decision |
 | **B-4** | Flipping the flag names **no existing card** — the 45 already-nameless rows stay nameless | missing backfill |
-| **B-5** | Outbound is still `live`, so after the flip a card carries a native name **and** a different Linear name | accepted divergence |
+| **B-5** | Outbound is `live` but native intake already suppresses the drain for most new cards, so the provider write-back the checks assume **may never happen** | conditional check |
 
 ### B-1. `NATIVE_IDENTIFIER_MINT.md` says SOURCE ONLY. It is installed.
 
@@ -78,6 +78,36 @@ no `anon`, no `authenticated`, no `service_role`; `capability` and `seed` carry
 because only the trigger calls them and it calls them as definer. This capability
 owns no sequence, so the sequence half of the standing grant trap does not apply
 to it.
+
+**The installed bodies were then compared, not assumed.** An earlier revision of
+this file said the migration was installed "verbatim" on the strength of the
+table above, and a review was right that counting four names and a trigger says
+nothing about what those four routines contain — a drifted body would install
+under the same name and flipping the flag would activate it. The comparison now
+exists. `md5(prosrc)` for each live routine against the body extracted from
+`migrations/2026-09-07-native-identifier-mint.sql` between its `$fn$` markers:
+
+| routine | md5 | match |
+|---|---|---|
+| `production_native_identifier_capability` | `62285d09…` | ✅ |
+| `production_native_identifier_seed` | `e75108f9…` | ✅ |
+| `production_native_identifier_allocate` | `16349cc5…` | ✅ |
+| `production_native_identifier_guard` | `79ce1fde…` | ✅ |
+
+All four also read back `security definer`, `volatile`, and
+`search_path=pg_catalog, public`, which are the three properties the body hash
+alone would not catch if the routine had been re-created with different options.
+And `pg_get_triggerdef` returns
+`CREATE TRIGGER zzz_production_native_identifier_mint BEFORE INSERT OR UPDATE ON
+public.deliverables FOR EACH ROW EXECUTE FUNCTION
+production_native_identifier_guard()` — the migration's statement exactly. The
+`zzz_` prefix is load-bearing and now measured: `deliverables` carries eight
+triggers and PostgreSQL fires them in name order, so the mint runs **last** among
+the BEFORE triggers, after the application-DML admission guard and the label seed.
+
+*Worth keeping as a rule: **existence is not equality.** A name-and-count query
+answers "is something installed", never "is the right thing installed", and the
+gap between those two questions is exactly where a drifted body lives.*
 
 **So step 26's action 1 is already done, and the half-done state is exactly the
 state the design calls inert.** Flag at `provider`, no seed row — the capability
@@ -127,17 +157,40 @@ not collide — the gap is larger, not smaller, and the allocator steps over a
 collision anyway — but it would be a wrong number nobody would have a reason to
 look at again.
 
-**This is an owner decision with two honest shapes:**
+**⚠ The obvious resolution does not work, and an earlier revision of this file
+offered it.** That revision proposed re-keying the twelve in
+`deliverables.linear_identifier` so graphics would show one prefix, on the model
+of the team-move repair. **It is not durable, and a review was right to refuse
+it.** All twelve rows carry a provider issue uuid, `linear-inbound` resolves a
+row by that uuid **before** it looks at the name, and at `:810` it then writes
+`row.linear_identifier` from the issue. The trigger's UPDATE branch would not
+stop it: that branch protects a name only when a matching row exists in
+`production_native_identifier_grants`, and these twelve have none — it reaches
+`if not found then return new` and lets the write through. So the next webhook
+touching any of them puts the `VID` name back, and the prefix ambiguity returns
+**after** seeding, when the cursor has already been derived. The "retired" name
+would also not have been retired anywhere except in our own column; the provider
+still calls the issue what it calls it.
 
-- **(i)** Re-key the twelve in `deliverables.linear_identifier` so graphics shows
-  one prefix, recording each retired name in `deliverable_events` first — the
-  shape the team-move repair already established and reviewed. Then seed normally
-  and re-read both numbers.
-- **(ii)** Seed graphics by hand: `production_native_identifier_seed` takes only a
-  team and a gap, so this means a direct insert into
+**So the two honest shapes are:**
+
+- **(i)** Fix the underlying disagreement rather than the symptom: these rows are
+  filed under graphics in SyncView and under the video team at the provider.
+  Either move them at the provider so its name re-keys on its own — the mechanism
+  the team-move repair documents — or correct our `team` column if the provider
+  is right. Then the seed derives one prefix honestly, with nothing to overwrite.
+- **(ii)** Seed graphics by hand and say so. `production_native_identifier_seed`
+  takes only a team and a gap, so this means a direct insert into
   `production_native_identifier_mint` with `prefix='GRA'` and
-  `next_ordinal = 7559 + gap + 1`, stating in the go-ahead that the derivation
-  was overridden and why.
+  `next_ordinal = 7559 + gap + 1` — **7,559, GRA's own maximum, not the 12,851
+  the function would have derived** — recording in the go-ahead that the
+  derivation was overridden and why.
+
+Shape (ii) is the safer of the two while Linear is still connected, because it
+touches no row a webhook can reach. Shape (i) is the one that leaves the estate
+consistent afterwards. Ten of the twelve are in a terminal status, which is worth
+weighing: it lowers the odds of a webhook touching them, and it lowers the value
+of fixing them.
 
 Do **not** resolve it by widening the seed function to pick a winner. Refusing to
 guess which prefix a human reads is the whole point of that branch.
@@ -182,45 +235,95 @@ issue behind them. **These are exactly the rows #1419's truncation was shipped
 for**, and turning this capability on leaves every one of them showing a clipped
 raw id for ever.
 
-Naming them is a separate, deliberate operation — a one-time call of
-`production_native_identifier_allocate` per row inside one transaction, after the
-team is seeded — and it is a prerequisite *decision* of step 26, not a step 27
-check. It has the same shape as the calendar bridge's never-run backfill, which
-is the reason it is called out here rather than discovered afterwards: a trigger
-fixes the future and says nothing about the past.
+**And the cohort is growing, fast, for a reason that is measurable.** Thirty-six
+of the forty-five were created on a single day, 2026-09-18 — the day after native
+intake went live (see B-5). Of the fifty-one cards created since that flag
+landed, **thirty-six are nameless and fifteen reached Linear**. This is not a
+historical backlog settling; it is the current rate. Whatever the decision is, it
+gets more expensive daily.
 
-It is also the one place in this capability where a script would have to call
-`allocate` directly, and `allocate` is granted to **nobody** — so the backfill
-runs as the database owner in the SQL editor, not as `service_role` from a
-script, or the grant has to widen. Widening it is the worse option: nothing else
-needs it.
+Naming them is a separate, deliberate operation, and it is a prerequisite
+*decision* of step 26, not a step 27 check. It has the same shape as the calendar
+bridge's never-run backfill, which is the reason it is called out here rather
+than discovered afterwards: a trigger fixes the future and says nothing about the
+past.
 
-### B-5. Outbound is still live, so a minted card will carry two names
+**⚠ How the backfill must be written, because the obvious form is wrong.** An
+earlier revision of this file described it as "a one-time call of
+`production_native_identifier_allocate` per row", and a review was right that
+this does nothing. `allocate` advances the cursor, inserts a grant row, and
+**returns** the identifier — it never touches `deliverables`. Calling it in a
+loop would leave all forty-five rows exactly as nameless as they started while
+creating forty-five orphan grants, and because `production_native_identifier_grants`
+has a primary key on `identifier` and only a plain index on `deliverable_id`,
+**a retry would hand the same deliverable a second name** with nothing to stop
+it. The backfill must therefore:
 
-Measured live: `linear_outbound_enabled` is `{"mode":"live"}`.
+- **assign** the returned value — `update public.deliverables set linear_identifier
+  = public.production_native_identifier_allocate(team, id) where …`, one
+  statement, one transaction, per team;
+- **verify one-to-one afterwards**: every targeted row now has a name, and
+  `count(*) = count(distinct deliverable_id)` over the grants created in that
+  window. Not "the statement succeeded";
+- **be written to be safely re-runnable**, by selecting only rows that are still
+  nameless, so a partial run does not double-allocate on the retry.
 
-So after the flip and before outbound goes off, a new native card takes this
-path: the trigger mints `GRA-107560` on insert → the row goes to `mirror_outbox`
-→ the outbound worker creates the Linear issue, which Linear names with its own
-next ordinal → outbound writes that name back → **the trigger's UPDATE branch
-refuses it**, keeps the native name, and records the provider one in
-`production_native_identifier_grants.provider_identifier_refused`.
+The trigger does not fight this: its UPDATE branch returns immediately when the
+old `linear_identifier` is empty, which for every row in this cohort it is. The
+INSERT branch is not involved at all.
 
-That is the designed behaviour and it is correct. What it means operationally is
-that for the length of that window, **one card has two names**: the one SyncView
-shows and a different one in Linear's own UI.
+It is also the one place in this capability where anything calls `allocate`
+directly, and `allocate` is granted to **nobody** — so the backfill runs as the
+database owner in the SQL editor, not as `service_role` from a script, or the
+grant has to widen. Widening it is the worse option: nothing else needs it, and
+it is the only thing standing between a script and the cursor.
 
-**The divergence is survivable, and the reason is worth stating precisely.**
-`linear-inbound`'s `readDeliverableForIssue` resolves by `linear_issue_uuid`
-**first**, and outbound stamps that uuid on the same write that carries the name.
-So inbound keeps finding the row. The identifier lookup is its second fallback
-and it is the part that goes stale, along with anything else that joins cards on
-the name rather than the uuid.
+### B-5. Outbound is live, but native intake already stops most cards reaching Linear
 
-The clean sequence is therefore **mint first, outbound off second** — which is
-what lane F already says, from the other direction: its outbound-off step is
-gated on this capability landing. The window is not avoidable, only short. Do not
-lengthen it.
+Measured live: `linear_outbound_enabled` is `{"mode":"live"}` — **and
+`native_intake_epochs` is `enabled: true` for both teams**, since
+2026-09-18T00:16Z.
+
+Those two facts together are the blocker, and an earlier revision of this file
+had only the first. It reasoned that a minted card would go to `mirror_outbox`,
+the outbound worker would create the Linear issue, Linear would name it, the
+write-back would be refused by the trigger's UPDATE branch and recorded in
+`provider_identifier_refused` — so every minted card would carry two names for
+the length of the window.
+
+**For a card created through normal intake, none of that happens.**
+`providerDrainPlans` in `production-write` reads each plan's `mirror_outbox`
+receipt and **filters out every plan whose payload carries
+`_native_intake_epoch`** before any Linear drain. With native intake enabled, a
+Create Post card is stamped with that epoch, so it never drains, never gets a
+Linear issue, and never has a provider name to refuse.
+
+The measurement says both paths are live at once. Of the fifty-one cards created
+since native intake landed: **thirty-six never reached Linear** (no issue uuid,
+no name — B-4's cohort) and **fifteen did**.
+
+**So there are two cases and the procedure has to name which one it is in:**
+
+- **Native-intake card (the common case today).** No provider write-back ever
+  arrives. There is no divergence, no `provider_identifier_refused` row, and
+  nothing to wait for. The mint is the *only* namer.
+- **Card that still drains.** The original reasoning holds exactly: two names for
+  the length of the window, survivable because `linear-inbound`'s
+  `readDeliverableForIssue` resolves by `linear_issue_uuid` **first** and outbound
+  stamps that uuid on the same write that carries the name. The identifier lookup
+  is its second fallback and is the part that goes stale, along with anything
+  else joining cards on the name rather than the uuid.
+
+**This is why check 5 below is conditional rather than required.** Written as an
+unconditional "wait for the write-back and confirm it was refused", it would wait
+for evidence that cannot exist on the common path and read a working mint as a
+failure. Gate 0 must read the intake epoch state so the session knows which case
+the test card is in *before* it starts waiting.
+
+The clean sequence is still **mint first, outbound off second** — which is what
+lane F says from the other direction: its outbound-off step is gated on this
+capability landing. The window is not avoidable, only short, and for most cards
+it is already closed.
 
 ---
 
@@ -231,7 +334,8 @@ reasoning into measurement. Run it again in the session that acts; the numbers
 below are from 2026-09-19 and every one of them can move.
 
 ```sql
--- 1. Is it installed, and what does the flag actually say?
+-- 1. Is it installed, and what do the flags actually say?
+--    `native_intake_epochs` is here because B-5 turns on it, not on outbound alone.
 select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where n.nspname = 'public' and p.proname like 'production_native_identifier%') as functions,
        (select count(*) from pg_trigger
@@ -241,7 +345,22 @@ select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronames
        (select value from public.syncview_runtime_flags
          where key = 'production_native_identifier_mint') as flag,
        (select value from public.syncview_runtime_flags
-         where key = 'linear_outbound_enabled') as outbound;
+         where key = 'linear_outbound_enabled') as outbound,
+       (select value from public.syncview_runtime_flags
+         where key = 'native_intake_epochs') as intake;
+
+-- 1b. Are the installed BODIES the reviewed ones? Existence is not equality.
+--     Compare each md5 against the body between the `$fn$` markers in
+--     migrations/2026-09-07-native-identifier-mint.sql, and check the options
+--     a body hash cannot see.
+select p.proname, md5(p.prosrc) as src_md5, p.prosecdef, p.provolatile, p.proconfig
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname like 'production_native_identifier%'
+ order by 1;
+select pg_get_triggerdef(t.oid)
+  from pg_trigger t join pg_class c on c.oid = t.tgrelid
+ where c.relname = 'deliverables'
+   and t.tgname = 'zzz_production_native_identifier_mint' and not t.tgisinternal;
 
 -- 2. What will the seed derive, per team and per prefix?
 select team,
@@ -379,7 +498,8 @@ while `production_native_identifier_grants` is empty for that team.
 
 ## Step 27 acceptance checks
 
-Seven checks. **Each is closed only when every clause in its own text is named
+Seven checks, with check 5 conditional on which creation path the test card
+took (B-5) and check 4b already satisfied offline. **Each is closed only when every clause in its own text is named
 and measured** — a check with sub-clauses is not closed until each clause is.
 That rule is the labels file's, earned the hard way on #1420, and the sub-clauses
 below are lettered so it is harder to miss one here.
@@ -392,16 +512,18 @@ below are lettered so it is harder to miss one here.
 | **3** | The browser shows the name **without a refresh** | create the card with the Production list open; the row's id cell shows the short name immediately, not a clipped raw id. This is the unmeasured gateway-readback question from (a) — if it shows the raw id and a refresh fixes it, the check **fails** and the fix is a `production-write` readback change with its own deploy | live, by eye, screenshot both states |
 | **4a** | The cursor advanced by exactly one | `next_ordinal` in `production_native_identifier_mint` for that team, before and after check 2 | live, read-only |
 | **4b** | Two concurrent creates cannot take the same name | already proven offline against a disposable PostgreSQL — `qa/native-identifier-mint/sql-proof.js`, the 25-concurrent-allocation case. Cite the run; do not attempt concurrency against production | offline, `F63_REQUIRE_POSTGRES=1` |
-| **5a** | The provider write-back is refused and the native name survives | with outbound still `live`, wait for the card's `mirror_outbox` row to drain, then re-read `linear_identifier` — **unchanged** from check 2a | live, read-only |
-| **5b** | The refusal is recorded rather than dropped | that grant row's `provider_identifier_refused` now holds Linear's own name for the issue, which is **different** from ours | live, read-only |
-| **5c** | The card is still resolvable despite the divergence | open the card from the Production list and from a Workload deep link; both resolve. The uuid is what makes this work (`readDeliverableForIssue` tries it first), so also confirm `linear_issue_uuid` is non-null on the row | live, by eye + read-only |
+| **5** | **Which case is this card in?** Read the test card's `mirror_outbox` payload for `_native_intake_epoch` and its `linear_issue_uuid`. **Epoch present / uuid null → the card never drains: 5a–5c do not apply and must be recorded "not applicable, native intake", not left blank and not failed.** No epoch and a uuid appears → run 5a–5c. Deciding this by waiting and seeing is the failure mode; decide it from the receipt | live, read-only |
+| **5a** | *(draining cards only)* The provider write-back is refused and the native name survives | wait for the card's `mirror_outbox` row to drain, then re-read `linear_identifier` — **unchanged** from check 2a | live, read-only |
+| **5b** | *(draining cards only)* The refusal is recorded rather than dropped | that grant row's `provider_identifier_refused` now holds Linear's own name for the issue, which is **different** from ours | live, read-only |
+| **5c** | *(draining cards only)* The card is still resolvable despite the divergence | open the card from the Production list and from a Workload deep link; both resolve. The uuid is what makes this work (`readDeliverableForIssue` tries it first), so also confirm `linear_issue_uuid` is non-null on the row | live, by eye + read-only |
+| **5d** | *(native-intake cards only)* The mint is the **only** namer, and nothing is waiting behind it | the card's plan is absent from the drained set — `providerDrainPlans` filtered it — and after a settling period `linear_issue_uuid` is still null and `linear_identifier` is still the minted name. This is the positive form of "there is nothing to refuse" | live, read-only |
 | **6a** | Refusal: a second seed for a seeded team is refused, not silently accepted | `select production_native_identifier_seed('video')` → raises `native_identifier_already_seeded`. **Run this against the live database deliberately** — it is a refusal, it changes nothing, and it is the one check that proves the cursor cannot be moved under a name that has been handed out | live, expected-exception |
 | **6b** | Refusal: an invalid team is refused | `select production_native_identifier_capability('marketing')` → `native_identifier_team_invalid` | live, expected-exception |
-| **6c** | Refusal: an ambiguous prefix is refused | `select production_native_identifier_seed('graphics')` **before** B-2 is resolved → `native_identifier_prefix_ambiguous`. If B-2 is resolved by shape (i), this check must be run and recorded *before* the re-keying, or it is unmeasurable afterwards | live, expected-exception |
+| **6c** | Refusal: an ambiguous prefix is refused | `select production_native_identifier_seed('graphics')` **before** B-2 is resolved → `native_identifier_prefix_ambiguous`. Run and record it **before** B-2 is resolved by either shape, or it becomes unmeasurable | live, expected-exception |
 | **7** | Both teams, on real work | repeat checks 2a, 2b, 4a and 5a for graphics after its own flip, on a real graphics card, and record which team each piece of evidence belongs to | live |
 
 **Two things that are not step 27 checks, said here so they are not quietly
-counted as passes.** B-4's forty-five existing nameless rows are untouched by
+counted as passes.** B-4's existing nameless rows are untouched by
 every check above — naming them is its own operation with its own go-ahead, and
 a step 27 that passes while they sit there has not closed the surface #1419 was
 about. And the `.prod-id` truncation stays in place through all of this; removing
@@ -439,16 +561,16 @@ start at all.
 |---|---|---|---|
 | 0 | Run Gate 0 and record all three results | session | none — read-only |
 | 1 | Correct `NATIVE_IDENTIFIER_MINT.md`'s status line and the execution map's phase 7 row against Gate 0 | session | docs only |
-| 2 | **DECISION** B-2: shape (i) re-key the twelve, or shape (ii) seed graphics by hand | owner | recorded in the go-ahead |
+| 2 | **DECISION** B-2: shape (i) fix the team/provider disagreement at its source, or shape (ii) seed graphics by hand from GRA's own maximum. **Re-keying our column alone is not an option** — a webhook undoes it | owner | recorded in the go-ahead |
 | 3 | **DECISION** B-3: accept that the first flip is estate-wide for that team, and pick the moment | owner | recorded in the go-ahead |
-| 4 | **DECISION** B-4: name the forty-five existing rows, or accept they stay truncated | owner | recorded in the go-ahead |
-| 5 | Run check 6c (graphics prefix refusal) and record it — **before** any re-keying | session | read-only refusal |
+| 4 | **DECISION** B-4: name the existing nameless rows, or accept they stay truncated. Re-count first — the cohort grows daily | owner | recorded in the go-ahead |
+| 5 | Run check 6c (graphics prefix refusal) and record it — **before** B-2 is resolved either way | session | read-only refusal |
 | 6 | `select public.production_native_identifier_seed('video');` — record `prefix`, `observed_provider_max`, `next_ordinal` | session | owner go-ahead |
 | 7 | Flip **video only** to `native`; run the readback | session | owner go-ahead |
 | 8 | Step 27 checks 1–6 for video, per check, per clause | session + owner | — |
 | 9 | Resolve B-2 by the decided shape; seed graphics; record both numbers | session | owner go-ahead |
 | 10 | Flip graphics to `native`; readback; check 7 | session + owner | owner go-ahead |
-| 11 | B-4's backfill, if decided — one transaction, database owner, after both seeds | session | owner go-ahead |
+| 11 | B-4's backfill, if decided — assigning `update`, one transaction per team, database owner, after both seeds, with the one-to-one verification | session | owner go-ahead |
 | 12 | Step 28: record the closure in the checkpoint dependency table | session | — |
 | 13 | Hand lane F its unblocked outbound-off step | session | separate |
 

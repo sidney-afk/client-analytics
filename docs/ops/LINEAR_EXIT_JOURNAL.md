@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: endpoint refusal evidence is bound to the deployed version, and drift blocks the cutoff
+
+A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier
+entries are kept as written.
+
+- **Check 4:** each legacy endpoint's refusal and zero-side-effect evidence is
+  bound to the version that produced it. At test time Storage records the
+  serving workflow identity, its active version identifier and a hash of the
+  deployed refusal guard, read from the automation platform, not the repository.
+- **Closure check 11:** immediately before the flag change, Storage re-reads all
+  three for both endpoints and compares them with check 4's bound values. Any
+  drift blocks the cutoff until that endpoint is revalidated against the new
+  version: a changed version, a changed or missing guard, a different serving
+  workflow, or an unreadable version.
+
+Documentation only: no test was run and no workflow was read or changed.
+
 ### 2026-09-19 — native intake plan: every reported receipt, and a separate refusal test per legacy endpoint
 
 Final scope corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier

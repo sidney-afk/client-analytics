@@ -26479,13 +26479,205 @@ two files: a grep for the project ref finds it in several more, and whether each
 is a default (dangerous) or a documented constant in a read-only diagnostic
 (merely public) has not been measured.
 
-## 214. [2026-09-19, FIXED] A press that starts inside a dialog and ends outside it dismissed the dialog, losing everything typed
+## 214. [2026-09-19, OPEN — REGRESSION, not intended] The Create Post editor picker is disabled because a completeness guard fires on a read PostgREST truncates at 1000 rows
 
-Recorded independently by another session tonight as OPEN_REPAIRS 215 on
-`claude/quirky-hamilton-6jkdg5` (not yet merged as of this entry, found during
-an identifier-mint walkthrough), and fixed here. The two entries describe the
-same bug; whichever branch merges second should reconcile the numbering rather
-than keep two rows for one fact.
+Owner observation during the identifier-mint check 3 walkthrough on the test
+client: in Create Post the **Video editor** dropdown is disabled and stuck on
+*"Assigned automatically"*.
+
+**It is a regression. It is not how native assignment is meant to behave.** The
+picker exists because of an explicit owner request (2026-08-24, quoted in
+`index.html` above `_calNativeVideoEditorPool`): *"there should be a drop-down
+for the editor. By default, it should be the one that is the freest, and it
+should disclaim it, but people should be able to choose a different video
+editor."* Native assignment was supposed to make that picker **more** correct,
+not remove it — the whole point of moving the decision to `intake_editor_options`
+was that the browser could stop reproducing the gateway's eligibility rule.
+
+### What the symptom actually encodes
+
+The control is disabled on `state.videoEditorStatus === 'loading' || !editorItems.length`,
+and it reads *"Checking workloads…"* while loading. So **"Assigned automatically"
+plus disabled" means the pool read finished and produced nothing** — status
+`unavailable`, which is the `.catch` arm. It is not a slow network.
+
+### Root cause, measured 2026-09-19
+
+`handleIntakeEditorOptions` (`supabase/functions/production-write/index.ts:3793`)
+issues three reads through `completeIntakeEditorRows`, which refuses any read
+whose exact `count` disagrees with the rows returned:
+
+```ts
+if (result.error || !Array.isArray(result.data)
+    || !Number.isSafeInteger(result.count) || Number(result.count) !== result.data.length
+    ...) throw new GatewayError(503, "intake_editor_options_unavailable");
+```
+
+One of those three reads is over the 1000-row PostgREST ceiling:
+
+| read | rows | verdict |
+|---|---|---|
+| `team_members`, active video | 4 | fine |
+| `deliverables`, team video, live statuses | 354 | fine |
+| `production_deliverables_browser_v1`, team video, `raw_issue_parent_id` not null | **3,232** | **truncated** |
+
+Measured directly against the live REST endpoint with the browser key:
+
+```
+GET /rest/v1/production_deliverables_browser_v1?select=id&team=eq.video
+    &raw_issue_parent_id=not.is.null&limit=10000
+→ HTTP 206, content-range: 0-999/3232, 1000 rows returned
+```
+
+**`.limit(10000)` does not raise PostgREST's ceiling.** The server caps the
+response at 1000 regardless, and returns the true total in `content-range` —
+which is exactly the `count: "exact"` the guard compares against. So the guard
+sees 1000 ≠ 3232 and answers **503**, the browser's `!response.ok` branch
+throws, `videoEditorStatus` becomes `unavailable`, and the control renders
+disabled with its placeholder.
+
+### The guard is right; the read is wrong
+
+Nothing here should be loosened. `completeIntakeEditorRows` exists precisely so
+a truncated read is never mistaken for evidence that an editor has no work —
+which would rank the wrong person first, and is the same class as item 210's
+coin-flip deadline. **A silent 1000-row cap that changed who the dialog
+suggested would be a far worse bug than a disabled dropdown.** The guard failing
+closed is the system working.
+
+The defect is that the read was written as though `.limit()` controls the
+ceiling. Fix shape, in preference order:
+
+1. **Do not ship the parent set to the gateway at all.** The three reads exist
+   to compute one small thing: an open-video count per editor, excluding
+   parents. That is an aggregate. A `security definer` routine returning one row
+   per editor moves 4 rows instead of 3,586 and cannot be truncated.
+2. If it must stay in the gateway, **paginate with `.range()`** until the
+   returned count reaches the exact `count`, and keep the completeness guard on
+   the assembled total.
+
+Option 1 is the honest one. Option 2 keeps an O(rows) read on a dialog open.
+
+### Scope, and what is NOT broken
+
+- **Only the native lane reaches this.** In the provider lane the handler
+  returns `lane: "provider"` before these reads and the browser falls back to
+  `_calLegacyVideoEditorPool`. So the picker worked until the native intake
+  epoch went on, and broke without anything changing in the picker itself.
+- **Posts still get an editor.** The gateway assigns automatically at
+  submission through the same `nativeIntakePool`, so the placeholder is telling
+  the truth. What is lost is the owner's ability to *see who* and to *choose
+  someone else* — the entire feature.
+- Graphics is deliberately not offered here and is unaffected.
+- The roster is healthy: 4 active video editors, all with a Linear mapping, so
+  no eligibility rule is excluding anyone.
+
+### How it would have been caught
+
+`test/native-post-editor-picker.js` pins the browser against the contract, and
+the contract is satisfied — the gateway really does answer 503. Nothing in the
+suite builds a fixture over 1000 rows, because no test has a reason to. **The
+general form: a row-count ceiling is invisible to every test whose fixture is
+smaller than the ceiling, and production data crosses it silently.** A sweep for
+other `count: "exact"` reads with a `.limit()` above 1000 is worth its own pass;
+this entry does not claim to have run one.
+
+Not fixed here. Found while walking the identifier-mint step 27 checks; fixing
+it inside that PR would have widened a docs change into an Edge Function deploy.
+**Any fix is a `production-write` change and needs the F27 Section 4 lane**, with
+its sealed capture.
+
+## 215. [2026-09-19, OPEN — whole-repo pattern, 13 sites] A press that starts inside a dialog and ends outside it dismisses the dialog, losing everything typed
+
+Owner observation, same walkthrough: in the Create Post dialog, **drag-selecting
+text in the batch name field from right to left closes the whole form.** Press
+inside, release outside, dialog gone with every field in it.
+
+### Why it happens
+
+`index.html:45034`:
+
+```js
+overlay.onclick = event => { if (event.target === overlay) _calCloseNativePost(); };
+```
+
+The DOM dispatches `click` **at the nearest common ancestor of the mousedown
+target and the mouseup target**. Press in the batch-name input, release over the
+backdrop, and that ancestor is the overlay itself — so `event.target === overlay`
+is true and the handler cannot tell the difference between "the user clicked the
+backdrop to dismiss" and "the user finished a text selection out here". Both look
+identical at `click`.
+
+This is not exotic input. Selecting right-to-left in a field near the left edge
+of a dialog puts the release outside it as a matter of course, and so does
+overshooting a drag.
+
+The input's own `onmousedown="… event.stopPropagation();"` does **not** help:
+that stops the *mousedown* from bubbling, while `click` is a separate later
+event dispatched at the common ancestor.
+
+### Fix shape
+
+Record where the press began and only dismiss when it began on the backdrop:
+
+```js
+overlay.addEventListener('mousedown', e => { overlay._pressBeganOnOverlay = (e.target === overlay); }, true);
+overlay.onclick = event => {
+    if (event.target === overlay && overlay._pressBeganOnOverlay) _calCloseNativePost();
+};
+```
+
+**The `true` is load-bearing.** It registers on the capture phase, which runs on
+the way *down* and therefore still fires for presses inside the batch-name
+input despite that input's `stopPropagation()` on the bubble phase. A
+bubble-phase listener would never see those presses, so the flag would keep a
+stale `true` from an earlier backdrop press and the bug would survive in a
+narrower form — which is worse than leaving it, because it would then look
+fixed.
+
+A `pointerdown`/`pointerup` pair is equivalent and the repo already uses
+`pointerdown` with capture elsewhere (`_kasperOnPointerDown`, `index.html:79080`),
+including a comment about exactly this hazard: *"a button pressed, tearing that
+button out between pointerdown and click"*. So the house already knows this
+shape; the overlays never got it.
+
+### This is a class, not one line
+
+Thirteen dismiss sites share the unguarded pattern and **none** checks where the
+press began:
+
+`index.html` 8143, 8163, 22515, 24958, 39551, 39554, 39557, 39560, 39567, 39570,
+41015, 45034, 68020.
+
+Create Post is where it hurts most — the dialog holds a mode, a post count, a
+batch choice, a batch name, per-post names and an editor choice, and there is no
+draft recovery — but the sign-in overlay (24958), the comments overlays and the
+import dialogs all carry it. **The repair should be one shared helper applied to
+all thirteen, not a patch at 45034**, or this returns the next time someone
+drags in a different dialog.
+
+Two of the thirteen are deliberately *not* equivalent and need reading before
+they are swept: 24958 has an extra `!overlay._syncviewEntry` condition, and the
+confirm overlays at 8143/8163 are inline attributes rather than bound listeners.
+
+### Before any fix
+
+`index.html` change on a Production/Calendar write surface, so the offline
+browser gate must run before pushing:
+
+```
+node docs/syncview-design/tests/prod-write-gateway-browser.js
+```
+
+It is fully mocked, runs without a route to the live backend, and drives the
+Calendar dialog end to end — which is exactly the surface this touches. Per
+`CLAUDE.md`, skipping it is what put a red `production-polish` on #1353.
+`prod-boot-budget.js` also runs offline and should ride along.
+
+Not fixed here. Found during the identifier-mint step 27 walkthrough; it is a
+browser change with no relation to that capability and does not belong in its PR.
+
+**Amendment, 2026-09-19, later the same day — FIXED.** Fixed independently on `claude/beautiful-einstein-34h3m5` before this entry (session B's original report) had merged; the two described the same bug and this reconciles them into one entry per the numbering-collision note in CLAUDE.md.
 
 **What it was.** In the Create Post dialog, drag-selecting text in the batch
 name field from right to left — or any press that starts inside a dialog and

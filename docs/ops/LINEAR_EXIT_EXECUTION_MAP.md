@@ -17,16 +17,17 @@ Preparation only. Publishing this map authorizes nothing. Every step marked
 
 ## How to report progress
 
-Count completed steps out of 28. Report it like this at the start of every
+Count completed steps out of 29 (step 29 is the Close-out sweep, added
+2026-09-19). Report it like this at the start of every
 execution session and after every completed step:
 
 ```
-Phase 3 of 7 · step 14 of 28 · 46% complete · next: 15 (verify installed catalog)
+Phase 3 of 7 · step 14 of 29 · 48% complete · next: 15 (verify installed catalog)
 ```
 
 **Current position, 2026-09-18:** phase 7 is under way and the counter above is
 only an example of the format. Phase 7 repeats steps 26 to 28 **per
-capability**, so a single number out of 28 stops being meaningful there — report
+capability**, so a single number out of 29 stops being meaningful there — report
 the capability by name and its own step:
 
 ```
@@ -321,6 +322,44 @@ next. Linear stays running underneath the whole time.
 |---|---|---|---|
 | **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | ✅ **28 COMPLETE** — through phase 7 | Deployed at `b7c30c74`, `production-write` v77; version read back from `production_label_catalog_versions` at 19:45Z. **All 7 acceptance checks measured:** 1 (read, owner), 2 (receipts **10536**, **10537**), 3 (row changed, updated 20:08:02Z), 4 and 6-409 (storage session on the test card, receipt **10579**, journal `edf78a6a`), 5 (labels debt 0 before and after), 6-403 (offline, `test/production-write-gateway.js` — a client principal is refused `403 operation_forbidden`), 7 (video, then graphics on receipts **10575** and **10576**). **Check 6 across all three refusals:** 6a (client → 403, offline), 6b (a staff role outside `admin|smm` → 403 `operation_forbidden` from the policy table, offline, with a policy-flip control), 6c (stale version → 409, receipt 10579). 6b's clause was **amended on 2026-09-18** to accept either refusal code, because it named `native_label_scope_forbidden`, which the role refusal never reaches. Check 4 remains **only satisfiable by a staff principal** — it passed on the test *card*, not as the test *client*. Served per team: video **2**, graphics **6**. Kill switch: `mode:"hold"`. |
 
+#### What is left — the to-do list from here
+
+Every remaining capability, one row each. **This table is the working list from
+now on: each later PR updates its own row rather than adding a new list
+somewhere else.** States are derived from the code and docs on `main` at the
+time of writing, and a row says **`unknown, verify`** wherever the repository
+cannot answer — a live runtime-flag value is read from the database, not from
+this repository, so no row here asserts one it has not seen recorded.
+
+State vocabulary, used exactly: **native** (flipped and recorded), **on but
+step 27 unmeasured** (flag on, acceptance checks not all measured), **code
+installed but not wired** (SQL is in the repo and nothing calls it from
+`index.html` or an Edge Function), **not built**.
+
+| Capability | Flag | State | Closes |
+|---|---|---|---|
+| **Ordinary receipts** | `production_native_ordinary_receipts` (gate `production_native_ordinary_capability`) | **unknown, verify** — live flag value not recorded in this repository. Deeply integrated in SQL (its gate is read by four migrations, including two repairs and the test-client parity row), and the calendar bridge's header states the flip has happened, which is why the Linear round trip no longer carries native writes. Not a step-28 closure on the record. | Checkpoint row *"production-write provider label/metadata branches and Linear credential reads"* — the **metadata** half. Labels closed that row's label half only. |
+| **Assignment** | `native_assignment_epochs` | **unknown, verify** — live flag value not recorded. Wired: read by one Edge Function and three scripts. Auth-kind binding landed 2026-09-18 (`migrations/2026-09-18-native-assignment-auth-kind-binding.sql`). | Same checkpoint row, the **assignment** half, named explicitly in the labels closure's *"Scope: this row is only partly closed"*. |
+| **Calendar bridge** | none — an AFTER UPDATE trigger, not a flag | **native.** Applied live 2026-09-18T22:38Z; the trigger half worked from the apply. Its backfill refused every call until `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, and **the backfill has still never been run** — the cards that already lagged at the flip are still lagging. | OPEN_REPAIRS **212** (the backfill has still never run). No checkpoint row: the bridge repairs a hole the exit *opened*, rather than replacing a Linear dependency. |
+| **Card-vs-calendar watcher** | none — a CI lane | **code installed but not wired.** Script, unit suite, fixture and `card-calendar-status-drift.yml` land in this PR; the lane cannot pass until the repository secret **`SUPABASE_URL`** is set, which is an owner action. Registered as watchdog lane `card_calendar_drift`. | Nothing in the checkpoint. It is the measurement that the calendar bridge is holding — the reconciler cannot be, because it compares the two surfaces through Linear and native receipts send Linear nothing. |
+| **Intake form path** | `native_intake_epochs` | **unknown, verify** — live flag value not recorded. The most wired of the remaining set: read from `index.html` (2), two Edge Functions and nine scripts. | Checkpoint row *"Intake: VIDEO_FORM_WEBHOOK and legacy dispatch selection"*, plus the **intake** half of the provider-branch row. |
+| **Workload page** | **unknown, verify** — no single flag key identified in this repository | **unknown, verify.** The checkpoint records the dependency as three `index.html` calls plus the `workload-linear` function; whether a native replacement is wired was not established here. `scripts/workload-native-visibility-check.js` and `workload-source-freshness.yml` measure the native side. | Checkpoint row *"Workload: index.html LINEAR_ISSUES_WEBHOOK, LINEAR_TWEAK_COMMENTS_WEBHOOK and WORKLOAD_LINEAR_URL calls; workload-linear function"*. |
+| **Urgent editor assignee lookup** | `urgent_video_destination` | **code installed but not wired.** The flag is read by two migrations and two scripts, and by nothing in `index.html` or any Edge Function. The checkpoint notes that removing the displayed URL leaves the Linear lookup input intact — so the lookup is the part that has to be accepted or rerouted, not the link. | Checkpoint row *"Legacy urgent editor assignee lookup"*. |
+| **Identifier mint** | `production_native_identifier_mint` (gate `production_native_identifier_capability`) | **code installed but not wired.** `migrations/2026-09-07-native-identifier-mint.sql` installs allocate / guard / seed / capability; the gate is referenced by that migration alone, and `production_native_identifier_allocate` is called from one script and from nothing in `index.html` or any Edge Function. | **unknown, verify** — no checkpoint row or OPEN_REPAIRS entry was identified for it here. |
+| **Brief media** | **unknown, verify** — no runtime-flag key identified; `migrations/2026-09-07-native-brief-media.sql` | **unknown, verify.** Referenced by one Edge Function and six scripts, so it is not inert, but no flag and no recorded step-27 measurement. | **unknown, verify** — likely the *"Historical Linear import/link UI and retained URL fields"* row, not established here. |
+| **Card materialization** | `native_card_materialization` | **code installed but not wired.** `migrations/2026-09-06-native-card-materialization-boundary.sql` is the only file in the repository that references the flag; nothing in `index.html`, any Edge Function or any script reads it. | **unknown, verify** — no checkpoint row or OPEN_REPAIRS entry identified. |
+| **Step 29 health check** | none — a procedure | **not built.** Step 29 is added to this map in this PR; no sweep has been run and nothing is journaled. | Closes nothing by itself. It is the whole-system check that every other row here has in fact been closed, removed or explained. |
+
+Two honest gaps in the table above, both deliberate rather than tidied over.
+**Live flag values are not in this repository.** Every `unknown, verify` in the
+Flag/State columns is one read of `syncview_runtime_flags` away, and that read
+belongs to a session that can reach the database; guessing them from the
+presence of a migration is exactly how a capability gets called done. And
+**"wired" here means a call exists in `index.html`, an Edge Function or a
+script** — it is evidence of integration, not of a passing acceptance check.
+No row below labels claims a step-28 closure, because none has one.
+
+
 **Labels is the first capability through phase 7**, on the second attempt at
 saying so. The first was withdrawn the same day after a Codex P1 established
 that check 6 names three refusals and only two were measured; check 6b is now
@@ -346,6 +385,26 @@ misbehaves, turn that one flag back off; Linear is still underneath.
 
 Website independence is complete when every row of the dependency table in the
 checkpoint has an accepted replacement and an unreachable legacy route.
+
+---
+
+## Close-out
+
+Runs once, after the last capability in Phase 7 has closed. Steps 26 to 28
+prove each capability's own dependency is replaced; this step asks the
+different question those cannot — what is STILL pointing at Linear across the
+whole system, including the things no capability ever owned.
+
+| # | Step | Who | Done when |
+|---|---|---|---|
+| 29 | Whole-system health check after the last capability closes. Sweep for anything still pointing at Linear: GitHub Actions workflows and secrets, n8n workflows (read only, list them, do not edit), Edge Function env references, `index.html` calls, scripts, docs. Report per item: removed, intentionally kept, or dead. Nothing is retired in this step. | Owner + session | The sweep report is journaled with zero unexplained items |
+
+"Zero unexplained items" is the whole bar, and it is deliberately not "zero
+items". An intentionally-kept Linear reference is a passing result once it says
+why it is kept; an item nobody can classify is the failure, because that is the
+one that later surprises somebody. Read-only on n8n is not a formality either —
+those workflows are production sales automation and are never edited without the
+owner's explicit go-ahead in the same request.
 
 ---
 

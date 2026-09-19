@@ -1,0 +1,134 @@
+# Linear exit — step 29b inventory
+
+**Read-only inventory. This document decides nothing and retires nothing.**
+
+It lists every workflow under `.github/workflows/`, every lane in
+`scripts/monitoring-watchdog.js`'s `LANES` array, every other schedule/cron
+that touches Linear, the mirror outbox, `linear-inbound`, `linear-outbound`,
+a reconciler, or a Linear webhook, and every Slack alert those lanes can post.
+The "advisory" column in Section 1 is exactly that — a first-pass opinion for
+whoever does the actual retirement pass later, not a decision made here.
+
+Generated 2026-09-19. `.github/workflows/*.yml` currently contains **50
+files** (some earlier ops docs say "~54"; that count is stale).
+
+---
+
+## Section 1 — every file under `.github/workflows/`
+
+| # | File | What it does | What it does today, given native writes send Linear nothing | Advisory (not a decision) |
+|---|---|---|---|---|
+| 1 | `assurance-ledger-freshness.yml` | Daily gate checking whether `docs/testing/ASSURANCE_LEDGER.md` rows still support the freshness claims written beside them. | Unrelated to Linear; still fully useful. | keep |
+| 2 | `tiktok-carousel-browser-journey.yml` | Hermetic Playwright test of the TikTok Upload photo-carousel UI transport. | Unrelated to Linear; still useful. | keep |
+| 3 | `f27-team-rollback-proof.yml` | Heavy disposable-Postgres proof suite for the F27 rollback/mirror-outbox machinery (fences, rollback recipes, drift aborts). | Still exercises real logic, but that machinery exists to protect the Linear-writing Section 4 functions; loses its reason to exist once Section 4 retires. | rewrite candidate (once Section 4 retires) |
+| 4 | `deploy-description-image-upload.yml` | Auto-deploys the `description-image-upload` Edge Function on push to main. | Unrelated to Linear; unaffected. | keep |
+| 5 | `deploy-hiring-applications.yml` | Manual exact-SHA deploy lane for the Hiring Process API function. | Unrelated to Linear; unaffected. | keep |
+| 6 | `f42-card-comment-import.yml` | Guarded plan/apply dispatch importing historical comments from source cards into canonical comment tables. | A one-time/occasional Supabase-side import tool, not the live Linear sync path; unaffected. | keep |
+| 7 | `deploy-pto-edge-functions.yml` | Auto-deploys the `pto` Edge Function, migration-first gated. | Unrelated to Linear; unaffected. | keep |
+| 8 | `slice5-test-drills.yml` | Manual, TEST-client-only heavy drill suite proving write-gateway invariants; requires `LINEAR_API_KEY` for some sub-probes. | Some probes (e.g. `linear_preflight_mismatch`, `linear_read_failed`) exercise Linear-adjacent code that is now dead weight for correctness; the native write-gateway parts remain meaningful. | rewrite candidate |
+| 9 | `graphics-f2-preflight.yml` | Manual read-only preflight for the Graphics F2 flip — checks the outbound queue is drained and evidence is bound. | Built around the Linear-outbound cutover moment; nothing left to gate once F2/outbound fully retires. | retire candidate (once F2 cutover fully complete) |
+| 10 | `samples-e2e-nightly.yml` | Nightly Playwright suite against live Supabase+n8n; includes Linear-specific probes (e.g. `sxr_linear_deep`); Linear is mocked/captured by the harness. | Mocked Linear leaves it largely unaffected mechanically, but the Linear-specific probes test behavior with no real counterpart once Linear stops mattering. | rewrite candidate (trim Linear-specific probes) |
+| 11 | `calendar-e2e-nightly.yml` | Nightly Playwright suite driving calendar interactions for SMM/Client/Kasper surfaces. | Unrelated to Linear directly; unaffected. | keep |
+| 12 | `production-shadow-audit.yml` | Daily read-only full-roster shadow audit comparing production writes; requires `LINEAR_API_KEY`. | Marked `retires_with: 'linear'` in monitoring-watchdog.js; audits against a Linear state native writes no longer feed, so it can no longer detect real drift. | retire candidate |
+| 13 | `linear-deliverables-reconcile.yml` | Runs every 10 minutes; compares every live deliverable against its Linear issue, can apply Linear-authoritative corrections; also a second host of the dead-man's-switch check and hosts the reconciler pager. | The core reconcile compares against an increasingly stale/frozen Linear state. Its monitoring-host duty is mid-transition to `monitoring-crosscheck.yml`. | retire candidate (the reconcile function); its monitoring-host role is deliberately being migrated off it |
+| 14 | `monitoring-deadman.yml` | Every 15 min; pages when any lane in the watchdog's `LANES` has gone stale. | Linear-independent by design; more important during the exit since several lanes are being retired/dormant and this proves that was intentional, not silent death. | keep |
+| 15 | `crosswalk-phase2-repair.yml` | Manual plan/apply dispatch repairing the card↔deliverable crosswalk, using Linear identifiers among other data. | A one-time/occasional data-repair tool touching Linear ids as reference data, not live sync; largely unaffected now. | keep short-term; retire candidate once the crosswalk backlog is fully repaired |
+| 16 | `client-entry-visible-boot.yml` | PR/push gate proving the client entry boot sequence and staff-key gate. | Unrelated to Linear; unaffected. | keep |
+| 17 | `f42-apply-rehearsal.yml` | CI rehearsal of the F42 comment-import apply path against disposable Postgres. | Tests the comment-import tool, not the Linear sync loop; unaffected. | keep |
+| 18 | `linear-outbound-drain.yml` | Every 10 minutes; drains the server-side mirror outbox via the `linear-outbound` Edge Function. | The direct mechanism that sends things TO Linear. With native writes sending Linear nothing, there is little left to enqueue, so it mostly runs against an empty queue and trivially "succeeds". | retire candidate |
+| 19 | `thumbnail-revision-scan.yml` | Every 10 minutes (only if enabled via repo var); scans thumbnail revisions via a dedicated Edge Function. | Unrelated to Linear; unaffected. | keep |
+| 20 | `production-polish-gate.yml` | PR/push/schedule gate running fast/interaction/heavy Production-UI Playwright polish suites. | Unrelated to Linear; unaffected. | keep |
+| 21 | `monitoring-crosscheck.yml` | Every 20 minutes; the new second independent host for the dead-man's-switch check, built to replace `linear-deliverables-reconcile.yml` once Linear is disabled. | A Linear-exit deliverable itself — a Linear-credential-free host so the watchdog's cross-check survives the cutover. Still transitional (three hosts currently listed for `monitoring_watchdog`). | keep |
+| 22 | `deploy-thumbnail-edge-functions.yml` | Auto-deploys thumbnail-revision Edge Functions on push to main. | Unrelated to Linear; unaffected. | keep |
+| 23 | `sample-linear-reconcile.yml` | Every 10 minutes; reconciles sample-review components against their Linear issues (most-recent-action-wins), can apply corrections. | A Linear-authoritative reconcile loop for Samples; native writes send Linear nothing, so it now compares against a state nothing keeps current. | retire candidate |
+| 24 | `client-signoff-reconcile.yml` | Manual dispatch; detects a client sign-off the server committed but that never reached its card, and writes the missing stamp. | Purely Supabase-side (server-committed action vs. card state), not a Linear reconcile; unrelated to the exit. | keep |
+| 25 | `deploy-client-review-link.yml` | Manual, approval-gated deploy of the `client-review-link` Edge Function with readback verification. | Unrelated to Linear; unaffected. | keep |
+| 26 | `f27-post-contract-capture.yml` | Manual; captures and seals a fingerprinted "post-migration contract" inventory to private Drive for F27 rollback tooling. | Supports the F27 Section 4 rollback machinery underlying the Linear-writing functions; still needed while that closure is live/deployable/rollback-able. | keep (until Section 4 retires) |
+| 27 | `n8n-execution-quota-watchdog.yml` | Daily; watches n8n's monthly execution quota, pages at 80%/90%. | Not Linear-specific, but n8n hosts the Linear-sync pagers; as those n8n workflows retire, overall n8n volume (and this watchdog's relevance) shrinks. The watchdog itself stays generically useful. | keep |
+| 28 | `graphics-f2-evidence.yml` | PR-triggered Postgres-17 proof of the F2 evidence/rollback SQL, plus a manual pre-/post-F2 production evidence-capture dispatch tied to the outbound drainer and a `LINEAR_MIRROR_API_KEY` credential. | Built around the Linear-outbound F2 flip moment; nothing left to evidence once F2/outbound fully retires. The PR-triggered Postgres proof job may still have standalone SQL-gate value. | retire candidate (once F2 cutover complete) |
+| 29 | `deploy-hiring-automation.yml` | Manual exact-SHA deploy of the private n8n hiring-bridge Edge Function. | Unrelated to Linear; unaffected. | keep |
+| 30 | `monitoring-cutover-proof.yml` | Push/dispatch; runs opt-in lanes (alert-path proof, TEST write drill across both teams, read-only refresh-gap measurement, TEST cleanup, roster coverage) proving the monitoring-readiness cutover; the write-drill lane requires `LINEAR_API_KEY`, and `refresh-gap` reads Linear via `b1-linear-backfill.js`. | Transitional scaffolding built specifically to validate the Linear-exit monitoring cutover; still needs Linear credentials for some lanes. | retire candidate (once cutover fully proven and merged) |
+| 31 | `b1-linear-incremental-refresh.yml` | Every 30 minutes; the B1 "stray catcher" — imports Linear issues someone created directly in Linear (insert-only) since the video flip; requires `LINEAR_API_KEY`. | Its own comments say this is the only job B1 has left post-flip; useful only while people might still create issues directly in Linear. Marked `retires_with: 'linear'`. | retire candidate |
+| 32 | `production-write-drill.yml` | Daily; TEST-only drill exercising native create/field writes through `production-write` across both teams; requires `LINEAR_API_KEY`. | Marked `retires_with: 'linear'`; its "require secrets" step demands `LINEAR_API_KEY`, so on the day the credential dies it runs, fails, and leaves a red run daily rather than going quiet. The native write-gateway exercise itself is unrelated to Linear and remains valuable — the Linear dependency looks incidental. | rewrite candidate (drop the Linear credential requirement) |
+| 33 | `linear-sync-reconcile.yml` | Manual-dispatch-only; reconciles card-components against Linear issues (most-recent-action-wins); in production is actually dispatched every 15 minutes by an n8n pager. | Same shape as `sample-linear-reconcile.yml` — compares against a frozen/stale Linear state since native writes send it nothing. | retire candidate |
+| 34 | `pto-ui-tests.yml` | PR/push gate: synthetic + stateful browser tests of the PTO UI and Edge Function. | Unrelated to Linear; unaffected. | keep |
+| 35 | `deploy-f27-linear-inbound.yml` | Manual; the reviewed release/restore lane specifically for the `linear-inbound` Edge Function. | This IS the Linear-inbound sync function's deploy lane — directly retired-with-Linear territory once `linear-inbound` is decommissioned. Its bundle is already pinned (`V39_BUNDLE_SHA256`) rather than freshly captured, suggesting it's already treated as largely frozen. | retire candidate |
+| 36 | `edge-function-type-ratchet.yml` | PR/push gate: a ratchet (not a strict gate) against new TypeScript errors across all Edge Functions. | Applies to every function, Linear-adjacent ones included, until those functions are deleted; not itself Linear-specific. | keep |
+| 37 | `track-b-recovery-rehearsal.yml` | Manual; rehearses a full-schema disaster-recovery restore into a scratch Supabase project. | Unrelated to Linear; general DB backup/recovery hygiene. | keep |
+| 38 | `card-calendar-status-drift.yml` | Hourly at :27; checks whether the content calendar still agrees with the production card via the native calendar bridge trigger. | Built explicitly because the Linear-mediated reconciler cannot see this class of drift; a direct replacement of a Linear-mediated check with a native one. | keep |
+| 39 | `native-intake-completion-monitor.yml` | Every 15 min, offset; independent read-only observer of native intake completion health; dormant until a protected repo var enables it. | Native-write replacement infrastructure built as part of the exit; not Linear-dependent. | keep |
+| 40 | `native-notification-monitor.yml` | Every 5 min, offset; read-only notification delivery-debt health check; dormant until enabled. | Same as above — native-write infrastructure, no Linear dependency, currently dormant/prepared. | keep |
+| 41 | `workload-source-freshness.yml` | Every 30 minutes; pages if the Workload board's Linear-mirrored source table (`workload_issues`) stops advancing (freezes silently). | Exists because Linear dying leaves the mirror frozen without visibly emptying. Its own comments say: retire this lane at handover, do not repoint it, once the board moves off the mirror to a native source. | keep now / retire candidate at handover (already flagged for retirement in its own source) |
+| 42 | `track-b-backup.yml` | Every 6 hours; transactional Track-B DB snapshot to private Drive, with a freshness check and optional restore rehearsal. | General DB backup, unrelated to Linear specifically; what it backs up includes Linear-sync tables whose importance may shrink. | keep |
+| 43 | `syncview-retirement-census.yml` | Every ~30 min; dormant until enabled; will check no ordinary rows sit above the recorded "already-retired" high-water mark for the SyncView retirement boundary. | Part of the Linear-exit retirement machinery, described as intentionally Linear-free — the evidence that the already-retired boundary still holds. | keep |
+| 44 | `outbox-debt-census.yml` | Every 30 min; dormant until enabled; pages when undeliverable mirror-outbox rows accumulate after `linear_outbound_enabled` is switched off. | A Linear-exit deliverable by design: the debt it counts only starts once Linear is switched off. Holds no Linear credential. Useful as long as any code path still enqueues into `mirror_outbox`. | keep |
+| 45 | `native-intake-completion.yml` | Every 15 min, offset from the monitor; dormant until enabled; will apply proven-safe native intake completions. | Native-write replacement infrastructure, no Linear dependency; dormant/prepared, not yet armed. | keep |
+| 46 | `calendar-unit-tests.yml` | Push/PR: fast hermetic unit suite (`test/*.js`), the public-repo identity-exposure gate, a byte-pinned line-ending gate, and a conditional F27 rollback proof job. | Mostly Linear-independent hermetic checks; the embedded `f27-team-rollback-proof` job is tied to the F27/Linear-writing closure and becomes moot once that closure retires. | keep (mostly); the embedded F27 job is a retire candidate alongside item 3 |
+| 47 | `linear-exit-preparation-ci.yml` | PR-triggered; runs isolated PG17 matrix lanes (`card-atomic-admission`, `retirement-switch`) with zero production credentials, for Linear-exit preparation work. | This IS the exit's own preparation CI — load-bearing for the exit itself, not something the exit makes obsolete. | keep |
+| 48 | `deploy-onboarding-edge-functions.yml` | Push (staff-sensitive functions) / manual (pinned Track-B write/read set: `linear-outbound, notify, production-write, production-comments, production-archive`) deploy lane, with a Linear-exit SQL preflight gate before manual deploys. | The manual half deploys `linear-outbound` alongside `production-write` etc.; the automatic push half is unrelated to Linear. The manual deploy set will need trimming once `linear-outbound` is decommissioned. | rewrite candidate (manual set); push-triggered half: keep |
+| 49 | `deploy-f27-section4-closures.yml` | Manual; the reviewed forward/restore deploy lane for the four-function F27 Section 4 closure (`linear-outbound, production-write, deliverable-write, batch-write`), requiring a sealed pre-DDL rollback capture from Drive. | The heaviest deploy lane in the repo, and it directly deploys `linear-outbound`. Its own changelog shows recent work (native write gateway lift, native urgent handoff, native attribution) is actively about replacing Linear routing with native routing inside this same closure — already mid-rewrite rather than simply headed for retirement. | rewrite candidate (already mid-rewrite away from Linear per its own history) |
+| 50 | `native-notification-sender.yml` | Every 5 minutes; dormant until enabled; will claim and deliver bounded native notification intents. | Native-write replacement infrastructure, no Linear dependency; dormant/prepared. | keep |
+
+---
+
+## Section 2 — `LANES` in `scripts/monitoring-watchdog.js`
+
+| key | label | cadence | max_age_minutes | hosts | retires_with | retired |
+|---|---|---|---|---|---|---|
+| `reconciler_pager` | reconciler drift pager | schedule ~10m (drifts) | 240 | `linear-deliverables-reconcile.yml` | `'linear'` | `null` |
+| `monitoring_watchdog` | monitoring watchdog | schedule 15m + 20m crosscheck (GitHub delivers ~1 per 3–5h) | 360 | `monitoring-deadman.yml`, `monitoring-crosscheck.yml`, `linear-deliverables-reconcile.yml` | — (`heartbeat_flag: '--check'`) | `null` |
+| `production_write_drill` | production write drill | daily 04:17 UTC | 2160 | `production-write-drill.yml` | `'linear'` | `null` |
+| `b1_incremental_refresh` | B1 incremental refresh | schedule 30m + pager | 240 | `b1-linear-incremental-refresh.yml` | `'linear'` | `null` |
+| `production_shadow_audit` | production shadow audit | daily 05:17 UTC | 2160 | `production-shadow-audit.yml` | `'linear'` | `null` |
+| `samples_e2e_nightly` | samples E2E nightly | daily 06:00 UTC | 2160 | `samples-e2e-nightly.yml` | — | `null` |
+| `calendar_e2e_nightly` | calendar E2E nightly | daily 08:00 UTC | 2160 | `calendar-e2e-nightly.yml` | — | `null` |
+| `card_calendar_drift` | card vs calendar status drift | hourly :27 | 240 | `card-calendar-status-drift.yml` | — (deliberately not `'linear'` — the note in the source calls this "the thing that outlives the exit") | `null` |
+| `assurance_ledger` | assurance ledger freshness | daily 07:37 UTC | 2160 | `assurance-ledger-freshness.yml` | — | `null` |
+| `workload_source_freshness` | workload source freshness | schedule 30m | 90 | `workload-source-freshness.yml` | — (comment says to add `retired:{at,reason}` "at handover" rather than repointing) | `null` |
+| `outbox_debt_census` | mirror outbox debt census | schedule 30m | 90 | `outbox-debt-census.yml` | — (deliberately Linear-free; watches debt caused by Linear being switched off) | `null` |
+| `native_intake_completion` | native intake safe completion | schedule 15m (best effort; no SLO) | 360 | `native-intake-completion.yml` | — | `null` |
+| `native_intake_completion_monitor` | native intake completion monitor | schedule 15m offset (best effort; no SLO) | 360 | `native-intake-completion-monitor.yml` | — | `null` |
+| `native_notification_sender` | native notification sender | schedule 5m (best effort; no SLO) | 360 | `native-notification-sender.yml` | — | `null` |
+| `native_notification_monitor` | native notification monitor | schedule 5m offset (best effort; no SLO) | 360 | `native-notification-monitor.yml` | — | `null` |
+| `syncview_retirement_census` | SyncView retirement admission census | schedule 30m | 90 | `syncview-retirement-census.yml` | — (Linear-free; proves the retirement boundary itself) | `null` |
+
+Four lanes carry `retires_with: 'linear'`: **`reconciler_pager`, `production_write_drill`, `b1_incremental_refresh`, `production_shadow_audit`**. None is actually retired yet — every lane's `retired` field is `null`. `test/monitoring-watchdog.js` enforces bidirectionally against the workflow files that an active lane must have at least one actively-scheduled host and a retired lane must have none.
+
+Two Linear reconcile workflows run on their own schedules but are **not** in the `LANES` array at all, so they have no heartbeat and are not watched by the dead-man's switch: `sample-linear-reconcile.yml` and `linear-sync-reconcile.yml`.
+
+---
+
+## Section 3 — other cron/schedule/Linear-lane references found outside workflows and monitoring-watchdog.js
+
+- `scripts/b4-pager-incremental-refresh.js` — generates/patches the live **n8n** workflow definition for the B1 incremental-refresh reconciler pager (`schedule: 'Every 15 min'`, a 30-minute dispatch-gate interval, 90-minute staleness threshold), as n8n workflow JSON, not a GitHub Actions cron. This is production n8n sales/ops automation; per CLAUDE.md it must not be edited without the owner's explicit go-ahead.
+- `scripts/b4-pager-outbound.js` — same pattern for the n8n outbound-drain trigger pager (`schedule: 'Every 15 min'`, a 15-minute outbound-dispatch interval, a 60-minute alert-throttle interval).
+- `scripts/linear-reconcile-inbound-pager.js` — the "persistent inbound diffs" pager invoked by `linear-deliverables-reconcile.yml` on its scheduled runs; defines `ALERT_CLASSES` (`repair_list_size`, `linkage_actionable`, `outbound_diff_count`), each latched/paged independently once a drift class persists across two consecutive scheduled reconcile runs.
+- `scripts/f27-reconciler-closure.js` — reconciler-closure logic tied to the F27 rollback proof machinery; Linear-adjacent by association with the F27 Section 4 closure, no cron of its own.
+- `docs/ops/MONITORING.md`, `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, and the wider set of `docs/ops/LINEAR_EXIT_*.md` planning/journal documents (e.g. `LINEAR_EXIT_JOURNAL.md`, `LINEAR_EXIT_EXECUTION_MAP.md`, `LINEAR_EXIT_RELEASE_MATRIX_20260912.md`, `LINEAR_EXIT_REPAIR_INSTALL.md`, `LINEAR_EXIT_RECOVERY_PROCEDURE.md`, `LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md`) — narrative/planning material for the exit itself, not re-read in full for this pass (out of scope: schedule/cron/lane facts only), but their existence confirms a large, actively-tracked exit workstream.
+- `docs/ops/LINEAR_SYNC_RECONCILE.md`, `docs/ops/CLIENT_SIGNOFF_RECONCILE.md`, `docs/ops/B1_STRAY_CATCHER_DESIGN.md`, `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md`, `docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, `docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — design/runbook docs for the reconcile lanes listed in Section 1.
+
+---
+
+## Section 4 — Slack alerts these lanes (and the watchdog generally) can post
+
+Most alerts route through `scripts/monitoring-alert-relay.js`'s `sendAlert`, which posts to the n8n relay workflow `Tfhc3vebZyG6obOg` ("SyncView Edge Alert Relay → DM Sidney") via the `SLACK_ALERT_WEBHOOK` secret; the relay renders `type`, an `issue_identifier` built from `summary`/`summaryParts`, `team`, `count`, and `details.run_id` into one DM line. A few workflows instead `curl` a Slack incoming webhook directly — those are noted below.
+
+| Source (file / lane) | Channel / routing | Trigger condition | Linear-related? |
+|---|---|---|---|
+| `scripts/monitoring-watchdog.js` → `stalePageSpec` (fired from `monitoring-deadman.yml`, `monitoring-crosscheck.yml`, and `linear-deliverables-reconcile.yml`'s `--check` step) | `team: 'monitoring'`, type `monitoring_heartbeat_stale` | Any watched lane in `LANES` has no fresh heartbeat within its `max_age_minutes` (or never checked in), and is not already latched. | Not itself Linear-specific, but several watched lanes are Linear lanes (Section 2). |
+| `scripts/monitoring-watchdog.js` → `failingPageSpec` (same hosts) | `team: 'monitoring'`, type `monitoring_lane_failing` | A lane's freshest heartbeat is fresh but carries `ok:false` (it ran and reported failure), and that failing state is not already latched. | Same as above. |
+| `scripts/monitoring-watchdog.js` → `runSelfTest` (`--selftest`, manual dispatch) | `team: 'monitoring'`, type `monitoring_selftest` | Manual dispatch only, to prove the alert path is reachable. | No |
+| `scripts/linear-reconcile-inbound-pager.js` (hosted by `linear-deliverables-reconcile.yml`'s "Page persistent inbound diffs" step, scheduled runs only) | `team` derived per-alert from the affected identifiers' video/graphics team (or `unknown`); type `reconcile_<alert_class>` for `repair_list_size`, `linkage_actionable`, or `outbound_diff_count` | The same drift class (repair-list size, actionable linkage gap, or outbound diff count) persists across two consecutive scheduled reconcile runs. | **Yes — Linear reconcile drift.** |
+| `samples-e2e-nightly.yml` → direct `curl` to `SLACK_ALERT_WEBHOOK` (degrades to a log warning if unset) | plain incoming-webhook `text` message | The scheduled (not manual) nightly run fails. | No (exercises `sxr_linear_deep` probes) |
+| `calendar-e2e-nightly.yml` → direct `curl` to `SLACK_ALERT_WEBHOOK` (same degrade-to-warning pattern) | plain `text` message | The scheduled nightly run fails. | No |
+| `scripts/n8n-execution-quota-watchdog.js` (hosted by `n8n-execution-quota-watchdog.yml`) | type `n8n_quota_80` / `n8n_quota_90`, `team: 'account'` | n8n's monthly execution count crosses 80% or 90% of `N8N_MONTHLY_EXECUTION_CAP`; deduped once per month per threshold. | No (but n8n hosts the Linear-sync pagers, so quota pressure is partly Linear-driven today) |
+| `scripts/track-b-backup.js` → `sendAlert` | type `backup_freshness`, `team: 'account'` | Generic entry point for backup-freshness alerting. | No |
+| `scripts/track-b-backup.js` (freshness check inside `track-b-backup.yml`) → direct incoming-webhook post (separate from `sendAlert`) | plain `text`/`summary` message | The latest private Drive Track-B backup fails its 7-hour freshness check; deduped via a Drive-stored per-key marker. | No |
+
+No other direct Slack `curl`/webhook calls or `sendAlert` calls were found across the remaining workflow files, or in `scripts/f27-reconciler-closure.js` / `scripts/f27-final-verification.js`.
+
+---
+
+## Summary of what's plainly Linear-shaped
+
+Workflows whose core job is comparing against or writing to Linear (items 8, 9, 10, 12, 13, 18, 23, 28, 30, 31, 32, 33, 35, and the Linear-touching halves of 3, 46, 48, 49) sit on top of a chain that native writes no longer feed. The `LANES` registry already names four of these (`reconciler_pager`, `production_write_drill`, `b1_incremental_refresh`, `production_shadow_audit`) as `retires_with: 'linear'`, but that flag changes no behavior on its own — every lane above is still scheduled, still running, and still capable of paging exactly as it did before this inventory. Nothing here decides which of those pages a human still wants.

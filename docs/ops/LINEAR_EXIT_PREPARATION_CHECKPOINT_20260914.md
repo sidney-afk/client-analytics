@@ -269,6 +269,60 @@ closure.
 | **Scope: this row is only partly closed** | The same table row also covers **metadata branches, Linear credential reads, intake and assignment**. Labels closes none of those. The row stays open until the capabilities behind them finish their own step 27 and are recorded here. |
 | **Not measured by this session** | Checks 1, 3 and 5 are the owner's and the supervisor's; checks 4, 6-409 and 7-graphics are the storage session's, whose primary record is journal `edf78a6a` — not reachable from this repository at the time of writing and therefore not read here. Only the 403 half of check 6 was measured in this repository. |
 
+#### Ordinary receipts — `production_native_ordinary_receipts`, recorded 2026-09-19
+
+> **Source: the storage session's step-27 readback, journal entry `09a7f579`.**
+> That session holds the private evidence directories and the live read; this
+> repository cannot re-derive these counts, and does not pretend to. The
+> measurements below are recorded as that session reported them, exactly as the
+> labels row records checks 4, 6-409 and 7-graphics from the same source.
+
+| | |
+|---|---|
+| **Table row it acts on** | *"production-write provider label/metadata branches and Linear credential reads"* — the **metadata** half. Labels closed the label half; this closes the metadata half of the same row. |
+| **Native since** | **2026-09-18T16:13:49Z.** |
+| **What was measured** | **138 receipts, 10418 to 10595.** All terminal. All typed. **None without the native marker.** |
+| **Criterion 6d — not zero, and why that is still a pass** | 41 failed rows exist. **All 41 predate the flip** (17 known, 24 test-only), so not one of them is a failure of the native path. The criterion is read as "no post-flip failures", which is the only reading under which a non-zero count can close: a pre-flip row is evidence about the route being replaced, not about the replacement. |
+| **Why the legacy route is unreachable** | Same bounded sense as labels: the **provider branch is switched off, not removed.** For supported ordinary-receipt work, while the capability is native, the provider branch is not selected. It remains selectable, deliberately — that is the kill switch. |
+| **What that does NOT claim** | It does not claim the provider code is deleted, and it does not claim retirement. **Retirement activation is a separate, later switch** and is not part of this closure. |
+
+#### Assignment — `native_assignment_epochs`, recorded 2026-09-19
+
+> Same source and same limit as the row above: the storage session's step-27
+> readback, journal entry `09a7f579`.
+
+| | |
+|---|---|
+| **Table row it acts on** | The **assignment** half of the same provider-branch row, named explicitly in the labels closure's *"Scope: this row is only partly closed"*. |
+| **Native since** | **2026-09-18T16:29:34Z.** |
+| **What was measured** | **11 receipts.** All terminal. All typed. |
+| **Why the legacy route is unreachable** | The bounded sense again: provider branch switched off, not removed, and still selectable as the kill switch. |
+| **What that does NOT claim** | No claim of deletion, and no claim of retirement. |
+
+#### Open notes carried forward from both closures
+
+These are recorded as open rather than resolved, because closing step 28 is not
+the same as having nothing left to watch.
+
+1. **The calendar bridge trigger has not yet been observed on a genuine editor
+   change.** It is live and its mechanism is proved, but the next real status
+   change by a real editor is the first live observation of it, and that has not
+   happened yet. Until it does, the bridge is correct-by-construction rather than
+   correct-by-measurement. `card-calendar-status-drift.yml` is what will notice
+   if the construction is wrong.
+2. **Retirement activation is a separate later switch**, not implied by either
+   closure above and not scheduled by them.
+3. **`production_syncview_retirement_activate_v2` exists — and whether it is the
+   replacement the repair spec's definition of done means is UNRESOLVED here, on
+   purpose.** Both versions are in the repository:
+   `production_syncview_retirement_activate` in `migrations/`, and `..._v2` in
+   `supabase/migrations/20260913062149_retirement_switch_preparation.sql`
+   (referenced by `test/linear-exit-retirement-switch-postgres.js` and
+   `test/linear-exit-observed-full-pipeline.js`). No phrase "definition of done"
+   was found anywhere in `docs/` from this sandbox, so the question is flagged
+   for whoever holds the repair spec. **This note decides nothing and authorises
+   nothing.**
+
 Therefore the dormant installation plus the one-line n8n edit does NOT, by itself, finish website independence. Capability acceptance must explicitly close these paths. Actual Linear retirement cannot be used as a shortcut for missing website replacements.
 
 ## Recovery review and approval limits

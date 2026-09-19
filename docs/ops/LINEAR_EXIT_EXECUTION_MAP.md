@@ -321,6 +321,44 @@ next. Linear stays running underneath the whole time.
 | Capability | Flag | Step | Evidence |
 |---|---|---|---|
 | **Labels** (`production_native_label_catalog`) | `native` since **2026-09-18T20:02:56Z**, version `f55a7dd2` | ✅ **28 COMPLETE** — through phase 7 | Deployed at `b7c30c74`, `production-write` v77; version read back from `production_label_catalog_versions` at 19:45Z. **All 7 acceptance checks measured:** 1 (read, owner), 2 (receipts **10536**, **10537**), 3 (row changed, updated 20:08:02Z), 4 and 6-409 (storage session on the test card, receipt **10579**, journal `edf78a6a`), 5 (labels debt 0 before and after), 6-403 (offline, `test/production-write-gateway.js` — a client principal is refused `403 operation_forbidden`), 7 (video, then graphics on receipts **10575** and **10576**). **Check 6 across all three refusals:** 6a (client → 403, offline), 6b (a staff role outside `admin|smm` → 403 `operation_forbidden` from the policy table, offline, with a policy-flip control), 6c (stale version → 409, receipt 10579). 6b's clause was **amended on 2026-09-18** to accept either refusal code, because it named `native_label_scope_forbidden`, which the role refusal never reaches. Check 4 remains **only satisfiable by a staff principal** — it passed on the test *card*, not as the test *client*. Served per team: video **2**, graphics **6**. Kill switch: `mode:"hold"`. |
+| **Ordinary receipts** (`production_native_ordinary_receipts`) | `native` since **2026-09-18T16:13:49Z** | ✅ **28 COMPLETE** — through phase 7 | Storage session step-27 readback, journal `09a7f579`. **138 receipts, 10418 to 10595** — all terminal, all typed, **none without the native marker**. **Criterion 6d is not zero and still passes:** 41 failed rows exist and **all 41 predate the flip** (17 known, 24 test-only), so none is a failure of the native path. Kill switch: provider branch switched off, not removed. |
+| **Assignment** (`native_assignment_epochs`) | `native` since **2026-09-18T16:29:34Z** | ✅ **28 COMPLETE** — through phase 7 | Storage session step-27 readback, journal `09a7f579`. **11 receipts**, all terminal and all typed. Kill switch: provider branch switched off, not removed. |
+
+#### Step 27 acceptance criteria — ordinary receipts and assignment
+
+Written down here because **labels hit exactly this gap**: its check 6 turned
+out to name three refusals, only two had been measured, and that was caught by
+a review rather than by the list — because there was no list in this map to
+check against. These are the criteria the storage session measured, recorded so
+the next reader does not have to reconstruct them from a closure paragraph.
+
+Both capabilities were measured against the same shape, from the storage
+session's step-27 readback (journal `09a7f579`):
+
+| # | Criterion | Ordinary receipts | Assignment |
+|---|---|---|---|
+| 1 | A flip timestamp is recorded, not inferred | ✅ 2026-09-18T16:13:49Z | ✅ 2026-09-18T16:29:34Z |
+| 2 | The receipt range is bounded and stated | ✅ 138 receipts, 10418 to 10595 | ✅ 11 receipts |
+| 3 | Every receipt is **terminal** — none left mid-flight | ✅ all 138 | ✅ all 11 |
+| 4 | Every receipt is **typed** | ✅ all 138 | ✅ all 11 |
+| 5 | **No receipt lacks the native marker** — the check that the native path, not the provider path, produced them | ✅ none missing | ✅ none missing |
+| 6d | Failed rows | ⚠️ **41, not zero** — and all 41 **predate the flip** (17 known, 24 test-only), so none is a failure of the native path | ✅ none reported |
+| 7 | The legacy route is unreachable in the bounded sense: provider branch **switched off, not removed** | ✅ | ✅ |
+
+**On 6d, and why a non-zero count can still close.** The criterion is read as
+*no post-flip failures*. A row that failed before the flip is evidence about the
+route being replaced, not about the replacement, so it cannot count against the
+replacement — but it also cannot be rounded to zero and forgotten, which is why
+the count and its split are written out rather than summarised as "pass". If a
+post-flip failure ever appears, 6d is failed and this closure is reopened.
+
+**The numbering is the storage session's, not this map's.** `6d` arrives with a
+letter because it is one clause of a multi-clause check, which is precisely the
+structure that caught labels out. Criteria 1 to 5 and 7 are stated here in the
+terms storage measured them; where a capability's own check list has clauses
+this map does not name, **the clause list is the storage session's to publish**
+and a closure that cites this table is citing what was measured, not a claim
+that nothing else exists.
 
 #### What is left — the to-do list from here
 
@@ -338,9 +376,9 @@ installed but not wired** (SQL is in the repo and nothing calls it from
 
 | Capability | Flag | State | Closes |
 |---|---|---|---|
-| **Ordinary receipts** | `production_native_ordinary_receipts` (gate `production_native_ordinary_capability`) | **unknown, verify** — live flag value not recorded in this repository. Deeply integrated in SQL (its gate is read by four migrations, including two repairs and the test-client parity row), and the calendar bridge's header states the flip has happened, which is why the Linear round trip no longer carries native writes. Not a step-28 closure on the record. | Checkpoint row *"production-write provider label/metadata branches and Linear credential reads"* — the **metadata** half. Labels closed that row's label half only. |
-| **Assignment** | `native_assignment_epochs` | **unknown, verify** — live flag value not recorded. Wired: read by one Edge Function and three scripts. Auth-kind binding landed 2026-09-18 (`migrations/2026-09-18-native-assignment-auth-kind-binding.sql`). | Same checkpoint row, the **assignment** half, named explicitly in the labels closure's *"Scope: this row is only partly closed"*. |
-| **Calendar bridge** | none — an AFTER UPDATE trigger, not a flag | **native.** Applied live 2026-09-18T22:38Z; the trigger half worked from the apply. Its backfill refused every call until `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, and **the backfill has still never been run** — the cards that already lagged at the flip are still lagging. | OPEN_REPAIRS **212** (the backfill has still never run). No checkpoint row: the bridge repairs a hole the exit *opened*, rather than replacing a Linear dependency. |
+| **Ordinary receipts** | `production_native_ordinary_receipts` (gate `production_native_ordinary_capability`) | **native** since 2026-09-18T16:13:49Z. ✅ **step 28 recorded 2026-09-19** — see the status row above and the checkpoint closure. | Checkpoint row *"production-write provider label/metadata branches and Linear credential reads"* — the **metadata** half. **Closed.** |
+| **Assignment** | `native_assignment_epochs` | **native** since 2026-09-18T16:29:34Z. ✅ **step 28 recorded 2026-09-19**. | The **assignment** half of the same provider-branch row. **Closed.** |
+| **Calendar bridge** | none — an AFTER UPDATE trigger, not a flag | **native.** Applied live 2026-09-18T22:38Z; the trigger half worked from the apply. Its backfill refused every call until `migrations/2026-09-18-native-calendar-backfill-temp-table-clear.sql`, and **the backfill has still never been run** — the cards that already lagged at the flip are still lagging. **Open note carried from the 2026-09-19 closures: the trigger has not yet been observed on a genuine editor change** — it is correct-by-construction, not yet correct-by-measurement, until the next real status change lands. | OPEN_REPAIRS **212** (the backfill has still never run). No checkpoint row: the bridge repairs a hole the exit *opened*, rather than replacing a Linear dependency. |
 | **Card-vs-calendar watcher** | none — a CI lane | **code installed but not wired.** Script, unit suite, fixture and `card-calendar-status-drift.yml` land in this PR; the lane cannot pass until the repository secret **`SUPABASE_URL`** is set, which is an owner action. Registered as watchdog lane `card_calendar_drift`. | Nothing in the checkpoint. It is the measurement that the calendar bridge is holding — the reconciler cannot be, because it compares the two surfaces through Linear and native receipts send Linear nothing. |
 | **Intake form path** | `native_intake_epochs` | **unknown, verify** — live flag value not recorded. The most wired of the remaining set: read from `index.html` (2), two Edge Functions and nine scripts. | Checkpoint row *"Intake: VIDEO_FORM_WEBHOOK and legacy dispatch selection"*, plus the **intake** half of the provider-branch row. |
 | **Workload page** | **unknown, verify** — no single flag key identified in this repository | **unknown, verify.** The checkpoint records the dependency as three `index.html` calls plus the `workload-linear` function; whether a native replacement is wired was not established here. `scripts/workload-native-visibility-check.js` and `workload-source-freshness.yml` measure the native side. | Checkpoint row *"Workload: index.html LINEAR_ISSUES_WEBHOOK, LINEAR_TWEAK_COMMENTS_WEBHOOK and WORKLOAD_LINEAR_URL calls; workload-linear function"*. |

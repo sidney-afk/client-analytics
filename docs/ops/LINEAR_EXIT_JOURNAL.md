@@ -30,6 +30,52 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Targeted calendar repair (`--since=2026-09-17T21:00:00Z`): the dry run listed exactly the one expected row. It was applied at 01:10:23Z: graphic component "Tweaks Needed" → "For SMM Approval". The re-run lists 0. Notification intents unchanged at 85, 2 urgent
+
+Storage session, on the owner's instruction: dry run first, apply only on an
+exact match.
+- **Where it ran:** the clean worktree at `c0eac8a4`.
+- **The script:** `scripts/native-calendar-status-backfill.js`. Its sha256
+  equals the current `origin/main` (`4649fff8`) blob. Both calendar migrations
+  are also byte-identical between the two commits.
+- **The live function:** `production_native_calendar_status_backfill`, body md5
+  `c844c202…`, the truncate fix from the entry below.
+- **Credentials:** `SUPABASE_URL` was built in memory from the private catalog.
+- **Private package:** `targeted-calendar-repair-20260919-2`.
+
+**Expected:** exactly one row. Post `p_native_fb8196734343aa8992cde678707f_2`,
+graphic component, `"Tweaks Needed" -> "For SMM Approval"`.
+
+| Step | Time (Z) | Result |
+|---|---|---|
+| Intents before | 01:10:15 | **85** total, **2** urgent, newest created 2026-09-18 21:49:10.417974 |
+| Dry run | 01:10 | exit 0. `lagging_components: 1`, and the one row is **exactly the expected post, component, from and to**. Verdict `MATCH` |
+| Dry-run recheck, immediately before apply | 01:10:22 | still `MATCH` |
+| `--apply` | local 01:10:22.031 to 01:10:22.473 | exit 0. **Applied 1**, the same single row. No other row |
+| Re-run (dry run) | 01:10 | exit 0, **0** lagging |
+| Intents after | 01:10:25 | **85** total, **2** urgent, **the same newest** `created_at`. **No notification row created** |
+
+**Receipt-style readback, after the apply:**
+
+| Object | Value |
+|---|---|
+| `calendar_posts` graphic component | `For SMM Approval`, `graphic_status_at` **2026-09-19 01:10:23.110904Z**; the post's `graphic_deliverable_id` is the linked card |
+| `calendar_posts` video component | unchanged: `Tweaks Needed`, stamped 2026-09-16 15:49:13Z |
+| Linked card | graphics team, status `smm_approval` since **2026-09-17 21:32:29.09096Z**; maps to `For SMM Approval`, which **matches** |
+| `calendar_post_events` | exactly **one** native-bridge row for this post: id **45085**, ts 01:10:23.110904Z, graphic, `Tweaks Needed` → `For SMM Approval`, `via: backfill` |
+| Card's source receipts (`mirror_outbox`) | **10221** (attachment, 2026-09-17 21:32:21Z, `written`) and **10222** (status, 2026-09-17 21:32:29Z, `stale`). Both are provider-era, from before the ordinary flip at 2026-09-18 16:13:49Z, and neither carries a native marker |
+
+- **Why this row escaped the earlier backfill:** the card moved on
+  2026-09-17 at 21:32:29Z. That is before the `since=2026-09-18T00:00Z` window of
+  the 16-row backfill below. This run's `since` starts at 2026-09-17 21:00Z.
+- **Clock note:** the database stamped the write 01:10:23.11Z, while the local
+  apply window closed at 01:10:22.47Z. That is an offset between the machine
+  clock and the database clock. There is one bridge row for this post, from this
+  run.
+- **Tooling note:** a first attempt, `targeted-calendar-repair-20260919-1`,
+  stopped in the before-snapshot on my own query error (`max(uuid)`). That was
+  before the dry run, and nothing ran against the calendar. It holds only a
+  context file. The run above is `-2`.
 ### 2026-09-18 — Step 27 readback, read-only, for ordinary receipts and assignment, against the owner's chosen criteria: 138 ordinary and 11 assignment native receipts, all typed and terminal, with no unmarked ordinary write since the flip. Most criteria are offline proofs and not applicable to live traffic. `calendar_post_events` has no native-bridge row after the backfill's own 16
 
 Storage session, on the owner's instruction. There was one read-only

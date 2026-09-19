@@ -30,6 +30,14 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native Workload scope corrected: normal board loading was
+already native; the remaining provider issue read is the legacy Calendar
+post-create/link-resume discovery path. Retirement now requires an equivalent
+native acknowledgement or a measured zero of dependent callers, resumable jobs,
+and retained provider rows. The required public identity-exposure check remains
+unverified because authorized execution was unavailable; no substitute is
+claimed.
+
 ### 2026-09-19 — step 29b inventory filed: every workflow and lane classified keep/retire/rewrite, nothing retired, per `docs/ops/LINEAR_EXIT_STEP29B_INVENTORY.md`.
 
 ### 2026-09-19 — the watcher's first live run was red, and it was right to be, about the wrong thing
@@ -689,7 +697,7 @@ accepted-receipt replay shortcut is gated on
 `principal.kind === "staff" && ! principal.testOnly` (`index.ts:5977-5978`), so
 a test-client replay never reaches it and falls through to a generic response
 carrying none of `replayed`, `read_only` or `authority_source`. Running check 4
-as `sidneylaruel` fails it for a reason unrelated to idempotency. So the test
+as `<test-client>` fails it for a reason unrelated to idempotency. So the test
 client can exercise the label **write** lane — which is what #1414 was for — and
 **cannot** exercise replay. My note that check 7 no longer needed a named real
 client was wrong on the same point and is withdrawn.
@@ -907,7 +915,7 @@ Found by reading, not by running. All three layers refuse `test_only`:
 
 So step 27 has **no TEST lane at all**, and the first native label write that can
 ever succeed is on a real client — colliding with "Mutate only the test client
-`sidneylaruel`". #1413 fixed precisely this shape for the ordinary and assignment
+`<test-client>`". #1413 fixed precisely this shape for the ordinary and assignment
 lanes and left the third untouched, because nobody had looked at it. Two honest
 resolutions, both owner decisions: extend the parity migration to this lane, or
 name a real client in the go-ahead.
@@ -3513,7 +3521,7 @@ steps 14 and 15 only if both equal `18697ad2…`.
 
 #### The read
 
-- **Reader:** `D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-plan-hashes.private.cjs`,
+- **Reader:** `D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-plan-hashes.private.cjs`,
   SHA-256 `b6aecfe38bae1cf452519d4e06f7948e0210940f58776470686ff53600cd9d48`
   (4,081 bytes), unchanged before and after.
 - **Connection:** the same pattern as the step 12 and 14 wrapper: password
@@ -3733,7 +3741,7 @@ inferred here. The runbook promises no duration.
 
 #### Step 15: verifier written and hashed, NOT run
 
-`D:/Sidney/Codex/2026-09-13-final-review-repairs/verify-install-state.private.cjs`,
+`D:/<owner>/Codex/2026-09-13-final-review-repairs/verify-install-state.private.cjs`,
 SHA-256 **`b1a2cdbd1c94a00cbf5a9b53c78ae9b533333be08abeff2210ad10cb34837b32`**,
 7,211 bytes.
 
@@ -3888,7 +3896,7 @@ Wrappers were hashed in the same process, all as proven: catalog read
 
 | Item | Value |
 |---|---|
-| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-flags-20260917-1/pre-state-flags.private.json` |
+| **File** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-flags-20260917-1/pre-state-flags.private.json` |
 | **SHA-256** | **`7346703619777aeba94c426d8ce19243da70f5a43e8bddfbf3e2e51a528ed63a`** |
 | Bytes | 125,217; sorted keys (re-serialisation reproduces it byte for byte) |
 | SHA-256 of its `compare` section | `48b3f5eab40a9bbdb79791a586d86ac295bb4d25ada4b4d3ea1517d292bf559c` |
@@ -4436,10 +4444,10 @@ re-checked against the value below, so what ran is what was recorded.
 
 | Item | Value |
 |---|---|
-| **File** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs` |
+| **File** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs` |
 | **SHA-256** | **`ddec698855b672677018fe6ceaf68e83718de50a23c75e46c7f83aaa5b765b45`** |
 | Bytes | 8,952 |
-| Operator it drives | `scripts/linear-exit-install-operator.js` from checkout `D:/Sidney/Codex/2026-09-13-linear-exit-review-fixes` |
+| Operator it drives | `scripts/linear-exit-install-operator.js` from checkout `D:/<owner>/Codex/2026-09-13-linear-exit-review-fixes` |
 | Driver | `operator-runtime/node_modules/postgres`, version 3.4.7, as the runbook specifies |
 
 #### Behaviour: the only difference from the operator's `main()` is where the config comes from
@@ -4502,8 +4510,8 @@ never retries.
 #### The step 12 invocation, as it will run from a Windows PowerShell 5.1 host
 
 ```powershell
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
-node D:/Sidney/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/Sidney/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/Sidney/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
+node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
+node D:/<owner>/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/<owner>/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/<owner>/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
 ```
 
 The first line is a fresh catalog read for the wrapper's one-hour window. **It is
@@ -5291,7 +5299,7 @@ workflow or worker was touched.
 
 | Item | Value |
 |---|---|
-| **Snapshot** | `D:/Sidney/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json` |
+| **Snapshot** | `D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json` |
 | **SHA-256** | **`ad3bdf6a3d6c61f14f20725a5c0b7ed7247352bb1c6abf02c328d1796dc43033`** |
 | Bytes | 161,316 |
 | SHA-256 of its `compare` section alone | `eea5512f3395e7b96104b955d80dee3eb21ddcf91d89f614ae4f565adf18c27c` |
@@ -5942,7 +5950,7 @@ is consistent with Windows' built-in zip, which is inference only.
 anything that is not a Storage export. **The owner fixed the method below. No
 new script is written for it.**
 
-#### Names, all under `D:/Sidney/Codex/2026-09-13-final-review-repairs`, local date 2026-09-16
+#### Names, all under `D:/<owner>/Codex/2026-09-13-final-review-repairs`, local date 2026-09-16
 
 | Use | Name |
 |---|---|
@@ -5958,15 +5966,15 @@ new script is written for it.**
 1. **Catalog read, then the capture immediately after it, with nothing between.**
    The refresh wrapper refuses a receipt older than one hour.
    ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
    ```
    If the capture refuses `SOURCE_CHANGED`, that is the concurrent-write check
    working. It is reported as such and retried **once**, in a quieter moment,
    with a fresh catalog read and new names (`-7`, `-2`).
 2. **Local restore before any upload** (sitting page, step 9):
    ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
    ```
 3. **Manifest confirmation, by the owner's ruling.** The manifest stays sealed;
    it is **not** decrypted outside the wrappers. It is confirmed through the
@@ -5981,8 +5989,8 @@ new script is written for it.**
    the restored evidence equals the manifest's exactly.
 4. **Packaging, the owner's fixed method:**
    ```powershell
-   Compress-Archive -Path 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
-   (Get-FileHash -LiteralPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
+   Compress-Archive -Path 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
+   (Get-FileHash -LiteralPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
    ```
    Hashed **once, when made. That is the upload hash.** Without `-Force`,
    `Compress-Archive` refuses an existing destination.
@@ -5996,7 +6004,7 @@ new script is written for it.**
 7. **Verify the Windows download, no new script:**
    ```powershell
    (Get-FileHash -LiteralPath '<downloaded zip in the evidence directory>' -Algorithm SHA256).Hash.ToLower()   # must equal the upload hash
-   Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\Sidney\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
+   Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
    ```
    Then **every extracted member** is compared by SHA-256 and size with the file
    of the same name in `day-database-20260916-1\encrypted`. The member sets must
@@ -6008,7 +6016,7 @@ new script is written for it.**
    > capture produces, and every member is compared.
 8. **Step 10 restore of the Windows download:**
    ```powershell
-   node D:/Sidney/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/Sidney/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
+   node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
    ```
    Then the same independent catalog hash and table count check on the scratch
    cluster.
@@ -6153,7 +6161,7 @@ same host arrangement as the proof read `day-catalog-20260916-4`.
 
 - **Command**, from a **Windows PowerShell 5.1** host (5.1.26100.9444), the
   reviewed command from the handover section 4.2:
-  `node D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/Sidney/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-5`
+  `node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-5`
 - **Wrapper SHA-256**, hashed in the same process immediately before the run:
   `6b6e2fe7248d08f627dbf91319211ed11a9a5e1743a66b2fd327f9d595e9bb56`. That is the
   version recorded in the entry "Storage session: the private catalog wrapper now
@@ -7126,7 +7134,7 @@ their own entries.
 
 #### What changed in the private file, described so it can be checked without seeing it
 
-`D:/Sidney/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs`
+`D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs`
 maps a live catalog's canonical hash to a profile name. On line 18 it held a
 two-entry object literal, `observed67` (`809c5dc7…`) and `observed67_optout`
 (`f5ed8a38…`), and nothing else.
@@ -7924,7 +7932,7 @@ on the owner's machine, with PostgreSQL 17, ICU `en-US` on loopback and the
 private observed inputs:
 
 - **Before:** a separate git worktree at `05bf19f6`, the parent of
-  `808bca20`, at `D:/Sidney/Codex/2026-09-16-runner-before-05bf19f6`.
+  `808bca20`, at `D:/<owner>/Codex/2026-09-16-runner-before-05bf19f6`.
 - **After:** the checkout at `808bca20`.
 - **Differences between the trees:** `git diff --stat` shows exactly one code
   file, the runner. `run-portable.ps1` and the Deno worker are byte-identical.
@@ -10676,7 +10684,7 @@ plan if someone can actually reach a PG17 server.
 existing generator can be pointed at.
 
 **It is not missing from the project, only from here.** The owner's machine has
-PG17 at `D:/Sidney/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`, which
+PG17 at `D:/<owner>/Codex/2026-09-09-repair-evidence/postgres17/pgsql/bin`, which
 the installation runbook already uses, and the portable runner accepts it via
 `-PgBin`. So B10 is blocked on **the Windows machine**, not on effort and not on
 a capability nobody has.

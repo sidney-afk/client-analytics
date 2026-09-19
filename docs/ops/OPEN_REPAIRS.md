@@ -36,7 +36,7 @@ today, the whole population is 58 batches:
 | owner | null-parent batches | ACTIVE | with children |
 |---|---|---|---|
 | TEST client | 57 | **0** | 55 |
-| `roccopiazza` | 1 | 1 | **0** |
+| `client-17` | 1 | 1 | **0** |
 
 Every TEST-client row is inactive, so nothing operational can reach one. The
 single real row is item 2: active, but empty — no deliverable references it.
@@ -55,7 +55,7 @@ needs to happen. Archiving the 58 rows remains available purely for tidiness —
 it needs the service key and changes nothing anybody sees — so it is the owner's
 call whether it is worth the keystroke, not a repair anyone is waiting on.
 
-## 2. [closed] `bat_fd246364…` — roccopiazza, empty orphan, invisible and left
+## 2. [closed] `bat_fd246364…` — client-17, empty orphan, invisible and left
 
 The wave-1 Create Post batch from the outage window. Diagnosed 2026-08-08:
 **empty orphan** — `linear_parent_ids` null AND zero deliverables reference it
@@ -288,7 +288,7 @@ source level and mutation-proved by removing each one.
 
 Corrected 2026-08-08 by measurement + owner observation: live is v3 (not the
 manifest's hand-written "v2"), still NOT the #1016 fix (fingerprint
-live != main, verified), but lukecutting's link WORKS — old code + working
+live != main, verified), but client-16's link WORKS — old code + working
 link proves his token was backfilled. Blast radius is therefore FUTURE clients
 only. The owner approved deploying; the session cannot run production CLI
 deploys, so the deliberate-manual lane was replaced with a dispatch-only CI
@@ -1223,9 +1223,9 @@ graphics; the per-row detail goes to a private artifact that needs the service
 role key. Anyone with that key can settle it in one run.
 
 One hypothesis was tested and REJECTED rather than left hanging: that the
-2026-08-21 card move to Kasper Ads caused it. The move did produce three stuck
+2026-08-21 card move to client-20 caused it. The move did produce three stuck
 rows (`GRA-7042/43/44`, item 27), but the audit's sample names `GRA-7034`–`7041`
-too, and those are `resolved` and correctly claim `kasperhytonen` — their Linear
+too, and those are `resolved` and correctly claim `client-13` — their Linear
 project still maps there. So the move explains three, not the sample, and not 24.
 
 **SETTLED 2026-08-24 — the 27 rows are named, and the audit is measuring
@@ -1444,7 +1444,7 @@ cleanup look like an untouched pile. Counted again, live only:
 
 | Linear project | live issues |
 | --- | --- |
-| [Sidney Laruel](https://linear.app/synchro-social/project/137d80cc-0798-4c0d-9604-1622b871ea9f) | 74 |
+| [the test client](https://linear.app/synchro-social/project/137d80cc-0798-4c0d-9604-1622b871ea9f) | 74 |
 | [Test Project](https://linear.app/synchro-social/project/test-project-34326a93eba0) | 23 |
 | **total** | **97** |
 
@@ -1478,7 +1478,7 @@ Measured, because the premise is checkable and it is wrong in two steps:
 - `wlIsActiveStatus` treats **Backlog as ACTIVE work**. Only `completed`,
   `canceled`, `duplicate` and `triage` are terminal, and `WL_PARKED_STATUSES`
   parks approval states — not Backlog.
-- `'Sidney Laruel'` is **on `WL_CLIENT_NAMES`**, the Workload roster, so the
+- `'<test-client>'` is **on `WL_CLIENT_NAMES`**, the Workload roster, so the
   test client's issues pass the client filter too.
 
 So they do appear, and they are not unassigned noise:
@@ -1613,7 +1613,7 @@ means "the park did not run" rather than "the evidence went somewhere else":
 
 - Every one of those cards carries BOTH Linear links AND both native deliverable
   ids, so the helper's `if (!url && !nativeId) continue` skip cannot explain it.
-- `sidneylaruel` has been in `write_ui_reroute_clients` continuously since
+- `<test-client>` has been in `write_ui_reroute_clients` continuously since
   2026-08-04 (`flag_flips`), so these archives took the GATEWAY, not the legacy
   n8n lane. A legacy push would leave no outbox row and would have made this
   measurement worthless; it did not apply.
@@ -1771,11 +1771,11 @@ that it carries no client mapping, so it appears in no client's view and its
 status has no owner. Fixing the status would leave it unattributed anyway.
 
 **IDENTIFIED 2026-08-22 — it is the TEST client, and the evidence is
-unambiguous.** Three independent pointers all say `sidneylaruel`:
+unambiguous.** Three independent pointers all say `<test-client>`:
 
-- its batch `bat_f1aa24b0…` is `client_slug = sidneylaruel`,
-- its sibling row on the same card (the Video half) is `sidneylaruel`,
-- the card itself, `p_native_8eb840a2…_1`, belongs to `sidneylaruel`, is named
+- its batch `bat_f1aa24b0…` is `client_slug = <test-client>`,
+- its sibling row on the same card (the Video half) is `<test-client>`,
+- the card itself, `p_native_8eb840a2…_1`, belongs to `<test-client>`, is named
   "Test 4", and is already archived.
 
 So this is drill residue, not a real client's work, and the repair is to make
@@ -1789,14 +1789,14 @@ it rebuilds the payload FROM the stored row so nothing else can move:
 begin;
 select public.deliverable_write(
   (select jsonb_build_object(
-     'id', id, 'client_slug', 'sidneylaruel', 'batch_id', batch_id,
+     'id', id, 'client_slug', 'the test client', 'batch_id', batch_id,
      'team', team, 'kind', kind, 'title', title, 'status', status,
      'origin', origin, 'card_id', card_id, 'created_by', created_by,
      'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
      'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
      from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace'),
   jsonb_build_object('source','system','action','attribution_repair','actor','owner',
-    'payload', jsonb_build_object('from','unattributed','to','sidneylaruel'))
+    'payload', jsonb_build_object('from','unattributed','to','the test client'))
 ) is not null as repaired;
 select id, client_slug, batch_id, card_id, file_url, comments
   from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace';
@@ -1807,7 +1807,7 @@ commit;
 key is what `deliverable_write` treats as an instruction, so naming them would
 blank them (see item 24). The readback prints both so you can see they survived.
 
-- Done when: the row reads `sidneylaruel` and this entry says so.
+- Done when: the row reads `<test-client>` and this entry says so.
 
 ---
 
@@ -2024,18 +2024,18 @@ belong to an ACTIVE client:**
 
 | issue | client | status | since | due |
 |---|---|---|---|---|
-| `GRA-7068` | Jenna Phillips Ballard | For Kasper approval | 2026-08-12 13:40Z (10 days) | 2026-08-19, past |
-| `GRA-7084` | Jenna Phillips Ballard | For Kasper approval | 2026-08-14 17:37Z (8 days) | 2026-08-21, past |
+| `GRA-7068` | client-08 | For Kasper approval | 2026-08-12 13:40Z (10 days) | 2026-08-19, past |
+| `GRA-7084` | client-08 | For Kasper approval | 2026-08-14 17:37Z (8 days) | 2026-08-21, past |
 
-Both are Rocío's, both correctly filed in the Jenna Phillips Ballard project in
+Both are staff-F's, both correctly filed in the client-08 project in
 Linear, both parented under the right VID issues — and both invisible in
 SyncView because the row says `unattributed`. They also carry no `card_id`, so
 they are not in a review queue either. **This is real work nobody can see.**
 
 Note for honesty: three of the six `project_or_parent_changed` rows
-(`GRA-7042/7043/7044`) were invalidated by the 2026-08-21 card move to Kasper
-Ads. The invalidation was RIGHT — their project now maps to `djkasper`, not
-`kasperhytonen` — but nothing applied the new answer either, so a deliberate,
+(`GRA-7042/7043/7044`) were invalidated by the 2026-08-21 card move to client-20
+Ads. The invalidation was RIGHT — their project now maps to `client-05`, not
+`client-13` — but nothing applied the new answer either, so a deliberate,
 correct move silently produced three orphans.
 
 **Made visible on demand:** `node scripts/attribution-stuck-check.js` —
@@ -3402,7 +3402,7 @@ receipt that already landed.
 
 ## 39. [owner-reported 2026-08-25] The calendar refuses a thumbnail status change: `native_link_required`
 
-> *"my social media manager Sebastian says that when he wants to change the
+> *"my social media manager staff-A says that when he wants to change the
 > status of a post, it says save, failed, retry... it says native link required"*
 > *"I need to fix all of them so I can tell my social media manager they can use
 > the calendar."*
@@ -3466,9 +3466,9 @@ them TEST drill rows, and **three real**:
 
 | when | who | what they pasted |
 |---|---|---|
-| 2026-08-18 | Raha (smm) | a GRA thumbnail belonging to a **different client** |
-| 2026-08-24 23:22 | Sebastian (smm) | GRA-6678 — **the card he was refused on the next morning** |
-| 2026-08-25 13:19 | Ludmila (smm) | GRA-7228, which has no deliverable row at all |
+| 2026-08-18 | staff-B (smm) | a GRA thumbnail belonging to a **different client** |
+| 2026-08-24 23:22 | staff-A (smm) | GRA-6678 — **the card he was refused on the next morning** |
+| 2026-08-25 13:19 | staff-C (smm) | GRA-7228, which has no deliverable row at all |
 
 So this is not historical debris that is finished settling. Staff paste Linear
 URLs into the card's link slot from the UI (`_calBulkLinkApply`, index.html
@@ -3504,7 +3504,7 @@ points at it... repair = finish the half-done link"*).
 The b3 **planner was run against a fixture built from the live tables** — 8,805
 cards, 5,380 deliverables, 6,086 sample reviews — and planned exactly **one**
 write: `p_mt7v1ebq_phmny` → `b1_d_6edaa19c5e064f5ca040ddd40791c2c3`. That is
-Sebastian's card. Everything else it refused for a reason that holds:
+staff-A's card. Everything else it refused for a reason that holds:
 
 - the second same-client candidate (`p_mq8i3bz6_fqmvn`) is on an **archived** card,
 - two cards of one client point at a single unbound row — a card-side fan-in, so binding
@@ -3575,7 +3575,7 @@ query that needs no slug and names any active client missing from any list.
 ## 41. [owner-reported 2026-08-25] The batch a post belongs to is invisible, so people make a second one
 
 > *"en los batches creados no me aparece el issue de linear correspondiente"*
-> *"si pongo crear batch nuevo se le asigna a santi un video nuevo (que en
+> *"si pongo crear batch nuevo se le asigna a staff-E un video nuevo (que en
 > realidad es ese mismo) y se termina haciendo super confuso el workload"*
 
 Three reported symptoms, one cause. Old batches recorded **one team's** Linear
@@ -4066,7 +4066,7 @@ defect. Six cards are in the repaired card's shape. Three of those were counted
 as repairable because each had exactly one *free* graphics deliverable in its
 batch — but when the actual rows were pulled rather than the counts, **all three
 name the SAME free deliverable**, one batch-level graphic
-(`Chelsey Scaffidi · 26 May 2026`, GRA-6225) sitting in a batch of separate
+(`client-03 · 26 May 2026`, GRA-6225) sitting in a batch of separate
 videos. Binding it to one card leaves the other two exactly where they started,
 and picking which one is a judgement nobody has made.
 
@@ -4985,7 +4985,7 @@ This is the shipped 2026-08-25 seal working exactly as designed — the same
 mechanism item 59 is about, applied correctly here. **Not a bug, not
 client-visible, no data at risk.**
 
-**Why it's still worth an entry, not just a shrug:** Sidney's plan (stated
+**Why it's still worth an entry, not just a shrug:** the owner's plan (stated
 2026-08-28) is to keep Linear as a live rollback path for roughly two weeks.
 If authority ever flips back to `linear` for either team during that window,
 the exact code path these assertions exercise — real input, clear, re-link,
@@ -6119,23 +6119,23 @@ advertising work that no longer exists.
 
 ### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused — **FIXED 2026-08-31** (PR #1183, deployed): PROD_ASSET_UNREAD_GUIDANCE now covers every deliverable, not only synthetic parents.
 
-**Verified by refutation attempt.** I established the mechanism independently and it is not fixed on this branch. CODE. index.html:47411 sets `unreadable` only for `issue.syntheticBatchParent === true`; 47414 therefore resolves every slot of a REAL deliverable to `missing`, because index.html:48683-48689 hardcodes `assets` to four empty strings. Both rescue loops — index.html:47519 (no staff identity) and index.html:47600 (read failed) — only upgrade rows already in state `checking`, which a real deliverable can never be in, since `checking` requires a URL the projection cannot supply. The value column at index.html:53003-53007 then prints "Not provided" and the pill at 53011 prints "Missing". LIVE MEASUREMENT (publishable key, project uzltbbrjidmjwwfakwve). `production_deliverables_browser_v1` returns 46 columns and none is asset-bearing (dumped); `deliverables` and `batches` both answer 42501 to the browser key — so the projection genuinely cannot carry these values, exactly as the candidate says. 5,883 live deliverable rows (3,585 video / 2,298 graphics) after applying `_prodDeliverableLive`'s marker filter. WHO IS MISLED, AND WHEN. (a) Persistent, every reader including admins: the edge function refuses when the declared client_slug is not an ACTIVE client (supabase/functions/production-write/index.ts:3754-3755, `if (!client || client.active !== true) throw 403`). 686 live cards fall in that set — 637 of them carry client_slug `unattributed`, plus testproject 22, jessicaencellcoleman 15, jesszweig 9. The browser sends `authorityProject || storedClientSlug || project` (index.html:47507), which for those rows is `unattributed`. Anyone triaging the unattributed backlog on Monday opens one and is told the post has no filming plan, no footage, no delivery folder and no file — while the red line underneath blames their staff account, which is also not the reason. (b) Persistent, cross-team creatives: policy.mjs:300-306 `staffAssetReadAllowed` admits admin/smm always, and creative only when memberTeam === targetTeam. team_members holds 3 active editors (video: Santi, Nahuel, Iara) and 1 active designer (graphics: Rocio); roleCompatible maps editor/designer onto keyRole `creative` (policy.mjs:143). So
+**Verified by refutation attempt.** I established the mechanism independently and it is not fixed on this branch. CODE. index.html:47411 sets `unreadable` only for `issue.syntheticBatchParent === true`; 47414 therefore resolves every slot of a REAL deliverable to `missing`, because index.html:48683-48689 hardcodes `assets` to four empty strings. Both rescue loops — index.html:47519 (no staff identity) and index.html:47600 (read failed) — only upgrade rows already in state `checking`, which a real deliverable can never be in, since `checking` requires a URL the projection cannot supply. The value column at index.html:53003-53007 then prints "Not provided" and the pill at 53011 prints "Missing". LIVE MEASUREMENT (publishable key, project uzltbbrjidmjwwfakwve). `production_deliverables_browser_v1` returns 46 columns and none is asset-bearing (dumped); `deliverables` and `batches` both answer 42501 to the browser key — so the projection genuinely cannot carry these values, exactly as the candidate says. 5,883 live deliverable rows (3,585 video / 2,298 graphics) after applying `_prodDeliverableLive`'s marker filter. WHO IS MISLED, AND WHEN. (a) Persistent, every reader including admins: the edge function refuses when the declared client_slug is not an ACTIVE client (supabase/functions/production-write/index.ts:3754-3755, `if (!client || client.active !== true) throw 403`). 686 live cards fall in that set — 637 of them carry client_slug `unattributed`, plus testproject 22, client-10 15, client-12 9. The browser sends `authorityProject || storedClientSlug || project` (index.html:47507), which for those rows is `unattributed`. Anyone triaging the unattributed backlog on Monday opens one and is told the post has no filming plan, no footage, no delivery folder and no file — while the red line underneath blames their staff account, which is also not the reason. (b) Persistent, cross-team creatives: policy.mjs:300-306 `staffAssetReadAllowed` admits admin/smm always, and creative only when memberTeam === targetTeam. team_members holds 3 active editors (video: staff-E, staff-G, staff-D) and 1 active designer (graphics: staff-F); roleCompatible maps editor/designer onto keyRole `creative` (policy.mjs:143). So
 
 **Traps in the obvious fix.** Three concrete risks. (1) The honest label must not survive a SUCCESSFUL read: the gateway legitimately returns per-slot state `missing` for a genuinely empty column, and SMMs/designers rely on "Missing" to know a filming plan has not been uploaded yet — a blanket seed change to `unavailable` would erase a true signal on the ~5,200 cards whose read succeeds. The change belongs keyed on `state.status` in the seed (47414) and the two rescue loops (47519, 47600), never on the row. (2) `checking` is already a user-visible label ("Checking", _prodAssetStateLabel), so reusing it for the pre-read seed would leave four rows reading "Checking" forever on any card whose read never returns. (3) test/prod-batch-parent-panels.js:313 pins the exact source expression `_calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided')` with a text scanner; any edit to that line reds a currently green test and must be updated in the same commit.
 
 ### 87.2 Unassigned + undated sub-issues vanish from the whole Workload board, including the strip labelled "Needs assignment" — **FIXED 2026-08-31** (PR #1185): counted and reported by `wlExcludedSummaryText`; nothing re-bucketed.
 
-**Verified by refutation attempt.** HOLDS — mechanism and scale independently reproduced against live data. MECHANISM (index.html:16340-16343). wlApplyData buckets in one pass. First branch: `if (!s.assigneeId) { if (inProg || workDate) unassigned.push(s); continue; }`. `workDate` = wlDisplayDate(s) (15656), empty unless a manual plan_date or a Linear due_date exists. So an active unassigned sub with no date and status != "In Progress" is pushed to no list and `continue`d past every later bucket, including needsTweak at 16352. Confirmed no console warning covers it: the two warns in this function are for unrecognised clients (16286) and non-allowlisted video editors (16315). I verified the consumer inventory myself rather than taking it on trust. renderWorkloadShell (15808-15900) has exactly five panels: Team-workload matrix, work-day calendar, "Needs assignment" strip, "Needs a work day or deadline" strip, legend. wlState.unassigned is read by one renderer only (renderLooseIssueStrip via 18208). The matrix (17914-17922), the freest-first row (18049-18053) and the popover 'active' source (18768) all iterate planned/nowWorking/tweaksNeeded/overdue/undated — never unassigned. wlState.allActiveSubs reaches the popover only via `data-wl-issue-id` on a rendered rollup element, and these rows render no element anywhere, so that path is genuinely unreachable. `.workload-empty` (CSS 3876) has zero call sites in the file. LIVE MEASUREMENT (workload_issues, 1,940 active rows read with the public key, replaying wlIsActiveStatus + wlIsAllowedClient + the bucketing loop): 210 active sub-issues for seed-roster clients; 167 visible; 42 silently discarded (20%). Two clients go 100% blank: Miki Agrawal 4/4 lost (VID-9645/9646/9647 "16/17/18 video" and VID-10327, all Tweak Needed, VID-10327 last touched 2026-08-28 — flip day), and Jesse Israel via candidate 4's gate. Partial loss: Dr. Sonia Chopra 23 of 33, Kasper Hytonen 9 of 14, Baya Voce 5 of 21, Sidney Laruel 1 of 5. Dropped statuses: 34 Todo, 8 Tweak Needed. The no-empty-state claim is exact: hasAnyData (17692) is computed on the UNFILTERED lists, so with 167 rows visible globally it is truthy and renderWeekGrid/renderMonthGrid paints an empty week rather than
+**Verified by refutation attempt.** HOLDS — mechanism and scale independently reproduced against live data. MECHANISM (index.html:16340-16343). wlApplyData buckets in one pass. First branch: `if (!s.assigneeId) { if (inProg || workDate) unassigned.push(s); continue; }`. `workDate` = wlDisplayDate(s) (15656), empty unless a manual plan_date or a Linear due_date exists. So an active unassigned sub with no date and status != "In Progress" is pushed to no list and `continue`d past every later bucket, including needsTweak at 16352. Confirmed no console warning covers it: the two warns in this function are for unrecognised clients (16286) and non-allowlisted video editors (16315). I verified the consumer inventory myself rather than taking it on trust. renderWorkloadShell (15808-15900) has exactly five panels: Team-workload matrix, work-day calendar, "Needs assignment" strip, "Needs a work day or deadline" strip, legend. wlState.unassigned is read by one renderer only (renderLooseIssueStrip via 18208). The matrix (17914-17922), the freest-first row (18049-18053) and the popover 'active' source (18768) all iterate planned/nowWorking/tweaksNeeded/overdue/undated — never unassigned. wlState.allActiveSubs reaches the popover only via `data-wl-issue-id` on a rendered rollup element, and these rows render no element anywhere, so that path is genuinely unreachable. `.workload-empty` (CSS 3876) has zero call sites in the file. LIVE MEASUREMENT (workload_issues, 1,940 active rows read with the public key, replaying wlIsActiveStatus + wlIsAllowedClient + the bucketing loop): 210 active sub-issues for seed-roster clients; 167 visible; 42 silently discarded (20%). Two clients go 100% blank: client-21 4/4 lost (VID-9645/9646/9647 "16/17/18 video" and VID-10327, all Tweak Needed, VID-10327 last touched 2026-08-28 — flip day), and client-09 via candidate 4's gate. Partial loss: client-19 23 of 33, client-13 9 of 14, client-02 5 of 21, the test client 1 of 5. Dropped statuses: 34 Todo, 8 Tweak Needed. The no-empty-state claim is exact: hasAnyData (17692) is computed on the UNFILTERED lists, so with 167 rows visible globally it is truthy and renderWeekGrid/renderMonthGrid paints an empty week rather than
 
 **Correction as the verifier framed it.** Scale: 42 of 210 active sub-issues for roster clients (20%), not 44 of 62; the "Needs assignment" strip lists 5, not 18 — the auditor's 62/18/44 figures count non-roster client names, which a separate gate drops with a console.warn. Drop the "every new card the video team makes on Monday lands in this hole" framing: 197 of 221 sub-issues created since 2026-08-20 are assigned and 213 are dated, so the hole is old stock, not the growth path.
 
-**Traps in the obvious fix.** Routing the 42 rows into wlState.unassigned turns a one-line strip into a wall — renderLooseIssueStrip (18211) maps the entire filtered array with no cap, and 34 of the 42 are stale Todo rows (Sonia 23, Kasper 9) nobody has touched in months, so the strip that today shows 5 chips shows 47 (112 with sheet-merged clients). Worse, that strip is built with applyEditorFilter=false, which means its chips carry NO "Set work day" button — the fix would surface 42 rows and offer no action on any of them. Bucketing them into needsTweak instead is the more dangerous option: every downstream consumer keys on assigneeId (wlGroupRollups 17714, ensureEditor 17836, wlDayOverCapacity 15781), so undated unassigned rows would collapse into a phantom '?' editor and distort the capacity math the auto-placement pass depends on. The low-risk shape is the one commit bfb02742 already ratified for Kasper: a counted, reported notice above the board plus a real empty-state when the current filter yields nothing, leaving the bucketing untouched.
+**Traps in the obvious fix.** Routing the 42 rows into wlState.unassigned turns a one-line strip into a wall — renderLooseIssueStrip (18211) maps the entire filtered array with no cap, and 34 of the 42 are stale Todo rows (client-19 23, client-13 9) nobody has touched in months, so the strip that today shows 5 chips shows 47 (112 with sheet-merged clients). Worse, that strip is built with applyEditorFilter=false, which means its chips carry NO "Set work day" button — the fix would surface 42 rows and offer no action on any of them. Bucketing them into needsTweak instead is the more dangerous option: every downstream consumer keys on assigneeId (wlGroupRollups 17714, ensureEditor 17836, wlDayOverCapacity 15781), so undated unassigned rows would collapse into a phantom '?' editor and distort the capacity math the auto-placement pass depends on. The low-risk shape is the one commit bfb02742 already ratified for the reviewer: a counted, reported notice above the board plus a real empty-state when the current filter yields nothing, leaving the bucketing untouched.
 
 ### 87.3 The SMM's Review tab (and its badge) drops a card at "For SMM Approval" that has no media — **FIXED 2026-08-31** (PR #1185, commit `c19e714e`): counted notice in both queue states; the media gate and the badge deliberately unchanged, pinned by `test/smm-review-stranded-media.js`. **THE SAMPLES TWIN WAS MISSED AND IS NOW ALSO FIXED (2026-09-01)** — see below.
 
-**Verified by refutation attempt.** HOLDS — reproduced exactly, to the single card, on live data. MECHANISM. _calReviewItems (41756): in smm mode `if (!_calHasMedia(p)) return false;` runs BEFORE the awaiting-approval test. _calApprovalBadgeCount (41717) repeats the same skip, so the badge agrees with the wrong list. _calHasMedia (41642) is asset_url OR thumbnail_url non-empty. renderCalReview (41778-41784) then prints the empty state. I read the whole function: there is no stranded list and no notice on this path. LIVE MEASUREMENT (calendar_posts, 9,326 rows read with the public key; 695 non-archived, replaying _calComponentsFor / _calNormStatus / _calHasMedia): 11 non-archived posts have a component at "For SMM Approval"; exactly 1 is hidden by the media gate. It is client `lukecutting`, name "Video 1", id p_native_891c58824ab4a68aae00cff23ad1_1, video_status="For SMM Approval", asset_url and thumbnail_url both empty, video_deliverable_id=del_fe263739-… (native), scheduled_date=2026-08-31 — Monday — last written 2026-08-28T22:18:29Z, flip day. It is the ONLY awaiting card on that client, so the queue that renders "Nothing waiting on SMM approval right now" is 100% wrong for lukecutting, and the badge is 0. lukecutting is a real live client, not a test slug: 27 rows, cards Posted through 2026-08-29. The contradiction claim is exact. _calSmmMediaGap (41653) computes beyondProgress('For SMM Approval') && !asset_url = true, so the same card renders _calSmmWarnDotHtml on the month pill (41188) and week pill (41323), _calSmmWarnOverlayHtml on the Sheet card thumb (37350), and _calSmmWarnBannerHtml in the preview (42821) — all saying "No video linked." Three surfaces flag it; the fourth, the queue the SMM works approvals from, says nothing is there. The tab is unavoidable for internal users: tabViews at 34997 is `['smmreview','organizer','month','week']` whenever !_isClientLink, and 35006 wires the badge to _calApprovalBadgeCount('smm'). This is the exact archetype commit bfb02742 fixed on Kasper's side hours ago — I diffed it: the fix added a `stranded` bucket at the identical media gate and _kasperRenderStrandedNotice above the queue. The SMM's gate 200 lines away in the same file was not given the s
+**Verified by refutation attempt.** HOLDS — reproduced exactly, to the single card, on live data. MECHANISM. _calReviewItems (41756): in smm mode `if (!_calHasMedia(p)) return false;` runs BEFORE the awaiting-approval test. _calApprovalBadgeCount (41717) repeats the same skip, so the badge agrees with the wrong list. _calHasMedia (41642) is asset_url OR thumbnail_url non-empty. renderCalReview (41778-41784) then prints the empty state. I read the whole function: there is no stranded list and no notice on this path. LIVE MEASUREMENT (calendar_posts, 9,326 rows read with the public key; 695 non-archived, replaying _calComponentsFor / _calNormStatus / _calHasMedia): 11 non-archived posts have a component at "For SMM Approval"; exactly 1 is hidden by the media gate. It is client `client-16`, name "Video 1", id p_native_891c58824ab4a68aae00cff23ad1_1, video_status="For SMM Approval", asset_url and thumbnail_url both empty, video_deliverable_id=del_fe263739-… (native), scheduled_date=2026-08-31 — Monday — last written 2026-08-28T22:18:29Z, flip day. It is the ONLY awaiting card on that client, so the queue that renders "Nothing waiting on SMM approval right now" is 100% wrong for client-16, and the badge is 0. client-16 is a real live client, not a test slug: 27 rows, cards Posted through 2026-08-29. The contradiction claim is exact. _calSmmMediaGap (41653) computes beyondProgress('For SMM Approval') && !asset_url = true, so the same card renders _calSmmWarnDotHtml on the month pill (41188) and week pill (41323), _calSmmWarnOverlayHtml on the Sheet card thumb (37350), and _calSmmWarnBannerHtml in the preview (42821) — all saying "No video linked." Three surfaces flag it; the fourth, the queue the SMM works approvals from, says nothing is there. The tab is unavoidable for internal users: tabViews at 34997 is `['smmreview','organizer','month','week']` whenever !_isClientLink, and 35006 wires the badge to _calApprovalBadgeCount('smm'). This is the exact archetype commit bfb02742 fixed on Kasper's side hours ago — I diffed it: the fix added a `stranded` bucket at the identical media gate and _kasperRenderStrandedNotice above the queue. The SMM's gate 200 lines away in the same file was not given the s
 
-**Correction as the verifier framed it.** Live scale is one card, not four: across all 695 non-archived posts exactly one is hidden by this gate (lukecutting "Video 1", Monday 2026-08-31). The filing's "one visible card and three hidden ones" case, where the empty-state copy does not even appear, has zero live instances today — today the copy does render and does name the rule, so the disclosure is partial rather than absent.
+**Correction as the verifier framed it.** Live scale is one card, not four: across all 695 non-archived posts exactly one is hidden by this gate (client-16 "Video 1", Monday 2026-08-31). The filing's "one visible card and three hidden ones" case, where the empty-state copy does not even appear, has zero live instances today — today the copy does render and does name the rule, so the disclosure is partial rather than absent.
 
 **Traps in the obvious fix.** Do not un-gate the filter. _calReviewCardHtml is built around media, so admitting the card into `items` renders a broken review card offering approve/tweak actions on a deliverable that does not exist.
 
@@ -6157,11 +6157,11 @@ so the next divergence fails a test instead of being predicted again. The safe f
 
 ### 87.4 Workload silently deletes an assigned sub-issue whose assignee is not in the five-name hardcoded editor allowlist — **FIXED 2026-08-31** (PR #1185): same repair as 87.2; the predicate is about TEAM, and the comment now says so.
 
-**Verified by refutation attempt.** HOLDS on the user-visible harm, but the filing's supporting argument about the console diagnostic is wrong and the scale is one row. MECHANISM CONFIRMED. wlIsAllowedEditor (15511-15519) buckets by team FIRST: `if (wlTeamBucket(teamKey, teamName) === 'graphics') return WL_ALLOWED_GRAPHICS.has(norm); return WL_ALLOWED_EDITORS.has(norm);`. WL_INACTIVE_EDITORS is a separate check one line above. So the predicate is "not on this ROW'S team roster", while the comment at 16345-16347 justifies the drop as "Sub-issues stuck on FORMER editors". A current graphics designer assigned to a video-team row is dropped exactly like a departed one. The auditor read the predicate correctly. DATA CONFIRMED. I pulled VID-12809 from workload_issues: title "Thumbnail 3", status "Tweak Needed" (status_type started, so wlIsActiveStatus passes), due_date 2026-07-09 — 7+ weeks overdue — team_key VID / team_name "Video", assignee Rocío Perez (rocio@synchrosocial.com), client Jesse Israel, active=true, synced 2026-08-30T23:50Z. wlTeamBucket('VID','Video') returns 'video', WL_ALLOWED_EDITORS does not contain 'rocioperez', so it is dropped at 16348 before the tweaks bucket. Replaying the full bucketing: it is Jesse Israel's ONLY active sub-issue, so filtering Workload to Jesse Israel yields a completely blank board — Team workload showing the three video editors at zero, an empty calendar, both strips empty, and no message, for the same reason as candidate 1 (hasAnyData at 17692 is unfiltered). This is a thumbnail deliverable filed on the video team: Rocío has 409 rows total, 407 on GRA/Graphics and only 2 on VID/Video, of which this is the only active sub-issue. So it is one mis-teamed row, not a class. WHERE THE FILING IS WRONG. The claim that "the one diagnostic an operator would reach for tells them the opposite of what happened" does not survive measurement. I replayed the reporting loop at 16297-16307 against live data: `graphicsPass` = {Rocío Perez} — true, her 407 graphics-team rows do pass — and `videoDropped` = {"Rocío Perez (1)"}, emitted as a console.warn that names exactly the row that was dropped. The diagnostic is correct today. The auditor's scenario (a graphics designer who is
+**Verified by refutation attempt.** HOLDS on the user-visible harm, but the filing's supporting argument about the console diagnostic is wrong and the scale is one row. MECHANISM CONFIRMED. wlIsAllowedEditor (15511-15519) buckets by team FIRST: `if (wlTeamBucket(teamKey, teamName) === 'graphics') return WL_ALLOWED_GRAPHICS.has(norm); return WL_ALLOWED_EDITORS.has(norm);`. WL_INACTIVE_EDITORS is a separate check one line above. So the predicate is "not on this ROW'S team roster", while the comment at 16345-16347 justifies the drop as "Sub-issues stuck on FORMER editors". A current graphics designer assigned to a video-team row is dropped exactly like a departed one. The auditor read the predicate correctly. DATA CONFIRMED. I pulled VID-12809 from workload_issues: title "Thumbnail 3", status "Tweak Needed" (status_type started, so wlIsActiveStatus passes), due_date 2026-07-09 — 7+ weeks overdue — team_key VID / team_name "Video", assignee staff-F (<staff email>), client client-09, active=true, synced 2026-08-30T23:50Z. wlTeamBucket('VID','Video') returns 'video', WL_ALLOWED_EDITORS does not contain 'rocioperez', so it is dropped at 16348 before the tweaks bucket. Replaying the full bucketing: it is client-09's ONLY active sub-issue, so filtering Workload to client-09 yields a completely blank board — Team workload showing the three video editors at zero, an empty calendar, both strips empty, and no message, for the same reason as candidate 1 (hasAnyData at 17692 is unfiltered). This is a thumbnail deliverable filed on the video team: staff-F has 409 rows total, 407 on GRA/Graphics and only 2 on VID/Video, of which this is the only active sub-issue. So it is one mis-teamed row, not a class. WHERE THE FILING IS WRONG. The claim that "the one diagnostic an operator would reach for tells them the opposite of what happened" does not survive measurement. I replayed the reporting loop at 16297-16307 against live data: `graphicsPass` = {staff-F} — true, her 407 graphics-team rows do pass — and `videoDropped` = {"staff-F (1)"}, emitted as a console.warn that names exactly the row that was dropped. The diagnostic is correct today. The auditor's scenario (a graphics designer who is
 
-**Correction as the verifier framed it.** Strike the console argument: measured live, the console.warn correctly reports "Rocío Perez (1)" as dropped, and zero graphics-team rows are misreported as "passing through" — WL_ALLOWED_GRAPHICS covers the only graphics designer on staff, so the auditor's scenario has no instances. Scale is exactly one row (Rocío has 407 GRA rows and 2 VID rows, only this one active), so this is a single mis-teamed issue, not a systematic drop of current staff.
+**Correction as the verifier framed it.** Strike the console argument: measured live, the console.warn correctly reports "staff-F (1)" as dropped, and zero graphics-team rows are misreported as "passing through" — WL_ALLOWED_GRAPHICS covers the only graphics designer on staff, so the auditor's scenario has no instances. Scale is exactly one row (staff-F has 407 GRA rows and 2 VID rows, only this one active), so this is a single mis-teamed issue, not a systematic drop of current staff.
 
-**Traps in the obvious fix.** Widening the guard is the tempting fix and the wrong one: wlEditorCapacity (15775) keys on the ROW'S team, not the person's, so admitting Rocío's VID row would open a second 4-unit/day video capacity lane for her alongside her real 15-unit graphics lane, double-counting one person across two rows of the Team-workload matrix and feeding wlComputeAutoPlacements a capacity model for a queue she does not work. A union-of-allowlists change also silently re-admits anyone assigned across teams, which is what the guard exists to prevent. The correct fix is the same reported-not-dropped shape as bfb02742, plus repairing the comment at 16345-16347 to say what the predicate actually tests and dropping the stale "(no graphics allowlist yet)" from 16309. The underlying data problem — a GRA deliverable filed on the VID team — is a Linear-side repair, not a code change, and post-flip nothing reconciles it on its own.
+**Traps in the obvious fix.** Widening the guard is the tempting fix and the wrong one: wlEditorCapacity (15775) keys on the ROW'S team, not the person's, so admitting staff-F's VID row would open a second 4-unit/day video capacity lane for her alongside her real 15-unit graphics lane, double-counting one person across two rows of the Team-workload matrix and feeding wlComputeAutoPlacements a capacity model for a queue she does not work. A union-of-allowlists change also silently re-admits anyone assigned across teams, which is what the guard exists to prevent. The correct fix is the same reported-not-dropped shape as bfb02742, plus repairing the comment at 16345-16347 to say what the predicate actually tests and dropping the stale "(no graphics allowlist yet)" from 16309. The underlying data problem — a GRA deliverable filed on the VID team — is a Linear-side repair, not a code change, and post-flip nothing reconciles it on its own.
 
 ### 87.5 Video "Attach / replace" does nothing at all, silently, whenever asset access has not finished loading — a leftover graphics-only clause the open PR forgot — **FIXED 2026-08-30** (commit `d55332b8` + the seventh layer): the graphics-only continuation clause is gone.
 
@@ -6235,7 +6235,7 @@ so the next divergence fails a test instead of being predicted again. The safe f
 
 ### 87.14 'Reload before trying again' is offered for the one refusal the code's own comment says will recur forever — **FIXED 2026-08-31** (PR #1185): the reload prescription is gone; the message states the problem and names no remedy. The escalation to name is the owner call.
 
-**Verified by refutation attempt.** Independently established, measured, and corroborated by the repo's own precedent. MECHANISM. WRITE_UI_FAILURE_CODE_TEXT.native_link_required (index.html ~25980-25983) reads 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.' The refusal is thrown by makePayload inside _writeUiGatewayPost (`if (!intent.legacyOnly && !legacyParity && !intent.nativeId)`, ~26428) purely from the row's real state, and by _writeUiClassifyTargetless (~25144). Neither reads a cache. I confirmed there is no client-side backfill of video_deliverable_id/graphic_deliverable_id from a url anywhere in the file - _calAdoptDeliverableLinks runs the other direction (url FROM the deliverable) - so a reload re-reads the same server row and produces the same refusal. The comment fifteen lines above the copy already states it: 'makePayload throws native_link_required forever after. The card looks connected and fails on use.' REACHABILITY, MEASURED. The pill is not locked for these cards: _calCompLinked (26962-26973) returns true when EITHER the url or the native id is present, so a card with a Linear url and no deliverable id has a live, clickable status pill. Live counts (status != Archived): 111 cards with linear_issue_id and no video_deliverable_id, 149 with graphic_linear_issue_id and no graphic_deliverable_id. Of the 111, 36 are still in flight (18 In Progress, 9 Approved, 2 Tweaks Needed, 1 Client Approval, 6 blank) across dougcartwright, jesseisrael, chelseyscaffidi, daniellerobin and others. The throw propagates out of _calFlushCardSave before the source upsert, so the status genuinely does not move. CORROBORATION. The repo has already fought this exact shape: _writeUiReportFailure carries a block titled 'MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13)' that evicts display caches for entity_not_found and batch_not_found so their reload advice becomes true. native_link_required is in the same `reload` class but was not added - and could not be, because the server row is the problem. Two lines below, the `artifact` class comment already concedes the principle: 'Reloading cannot fix that and never could.'
+**Verified by refutation attempt.** Independently established, measured, and corroborated by the repo's own precedent. MECHANISM. WRITE_UI_FAILURE_CODE_TEXT.native_link_required (index.html ~25980-25983) reads 'This team now writes natively, but this cached card has no native deliverable link. Reload before trying again.' The refusal is thrown by makePayload inside _writeUiGatewayPost (`if (!intent.legacyOnly && !legacyParity && !intent.nativeId)`, ~26428) purely from the row's real state, and by _writeUiClassifyTargetless (~25144). Neither reads a cache. I confirmed there is no client-side backfill of video_deliverable_id/graphic_deliverable_id from a url anywhere in the file - _calAdoptDeliverableLinks runs the other direction (url FROM the deliverable) - so a reload re-reads the same server row and produces the same refusal. The comment fifteen lines above the copy already states it: 'makePayload throws native_link_required forever after. The card looks connected and fails on use.' REACHABILITY, MEASURED. The pill is not locked for these cards: _calCompLinked (26962-26973) returns true when EITHER the url or the native id is present, so a card with a Linear url and no deliverable id has a live, clickable status pill. Live counts (status != Archived): 111 cards with linear_issue_id and no video_deliverable_id, 149 with graphic_linear_issue_id and no graphic_deliverable_id. Of the 111, 36 are still in flight (18 In Progress, 9 Approved, 2 Tweaks Needed, 1 Client Approval, 6 blank) across client-06, client-09, client-03, client-04 and others. The throw propagates out of _calFlushCardSave before the source upsert, so the status genuinely does not move. CORROBORATION. The repo has already fought this exact shape: _writeUiReportFailure carries a block titled 'MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13)' that evicts display caches for entity_not_found and batch_not_found so their reload advice becomes true. native_link_required is in the same `reload` class but was not added - and could not be, because the server row is the problem. Two lines below, the `artifact` class comment already concedes the principle: 'Reloading cannot fix that and never could.'
 
 **Traps in the obvious fix.** The copy edit is trivial; the honest replacement is the hard part. Post-flip there is no in-app way to give a legacy card a native deliverable - Production create is closed (production_create_closed), the link paste is sealed, and Import from Linear only makes more of them - so a truthful message has to end in an escalation rather than a self-serve step. That is an owner decision, not a wording tweak. Do NOT 'fix' it by moving native_link_required into the cache-eviction list: the eviction would fire on every one of these 260 cards, forcing a full refetch per client, and still refuse.
 
@@ -6752,7 +6752,7 @@ is what the Workload board reads. Decomposed the way this file insists on:
 
 | bucket | rows | actionable? |
 |---|---|---|
-| TEST client (`sidneylaruel`) | 116 | no — drill fixtures |
+| TEST client (`<test-client>`) | 116 | no — drill fixtures |
 | one former, off-roster client | 39 | no — nobody is waiting |
 | **active-roster client work** | **40** | **yes** |
 
@@ -6761,10 +6761,10 @@ lacks a Linear identifier — every one names an issue that `workload_issues` do
 not carry.
 
 **The mechanism, read out of `deliverable_events` rather than guessed.** Taking
-`bat_486f3680…` (Luke Cutting - Bible Break, 2026-08-28) as the worked example:
+`bat_486f3680…` (client-16, 2026-08-28) as the worked example:
 
 ```
-13:17:32  create                    actor=Ludmila            src=ui
+13:17:32  create                    actor=staff-C            src=ui
 13:19:38  mirror_out_create_link    actor=SyncView Mirror    src=outbound
 13:19:43  mirror_out_create_link    actor=SyncView Mirror    src=outbound
 13:19:48  mirror_out_create_link    actor=SyncView Mirror    src=outbound
@@ -7041,13 +7041,13 @@ rows, and refuses.
 
 **The live incident, read out of the tables rather than reconstructed.** Card
 `p_mqpc5aje_l9u52`, `graphic` slot, deliverable `b1_d_3466b7d9bb24429cad3cc31a0fd3d279`
-(`GRA-6422`), client `soniachopra`. Client root `c_mtk33nwj_2i8ex` at
+(`GRA-6422`), client `client-18`. Client root `c_mtk33nwj_2i8ex` at
 `2026-09-02T12:40:31Z`, `is_tweak = true`, round 5, `audience = client`. The
 deliverable's live crosswalk that day: `client_slug` and `team` correct,
 `origin = "manual"` where the calendar surface expects `calendar`, and
 `card_id = NULL` where the card's own id was expected — mismatch on **origin and
 card_id**, so `_prodClientCommentGatewayContext` returned `null` and the root
-took the legacy lane. `soniachopra` is on the reroute allowlist, so the staff
+took the legacy lane. `client-18` is on the reroute allowlist, so the staff
 reply went to the gateway, its parent lookup returned ZERO rows, and it came
 back **409 `comment_parent_ambiguous`** — a code `index.html` filed under the
 `reload` class, whose text told the person to reload a page whose stale copy was
@@ -7079,8 +7079,8 @@ All 9,681 `calendar_posts` (19,362 video+graphic slots) against all 6,241
 | … mismatch, no client root | 152 | a STAFF root on a mismatching slot still went to the gateway and HAS a canonical row, so a reply to it resolves. Excluded **on purpose**. |
 | **… mismatch WITH a client root** | **20** | one-way threads, holding **32** client roots |
 
-Per client: `jesseisrael` 7, `bayavoce` 5, `soniachopra` 3,
-`jessicawinterstern` 3, `eben&annie` 1, `jennaphillipsballard` 1.
+Per client: `client-09` 7, `client-02` 5, `client-18` 3,
+`client-11` 3, `client-07` 1, `client-08` 1.
 `crosswalk_fields` histogram: `card_id+origin` 16, `team` 2,
 `card_id+origin+team` 1, `origin` 1.
 Nine of the twenty sit on a card that is neither Archived nor Posted.
@@ -7607,7 +7607,7 @@ defect. Restricting to requests made SINCE that moment:
    ever landed on one. That is item 102's root reaching the status lane, and it
    is the population this client sat in on 2026-09-02.
 2. **A valid crosswalk still fails ~17% of the time** (8 of 46), spread across
-   `alaynabellquist`, `lilybaker` (4), `lisakleyn` (2) and others, over three
+   `client-01`, `client-14` (4), `client-15` (2) and others, over three
    weeks. Intermittent, so a DIFFERENT cause, and one the crosswalk repair will
    not touch.
 
@@ -7641,7 +7641,7 @@ leaves by being done or by an owner decision, never by silence.
 
 ### 105.1 — Replies essentially never happen on this estate, and that is a symptom
 
-Across `soniachopra`'s entire account: 91 cards, **126** card comments in the
+Across `client-18`'s entire account: 91 cards, **126** card comments in the
 five comment columns (98 excluding the legacy `tweaks` mirror; 82 across
 `video_tweaks` + `graphic_tweaks` alone) and **2 replies, ever** — both on
 components other than video or graphic, which have **zero**. A conversation
@@ -7920,8 +7920,8 @@ tab produced
    its post could not be resolved here; it may also never have been imported.
    Ask an Admin to look it up. Showing the full list instead.`
 
-**The target exists.** That id is `VID-13330`, "Doug Cartwright | Aug. 17 - Aug.
-23 | Reels", `client_slug=dougcartwright`, `team=video`, `status=posted`, and it
+**The target exists.** That id is `VID-13330`, "client-06 | Aug. 17 - Aug.
+23 | Reels", `client_slug=client-06`, `team=video`, `status=posted`, and it
 is the parent of the eight Reel sub-issues. So the notice states something
 false, which is the class this tab has already spent a week removing (items 81
 through 86, and the 2026-09-01 amendment to this very notice's copy).
@@ -9922,7 +9922,7 @@ claim 119 made.
 
 ## 127. [2026-09-03, FIXED — browser-only, live on merge] A caption has no work item, but every writer aimed it at the video deliverable: six days of refused change-requests on cards with no video, and mis-filed notes on the ones that have it
 
-**What was reported.** Kasper, reviewing a carousel card, typed a note in the
+**What was reported.** The reviewer, reviewing a carousel card, typed a note in the
 Caption pane and pressed one of its buttons. A red banner appeared under it
 reading, in full, `native_link_required`. The Thumbnail pane on the same card
 had accepted his change-request seconds earlier.
@@ -11112,7 +11112,7 @@ assertion in a different probe.
 
 ```
 ✗  opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)
-   [hash="#sample-reviews/sidneylaruel" mounted=false]
+   [hash="#sample-reviews/the test client" mounted=false]
 ```
 
 `mounted=false` is the important half: **the route WAS refused.** With `?sxr=0`
@@ -11463,7 +11463,7 @@ verdict whether it looked or not. Both spellings now.
   is the suite's fixtures, which reproduce the 2026-09-03 finding, the
   failed-run-before-the-table shape, the drill-run-between-receipt-and-bundle
   shape and the other-lane dispatch exactly, and fail.
-## 135. [2026-09-03, FIXED — browser-only, live on merge] Kasper could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
+## 135. [2026-09-03, FIXED — browser-only, live on merge] The reviewer could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
 
 **Reported.** The owner opened the four cards from item 134's notice and said:
 *"you can see that the cards are fine… they have captions, so can you find out
@@ -11475,7 +11475,7 @@ caption-only card whose video and thumbnail are both **N/A**.
 queue was `hasKasperWork && (hasAsset || hasThumb)` — one question about the
 WHOLE card: does it carry any media? A caption is text. It needs no file, so a
 caption-only card always answered no, fell into the stranded notice, and told
-the SMM to *"add the file"* for work that was finished and needed none. Kasper
+the SMM to *"add the file"* for work that was finished and needed none. The reviewer
 had no way to approve it.
 
 **Now asked per component:** a `video` needs `asset_url`, a `graphic` needs
@@ -13334,7 +13334,7 @@ Joining `production_deliverables_browser_v1` against active `workload_issues` on
 | graphics | 5 |
 | **total live drift** | **12** |
 | distinct clients | 8 |
-| TEST client (`sidneylaruel`) | **0** |
+| TEST client (`<test-client>`) | **0** |
 
 Eight distinct active-roster slugs, none of them the TEST client, so every one is
 real client work; the slugs are deliberately not listed here, because this repo is
@@ -14029,7 +14029,7 @@ rediscovered as a bug.
   someone whose role is `smm`/`admin`, or whose `team` disagrees with the
   deliverable's, silently leaves the board. Nobody has counted those rows against
   live data. The same is true of the CLIENT half: `native_client_active` is
-  `clients.active`, and the TEST client `sidneylaruel` is active, so 116 TEST rows
+  `clients.active`, and the TEST client `<test-client>` is active, so 116 TEST rows
   may arrive on the live board at cutover. **Both are counts, and both need one
   live read.**
 - **`scripts/f40-workload-readiness.js` was left alone.** It audits the
@@ -15322,7 +15322,7 @@ production totals — the Graphics team, TEST/internal clients, and unassigned
 work. Two of the three were implemented (`kind === 'video'`, `assignee_id`) and
 the third was not.
 
-The one that matters is TEST: `sidneylaruel` is the client the nightly probes
+The one that matters is TEST: `<test-client>` is the client the nightly probes
 drive, they move statuses on it all night, every move writes a `status_change`
 to `deliverable_events`, and each row landed in whichever editor holds the
 `assignee_id` — in the panel Kasper reads to judge people.
@@ -18229,7 +18229,7 @@ unrunnable the moment lane F stops that reconcile.
 | active rows in `workload_issues` (what the board reads today) | 2,059 |
 | **live tasks present natively and ABSENT from the board** | **37** |
 | of those, active-roster client work | **33**, across 11 clients |
-| of those, the TEST client `sidneylaruel` | 4 |
+| of those, the TEST client `<test-client>` | 4 |
 | of those, never mirrored to the provider at all | **0** |
 
 Split: 27 VID / 10 GRA; 21 video / 16 thumbnail. Statuses: 30 `Todo`,
@@ -20616,7 +20616,7 @@ have read P1, found it satisfied, and run STEP 3 into an inert mint. P1 and STEP
 (`{"mode":"provider"}` per team) beside it.
 
 **The check that already covered this, and why it stays.** P1 has always ended
-with an empirical readback — create one card on `sidneylaruel` and read back a
+with an empirical readback — create one card on `<test-client>` and read back a
 non-null `deliverables.linear_identifier` that Linear did not mint. That test
 fails correctly against a half-done gate no matter how the prose is worded, which
 is the argument for ending every precondition in an observation rather than a
@@ -22871,7 +22871,7 @@ carry no `raw_project_id`, so this read path reaches further than the one card.
 The URGENT ping covered exactly one case: a **video at Tweaks Needed**, pinging the
 editor in `#video-editing`. The mirror case had no affordance at all. A card parked
 at **Kasper Approval** could sit there indefinitely, and the only escalation was the
-SMM chasing Kasper by hand — which leaves no trace on the row, so nothing on Kasper's
+SMM chasing the reviewer by hand — which leaves no trace on the row, so nothing on the reviewer's
 own screen said which of the cards in his queue could not wait.
 
 **Shape.** The second flavour is deliberately ONE machine with the first, not a
@@ -23023,7 +23023,7 @@ the un-shippable copy:
    Kasper ping to persist-before-Slack so a failed write could not produce a DM
    about a section that never populates. That traded one failure for its mirror:
    the marker now lands, the card repaints as Urgent, and if the webhook then
-   fails, Kasper never got the DM — while the blank-field guard stops the empty
+   fails, the reviewer never got the DM — while the blank-field guard stops the empty
    marker from clearing it, so reloads keep suppressing the retry. Slack and
    Postgres have no shared transaction, so *some* window exists whichever order
    you pick; the fix is to stop pretending otherwise. Add
@@ -26479,6 +26479,19 @@ two files: a grep for the project ref finds it in several more, and whether each
 is a default (dangerous) or a documented constant in a read-only diagnostic
 (merely public) has not been measured.
 
+**2026-09-19 amendment — unrelated documentation defect found while correcting
+the native Workload exit scope.** `loadLinearIssues()` is already native: it
+returns `wlFetchNativeSnapshot()` for normal Workload boot and refresh. The
+remaining `linear-issues` dependency is instead
+`wlDiscoverProviderIssues()`, called by the legacy Calendar post-create linker
+and its persisted-job resume path to find just-created provider sub-issues and
+write their card links. A native Workload board does not remove that dependency.
+The exit plan must require an equivalent native link acknowledgement or a
+read-only proof that no caller/resumable job and no retained provider row still
+depends on the route; hiding native controls or recording an owner disposition
+is not a replacement. No production access, code, flag, workflow, or database
+change was made by this amendment.
+
 ## 214. [2026-09-19, OPEN — REGRESSION, not intended] The Create Post editor picker is disabled because a completeness guard fires on a read PostgREST truncates at 1000 rows
 
 Owner observation during the identifier-mint check 3 walkthrough on the test
@@ -26939,4 +26952,3 @@ against the real base branch one of them passes. Both are now fixed:
 
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
-

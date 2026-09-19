@@ -49,7 +49,12 @@ check('has a change-request checklist container', /id="resolveDestChecklist"/.te
 check('the old Cancel button is gone', /onclick="_calDismissResolveDest\(\)">Cancel</.test(overlay), false);
 check('no discard-confirm screen — ✕ just closes (same in both tabs)', /id="resolveDestDiscard"/.test(overlay), false);
 check('✕ button just dismisses the chooser', /id="resolveDestClose"[\s\S]*?onclick="_calDismissResolveDest\(\)"/.test(overlay), true);
-check('backdrop click just dismisses the chooser', /if\(event\.target===this\)_calDismissResolveDest\(\)/.test(overlay), true);
+check('backdrop click just dismisses the chooser', /if\(event\.target===this&&this\._backdropPressBegan\)_calDismissResolveDest\(\)/.test(overlay), true);
+/* OPEN_REPAIRS 215: a press that starts inside the dialog and releases on the
+   backdrop must NOT dismiss it — the plain event.target===this check alone
+   cannot tell that apart from a real backdrop click, since `click` dispatches
+   at the common ancestor either way. Guard against regressing back to it. */
+check('backdrop dismiss requires the press to have begun on the backdrop, not just the click landing there', /data-backdrop-dismiss/.test(overlay), true);
 
 // ---- status mapping: Approve → Approved ----
 console.log('\n— status mapping: Approve → Approved —');

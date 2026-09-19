@@ -2,6 +2,8 @@
 
 All times are UTC unless noted.
 
+## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all twenty-four dialog overlays (OPEN_REPAIRS 215)
+
 ## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down
 
 **This is a discovery entry, not a record of an action taken.** No session in

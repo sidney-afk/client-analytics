@@ -26676,3 +26676,117 @@ Calendar dialog end to end — which is exactly the surface this touches. Per
 
 Not fixed here. Found during the identifier-mint step 27 walkthrough; it is a
 browser change with no relation to that capability and does not belong in its PR.
+
+**Amendment, 2026-09-19, later the same day — FIXED.** Fixed independently on `claude/beautiful-einstein-34h3m5` before this entry (session B's original report) had merged; the two described the same bug and this reconciles them into one entry per the numbering-collision note in CLAUDE.md.
+
+**What it was.** In the Create Post dialog, drag-selecting text in the batch
+name field from right to left — or any press that starts inside a dialog and
+releases on the backdrop — closed the whole dialog, discarding every field in
+it. Thirteen backdrop-dismiss sites across `index.html` shared the same
+unguarded pattern: `onclick="if(event.target===this)FN()"` (ten inline
+markup sites) or the JS equivalent `overlay.onclick = event => { if
+(event.target === overlay) FN(); }` (three JS-created overlays). The DOM
+dispatches `click` at the nearest common ancestor of the mousedown and mouseup
+targets, so a press in a field and a release on the backdrop makes
+`event.target === overlay` true at click time — indistinguishable from an
+actual backdrop click. The field's own `stopPropagation()` on `mousedown`
+does not help, since `click` is a separate, later event.
+
+**Fix.** One shared, delegated, capture-phase `mousedown` listener on
+`document`, added once near the top of the app script, records on every press
+whether it began directly on an element marked `data-backdrop-dismiss` (not on
+one of its descendants):
+
+```js
+document.addEventListener('mousedown', event => {
+    const backdrop = event.target && event.target.closest && event.target.closest('[data-backdrop-dismiss]');
+    if (backdrop) backdrop._backdropPressBegan = (event.target === backdrop);
+}, true);
+```
+
+Capture phase is load-bearing for the same reason session B's entry gives: the
+batch-name field's `stopPropagation()` on `mousedown` would stop a bubble-phase
+listener on the overlay from ever seeing that press. Delegating at `document`
+rather than arming each overlay individually also means a dialog whose markup
+is re-rendered (a fresh overlay element replacing the old one — several of
+these are inside `innerHTML` template re-renders, not static markup) is
+covered without anything to re-arm.
+
+Each of the thirteen sites' own dismiss check now additionally requires
+`overlay._backdropPressBegan` (or `this._backdropPressBegan` for the inline
+markup sites) before calling its dismiss function — true only when both the
+press and the click landed on the backdrop itself. All thirteen go through
+this one mechanism; none carries a bespoke per-dialog patch. Sites:
+`confirmOverlay`, `resolveDestOverlay`, `smCommentsOverlay`,
+`calPreviewOverlay`, `calImportOverlay`, `calLinearImportOverlay`,
+`calBulkLinkOverlay`, `calCommentsOverlay`, `calPromptOverlay`,
+`sxrCommentsOverlay` (marked via the `data-backdrop-dismiss` HTML attribute),
+and `staffIdentityOverlay`, `thumbCompareOverlay`, `calNativePostOverlay`
+(marked via `overlay.setAttribute('data-backdrop-dismiss', '')` at creation,
+guarded with a `typeof overlay.setAttribute === 'function'` check so a
+non-DOM test stub that stands in for the overlay in `test/create-post-picker.js`
+doesn't crash).
+
+**Proof.**
+- `node docs/syncview-design/tests/prod-write-gateway-browser.js` — new
+  assertion in the `calendar_native_intake` phase drives the exact shape of
+  the bug in a real (headless) browser: fills `#calNativeBatchName`, presses
+  down inside it, drags to a corner of `#calNativePostOverlay` (guaranteed to
+  be backdrop, since the overlay is `position: fixed; inset: 0` with the modal
+  centered inside it), and releases there. Confirmed to fail against the
+  pre-fix `index.html` with `a press that began in the batch-name field and
+  released on the backdrop closed Create Post`, and to pass with the fix.
+- `node test/resolve-route-chooser.js` — updated its static-markup assertion
+  for the new onclick pattern and added one asserting the
+  `data-backdrop-dismiss` marker is present.
+- `node test/create-post-picker.js` — the `_calOpenNativePost` open-flow test
+  exercises the new `overlay.setAttribute` call against a bare stub object;
+  guarded rather than left to crash the test.
+- `node test/run-all.js` — 564 of 566 suites pass; the same 2
+  (`test/native-intake-editor-browser.js`, `test/truth-sync.js`) fail
+  identically against unmodified `origin/main` in this sandbox (a missing git
+  blob in a shallow clone, and pre-existing doc-rollout findings unrelated to
+  this change) — not a regression.
+- `node docs/syncview-design/tests/prod-boot-budget.js` fails identically
+  against unmodified `origin/main` in this sandbox with no route to the live
+  backend (`net::ERR_CERT_AUTHORITY_INVALID` against fonts/CDN/Supabase/Sheets)
+  — the known CLAUDE.md caveat, not a regression from this change.
+
+**Not done here.** The two sites session B's entry flagged as not equivalent
+to the other eleven — `staffIdentityOverlay`'s extra `!overlay._syncviewEntry`
+condition, and the confirm overlays being inline attributes rather than bound
+listeners — were read and carried through unchanged rather than collapsed:
+the guard fix is orthogonal to both, and folding them together was not this
+fix's job.
+
+**Addendum, 2026-09-19, same day — "thirteen" was incomplete.** A Codex review
+on the PR (#1431) found the fix landed on only the thirteen sites session B's
+walkthrough had actually found, and a fresh sweep of `index.html` for the same
+`event.target === <overlay-like-thing>` shape turned up **eleven more**,
+missed by both sessions because they don't share one naming convention:
+Production's Create-issue backdrop (`_prodCloseCreate`, `data-prod-create-backdrop`)
+and its Archive-repair backdrop (`_prodCloseArchiveRepair`,
+`data-prod-archive-backdrop`), the Production command palette (`_prodOpenPalette`'s
+`bd` element), the transcript preview modal (`transcriptOverlay`, written as an
+inverted early-return — `if (e.target !== overlay) return;` — rather than the
+positive check, same bug underneath), the detail-info and MR-info popovers
+(`detail-info-overlay`, `mr-info-overlay`), and all five Kasper credential
+overlays (`_ccOpenEdit`, `_ccOpenHistory`, `_ccOpenOnboardingImport`,
+`_ccOpenBulkImport`, `_ccOpenModal`). All eleven now go through the identical
+`data-backdrop-dismiss` + `_backdropPressBegan` mechanism the original thirteen
+use — same helper, no new logic. The count in this entry's body above (and its
+"thirteen"/"eleven" markup-site counts) is now stale text describing the first
+pass; left as-is per the ledger's append-only rule rather than edited to match,
+since the code and this addendum are what's current. Sweep method used to find
+these: `grep` across `index.html` for every `.target === `/`.target !== `
+comparison, read each hit by hand rather than trusting the pattern's shape
+alone (the transcript modal's inverted early-return would have been missed by
+a positive-shape-only grep). No further ones found on a second pass after the
+fix.
+
+The one library-adjacent thing this pass deliberately left alone:
+`_calCardSelectClick`/`_sxrCardSelectClick`'s card-selection-checkbox overlays
+also compare against a click target, but they select a card rather than
+dismiss a dialog holding a draft, so the same-press/same-release ambiguity has
+no data to lose — out of the class this fix addresses, not a missed instance
+of it.

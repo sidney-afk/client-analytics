@@ -30,6 +30,111 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — Native identifier mint: steps 0, 5 and 6 done as expected. Step 7's video flip wrote the flag as a JSON **string**, the capability refused both teams for 16 s (03:16:53–03:17:09Z), and it was reverted to the exact prior value. STOPPED; video is seeded but not native
+
+Storage session, following `docs/ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md`
+at main `8c6f0289`. The private package is `mint-20260919-1`.
+
+**Owner decisions, recorded:**
+- **B-2:** shape (ii). Graphics is hand-seeded as `GRA` from GRA's own maximum,
+  7,559, with gap 440, so the next ordinal is 8,000. The 12 graphics cards with
+  `VID` names are ignored and never renamed.
+- **Video:** gap **1,064**, so the next ordinal is **15,000**. This is not the
+  default gap of 100,000.
+- **B-3:** accepted. The flip covers each whole team.
+- **B-4:** name the existing nameless cards after both seeds.
+- **Never:** rename anything that already has a name.
+
+**CORRECTION to the owner's first instruction,** raised before any write:
+- It expected seeds of VID 13920 and GRA 7229, from a GRA maximum of 7,228.
+- Gate 0 measured VID's maximum as **13,935** and GRA's as **7,559**.
+- The default gap is 100,000. Seeds at those expected values would have reissued
+  names already in use.
+- The owner replaced both targets with the gaps above.
+
+#### Step 0 — Gate 0 (read-only, 03:11:54Z): as the procedure expects
+
+- **Installed:** 4 functions and 1 trigger; 0 seed rows; 0 grants.
+- **Flags:**
+  - mint: `{"video":{"mode":"provider"},"graphics":{"mode":"provider"},"schema_version":1}`
+  - outbound: `{"mode":"live"}`
+  - intake: enabled for both teams, epochs `native-video-20260917` and
+    `native-graphics-20260917`.
+- **Routine bodies:** each live `md5(prosrc)` **equals** the body between the
+  `$fn$` markers of `migrations/2026-09-07-native-identifier-mint.sql` at
+  `8c6f0289`:
+  - capability `62285d09…`
+  - seed `e75108f9…`
+  - allocate `16349cc5…`
+  - guard `79ce1fde…`
+
+  All four are security definer and volatile, with
+  `search_path=pg_catalog, public`. The trigger definition matches the
+  procedure's text.
+- **Names:**
+
+  | Team | Prefix | Named cards | Highest number |
+  |---|---|---|---|
+  | video | `VID` | 3,951 | 13,935 |
+  | graphics | `GRA` | 2,661 | 7,559 |
+  | graphics | `VID` | 12 | 12,851 |
+
+- **Nameless cards:** video 24, graphics 21.
+
+#### Step 5 — check 6c: PASS
+
+- **When:** 03:16:40Z.
+- **How:** `select public.production_native_identifier_seed('graphics')` inside
+  an explicit transaction that was always rolled back.
+- **Result:** refused, `22023 native_identifier_prefix_ambiguous`.
+  `production_native_identifier_mint` held **0** rows afterwards.
+
+#### Step 6 — video seed: as expected
+
+- **Pre-check:** video has one prefix, `VID`, with maximum 13,935, and no seed
+  row existed.
+- **Call:** `select public.production_native_identifier_seed('video', 1064)`
+  returned
+  `{"ok":true,"team":"video","prefix":"VID","seed_gap":1064,"next_ordinal":15000,"observed_provider_max":13935}`.
+- **Readback:** one row, `video | VID | next_ordinal 15000 |
+  observed_provider_max 13935 | seed_gap 1064 | seeded_at 03:16:47.492Z |
+  seeded_by postgres`.
+
+#### Step 7 — video flip: DIFFERED FROM EXPECTED. My error. Reverted
+
+- **The write:** at **03:16:53.169852Z** the flag was updated from
+  provider/provider, as checked, with `updated_by
+  owner-phase7-identifier-mint-step26`.
+- **The mistake:** my script passed the new value to `$1::jsonb` as an
+  already-serialised JSON string. The column therefore stored a **JSON string**
+  (`jsonb_typeof = 'string'`), not the object.
+- **The readback:** the service-role readback of
+  `production_native_identifier_capability` returned **HTTP 400
+  `22023 native_identifier_config_invalid` for both teams**. That is the
+  procedure's "refusal, not a fallback".
+- **The revert:** at **03:17:09.127327Z** the flag was reset to the exact prior
+  object, `{"schema_version":1,"video":{"mode":"provider"},"graphics":{"mode":"provider"}}`
+  (`jsonb_typeof = 'object'`), with `updated_by
+  owner-phase7-identifier-mint-step26-revert`. The capability then read back
+  video `provider` with `seeded: true`, and graphics `provider` with
+  `seeded: false`.
+- **Exposure: 15.96 s.**
+  - **What it could affect:** the guard calls the capability only on an
+    **INSERT of a video or graphics card with no name**, so updates were never
+    affected. A create in that window would have been refused.
+  - **What was measured:** from 03:16:30Z to 03:17:30Z there were **0**
+    `deliverables` created, **0** `deliverable_events` and **0** `mirror_outbox`
+    rows. The last card created before then was at 2026-09-18 20:13:42Z. The last
+    `deliverable_event` before the window was at 03:15:40Z.
+  - **The limit:** a refused create leaves no row, so this cannot rule out an
+    attempt that was refused. The function logs were not read.
+- **State now:** video is seeded at `VID` 15,000. Both teams are `provider`. No
+  name has been minted; `production_native_identifier_grants` holds 0 rows. No
+  notification was sent.
+
+**Stopped at step 7 on the differing readback.** The fix is to pass the value
+as an object, not as pre-serialised text, and re-run step 7. That waits for the
+owner's go-ahead. Steps 8–11 have not run.
 ### 2026-09-19 — Targeted calendar repair (`--since=2026-09-17T21:00:00Z`): the dry run listed exactly the one expected row. It was applied at 01:10:23Z: graphic component "Tweaks Needed" → "For SMM Approval". The re-run lists 0. Notification intents unchanged at 85, 2 urgent
 
 Storage session, on the owner's instruction: dry run first, apply only on an

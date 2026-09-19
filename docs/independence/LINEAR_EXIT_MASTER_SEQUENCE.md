@@ -82,7 +82,7 @@ and `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 — never in a source comment.
 | `linear_legacy_parity_enabled` | `{"enabled":true}` | BRIEFING |
 | `public_intake_enabled` | **`{"enabled":true}` since 2026-08-25** | BRIEFING:133-134 |
 | `production_assignee_eligibility` | **not recorded in either live-state doc** | — |
-| `production_native_identifier_mint` | **not recorded**, consistent with the mint being SOURCE ONLY | — |
+| `production_native_identifier_mint` | **`{"schema_version":1,"video":{"mode":"provider"},"graphics":{"mode":"provider"}}`, written 2026-09-17T16:14:54Z.** The mint is **applied and inert**, not source-only — corrected 2026-09-19 | measured live; `docs/ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md` B-1 |
 
 **A count was removed rather than corrected.** This table's staff-writes row used to
 say "all 43 active clients are enrolled". BRIEFING gives 41 at the video flip and 38
@@ -521,12 +521,34 @@ programme where the browser half legitimately ships ahead of its backend.
 
 These are live actions. None can be done by a session.
 
-### P1. Apply the naming mint migration AND seed each team — OPEN, and load-bearing
+### P1. Seed each team and flip the gate — OPEN. **The migration is already applied.**
 
-`docs/ops/NATIVE_IDENTIFIER_MINT.md` opens with: *"Status: SOURCE ONLY.
-`migrations/2026-09-07-native-identifier-mint.sql` has not been applied to the
-live database and no team has been seeded."* `EXECUTION_LOG.md` has no record of
-it either.
+> ## ⚠ CORRECTED 2026-09-19 — action 1 is DONE, and action 3 as written is impossible
+>
+> This section said the migration was source-only and told the operator to apply
+> it and then seed both teams through `production_native_identifier_seed`. **Both
+> halves were wrong**, and an operator routed here through the master sequence
+> would have re-run an install and then stopped at a refusal.
+>
+> | | as written here | measured 2026-09-19 |
+> |---|---|---|
+> | the migration | not applied | **applied**; flag row written 2026-09-17T16:14:54Z, four functions + trigger installed, **bodies verified** by `md5(prosrc)` against the committed source |
+> | seeding graphics | `production_native_identifier_seed('graphics')` | **always raises `native_identifier_prefix_ambiguous`** — two prefixes on the team. Graphics is **hand-seeded** by owner decision |
+> | seeding video | same call | **correct as written**, video has one prefix |
+>
+> The provenance of the apply is *discovered, not observed*: nothing in this
+> repository recorded it, and the 2026-09-17 timestamp is the flag row's, which
+> the migration writes. See `EXECUTION_LOG.md`, 2026-09-19.
+>
+> **The general failure is the one this programme keeps paying for:** a status
+> line written as a plan, copied into three documents, and never measured. The
+> canonical operator source is the last place it gets corrected and the first
+> place someone acts on it, which is why the correction propagates here and not
+> only into the runbook that owns the detail.
+
+`docs/ops/NATIVE_IDENTIFIER_MINT.md` now opens **"Status: APPLIED AND INERT"** —
+installed, bodies verified, and no team seeded. `EXECUTION_LOG.md` carries the
+discovery entry.
 
 **Why this matters more than it sounds.** `deliverables.linear_identifier` is the
 human-readable name on a card — the `VID-` and `GRA-` numbers staff actually say
@@ -545,10 +567,10 @@ explicit, and an earlier draft of this file named only the first three:
 
 | # | Action |
 |---|---|
-| 1 | Apply `migrations/2026-09-07-native-identifier-mint.sql` |
+| 1 | ~~Apply `migrations/2026-09-07-native-identifier-mint.sql`~~ **DONE 2026-09-17**, bodies verified 2026-09-19 |
 | 2 | `select public.production_native_identifier_seed('video');` — record the returned `prefix`, `observed_provider_max` and `next_ordinal` |
-| 3 | Same for `'graphics'` |
-| 4 | **Flip `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`** |
+| 3 | ⛔ **NOT the same call for `'graphics'` — it always raises `native_identifier_prefix_ambiguous`.** Hand-seed it: `insert into public.production_native_identifier_mint (team, prefix, next_ordinal, observed_provider_max, seed_gap) values ('graphics', 'GRA', 107560, 7559, 100000);` — naming all five columns, from `GRA`'s own maximum. Full statement, the arithmetic behind it and the readbacks: `docs/ops/NATIVE_IDENTIFIER_MINT.md` §*The exact graphics hand-seed statement* |
+| 4 | **Flip `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`** — per team, video first |
 
 **Step 4 is what lane F's outbound-off step actually waits on.** Steps 1 to 3
 leave the allocator installed and refusing: `production_native_identifier_capability(team)`

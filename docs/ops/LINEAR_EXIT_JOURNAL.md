@@ -30,6 +30,27 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 review corrections: redacted command blocks made safe, Workload plan mapped, exposure evidence bound to a receipt
+
+A Codex review of the redaction found four defects, corrected here without
+rewriting earlier entries:
+
+- **The open attribution repair in `OPEN_REPAIRS.md` item 23** had its test-client
+  slug replaced by display text inside a SQL string, so pasting it would have
+  written that text as the slug. It now takes the slug from one marked setting,
+  and a guard refuses unless the value is a `test`-kind client and is the slug
+  the card's own batch carries. It was not executed.
+- **Six historical PowerShell blocks in this journal** had a personal path segment
+  replaced by `<owner>`, which is not a runnable path. They are now marked as
+  non-runnable redacted records of commands that already ran. They were not
+  re-run to validate them. The other redacted code blocks in this change are
+  recorded output, not inputs, and are unchanged.
+- **`REPO_MAP.md`** now routes to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
+- **Step 27 check 13** cited abbreviated earlier commits. It now points to a
+  PR comment receipt that records the exposure result with the full checked head
+  and base SHAs. The receipt lives outside the commit, so no commit has to embed
+  its own hash.
+
 ### 2026-09-19 — native Workload exposure check: PASSED (follow-up to the entry below, which is kept as written)
 
 The entry below records that the required identity-exposure check could not be
@@ -4517,7 +4538,11 @@ never retries.
 
 #### The step 12 invocation, as it will run from a Windows PowerShell 5.1 host
 
-```powershell
+> **Redacted historical record, not runnable as written.** `<owner>` stands for a
+> withheld path segment. These commands already ran on the recorded date; they
+> are kept as the record, not as instructions to repeat.
+
+```text
 node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1
 node D:/<owner>/Codex/2026-09-13-final-review-repairs/run-install-operator.private.cjs --catalog-dir=D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260917-1 --target=D:/<owner>/Codex/2026-09-13-final-review-repairs/linear-exit-observed-full-install-4b7dd8fdd61d460abf94e2654f29eae0/full-target.private.json --out=D:/<owner>/Codex/2026-09-13-final-review-repairs/install-operator-observation-20260917-1 --snapshot=D:/<owner>/Codex/2026-09-13-final-review-repairs/pre-state-snapshot-20260916-2/pre-state.private.json
 ```
@@ -5973,7 +5998,11 @@ new script is written for it.**
 
 1. **Catalog read, then the capture immediately after it, with nothing between.**
    The refresh wrapper refuses a receipt older than one hour.
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    node D:/<owner>/Codex/2026-09-13-final-review-repairs/read-install-day-catalog.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6
    node D:/<owner>/Codex/2026-09-13-final-review-repairs/refresh-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-catalog-20260916-6 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1
    ```
@@ -5981,7 +6010,11 @@ new script is written for it.**
    working. It is reported as such and retried **once**, in a quieter moment,
    with a fresh catalog read and new names (`-7`, `-2`).
 2. **Local restore before any upload** (sitting page, step 9):
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-20260916-1/encrypted D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-restore-20260916-1
    ```
 3. **Manifest confirmation, by the owner's ruling.** The manifest stays sealed;
@@ -5996,7 +6029,11 @@ new script is written for it.**
    `restore()` refuses unless the manifest's count equals its own evidence and
    the restored evidence equals the manifest's exactly.
 4. **Packaging, the owner's fixed method:**
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    Compress-Archive -Path 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1\encrypted\*' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip'
    (Get-FileHash -LiteralPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-20260916-1.encrypted.zip' -Algorithm SHA256).Hash.ToLower()
    ```
@@ -6010,7 +6047,11 @@ new script is written for it.**
      evidence directory.** It is never a copy of the original zip. This is the
      same mechanism as 2026-09-14's `drive-downloaded-database-encrypted`.
 7. **Verify the Windows download, no new script:**
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    (Get-FileHash -LiteralPath '<downloaded zip in the evidence directory>' -Algorithm SHA256).Hash.ToLower()   # must equal the upload hash
    Expand-Archive -LiteralPath '<downloaded zip in the evidence directory>' -DestinationPath 'D:\<owner>\Codex\2026-09-13-final-review-repairs\day-database-downloaded-20260916-1'
    ```
@@ -6023,7 +6064,11 @@ new script is written for it.**
    > *include* those two: 42 chunks plus two. Tonight's count is whatever the
    > capture produces, and every member is compared.
 8. **Step 10 restore of the Windows download:**
-   ```powershell
+   > **Redacted historical record, not runnable as written.** `<owner>` stands for a
+   > withheld path segment. These commands already ran on the recorded date; they
+   > are kept as the record, not as instructions to repeat.
+
+   ```text
    node D:/<owner>/Codex/2026-09-13-final-review-repairs/restore-install-day-database.private.cjs D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-20260916-1 D:/<owner>/Codex/2026-09-13-final-review-repairs/day-database-downloaded-restore-20260916-1
    ```
    Then the same independent catalog hash and table count check on the scratch

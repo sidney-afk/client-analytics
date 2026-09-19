@@ -1785,18 +1785,39 @@ paste for the owner. It goes through `deliverable_write` rather than a raw
 UPDATE so the change is recorded as an event like every other status write, and
 it rebuilds the payload FROM the stored row so nothing else can move:
 
+> **Redacted for this public file.** The test client's slug is withheld. Put it
+> on the one marked line before running. The guard refuses unless that value is a
+> `test`-kind client **and** is the slug the card's own batch already carries, so
+> an unfilled or mistyped value cannot write. This SQL was not executed while it
+> was being redacted.
+
 ```sql
 begin;
+-- The only value to fill in: the test client's slug, from the private record.
+select set_config('repair.test_client_slug', 'FILL_IN_PRIVATELY', true);
+do $guard$
+begin
+  if not exists (
+    select 1 from public.clients c
+      join public.batches b on b.client_slug = c.slug
+      join public.deliverables d on d.batch_id = b.id
+     where d.id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace'
+       and c.kind = 'test'
+       and c.slug = current_setting('repair.test_client_slug')) then
+    raise exception 'repair.test_client_slug is not the test client this card''s batch carries';
+  end if;
+end
+$guard$;
 select public.deliverable_write(
   (select jsonb_build_object(
-     'id', id, 'client_slug', 'the test client', 'batch_id', batch_id,
+     'id', id, 'client_slug', current_setting('repair.test_client_slug'), 'batch_id', batch_id,
      'team', team, 'kind', kind, 'title', title, 'status', status,
      'origin', origin, 'card_id', card_id, 'created_by', created_by,
      'created_at', created_at, 'linear_issue_uuid', linear_issue_uuid,
      'linear_identifier', linear_identifier, 'linear_issue_url', linear_issue_url)
      from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace'),
   jsonb_build_object('source','system','action','attribution_repair','actor','owner',
-    'payload', jsonb_build_object('from','unattributed','to','the test client'))
+    'payload', jsonb_build_object('from','unattributed','to',current_setting('repair.test_client_slug')))
 ) is not null as repaired;
 select id, client_slug, batch_id, card_id, file_url, comments
   from deliverables where id = 'del_b0f1f2c9-5832-4708-9ac0-224a8e5d0ace';

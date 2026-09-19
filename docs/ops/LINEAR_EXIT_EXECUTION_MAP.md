@@ -527,7 +527,7 @@ of work to a session that was not present for any of it.
 
 | # | Step | Who | Done when |
 |---|---|---|---|
-| 30 | **Write a modular plan brief for a new session.** Read first: the docs for the modular website strategy, plus `docs/ops/LINEAR_EXIT_JOURNAL.md`, this execution map, and `docs/ops/OPEN_REPAIRS.md`. The brief is for somebody with none of this context, so it carries the constraints rather than assuming them. | Owner + session | The brief exists and the owner has read it |
+| 30 | **Write a modular plan brief for a new session.** Read first: Sidney's current strategy, **ChatGPT Library — `SyncView-Modularization-Execution-Plan.md`** (confirmed by Sidney on 2026-09-19; no newer version exists), plus `docs/ops/LINEAR_EXIT_JOURNAL.md`, this execution map, and `docs/ops/OPEN_REPAIRS.md`. The brief is for somebody with none of this context, so it carries the constraints rather than assuming them. | Owner + session | The brief exists and the owner has read it |
 
 **The owner's constraints, verbatim, because a paraphrase would lose them:**
 
@@ -553,12 +553,10 @@ turn:
   hand-resolved catch-up recorded under Phase 1 — and it means every piece has
   to be shippable while the next is still being built.
 
-**One honest gap in this step as written.** No document describing a modular
-website strategy was findable anywhere under `docs/` when step 30 was added
-(2026-09-19). So the first thing this step does is establish whether that
-strategy exists somewhere outside the repository or has yet to be written, and
-say which — it is not a reading assignment that can be silently skipped because
-its source could not be found.
+**Strategy location confirmed.** Sidney confirmed on 2026-09-19 that the
+current strategy is in ChatGPT Library as `SyncView-Modularization-Execution-Plan.md`
+and no newer version exists. It is not copied into this public repository, and
+this map does not imply it has been reviewed.
 
 ---
 

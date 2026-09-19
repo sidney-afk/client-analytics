@@ -36,6 +36,47 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: browser-held receipts need a disposition, and the cutoff needs a fresh inventory
+
+Two further corrections to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. The
+entry below, which cites the earlier check numbers, is kept as written.
+
+- **A visible hold is not a disposition.** New check 3: every browser-held
+  legacy receipt must reach terminal recovery on its original identity, or an
+  explicit approved disposition recorded against that identity. The hold (check
+  2) is necessary but does not pass it.
+- **A fresh inventory at the moment of cutoff.** The closure check now requires
+  Storage to rerun the server-visible disposition inventory immediately before
+  the flag change, not reuse check 1's. The cutoff proceeds only if no
+  unfinished server-visible identity is left without a disposition.
+
+The checks are renumbered: acceptance before cutoff is now checks 1–9, and
+closure after cutoff is check 10. No live drill, submission, flag change or
+database access occurred.
+
+### 2026-09-19 — native intake plan corrected: acceptance before cutoff, closure after it
+
+A Codex review of `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md` found four gaps.
+They are corrected in the plan. The earlier intake entries below are kept as
+written.
+
+- **Circular ordering:** the cutoff was gated on "Step 27" while Step 27's last
+  check *was* the cutoff. Acceptance is now checks 1–8, all before the cutoff.
+  Closure is check 9, after it. The cutoff is gated on checks 1–8.
+- **Native intake not proven:** a drill can pass on the provider lane. Check 5 now
+  requires, for each team, a `native_intake_epochs` readback showing it enabled
+  and a drill report with `intake_lane_by_team` = `native_intake`.
+- **Browser Submit not exercised:** the drill calls `production-write` directly.
+  Check 6 now requires a successful Submit through `_submitLinearFormRoutedOnce`
+  (never `_submitLinearFormLegacy`), and a retry accepted on the same identity
+  with no duplicate card.
+- **Server-visible versus browser-held receipts:** a legacy receipt is written to
+  `localStorage` before its webhook request, so it may never reach the server.
+  Gate 0 and check 1 now cover server-visible identities only. Browser-held
+  receipts are covered by the check 2 hold.
+
+No live drill, submission, flag change or database access occurred.
+
 ### 2026-09-19 — Step 29c correction: live pager scope narrowed by Storage
 
 Storage's read-only inspection verified six live conditions from the incremental-refresh and outbound pager scripts: `incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`. It also verified the separate `mirror_stale` producer. The code defines `outbound_oldest_pending`, but Storage did not find it in the current live pager; that observation does not establish whether it was installed earlier.
@@ -12961,6 +13002,36 @@ The label-catalog exporter no longer supplies a target when `SUPABASE_URL` is ab
 The exporter now canonicalizes a parsed HTTPS origin and refuses URL credentials, query, fragment, and non-root path forms before any network request.
 
 ---
+
+### 2026-09-19 — Intake closure documentation corrected after review
+
+The intake plan had joined two different routes under the outbound flag. Current
+source shows that outbound-off stops ordinary real-client, non-parity native
+drains, including a straddling batch's normal drain, while direct browser legacy
+webhook submission bypasses the flag. The plan now separates those paths,
+preserves TEST/parity exceptions, requires identity-preserving disposition for
+unfinished legacy work, and names all four browser fallback exits.
+
+This was documentation-only: no live read, flag change, deployment, database
+installation, workflow edit, or merge occurred. The public plan also now
+distinguishes browser publication from database installation and Section 4
+function deployment, and records the confirmed private location of the modular
+strategy without copying it into the repository.
+
+### 2026-09-19 — Native intake acceptance and evidence wording corrected
+
+The plan now requires successful ordinary native intake before final cutoff:
+offline coverage plus a later Storage-authorized TEST drill for both teams,
+with intended cards and terminal receipts, identity-preserving retry without a
+duplicate card, and no legacy-webhook submission. The replacement is accepted
+before cutoff; full legacy-route closure is recorded only after cutoff, so the
+ordering is not circular.
+
+The original identity-exposure result remains historical evidence. The later
+repeat was blocked because it would contact prohibited live infrastructure. An
+identical published tree supports content equivalence, but does not by itself
+reproduce the same comparison inputs or live identity data; it is not recorded
+as a substitute check. No live execution occurred.
 
 Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·
 [execution map](LINEAR_EXIT_EXECUTION_MAP.md) ·

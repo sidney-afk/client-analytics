@@ -26566,3 +26566,35 @@ condition, and the confirm overlays being inline attributes rather than bound
 listeners — were read and carried through unchanged rather than collapsed:
 the guard fix is orthogonal to both, and folding them together was not this
 fix's job.
+
+**Addendum, 2026-09-19, same day — "thirteen" was incomplete.** A Codex review
+on the PR (#1431) found the fix landed on only the thirteen sites session B's
+walkthrough had actually found, and a fresh sweep of `index.html` for the same
+`event.target === <overlay-like-thing>` shape turned up **eleven more**,
+missed by both sessions because they don't share one naming convention:
+Production's Create-issue backdrop (`_prodCloseCreate`, `data-prod-create-backdrop`)
+and its Archive-repair backdrop (`_prodCloseArchiveRepair`,
+`data-prod-archive-backdrop`), the Production command palette (`_prodOpenPalette`'s
+`bd` element), the transcript preview modal (`transcriptOverlay`, written as an
+inverted early-return — `if (e.target !== overlay) return;` — rather than the
+positive check, same bug underneath), the detail-info and MR-info popovers
+(`detail-info-overlay`, `mr-info-overlay`), and all five Kasper credential
+overlays (`_ccOpenEdit`, `_ccOpenHistory`, `_ccOpenOnboardingImport`,
+`_ccOpenBulkImport`, `_ccOpenModal`). All eleven now go through the identical
+`data-backdrop-dismiss` + `_backdropPressBegan` mechanism the original thirteen
+use — same helper, no new logic. The count in this entry's body above (and its
+"thirteen"/"eleven" markup-site counts) is now stale text describing the first
+pass; left as-is per the ledger's append-only rule rather than edited to match,
+since the code and this addendum are what's current. Sweep method used to find
+these: `grep` across `index.html` for every `.target === `/`.target !== `
+comparison, read each hit by hand rather than trusting the pattern's shape
+alone (the transcript modal's inverted early-return would have been missed by
+a positive-shape-only grep). No further ones found on a second pass after the
+fix.
+
+The one library-adjacent thing this pass deliberately left alone:
+`_calCardSelectClick`/`_sxrCardSelectClick`'s card-selection-checkbox overlays
+also compare against a click target, but they select a card rather than
+dismiss a dialog holding a draft, so the same-press/same-release ambiguity has
+no data to lose — out of the class this fix addresses, not a missed instance
+of it.

@@ -13404,3 +13404,5 @@ Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·
 [execution map](LINEAR_EXIT_EXECUTION_MAP.md) ·
 [owner sitting page](LINEAR_EXIT_OWNER_SITTING_20260915.md) ·
 [recovery procedure](LINEAR_EXIT_RECOVERY_PROCEDURE.md)
+
+2026-09-19 — Browser intake fallbacks now preserve identity in a visible next-load hold; no legacy webhook caller remains, and live acceptance is pending.

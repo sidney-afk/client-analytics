@@ -14185,6 +14185,8 @@
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
     const LINEAR_RECEIPTS_KEY = 'syncview_linear_intake_receipts_v1';
+    const LINEAR_INTAKE_HOLD_KEY = 'syncview_linear_intake_hold_v1';
+    const LINEAR_INTAKE_LOAD_ID = Date.now().toString(36) + ':' + Math.random().toString(36).slice(2);
     const LINEAR_SUBMIT_TIMEOUT_MS = 45 * 1000;
     const NAV_KEY = 'syncview_nav';
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
@@ -22046,7 +22048,12 @@
     }
 
     function loadLinearForm() {
-        try { return JSON.parse(localStorage.getItem(LINEAR_FORM_KEY) || '{}'); } catch { return {}; }
+        try {
+            const hold = typeof _linearSubmissionHoldRead === 'function' ? _linearSubmissionHoldRead() : null;
+            const raw = hold && typeof hold.draft_raw === 'string'
+                ? hold.draft_raw : localStorage.getItem(LINEAR_FORM_KEY);
+            return JSON.parse(raw || '{}');
+        } catch { return {}; }
     }
 
     /* ===================================================================
@@ -50570,7 +50577,7 @@
             try { localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY); } catch (e) {}
         });
     }
-    function _linearIntakePending(signature, makePayload, context) {
+    function _linearIntakePending(signature, makePayload, context, seed) {
         const saved = _linearIntakeRead();
         if (saved) {
             if (saved.signature !== signature) {
@@ -50595,8 +50602,8 @@
             _linearIntakeWrite(saved);
             return saved;
         }
-        const requestId = _linearIntakeRequestId(context && context.surface);
-        const sourceEditedAt = new Date().toISOString();
+        const requestId = String(seed && seed.request_id || '') || _linearIntakeRequestId(context && context.surface);
+        const sourceEditedAt = String(seed && seed.source_edited_at || '') || new Date().toISOString();
         const payload = makePayload(requestId, sourceEditedAt);
         const pending = {
             version: 3, signature, payload, context: context || {}, result: null,
@@ -50717,6 +50724,100 @@
         } catch (error) {
             throw _linearStorageError('SyncView could not safely save and verify this draft in your browser.');
         }
+    }
+
+    function _linearSubmissionHoldSnapshot() {
+        let raw;
+        try { raw = localStorage.getItem(LINEAR_INTAKE_HOLD_KEY); }
+        catch (error) { return null; }
+        if (!raw) return null;
+        try {
+            const hold = JSON.parse(raw);
+            if (!hold || hold.version !== 1 || !hold.mode || typeof hold.draft_raw !== 'string') return null;
+            if (!hold.request_id || !hold.source_edited_at || !hold.client_name) return null;
+            if (!Array.isArray(hold.legacy_receipt_keys)) return null;
+            if (typeof hold.legacy_receipt_present !== 'boolean') return null;
+            return { hold, raw };
+        } catch (error) { return null; }
+    }
+    function _linearSubmissionHoldRead() {
+        const snapshot = _linearSubmissionHoldSnapshot();
+        return snapshot && snapshot.hold || null;
+    }
+    function _linearSubmissionHoldReceiptKeys(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            const receipts = parsed && parsed.version === 1 && parsed.receipts && typeof parsed.receipts === 'object'
+                ? Object.values(parsed.receipts) : [];
+            return receipts.map(receipt => String(receipt && receipt.receipt_key || '').trim())
+                .filter(key => /^linear-intake-v1:[a-z]+:[a-f0-9]{64}$/i.test(key)).sort();
+        } catch (error) { return []; }
+    }
+    function _linearSubmissionHoldMessage(hold) {
+        const keys = Array.isArray(hold && hold.legacy_receipt_keys) ? hold.legacy_receipt_keys : [];
+        if (hold && hold.legacy_receipt_present) {
+            const identity = keys.length ? ' under ' + keys.map(key => 'Recovery ID: ' + key).join('; ') : '';
+            return 'This submission is saved and held' + identity
+                + '. SyncView will retry recovery itself on the next page load. This older receipt cannot be moved to the native route without same-identity backend recovery; nothing was sent to Linear.';
+        }
+        return 'This submission is saved. SyncView will send it itself on the next page load when the safe native route is available. Nothing was sent to Linear.';
+    }
+    function _linearHoldSubmission(mode, reason, options) {
+        const input = document.getElementById('linearClientSearch');
+        const status = document.getElementById('linearStatus');
+        const clientName = String(input && input.value || '').trim();
+        const clientSlug = String(input && input.dataset && input.dataset.clientSlug || '').trim();
+        if (!clientName) {
+            const message = 'Please select a client.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason: 'client_required', error: message };
+        }
+        let draft;
+        try { draft = _linearDraftSnapshot(clientName); }
+        catch (error) {
+            const message = 'Nothing was sent. SyncView could not verify browser storage, so this submission cannot safely send itself. Keep this page open and restore site storage before retrying.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
+        const prior = _linearSubmissionHoldSnapshot();
+        const legacyReceiptKeys = _linearSubmissionHoldReceiptKeys(options && options.legacy_receipts_raw);
+        if (prior && (prior.hold.mode !== mode || prior.hold.client_name !== clientName
+            || prior.hold.client_slug !== clientSlug || prior.hold.draft_raw !== draft.form_raw)) {
+            const message = 'A different submission is already saved and will send itself. Reload this page to resume it before starting another.';
+            if (status) status.textContent = message;
+            return { ok: false, held: true, reason: 'held_submission_conflict', error: message };
+        }
+        const hold = Object.assign({}, prior && prior.hold || {}, {
+            version: 1,
+            mode,
+            reason: String(reason || 'native_route_unavailable'),
+            request_id: prior && prior.hold.request_id || _linearIntakeRequestId('submission'),
+            source_edited_at: prior && prior.hold.source_edited_at || new Date().toISOString(),
+            client_name: clientName,
+            client_slug: clientSlug,
+            draft_raw: draft.form_raw,
+            last_link_raw: draft.last_link_raw,
+            legacy_receipt_keys: legacyReceiptKeys.length
+                ? legacyReceiptKeys : (prior && prior.hold.legacy_receipt_keys || []),
+            legacy_receipt_present: !!(options && options.legacy_receipts_raw)
+                || !!(prior && prior.hold.legacy_receipt_present),
+            created_at: prior && prior.hold.created_at || new Date().toISOString(),
+            created_load_id: LINEAR_INTAKE_LOAD_ID
+        });
+        const encoded = _linearStableJson(hold);
+        try {
+            localStorage.setItem(LINEAR_INTAKE_HOLD_KEY, encoded);
+            if (localStorage.getItem(LINEAR_INTAKE_HOLD_KEY) !== encoded) throw new Error('hold readback mismatch');
+        } catch (error) {
+            const message = 'Nothing was sent. Your draft is still on this page, but SyncView could not save an automatic retry. Restore site storage, then retry.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
+        const message = _linearSubmissionHoldMessage(hold);
+        if (status) status.textContent = message;
+        return { ok: false, held: true, reason, request_id: hold.request_id,
+            recovery_ids: hold.legacy_receipt_keys.slice(), message };
     }
 
     function _linearReceiptStoreRead() {
@@ -51275,19 +51376,27 @@
     }
 
     async function _submitLinearFormRoutedOnce(mode) {
-        // A receipt created before an allowlist/authority transition must be
-        // recovered through the exact F44 idempotency key that already owns
-        // the request. Never switch an in-progress legacy receipt to native.
-        try {
-            if (localStorage.getItem(LINEAR_RECEIPTS_KEY)) return _submitLinearFormLegacy(mode);
-        } catch (error) {
-            return _submitLinearFormLegacy(mode);
+        // A native job already owns its request id and accepted epoch. It stays
+        // on that exact recovery path even if the cohort changes while the
+        // browser is offline; never split a straddling batch between routes.
+        const pendingNativeIntake = _linearIntakeRead();
+        let legacyReceiptsRaw = '';
+        if (!pendingNativeIntake) {
+            try { legacyReceiptsRaw = localStorage.getItem(LINEAR_RECEIPTS_KEY) || ''; }
+            catch (error) { return _linearHoldSubmission(mode, 'legacy_receipt_read_failed'); }
+            // A receipt created before native intake may already represent a
+            // provider request. Posting it to the native gateway could create
+            // the same batch twice, while replaying its webhook would bypass
+            // outbound-off. Keep its original receipt identities in a visible
+            // hold until same-identity backend recovery exists.
+            if (legacyReceiptsRaw) {
+                return _linearHoldSubmission(mode, 'saved_legacy_receipt', { legacy_receipts_raw: legacyReceiptsRaw });
+            }
         }
-        // Fail safely if a partially cached shell does not yet have the #813
-        // routing helper: retain the durable F44 receipt path rather than the
-        // pre-F44 fire-and-forget transport.
+        // A partially cached shell is not allowed to choose the old webhook.
+        // The durable hold retries after a full page load instead.
         if (typeof _writeUiRerouteUseGatewayWhenReady !== 'function') {
-            return _submitLinearFormLegacy(mode);
+            return _linearHoldSubmission(mode, 'routing_helper_missing');
         }
         const input = document.getElementById('linearClientSearch');
         const status = document.getElementById('linearStatus');
@@ -51299,9 +51408,6 @@
                 && String(current?.value || '').trim() === clientName
                 && String(current?.dataset.clientSlug || '').trim() === selectedClientSlug;
         };
-        // Likewise, an already-checkpointed native job remains on its recovery
-        // path even if the allowlist changes while the browser is offline.
-        const pendingNativeIntake = _linearIntakeRead();
         const useGateway = pendingNativeIntake
             ? true
             : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
@@ -51310,7 +51416,7 @@
             return;
         }
         if (!useGateway) {
-            return _submitLinearFormLegacy(mode);
+            return _linearHoldSubmission(mode, 'native_routing_unavailable');
         }
         if (!linearClientRows.length) await fetchLinearProjects();
         if (!selectionStillCurrent()) {
@@ -51389,6 +51495,21 @@
             actor_id: identity && identity.member && identity.member.id
         });
         let pending;
+        const heldSnapshot = _linearSubmissionHoldSnapshot();
+        if (heldSnapshot && heldSnapshot.hold.legacy_receipt_present) {
+            return _linearHoldSubmission(mode, 'saved_legacy_receipt');
+        }
+        if (heldSnapshot) {
+            let currentDraft;
+            try { currentDraft = _linearDraftSnapshot(clientName); }
+            catch (error) { return _linearHoldSubmission(mode, 'held_draft_unavailable'); }
+            if (heldSnapshot.hold.mode !== mode
+                || heldSnapshot.hold.client_name !== clientName
+                || heldSnapshot.hold.client_slug !== selectedClientSlug
+                || heldSnapshot.hold.draft_raw !== currentDraft.form_raw) {
+                return _linearHoldSubmission(mode, 'held_submission_conflict');
+            }
+        }
         try {
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
             return {
@@ -51408,7 +51529,13 @@
                 mode,
                 videos: videos.map(video => ({ number: video.number })),
                 ..._linearIntakeActorContext(identity)
+            }, heldSnapshot && {
+                request_id: heldSnapshot.hold.request_id,
+                source_edited_at: heldSnapshot.hold.source_edited_at
             }));
+            // The native pending job now durably owns the same preallocated
+            // identity. Remove only the exact hold version we consumed.
+            if (heldSnapshot) _linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, heldSnapshot.raw);
         } catch (error) {
             status.textContent = error && error.code === 'native_intake_pending_conflict'
                 ? 'Finish the previously saved submission before starting a different one.'
@@ -51454,6 +51581,37 @@
         } finally {
             buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
         }
+    }
+
+    let _linearSubmissionHoldResumePromise = null;
+    let _linearSubmissionHoldBootAttempted = false;
+    function _linearResumeSubmissionHold(reason) {
+        if (typeof _isClientLink !== 'undefined' && _isClientLink) return Promise.resolve(null);
+        const bootReason = ['startup', 'resume', 'staff-verified', 'client-verified'].includes(String(reason || ''));
+        if (!bootReason || _linearSubmissionHoldBootAttempted) return Promise.resolve(null);
+        const snapshot = _linearSubmissionHoldSnapshot();
+        if (!snapshot || snapshot.hold.created_load_id === LINEAR_INTAKE_LOAD_ID) return Promise.resolve(null);
+        _linearSubmissionHoldBootAttempted = true;
+        if (_linearSubmissionHoldResumePromise) return _linearSubmissionHoldResumePromise;
+        _linearSubmissionHoldResumePromise = Promise.resolve().then(async () => {
+            if (currentNav !== 'linear' || !document.getElementById('linearStatus')) navTo('linear', false);
+            const status = document.getElementById('linearStatus');
+            if (snapshot.hold.legacy_receipt_present) {
+                // Browser-only code cannot prove whether an old webhook request
+                // committed. Keep every original receipt identity intact and
+                // report the concrete backend limitation instead of guessing.
+                snapshot.hold.created_load_id = LINEAR_INTAKE_LOAD_ID;
+                const encoded = _linearStableJson(snapshot.hold);
+                try {
+                    localStorage.setItem(LINEAR_INTAKE_HOLD_KEY, encoded);
+                    if (localStorage.getItem(LINEAR_INTAKE_HOLD_KEY) !== encoded) throw new Error('hold readback mismatch');
+                } catch (error) {}
+                if (status) status.textContent = _linearSubmissionHoldMessage(snapshot.hold);
+                return { ok: false, held: true, reason: 'same_identity_backend_recovery_required' };
+            }
+            return _submitLinearFormRoutedOnce(snapshot.hold.mode);
+        }).finally(() => { _linearSubmissionHoldResumePromise = null; });
+        return _linearSubmissionHoldResumePromise;
     }
 
     function _linearIntakeValidateResult(job, result) {
@@ -67644,7 +67802,12 @@
         }
         _syncviewAppBooted = true;
         init();
-        if(_isIntake){ try{ navTo('linear', false); }catch(e){} }
+        if(_isIntake){
+            try{ navTo('linear', false); }catch(e){}
+            setTimeout(function(){
+                try{ _linearResumeSubmissionHold('startup').catch(function(){}); }catch(e){}
+            }, 0);
+        }
     } else {
         // No saved identity on a staff surface: the gate is the whole page
         // until a role key verifies. init() runs from _syncviewLiftStaffGate().
@@ -73994,6 +74157,9 @@
             // the dark lane swallows every write while the screen goes green.
             await _writeUiHealRerouteFlag();
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            const submissionHoldResume = typeof _linearResumeSubmissionHold === 'function'
+                ? _linearResumeSubmissionHold(reason || 'resume').catch(() => {})
+                : Promise.resolve();
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()
@@ -74001,7 +74167,8 @@
             if (owner.kind === 'client') {
                 await Promise.all([
                     calendarHasOwnedDebt ? _linearOutboxFlush(owner) : Promise.resolve(),
-                    sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve()
+                    sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve(),
+                    submissionHoldResume
                 ]);
                 return { deferred: !_writeUiLegacyResumeOwnerCurrent(owner) };
             }
@@ -74084,7 +74251,8 @@
                 _writeUiResumeSourceRepairs(),
                 typeof _kasperResumeSourceRepairs === 'function' ? _kasperResumeSourceRepairs() : Promise.resolve(),
                 typeof _sxrKasperResumeSourceRepairs === 'function' ? _sxrKasperResumeSourceRepairs() : Promise.resolve(),
-                nativeIntakeResume
+                nativeIntakeResume,
+                submissionHoldResume
             ]);
             return { deferred: !_writeUiLegacyResumeOwnerCurrent(owner) };
         })().finally(() => {

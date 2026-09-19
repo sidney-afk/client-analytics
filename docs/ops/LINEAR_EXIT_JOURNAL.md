@@ -36,6 +36,17 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — PR #1432 correction: check 15 now covers every browser reader of the mirror
+
+One complete search of the browser-served files for `workload_issues` found four
+readers, all in `index.html`: the early prefetch; `_wlV2FetchIssues()`;
+`_wlV2FetchLatestWatermark()`, which the previous entry missed; and
+`wlNativeDiff()`. The watermark reader's two callers are dead: one has no
+callers, and the other sits behind the constant-`false` `shouldRebaseMirror` in
+`wlManualRefresh()`. Check 15 records the complete inventory and passes only when
+the same search, re-run at closure, finds no browser read. The only other match is
+an n8n code backup, which is not browser code. Earlier entries are unchanged.
+
 ### 2026-09-19 — PR #1432 correction: the browser's own mirror reads are inventoried
 
 Two more `workload_issues` readers, found in `index.html` and now in the

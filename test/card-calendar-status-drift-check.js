@@ -24,7 +24,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = process.env.CARD_DRIFT_SRC || path.join(ROOT, 'scripts', 'card-calendar-status-drift-check.js');
-const { classify, classifySlot, resettle, loadMapper, SLOTS, BUCKETS } = require(SRC);
+const { classify, classifySlot, resettle, cleanSummary, loadMapper, SLOTS, BUCKETS } = require(SRC);
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'card-calendar-status-drift.json'), 'utf8'));
 
@@ -236,6 +236,25 @@ ok(verdictFor('post-0016', 'video') === 'pre_bridge',
   const e = resettle([candidate], caughtUp, freshDlv, mapNative);
   ok(e.survivors.every(r => !Object.prototype.hasOwnProperty.call(r, 'client')),
     'resettled rows carry no client either');
+}
+
+/* ---- a passing run must not contradict its own listing ----
+
+   With post-go-live drift at zero but a pre-bridge backlog present, the old
+   wording printed "No linked slot disagrees with its deliverable" directly
+   above a list of slots that disagree. A reader who spots a report
+   contradicting itself stops trusting the report, not just that line. Raised by
+   Codex on #1426. */
+{
+  const withBacklog = cleanSummary({ drift: 0, pre_bridge: 3 }).join(' ');
+  ok(!/No linked slot disagrees/.test(withBacklog),
+    'a passing run with a pre-bridge backlog does not claim universal agreement');
+  ok(/POST-GO-LIVE/.test(withBacklog) && /3 pre-bridge slot/.test(withBacklog),
+    '...it says there is no post-go-live drift, and names the backlog it is still listing');
+
+  const trulyClean = cleanSummary({ drift: 0, pre_bridge: 0 }).join(' ');
+  ok(/No linked slot disagrees/.test(trulyClean),
+    'a genuinely clean world still gets the plain clean message');
 }
 
 /* ---- a clean world reports clean ---- */

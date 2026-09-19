@@ -248,6 +248,20 @@ function classifySlot(card, slot, deliverable, mapNative) {
   return { bucket: 'drift', target };
 }
 
+/* The wording of a PASSING run, as a pure function so it can be tested.
+   It has to stay true in the presence of a pre-bridge backlog: "no linked slot
+   disagrees" is false when the backlog below disagrees, and a passing run that
+   contradicts its own listing is a run people stop trusting. Raised by Codex on
+   #1426. */
+function cleanSummary(totals) {
+  const pre = (totals && totals.pre_bridge) || 0;
+  if (!pre) return ['No linked slot disagrees with its deliverable. The bridge is holding.'];
+  return [
+    'No POST-GO-LIVE drift: every slot the bridge was responsible for agrees.',
+    'The ' + pre + ' pre-bridge slot(s) below still disagree and are listed, not gated.',
+  ];
+}
+
 /* Re-judge drift candidates against a FRESH read of both sides.
    Pure, and exported, so the race this exists for can be tested offline
    instead of only being argued about in a comment. A candidate survives only
@@ -479,7 +493,14 @@ async function main() {
       console.log('write and honours the urgent-ping dedupe key. Do not hand-edit the cards.');
     } else {
       console.log('');
-      console.log('No linked slot disagrees with its deliverable. The bridge is holding.');
+      /* The clean message has to be true in the presence of a pre-bridge
+         backlog, and "no linked slot disagrees" is not: the backlog listed
+         below disagrees, it is simply not this gate's question. Printing that
+         line above a list of disagreeing slots would make a passing run read as
+         self-contradictory, and the most likely thing a reader does with a
+         contradiction is stop trusting the whole report. Raised by Codex on
+         #1426. */
+      for (const line of cleanSummary(t)) console.log(line);
     }
     if (report.pre_bridge && report.pre_bridge.length) {
       console.log('');
@@ -513,4 +534,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { classify, classifySlot, resettle, loadMapper, SLOTS, BUCKETS };
+module.exports = { classify, classifySlot, resettle, cleanSummary, loadMapper, SLOTS, BUCKETS };

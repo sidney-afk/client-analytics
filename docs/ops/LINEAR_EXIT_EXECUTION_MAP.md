@@ -436,7 +436,7 @@ whole system, including the things no capability ever owned.
 | # | Step | Who | Done when |
 |---|---|---|---|
 | 29 | Whole-system health check after the last capability closes. Sweep for anything still pointing at Linear: GitHub Actions workflows and secrets, n8n workflows (read only, list them, do not edit), Edge Function env references, `index.html` calls, scripts, docs. Report per item: removed, intentionally kept, or dead. **Nothing is retired in this step.** Broken into 29a-29c below. | Owner + session | All three sub-items are done, and the sweep report is journaled with zero unexplained items |
-| 29a | **Functional pass by the owner, on the live site, with Linear gone.** Four surfaces, used as a person uses them, not as a checklist of selectors: **Submit tab, Workload, Calendar, Samples.** This is the only item in the map that asks whether the thing actually works for the person who uses it, rather than whether a gate passes. | Owner | The owner records each of the four as working, or files what is broken |
+| 29a | **Functional pass by the owner, on the live site, with Linear gone.** Four surfaces, used as a person uses them, not as a checklist of selectors: **Submit tab, Workload, Calendar, Samples.** This is the only item in the map that asks whether the thing actually works for the person who uses it, rather than whether a gate passes. **"With Linear gone" is a website-side condition, not a Linear-side one** — see the two constraints below, which bound this step before it is run. | Owner | The owner records each of the four as working, or files what is broken |
 | 29b | **Sweep GitHub Actions workflows, schedules, watchers and monitors** for anything that still assumes Linear — mirror staleness, Linear inbound, the reconciler lanes, and anything else on a schedule. Report per item: **keep, retire, or rewrite.** **Retire nothing in this step**, including anything the report marks "retire": the classification is the deliverable. | Owner + session | Every scheduled or watching thing is classified keep / retire / rewrite, with a reason, and nothing has been retired |
 | 29c | **Inventory the Slack bot messages SyncView sends the owner.** Every alert actually received, the **edge anomaly alert** and the **mirror-events-stale watcher** among them. For each, one plain sentence saying what it means — plain enough to be useful at 7am on a phone. Then propose **a single consolidated problem message with a quiet default**: silence when nothing is wrong, one message when something is. | Owner + session | The inventory exists with a one-sentence meaning per alert, and a consolidated message is proposed. **The owner decides the final shape** — this step proposes, it does not change what is sent |
 
@@ -453,6 +453,36 @@ wrong before — the calendar lagged for a day with every gate passing, because
 nothing compared the two things a person actually looks at. A functional pass by
 the person who uses the site is the one check that cannot be satisfied by a
 passing test.
+
+**What "with Linear gone" means in 29a, and what it must not be read as.** It
+is the state where the website no longer *depends* on Linear for those four
+surfaces — the capabilities are native and those paths make no Linear fetch. It
+is **not** disconnecting, retiring, or shutting down Linear, and nothing in this
+step touches the Linear account, its data, credentials, billing, integrations or
+webhooks; **Out of scope** below is unchanged and this step does not soften it.
+Read literally the other way, 29a would be the one step in the map that performs
+the thing the map says it will never do.
+
+This map deliberately does **not** invent the list of website-side dependencies
+to neutralise, because that list already has an owner: the dependency table in
+[the checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md), plus whatever
+29b classifies as `retire` or `rewrite`. So **29b's classification is an input to
+29a**, not a parallel task — if the two are run in the other order, 29a is being
+performed against a precondition nobody has written down. Raised in review on
+#1426.
+
+**29a is a live pass on production, so it is bounded before it starts.** The
+standing constraint applies unchanged: **mutate only the test client
+`sidneylaruel`** unless the owner names another. That matters more here than
+usual, because Calendar and Samples carry the notification paths this exit
+deliberately preserved — a status change into `Tweaks Needed` can raise a real
+urgent ping, and a sign-off can post to a real client channel. "Used as a person
+uses them" is about realism of *interaction*, never about reaching real
+recipients. So before the pass: reads and navigation anywhere, writes only on
+the test client, and anything that notifies goes to an **explicitly approved
+internal destination**, agreed with the owner in the same session. An
+unbounded live pass is the one way this step could cause the incident it exists
+to prevent. Raised in review on #1426.
 
 **29b classifies and stops.** "Retire" in that report means *recommended for
 retirement*, and acting on it is a separate decision with its own go-ahead —

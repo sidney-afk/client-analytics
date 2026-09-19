@@ -36,6 +36,29 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan corrected: acceptance before cutoff, closure after it
+
+A Codex review of `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md` found four gaps.
+They are corrected in the plan. The earlier intake entries below are kept as
+written.
+
+- **Circular ordering:** the cutoff was gated on "Step 27" while Step 27's last
+  check *was* the cutoff. Acceptance is now checks 1–8, all before the cutoff.
+  Closure is check 9, after it. The cutoff is gated on checks 1–8.
+- **Native intake not proven:** a drill can pass on the provider lane. Check 5 now
+  requires, for each team, a `native_intake_epochs` readback showing it enabled
+  and a drill report with `intake_lane_by_team` = `native_intake`.
+- **Browser Submit not exercised:** the drill calls `production-write` directly.
+  Check 6 now requires a successful Submit through `_submitLinearFormRoutedOnce`
+  (never `_submitLinearFormLegacy`), and a retry accepted on the same identity
+  with no duplicate card.
+- **Server-visible versus browser-held receipts:** a legacy receipt is written to
+  `localStorage` before its webhook request, so it may never reach the server.
+  Gate 0 and check 1 now cover server-visible identities only. Browser-held
+  receipts are covered by the check 2 hold.
+
+No live drill, submission, flag change or database access occurred.
+
 ### 2026-09-19 — Step 29c correction: live pager scope narrowed by Storage
 
 Storage's read-only inspection verified six live conditions from the incremental-refresh and outbound pager scripts: `incremental_refresh_stale`, `outbound_stale`, `outbound_failed`, `outbound_backlog`, `outbound_volume`, and `outbound_shadow_mismatch`. It also verified the separate `mirror_stale` producer. The code defines `outbound_oldest_pending`, but Storage did not find it in the current live pager; that observation does not establish whether it was installed earlier.

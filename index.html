@@ -50554,6 +50554,10 @@
     function _linearIntakePurgeSensitiveState() {
         try { localStorage.removeItem(LINEAR_FORM_KEY); } catch (e) {}
         try { localStorage.removeItem(LAST_LINK_KEY); } catch (e) {}
+        // A held Submit contains the same private draft fields as the ordinary
+        // form plus its preallocated request identity. It must never survive a
+        // staff sign-out and resume under the next verified principal.
+        try { localStorage.removeItem(LINEAR_INTAKE_HOLD_KEY); } catch (e) {}
         const purge = () => {
             const job = _linearIntakeRead();
             if (!job) return;
@@ -50737,6 +50741,8 @@
             if (!hold.request_id || !hold.source_edited_at || !hold.client_name) return null;
             if (!Array.isArray(hold.legacy_receipt_keys)) return null;
             if (typeof hold.legacy_receipt_present !== 'boolean') return null;
+            if (!hold.computed_title || !Array.isArray(hold.computed_due_dates)
+                || hold.computed_due_dates.some(value => typeof value !== 'string' || !value)) return null;
             return { hold, raw };
         } catch (error) { return null; }
     }
@@ -50763,6 +50769,14 @@
         }
         return 'This submission is saved. SyncView will send it itself on the next page load when the safe native route is available. Nothing was sent to Linear.';
     }
+    function _linearSubmissionHoldComputed() {
+        const todayISO = wlTodayISO();
+        const dueDates = [];
+        document.querySelectorAll('[id^="videoCard_"]').forEach((_card, index) => {
+            dueDates.push(wlAddWorkingDays(todayISO, (Math.floor(index / 5) + 1) * 5));
+        });
+        return { title: buildLinearTitle(), due_dates: dueDates };
+    }
     function _linearHoldSubmission(mode, reason, options) {
         const input = document.getElementById('linearClientSearch');
         const status = document.getElementById('linearStatus');
@@ -50788,6 +50802,16 @@
             if (status) status.textContent = message;
             return { ok: false, held: true, reason: 'held_submission_conflict', error: message };
         }
+        let computed;
+        try { computed = prior ? {
+            title: prior.hold.computed_title,
+            due_dates: prior.hold.computed_due_dates.slice()
+        } : _linearSubmissionHoldComputed(); }
+        catch (error) {
+            const message = 'Nothing was sent. SyncView could not preserve this submission\'s exact schedule for automatic retry. Keep this page open and retry after reloading.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
         const hold = Object.assign({}, prior && prior.hold || {}, {
             version: 1,
             mode,
@@ -50798,6 +50822,8 @@
             client_slug: clientSlug,
             draft_raw: draft.form_raw,
             last_link_raw: draft.last_link_raw,
+            computed_title: computed.title,
+            computed_due_dates: computed.due_dates,
             legacy_receipt_keys: legacyReceiptKeys.length
                 ? legacyReceiptKeys : (prior && prior.hold.legacy_receipt_keys || []),
             legacy_receipt_present: !!(options && options.legacy_receipts_raw)
@@ -51454,25 +51480,47 @@
             return;
         }
 
-        const title = buildLinearTitle();
+        const heldSnapshot = _linearSubmissionHoldSnapshot();
+        if (heldSnapshot && heldSnapshot.hold.legacy_receipt_present) {
+            return _linearHoldSubmission(mode, 'saved_legacy_receipt');
+        }
+        if (heldSnapshot) {
+            let currentDraft;
+            try { currentDraft = _linearDraftSnapshot(clientName); }
+            catch (error) { return _linearHoldSubmission(mode, 'held_draft_unavailable'); }
+            if (heldSnapshot.hold.mode !== mode
+                || heldSnapshot.hold.client_name !== clientName
+                || heldSnapshot.hold.client_slug !== selectedClientSlug
+                || heldSnapshot.hold.draft_raw !== currentDraft.form_raw) {
+                return _linearHoldSubmission(mode, 'held_submission_conflict');
+            }
+        }
+        const title = heldSnapshot ? heldSnapshot.hold.computed_title : buildLinearTitle();
         const notes = document.getElementById('linearNotes')?.value?.trim() || '';
         const filmingPlans = _linearResolvedPlanUrl || '';
         const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
         const videos = [];
         let number = 1;
-        const todayISO = wlTodayISO();
+        const todayISO = heldSnapshot ? '' : wlTodayISO();
         document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
             const id = card.id.replace('videoCard_', '');
             const batchIndex = Math.floor((number - 1) / 5);
+            const dueDate = heldSnapshot
+                ? heldSnapshot.hold.computed_due_dates[number - 1]
+                : wlAddWorkingDays(todayISO, (batchIndex + 1) * 5);
             videos.push({
                 number: number++,
                 main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                 side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
                 audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
                 notes: document.getElementById('vid_notes_' + id)?.value?.trim() || '',
-                dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
+                dueDate
             });
         });
+        if (heldSnapshot && (videos.length !== heldSnapshot.hold.computed_due_dates.length
+            || videos.some(video => !video.dueDate))) {
+            return _linearHoldSubmission(mode, 'held_submission_conflict');
+        }
         const description = [
             filmingPlans ? 'Filming Plan: ' + filmingPlans : '',
             generalDrive ? 'General Drive: ' + generalDrive : '',
@@ -51495,21 +51543,6 @@
             actor_id: identity && identity.member && identity.member.id
         });
         let pending;
-        const heldSnapshot = _linearSubmissionHoldSnapshot();
-        if (heldSnapshot && heldSnapshot.hold.legacy_receipt_present) {
-            return _linearHoldSubmission(mode, 'saved_legacy_receipt');
-        }
-        if (heldSnapshot) {
-            let currentDraft;
-            try { currentDraft = _linearDraftSnapshot(clientName); }
-            catch (error) { return _linearHoldSubmission(mode, 'held_draft_unavailable'); }
-            if (heldSnapshot.hold.mode !== mode
-                || heldSnapshot.hold.client_name !== clientName
-                || heldSnapshot.hold.client_slug !== selectedClientSlug
-                || heldSnapshot.hold.draft_raw !== currentDraft.form_raw) {
-                return _linearHoldSubmission(mode, 'held_submission_conflict');
-            }
-        }
         try {
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
             return {

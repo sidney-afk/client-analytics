@@ -48,6 +48,7 @@ const context = {
   NATIVE_INTAKE_PENDING_KEY: 'pending',
   LINEAR_FORM_KEY: 'form',
   LAST_LINK_KEY: 'last-link',
+  LINEAR_INTAKE_HOLD_KEY: 'hold',
   localStorage: {
     getItem: key => store.has(key) ? store.get(key) : null,
     setItem: (key, value) => store.set(key, String(value)),
@@ -238,14 +239,14 @@ const result = {
   sensitive.payload.items[0].brief = 'private camera details';
   sensitive.result.batch = { id: 'batch-safe' };
   context._linearIntakeWrite(sensitive, { allowCreate: true });
-  store.set('form', 'private form'); store.set('last-link', 'private link');
+  store.set('form', 'private form'); store.set('last-link', 'private link'); store.set('hold', 'private held submission');
   await context._linearIntakePurgeSensitiveState();
   const scrubbedRaw = store.get('pending') || '';
   const scrubbed = JSON.parse(scrubbedRaw);
-  ok(!store.has('form') && !store.has('last-link')
+  ok(!store.has('form') && !store.has('last-link') && !store.has('hold')
     && !scrubbedRaw.includes('private notes') && !scrubbedRaw.includes('drive.invalid')
     && !scrubbedRaw.includes('camera details') && scrubbed.result.native_committed === true,
-  'sign-out scrubs sensitive intake payloads while retaining committed recovery IDs');
+  'sign-out scrubs form, hold, and sensitive intake payloads while retaining committed recovery IDs');
 
   store.delete('pending');
   const replacement = JSON.parse(JSON.stringify(first));
@@ -337,6 +338,11 @@ const result = {
     && submit.includes('request_id: heldSnapshot.hold.request_id')
     && submit.includes('_linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, heldSnapshot.raw)'),
   'a held native retry promotes its preallocated identity without changing it');
+  ok(submit.includes('heldSnapshot.hold.computed_title')
+    && submit.includes('heldSnapshot.hold.computed_due_dates[number - 1]')
+    && extract('_linearSubmissionHoldSnapshot').includes('hold.computed_due_dates')
+    && extract('_linearIntakePurgeSensitiveState').includes('removeItem(LINEAR_INTAKE_HOLD_KEY)'),
+  'an overnight hold preserves its computed title and due dates and cannot cross a staff sign-out');
   ok(submit.indexOf('const pendingNativeIntake = _linearIntakeRead()')
       < submit.indexOf('localStorage.getItem(LINEAR_RECEIPTS_KEY)')
     && submit.includes('if (!pendingNativeIntake)')
@@ -366,7 +372,11 @@ const result = {
       },
       document: {
         getElementById: id => id === 'linearClientSearch' ? inputNode : id === 'linearStatus' ? statusNode : null,
+        querySelectorAll: selector => selector === '[id^="videoCard_"]' ? [{ id: 'videoCard_1' }] : [],
       },
+      buildLinearTitle: () => 'Fixture Client - 19 Sep 2026',
+      wlTodayISO: () => '2026-09-19',
+      wlAddWorkingDays: () => '2026-09-26',
       saveLinearForm() {
         const draft = { client: inputNode.value, clientSlug: inputNode.dataset.clientSlug, videos: [{ main_cam: 'fixture' }] };
         heldStore.set('form', JSON.stringify(draft));
@@ -383,7 +393,8 @@ const result = {
       extract('_linearStableJson'), extract('_linearStorageError'), extract('_linearIntakeRequestId'),
       extract('_linearDraftSnapshot'), extract('_linearSubmissionHoldSnapshot'),
       extract('_linearSubmissionHoldRead'), extract('_linearSubmissionHoldReceiptKeys'),
-      extract('_linearSubmissionHoldMessage'), extract('_linearHoldSubmission'),
+      extract('_linearSubmissionHoldMessage'), extract('_linearSubmissionHoldComputed'),
+      extract('_linearHoldSubmission'),
       extract('_submitLinearFormRoutedOnce'),
     ].join('\n'), holdContext);
     return { context: holdContext, store: heldStore, statusNode, legacyKey };
@@ -401,6 +412,8 @@ const result = {
     ok(result && result.held === true && result.reason === scenario.reason
       && hold.request_id === 'submission:hold-request'
       && hold.draft_raw === world.store.get('form')
+      && hold.computed_title === 'Fixture Client - 19 Sep 2026'
+      && hold.computed_due_dates.join(',') === '2026-09-26'
       && /saved/i.test(world.statusNode.textContent)
       && /next page load/i.test(world.statusNode.textContent)
       && /Nothing was sent to Linear/i.test(world.statusNode.textContent),

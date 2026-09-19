@@ -36,6 +36,23 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-19 — native intake plan: endpoint enforcement is the only way to show the legacy route is unreachable
+
+Check 4 no longer offers "bounded stale-browser evidence" as an alternative. Both
+legacy webhooks, `video-form` and `graphic-form`, need verified enforcement at
+the endpoint, each with:
+
+- its own separately correlated refusal test and zero-side-effect evidence;
+- evidence bound to the deployed version;
+- the pre-cutoff re-read in check 11.
+
+Elapsed time and a stale-browser bound are listed explicitly as non-evidence.
+The Gate 0 wording and the Step 28 closure sentence now say the same. The two
+Gate 0 questions are named "recovery" and "unreachability" rather than (a) and
+(b), so they are not confused with the removed option. Earlier entries that
+describe option (b) are kept as written. Documentation only: no workflow was
+read or changed.
+
 ### 2026-09-19 — native intake plan: endpoint refusal evidence is bound to the deployed version, and drift blocks the cutoff
 
 A further correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier

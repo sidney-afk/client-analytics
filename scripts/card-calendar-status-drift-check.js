@@ -222,7 +222,11 @@ function classifySlot(card, slot, deliverable, mapNative) {
      ------------------------------------------------------------------
      The trigger fires on a CHANGE. It does not reconcile history, and it never
      claimed to: the cards that were already behind when it was installed are
-     the backfill's job, and the backfill has still never been run
+     the backfill's job. The backfill has run twice against production --
+     2026-09-18 23:45Z (16 posts) and 2026-09-19 01:10Z (1 post) -- but the
+     pre-bridge rows remaining below are deliberately NOT backfilled: several of
+     those posts were published without the component the bridge is comparing,
+     so there is nothing a backfill could write that would be correct
      (OPEN_REPAIRS 212). So a slot whose deliverable last moved BEFORE the
      trigger existed is not evidence that the bridge is failing -- it is
      evidence of the gap the bridge was built to stop widening.
@@ -513,9 +517,11 @@ async function main() {
       if (report.pre_bridge.length > LIMIT) console.log('  ... and ' + (report.pre_bridge.length - LIMIT) + ' more (use --json or --limit=N)');
       console.log('');
       console.log('These are NOT gating and never will be: the trigger fires on a change and does');
-      console.log('not reconcile history. They are the backlog that existed when it was installed,');
-      console.log('and clearing them is what production_native_calendar_status_backfill is for -- it');
-      console.log('has still never been run (OPEN_REPAIRS 212).');
+      console.log('not reconcile history. production_native_calendar_status_backfill has run twice');
+      console.log('against production (2026-09-18 23:45Z, 16 posts; 2026-09-19 01:10Z, 1 post), but');
+      console.log('these rows are deliberately left unbackfilled -- several of these posts were');
+      console.log('published without the component being compared, so there is no correct value the');
+      console.log('backfill could write for them (OPEN_REPAIRS 212).');
     }
     if (t.link_asymmetric) {
       console.log('');

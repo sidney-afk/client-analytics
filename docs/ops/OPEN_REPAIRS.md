@@ -26439,6 +26439,18 @@ been run against production** — the entry above should be read as the trigger
 being live and the already-lagging cards still lagging until the repaired
 routine is applied and the script run with `--apply`. See 213.
 
+**Amendment, 2026-09-19 — CLOSED.** `production_native_calendar_status_backfill`
+has now run against production twice, with `--apply`, after the temp-table-clear
+repair above: 2026-09-18 23:45Z (16 posts) and 2026-09-19 01:10Z (1 post). The
+sentence in `scripts/card-calendar-status-drift-check.js` claiming the backfill
+"has still never been run" was true when written and is false now; it has been
+corrected to name these two runs, and to state — which was previously left
+unsaid — that the pre-bridge rows the drift check still lists are deliberately
+left unbackfilled: several of those posts were published without the component
+the bridge compares, so there is no value a backfill could write for them that
+would be correct. That is a scope statement, not a residual failure, so this
+entry is closed.
+
 ## 213. [2026-09-18, OPEN] The live project's REST origin is a default in at least one more script
 
 `scripts/native-calendar-status-backfill.js` shipped with the production

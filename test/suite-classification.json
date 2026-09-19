@@ -89,6 +89,7 @@
     "calendar-linear-link-move.js",
     "calendar-link-adoption-repaint.js",
     "calendar-native-link-gap-check.js",
+    "card-calendar-status-drift-check.js",
     "calendar-organize-menu.js",
     "calendar-preview-thumbnail-link.js",
     "calendar-realtime-burst-coalesces.js",

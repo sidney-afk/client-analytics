@@ -193,6 +193,20 @@ const LANES = Object.freeze([
   { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160,
     hosts: ['calendar-e2e-nightly.yml'], retired: null },
   /*
+   * Added 2026-09-18 with the lane itself, rather than after an audit found it
+   * dark -- which is how `production_shadow_audit` above got here.
+   *
+   * It watches the native calendar bridge trigger, and it is deliberately NOT
+   * `retires_with: 'linear'`. The bridge exists precisely because the Linear
+   * round trip stopped carrying native receipts; it is the thing that outlives
+   * the exit, not a thing that dies with it.
+   *
+   * 240 minutes against an hourly cadence: three consecutive misses, which is
+   * past any plausible Actions queue delay and well short of a working day.
+   */
+  { key: 'card_calendar_drift', label: 'card vs calendar status drift', cadence: 'hourly :27', max_age_minutes: 240,
+    hosts: ['card-calendar-status-drift.yml'], retired: null },
+  /*
    * Added 2026-08-23, by owner request: page when the assurance ledger stops
    * being true.
    *

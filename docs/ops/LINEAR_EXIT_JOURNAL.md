@@ -30,6 +30,78 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-18 — the reconciler could not see native writes, so nothing was measuring the bridge
+
+The native calendar bridge trigger has been live since 22:38Z and it works. What
+did not exist was anything that would notice if it stopped.
+
+The obvious candidate is `scripts/linear-sync-reconcile.js`, which has compared
+`calendar_posts` against the production cards on a 15-minute tick for months.
+It cannot do this job, and the reason is worth writing down because it is the
+same shape as the defect the bridge itself repairs: **the reconciler compares
+the two surfaces through Linear.** It resolves the card's Linear link, reads the
+state Linear holds, and decides direction from that. Native receipts send Linear
+nothing. So since the ordinary-receipts flip the middle of that chain has been
+empty — the reconciler reads a state that never moved, its provenance test
+correctly refuses to write a stale value over live work, and it reports nothing
+wrong. A card whose calendar copy is hours behind its deliverable is not
+something the reconciler fails to fix; it is something the reconciler cannot
+see. On 2026-09-18 that was ten lagging components across seven clients, and
+what surfaced it was an SMM re-setting four cards by hand, not a monitor.
+
+`scripts/card-calendar-status-drift-check.js` is the measurement, comparing the
+two surfaces directly and never through Linear. Three things about it were
+decided deliberately.
+
+**It does not own a copy of the mapping.** `_calMapNativeStatusStrict` is
+extracted verbatim out of `index.html` at load, exactly as the two reconcilers
+take it. A private re-implementation would be a third copy of the table, and the
+failure it would produce — calling a correct card drifted, or missing a real
+one — is precisely the failure the report exists to catch.
+`test/native-calendar-status-bridge.js` already pins that JS function to the SQL
+`production_native_calendar_status_map`, so extracting the JS transitively binds
+this to the SQL the trigger actually runs.
+
+**Most of the work is in NOT reporting things.** Seven cases exist where the two
+surfaces disagree and that is correct, because the trigger was never going to
+write that slot: a non-calendar origin, an archived card, a status with no
+calendar equivalent, a deliverable that does not point back at the card and
+client the trigger joins on, a deliverable sitting in both slots of one card
+(the trigger resolves it to video), and an id that did not read back. Each is
+bucketed and counted, not called drift. A lane that went red on day one for
+reasons nobody could act on would be turned off within a week, and then the
+bridge would be unmeasured again with a green tick on top — which is worse than
+unmeasured.
+
+**The comparison is exact, not case-folded.** The trigger guards on
+`p.video_status is distinct from v_target` against the raw column, so a card
+holding `in progress` against an expected `In Progress` is a card the trigger
+would still rewrite. A case-insensitive comparison here would report it clean
+and quietly stop catching a whole class of drift. That is pinned by a fixture
+card, and the assertion was seen to fail against a planted case-folded
+comparison before it was accepted — as was the archived exclusion.
+
+It is read-only with no apply path at all. Repairing a drifted card means
+re-running `production_native_calendar_status_backfill`, which owns that write
+and honours the urgent-ping dedupe key; a second writer of
+`calendar_posts.video_status` is the last thing that surface needs.
+
+Wired as `card-calendar-status-drift.yml`: hourly at :27, plus on push to `main`
+so a change that breaks the check goes red there rather than reporting clean,
+gated, and heartbeated as the `card_calendar_drift` watchdog lane. The lane was
+registered in `scripts/monitoring-watchdog.js` **with** the workflow rather than
+after an audit found it dark, which is how `production_shadow_audit` got there
+and is a lesson this repository has already paid for twice.
+
+One thing the owner has to do before this can pass: the lane requires a
+repository secret `SUPABASE_URL`. It deliberately has no hard-coded project,
+in the workflow or in the script — the other lanes carry the live project URL as
+a literal, which is a public identifier for the production database in a public
+repository and, more to the point, lets a misconfigured lane read the wrong
+place silently instead of stopping. Until that secret is set the lane fails its
+first step with a message saying exactly that.
+
+
 ### 2026-09-18 — the backfill was never callable, and the green fixture is the part worth remembering
 
 The bridge migration applied live at 22:38Z. The trigger works. The storage

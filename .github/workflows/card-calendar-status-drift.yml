@@ -1,0 +1,98 @@
+name: Card vs calendar status drift
+
+# Does the content calendar still agree with the production card?
+#
+# The native bridge trigger (migrations/2026-09-18-native-calendar-status-bridge.sql)
+# projects a deliverable's status onto its calendar slot. Nothing measured that it
+# was actually holding. The reconciler cannot be that measurement: it compares the
+# two surfaces THROUGH Linear, and native receipts send Linear nothing, so a card
+# hours behind its deliverable looks perfectly quiet to it.
+#
+# The schedule is what catches drift, because drift is a data condition and
+# arrives without anybody pushing anything. The `push:` trigger is not decoration
+# either: it re-runs the lane when the checking code or the mapping it extracts
+# changes, so a change that breaks the check goes red on main instead of silently
+# reporting clean, and it seeds this lane's first heartbeat at merge rather than
+# leaving the watchdog to call a brand-new lane "never checked in" for a day.
+
+on:
+  schedule:
+    # Hourly at :27. Off the hour and clear of the other lanes' windows (:13/:43
+    # census, */20 crosscheck, */30 freshness). The bridge is a trigger, so a
+    # correct world is drift-free within one transaction and an hourly read is
+    # about catching the hour it stopped being correct -- not about latency.
+    - cron: '27 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/card-calendar-status-drift-check.js'
+      - 'test/card-calendar-status-drift-check.js'
+      - 'test/fixtures/card-calendar-status-drift.json'
+      - 'migrations/2026-09-18-native-calendar-status-bridge.sql'
+      - 'index.html'
+      - '.github/workflows/card-calendar-status-drift.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: card-calendar-status-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # No default project anywhere in this lane. The script refuses an unset
+      # SUPABASE_URL rather than guessing, and so does this: the other lanes in
+      # this repository carry the live project URL as a literal, which is a
+      # public identifier for the production database sitting in a public repo
+      # AND -- the part that actually bites -- makes a misconfigured lane read
+      # the wrong place silently instead of stopping. Recorded in
+      # docs/ops/OPEN_REPAIRS.md; this lane does not add another instance.
+      #
+      # REQUIRES the repository secret SUPABASE_URL. If it is not set, the
+      # preflight step below fails the run with a message saying exactly that.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require the project URL and a read credential
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::error::Missing repository secret SUPABASE_URL. This lane has no default project on purpose; set it to https://<project-ref>.supabase.co."
+            missing=1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY — this lane cannot read the deliverables side."
+            missing=1
+          fi
+          exit "$missing"
+
+      # The offline half, first and always. It executes the same classifier the
+      # live half runs, so a lane that goes red here is red about its own logic
+      # and not about the estate -- which is a different conversation, and one
+      # worth being able to have without a credential.
+      - name: Classifier unit suite (offline)
+        run: node test/card-calendar-status-drift-check.js
+
+      # The counts for every bucket, whatever the verdict. Printing the full
+      # classification is what lets somebody act on a red run without re-running
+      # it locally against a database they may not be able to reach.
+      - name: Print the full classification
+        run: node scripts/card-calendar-status-drift-check.js
+
+      - name: Gate — does any linked slot disagree with its deliverable?
+        run: node scripts/card-calendar-status-drift-check.js --gate
+
+      - name: Record card_calendar_drift heartbeat
+        if: always()
+        run: node scripts/monitoring-watchdog.js --heartbeat=card_calendar_drift --ok=${{ job.status == 'success' }}

@@ -61156,8 +61156,12 @@
                     || _prodWriteTeam(row.team) !== issueTeam) {
                     throw new Error(String(json && json.error || 'description_read_failed'));
                 }
-                _prodSyncDescriptionRow(id, row.brief, row.updated_at);
-                _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
+                const media = json && json.media;
+                const briefText = (media && media.complete === true && typeof media.render_brief === 'string')
+                    ? media.render_brief
+                    : row.brief;
+                _prodSyncDescriptionRow(id, briefText, row.updated_at);
+                _prodAdoptDescriptionValue(id, briefText, row.updated_at);
                 /* The scope this text is true for; _prodDescriptionState
                    refuses to draw it if the row leaves that scope.
 

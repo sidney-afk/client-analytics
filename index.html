@@ -36668,12 +36668,25 @@
         if (!_calLoadRunCurrent(loadRun)) return;
         _calHydrateLinearMeta();
         if (!_calLoadRunCurrent(loadRun)) return;
+        // Urgent editor assignee lookup, Linear-exit slice: every consumer of
+        // this batch's result (_calLinearMissingForCard for the "incomplete
+        // sub-issue" banner, _calIsParentLinked for the "parent linked"
+        // banner) already discards a SEALED component's ident -- see
+        // OPEN_REPAIRS 62 and test/cal-linear-missing-banner-seal.js. Once a
+        // team is SyncView-authoritative, asking Linear for that ident's
+        // project/due/editor meta is a real network call whose answer is
+        // GUARANTEED unused. Excluding it here is pure dependency reduction,
+        // not a behavior change: an ident is skipped only when
+        // _writeUiLinkSlotSealed already makes every reader of this map
+        // ignore it. Fails OPEN the same way the renderer does -- with no
+        // live authority read yet, _writeUiLinkSlotSealed answers false and
+        // the ident is still fetched, matching today's behavior exactly.
         const idents = new Set();
         for (const p of calState.posts || []) {
             const v = _calIdentFromUrl(p && p.linear_issue_id);
             const g = _calIdentFromUrl(p && p.graphic_linear_issue_id);
-            if (v) idents.add(v);
-            if (g) idents.add(g);
+            if (v && !_writeUiLinkSlotSealed('video')) idents.add(v);
+            if (g && !_writeUiLinkSlotSealed('graphic')) idents.add(g);
         }
         if (!idents.size) return;
         // Source the banner meta (project / due date / editor + sub-vs-parent)

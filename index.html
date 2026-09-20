@@ -50723,8 +50723,20 @@
         return error;
     }
 
-    function _linearDraftSnapshot(client) {
+    function _linearDraftSnapshot(client, heldDraftRaw) {
         try {
+            // A held retry replays the filming-plan link preserved in the hold
+            // (never the live lookup), so the derived plan field must not decide
+            // the exact-bytes comparison below. On a reload, routing can finish
+            // while loadLinearPlanMap() is still pending, leaving the resolved
+            // URL empty; re-saving the form then would overwrite the held link
+            // and report a false held_submission_conflict. Restore the held
+            // value first; every user-editable field still compares exactly.
+            if (typeof heldDraftRaw === 'string' && heldDraftRaw) {
+                let heldPlan = '';
+                try { heldPlan = String(JSON.parse(heldDraftRaw).filmingPlans || ''); } catch (e) {}
+                _linearResolvedPlanUrl = heldPlan;
+            }
             const expected = saveLinearForm();
             const raw = localStorage.getItem(LINEAR_FORM_KEY);
             if (!raw || !expected || _linearStableJson(JSON.parse(raw)) !== _linearStableJson(expected)) {
@@ -50796,14 +50808,14 @@
             if (status) status.textContent = message;
             return { ok: false, held: false, reason: 'client_required', error: message };
         }
+        const prior = _linearSubmissionHoldSnapshot();
         let draft;
-        try { draft = _linearDraftSnapshot(clientName); }
+        try { draft = _linearDraftSnapshot(clientName, prior && prior.hold.draft_raw); }
         catch (error) {
             const message = 'Nothing was sent. SyncView could not verify browser storage, so this submission cannot safely send itself. Keep this page open and restore site storage before retrying.';
             if (status) status.textContent = message;
             return { ok: false, held: false, reason, error: message };
         }
-        const prior = _linearSubmissionHoldSnapshot();
         const legacyReceiptKeys = _linearSubmissionHoldReceiptKeys(options && options.legacy_receipts_raw);
         if (prior && (prior.hold.mode !== mode || prior.hold.client_name !== clientName
             || prior.hold.client_slug !== clientSlug || prior.hold.draft_raw !== draft.form_raw)) {
@@ -51496,7 +51508,7 @@
         let heldDraft = null;
         if (heldSnapshot) {
             let currentDraft;
-            try { currentDraft = _linearDraftSnapshot(clientName); }
+            try { currentDraft = _linearDraftSnapshot(clientName, heldSnapshot.hold.draft_raw); }
             catch (error) { return _linearHoldSubmission(mode, 'held_draft_unavailable'); }
             if (heldSnapshot.hold.mode !== mode
                 || heldSnapshot.hold.client_name !== clientName

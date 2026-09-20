@@ -365,6 +365,8 @@ const result = {
     const holdContext = {
       LINEAR_INTAKE_HOLD_KEY: 'hold', LINEAR_RECEIPTS_KEY: 'receipts',
       LINEAR_FORM_KEY: 'form', LAST_LINK_KEY: 'last', LINEAR_INTAKE_LOAD_ID: 'load-a',
+      // Empty = the async plan map has not resolved yet on this page load.
+      _linearResolvedPlanUrl: '',
       localStorage: {
         getItem(key) {
           if (options && options.receiptReadThrows && key === 'receipts') throw new Error('blocked');
@@ -381,7 +383,8 @@ const result = {
       wlTodayISO: () => '2026-09-19',
       wlAddWorkingDays: () => '2026-09-26',
       saveLinearForm() {
-        const draft = { client: inputNode.value, clientSlug: inputNode.dataset.clientSlug, videos: [{ main_cam: 'fixture' }] };
+        const draft = { client: inputNode.value, clientSlug: inputNode.dataset.clientSlug,
+          filmingPlans: holdContext._linearResolvedPlanUrl || '', videos: [{ main_cam: 'fixture' }] };
         heldStore.set('form', JSON.stringify(draft));
         return draft;
       },
@@ -427,6 +430,39 @@ const result = {
         && /same-identity backend recovery/.test(world.statusNode.textContent),
       'saved legacy receipt keeps its original recovery identity and names the backend limitation');
     }
+  }
+  {
+    // Reload ordering: a hold saved with a filming-plan link is retried before
+    // loadLinearPlanMap() resolves. Re-saving the form must restore the held
+    // link, not overwrite it and report a false held_submission_conflict.
+    const heldPlan = 'https://docs.example.test/plan';
+    const world = holdWorld({ routingFalse: true });
+    const heldDraft = JSON.stringify({ client: 'Fixture Client', clientSlug: 'fixture-client',
+      filmingPlans: heldPlan, videos: [{ main_cam: 'fixture' }] });
+    world.store.set('form', heldDraft);
+    world.store.set('hold', world.context._linearStableJson({
+      version: 1, mode: 'video', reason: 'native_routing_unavailable',
+      request_id: 'submission:earlier-load', source_edited_at: '2026-09-19T12:00:00.000Z',
+      client_name: 'Fixture Client', client_slug: 'fixture-client',
+      draft_raw: heldDraft, last_link_raw: null,
+      computed_title: 'Fixture Client - 19 Sep 2026', computed_due_dates: ['2026-09-26'],
+      legacy_receipt_keys: [], legacy_receipt_present: false,
+      created_at: '2026-09-19T12:00:00.000Z', created_load_id: 'load-b'
+    }));
+    const snapshot = world.context._linearDraftSnapshot('Fixture Client', heldDraft);
+    ok(snapshot.form_raw === heldDraft && world.context._linearResolvedPlanUrl === heldPlan,
+    'a held draft snapshot restores the held filming-plan link before re-saving, so the bytes stay identical');
+    world.context._linearResolvedPlanUrl = '';
+    const result = await world.context._submitLinearFormRoutedOnce('video');
+    const hold = JSON.parse(world.store.get('hold'));
+    ok(result && result.held === true && result.reason === 'native_routing_unavailable'
+      && result.request_id === 'submission:earlier-load'
+      && hold.request_id === 'submission:earlier-load'
+      && JSON.parse(hold.draft_raw).filmingPlans === heldPlan,
+    'a held retry before the plan map resolves keeps its identity and plan instead of a false conflict');
+    ok(submit.includes('_linearDraftSnapshot(clientName, heldSnapshot.hold.draft_raw)')
+      && extract('_linearHoldSubmission').includes('_linearDraftSnapshot(clientName, prior && prior.hold.draft_raw)'),
+    'both held-draft comparisons hand the snapshot the held bytes so only user-editable fields decide a conflict');
   }
   const projectSource = extract('fetchLinearProjects');
   const projectBuilder = extract('_linearRebuildProjectSource');

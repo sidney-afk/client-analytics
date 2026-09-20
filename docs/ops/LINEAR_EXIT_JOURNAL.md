@@ -36,6 +36,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-20 — Cohort/outbound/Gate 0 readback (read-only); Part B blocked: 43 of 43 active clients on record are in the native-intake reroute list (0 outside it, 0 listed-but-inactive); `native_intake_epochs` shows both teams enabled. `linear_outbound_enabled` mode is `live`; no separate per-team outbound-mode flag exists under that name — only the epoch flags carry per-team state. `mirror_outbox` rows in the last 7 days: written 1511, skipped 313, failed 31, stale 3. No flag named `urgent_video_destination` exists in `syncview_runtime_flags`; reported as absent, not guessed. Active (non-terminal) `workload_issues` legacy rows: video 1523 (due 2023-02-01..2026-09-29), graphics 571 (due 2026-01-27..2026-10-01); `workload_native_snapshot_v1` is a function, not a table — `pg_proc` lists it alongside `workload_native_label_state_absent`, `workload_native_plan_set_v1` and `workload_native_plan_target_v1`. It returns 6765 rows total, 28 with `source='legacy'` (15 CON, 13 STR, 0 video, 0 graphics), and 0 of those 28 carry a non-null `native_plan_id`. Gate 0's ledger, `linear_intake_receipts`, has 19 rows: 17 `created` (each with a `parent_issue_id`, so treated as terminal success) and 2 `failed` (0 `parent_issue_id`, 0 attempts) — **2 non-terminal receipts**, both status `failed`, both ~54.7 days old (`linear-intake-v1:video:30a19a75ca1cbcf4457e78649a494c9a8d089ac57a8859052fdc0ed80f1ecf6a`, `linear-intake-v1:video:f4a008f412b3544b7f8a89e5f412b2c79283ed5d69f752aad8df06354abb73bc`). Realistic active legacy `workload_issues` load (non-terminal, updated in the last 30 days or due on or after 2026-08-20): video 352, graphics 285 (vs. the unfiltered active counts of 1523 and 571). `mirror_outbox` `written` rows in the last 7 days, top 5 operation/origin combinations (origin classified by `linear_issue_uuid`: null=native, not null=legacy; 34 rows with no `deliverable_id` excluded from classification): status/legacy 867, due/legacy 203, comment/legacy 105, create/legacy 103, attachment/legacy 81 — no native combination reached the top 5. **Part B (check 7 write drill) did not run**: `scripts/production-write-drill.js` requires `SUPABASE_SERVICE_ROLE_KEY`, which is not one of the six secrets this session can read. Reported, not worked around
+
 ### 2026-09-20 — PR #1436 browser-intake hold, read-only check: the 2 test-client deliverables created 05:14:59Z (VID-15027, GRA-8023) both have `linear_issue_uuid` null, and each has exactly 1 `mirror_outbox` row, status `skipped`, 0 attempts, no dispatch authorization. 0 queued and 0 sent outbound rows. Nothing was written
 
 ### 2026-09-19 — native intake plan: the correlated telemetry row is exempt from check 4's forbidden writes
@@ -13483,3 +13485,44 @@ Both changes verified with `test/calendar-card-write-jobs.js`,
 and `docs/syncview-design/tests/prod-write-gateway-browser.js`. No Edge
 Function, migration, flag, or n8n workflow touched; no live read, deployment,
 or database installation occurred.
+
+### 2026-09-20 — Urgent editor assignee lookup: Candidate A already closed browser-side, Candidate B's sealed-team fetch trimmed
+
+The "Urgent editor assignee lookup" execution-map row and its checkpoint
+counterpart ("Legacy urgent editor assignee lookup") name two different
+lookups in `index.html`. Investigated both before touching either, per the
+task's own instruction not to re-derive from scratch.
+
+Candidate A (`_calUrgentSlackDispatch`/`_calSendUrgentSlack`, the urgent
+Slack ping's editor resolution) is the one the checkpoint's own phrasing
+points at, and it turned out to be already fully built and tested on `main`:
+a bound card reroutes to `native_urgent_dispatch` on `production-write`, an
+unbound legacy card falls through to the legacy `send-urgent-slack` webhook,
+and the pre-F27-deployment `400 unsupported_action` transitional case falls
+back the same way exactly once. `test/native-urgent-ui.js` already carries
+42 passing cases covering every one of those branches across all four staff
+surfaces. Nothing was added here for Candidate A — there is no in-scope
+browser gap left to close. What remains (a genuinely never-bound legacy card
+has no native deliverable id to send at all) needs either a new
+native-binding backfill feature or an n8n change accepting a pre-resolved
+editor identity; both are out of this PR's scope and are not attempted.
+
+Candidate B (`_calLinearMissingForCard`'s "incomplete sub-issue" banner,
+sourced from the `linear-issue-statuses` webhook) had a real, narrow,
+verifiable gap: `_calRefreshParentLinkFlags` fetched that webhook for a
+SyncView-authoritative team's idents even though OPEN_REPAIRS 62 already
+made every reader of the result (the banner and the parent-linked check)
+discard a sealed ident unconditionally. That fetch answer was guaranteed
+unused. Excluded a sealed team's idents from the batch — same output, fewer
+real Linear-lookup calls, no UI or banner-copy change (a bigger swap that
+would have revived the "open Linear to fill in the editor" click-through for
+native rows was deliberately NOT built; that contradicts OPEN_REPAIRS 62's
+own reasoning and would need its own product decision).
+
+New coverage: `test/cal-linear-status-meta-sealed-fetch.js`, executing the
+shipped function against a mocked fetch: unknown authority still fetches
+everything (fails open, matching today's behavior), a sealed team's ident is
+excluded while the other team's is kept, both-sealed issues zero Linear
+requests, authority rolling back to Linear restores the fetch with no code
+change, and the exclusion holds across multiple cards in one batch. No live
+read, deployment, database installation, or n8n edit occurred.

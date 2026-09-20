@@ -55152,17 +55152,22 @@
                own children have no `raw_issue_parent_id` to point through
                `byUuid`, so they surface as bare top-level issues with no
                "Sub-issue of" and no way back to their batch or siblings.
-               Same fix shape as the two-team case just above: one synthetic
-               parent per TEAM actually present among the batch's children
-               (`childCounts` proves a batch has children at all; the per-team
-               breakdown below decides how many rows to mint), the first
-               keeping the bare batch id and any further team getting a
-               suffixed id -- here `batchId::team`, since there is no Linear
-               uuid to suffix with. A batch that already produced a
-               Linear-backed node, or whose linear_parent_ids has ANY usable
-               entry (even one this pass left ambiguous or already claimed by
-               a deliverable row), is untouched -- this branch only fires
-               where the Linear-backed branch above had nothing to work with. */
+               ONE PARENT PER CARD (owner ruling 2026-08-18, the same rule
+               production-write's own batch-create intake follows -- see
+               "ONE PARENT PER CARD" in supabase/functions/production-write,
+               batch-create): a batch mints exactly ONE synthetic parent
+               regardless of how many teams it serves, owned by the primary
+               team -- video when present, otherwise whichever team the batch
+               has -- and every child of every team links to that SAME node.
+               This is the native mirror of what a Linear-backed create of the
+               same card would have produced (and why the Linear-backed loop
+               above already collapses identical per-team uuids into one row
+               via byUuid: same rule, upstream side). A batch that already
+               produced a Linear-backed node, or whose linear_parent_ids has
+               ANY usable entry (even one this pass left ambiguous or already
+               claimed by a deliverable row), is untouched -- this branch only
+               fires where the Linear-backed branch above had nothing to work
+               with. */
             const linearBackedBatchIds = new Set(Array.from(nodes.values()).map(n => n.batchId));
             const hasUsableParentIds = batch => parseEntries(batch && batch.linear_parent_ids)
                 .some(({ entry }) => String(entry.uuid || entry.id || entry.linear_issue_id || '').trim());
@@ -55170,57 +55175,61 @@
                 const v = String(t || '').trim().toLowerCase();
                 return (v === 'graphics' || v === 'graphic' || v === 'gra') ? 'graphics' : 'video';
             };
-            const nativeTeamCounts = new Map(); // batchId -> Map(team -> count)
+            const nativeTeamsPresent = new Map(); // batchId -> Set(team)
             rows.forEach(row => {
                 const bid = String(row && row.batch_id || '').trim();
                 if (!bid) return;
-                if (!nativeTeamCounts.has(bid)) nativeTeamCounts.set(bid, new Map());
-                const teamMap = nativeTeamCounts.get(bid);
-                const team = normalizeChildTeam(row && row.team);
-                teamMap.set(team, (teamMap.get(team) || 0) + 1);
+                if (!nativeTeamsPresent.has(bid)) nativeTeamsPresent.set(bid, new Set());
+                nativeTeamsPresent.get(bid).add(normalizeChildTeam(row && row.team));
             });
-            const nativeNodeByBatchTeam = new Map(); // 'batchId::team' -> nodeId
+            const nativeNodeByBatch = new Map(); // batchId -> nodeId
             batches.forEach(batch => {
                 const batchId = String(batch && batch.id || '').trim();
                 if (!batchId || linearBackedBatchIds.has(batchId)) return;
                 if (!childCounts.get(batchId)) return;
                 if (hasUsableParentIds(batch)) return;
-                const teamMap = nativeTeamCounts.get(batchId);
-                if (!teamMap || !teamMap.size) return;
+                const teamsPresent = nativeTeamsPresent.get(batchId);
+                if (!teamsPresent || !teamsPresent.size) return;
                 const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
-                Array.from(teamMap.keys()).sort().forEach((team, index) => {
-                    const nodeId = index === 0 ? batchId : batchId + '::' + team;
-                    const node = {
-                        batchId,
-                        batch,
-                        archived: batchArchived,
-                        uuid: '',
-                        // No Linear issue underneath a native batch, so there is
-                        // no `identifier` to mirror off a linear_parent_ids
-                        // entry the way the Linear-backed branch does; the
-                        // renderer already falls back to the batch's own name
-                        // and then this nodeId for title/displayId.
-                        identifier: '',
-                        url: '',
-                        team,
-                        nodeId
-                    };
-                    nodes.set(nodeId, node);
-                    nativeNodeByBatchTeam.set(batchId + '::' + team, nodeId);
-                });
+                const nodeId = batchId;
+                const node = {
+                    batchId,
+                    batch,
+                    archived: batchArchived,
+                    uuid: '',
+                    // No Linear issue underneath a native batch, so there is
+                    // no `identifier` to mirror off a linear_parent_ids
+                    // entry the way the Linear-backed branch does; the
+                    // renderer already falls back to the batch's own name
+                    // and then this nodeId for title/displayId.
+                    identifier: '',
+                    url: '',
+                    team: teamsPresent.has('video') ? 'video' : Array.from(teamsPresent)[0],
+                    nodeId
+                };
+                nodes.set(nodeId, node);
+                nativeNodeByBatch.set(batchId, nodeId);
             });
             const links = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
                 if (!nativeId || parentLinks.has(nativeId)) return;
-                const linearNode = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                const rawParentId = String(row && row.raw_issue_parent_id || '').trim();
+                const linearNode = rawParentId ? byUuid.get(rawParentId) : null;
                 if (linearNode && linearNode.nodeId && linearNode.batchId !== nativeId) {
                     links.set(nativeId, linearNode.nodeId);
                     return;
                 }
+                /* An explicit parent edge that FAILED to resolve (missing,
+                   duplicated, self-referential, or cyclic target) must stay a
+                   root, not get silently reparented to the batch -- that
+                   would invent a relationship the data never claimed. The
+                   native-batch fallback below is only for a row with NO
+                   parent edge to begin with. */
+                if (rawParentId) return;
                 const bid = String(row && row.batch_id || '').trim();
                 if (!bid) return;
-                const nativeNodeId = nativeNodeByBatchTeam.get(bid + '::' + normalizeChildTeam(row && row.team));
+                const nativeNodeId = nativeNodeByBatch.get(bid);
                 if (nativeNodeId && bid !== nativeId) links.set(nativeId, nativeNodeId);
             });
             return { links, nodes };

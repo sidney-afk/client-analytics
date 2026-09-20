@@ -27045,26 +27045,42 @@ has no Linear parent at all — `linear_parent_ids` is `null`, not just missing
 an entry — so nothing in that map-keyed logic had anything to mint from, and
 every deliverable under the batch surfaced with no parent context.
 
-**Fix.** The resolver now also mints one synthetic parent node per TEAM
-present among a batch's own children (read from the same `childCounts` map
-the existing same-kind tie-break already builds) whenever that batch has
-children but no usable `linear_parent_ids` entry. It reuses the exact node
-shape, `nodeId` convention (bare batch id for the first team, `batchId::team`
-suffix for a second team — the two-team-batch pattern already in the
-function, just suffixed by team instead of by Linear uuid since there is none
-here), and the same `links`/`nodes` return shape the renderer already
-consumes for "Sub-issue of" and the parent's child-listing/progress chip.
-Linear-backed batches, the cross-batch-uuid ambiguity guard, and the archived
-tie-break are untouched — the new branch is gated to fire only where the
-existing branch produced nothing for that batch.
+**Fix.** The resolver now mints exactly ONE synthetic parent node per batch
+whenever that batch has children but no usable `linear_parent_ids` entry —
+not one per team. This is the native mirror of the "ONE PARENT PER CARD"
+rule production-write's own batch-create intake already follows (owner
+ruling 2026-08-18): the node is owned by the primary team (video when
+present, otherwise the batch's only team) and every child of every team
+links to that same node, the same shape a Linear-backed create of the same
+card would have produced. (A first pass minted one node per team, matching
+the two-team-batch pattern for legacy Linear batches with genuinely separate
+parent issues — Codex review caught that this doesn't fix the reported bug
+for a mixed-team native batch: a video would still have no route to its
+thumbnail siblings, just through a different missing link.) It reuses the
+same node shape and the same `links`/`nodes` return shape the renderer
+already consumes for "Sub-issue of" and the parent's child-listing/progress
+chip. Linear-backed batches, the cross-batch-uuid ambiguity guard, and the
+archived tie-break are untouched — the new branch is gated to fire only
+where the existing branch produced nothing for that batch.
 
-**Evidence.** `test/production-parent-link-hierarchy.js` gained a fixture: a
-native batch (`linear_parent_ids: null`) with 3 video + 3 graphics
-deliverables sharing one `batch_id`. Asserts two parent nodes mint (one per
-team), each child links to its own team's synthetic parent (not the other
-team's), the result is order-independent, and every pre-existing fixture in
-that file (single-parent, two-team Linear-backed, mirrored-uuid tie-break)
-still passes unchanged. Also ran clean:
+Same review also caught a second, real bug in the fallback: a row with an
+EXPLICIT parent edge (`raw_issue_parent_id` set) that fails to resolve
+(missing, duplicated, self-referential, or cyclic target) was silently
+falling through to the native-batch fallback and getting reparented to its
+batch — reversing the function's own fail-closed behavior (proven by the
+adjacent "a missing parent fails closed as a visible root" /
+"a cyclic parent graph fails closed" tests) of keeping unresolved work
+visible as a root rather than inventing a relationship. The native-batch
+fallback now only fires when `raw_issue_parent_id` is empty to begin with.
+
+**Evidence.** `test/production-parent-link-hierarchy.js` gained two fixtures:
+a native batch (`linear_parent_ids: null`) with 3 video + 3 graphics
+deliverables sharing one `batch_id`, asserting exactly ONE parent node mints
+and every child of both teams links to it (order-independent); and a native
+batch with one row carrying an unresolvable `raw_issue_parent_id`, asserting
+it stays a root instead of falling back to its batch. Every pre-existing
+fixture in that file (single-parent, two-team Linear-backed, mirrored-uuid
+tie-break) still passes unchanged. Also ran clean:
 `node docs/syncview-design/tests/prod-write-gateway-browser.js`. No live
 read, deployment, migration, or n8n edit — pure `index.html` + test change,
 deployed by the normal GitHub Pages push once merged.

@@ -70,6 +70,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 import {
   briefMediaOccurrences,
@@ -691,7 +692,10 @@ const USAGE = `usage:
 Secrets from env only: LINEAR_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 NATIVE_BRIEF_MEDIA_COPY_CONFIRM=COPY_NATIVE_BRIEF_MEDIA (required for apply).`;
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL`, not string concatenation: on Windows `process.argv[1]` is
+// `C:\...` while `import.meta.url` is `file:///C:/...`, so the literal compare
+// never matched and the CLI exited 0 silently (found live 2026-09-20).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [cmd, ...rest] = process.argv.slice(2);
   try {
     if (cmd === 'plan' && rest.length === 2) {

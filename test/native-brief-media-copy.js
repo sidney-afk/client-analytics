@@ -598,6 +598,20 @@ function makeOccurrence({ deliverableId, clientSlug, team, linearIssueUuid, stal
     'no real client slug is embedded in this test');
 }
 
+{
+  /* CLI entrypoint guard must compare through pathToFileURL: the string form
+     `file://${process.argv[1]}` never matches on Windows (argv[1] is `C:\...`,
+     import.meta.url is `file:///C:/...`), so `plan` exited 0 with no output
+     when first run live on 2026-09-20. Same guard in linear-media-rescue.mjs. */
+  for (const rel of ['native-brief-media-copy.mjs', 'linear-media-rescue.mjs']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', rel), 'utf8');
+    ok(src.includes('import.meta.url === pathToFileURL(process.argv[1]).href'),
+      `${rel}: entrypoint guard compares via pathToFileURL`);
+    ok(!src.includes('import.meta.url === `file://${process.argv[1]}`'),
+      `${rel}: no string-concatenated file:// entrypoint compare`);
+  }
+}
+
 if (failures) {
   console.error(`\n${failures} native brief media copy check(s) failed ❌`);
   process.exit(1);

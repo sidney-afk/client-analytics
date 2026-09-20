@@ -16,6 +16,14 @@ on:
   # Actions UI so the repository does not lie about itself. workflow_dispatch is
   # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
   # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #
+  # NOT THE WHOLE STORY FOR THIS LANE. n8n pager `qllIDZPkdNAPRj0b` dispatches
+  # this workflow every 15 minutes with `dry_run=false`, and the APPLY
+  # expression below makes a dispatched run with dry_run != 'true' write-capable
+  # exactly as a scheduled run was. So removing the cron reduces the trigger
+  # count and changes nothing about the writes until that pager node is
+  # disabled, which is the owner's step (STEP 6 item 1, and CLAUDE.md forbids
+  # editing an n8n workflow without explicit go-ahead). See docs/truth/N8N.md.
   #schedule:
   #  - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
   workflow_dispatch:

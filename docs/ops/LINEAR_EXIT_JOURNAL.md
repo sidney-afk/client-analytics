@@ -13633,8 +13633,13 @@ fourth `retires_with:'linear'` lane, `production_write_drill`, stays active
 because the inventory classifies its only host a *rewrite* candidate, not a
 retire one, and a retired lane with a scheduled host fails the suite — the two
 must move together, in whichever PR rewrites that workflow. No n8n workflow was
-touched; the runbook's own n8n items are listed in the PR for the owner. No live
-read, deployment or database change occurred.
+touched; the runbook's own n8n items are listed in the PR for the owner. **And
+one of them is load-bearing, not housekeeping** (Codex P1 on #1449, verified):
+pager `qllIDZPkdNAPRj0b` dispatches `sample-linear-reconcile.yml` every 15
+minutes with `dry_run=false`, and that workflow's APPLY expression makes such a
+dispatch write-capable, so removing its cron stops a trigger and not the writes
+until the owner disables that node. Recorded in `docs/truth/N8N.md` and in the
+workflow's own header. No live read, deployment or database change occurred.
 
 ### 2026-09-20 — Production sweep, part two: three more sites checked for the same Linear-identity assumption; two were real, one was a false lead Codex caught
 

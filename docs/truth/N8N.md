@@ -98,12 +98,26 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   retire is a Phase-3 decision: reviving requires explaining the crash topology, republishing, and
   re-creating the Linear webhooks (~1 min each); retiring means the EF inbound lane becomes the
   only fast path at enrollment.
-- The old dedicated Samples n8n trigger (`ZJOtYpQZj73DcBB1`) remains inactive, but Samples drift
-  protection is **on twice**: pager `qllIDZPkdNAPRj0b` dispatches the GitHub workflow every 15
-  minutes and `sample-linear-reconcile.yml` still has its own `*/10` schedule. Recent executions
-  contain both trigger types. Until F132 closes, retain the independent schedule because Samples is
-  the pager's last stop-on-error branch. If reducing burn first, remove the pager dispatch (not both),
-  retain independent observation, and prove the post-cut 24-hour execution rate (audit F01).
+- The old dedicated Samples n8n trigger (`ZJOtYpQZj73DcBB1`) remains inactive. Samples drift
+  protection **used to be on twice**: pager `qllIDZPkdNAPRj0b` dispatches the GitHub workflow every
+  15 minutes AND `sample-linear-reconcile.yml` carried its own `*/10` schedule.
+  **Changed 2026-09-20 by the Linear cutoff, STEP 6 of `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`:** the
+  `*/10` cron is commented out (`workflow_dispatch` kept), so the independent half is gone and the
+  pager dispatch is the ONLY remaining trigger.
+  **The retain-until-F132 instruction no longer applies, and it is important to say why rather than
+  to read this as the burn cut it warned against.** That instruction chose between two lanes both
+  wanted alive; the cutoff wants neither, because the reconcile compares against a Linear state
+  native writes no longer feed. It also said to cut the pager and keep the schedule if only one
+  could go — the cutoff does the reverse *in the end*, but only because STEP 6 retires both, and it
+  orders the n8n pager FIRST for exactly this reason.
+  **⚠ UNTIL THE PAGER NODE IS DISABLED, THIS LANE IS NOT ACTUALLY STOPPED, AND IT STILL WRITES.**
+  The pager's dispatch supplies `dry_run=false`, and `sample-linear-reconcile.yml:57` computes
+  `APPLY` as `github.event_name == 'schedule' || github.event.inputs.dry_run != 'true'` — so a
+  pager-dispatched run is write-capable exactly as a scheduled one was. Removing the cron alone
+  therefore changes the trigger count and nothing about the writes. The n8n half is the owner's
+  (`CLAUDE.md` forbids editing an n8n workflow without explicit go-ahead in the same request); it is
+  listed for confirmation on PR #1449. Until it lands, treat Samples reconciliation as still running
+  every 15 minutes with apply on.
 - `linear-set-status` is the only n8n dueDate writer (+2d when overdue, on every call). The
   nightly due-date roller is NOT in n8n (see `docs/truth/LINEAR.md`).
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues

@@ -180,6 +180,39 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
  ok(result.metadata[0].workload.weight===3&&result.metadata[0].native_target.id==='del_fixture','native complete weight and due target');
  ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');
  ok(result.roster.length===1&&result.roster[0].id==='member-fixture','authenticated snapshot carries stable native roster identity');}
+ // ---- Linear-exit Workload slice 2: a legacy row bound to a native deliverable
+ // The gateway's `workload_native_snapshot_v1()` already joins a legacy row to
+ // `workload_issues_native_v1` by linear_id and reports it as `native_plan_id`
+ // (migrations/2026-09-09-workload-native-roster.sql); `projectNativeSnapshot`
+ // validates it. Snapshot ingest must carry that binding onto the browser issue
+ // object as `legacyBoundNativeId`, which is what routes the Tweak Needed
+ // popover to `production-comments` instead of `linear-tweak-comments` for this
+ // row (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md item 3). Both rows are given an
+ // inactive status so neither reaches the provider-authority metadata fetch
+ // this harness deliberately has no stub for -- that path is out of scope here.
+ {const boundFixture=()=>{const f=fixture();
+  f.rows.push({id:'legacy_bound_fixture',source:'legacy',is_sub_issue:true,active:true,
+   title:'Legacy bound fixture',identifier:'VID-900',url:'https://linear.app/example/issue/VID-900',
+   team_key:'VID',team_name:'Video',status:'Done',status_type:'completed',client_name:'Fixture',
+   assignee_id:'legacy-assignee',native_assignee_eligible:false,
+   native_plan_id:'del_bound_fixture',native_plan_client_name:'Fixture'});
+  f.rows.push({id:'legacy_unbound_fixture',source:'legacy',is_sub_issue:true,active:true,
+   title:'Legacy unbound fixture',identifier:'VID-901',url:'https://linear.app/example/issue/VID-901',
+   team_key:'VID',team_name:'Video',status:'Done',status_type:'completed',client_name:'Fixture',
+   assignee_id:'legacy-assignee',native_assignee_eligible:false});
+  f.count=f.rows.length;return f;};
+  const boundProjected=projectNativeSnapshot(boundFixture(),s=>s.toLowerCase());
+  const bb=browser(boundProjected);
+  const boundResult=await bb.context.loadLinearIssues(false);
+  const bound=boundResult.issues.find(i=>i.id==='legacy_bound_fixture');
+  const unbound=boundResult.issues.find(i=>i.id==='legacy_unbound_fixture');
+  const native=boundResult.issues.find(i=>i.id==='del_fixture');
+  ok(!!bound&&bound.workloadSource==='legacy'&&bound.legacyBoundNativeId==='del_bound_fixture',
+   'a legacy row the gateway bound to a native deliverable carries that binding through snapshot ingest');
+  ok(!!unbound&&unbound.workloadSource==='legacy'&&unbound.legacyBoundNativeId==='',
+   'a legacy row with no native_plan_id carries no binding -- still the legacy lane, per the coverage boundary');
+  ok(!!native&&native.workloadSource==='native'&&native.legacyBoundNativeId==='',
+   'a native row itself carries no legacy binding field either -- the field is legacy-only, never confused with nativeId');}
  const b=browser();await b.context.wlLoadSnapshot(false,null);
  ok(b.state.planByIssueId.get('del_fixture')==='2030-01-08'&&b.state.planStatus==='ready','actual plan adoption retains historical pin');
  ok(b.state.editorRoster.length===1&&b.state.editorRoster[0].team==='video'&&b.state.editorRosterStatus==='ready','snapshot adoption retains zero-work editor roster');

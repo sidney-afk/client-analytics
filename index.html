@@ -15051,7 +15051,18 @@
                 const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
                     linearId: row.source === 'native' ? row.linear_id : row.id,
                     nativeClientActive: row.native_client_active,
-                    nativeAssigneeEligible: row.native_assignee_eligible };
+                    nativeAssigneeEligible: row.native_assignee_eligible,
+                    // A legacy row the gateway could bind to a native
+                    // deliverable (`native_plan_id` -- the same client-matched
+                    // id `workload_native_plan_target_v1` resolves, already
+                    // validated by projectNativeSnapshot in workload-plan).
+                    // Kept apart from `nativeId`, which every OTHER
+                    // `workloadSource === 'native'` gate still reads unchanged
+                    // (wlParentUrl, the due/label routes): only the tweak-
+                    // feedback popover reads this one, per plan item 3 in
+                    // LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md.
+                    legacyBoundNativeId: row.source === 'legacy' && typeof row.native_plan_id === 'string' && row.native_plan_id
+                        ? row.native_plan_id : '' };
                 if (row.source === 'native') {
                     if (row.is_sub_issue && (typeof row.native_client_active !== 'boolean'
                         || typeof row.native_assignee_eligible !== 'boolean'
@@ -20826,7 +20837,11 @@
     const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
     let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
     // Native rows read their feedback from Supabase (`production-comments`);
-    // anything else keeps the legacy n8n lane in `_wlLegacyFetchTweakComments`.
+    // so does a LEGACY row the snapshot bound to a native deliverable
+    // (`legacyBoundNativeId`, Linear-exit Workload slice 1/2, item 3 in
+    // LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md). Everything else -- unbound
+    // legacy rows, and foreign/provider-authority rows with no native
+    // mapping -- keeps the legacy n8n lane in `_wlLegacyFetchTweakComments`.
     // Lane A's native snapshot supplies `wlSnapshotIdentity()` and each row's
     // `workloadSource` / `nativeId`; until that lands nothing classifies as
     // native and every id takes the legacy path, i.e. this function's previous
@@ -20980,10 +20995,40 @@
             _wlNativeTweakCommentsCache.set(nativeId, { fetchedAt: Date.now(), owner, issue,
                 scope: (rows && rows.scope) || null, rows });
         };
+        // A bound legacy row's alias is only as good as the snapshot that
+        // proved it. `legacyBoundNativeId` is the CROSSWALK
+        // (`workload_issues_native_v1.linear_id` -> this legacy issue), not
+        // the deliverable itself, and production-comments never receives the
+        // legacy issue id -- it selects `id,client_slug,team,origin,card_id`
+        // off `deliverables` and can revalidate the deliverable-to-card link
+        // (`link_changed`, feedback.mjs) but has nothing to check the
+        // alias against. If the deliverable's `linear_issue_uuid` is
+        // repointed to a DIFFERENT legacy issue after this snapshot loaded,
+        // that endpoint check still passes -- the deliverable still names its
+        // own card -- and this row would display the new owner's feedback
+        // under the old row. No Edge Function change ships in this PR, so the
+        // alias cannot be revalidated server-side here; instead the bound
+        // lane is refused once the snapshot that proved it is old enough that
+        // this client no longer has fresh evidence for it, the same window
+        // already accepted as residual risk for the card-relink check above.
+        const bindingFresh = Number.isFinite(wlState.fetchedAt)
+            && (Date.now() - wlState.fetchedAt) < WL_NATIVE_TWEAK_COMMENTS_TTL_MS;
         for (const id of ids) {
             const issue = issues.get(id);
-            const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
-            if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
+            const isNativeSource = !!issue && issue.workloadSource === 'native';
+            // A legacy row the snapshot bound to a native deliverable reads
+            // the same way a native row does -- the endpoint verifies the
+            // binding on every live read regardless of which source the
+            // board classified the row under, and `_wlNativeTweakComments`
+            // takes a bare deliverable id, not a source flag. Only rows with
+            // no such binding (never mirrored to a native deliverable, or a
+            // foreign/provider-authority row) still fall to the legacy lane --
+            // and so does a bound row once the snapshot behind the binding is
+            // no longer fresh enough to vouch for it (`bindingFresh` above).
+            const boundLegacyId = !!issue && issue.workloadSource === 'legacy' && bindingFresh
+                && typeof issue.legacyBoundNativeId === 'string' ? issue.legacyBoundNativeId : '';
+            const nativeId = isNativeSource && typeof issue.nativeId === 'string' ? issue.nativeId : boundLegacyId;
+            if (!owner || !issue || (!isNativeSource && !boundLegacyId) || !nativeId) { legacy.push(id); continue; }
             native.push({ id, issue, nativeId, hit: cached(nativeId, issue) });
         }
         // Cached rows first. They cost no request and no wait, so there is no

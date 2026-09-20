@@ -24,6 +24,21 @@ state. No client, staff, token, or other private value belongs in this file.
 > still read `LINEAR_TWEAK_COMMENTS_WEBHOOK`. The remaining feedback dependency
 > is the legacy rows, not the popover as a whole.
 
+> **Correction, 2026-09-20 (Workload native-mirror slice 1/2 PR):** the
+> "legacy rows" line above is now one step narrower still. A legacy row the
+> gateway can bind to a native deliverable — `workload_native_snapshot_v1()`
+> already reports this as `native_plan_id`, joined by `linear_id` against
+> `workload_issues_native_v1` (`migrations/2026-09-09-workload-native-roster.sql`),
+> and `projectNativeSnapshot` in `workload-plan` already validates it — now
+> also routes to `production-comments`, carried through snapshot ingest as
+> `legacyBoundNativeId` and read by `wlFetchTweakComments()`. Only a legacy
+> row with **no** such binding (never mirrored to a native deliverable, or a
+> foreign/provider-authority row with no native counterpart) still reads
+> `LINEAR_TWEAK_COMMENTS_WEBHOOK`. This closes the browser-side half of item 3
+> in "What needs code" below; post-create discovery (item 2 / B-1) is
+> unchanged and still requires a native replacement this PR does not build —
+> see the PR description's "next slice" section.
+
 `workload-linear` is source-only and deliberate-manual, with no CI deploy path.
 The current browser routes a SyncView-authoritative due-date write to
 `production-write`; its provider branch still calls `workload-linear`. Therefore
@@ -102,7 +117,7 @@ row is not native-writable, or any category above is uncounted.
    sub-issues, then create/link Calendar cards. The replacement must return the
    exact native card/deliverable links within that bounded window and retain its
    idempotent retry/recovery semantics.
-3. *(Native rows already route to `production-comments`; see the correction above. What remains is the legacy rows.)* Route the popover to `production-comments` for native rows; render explicit
+3. *(Native rows already route to `production-comments`; see the correction above. Legacy rows with a durable native binding now do too — see the 2026-09-20 correction above. What remains is legacy rows with no binding.)* Route the popover to `production-comments` for native rows; render explicit
    incomplete/unmapped/source-unavailable states, never an empty comment list.
    Keep the legacy reader only for the explicitly retained provider rows during
    the compatibility window.

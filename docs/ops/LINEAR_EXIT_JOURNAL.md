@@ -13408,3 +13408,29 @@ Related: [living checkpoint](LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) ·
 [recovery procedure](LINEAR_EXIT_RECOVERY_PROCEDURE.md)
 
 2026-09-19 — Browser intake fallbacks now preserve identity in a visible next-load hold; no legacy webhook caller remains, and live acceptance is pending.
+
+### 2026-09-20 — First Workload PR of the exit: bound legacy feedback goes native, post-create discovery stays next-slice
+
+Slice 1/2 of the native-Workload plan (`LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`).
+Built: a legacy row the snapshot can bind to a native deliverable
+(`native_plan_id`, already computed by `workload_native_snapshot_v1()` and
+validated by `workload-plan`'s `projectNativeSnapshot`) now carries that
+binding through browser-side snapshot ingest and routes the Tweak Needed
+popover to `production-comments`, same as a native row — closing the
+browser-side half of "What needs code" item 3. No Edge Function or migration
+touched; the field was already returned to the browser and simply unread.
+
+Not built: legacy Calendar post-create discovery (item 2 / blocker B-1).
+`wlDiscoverProviderIssues()` answers a question only Linear can answer inside
+the ~100s post-create poll window — the native snapshot's legacy rows come
+from `workload_issues`, which the n8n mirror populates on its own schedule far
+outside that window. No existing browser-callable native source can answer it
+without a backend change, which is out of this PR's scope. Recorded as
+"next slice" rather than forced.
+
+Offline coverage: `test/workload-tweak-feedback-source.js` (bound/unbound
+legacy routing, mixed popover, both lanes used independently) and
+`test/workload-native-membership.js` (snapshot ingest carries
+`legacyBoundNativeId` correctly for bound, unbound, and native rows), plus
+`docs/syncview-design/tests/prod-write-gateway-browser.js`. No live read,
+deployment, or database installation occurred.

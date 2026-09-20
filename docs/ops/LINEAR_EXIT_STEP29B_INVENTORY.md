@@ -132,3 +132,9 @@ No other direct Slack `curl`/webhook calls or `sendAlert` calls were found acros
 ## Summary of what's plainly Linear-shaped
 
 Workflows whose core job is comparing against or writing to Linear (items 8, 9, 10, 12, 13, 18, 23, 28, 30, 31, 32, 33, 35, and the Linear-touching halves of 3, 46, 48, 49) sit on top of a chain that native writes no longer feed. The `LANES` registry already names four of these (`reconciler_pager`, `production_write_drill`, `b1_incremental_refresh`, `production_shadow_audit`) as `retires_with: 'linear'`, but that flag changes no behavior on its own — every lane above is still scheduled, still running, and still capable of paging exactly as it did before this inventory. Nothing here decides which of those pages a human still wants.
+
+---
+
+## Addendum, 2026-09-20 — one item outside this inventory's scope, flagged in passing
+
+**Item 20, `production-polish-gate.yml`, has been red on every push to `main`** in the run history checked (back through 2026-09-11, and every push since, including today's #1444 and #1445 merges) — a GitHub Actions run history check, not a repository grep. **This is unrelated to the Linear exit**: the gate exercises Production-tab UI polish (boot, structure, interaction, accessibility, layout, pixel parity), and its `keep` classification above is unchanged — nothing about it compares against or writes to Linear. It is noted here only because a standing-red required gate is a candidate for repair or retirement in its own right, and this inventory happened to be the document already sweeping workflow health. Not classified keep/retire/rewrite for that reason and not acted on; flagged for a separate repair-or-retire decision outside this exit.

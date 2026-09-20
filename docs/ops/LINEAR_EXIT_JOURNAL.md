@@ -13685,3 +13685,72 @@ element removed: `docs/syncview-design/tests/prod-write-gateway-browser.js`
 four are live-backend/screenshot lanes this sandbox cannot execute; fixed by
 inspection to keep them from drifting stale). No live read, deployment,
 migration, or n8n edit.
+
+### 2026-09-20 — Cutoff day close-out: what moved live, what was retired, what is scheduled
+
+Supervisor entry tying together the day's operational moves, which the
+per-PR entries above do not record because they happened outside any PR.
+All live writes below were performed by the owner's Storage session on the
+owner's machine; no session in a sandbox wrote to the database, n8n, or
+Linear.
+
+**Flags.** `linear_outbound_enabled` `live` → `off` at 2026-09-20T17:26:22Z
+(runbook STEP 3), `linear_legacy_parity_enabled` `true` → `false` at
+17:35:54Z (STEP 1). The reversed order and the nine-minute window between
+them were accepted by the owner, since Linear is retired and the mirror can
+carry nothing either way. `linear_inbound_enabled` stays `true` until STEP 7.
+The Storage session ran the outbound flip statement twice by accident; the
+second was a no-op on an already-`off` row and was disclosed at the time.
+
+**Outbox.** The 45 `mirror_outbox` rows frozen by the outbound flip were
+marked terminal with the native `skipped` marker plus a freeze note, on the
+owner's authorisation. The drain summary then read
+`alerts.oldest_pending_age: false`, backlog 0. This is the alarm the
+execution map's STEP 1/3 row had described as latched by design.
+
+**Schedulers (runbook STEP 6).** The owner deactivated the n8n
+`SyncView Monitoring Pager + Reconciler V2 Trigger` (`qllIDZPkdNAPRj0b`) at
+about 20:12Z; it dispatched the card reconcilers and the B1 refresh and
+paged about Linear mirror staleness, so it had no native purpose left.
+`SyncView Workload — Reconcile` (`lGwC9WWPVJtxphtf`) stays active by owner
+decision until a workload-source-freshness watcher exists. The five
+retire-classified GitHub workflows and three watchdog lanes were
+unscheduled/retired in #1449 (its own entry above). DRILL_DECISION_PLACEHOLDER
+
+**Production tab.** Every "Add sub-issue" affordance was removed in #1450
+after the owner asked that no button offering to add an issue or sub-issue
+remain anywhere in the Production tab. The topbar "New issue" control
+creates a top-level issue and was left, per that PR's reading of the rule;
+the owner may still want it gone, which is a one-line follow-up.
+
+**Brief media.** The one-time copy tool merged in #1451.
+BRIEF_MEDIA_RUN_PLACEHOLDER
+
+**Intake for videographers.** The Submit tab is reachable without a staff
+sign-in at `https://syncview.synchrosocial.com/?intake=1` (`_isIntake`,
+intake mode). Recorded here because the owner asked for it explicitly and it
+is part of the Monday hand-over.
+
+**What the owner's own test found.** Submitting a batch on the test client
+and opening one of its videos showed no parent and no siblings. Root cause:
+a natively-created batch has no Linear parent, and the Production adapter
+only knew how to hang children under a Linear one. Fixed in #1444 (one
+shared synthetic parent per native batch), then the same class of assumption
+— "every row has a Linear identity" — was audited across `index.html` and
+fixed in #1445 and #1447 (OPEN_REPAIRS 218, 220, 221). The audit table
+that drove those fixes classified 3 C-class and 7 B-class sites.
+
+**Identifier mint check 7** was accepted on the test-client submission as
+drill evidence (both teams minted natively), with a scheduled read-only
+check on Monday 2026-09-21 at 15:00Z to count the first real-client native
+cards. If that session has no database access it hands the owner a query
+for the Storage session instead.
+
+**Still open after today, in order:** the owner's live click-through (29a:
+Submit, Calendar, Workload, Samples, urgent ping, the `?intake=1` link in a
+private window, and opening one fresh test video to confirm its batch and
+siblings); the brief-media copy run if it has not run by then (before
+2026-10-15 and before STEP 7); a freshness watcher, then retiring the
+workload reconcile; repair or retirement of the post-merge
+`production-polish-gate`, red on `main` since 2026-09-17 (29b addendum);
+STEP 7 key revoke, last.

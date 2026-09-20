@@ -13434,3 +13434,44 @@ legacy routing, mixed popover, both lanes used independently) and
 `legacyBoundNativeId` correctly for bound, unbound, and native rows), plus
 `docs/syncview-design/tests/prod-write-gateway-browser.js`. No live read,
 deployment, or database installation occurred.
+
+### 2026-09-20 — Urgent editor assignee lookup: Candidate A already closed browser-side, Candidate B's sealed-team fetch trimmed
+
+The "Urgent editor assignee lookup" execution-map row and its checkpoint
+counterpart ("Legacy urgent editor assignee lookup") name two different
+lookups in `index.html`. Investigated both before touching either, per the
+task's own instruction not to re-derive from scratch.
+
+Candidate A (`_calUrgentSlackDispatch`/`_calSendUrgentSlack`, the urgent
+Slack ping's editor resolution) is the one the checkpoint's own phrasing
+points at, and it turned out to be already fully built and tested on `main`:
+a bound card reroutes to `native_urgent_dispatch` on `production-write`, an
+unbound legacy card falls through to the legacy `send-urgent-slack` webhook,
+and the pre-F27-deployment `400 unsupported_action` transitional case falls
+back the same way exactly once. `test/native-urgent-ui.js` already carries
+42 passing cases covering every one of those branches across all four staff
+surfaces. Nothing was added here for Candidate A — there is no in-scope
+browser gap left to close. What remains (a genuinely never-bound legacy card
+has no native deliverable id to send at all) needs either a new
+native-binding backfill feature or an n8n change accepting a pre-resolved
+editor identity; both are out of this PR's scope and are not attempted.
+
+Candidate B (`_calLinearMissingForCard`'s "incomplete sub-issue" banner,
+sourced from the `linear-issue-statuses` webhook) had a real, narrow,
+verifiable gap: `_calRefreshParentLinkFlags` fetched that webhook for a
+SyncView-authoritative team's idents even though OPEN_REPAIRS 62 already
+made every reader of the result (the banner and the parent-linked check)
+discard a sealed ident unconditionally. That fetch answer was guaranteed
+unused. Excluded a sealed team's idents from the batch — same output, fewer
+real Linear-lookup calls, no UI or banner-copy change (a bigger swap that
+would have revived the "open Linear to fill in the editor" click-through for
+native rows was deliberately NOT built; that contradicts OPEN_REPAIRS 62's
+own reasoning and would need its own product decision).
+
+New coverage: `test/cal-linear-status-meta-sealed-fetch.js`, executing the
+shipped function against a mocked fetch: unknown authority still fetches
+everything (fails open, matching today's behavior), a sealed team's ident is
+excluded while the other team's is kept, both-sealed issues zero Linear
+requests, authority rolling back to Linear restores the fetch with no code
+change, and the exclusion holds across multiple cards in one batch. No live
+read, deployment, database installation, or n8n edit occurred.

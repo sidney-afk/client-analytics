@@ -77,8 +77,10 @@ async function collectParentDetailEvidence(page) {
     return {
       detailId: detail ? detail.getAttribute('data-prod-detail') || '' : '',
       subIssueRows: document.querySelectorAll('.prod-subissue-row').length,
-      hasGuardedAddSubIssue: !!document.querySelector('[data-prod-add-subissue][disabled]'),
-      addSubIssueText: (document.querySelector('[data-prod-section="subissues"] [data-prod-add-subissue]')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      // Sub-issue creation is not reachable from Production at all
+      // (CLAUDE.md standing rule) -- _prodAddSubIssueButtonHTML was removed
+      // outright, so this affordance must never render, guarded or not.
+      hasAddSubIssue: !!document.querySelector('[data-prod-add-subissue]'),
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),

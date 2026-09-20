@@ -233,11 +233,11 @@ function validatePacket(dir = packetDir) {
     }
   }
   const parentDetail = byName('parent-detail');
-  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.hasGuardedAddSubIssue || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {
-    failures.push('parent-detail screenshot must record visible sub-issue rows, guarded add-sub-issue affordance, and activity evidence in review-manifest.json');
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {
+    failures.push('parent-detail screenshot must record visible sub-issue rows and activity evidence in review-manifest.json');
   }
-  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.addSubIssueText !== 'Add sub-issue') {
-    failures.push('parent-detail screenshot must record a visible Add sub-issue affordance in review-manifest.json');
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasAddSubIssue) {
+    failures.push('parent-detail screenshot must record NO add-sub-issue affordance -- sub-issue creation is not possible from Production (CLAUDE.md)');
   }
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.topbarFakeControls !== 0) {
     failures.push('parent-detail screenshot must record zero fake favorite/notification topbar controls in review-manifest.json');

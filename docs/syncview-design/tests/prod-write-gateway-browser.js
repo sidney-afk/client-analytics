@@ -817,18 +817,17 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && refusedTopLevel.savedDraft === null,
     'top-level Production creation still opened: ' + JSON.stringify(refusedTopLevel));
 
-    // 1c. The mode the owner named: Add sub-issue on a row. It was the one
-    // door still open (graphics is SyncView-authoritative), and it made a
-    // card-less deliverable under a parent that HAS a card.
+    // 1c. The mode the owner named: Add sub-issue on a row. It used to be
+    // the one door still open (graphics is SyncView-authoritative), and it
+    // made a card-less deliverable under a parent that HAS a card. Per
+    // CLAUDE.md's standing rule ("Sub-issue creation must not be possible
+    // from SyncLinear — only from the content calendar"), the affordance
+    // was removed outright rather than left gated: it must never render at
+    // all, on any parent, regardless of scope.
     await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
-    await page.waitForSelector('[data-prod-add-subissue]');
-    const addSubButton = page.locator('[data-prod-add-subissue]').first();
-    expect(await addSubButton.isDisabled()
-      && (await addSubButton.getAttribute('title')) === CREATE_CLOSED_TEXT
-      && (await addSubButton.getAttribute('data-prod-tip')) === CREATE_CLOSED_TEXT
-      && (await addSubButton.getAttribute('onclick')) === null
-      && (await addSubButton.textContent()).trim() === 'Add sub-issue',
-    'Add sub-issue stayed clickable or lost the sentence that says where posts are created');
+    await page.waitForSelector('.prod-detail-title');
+    expect(await page.locator('[data-prod-add-subissue]').count() === 0,
+    'an Add sub-issue affordance rendered in Production -- sub-issue creation must only be possible from the content calendar');
     const refusedSubIssue = await page.evaluate(() => {
       const returned = _prodOpenCreate('gra-description-parent');
       return {

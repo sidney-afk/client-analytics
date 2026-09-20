@@ -3110,9 +3110,6 @@
         .prod-subsection { margin-top: 24px; }
         .prod-subhead { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-bottom: 4px; color: var(--prod-muted); font-size: 12px; font-weight: 500; }
         .prod-subhead-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-        .prod-sub-add-btn { min-height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; font: inherit; font-size: 12px; cursor: pointer; }
-        .prod-sub-add-btn:hover, .prod-add-sub-inline:hover { background: var(--prod-hover); color: var(--prod-strong); }
-        .prod-add-sub-inline { min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 7px; padding: 0 7px; font: inherit; font-size: 13px; cursor: pointer; }
         .prod-subrow { min-height: 34px; border-top: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; user-select: none; }
         .prod-subrow:hover { background: var(--prod-hover); margin: 0 -8px; padding: 0 8px; border-radius: 6px; }
         .prod-activity { margin-top: 28px; border-top: 1px solid var(--prod-divider); padding-top: 18px; }
@@ -52581,12 +52578,22 @@
          * deliverable and its Linear issue together, linked.
          *
          * This is the single refusal. _prodCreateGateText returns it before
-         * every other reason, so all four gate readers (topbar button, Add
-         * sub-issue button, _prodOpenCreate, _prodSubmitCreate) close together
-         * and none of them can drift open on its own. The recovery gate
+         * every other reason, so all three gate readers (topbar button,
+         * _prodOpenCreate, _prodSubmitCreate) close together and none of them
+         * can drift open on its own. The recovery gate
          * (_prodCreateRecoveryGateText) is deliberately NOT closed: an
          * `ambiguous` draft means a create may already have committed, and the
          * retry is the only path that shows its author the row that landed.
+         *
+         * The Add-sub-issue affordance itself (_prodAddSubIssueButtonHTML)
+         * was removed outright, not just gated, per the separate standing
+         * rule in CLAUDE.md: "Sub-issue creation must not be possible from
+         * SyncLinear -- only from the content calendar." A gated-but-present
+         * button is still an entry point; this one no longer renders at all.
+         * `_prodOpenCreate(parentId)` keeps its subissue-mode branch because
+         * an ambiguous saved subissue draft still needs to recover through
+         * the topbar's "Recover issue" control, which calls _prodOpenCreate()
+         * with no parentId and reads the pending draft from storage.
          */
         const PROD_CREATE_CLOSED_TEXT = 'Posts are created on the content calendar, not in Production. Use Create Post on the client\u2019s Calendar or Samples tab.';
         const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
@@ -66801,17 +66808,10 @@
             const shownLabel = syncing ? _prodAttributionSyncClientLabel(issue) : _prodDisplayClient(project);
             return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(syncing ? 'syncing' : attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(shownSlug) + '</span><span>' + _calEsc(shownLabel) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }
-        function _prodAddSubIssueButtonHTML(compact) {
-            const parent = _prodIssue(_prodState.openId);
-            if (!parent || parent.parent) return '';
-            const gate = _prodCreateGateText(parent.project, parent.team, parent);
-            const cls = compact ? 'prod-sub-add-btn' : 'prod-add-sub-inline';
-            return '<button class="' + cls + '" type="button" data-prod-add-subissue="' + _calEscAttr(parent.id) + '"'
-                + (gate
-                    ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
-                    : ' onclick="return _prodOpenCreate(' + _jsAttrArg(parent.id) + ')" title="Create sub-issue" data-prod-tip="Create sub-issue"')
-                + '>' + _prodIcon('plus') + '<span>Add sub-issue</span></button>';
-        }
+        /* _prodAddSubIssueButtonHTML was removed outright (not merely
+           gated) -- see the note beside PROD_CREATE_CLOSED_TEXT. Sub-issue
+           creation must not be reachable from Production at all, per
+           CLAUDE.md's standing rule; only the content calendar creates. */
         function _prodSubIssueContextHTML(d, parent) {
             if (!parent) return '';
             const progress = _prodSubProgress(parent);
@@ -66860,10 +66860,12 @@
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodAvatar(ka, 18) + '</span></div>';
         }
         function _prodSubIssuesSectionHTML(kids) {
-            if (!kids.length) {
-                return '<div class="prod-subsection prod-subsection-empty" data-prod-section="subissues-empty">' + _prodAddSubIssueButtonHTML(false) + '</div>';
-            }
-            return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span><span class="prod-spacer"></span>' + _prodAddSubIssueButtonHTML(true) + '</div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
+            // No Add-sub-issue affordance in either state: sub-issue creation
+            // is not reachable from Production (CLAUDE.md standing rule) --
+            // only the content calendar creates. An empty parent with no
+            // kids and nothing to offer renders nothing at all.
+            if (!kids.length) return '';
+            return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span></div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
         }
         function _prodProjectIssueRowHTML(d) {
             const assignee = _prodMember(d.assignee);

@@ -39,6 +39,48 @@ state. No client, staff, token, or other private value belongs in this file.
 > unchanged and still requires a native replacement this PR does not build —
 > see the PR description's "next slice" section.
 
+> **Correction, 2026-09-20 (Workload native-mirror slice 2/2 PR, `claude/practical-curie-ah4niq`):**
+> two more rows above move.
+>
+> **Post-create discovery (item 2 / B-1) is now built, by removing the need for
+> it rather than replacing it.** Every active client is native-enrolled now
+> (`write_ui_reroute_clients`, 43 of 43 measured 2026-09-20, against a 43-client
+> active roster), so the legacy Calendar submission path (`_submitLinearFormOnce`)
+> and its post-create linker (`_writeLinearVideoCardsToCalendar`,
+> `wlDiscoverProviderIssues`) are no longer a live path for any real client —
+> a native submission links its cards through `_writeNativeSubmissionCardsToCalendar`
+> from its own create-response IDs and never reaches this code at all.
+> `wlDiscoverProviderIssues()` is deleted outright, and
+> `_writeLinearVideoCardsToCalendar` no longer polls or writes anything: the
+> two paths that could still reach it — a stale job persisted before its
+> client enrolled, or the retained rollback submission entry point — now both
+> hold visibly (`showNotify`, naming the client, pointing at manual Create
+> Post) instead of falling back to a live Linear discovery read. `linear-issues`
+> (the n8n webhook `LINEAR_ISSUES_WEBHOOK`/`_wlLegacyLoadLinearIssues`) has zero
+> reachable callers left anywhere in the browser as of this PR — the row's own
+> verdict ("must have a native replacement or reach zero dependent legacy
+> rows") is satisfied by the zero, not a replacement endpoint.
+>
+> **The `WORKLOAD_LINEAR_URL` / `workload-linear` row's "what needs code" item 4
+> is now half-built: reads for a bound legacy row move, writes do not.** A
+> legacy row the gateway binds to a native deliverable
+> (`legacyBoundNativeId`) now reads its due date and workload labels from the
+> native deliverables projection (`wlFetchNativeMetadata`) in both
+> `wlFetchNativeSnapshot()`'s ingest and the interactive
+> `wlFetchLinearMetadata()`, instead of `workload-linear`'s `metadata` action.
+> Its write authority is unchanged and still tags `linear`:
+> `production-write`'s `authorityLane` requires the row's TEAM to be
+> `syncview`-authoritative for a `workload`/`due` write
+> (`legacyParityAllowed('workload','due')` is `false`, so there is no parity
+> exception for it), and a bound row's team is, by definition, still
+> Linear-authoritative. Forcing the write through `production-write` would
+> refuse it with `team_is_linear_authoritative` every time, so
+> `wlSetDueDate`/`wlDueWriteRoute` keep routing these rows' due-date writes
+> to `workload-linear`, unchanged — see this PR's description "next slice"
+> for the exact backend capability that would let the write move too. An
+> unbound legacy row, and every other Linear-authoritative row, is completely
+> unaffected by this correction.
+
 `workload-linear` is source-only and deliberate-manual, with no CI deploy path.
 The current browser routes a SyncView-authoritative due-date write to
 `production-write`; its provider branch still calls `workload-linear`. Therefore

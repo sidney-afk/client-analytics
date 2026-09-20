@@ -692,6 +692,72 @@ async function run() {
     assert.strictEqual(unknownTeamCalls.some(url => url.includes('/functions/v1/workload-linear')), false,
       'an unrecognized team never reaches foreign Workload metadata');
 
+    /* LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md "what needs code" item 4. A legacy
+     * row the gateway bound to a native deliverable (`legacyBoundNativeId`,
+     * carried onto the issue by snapshot ingest -- see
+     * test/workload-native-membership.js) reads its due/label metadata from
+     * the same native deliverables projection a truly-native row uses,
+     * instead of the retained workload-linear route -- the bound
+     * deliverable's own linear_issue_uuid is this row's own Linear id, which
+     * is exactly what workload_native_snapshot_v1's join proves server-side.
+     * Its WRITE authority still tags 'linear', unchanged: the team itself is
+     * still Linear-authoritative, and production-write refuses a due write
+     * for a Linear-authoritative team regardless of a per-row binding -- only
+     * the read moves. */
+    const boundCalls = [];
+    mixed.fetch = async url => {
+      boundCalls.push(String(url));
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'linear', graphics: 'linear' } }] };
+      }
+      if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+        return { ok: true, status: 200, json: async () => [{
+          id: 'del-bound-fixture',
+          client_slug: 'synthetic-client',
+          team: 'video',
+          linear_issue_uuid: 'legacy-bound',
+          due_date: '2026-09-19',
+          updated_at: '2026-09-19T12:00:00Z',
+          workload_labels_complete: true,
+          workload_labels: [],
+        }] };
+      }
+      if (String(url).includes('/functions/v1/workload-linear')) {
+        return { ok: true, status: 200, json: async () => ({
+          ok: true, complete: true,
+          rows: [{ issue_id: 'legacy-unbound', due_date: '2026-09-18', workload: null }],
+        }) };
+      }
+      throw new Error('unexpected fetch ' + url);
+    };
+    const boundIssues = [
+      backgroundIssue({
+        id: 'legacy-bound', workloadSource: 'legacy', legacyBoundNativeId: 'del-bound-fixture',
+        teamKey: 'VID', teamName: 'Video',
+      }),
+      backgroundIssue({
+        id: 'legacy-unbound', workloadSource: 'legacy', legacyBoundNativeId: '',
+        teamKey: 'VID', teamName: 'Video',
+      }),
+    ];
+    const boundRows = await mixed.wlFetchLinearMetadata(boundIssues);
+    assert.deepStrictEqual(Array.from(boundRows, row => row.issue_id).sort(), ['legacy-bound', 'legacy-unbound']);
+    assert.strictEqual(
+      boundCalls.some(url => url.includes('/rest/v1/production_deliverables_browser_v1') && url.includes('legacy-bound')),
+      true, 'the bound legacy row is read from the native deliverables projection');
+    assert.strictEqual(
+      boundCalls.find(url => url.includes('/functions/v1/workload-linear')) !== undefined
+        && !boundCalls.find(url => url.includes('/functions/v1/workload-linear')).includes('legacy-bound'),
+      true, 'and the bound row never crosses the workload-linear boundary');
+    mixed.wlAdoptLinearMetadata(boundRows, boundIssues, 3);
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('legacy-bound').authority, 'linear',
+      'the bound row keeps LINEAR write authority even though its read came from the native projection');
+    assert.strictEqual(mixed.wlState.nativeDueTargetByIssueId.has('legacy-bound'), false,
+      'so it never gets a native due-write target -- production-write would refuse a Linear-authoritative team regardless of the binding');
+    assert.strictEqual(boundIssues[0].dueDate, '2026-09-19', 'the native-sourced due date still reaches the issue');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('legacy-unbound').authority, 'linear',
+      'an unbound legacy row is unaffected: still read and routed through workload-linear');
+
     mixed.fetch = async url => {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };

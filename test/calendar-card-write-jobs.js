@@ -4,28 +4,39 @@
  *
  * Run:  node test/calendar-card-write-jobs.js   (exit 0 = all good)
  *
- * Background: after a Linear form submit, the per-video calendar cards are
- * written by the submitting browser in a background task that waits ~15s,
- * polls Linear for up to ~110s, then POSTs one card per video. That task used
- * to live only in the tab's memory — closing/refreshing the tab in that
- * window silently lost every card (historical production incident: Linear issues
- * created, zero calendar-upsert-post executions). This change:
- *   1. records each submission as a job in localStorage
- *      (syncview_calCardJobs_v1) and marks video numbers off as their card
- *      write returns ok;
- *   2. resumes unfinished jobs on the next app load (skipping done numbers,
- *      fresh-heartbeat jobs owned by another tab, and expired jobs);
- *   3. isolates each Linear poll attempt so one transient linear-issues
- *      error no longer aborts the whole loop (which downgraded every card
- *      to the unlinked/random-id path);
- *   4. surfaces a partial/zero write via showNotify instead of console-only.
+ * Background: after a Linear form submit, the per-video calendar cards used to
+ * be written by the submitting browser in a background task that waited ~15s,
+ * polled Linear for up to ~110s, then POSTed one card per video
+ * (`_writeLinearVideoCardsToCalendar`, discovering the just-created sub-issues
+ * through `wlDiscoverProviderIssues`). That task used to live only in the
+ * tab's memory -- closing/refreshing the tab in that window silently lost
+ * every card (historical production incident: Linear issues created, zero
+ * calendar-upsert-post executions). The durable-job machinery below (record,
+ * resume, isolate, notify) fixed that and is still exactly how a native
+ * submission's cards land, through `_writeNativeSubmissionCardsToCalendar`
+ * (covered elsewhere) and the SAME job store as this file exercises.
+ *
+ * RETIRED 2026-09-20 (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md, "what needs code"
+ * item 2): every active client is native-enrolled now
+ * (`write_ui_reroute_clients`, 43 of 43 measured 2026-09-20), and a native
+ * submission never reaches `_writeLinearVideoCardsToCalendar` at all -- it
+ * links its cards through `_writeNativeSubmissionCardsToCalendar` from its own
+ * create-response IDs. `_writeLinearVideoCardsToCalendar` and
+ * `wlDiscoverProviderIssues` (the direct Linear poll) are retired: the
+ * discovery reader is deleted outright, and the writer holds visibly --
+ * never falls back to a live Linear discovery read -- for the only paths that
+ * can still reach it (a stale persisted job queued before its client
+ * enrolled, or the retained rollback submission entry point). Section 2 below
+ * is this file's offline coverage of that hold state, for both the
+ * direct-call and the resumed-job entry points.
  *
  * Every behavioural test runs the REAL function brace-extracted from
- * index.html; the WIRING section asserts the shipped file still carries the fix.
+ * index.html; the WIRING section asserts the shipped file still carries the
+ * fix and that the retired discovery path is actually gone, not merely
+ * unwired.
  */
 const fs = require('fs');
 const path = require('path');
-const vm = require('node:vm');
 const { extractFunction } = require('./helpers/extract-function');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
@@ -53,8 +64,9 @@ globalThis.localStorage = {
   setItem: (k, v) => { _store.set(k, String(v)); },
   removeItem: (k) => { _store.delete(k); },
 };
-// The writer sleeps 15s before polling and 5s between attempts / 200ms between
-// writes; collapse every wait so the suite runs instantly.
+// The (former) writer used to sleep 15s before polling and 5s between
+// attempts / 200ms between writes; collapse any wait so the suite runs
+// instantly, should a future caller reintroduce one.
 globalThis.setTimeout = (fn) => { fn(); return 0; };
 
 // Job-store constants are top-level consts in index.html; the extracted
@@ -89,24 +101,6 @@ globalThis.fetch = async (url, opts) => {
   return { json: async () => (okResp ? { ok: true, post: body.post } : { ok: false }) };
 };
 
-let linearResponses = []; // queue; each entry: array | 'throw'
-let linearForceLog = [];
-/* Post-create discovery goes through wlDiscoverProviderIssues, NOT
-   loadLinearIssues. The distinction is the whole point of the separate symbol:
-   loadLinearIssues is native-only, and the native snapshot cannot see an issue
-   n8n created seconds ago. Stubbing it here proves only that the writer asks
-   SOMETHING; the transport itself is proven separately, below, by executing the
-   real function against a recording fetch. */
-globalThis.wlDiscoverProviderIssues = async () => {
-  linearForceLog.push(true);
-  const next = linearResponses.length > 1 ? linearResponses.shift() : linearResponses[0];
-  if (next === 'throw') throw new Error('HTTP 502');
-  return { issues: next };
-};
-globalThis.loadLinearIssues = async () => {
-  throw new Error('post-create discovery must not read the native snapshot');
-};
-
 // Real helpers under test / used by the writer.
 const wlNormalizeClient = def('wlNormalizeClient');
 def('_calSubNum');
@@ -119,22 +113,9 @@ def('_calCardJobTeams');
 const _resumePendingCalCardJobs = def('_resumePendingCalCardJobs');
 const _writeLinearVideoCardsToCalendar = def('_writeLinearVideoCardsToCalendar');
 
-const LIN = 'https://linear.app/acme/issue/';
-function issuesFor(title, nums) {
-  const out = [
-    { id: 'vp', isSubIssue: false, clientName: 'Fixture Client', title, teamKey: 'VID' },
-    { id: 'gp', isSubIssue: false, clientName: 'Fixture Client', title, teamKey: 'GRA' },
-  ];
-  nums.forEach(n => {
-    out.push({ id: 'v' + n, isSubIssue: true, parentId: 'vp', identifier: 'VID-' + n, title: 'Video ' + n, url: LIN + 'VID-' + n + '/video-' + n });
-    out.push({ id: 'g' + n, isSubIssue: true, parentId: 'gp', identifier: 'GRA-' + n, title: 'Video ' + n, url: LIN + 'GRA-' + n + '/video-' + n });
-  });
-  return out;
-}
 function reset() {
-  _store.clear(); fetchLog = []; notifications = []; linearForceLog = [];
+  _store.clear(); fetchLog = []; notifications = [];
   fetchOkFor = () => true;
-  linearResponses = [issuesFor('T', [1, 2, 3])];
   globalThis._calCardJobsResumePromise = null;
   authorityState = { video: 'linear', graphics: 'linear' };
   queueDiagnostics = [];
@@ -158,58 +139,61 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('2) happy path — all cards land, job is removed');
+console.log('2) RETIRED path — the writer holds, and never calls Linear');
 console.log('============================================================');
+/* LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md, "what needs code" item 2. The two
+   entry points that could still reach this function -- a direct post-submit
+   call (the retained rollback entry point, `_submitLinearFormOnce`) and a
+   resumed pre-enrollment job (`_resumePendingCalCardJobs`, when the team is
+   still Linear-authoritative) -- both hit the exact same hold: zero fetch
+   calls (no cards written, unlinked or otherwise), zero polling, the job is
+   settled (never left to retry into a call that will never succeed), and the
+   user is told plainly instead of the cards silently vanishing. */
 reset();
 {
   const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
-  ok(fetchLog.length === 3, 'one upsert POST per video');
-  ok(linearForceLog.length > 0 && linearForceLog.every(force => force === true),
-    'post-create discovery always forces the direct no-cache Linear path');
-  ok(fetchLog[0].body.client === 'fixtureclient', 'client slug is normalized (fixtureclient)');
-  ok(fetchLog[0].body.post.id === 'p_lin_vid1', 'deterministic p_lin_ id from the VID sub-issue');
-  ok(fetchLog[0].body.post.linear_issue_id === LIN + 'VID-1/video-1'
-    && fetchLog[0].body.post.graphic_linear_issue_id === LIN + 'GRA-1/video-1', 'both Linear links paired by "Video N" title');
-  ok(fetchLog[1].body.post.order_index === 12, 'order_index = cached max (10) + video number');
-  ok(_calCardJobsRead().length === 0, 'completed job is removed from the store');
-  ok(notifications.length === 0, 'no notification when every card lands');
+  ok(fetchLog.length === 0, 'direct call: no calendar-upsert POST is ever made');
+  ok(_calCardJobsRead().length === 0, 'direct call: the job is removed rather than left to retry forever');
+  ok(notifications.length === 1, 'direct call: the user is told, exactly once');
+  ok(/Fixture Client/.test(notifications[0].msg) && /retired/i.test(notifications[0].msg),
+    'direct call: the notice names the client and gives the real reason (retired), not a false enrollment claim');
+  ok(/3 card/.test(notifications[0].msg) && /Create Post/.test(notifications[0].msg),
+    'direct call: the notice says how many cards and how to add them manually');
 }
-
-console.log('\n============================================================');
-console.log('3) partial failure — job survives with done markers + notify');
-console.log('============================================================');
 reset();
 {
-  fetchOkFor = (post) => post.name !== 'Video 2'; // Video 2 write fails
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
-  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
-  const stored = _calCardJobsRead();
-  ok(stored.length === 1, 'incomplete job stays queued');
-  ok(JSON.stringify(stored[0].done.slice().sort()) === JSON.stringify([1, 3]), 'done records exactly the numbers that landed');
-  ok(stored[0].runs === 1, 'run counter bumped');
-  ok(notifications.length === 1 && /2 of 3/.test(notifications[0].msg), 'shortfall is surfaced via showNotify (2 of 3)');
+  // Same call, but with no job (the shape a bare invocation would use) --
+  // must not throw for lack of one to remove.
+  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both' });
+  ok(fetchLog.length === 0 && notifications.length === 1, 'a call with no job still holds cleanly (nothing to remove)');
 }
-
-console.log('\n============================================================');
-console.log('4) resumed run — writes ONLY the missing card, then completes');
-console.log('============================================================');
+reset();
 {
-  // continue from scenario 3's store state; age the heartbeat past the
-  // "another tab owns this" window, as a real next-day app load would be
-  const aged = _calCardJobsRead();
-  aged[0].heartbeatAt = Date.now() - 4 * 60 * 1000;
-  globalThis._calCardJobsWrite(aged);
-  fetchOkFor = () => true; fetchLog = []; notifications = [];
-  globalThis._calCardJobsResumePromise = null;
+  // A single video gets correct singular/plural copy.
+  await _writeLinearVideoCardsToCalendar('Fixture Client', [{ number: 1 }], 'T', { mode: 'video' });
+  ok(/1 card /.test(notifications[0].msg) && !/1 cards /.test(notifications[0].msg),
+    'the hold notice uses "1 card", not "1 cards"');
+}
+reset();
+{
+  // The resumed-job entry point: a job persisted while its team was still
+  // Linear-authoritative (authorityState default above) is neither discarded
+  // (that branch is for a team that has since flipped native) nor written --
+  // it holds through the exact same function.
+  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  authorityState = { video: 'linear', graphics: 'linear' };
   await _resumePendingCalCardJobs(authorityState);
-  ok(fetchLog.length === 1 && fetchLog[0].body.post.name === 'Video 2', 'resume writes only the missing Video 2');
-  ok(fetchLog[0].body.post.id === 'p_lin_vid2', 'resumed card still gets its deterministic id (no duplicate)');
-  ok(_calCardJobsRead().length === 0, 'job removed once the last card lands');
+  ok(fetchLog.length === 0, 'resume: no calendar-upsert POST is made for a still-Linear-authoritative team');
+  ok(_calCardJobsRead().length === 0, 'resume: the stale job is settled, not left to retry indefinitely');
+  ok(notifications.length === 1 && /Fixture Client/.test(notifications[0].msg) && /retired/i.test(notifications[0].msg),
+    'resume: the same visible hold fires, not a silent drop');
+  ok(!queueDiagnostics.some(row => row.outcome === 'discarded_authority'),
+    'resume: this is the hold path, not the discarded_authority path -- the two must stay distinct');
 }
 
 console.log('\n============================================================');
-console.log('5) resume guards — live heartbeat, expiry, run cap, done jobs');
+console.log('3) resume guards — live heartbeat, expiry, run cap, done jobs');
 console.log('============================================================');
 reset();
 {
@@ -238,7 +222,7 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('5b) authority guard — stale jobs discard after flip; outage preserves');
+console.log('3b) authority guard — stale jobs discard after flip; outage preserves');
 console.log('============================================================');
 reset();
 {
@@ -253,8 +237,8 @@ reset();
     'authority discard is retained in the local public-safe diagnostic');
 }
 
-/* OPEN_REPAIRS item 65. Everything above 5b pins a world that ended on
- * 2026-08-16, and 5b itself stops at the MIXED shape -- so the branch that now
+/* OPEN_REPAIRS item 65. Everything above 3b pins a world that ended on
+ * 2026-08-16, and 3b itself stops at the MIXED shape -- so the branch that now
  * catches EVERY job was only ever exercised in the configuration where it
  * caught some. Post-F1(video) both teams are SyncView-authoritative, this
  * discard is the only path a pending job can take, and it used to take it in
@@ -291,103 +275,22 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('6) poll resilience — one linear-issues error no longer unlinks cards');
-console.log('============================================================');
-reset();
-{
-  linearResponses = ['throw', issuesFor('T', [1, 2, 3])]; // attempt 0 fails, attempt 1 succeeds
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
-  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
-  ok(fetchLog.length === 3, 'all cards still written after a transient poll error');
-  ok(fetchLog.every(f => f.body.post.id.startsWith('p_lin_')), 'cards keep their deterministic Linear-derived ids (not random fallback)');
-  ok(fetchLog.every(f => f.body.post.linear_issue_id && f.body.post.graphic_linear_issue_id), 'cards keep both Linear links');
-}
-
-console.log('\n============================================================');
-console.log('7) WIRING — the shipped index.html carries the fix');
+console.log('4) WIRING — the shipped index.html carries the fix, and the');
+console.log('   retired discovery path is actually gone');
 console.log('============================================================');
 ok(INDEX.includes("const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1'"), 'job store key is defined');
 ok(/pending = await _linearIntakeWithLock\(\(\) => _linearIntakePending\(signature,/.test(INDEX), 'submitLinearForm records one cross-tab-locked durable native intake intent');
 ok(/_writeNativeSubmissionCardsToCalendar\(job\)/.test(INDEX), 'native intake consumes checkpointed native IDs from the create response');
 ok(/_resumePendingCalCardJobs\(\);/.test(INDEX), 'init() resumes pending jobs on boot');
-ok(/if \(doneSet\.has\(n\)\) continue;/.test(INDEX), 'writer skips video numbers that already landed');
-ok(INDEX.includes("pollTrace.push({ attempt, error: 'fetch: '"), 'per-attempt poll error isolation is in place');
-ok(INDEX.includes("showNotify('Calendar sync incomplete'"), 'partial writes are surfaced to the user');
-
-console.log('\n============================================================');
-console.log('8) POST-CREATE DISCOVERY READS THE PROVIDER, NOT THE SNAPSHOT');
-console.log('============================================================');
-/* Codex P1 on #1344. The Workload lane replaced loadLinearIssues with a
-   native-snapshot read and dropped `force`, while this writer still called
-   loadLinearIssues(true) to find issues n8n had just created. Those live only in
-   Linear for the ~100s this poll runs; the snapshot's legacy rows arrive with
-   the n8n reconcile, on its own schedule. Every attempt would miss, and the
-   writer mints a random p_ id with empty Linear links and marks the card done --
-   permanently unlinked, and twinned by the next import.
-
-   The old check here asserted `true` was passed to a stub, which is exactly the
-   assertion that cannot see this: it proves the flag, not the transport. So the
-   REAL function is executed against a recording fetch and the URL is read. */
-ok(/\(\{ issues \} = await wlDiscoverProviderIssues\(\)\);/.test(INDEX),
-  'the writer asks the provider-direct reader, not the native snapshot');
-ok(!/loadLinearIssues\(true\)/.test(INDEX),
-  'and no caller anywhere still expects loadLinearIssues to honour force');
-
+ok(!/function wlDiscoverProviderIssues\(/.test(INDEX),
+  'wlDiscoverProviderIssues -- the direct Linear discovery poll -- no longer exists');
+ok(!/\(\{ issues \} = await wlDiscoverProviderIssues\(\)\);/.test(INDEX),
+  'and nothing still calls it by that shape');
 {
-  const calls = [];
-  const cacheWrites = [];
-  const ctx = {
-    console, Date, Array, JSON, Error,
-    LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
-    wlReadCache: () => ({ issues: [{ id: 'stale-cached' }], fetchedAt: Date.now() }),
-    // Recorded, not stubbed away: the reader writes every success into the
-    // SHARED board cache that wlLoadSnapshot falls back to on a cold start, so
-    // a discovery poll that seeded it would let a later cold load paint
-    // provider rows -- including a still-SyncView-authoritative team's
-    // discarded state during a partial rollback -- as the board.
-    wlWriteCache: payload => { cacheWrites.push(payload); },
-    wlIsFresh: () => true,
-    _wlV2Ready: () => true,
-    _wlV2FetchIssues: async () => { throw new Error('the mirror must not answer a forced discovery'); },
-    fetch: async (url, init) => {
-      calls.push({ url, cache: init && init.cache });
-      return { ok: true, json: async () => ({ issues: [{ id: 'from-provider' }] }) };
-    },
-  };
-  vm.createContext(ctx);
-  for (const name of ['wlDiscoverProviderIssues', '_wlLegacyLoadLinearIssues']) {
-    const src = extractFunction(INDEX, name);
-    vm.runInContext((INDEX.includes('async function ' + name + '(') ? 'async ' : '') + src, ctx);
-  }
-  const out = await ctx.wlDiscoverProviderIssues();
-  ok(calls.length === 1, 'discovery issues exactly one read (harness is not vacuous)');
-  ok(calls[0].url.startsWith('https://fixture.invalid/webhook/linear-issues?t='),
-    'it reaches the Linear provider endpoint, cache-busted');
-  ok(calls[0].cache === 'no-store',
-    'with no-store, so a previous 304 cannot replay a snapshot taken before the issues existed');
-  ok(out.issues[0].id === 'from-provider' && out.fromCache !== true,
-    'and it returns provider rows rather than the warm cache the poll would outrun');
-  ok(cacheWrites.length === 0,
-    'and it writes NOTHING to the shared board cache -- discovery may not seed the cold-start fallback');
-}
-{
-  // The negative control for the check above: the same reader WITHOUT the
-  // skip flag does write, so the assertion is about the flag and not about a
-  // stub that never calls through.
-  const cacheWrites = [];
-  const ctx = {
-    console, Date, Array, JSON, Error,
-    LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
-    wlReadCache: () => null, wlIsFresh: () => false, _wlV2Ready: () => false,
-    wlWriteCache: payload => { cacheWrites.push(payload); },
-    fetch: async () => ({ ok: true, json: async () => ({ issues: [{ id: 'x' }] }) }),
-  };
-  vm.createContext(ctx);
-  const src = extractFunction(INDEX, '_wlLegacyLoadLinearIssues');
-  vm.runInContext((INDEX.includes('async function _wlLegacyLoadLinearIssues(') ? 'async ' : '') + src, ctx);
-  await ctx._wlLegacyLoadLinearIssues(true);
-  ok(cacheWrites.length === 1,
-    'negative control: the same reader without the skip flag DOES write the board cache');
+  const writer = extractFunction(INDEX, '_writeLinearVideoCardsToCalendar');
+  ok(!/wlDiscoverProviderIssues|_wlLegacyLoadLinearIssues|LINEAR_ISSUES_WEBHOOK|setTimeout\(r, 15000\)/.test(writer),
+    '_writeLinearVideoCardsToCalendar reaches no Linear read of any kind, directly or through the old poll delay');
+  ok(/showNotify\(/.test(writer), 'and it always tells the user rather than failing silently');
 }
 
 console.log('\n' + '='.repeat(60));

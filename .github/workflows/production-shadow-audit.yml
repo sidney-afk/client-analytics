@@ -2,8 +2,13 @@ name: Production write-UI shadow audit
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 5 * * *'
+  # Unscheduled 2026-09-20 by the Linear cutoff, STEP 6 of
+  # docs/ops/LINEAR_CUTOFF_RUNBOOK.md. Commented out rather than disabled in the
+  # Actions UI so the repository does not lie about itself. workflow_dispatch is
+  # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
+  # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #schedule:
+  #  - cron: '17 5 * * *'
 
 permissions:
   contents: read

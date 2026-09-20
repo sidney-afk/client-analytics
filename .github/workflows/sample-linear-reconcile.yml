@@ -11,8 +11,24 @@ name: Samples ⇄ Linear status reconcile
 # from the Actions tab (workflow_dispatch) — leave "dry_run" on to preview.
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
+  # Unscheduled 2026-09-20 by the Linear cutoff, STEP 6 of
+  # docs/ops/LINEAR_CUTOFF_RUNBOOK.md. Commented out rather than disabled in the
+  # Actions UI so the repository does not lie about itself. workflow_dispatch is
+  # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
+  # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #
+  # NOT THE WHOLE STORY FOR THIS LANE. n8n pager `qllIDZPkdNAPRj0b` dispatches
+  # this workflow every 15 minutes with `dry_run=false`, and the APPLY
+  # expression below makes a dispatched run with dry_run != 'true' write-capable
+  # exactly as a scheduled run was. So removing the cron reduces the trigger
+  # count and changes nothing about the writes until that pager node is
+  # disabled, which is the owner's step (STEP 6 item 1, and CLAUDE.md forbids
+  # editing an n8n workflow without explicit go-ahead). The owner deactivated that
+  # pager on 2026-09-20, verified read-only the same day (active:false,
+  # activeVersionId:null), so both halves are now off and only a hand dispatch
+  # reaches this lane. See docs/truth/N8N.md.
+  #schedule:
+  #  - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
   workflow_dispatch:
     inputs:
       dry_run:

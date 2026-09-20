@@ -13615,6 +13615,46 @@ never collide). `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. OPEN_REPAIRS 218 records all four together. No live read,
 deployment, database installation, or n8n edit occurred.
 
+### 2026-09-20 — STEP 6 schedulers stopped: five Linear workflows unscheduled, three watchdog lanes retired
+
+Per `LINEAR_CUTOFF_RUNBOOK.md` STEP 6, the `cron:` blocks are commented out (not
+disabled in the Actions UI, so the repository does not lie about itself) on the
+five schedule-carrying workflows `LINEAR_EXIT_STEP29B_INVENTORY.md` advises
+retiring: `linear-deliverables-reconcile.yml`, `sample-linear-reconcile.yml`,
+`b1-linear-incremental-refresh.yml`, `production-shadow-audit.yml` and
+`linear-outbound-drain.yml` — the last being the "decide it rather than leave it
+running by omission" item STEP 7 hands back to STEP 6. `workflow_dispatch` is
+kept on all five. In the same commit, `reconciler_pager`,
+`b1_incremental_refresh` and `production_shadow_audit` carry
+`retired: { at: '2026-09-20', reason: 'linear-cutoff' }` in
+`scripts/monitoring-watchdog.js`, and both `REVIEWED_BLOB_SHA256` pins the
+runbook warns will drift are re-pinned from the committed blobs. `monitoring_watchdog`
+keeps `monitoring-deadman.yml` and `monitoring-crosscheck.yml` as two scheduled
+Linear-free hosts, which is what the suite requires. **Not done here:** the
+fourth `retires_with:'linear'` lane, `production_write_drill`, stays active
+because the inventory classifies its only host a *rewrite* candidate, not a
+retire one, and a retired lane with a scheduled host fails the suite — the two
+must move together, in whichever PR rewrites that workflow. **Owner decision the
+same day: retire it now** -- `production-write-drill.yml` is unscheduled and
+`production_write_drill` carries the same retired stamp, so all four
+`retires_with:'linear'` lanes are retired and no scheduled workflow needs a
+LINEAR_* secret. The native write-gateway proof that drill gave daily is lost
+until a credential-free rewrite restores it. No n8n workflow was
+touched; the runbook's own n8n items are listed in the PR for the owner. **And
+one of them is load-bearing, not housekeeping** (Codex P1 on #1449, verified):
+pager `qllIDZPkdNAPRj0b` dispatches `sample-linear-reconcile.yml` every 15
+minutes with `dry_run=false`, and that workflow's APPLY expression makes such a
+dispatch write-capable, so removing its cron stops a trigger and not the writes
+until the owner disables that node. The owner then did so, outside this PR; a
+read-only check the same day returned `active: false` / `activeVersionId: null`,
+so both halves are off and only a hand dispatch now reaches that lane. Workload
+reconcile `lGwC9WWPVJtxphtf` stays active by owner decision until the freshness
+watcher is confirmed. Recorded in `docs/truth/N8N.md` and in the workflow's own
+header. `test/b1-full-mode-lane.js` also needed a one-line change: it asserted the
+B1 cron still existed so its cron-cannot-reach-full-mode guard would not be
+vacuous, and it now accepts the retired commented block as well as a live one —
+still failing if the schedule is deleted outright, guard untouched. No live read, deployment or database change occurred.
+
 ### 2026-09-20 — Production sweep, part two: three more sites checked for the same Linear-identity assumption; two were real, one was a false lead Codex caught
 
 Follow-up to #1444 (OPEN_REPAIRS 220). First pass dropped `_prodCreateParents`'
@@ -13686,6 +13726,44 @@ four are live-backend/screenshot lanes this sandbox cannot execute; fixed by
 inspection to keep them from drifting stale). No live read, deployment,
 migration, or n8n edit.
 
+### 2026-09-20 — Brief media: the one-time copy script itself, built and tested, not run
+
+Follow-up to the same-day "browser now reads the native projection" entry
+above, which named this as the remaining work before `native_brief_media`
+can flip. `scripts/native-brief-media-copy.mjs` (`plan`/`apply`) scans a
+pre-extracted `deliverables` row set with the exact-offset regex
+`briefMediaOccurrences` already uses (imported from
+`supabase/functions/_shared/native-brief-media.mjs`, not re-derived), and
+for each `uploads.linear.app` occurrence downloads the file, uploads it to
+`syncview-native-brief-media` at `content_sha256/id`, independently reads
+it back, and inserts a `native_brief_media_occurrences` row carrying every
+field the migration's verified-row CHECK constraint and the reader's own
+validation require -- including `source_receipt_sha256` (NOT NULL, not
+itself re-validated by the reader), documented in a code comment as the
+sha256 of a canonical receipt of the fetch (status, content-type, byte
+length, content sha256, key hash), never the signed URL. One real find
+along the way: the bucket's own `allowed_mime_types` (four image types plus
+`application/octet-stream`) is narrower than the verified-row CHECK's
+mime_type list (adds pdf/svg/mp4/mov), so the four wider types upload under
+`application/octet-stream` while the occurrence row still records the real
+detected mime_type -- readback still verifies the actual bytes either way.
+Idempotency is the migration's own unique index
+(`native_brief_media_verified_occurrence`, keyed on source_kind/
+source_entity_id/deliverable_id/client_slug/team/source_sha256/
+source_offset where state='verified'): `apply` looks up that exact tuple
+before ever calling Linear, and skips a hit without downloading, uploading,
+or inserting again. A readback that disagrees with the upload's own sha256
+is refused and never marked verified. `--apply` requires both the flag and
+an explicit `NATIVE_BRIEF_MEDIA_COPY_CONFIRM` env value; `plan` makes zero
+network calls. Every run prints the exact flag-flip
+(`native_brief_media` to `{"mode":"required",...}`) and rollback
+(back to `{"mode":"off",...}`) SQL, informational only. New test:
+`test/native-brief-media-copy.js` (mocked Linear/storage/REST `fetch`;
+covers dry-run counts+manifest, a full verified insert matching every
+constraint, a refused readback mismatch, and the idempotent skip). No live
+run of `apply` occurred against any real database or the real Linear API,
+and `native_brief_media` was not flipped.
+
 ### 2026-09-20 — Cutoff day close-out: what moved live, what was retired, what is scheduled
 
 Supervisor entry tying together the day's operational moves, which the
@@ -13715,7 +13793,7 @@ paged about Linear mirror staleness, so it had no native purpose left.
 `SyncView Workload — Reconcile` (`lGwC9WWPVJtxphtf`) stays active by owner
 decision until a workload-source-freshness watcher exists. The five
 retire-classified GitHub workflows and three watchdog lanes were
-unscheduled/retired in #1449 (its own entry above). DRILL_DECISION_PLACEHOLDER
+unscheduled/retired in #1449 (its own entry above). Then, by **owner decision the same evening (option 2 of two)**, `production-write-drill.yml` was unscheduled and the `production_write_drill` lane retired in the same PR, so **all four `retires_with: 'linear'` lanes are retired and no scheduled workflow in the repo requires a `LINEAR_*` secret** — `test/monitoring-watchdog.js` asserts that property in both directions. The cost is explicit in the workflow header: the daily native write-gateway proof is lost until a credential-free rewrite re-enables the cron and un-retires the lane together.
 
 **Production tab.** Every "Add sub-issue" affordance was removed in #1450
 after the owner asked that no button offering to add an issue or sub-issue
@@ -13724,7 +13802,7 @@ creates a top-level issue and was left, per that PR's reading of the rule;
 the owner may still want it gone, which is a one-line follow-up.
 
 **Brief media.** The one-time copy tool merged in #1451.
-BRIEF_MEDIA_RUN_PLACEHOLDER
+The **first live run of the tool happened the same evening** on the owner's machine: `plan` found 487 briefs carrying 1,339 Linear image references to 1,168 distinct files, every row carrying the Linear issue id the re-fetch needs (0 refusable). Two findings from that run: the script's CLI guard never matched on Windows (backslash path vs `file:///C:/` URL) so it exited 0 silently — fixed in **#1452** for this script and `linear-media-rescue.mjs`, which had the same guard; and `apply` stopped before writing because the Storage machine holds no `SUPABASE_SERVICE_ROLE_KEY`, which the owner is supplying by hand into that shell's environment. `apply` and the flag flip are the next step once both land.
 
 **Intake for videographers.** The Submit tab is reachable without a staff
 sign-in at `https://syncview.synchrosocial.com/?intake=1` (`_isIntake`,

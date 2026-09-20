@@ -10,8 +10,22 @@ on:
           provider call. TEST fixture only. Leave off for every ordinary run.
         type: boolean
         default: false
-  schedule:
-    - cron: '17 4 * * *'
+  # Unscheduled 2026-09-20 by the Linear cutoff, STEP 6 of
+  # docs/ops/LINEAR_CUTOFF_RUNBOOK.md. Commented out rather than disabled in the
+  # Actions UI so the repository does not lie about itself. workflow_dispatch is
+  # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
+  # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #
+  # OWNER DECISION 2026-09-20 (PR #1449): the inventory called this workflow a
+  # REWRITE candidate -- drop the LINEAR_API_KEY requirement and keep the native
+  # write-gateway exercise running -- while STEP 6 listed it for retirement. The
+  # owner chose retirement for now. The drill's `require secrets` step demands
+  # LINEAR_API_KEY, so leaving it scheduled past STEP 7 would have failed it daily
+  # and latched its lane. The native-gateway proof it provided is lost until
+  # someone rewrites it credential-free; that rewrite would re-enable this cron and
+  # un-retire the lane together.
+  #schedule:
+  #  - cron: '17 4 * * *'
 
 permissions:
   contents: read

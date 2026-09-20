@@ -82,6 +82,22 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
   'scripts/prod-authority-guard.js',
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
+  // Re-pinned 2026-09-20 for the Linear cutoff's STEP 6, exactly the double drift
+  // the `NOTE for whoever retires reconciler_pager` below predicted. Two blobs
+  // moved and nothing else: WORKFLOW_PATH lost its `cron:` block (commented out,
+  // workflow_dispatch kept), and `scripts/monitoring-watchdog.js` retired the
+  // `reconciler_pager`, `b1_incremental_refresh` and `production_shadow_audit`
+  // lanes. Closure membership UNCHANGED: no file entered or left, no new
+  // dependency, no new entrypoint, no reconcile/apply/flag/authority path
+  // touched. Both hashes come from `git show HEAD:<path> | sha256sum` on the
+  // commit that made the change, never typed by hand. (Previous pins:
+  // f68282ca... for the workflow, 81861068... for the watchdog.)
+  //
+  // Re-pinned again 2026-09-20, same lane, ONE blob: the owner's decision to retire
+  // `production_write_drill` as well moved `scripts/monitoring-watchdog.js` a
+  // second time. WORKFLOW_PATH did not move again, so its pin is unchanged, and
+  // production-write-drill.yml is not a closure file. Membership UNCHANGED.
+  // (Previous pin: 590e88a7...)
   // Re-pinned 2026-08-04 with the monitoring-readiness change: the workflow
   // gained the heartbeat/dead-man steps and the n8n key for delivery receipts;
   // the pager moved to the shared relay client. Both blobs are re-reviewed.
@@ -105,7 +121,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Verify with, for each path:
   //   git show HEAD:<path> | sha256sum
   '.github/workflows/linear-deliverables-reconcile.yml':
-    'f68282ca573ffce07ec53698b19498bfd6d6d84cdfcaf0f0c9a271bad9946681',
+    'c906a47ca54a4e35092ddc7886402da0a78804b8e2bbaf0ffcf6414bc3ba23f8',
   'package.json':
     '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
   // Re-pinned 2026-08-17: the linkage backfill's authority guard was split so
@@ -302,7 +318,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // exit rather than dying with it. This pin records those source bytes and
   // approves nothing else. (Previous pin: b193214e...)
   'scripts/monitoring-watchdog.js':
-    '818610683fd88273de35de8c8be6d37e9c889742ca3feaa587abcddde2fba563',
+    'a94d1cb87b96cfa7a2fb40a5de0237eb9df410715c306d339973fb921c2f4744',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

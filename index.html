@@ -60173,10 +60173,31 @@
                         state.sourceUpdatedAt = '';
                         state.remoteChanged = true;
                         state.scopeSignature = '';
+                        state.renderValue = '';
+                        state.renderExpiresAt = 0;
                     } else {
                         _prodState.descriptions.delete(id);
                         state = null;
                     }
+                }
+            }
+            /* The native media projection's image URLs are signed for 5
+               minutes (native-brief-media.mjs: expires_at ~285s out). An open
+               but unchanged brief has no other trigger to re-read on, so a
+               stale renderValue is dropped here -- at the moment of use, the
+               same rule the scope gate above already follows -- and the
+               state is marked stale so the next ensure (every detail render
+               already calls it with force=false) re-fetches instead of
+               silently keeping a cached response with expired signed URLs.
+               Falling back to state.value (the untouched row.brief, always
+               kept current by the fix above) means the worst case is the
+               pre-existing behaviour: direct uploads.linear.app URLs. */
+            if (state && state.renderValue && state.renderExpiresAt && Date.now() >= state.renderExpiresAt) {
+                state.renderValue = '';
+                state.renderExpiresAt = 0;
+                if (state.status === 'ready' && !state.editing && !state.saving) {
+                    state.status = 'stale';
+                    state.refreshSilent = true;
                 }
             }
             if (state) return state;
@@ -60220,7 +60241,13 @@
                    projection above carries no stamp, because it did not come
                    from a scoped read -- it came from the row itself, and moves
                    with it. */
-                scopeSignature: ''
+                scopeSignature: '',
+                /* Native brief-media (2026-09-20): the read-only rendered
+                   projection and when its signed image URLs expire. Never
+                   the source for draft/baseline/save -- see the read path's
+                   comment. */
+                renderValue: '',
+                renderExpiresAt: 0
             };
             _prodState.descriptions.set(id, state);
             return state;
@@ -61066,8 +61093,26 @@
                     || _prodWriteTeam(row.team) !== issueTeam) {
                     throw new Error(String(json && json.error || 'description_read_failed'));
                 }
+                /* The native `media` projection is a READ-ONLY rendering aid,
+                   never the canonical text: `render_brief` rewrites image
+                   references to short-lived (5-minute) signed storage URLs,
+                   and row.brief -- the value _prodSyncDescriptionRow and
+                   _prodAdoptDescriptionValue seed the editable draft/baseline
+                   from -- stays the untouched server brief so an unrelated
+                   edit can never persist an expiring signed URL over the
+                   original Linear-hosted one. The projection is attached
+                   separately, below, as state.renderValue -- read only by the
+                   display line, never by _prodBeginDescriptionEdit or
+                   _prodSaveDescription. */
                 _prodSyncDescriptionRow(id, row.brief, row.updated_at);
                 _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
+                const media = json && json.media;
+                const renderBrief = (media && media.complete === true && typeof media.render_brief === 'string')
+                    ? media.render_brief
+                    : '';
+                const renderExpiresAt = renderBrief && media && typeof media.expires_at === 'string'
+                    ? Date.parse(media.expires_at) || 0
+                    : 0;
                 /* The scope this text is true for; _prodDescriptionState
                    refuses to draw it if the row leaves that scope.
 
@@ -61082,7 +61127,13 @@
                    and a state carrying an older scope's stamp would have the
                    text just adopted wiped back out. */
                 const adopted = _prodState.descriptions.get(id);
-                if (adopted) adopted.scopeSignature = scopeSignature;
+                if (adopted) {
+                    adopted.scopeSignature = scopeSignature;
+                    // Display-only: never read by the editable draft/baseline
+                    // or by the save payload -- see the comment above.
+                    adopted.renderValue = renderBrief;
+                    adopted.renderExpiresAt = renderExpiresAt;
+                }
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {
@@ -62548,7 +62599,9 @@
                 baseline: state.baseline,
                 hasValue: state.hasValue,
                 status: state.status,
-                updatedAt: state.sourceUpdatedAt
+                updatedAt: state.sourceUpdatedAt,
+                renderValue: state.renderValue,
+                renderExpiresAt: state.renderExpiresAt
             };
             _prodNextDescriptionRequestToken(id);
             state.refreshing = false;
@@ -62560,6 +62613,11 @@
             state.error = '';
             state.refreshError = '';
             state.remoteChanged = false;
+            /* The rendered projection was computed against the PREVIOUS text.
+               Saving new text makes it stale immediately -- keeping it would
+               show the old media-rewritten brief over the just-saved one. */
+            state.renderValue = '';
+            state.renderExpiresAt = 0;
             if (issue.syntheticBatchParent === true) _prodSyncBatchDescriptionRow(id, description, '');
             else _prodSyncDescriptionRow(id, description, '');
             _prodRender();
@@ -62637,6 +62695,11 @@
                     state.hasValue = previous.hasValue;
                     state.status = previous.status;
                     state.sourceUpdatedAt = previous.updatedAt;
+                    // The genuine revert: the text itself did not change, so
+                    // whatever rendered projection was valid for it before
+                    // the failed attempt is still valid for it now.
+                    state.renderValue = previous.renderValue;
+                    state.renderExpiresAt = previous.renderExpiresAt;
                     if (parentConflict) _prodSyncBatchDescriptionRow(id, previous.value, previous.updatedAt);
                     else _prodSyncDescriptionRow(id, previous.value, previous.updatedAt);
                 }
@@ -62726,7 +62789,7 @@
             const clickEdit = writable && state.status === 'ready' && !state.refreshing;
             const body = state.status === 'error'
                 ? ''
-                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodDescriptionHTML(state.value, state.hasValue, 'No description.', true) + '</div>';
+                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodDescriptionHTML(state.renderValue || state.value, state.hasValue, 'No description.', true) + '</div>';
             const readState = state.status === 'error'
                 ? '<div class="prod-description-state is-error" data-prod-description-error>' + _calEsc(state.error || 'Description could not load.')
                     + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'

@@ -260,9 +260,9 @@ ok(many.openLinearUrl === 'https://linear.app/x/issue/VID-9000',
  * Seen red against the pre-fix source.
  */
 const NATIVE_A = { nativeId: NATIVE_ROW_ID, identifier: '', url: '', workloadSource: 'native',
-                   parentIdentifier: 'A Batch Name' };
+                   parentId: PARENT_ID, parentIdentifier: 'A Batch Name' };
 const NATIVE_B = { nativeId: '00000000-0000-4000-8000-0000000000b2', identifier: '', url: '',
-                   workloadSource: 'native', parentIdentifier: 'A Batch Name' };
+                   workloadSource: 'native', parentId: PARENT_ID, parentIdentifier: 'A Batch Name' };
 const NATIVE_PARENT_ROW = { identifier: 'A Batch Name', url: '', title: 'A Batch Name' };
 const nativeMany = resolveLinks({ parentById: new Map([[PARENT_ID, NATIVE_PARENT_ROW]]) },
   PARENT_ID, 'A Client', [NATIVE_A, NATIVE_B], loc);
@@ -277,6 +277,18 @@ ok(nativeManyNoRow.parentSyncUrl === '/?prod=1&batch=' + encodeURIComponent(PARE
   'with the batch row absent from the snapshot, the batch id on the children still routes it');
 ok(many.parentSyncUrl === '/?prod=1&d=VID-9000',
   'a LEGACY multi-video pill is unchanged: it still routes by the Linear parent identifier');
+/* Codex P2 on #1454: `subs` is filtered by assignee and client, NOT by the
+   clicked parent, so a legacy-parent chip can share the popover with a native
+   row of ANOTHER post. Native routing must be judged by the subs that belong
+   to the clicked parent, or the legacy parent is sent to ?batch=<legacy uuid>. */
+const OTHER_BATCH = '00000000-0000-4000-8000-00000000cafe';
+const STRAY_NATIVE = { nativeId: '00000000-0000-4000-8000-0000000000c3', identifier: '', url: '',
+                       workloadSource: 'native', parentId: OTHER_BATCH, parentIdentifier: 'Other Post' };
+const legacyWithStray = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING, STRAY_NATIVE], loc);
+ok(legacyWithStray.parentSyncUrl === '/?prod=1&d=VID-9000',
+  'a legacy parent chip sharing the popover with a native row of another post still routes by identifier');
+ok(legacyWithStray.parentSyncUrl !== '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+  'and is NOT sent to ?batch=<legacy uuid>, which resolves nothing');
 
 // B. the parent branch never substitutes a child.
 const missMany = resolveLinks(noParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);

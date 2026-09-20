@@ -21604,7 +21604,14 @@
            can resolve nothing and Production published "<batch name> has no
            row in Production". Same class as OPEN_REPAIRS 218/221: one more
            site assuming every parent carries a Linear identifier. */
-        const nativeBatchId = parentId && subs.some(s => s && s.workloadSource === 'native')
+        /* Judged by the subs that BELONG to the clicked parent, not by any row
+           in the popover: `subs` is filtered by assignee and client only, so a
+           legacy-parent chip can share the list with a native row of another
+           post during a mixed-authority state, and "any native row" would
+           send that legacy parent to `?batch=<legacy uuid>`, which resolves
+           nothing (Codex P2 on #1454). */
+        const nativeBatchId = parentId && subs.some(s => s && s.workloadSource === 'native'
+                && String(s.parentId || '') === String(parentId))
             ? String(parentId) : '';
         const openIdent = soleSubIdent || parentIdent;
         const openIsParent = !soleSubIdent && !!(parentIdent || nativeBatchId);

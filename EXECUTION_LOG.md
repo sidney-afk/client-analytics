@@ -7468,3 +7468,14 @@ the alert is otherwise addressed.
 Disposition for the real-client rows still `failed` (the 17 above) and any
 other real-client row in `pending`/`failed`/`shadow_ok`: **frozen at cutoff
 by owner decision 2026-09-20; Linear is retired and these rows are not sent.**
+
+**Owner override, recorded explicitly.** The cutoff (STEP 3, this entry) was
+executed on 2026-09-20 by owner decision **before** the runbook's P7 write-path
+gates, the three cache-defeating reads, and the urgent-action decision
+(`LINEAR_CUTOFF_RUNBOOK.md:140-146,301`) were recorded. This is a deliberate
+override of that gate order, not an oversight. **Containment:** the flag is
+reversible — the same write with `{"mode":"live"}` restores prior behavior —
+and the owner is running the full acceptance click-through the same day. The
+latched `oldest_pending_age` alarm (above) is a **known state**, pending a
+separate owner decision on whether to mark the frozen rows terminal so the
+alarm can clear; it is not being treated as resolved by this entry.

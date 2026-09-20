@@ -135,8 +135,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
     which is why the two are tracked separately. This makes it the SAME direction as the Track-A
     allowlists, not the opposite one.
   - `auth_enforcement` = `{"mode":"permissive"}` — unchanged.
-  - `linear_inbound_enabled`, `linear_legacy_parity_enabled`,
-    `client_comment_gateway_enabled` — all `{"enabled":true}`.
+  - `linear_inbound_enabled`, `client_comment_gateway_enabled` — both `{"enabled":true}`.
+  - `linear_legacy_parity_enabled` = `{"enabled":false}` since 2026-09-20T17:35:54.465602Z (was `{"enabled":true}`, armed 2026-07-28; rollback is the same write with `{"enabled":true}`, read back before trusting it).
   - `public_intake_enabled` = `{"enabled":true}` since 2026-08-25 03:22Z, turned on by the owner
     after the `production-write` deploy that made the public intake path safe to admit.
   - `pto_v1` (staff PTO tracker) live ON since 2026-07-15 under owner decision D-36.

@@ -313,6 +313,7 @@
     "native-assignment-auth-kind-postgres.js",
     "native-batch-picker-parents.js",
     "native-batch-picker-search.js",
+    "native-brief-media-copy.js",
     "native-calendar-status-bridge-postgres.js",
     "native-calendar-status-bridge.js",
     "migration-bare-delete-lint.js",

@@ -13651,3 +13651,41 @@ excluding behavior), `test/production-parent-link-hierarchy.js`,
 and `test/prod-deep-link-fast-paint.js` updated for the one new boot helper.
 OPEN_REPAIRS 221 records all three together. `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. No live read, deployment, migration, or n8n edit.
+
+### 2026-09-20 — Brief media: the one-time copy script itself, built and tested, not run
+
+Follow-up to the same-day "browser now reads the native projection" entry
+above, which named this as the remaining work before `native_brief_media`
+can flip. `scripts/native-brief-media-copy.mjs` (`plan`/`apply`) scans a
+pre-extracted `deliverables` row set with the exact-offset regex
+`briefMediaOccurrences` already uses (imported from
+`supabase/functions/_shared/native-brief-media.mjs`, not re-derived), and
+for each `uploads.linear.app` occurrence downloads the file, uploads it to
+`syncview-native-brief-media` at `content_sha256/id`, independently reads
+it back, and inserts a `native_brief_media_occurrences` row carrying every
+field the migration's verified-row CHECK constraint and the reader's own
+validation require -- including `source_receipt_sha256` (NOT NULL, not
+itself re-validated by the reader), documented in a code comment as the
+sha256 of a canonical receipt of the fetch (status, content-type, byte
+length, content sha256, key hash), never the signed URL. One real find
+along the way: the bucket's own `allowed_mime_types` (four image types plus
+`application/octet-stream`) is narrower than the verified-row CHECK's
+mime_type list (adds pdf/svg/mp4/mov), so the four wider types upload under
+`application/octet-stream` while the occurrence row still records the real
+detected mime_type -- readback still verifies the actual bytes either way.
+Idempotency is the migration's own unique index
+(`native_brief_media_verified_occurrence`, keyed on source_kind/
+source_entity_id/deliverable_id/client_slug/team/source_sha256/
+source_offset where state='verified'): `apply` looks up that exact tuple
+before ever calling Linear, and skips a hit without downloading, uploading,
+or inserting again. A readback that disagrees with the upload's own sha256
+is refused and never marked verified. `--apply` requires both the flag and
+an explicit `NATIVE_BRIEF_MEDIA_COPY_CONFIRM` env value; `plan` makes zero
+network calls. Every run prints the exact flag-flip
+(`native_brief_media` to `{"mode":"required",...}`) and rollback
+(back to `{"mode":"off",...}`) SQL, informational only. New test:
+`test/native-brief-media-copy.js` (mocked Linear/storage/REST `fetch`;
+covers dry-run counts+manifest, a full verified insert matching every
+constraint, a refused readback mismatch, and the idempotent skip). No live
+run of `apply` occurred against any real database or the real Linear API,
+and `native_brief_media` was not flipped.

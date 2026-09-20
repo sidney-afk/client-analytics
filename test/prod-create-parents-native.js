@@ -131,5 +131,22 @@ const withoutAttribution = sandbox.createParents(draft).map(p => p.id);
 ok(!withoutAttribution.includes('linear-root'),
   'an unresolved-attribution row is still excluded regardless of its Linear identity');
 
+// The synthesized node is LABELLED as a post, not as its raw batch id. Owner,
+// 2026-09-20 cutoff-day pass: "the batch ID is super long ... I don't know if
+// that's normal". A label only: _prodIssue() resolves by id/displayId and no
+// deep link is built from it, so nothing that routes to the node changes.
+{
+  const labelSrc = source.slice(source.indexOf('function _prodIssueLabel('),
+    source.indexOf('function _prodIssueIdHTML('));
+  ok(labelSrc.length > 0, 'the label helper extracts (harness is not vacuous)');
+  const label = new Function('d', labelSrc + '\nreturn _prodIssueLabel(d);');
+  ok(label({ id: 'bat_00000000-0000-4000-8000-0000000000aa', syntheticBatchParent: true }) === 'Post',
+    'a synthetic batch-parent node is labelled "Post", never its raw bat_ id');
+  ok(label({ id: 'del_x', displayId: 'VID-9001' }) === 'VID-9001',
+    'an ordinary card still shows its identifier');
+  ok(label({ id: 'del_y' }) === 'del_y',
+    'an unminted native card still falls through to its id (the mint is the fix for that one)');
+}
+
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');
 process.exit(failures ? 1 : 0);

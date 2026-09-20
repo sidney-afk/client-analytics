@@ -56385,6 +56385,15 @@
             return '<span class="prod-avatar" style="width:' + s + 'px;height:' + s + 'px;background:' + color + ';font-size:' + Math.max(8, Math.round(s * .42)) + 'px">' + _calEsc(member.init || _prodInitials(member.name)) + '</span>';
         }
         function _prodIssueLabel(d) {
+            /* A natively-created post has no short identifier of its own: the
+               mint covers videos and thumbnails, not the batch that groups
+               them, so the synthetic parent node fell through to its raw
+               `bat_<uuid>` id in the list, the breadcrumb and the detail
+               header. Owner, 2026-09-20 cutoff-day pass: "the batch ID is
+               super long ... I don't know if that's normal". It is a label,
+               not a key -- _prodIssue() resolves by id/displayId and no deep
+               link is built from this string -- so the node reads "Post". */
+            if (d && d.syntheticBatchParent === true) return 'Post';
             return d && (d.displayId || d.identifier || d.linear_identifier || d.id) || '';
         }
         /* A provider card's identifier is 9 characters; a native card has none

@@ -77,8 +77,10 @@ async function collectParentDetailEvidence(page) {
     return {
       detailId: detail ? detail.getAttribute('data-prod-detail') || '' : '',
       subIssueRows: document.querySelectorAll('.prod-subissue-row').length,
-      hasGuardedAddSubIssue: !!document.querySelector('[data-prod-add-subissue][disabled]'),
-      addSubIssueText: (document.querySelector('[data-prod-section="subissues"] [data-prod-add-subissue]')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      // Sub-issue creation is not reachable from Production at all
+      // (CLAUDE.md standing rule) -- _prodAddSubIssueButtonHTML was removed
+      // outright, so this affordance must never render, guarded or not.
+      hasAddSubIssue: !!document.querySelector('[data-prod-add-subissue]'),
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),
@@ -662,11 +664,11 @@ ${cards}
 
     await setParentDetail(desktop);
     const parentDetailEvidence = await collectParentDetailEvidence(desktop);
-    await screenshot(desktop, shots, 'parent-detail', 'Parent issue detail', 'Centered body, sub-issue rows, guarded add-sub-issue affordance, activity.', {
+    await screenshot(desktop, shots, 'parent-detail', 'Parent issue detail', 'Centered body, sub-issue rows, NO add-sub-issue affordance (removed -- CLAUDE.md), activity.', {
       surface: 'parent-issue-detail',
       route: 'production/issue-detail',
       evidence: parentDetailEvidence,
-      checks: ['centered issue body', 'sub-issue rows', 'guarded add-sub-issue affordance', 'activity'],
+      checks: ['centered issue body', 'sub-issue rows', 'no add-sub-issue affordance', 'activity'],
     });
 
     await setSubIssueDetail(desktop);

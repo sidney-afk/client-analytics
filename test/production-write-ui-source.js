@@ -391,9 +391,11 @@ ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
   && /if \(!parent \|\| parent\.parent \|\| !_prodAttributionResolved\(parent\)\)/.test(createParentChange)
   && /draft\.clientSlug = parent\.project/.test(createParentChange)
   && /draft\.team = _prodWriteTeam\(parent\.team\)/.test(createParentChange)
-  && /parentId && \(!parent \|\| parent\.parent/.test(createOpen)
-  && /if \(!parent \|\| parent\.parent\) return ''/.test(extract('_prodAddSubIssueButtonHTML')),
+  && /parentId && \(!parent \|\| parent\.parent/.test(createOpen),
 'Add Sub locks the parent/client/team scope and nested sub-issue creation stays unavailable');
+ok(!/function _prodAddSubIssueButtonHTML/.test(source)
+  && !/data-prod-add-subissue/.test(source),
+'the Add sub-issue affordance is removed outright, not just gated -- Production cannot create sub-issues (CLAUDE.md)');
 ok(/const recovering = !!\(saved && saved\.ambiguous\)/.test(createOpen)
   && /_prodState\.createDraft = recovering[\s\S]{0,80}\? saved/.test(createOpen)
   && /if \(parent && !recovering\)/.test(createOpen)

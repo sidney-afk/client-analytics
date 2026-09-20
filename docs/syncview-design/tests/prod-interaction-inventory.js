@@ -500,10 +500,12 @@ async function selectionChecks(page) {
         label: issue ? _prodIssueLabel(issue) : '',
         text: row ? row.textContent.replace(/\s+/g, ' ').trim() : '',
         hasProjectChip: !!(row && row.querySelector('.prod-chip-client')),
+        // Sub-issue creation is not reachable from Production at all
+        // (CLAUDE.md standing rule); the affordance was removed outright.
         hasAddButton: !!document.querySelector('#prodRoot [data-prod-add-subissue]'),
       };
     });
-    if (!parentSubrow.hasAddButton) failures.push('parent detail did not expose the guarded add-sub-issue affordance');
+    if (parentSubrow.hasAddButton) failures.push('parent detail still exposes an add-sub-issue affordance -- sub-issue creation must only be possible from the content calendar');
     if (!parentSubrow.hasProjectChip) failures.push('parent sub-issue row did not expose project metadata');
     if (parentSubrow.label && parentSubrow.text.includes(parentSubrow.label)) {
       failures.push('parent sub-issue row still shows the child issue id instead of title-first Linear styling');

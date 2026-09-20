@@ -13688,3 +13688,73 @@ excluding behavior), `test/production-parent-link-hierarchy.js`,
 and `test/prod-deep-link-fast-paint.js` updated for the one new boot helper.
 OPEN_REPAIRS 221 records all three together. `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. No live read, deployment, migration, or n8n edit.
+
+### 2026-09-20 — Sub-issue creation removed outright from Production, not just gated (CLAUDE.md policy compliance)
+
+`_prodAddSubIssueButtonHTML` and both its call sites (the empty and
+populated `Sub-issues` section headers on an issue detail pane) are gone;
+`_prodSubIssuesSectionHTML` renders nothing at all for a childless parent
+and drops the button from the populated header. This was already gated
+closed at runtime by `PROD_CREATE_CLOSED_TEXT` (owner ruling 2026-08-23),
+but a gated-and-disabled button is still a rendered entry point, which
+violates the separate standing rule in `CLAUDE.md`: "Sub-issue creation must
+not be possible from SyncLinear — only from the content calendar." Searched
+every caller of `_prodOpenCreate`: only two existed in the whole file — the
+sub-issue button just removed, and the topbar "New issue" button, which
+opens `_prodOpenCreate()` with no `parentId` (mode `'parent'`, a top-level
+issue, not a sub-issue) and is out of this rule's scope, so it is untouched.
+No keyboard shortcut or command-palette entry called `_prodOpenCreate` at
+all. `_prodOpenCreate` itself is left alone per instructions — its
+subissue-mode branch is not dead: an ambiguous saved subissue draft still
+recovers through the topbar's "Recover issue" control, which calls
+`_prodOpenCreate()` with no `parentId` and reads the pending draft from
+`sessionStorage`. The Calendar's own Create Post path was not touched.
+Tests: `test/production-write-ui-source.js` and
+`test/production-preview-source.js` flipped their `_prodAddSubIssueButtonHTML`
+presence assertions to absence assertions; `test/prod-create-parents-native.js`
+and `test/prod-create-graphics-parent-scope.js` needed no change (neither
+references the removed button). Also corrected, since they pin the exact
+element removed: `docs/syncview-design/tests/prod-write-gateway-browser.js`
+(run — passes), `prod-structure-subset.js`, `prod-review-packet.js`,
+`prod-review-packet-validate.js`, and `prod-interaction-inventory.js` (all
+four are live-backend/screenshot lanes this sandbox cannot execute; fixed by
+inspection to keep them from drifting stale). No live read, deployment,
+migration, or n8n edit.
+
+### 2026-09-20 — Brief media: the one-time copy script itself, built and tested, not run
+
+Follow-up to the same-day "browser now reads the native projection" entry
+above, which named this as the remaining work before `native_brief_media`
+can flip. `scripts/native-brief-media-copy.mjs` (`plan`/`apply`) scans a
+pre-extracted `deliverables` row set with the exact-offset regex
+`briefMediaOccurrences` already uses (imported from
+`supabase/functions/_shared/native-brief-media.mjs`, not re-derived), and
+for each `uploads.linear.app` occurrence downloads the file, uploads it to
+`syncview-native-brief-media` at `content_sha256/id`, independently reads
+it back, and inserts a `native_brief_media_occurrences` row carrying every
+field the migration's verified-row CHECK constraint and the reader's own
+validation require -- including `source_receipt_sha256` (NOT NULL, not
+itself re-validated by the reader), documented in a code comment as the
+sha256 of a canonical receipt of the fetch (status, content-type, byte
+length, content sha256, key hash), never the signed URL. One real find
+along the way: the bucket's own `allowed_mime_types` (four image types plus
+`application/octet-stream`) is narrower than the verified-row CHECK's
+mime_type list (adds pdf/svg/mp4/mov), so the four wider types upload under
+`application/octet-stream` while the occurrence row still records the real
+detected mime_type -- readback still verifies the actual bytes either way.
+Idempotency is the migration's own unique index
+(`native_brief_media_verified_occurrence`, keyed on source_kind/
+source_entity_id/deliverable_id/client_slug/team/source_sha256/
+source_offset where state='verified'): `apply` looks up that exact tuple
+before ever calling Linear, and skips a hit without downloading, uploading,
+or inserting again. A readback that disagrees with the upload's own sha256
+is refused and never marked verified. `--apply` requires both the flag and
+an explicit `NATIVE_BRIEF_MEDIA_COPY_CONFIRM` env value; `plan` makes zero
+network calls. Every run prints the exact flag-flip
+(`native_brief_media` to `{"mode":"required",...}`) and rollback
+(back to `{"mode":"off",...}`) SQL, informational only. New test:
+`test/native-brief-media-copy.js` (mocked Linear/storage/REST `fetch`;
+covers dry-run counts+manifest, a full verified insert matching every
+constraint, a refused readback mismatch, and the idempotent skip). No live
+run of `apply` occurred against any real database or the real Linear API,
+and `native_brief_media` was not flipped.

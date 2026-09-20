@@ -13836,3 +13836,20 @@ siblings); the brief-media copy run if it has not run by then (before
 legacy-source Workload rows, then retiring the workload reconcile; repair or retirement of the post-merge
 `production-polish-gate`, red on `main` since 2026-09-17 (29b addendum);
 STEP 7 key revoke, last.
+
+### 2026-09-20 — 29a click-through, first finding: Workload "Open parent →" on a native batch could not resolve
+
+The owner's live pass (Submit, Calendar, Workload) surfaced one defect:
+pressing "Open parent →" on a Workload pill for a native two-video post
+opened Production on "<batch name> has no row in Production". The popover
+header keyed the parent deep link on the parent's `identifier`, which for a
+native batch is the batch name, not an issue identifier; the fix routes a
+native group's parent to `?prod=1&batch=<batch id>`, as the loose strips
+already did. OPEN_REPAIRS **222**. Two other observations from the same pass
+are not defects: the long `bat_…` label on a native post's parent row is the
+synthetic batch node showing its raw id (no short identifier is minted for
+batches; cosmetic, owner to decide on a friendlier label), and the Workload
+banner "6 saved work days are not shown because the client stored with that
+work day no longer matches the card" is the gateway's counted drop of
+drifted plan rows (OPEN_REPAIRS 177), historical drift from before today.
+No live read, deployment, migration, or n8n edit.

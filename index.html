@@ -21595,11 +21595,31 @@
            has no identifier either. `?prod=1&d=` resolves a `del_…` id because
            _prodIssue() matches on `id` OR `displayId`. */
         const soleSubIdent = String(soleSub?.nativeId || soleSub?.identifier || '');
+        /* A NATIVE PARENT IS A BATCH, NOT AN ISSUE, so its deep link is
+           `?prod=1&batch=<batch id>` -- exactly what the loose strips already
+           build via wlLooseParentInfo().nativeBatchId. Owner report
+           2026-09-20, cutoff day, pressing "Open parent ->" on a two-video
+           pill: the native view answers `identifier` = the batch NAME for a
+           batch row (workload_issues_native_v1, parent arm), so `?d=<name>`
+           can resolve nothing and Production published "<batch name> has no
+           row in Production". Same class as OPEN_REPAIRS 218/221: one more
+           site assuming every parent carries a Linear identifier. */
+        /* Judged by the subs that BELONG to the clicked parent, not by any row
+           in the popover: `subs` is filtered by assignee and client only, so a
+           legacy-parent chip can share the list with a native row of another
+           post during a mixed-authority state, and "any native row" would
+           send that legacy parent to `?batch=<legacy uuid>`, which resolves
+           nothing (Codex P2 on PR 1454). */
+        const nativeBatchId = parentId && subs.some(s => s && s.workloadSource === 'native'
+                && String(s.parentId || '') === String(parentId))
+            ? String(parentId) : '';
         const openIdent = soleSubIdent || parentIdent;
-        const openIsParent = !soleSubIdent && !!parentIdent;
-        const parentSyncUrl = openIdent
-            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(openIdent))
-            : '';
+        const openIsParent = !soleSubIdent && !!(parentIdent || nativeBatchId);
+        const parentSyncUrl = openIsParent && nativeBatchId
+            ? (location.pathname + '?prod=1&batch=' + encodeURIComponent(nativeBatchId))
+            : openIdent
+                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(openIdent))
+                : '';
         const openLabel = openIsParent ? 'Open parent →' : 'Open SyncView →';
         // The Linear escape hatch follows the primary target rather than
         // silently pointing somewhere else than the button beside it.

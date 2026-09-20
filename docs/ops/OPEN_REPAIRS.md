@@ -27234,3 +27234,30 @@ updated to carry the one new boot-time helper (`_prodFetchNativeEpochTeams`)
 through their existing loader-dependency and fast-paint-sandbox mirrors. Also
 ran clean: `node docs/syncview-design/tests/prod-write-gateway-browser.js`.
 No live read, deployment, migration, or n8n edit.
+
+## 222. [2026-09-20, FIXED] Workload popover "Open parent →" on a native batch landed on "has no row in Production"
+
+**Reported by the owner during the cutoff-day click-through.** Opening the
+overdue pill for a two-video post created 2026-09-14, then pressing
+"Open parent →", showed the Production tab's deep-link notice — the batch
+NAME in bold, "has no row in Production. Most often its post could not be
+resolved here ... Showing the full list instead."
+
+**Cause.** The popover header built its parent link as `?prod=1&d=<parentIdent>`
+for every group, where `parentIdent` is the parent row's `identifier`. For a
+native batch the Workload view answers `identifier` = the batch NAME
+(`workload_issues_native_v1`, parent arm: `b.name as identifier`), and the
+children's `parentIdentifier` is that same name. Production resolves `?d=`
+against issue ids/identifiers and a batch only under `?prod=1&batch=<id>`, so
+the name could never resolve. The loose strips had already been routed by
+`wlLooseParentInfo().nativeBatchId` (2026-09-07); the popover header was the
+one site not carried across. Same class as 218/221: a parent assumed to
+carry a Linear identifier.
+
+**Fix.** When any sub in the group is `workloadSource === 'native'`, the
+header link is `?prod=1&batch=<parentId>`; `openIsParent` now also holds when
+only the batch id names the parent. Legacy groups are unchanged
+(`?d=<Linear parent identifier>`). `test/workload-syncview-links.js` executes
+the real resolution block for a native two-video group with and without the
+batch row in the snapshot; both new checks were seen red against the pre-fix
+source.

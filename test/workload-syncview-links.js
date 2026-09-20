@@ -76,8 +76,10 @@ const pop = source.slice(source.indexOf('const parentRow   = parentId'),
   source.indexOf('No upcoming sub-issues.'));
 ok(/const parentIdent = clientName/.test(pop),
   'the header derives a Linear IDENTIFIER for the SyncView deep link');
-ok(/parentSyncUrl = openIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
+ok(/openIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
   'the header link is the ?prod=1&d= deep link Production already resolves by identifier');
+ok(/openIsParent && nativeBatchId\s*\?\s*\(location\.pathname \+ '\?prod=1&batch=' \+ encodeURIComponent\(nativeBatchId\)\)/.test(pop),
+  'and a NATIVE parent routes to ?prod=1&batch=, the only deep link a batch resolves under');
 ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open SyncView');
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(openLinearUrl\)\}/.test(pop)
   && /Linear ↗/.test(pop),
@@ -244,6 +246,49 @@ ok(many.openLabel === 'Open parent →',
   'and it SAYS parent, so it is not mistaken for the video');
 ok(many.openLinearUrl === 'https://linear.app/x/issue/VID-9000',
   'the multi-video Linear link matches the parent it sits beside');
+
+/* A. NATIVE MULTI-VIDEO PILL. Owner report 2026-09-20 (cutoff day).
+ *
+ * For a batch row the native view answers `identifier` = the batch NAME
+ * (workload_issues_native_v1, parent arm: `b.name as identifier`), and
+ * `parentIdentifier` on its children is that same name. `?prod=1&d=<name>`
+ * resolves nothing -- _prodIssue() matches id/displayId of ISSUES, and a batch
+ * is opened by `?prod=1&batch=<id>` -- so "Open parent ->" landed on
+ * "<batch name> has no row in Production. ... Showing the full list instead."
+ * The loose strips already route a native parent by batch id
+ * (wlLooseParentInfo().nativeBatchId); the popover header now does too.
+ * Seen red against the pre-fix source.
+ */
+const NATIVE_A = { nativeId: NATIVE_ROW_ID, identifier: '', url: '', workloadSource: 'native',
+                   parentId: PARENT_ID, parentIdentifier: 'A Batch Name' };
+const NATIVE_B = { nativeId: '00000000-0000-4000-8000-0000000000b2', identifier: '', url: '',
+                   workloadSource: 'native', parentId: PARENT_ID, parentIdentifier: 'A Batch Name' };
+const NATIVE_PARENT_ROW = { identifier: 'A Batch Name', url: '', title: 'A Batch Name' };
+const nativeMany = resolveLinks({ parentById: new Map([[PARENT_ID, NATIVE_PARENT_ROW]]) },
+  PARENT_ID, 'A Client', [NATIVE_A, NATIVE_B], loc);
+ok(nativeMany.parentSyncUrl === '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+  'a native multi-video pill opens the BATCH by id, the deep link Production resolves for a post');
+ok(nativeMany.parentSyncUrl !== '/?prod=1&d=' + encodeURIComponent('A Batch Name'),
+  'it does NOT put the batch NAME into ?d= -- the exact reported defect');
+ok(nativeMany.openIsParent === true && nativeMany.openLabel === 'Open parent →',
+  'and it is still labelled as the parent');
+const nativeManyNoRow = resolveLinks(noParent, PARENT_ID, 'A Client', [NATIVE_A, NATIVE_B], loc);
+ok(nativeManyNoRow.parentSyncUrl === '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+  'with the batch row absent from the snapshot, the batch id on the children still routes it');
+ok(many.parentSyncUrl === '/?prod=1&d=VID-9000',
+  'a LEGACY multi-video pill is unchanged: it still routes by the Linear parent identifier');
+/* Codex P2 on #1454: `subs` is filtered by assignee and client, NOT by the
+   clicked parent, so a legacy-parent chip can share the popover with a native
+   row of ANOTHER post. Native routing must be judged by the subs that belong
+   to the clicked parent, or the legacy parent is sent to ?batch=<legacy uuid>. */
+const OTHER_BATCH = '00000000-0000-4000-8000-00000000cafe';
+const STRAY_NATIVE = { nativeId: '00000000-0000-4000-8000-0000000000c3', identifier: '', url: '',
+                       workloadSource: 'native', parentId: OTHER_BATCH, parentIdentifier: 'Other Post' };
+const legacyWithStray = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING, STRAY_NATIVE], loc);
+ok(legacyWithStray.parentSyncUrl === '/?prod=1&d=VID-9000',
+  'a legacy parent chip sharing the popover with a native row of another post still routes by identifier');
+ok(legacyWithStray.parentSyncUrl !== '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+  'and is NOT sent to ?batch=<legacy uuid>, which resolves nothing');
 
 // B. the parent branch never substitutes a child.
 const missMany = resolveLinks(noParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);

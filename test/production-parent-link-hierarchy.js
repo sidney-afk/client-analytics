@@ -316,6 +316,98 @@ vm.runInContext(
   ok(Array.from(reversed.nodes.keys()).sort().join(',') === ids.join(','),
     'the ids do not depend on the order rows happened to arrive in');
 }
+/*
+ * A batch created entirely NATIVELY -- outbound skipped -- has no Linear
+ * parent at all: `linear_parent_ids` is null, not just missing an entry.
+ * Everything above keys off that field, so without this branch the batch
+ * mints no synthetic parent and its own children surface as bare top-level
+ * issues with no "Sub-issue of" and no way back to their batch or siblings
+ * (the reported bug). ONE PARENT PER CARD (owner ruling 2026-08-18, the same
+ * rule production-write's own batch-create intake follows): a batch mints
+ * exactly ONE synthetic parent regardless of how many teams it serves, owned
+ * by the primary team (video when present), and every child of every team
+ * links to that SAME node -- not one row per team, which would leave a video
+ * card with no route to its own thumbnail siblings and show duplicate
+ * representations of one batch.
+ */
+{
+  const batchRows = [
+    { id: 'native-only-batch', client_slug: 'alpha', name: 'Native Only Batch',
+      linear_parent_ids: null },
+  ];
+  const childRows = [
+    { id: 'native-vid-1', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-vid-2', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-vid-3', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-gra-1', batch_id: 'native-only-batch', team: 'graphics' },
+    { id: 'native-gra-2', batch_id: 'native-only-batch', team: 'graphics' },
+    { id: 'native-gra-3', batch_id: 'native-only-batch', team: 'graphics' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(result.nodes.size === 1,
+    'a native batch with video AND graphics children synthesizes exactly ONE parent node, shared by both teams');
+  const [onlyNode] = Array.from(result.nodes.values());
+  ok(onlyNode.batchId === 'native-only-batch',
+    'the single synthetic parent names the native batch it was minted from');
+  ok(onlyNode.team === 'video',
+    'the shared parent is owned by the primary team (video, when the batch has one) -- same rule as the backend intake\'s own batch-create');
+  const sharedNodeId = result.links.get('native-vid-1');
+  ok(!!sharedNodeId, 'video children resolve to the shared synthetic parent');
+  ['native-vid-1', 'native-vid-2', 'native-vid-3', 'native-gra-1', 'native-gra-2', 'native-gra-3'].forEach(id => {
+    ok(result.links.get(id) === sharedNodeId,
+      'child ' + id + ' (either team) links to the ONE shared synthetic parent, not a per-team one');
+  });
+
+  // Deterministic: the same inputs in a different row order produce the same links.
+  const reversed = sandbox.resolveBatchParents(childRows.slice().reverse(), batchRows, new Map());
+  ok(reversed.links.get('native-vid-1') === sharedNodeId && reversed.links.get('native-gra-1') === sharedNodeId,
+    'the native synthetic parent id does not depend on row order either');
+}
+{
+  // A row with an EXPLICIT parent edge that fails to resolve (missing,
+  // duplicated, self-referential, or cyclic target) must stay a root, never
+  // get silently reparented to its batch -- that would invent a relationship
+  // the data never claimed, reversing the fail-closed behavior proven above
+  // for the Linear-backed cases.
+  const batchRows = [
+    { id: 'native-unresolved-batch', client_slug: 'alpha', name: 'Native Unresolved Batch',
+      linear_parent_ids: null },
+  ];
+  const childRows = [
+    { id: 'native-unresolved-1', batch_id: 'native-unresolved-batch', team: 'video',
+      raw_issue_parent_id: 'ghost-uuid-that-resolves-to-nothing' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(!result.links.has('native-unresolved-1'),
+    'a row with an unresolved explicit parent edge stays a root instead of falling back to its batch');
+}
+{
+  // A batch mixing genuinely native rows (no Linear identity at all) with a
+  // Linear-born row that simply has no recorded parent
+  // (docs/syncview-design/tests/prod-structure-subset.js's `same-batch-root`
+  // shape). The native rows are real evidence the batch needs a synthetic
+  // parent and link to it; the Linear-born row is NOT that evidence -- it
+  // already has a real Linear identity and no parent was ever recorded for
+  // it, so it must stay a root exactly like the unparented-batch-mate case
+  // proven for the Linear-backed branch above. Sweeping it into the native
+  // synthetic parent would invent a relationship the data never claimed.
+  const batchRows = [
+    { id: 'mixed-native-batch', client_slug: 'alpha', name: 'Mixed Native Batch',
+      linear_parent_ids: null },
+  ];
+  const childRows = [
+    { id: 'mixed-native-1', batch_id: 'mixed-native-batch', team: 'video' },
+    { id: 'mixed-native-2', batch_id: 'mixed-native-batch', team: 'video' },
+    { id: 'mixed-linear-root', batch_id: 'mixed-native-batch', team: 'video', linear_issue_uuid: 'linear-mixed-root' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  const mixedNodeId = result.links.get('mixed-native-1');
+  ok(!!mixedNodeId, 'the native rows still mint and link to a synthetic parent');
+  ok(result.links.get('mixed-native-2') === mixedNodeId,
+    'both native rows link to the SAME synthetic parent');
+  ok(!result.links.has('mixed-linear-root'),
+    'the Linear-born unparented row is NOT swept into the native synthetic parent -- it stays a root');
+}
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

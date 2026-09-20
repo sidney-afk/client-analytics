@@ -27031,6 +27031,82 @@ same-identity completion requires backend support; the browser does not convert
 or replay it. Offline evidence is recorded by the intake UI suite; TEST-client
 and ordinary real-item acceptance remain pending and no live write was made.
 
+## 220. [2026-09-20, FIXED] A batch created entirely natively showed no parent — no "Sub-issue of", no way back to its batch or siblings
+
+**Repro.** Submit a batch on the test client with outbound skipped (no Linear
+involvement at all), then open Video 1 from the Calendar. The Production tab
+showed the video (e.g. "VID-15029 Video 1") as a bare top-level issue with an
+"Add sub-issue" button — no "Sub-issue of" context, no listing of the batch or
+its sibling videos/thumbnails.
+
+**Why.** `_prodResolveBatchParentNodes` (index.html) only minted a synthetic
+parent node from a batch's `linear_parent_ids` map. A natively-created batch
+has no Linear parent at all — `linear_parent_ids` is `null`, not just missing
+an entry — so nothing in that map-keyed logic had anything to mint from, and
+every deliverable under the batch surfaced with no parent context.
+
+**Fix.** The resolver now mints exactly ONE synthetic parent node per batch
+whenever that batch has children but no usable `linear_parent_ids` entry —
+not one per team. This is the native mirror of the "ONE PARENT PER CARD"
+rule production-write's own batch-create intake already follows (owner
+ruling 2026-08-18): the node is owned by the primary team (video when
+present, otherwise the batch's only team) and every child of every team
+links to that same node, the same shape a Linear-backed create of the same
+card would have produced. (A first pass minted one node per team, matching
+the two-team-batch pattern for legacy Linear batches with genuinely separate
+parent issues — Codex review caught that this doesn't fix the reported bug
+for a mixed-team native batch: a video would still have no route to its
+thumbnail siblings, just through a different missing link.) It reuses the
+same node shape and the same `links`/`nodes` return shape the renderer
+already consumes for "Sub-issue of" and the parent's child-listing/progress
+chip. Linear-backed batches, the cross-batch-uuid ambiguity guard, and the
+archived tie-break are untouched — the new branch is gated to fire only
+where the existing branch produced nothing for that batch.
+
+Same review also caught a second, real bug in the fallback: a row with an
+EXPLICIT parent edge (`raw_issue_parent_id` set) that fails to resolve
+(missing, duplicated, self-referential, or cyclic target) was silently
+falling through to the native-batch fallback and getting reparented to its
+batch — reversing the function's own fail-closed behavior (proven by the
+adjacent "a missing parent fails closed as a visible root" /
+"a cyclic parent graph fails closed" tests) of keeping unresolved work
+visible as a root rather than inventing a relationship. The native-batch
+fallback now only fires when `raw_issue_parent_id` is empty to begin with.
+
+**A third bug, caught by `production-polish-gate`'s live-backend
+`prod-structure-subset.js` on this PR itself (initially misread as a
+pre-existing gate failure — it was not):** the native fallback was gated on
+"no `raw_issue_parent_id`" alone, which also matches a row that is genuinely
+Linear-born (has a real `linear_issue_uuid`) but simply has no recorded
+parent — `prod-structure-subset.js`'s own `same-batch-root` fixture is
+exactly this shape, and it is deliberately supposed to stay a root (the
+Linear-backed branch's adjacent "unparented batch-mate" test proves the same
+intent). The fallback swept it into the batch's synthetic native parent
+instead, which the gate correctly flagged as "Adapter invented a parent."
+Both the batch-minting gate and the per-row fallback now additionally
+require the row to be genuinely native-born (`linear_issue_uuid` empty) — a
+Linear-born unparented row is not evidence its batch needs a synthetic
+parent, and is never swept into one.
+
+**Evidence.** `test/production-parent-link-hierarchy.js` gained three
+fixtures: a native batch (`linear_parent_ids: null`) with 3 video + 3
+graphics deliverables sharing one `batch_id`, asserting exactly ONE parent
+node mints and every child of both teams links to it (order-independent); a
+native batch with one row carrying an unresolvable `raw_issue_parent_id`,
+asserting it stays a root instead of falling back to its batch; and a batch
+mixing genuinely native rows with a Linear-born unparented row, asserting
+the native rows link to the synthetic parent while the Linear-born row stays
+a root. Every pre-existing fixture in that file (single-parent, two-team
+Linear-backed, mirrored-uuid tie-break, unparented batch-mate) still passes
+unchanged. Also ran clean: `node docs/syncview-design/tests/prod-write-gateway-browser.js`.
+`docs/syncview-design/tests/prod-structure-subset.js` could not be run
+locally in this sandbox (fails identically on unmodified `main` — the app
+cannot boot past an error card without a live route out, the same
+`prod-boot-budget.js` limitation CLAUDE.md documents); relying on CI for
+that gate. No live read, deployment, migration, or n8n edit — pure
+`index.html` + test change, deployed by the normal GitHub Pages push once
+merged.
+
 ## 218. [2026-09-20, FIXED] Workload/Calendar lost or mis-keyed native (non-Linear) rows in four places, because the code still assumed a Linear URL/UUID was always present
 
 Four browser-only defects, all the same root shape: code written when every row

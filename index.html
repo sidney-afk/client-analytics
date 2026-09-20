@@ -55270,13 +55270,107 @@
                 node.nodeId = index === 0 ? node.batchId : node.batchId + '::' + node.uuid;
                 nodes.set(node.nodeId, node);
             }));
+            /* A BATCH CREATED ENTIRELY NATIVELY -- outbound skipped -- HAS NO
+               LINEAR PARENT AT ALL, so `batch.linear_parent_ids` is empty and
+               everything above, which keys off it, mints nothing: the batch's
+               own children have no `raw_issue_parent_id` to point through
+               `byUuid`, so they surface as bare top-level issues with no
+               "Sub-issue of" and no way back to their batch or siblings.
+               ONE PARENT PER CARD (owner ruling 2026-08-18, the same rule
+               production-write's own batch-create intake follows -- see
+               "ONE PARENT PER CARD" in supabase/functions/production-write,
+               batch-create): a batch mints exactly ONE synthetic parent
+               regardless of how many teams it serves, owned by the primary
+               team -- video when present, otherwise whichever team the batch
+               has -- and every child of every team links to that SAME node.
+               This is the native mirror of what a Linear-backed create of the
+               same card would have produced (and why the Linear-backed loop
+               above already collapses identical per-team uuids into one row
+               via byUuid: same rule, upstream side). A batch that already
+               produced a Linear-backed node, or whose linear_parent_ids has
+               ANY usable entry (even one this pass left ambiguous or already
+               claimed by a deliverable row), is untouched -- this branch only
+               fires where the Linear-backed branch above had nothing to work
+               with.
+
+               GATED ON GENUINELY NATIVE-BORN CHILDREN, not merely "no
+               raw_issue_parent_id" -- a row born on Linear that simply has no
+               recorded parent (`same-batch-root` in
+               docs/syncview-design/tests/prod-structure-subset.js) is meant
+               to stay a root, proven by the adjacent fail-closed tests; it is
+               not evidence its batch needs a synthetic parent, and it must
+               never be swept into one. `linear_issue_uuid` is how a row
+               proves it has no Linear identity at all -- empty means
+               genuinely native. */
+            const linearBackedBatchIds = new Set(Array.from(nodes.values()).map(n => n.batchId));
+            const hasUsableParentIds = batch => parseEntries(batch && batch.linear_parent_ids)
+                .some(({ entry }) => String(entry.uuid || entry.id || entry.linear_issue_id || '').trim());
+            const normalizeChildTeam = t => {
+                const v = String(t || '').trim().toLowerCase();
+                return (v === 'graphics' || v === 'graphic' || v === 'gra') ? 'graphics' : 'video';
+            };
+            const isNativeBorn = row => !String(row && row.linear_issue_uuid || '').trim();
+            const nativeTeamsPresent = new Map(); // batchId -> Set(team), native-born rows only
+            rows.forEach(row => {
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid || !isNativeBorn(row)) return;
+                if (!nativeTeamsPresent.has(bid)) nativeTeamsPresent.set(bid, new Set());
+                nativeTeamsPresent.get(bid).add(normalizeChildTeam(row && row.team));
+            });
+            const nativeNodeByBatch = new Map(); // batchId -> nodeId
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId || linearBackedBatchIds.has(batchId)) return;
+                if (!childCounts.get(batchId)) return;
+                if (hasUsableParentIds(batch)) return;
+                const teamsPresent = nativeTeamsPresent.get(batchId);
+                if (!teamsPresent || !teamsPresent.size) return;
+                const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
+                const nodeId = batchId;
+                const node = {
+                    batchId,
+                    batch,
+                    archived: batchArchived,
+                    uuid: '',
+                    // No Linear issue underneath a native batch, so there is
+                    // no `identifier` to mirror off a linear_parent_ids
+                    // entry the way the Linear-backed branch does; the
+                    // renderer already falls back to the batch's own name
+                    // and then this nodeId for title/displayId.
+                    identifier: '',
+                    url: '',
+                    team: teamsPresent.has('video') ? 'video' : Array.from(teamsPresent)[0],
+                    nodeId
+                };
+                nodes.set(nodeId, node);
+                nativeNodeByBatch.set(batchId, nodeId);
+            });
             const links = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
                 if (!nativeId || parentLinks.has(nativeId)) return;
-                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
-                if (!node || !node.nodeId || node.batchId === nativeId) return;
-                links.set(nativeId, node.nodeId);
+                const rawParentId = String(row && row.raw_issue_parent_id || '').trim();
+                const linearNode = rawParentId ? byUuid.get(rawParentId) : null;
+                if (linearNode && linearNode.nodeId && linearNode.batchId !== nativeId) {
+                    links.set(nativeId, linearNode.nodeId);
+                    return;
+                }
+                /* An explicit parent edge that FAILED to resolve (missing,
+                   duplicated, self-referential, or cyclic target) must stay a
+                   root, not get silently reparented to the batch -- that
+                   would invent a relationship the data never claimed. The
+                   native-batch fallback below is only for a row with NO
+                   parent edge to begin with. */
+                if (rawParentId) return;
+                /* And only for a row that is itself native-born. A row with a
+                   real Linear identity (`linear_issue_uuid` set) that simply
+                   has no recorded parent stays a root too -- same reasoning,
+                   see the comment above `nativeTeamsPresent`. */
+                if (!isNativeBorn(row)) return;
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid) return;
+                const nativeNodeId = nativeNodeByBatch.get(bid);
+                if (nativeNodeId && bid !== nativeId) links.set(nativeId, nativeNodeId);
             });
             return { links, nodes };
         }

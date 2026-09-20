@@ -664,11 +664,11 @@ ${cards}
 
     await setParentDetail(desktop);
     const parentDetailEvidence = await collectParentDetailEvidence(desktop);
-    await screenshot(desktop, shots, 'parent-detail', 'Parent issue detail', 'Centered body, sub-issue rows, guarded add-sub-issue affordance, activity.', {
+    await screenshot(desktop, shots, 'parent-detail', 'Parent issue detail', 'Centered body, sub-issue rows, NO add-sub-issue affordance (removed -- CLAUDE.md), activity.', {
       surface: 'parent-issue-detail',
       route: 'production/issue-detail',
       evidence: parentDetailEvidence,
-      checks: ['centered issue body', 'sub-issue rows', 'guarded add-sub-issue affordance', 'activity'],
+      checks: ['centered issue body', 'sub-issue rows', 'no add-sub-issue affordance', 'activity'],
     });
 
     await setSubIssueDetail(desktop);

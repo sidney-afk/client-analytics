@@ -236,7 +236,7 @@ function validatePacket(dir = packetDir) {
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {
     failures.push('parent-detail screenshot must record visible sub-issue rows and activity evidence in review-manifest.json');
   }
-  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasAddSubIssue) {
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasAddSubIssue !== false) {
     failures.push('parent-detail screenshot must record NO add-sub-issue affordance -- sub-issue creation is not possible from Production (CLAUDE.md)');
   }
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.topbarFakeControls !== 0) {

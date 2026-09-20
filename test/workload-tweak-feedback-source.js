@@ -180,7 +180,11 @@ function build(options = {}) {
     _syncviewEfHeaders: (headers) => ({ ...headers, 'x-syncview-key': 'fictional' }),
     wlEscape: value => String(value == null ? '' : value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
     _calFmtCommentTime: () => 'just now',
-    wlState: { issueSnapshot: snapshot },
+    // Defaults to a snapshot just loaded, i.e. fresh enough to vouch for a
+    // bound legacy row's alias. `options.fetchedAt` lets a scenario fake an
+    // aged-out snapshot instead.
+    wlState: { issueSnapshot: snapshot,
+      fetchedAt: options.fetchedAt === undefined ? Date.now() : options.fetchedAt },
     setIdentity: value => { identity = value; },
     fetch: (url, init) => {
       const body = JSON.parse(init.body);
@@ -329,6 +333,35 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'the unbound legacy row beside it still reads the legacy lane');
     ok(calls.some(c => c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
       'both lanes are used, each for the row that actually needs it');
+  }
+  {
+    // The Codex P1 finding: `legacyBoundNativeId` is the legacy-issue-to-
+    // deliverable ALIAS, not the deliverable itself, and production-comments
+    // never receives the legacy issue id -- it can revalidate the
+    // deliverable-to-card link but has nothing to check the alias against.
+    // If the deliverable were repointed to a different legacy issue after
+    // this snapshot loaded, that endpoint check would still pass. With no
+    // Edge Function change in scope, the bound lane fails closed once the
+    // snapshot behind the binding is no longer fresh enough to vouch for it.
+    const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: 'del_bound_one', nativeId: '' }];
+    const { context, calls } = build({ snapshot, fetchedAt: Date.now() - (NATIVE_TTL_MS + 1000),
+      legacyComments: { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } });
+    const out = await context.wlFetchTweakComments(['wl-1']);
+    ok(calls.every(c => !c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
+      'a bound legacy row falls to the legacy lane once its snapshot is older than the native TTL');
+    ok(out['wl-1'][0].body === 'legacy note',
+      'so the row shows the legacy thread rather than risking a stale alias\'s feedback');
+  }
+  {
+    // The boundary the check above lives on: a snapshot still inside the TTL
+    // keeps reading native, exactly as before this fix.
+    const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: 'del_bound_one', nativeId: '' }];
+    const { context, calls } = build({ snapshot, fetchedAt: Date.now() - Math.max(0, NATIVE_TTL_MS - 1000),
+      byDeliverable: { del_bound_one: [page([canonical('a')],
+        { feedback: { version: 1, status: 'complete', complete: true, rows: [] } })] } });
+    await context.wlFetchTweakComments(['wl-1']);
+    ok(calls.some(c => c.url.includes('production-comments')),
+      'a snapshot still within the native TTL still proves the binding, so the bound lane is unaffected');
   }
 
   // ── The request shape the house guard enforces ───────────────────────

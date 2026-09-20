@@ -78,8 +78,8 @@ and `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 — never in a source comment.
 |---|---|---|
 | `prod_authority` | `{"video":"syncview","graphics":"syncview"}` | BRIEFING |
 | `write_ui_reroute_clients` | the **full roster**, `owner-enrollment-wave-3-full-roster`, wave 3 executed 2026-08-14 | BRIEFING:124-127. **`ROLLBACK.md:146` disagrees** — see below |
-| `linear_outbound_enabled` | `{"mode":"live"}` — **not** off. The cutoff is what changes it | BRIEFING |
-| `linear_legacy_parity_enabled` | `{"enabled":true}` | BRIEFING |
+| `linear_outbound_enabled` | `{"mode":"off"}` since 2026-09-20T17:26:22.363379Z — the cutoff has run | BRIEFING |
+| `linear_legacy_parity_enabled` | `{"enabled":false}` since 2026-09-20T17:35:54.465602Z | BRIEFING |
 | `public_intake_enabled` | **`{"enabled":true}` since 2026-08-25** | BRIEFING:133-134 |
 | `production_assignee_eligibility` | **not recorded in either live-state doc** | — |
 | `production_native_identifier_mint` | **`{"schema_version":1,"video":{"mode":"provider"},"graphics":{"mode":"provider"}}`, written 2026-09-17T16:14:54Z.** The mint is **applied and inert**, not source-only — corrected 2026-09-19 | measured live; `docs/ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md` B-1 |

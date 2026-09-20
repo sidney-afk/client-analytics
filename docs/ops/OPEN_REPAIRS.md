@@ -27146,3 +27146,14 @@ All four are browser-only (`index.html`); no Edge Function, migration, flag, or
 n8n workflow changed. Tests extended (each executes the real shipped function):
 `test/workload-linear-browser.js`, `test/native-intake-ui-source.js`,
 `test/calendar-deep-link-focus.js`, `test/calendar-linear-link-move.js`.
+
+## 219. [2026-09-20, OPEN] Archive operations on a native deliverable produced a failed mirror_outbox row instead of the native skip marker
+
+On 2026-09-20 09:19Z, two `archive` operations on a native test-client card
+produced `mirror_outbox` rows with `status='failed'` and
+`last_error = "TEST override project mismatch"` (ids 10643, 10644), instead of
+the `skipped` native marker that `create` operations already apply. Nothing
+was sent. This is moot for now — the step 6 switch-off set
+`linear_outbound_enabled` to `{"mode":"off"}` the same day — but the archive
+path should apply the same native marker `create` does, so it does not fail
+the same way if outbound is ever turned back on.

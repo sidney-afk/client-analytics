@@ -13612,3 +13612,42 @@ duplicate detection, archive-ledger native fallback, Linear/native key spaces
 never collide). `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. OPEN_REPAIRS 218 records all four together. No live read,
 deployment, database installation, or n8n edit occurred.
+
+### 2026-09-20 — Production sweep, part two: three more sites checked for the same Linear-identity assumption; two were real, one was a false lead Codex caught
+
+Follow-up to #1444 (OPEN_REPAIRS 220). First pass dropped `_prodCreateParents`'
+`linear_issue_uuid`-presence clause, reading it as the same native-card
+exclusion #1444 removed elsewhere. **Codex review on PR #1447 caught that it
+was wrong:** `productionCreateParentRoute`
+(`supabase/functions/production-write/index.ts`) resolves `parent_id` only
+against `deliverables` and requires a non-empty `linear_issue_uuid` with no
+native fallback, so a native card or #1444's synthesized batch-parent node
+(whose id is a batch id, not a deliverable id) would be rejected by the
+gateway as `create_parent_not_found` / `production_create_parent_scope` if
+ever picked. Backend work this browser-only change cannot do, so the clause
+was put back with a comment recording why, and the test rewritten to pin the
+corrected (excluding) behavior. Investigated whether `_prodResolveParentLinks`
+needed its own native-batch fallback (it looked, in isolation, like it does —
+a genuinely native child matches none of its purely Linear-side fields) and
+traced a native child by hand through the full pipeline `_prodAdapter`
+actually runs: it always follows that pass with `_prodResolveBatchParentNodes`
+(#1444) and keeps that second pass's answer for exactly the rows the first
+left parentless, and that second pass already resolves this shape by
+`batch_id` grouping — the same grouping, not a second one. No code added
+there; the trace is pinned as an executed test instead of argued from
+reading. `_prodAttributionSyncPending` read an empty `linear_issue_uuid` as
+"still syncing to Linear," which is permanently true once a team cuts over to
+native intake — a finished native card on a cut-over team was misreported as
+mid-sync forever. Gated on `_prodNativeEpochOn(issue.team)`, a new boot-time
+read of the same `native_intake_epochs` flag and validation the Calendar
+create picker already uses (`_calLatestNativeBatches`), fetched off the
+critical path and cached in `_prodState.nativeEpochTeams`;
+unloaded/unreadable fails OPEN to the pre-existing syncing behavior. Past
+cutover, the existing generic `_prodAttributionGateText` fallback already
+names the real state, so no new copy was written. Browser-only; tests
+extended: `test/prod-create-parents-native.js` (new — pins the corrected,
+excluding behavior), `test/production-parent-link-hierarchy.js`,
+`test/prod-attribution-sync-pending-copy.js`, plus `test/prod-boot-payload-diet.js`
+and `test/prod-deep-link-fast-paint.js` updated for the one new boot helper.
+OPEN_REPAIRS 221 records all three together. `docs/syncview-design/tests/prod-write-gateway-browser.js`
+also run clean. No live read, deployment, migration, or n8n edit.

@@ -408,6 +408,57 @@ vm.runInContext(
   ok(!result.links.has('mixed-linear-root'),
     'the Linear-born unparented row is NOT swept into the native synthetic parent -- it stays a root');
 }
+/*
+ * FOLLOW-UP INVESTIGATION (Fix 2/3 of the native-card sweep after #1444):
+ * does _prodResolveParentLinks need its OWN native-batch fallback, or does
+ * #1444's _prodResolveBatchParentNodes -- wired in by _prodAdapter exactly
+ * where _prodResolveParentLinks resolved nothing -- already cover it?
+ *
+ * A genuinely native child has neither `linear_issue_uuid` (no Linear
+ * identity) nor `raw_issue_parent_id` (no Linear-derived parent pointer), so
+ * _prodResolveParentLinks -- which matches purely on those two Linear-side
+ * fields -- produces no entry for it at all: first proven directly below.
+ * That is exactly Fix 2's stated symptom. But _prodAdapter never uses
+ * _prodResolveParentLinks alone: it always follows it with
+ * _prodResolveBatchParentNodes and keeps that second pass's answer for any
+ * row the first pass left parentless (`if (!i.parent && batchParents.links
+ * .has(i.id)) i.parent = batchParents.links.get(i.id)`, pinned by the
+ * "the Production adapter consumes only resolved parent links" /
+ * "native children hang under a synthesized batch parent" checks above).
+ * _prodResolveBatchParentNodes's own native branch (also proven above, the
+ * "native-only-batch" cases) resolves precisely this shape by batch_id
+ * grouping -- the SAME grouping this suite already pins.
+ *
+ * So the combined pipeline _prodAdapter actually runs already resolves a
+ * genuinely native child's parent correctly, through the mechanism #1444
+ * shipped. Fix 2 needs no additional code in _prodResolveParentLinks: doing
+ * so would duplicate, and could diverge from, the one batch-parent notion of
+ * truth _prodResolveBatchParentNodes already owns. This block is the traced
+ * proof of that conclusion, run end to end rather than argued from reading.
+ */
+{
+  const nativeChild = {
+    id: 'native-child-no-parent-link', batch_id: 'native-fallback-batch', team: 'video',
+    // Deliberately neither field: no Linear identity, no Linear-derived
+    // parent pointer.
+    linear_issue_uuid: '', raw_issue_parent_id: '',
+  };
+  const soleParentLinks = sandbox.resolveParentLinks([nativeChild]);
+  ok(!soleParentLinks.has('native-child-no-parent-link'),
+    '_prodResolveParentLinks ALONE resolves nothing for a genuinely native child -- the stated Fix 2 symptom is real in isolation');
+
+  const nativeBatches = [
+    { id: 'native-fallback-batch', client_slug: 'alpha', name: 'Native Fallback Batch', linear_parent_ids: null },
+  ];
+  const batchParents = sandbox.resolveBatchParents([nativeChild], nativeBatches, soleParentLinks);
+  // Mirrors _prodAdapter's own merge exactly: keep the deliverable-map
+  // answer if there is one, otherwise take the batch-parent fallback.
+  const issue = { id: nativeChild.id, parent: soleParentLinks.get(nativeChild.id) || null };
+  if (!issue.parent && batchParents.links.has(issue.id)) issue.parent = batchParents.links.get(issue.id);
+  ok(issue.parent === 'native-fallback-batch',
+    'the SAME combined pipeline _prodAdapter runs (parentLinks, then the batch-parent fallback) resolves the native child to its batch parent -- Fix 2 is already satisfied end to end, no code change needed');
+}
+
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

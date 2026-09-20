@@ -65,6 +65,10 @@ function extractFunction(name) {
 const ACTIVE = { 'roster-slug': { id: 'roster-slug', name: 'Roster Client' } };
 const sandbox = {
   String, Object, Boolean,
+  // Which teams' native intake has cut over, exactly as _prodState carries
+  // it (see _prodNativeEpochOn) -- null means "unloaded / unreadable", the
+  // fail-open default that keeps the OLD (syncing) behavior.
+  _prodState: { nativeEpochTeams: null },
   // Roster and escaping stand in for their real implementations; every
   // function under test below is the shipped one.
   _prodClient: slug => ACTIVE[String(slug || '')] || null,
@@ -76,6 +80,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 for (const name of [
+  '_prodNativeEpochOn',
   '_prodAttributionSyncPending',
   '_prodAttributionSyncClientLabel',
   '_prodAttributionGateText',
@@ -101,6 +106,7 @@ function syncingIssue(overrides) {
     id: 'del_1',
     project: '__needs_attribution__',
     storedClientSlug: 'roster-slug',
+    team: 'video',
     raw: { linear_issue_uuid: null },
     attribution: {
       state: 'needs_attribution',
@@ -158,6 +164,51 @@ const resolved = syncingIssue({
 ok(sandbox.pending(resolved) === false, 'a resolved row is never syncing');
 ok(sandbox.gate(resolved) === '', 'a resolved row is writable');
 ok(sandbox.notice(resolved) === '', 'a resolved row shows no notice');
+
+/*
+ * PAST NATIVE CUTOVER, THE SAME SHAPE IS NOT SYNCING -- IT IS FINISHED.
+ *
+ * A native card's linear_issue_uuid is PERMANENTLY empty once its team has
+ * cut over to native intake: there is no mirror coming. Reading that as
+ * "still syncing to Linear" forever misreports a normal, finished native
+ * card as mid-flight. Gated on the row's OWN team via _prodNativeEpochOn,
+ * reading the SAME native_intake_epochs flag shape the Calendar create
+ * picker already reads (_calLatestNativeBatches).
+ */
+// Constructed INSIDE the vm context (not the outer Node realm) so the
+// shipped function's own `instanceof Set` check -- which resolves against
+// the context's Set constructor -- sees it as a real Set.
+vm.runInContext("this._prodState.nativeEpochTeams = new Set(['video']);", sandbox);
+const cutOver = syncingIssue({ team: 'video' });
+ok(sandbox.pending(cutOver) === false,
+  'the exact syncing shape is NOT syncing once the row\'s own team has cut over to native intake');
+ok(!/still syncing to Linear/.test(sandbox.gate(cutOver)),
+  'the gate text no longer claims a sync is plausible for a cut-over team');
+ok(sandbox.gate(cutOver) === 'Client attribution needs repair before writing.',
+  'it falls through to the existing generic attribution-gap wording -- the real blocker, not invented copy');
+
+// A DIFFERENT team on the same row (graphics not yet cut over) still reads
+// as syncing -- the gate is per-team, not global.
+const graphicsStillSyncing = syncingIssue({ team: 'graphics' });
+ok(sandbox.pending(graphicsStillSyncing) === true,
+  'a team that has NOT cut over keeps reading as syncing, even while another team has');
+ok(/still syncing to Linear/.test(sandbox.gate(graphicsStillSyncing)),
+  'and keeps the softer syncing wording for that team');
+
+// Unloaded / unreadable epoch flag fails OPEN to the old (syncing) behavior,
+// never to the new (attribution-gap) behavior -- a transient flag-read miss
+// must not misreport a genuinely still-syncing card.
+sandbox._prodState.nativeEpochTeams = null;
+ok(sandbox.pending(syncingIssue({ team: 'video' })) === true,
+  'before the epoch flag has ever loaded, the row reads as syncing (fail OPEN to the pre-existing behavior)');
+
+// A missing/blank team on the row is neither video nor graphics, so it can
+// never read as "cut over" -- it stays syncing rather than being silently
+// misclassified.
+vm.runInContext("this._prodState.nativeEpochTeams = new Set(['video', 'graphics']);", sandbox);
+ok(sandbox.pending(syncingIssue({ team: '' })) === true,
+  'a row with no team on it cannot be judged cut-over, so it still reads as syncing');
+sandbox._prodState.nativeEpochTeams = null;
 
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');
 process.exit(failures ? 1 : 0);

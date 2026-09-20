@@ -52747,6 +52747,13 @@
             authority: null,
             authorityLoaded: false,
             authorityReadAt: 0,
+            // Which teams' native intake has cut over -- a Set of 'video'/
+            // 'graphics', or null before the flag has ever loaded (or after a
+            // failed read). See _prodNativeEpochOn: null fails OPEN to "not
+            // cut over", the same direction _calLatestNativeBatches fails
+            // open in, so a still-syncing card is never misjudged from a
+            // transient flag-read failure.
+            nativeEpochTeams: null,
             // Phase two of the boot read (see _prodLoadTerminalTail): true while
             // the approved/posted/archived tail is still arriving behind the
             // live board.
@@ -53375,6 +53382,44 @@
             } catch (e) {
                 return null;
             }
+        }
+        /* Which teams' native intake has cut over -- the SAME flag and the
+           SAME parsing/validation the Calendar create picker already reads
+           (_calLatestNativeBatches), so the two surfaces cannot disagree
+           about what "cut over" means. Returns a Set of 'video'/'graphics',
+           or null on any unusable read (missing row, wrong key, malformed
+           value) -- the caller fails that OPEN, exactly as the Calendar read
+           does, rather than resetting an already-confirmed team back to
+           "not cut over" on a transient miss. */
+        async function _prodFetchNativeEpochTeams() {
+            try {
+                const flags = await _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.native_intake_epochs', 2, 1);
+                const row = Array.isArray(flags) && flags.length === 1 && flags[0] && flags[0].key === 'native_intake_epochs'
+                    ? flags[0] : null;
+                const value = row && row.value;
+                if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                    throw new Error('native_intake_epochs flag payload is missing or malformed');
+                }
+                return new Set(['video', 'graphics'].filter(team => value[team]
+                    && value[team].enabled === true && typeof value[team].epoch === 'string'
+                    && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch)));
+            } catch (error) {
+                console.warn('[Production] native_intake_epochs flag read failed', error);
+                return null;
+            }
+        }
+        /* Whether TEAM'S native intake has cut over -- a permanently empty
+           linear_issue_uuid past that point is a finished native card, not a
+           card mid-sync. Unloaded or unreadable (_prodState.nativeEpochTeams
+           is null) fails OPEN to "not cut over", so a card that really is
+           still syncing to Linear keeps reading that way rather than being
+           misreported as a repair-needed attribution gap on a flag read that
+           has not landed yet. */
+        function _prodNativeEpochOn(team) {
+            const t = String(team || '').trim().toLowerCase();
+            if (t !== 'video' && t !== 'graphics') return false;
+            const teams = _prodState.nativeEpochTeams;
+            return teams instanceof Set && teams.has(t);
         }
         async function _prodRefreshAuthority(options) {
             const previous = JSON.stringify(_prodState.authority || null);
@@ -56281,6 +56326,15 @@
          * and the slug SyncView itself stored is a currently ACTIVE roster
          * client. A row Linear actively invalidated carries a persisted stamp
          * and keeps the repair banner it has always had.
+         *
+         * ONLY WHILE A SYNC IS STILL PLAUSIBLE, i.e. the row's team has not
+         * cut over to native intake (_prodNativeEpochOn). Past cutover an
+         * empty linear_issue_uuid is not a gap that Linear will ever fill --
+         * the card was never meant to mirror there -- so calling it "still
+         * syncing" would misreport a normal, finished native card forever.
+         * `_prodAttributionGateText`'s own fallback ("Client attribution
+         * needs repair before writing.") already names that real state
+         * correctly once this returns false, so nothing else needs to change.
          */
         function _prodAttributionSyncPending(issue) {
             const attribution = issue && issue.attribution;
@@ -56289,6 +56343,7 @@
             if (attribution.directProjectId || attribution.mappedProjectId) return false;
             const raw = issue.raw || {};
             if (String(raw.linear_issue_uuid || '').trim()) return false;
+            if (_prodNativeEpochOn(issue && issue.team)) return false;
             const slug = String(issue.storedClientSlug || '').trim();
             return !!(slug && _prodClient(slug));
         }
@@ -57721,6 +57776,23 @@
                 savedAt: Date.now()
             };
         }
+        /* The `linear_issue_uuid` clause stays. It looks like the same
+           native-card exclusion #1444 removed elsewhere, and a first version
+           of this function dropped it on that reading -- but it is not that:
+           it is the one thing here that mirrors what the GATEWAY can actually
+           route to. `productionCreateParentRoute`
+           (supabase/functions/production-write/index.ts) resolves `parent_id`
+           only against `deliverables`, requires
+           `parentLinearIssueId(parent)` (== `linear_issue_uuid`, with no
+           native fallback) to be non-empty, and validates it against
+           `batches.linear_parent_ids` -- a synthetic batch-parent node's id
+           is a BATCH id, not a deliverable id, and a native deliverable
+           permanently has no Linear issue id, so the gateway refuses BOTH
+           with `create_parent_not_found` / `production_create_parent_scope`.
+           Offering them here would only be safe once the gateway can route to
+           them too, and that is backend work this browser-only change cannot
+           do. Caught by Codex review on PR #1447, which tried removing this
+           exact clause first. */
         function _prodCreateParents(draft) {
             return _prodIssues().filter(issue =>
                 issue && !issue.parent && _prodAttributionResolved(issue)
@@ -64947,6 +65019,20 @@
                     _prodState.authorityLoaded = true;
                     _prodState.authorityReadAt = Date.now();
                     if (document.getElementById('prodRoot')) _prodRender();
+                }).catch(() => {});
+                /* Same shape, same reason: which teams' native intake has cut
+                   over decides whether an empty linear_issue_uuid still means
+                   "syncing" (see _prodNativeEpochOn / _prodAttributionSyncPending),
+                   and that answer must not gate the board on its own read. A
+                   failed or still-in-flight read only ever LEAVES the previous
+                   answer in place -- never resets it to null -- so a transient
+                   miss on a silent refresh cannot un-cut-over a team that a
+                   prior successful read already confirmed. */
+                _prodFetchNativeEpochTeams().then(teams => {
+                    if (teams instanceof Set) {
+                        _prodState.nativeEpochTeams = teams;
+                        if (document.getElementById('prodRoot')) _prodRender();
+                    }
                 }).catch(() => {});
                 const clientsRead = _prodClientRows();
                 const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);

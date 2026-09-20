@@ -27030,3 +27030,41 @@ legacy receipt remains held under its original recovery identity because safe
 same-identity completion requires backend support; the browser does not convert
 or replay it. Offline evidence is recorded by the intake UI suite; TEST-client
 and ordinary real-item acceptance remain pending and no live write was made.
+
+## 218. [2026-09-20, FIXED] A batch created entirely natively showed no parent — no "Sub-issue of", no way back to its batch or siblings
+
+**Repro.** Submit a batch on the test client with outbound skipped (no Linear
+involvement at all), then open Video 1 from the Calendar. The Production tab
+showed the video (e.g. "VID-15029 Video 1") as a bare top-level issue with an
+"Add sub-issue" button — no "Sub-issue of" context, no listing of the batch or
+its sibling videos/thumbnails.
+
+**Why.** `_prodResolveBatchParentNodes` (index.html) only minted a synthetic
+parent node from a batch's `linear_parent_ids` map. A natively-created batch
+has no Linear parent at all — `linear_parent_ids` is `null`, not just missing
+an entry — so nothing in that map-keyed logic had anything to mint from, and
+every deliverable under the batch surfaced with no parent context.
+
+**Fix.** The resolver now also mints one synthetic parent node per TEAM
+present among a batch's own children (read from the same `childCounts` map
+the existing same-kind tie-break already builds) whenever that batch has
+children but no usable `linear_parent_ids` entry. It reuses the exact node
+shape, `nodeId` convention (bare batch id for the first team, `batchId::team`
+suffix for a second team — the two-team-batch pattern already in the
+function, just suffixed by team instead of by Linear uuid since there is none
+here), and the same `links`/`nodes` return shape the renderer already
+consumes for "Sub-issue of" and the parent's child-listing/progress chip.
+Linear-backed batches, the cross-batch-uuid ambiguity guard, and the archived
+tie-break are untouched — the new branch is gated to fire only where the
+existing branch produced nothing for that batch.
+
+**Evidence.** `test/production-parent-link-hierarchy.js` gained a fixture: a
+native batch (`linear_parent_ids: null`) with 3 video + 3 graphics
+deliverables sharing one `batch_id`. Asserts two parent nodes mint (one per
+team), each child links to its own team's synthetic parent (not the other
+team's), the result is order-independent, and every pre-existing fixture in
+that file (single-parent, two-team Linear-backed, mirrored-uuid tie-break)
+still passes unchanged. Also ran clean:
+`node docs/syncview-design/tests/prod-write-gateway-browser.js`. No live
+read, deployment, migration, or n8n edit — pure `index.html` + test change,
+deployed by the normal GitHub Pages push once merged.

@@ -316,6 +316,55 @@ vm.runInContext(
   ok(Array.from(reversed.nodes.keys()).sort().join(',') === ids.join(','),
     'the ids do not depend on the order rows happened to arrive in');
 }
+/*
+ * A batch created entirely NATIVELY -- outbound skipped -- has no Linear
+ * parent at all: `linear_parent_ids` is null, not just missing an entry.
+ * Everything above keys off that field, so without this branch the batch
+ * mints no synthetic parent and its own children surface as bare top-level
+ * issues with no "Sub-issue of" and no way back to their batch or siblings
+ * (the reported bug). One synthetic parent per team actually present among
+ * the batch's children -- video and graphics both, matching the two-team
+ * Linear-backed case above, not a single row that swallows both teams.
+ */
+{
+  const batchRows = [
+    { id: 'native-only-batch', client_slug: 'alpha', name: 'Native Only Batch',
+      linear_parent_ids: null },
+  ];
+  const childRows = [
+    { id: 'native-vid-1', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-vid-2', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-vid-3', batch_id: 'native-only-batch', team: 'video' },
+    { id: 'native-gra-1', batch_id: 'native-only-batch', team: 'graphics' },
+    { id: 'native-gra-2', batch_id: 'native-only-batch', team: 'graphics' },
+    { id: 'native-gra-3', batch_id: 'native-only-batch', team: 'graphics' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(result.nodes.size === 2,
+    'a native batch with video AND graphics children synthesizes two parent nodes, one per team');
+  const teams = Array.from(result.nodes.values()).map(n => n.team).sort();
+  ok(teams.join(',') === 'graphics,video',
+    'exactly one synthetic parent per team present among the native batch\'s children');
+  ok(Array.from(result.nodes.values()).every(n => n.batchId === 'native-only-batch'),
+    'both synthetic parents name the native batch they were minted from');
+  const videoNodeId = result.links.get('native-vid-1');
+  const graphicsNodeId = result.links.get('native-gra-1');
+  ok(!!videoNodeId && !!graphicsNodeId && videoNodeId !== graphicsNodeId,
+    'the video and graphics children link to two DIFFERENT synthetic parents');
+  ['native-vid-1', 'native-vid-2', 'native-vid-3'].forEach(id => {
+    ok(result.links.get(id) === videoNodeId, 'video child ' + id + ' links to the video synthetic parent');
+  });
+  ['native-gra-1', 'native-gra-2', 'native-gra-3'].forEach(id => {
+    ok(result.links.get(id) === graphicsNodeId, 'graphics child ' + id + ' links to the graphics synthetic parent');
+  });
+  ok(result.nodes.get(videoNodeId).team === 'video' && result.nodes.get(graphicsNodeId).team === 'graphics',
+    'each synthetic node carries the team it was minted for');
+
+  // Deterministic: the same inputs in a different row order produce the same links.
+  const reversed = sandbox.resolveBatchParents(childRows.slice().reverse(), batchRows, new Map());
+  ok(reversed.links.get('native-vid-1') === videoNodeId && reversed.links.get('native-gra-1') === graphicsNodeId,
+    'the native synthetic parent ids do not depend on row order either');
+}
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

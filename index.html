@@ -55146,13 +55146,82 @@
                 node.nodeId = index === 0 ? node.batchId : node.batchId + '::' + node.uuid;
                 nodes.set(node.nodeId, node);
             }));
+            /* A BATCH CREATED ENTIRELY NATIVELY -- outbound skipped -- HAS NO
+               LINEAR PARENT AT ALL, so `batch.linear_parent_ids` is empty and
+               everything above, which keys off it, mints nothing: the batch's
+               own children have no `raw_issue_parent_id` to point through
+               `byUuid`, so they surface as bare top-level issues with no
+               "Sub-issue of" and no way back to their batch or siblings.
+               Same fix shape as the two-team case just above: one synthetic
+               parent per TEAM actually present among the batch's children
+               (`childCounts` proves a batch has children at all; the per-team
+               breakdown below decides how many rows to mint), the first
+               keeping the bare batch id and any further team getting a
+               suffixed id -- here `batchId::team`, since there is no Linear
+               uuid to suffix with. A batch that already produced a
+               Linear-backed node, or whose linear_parent_ids has ANY usable
+               entry (even one this pass left ambiguous or already claimed by
+               a deliverable row), is untouched -- this branch only fires
+               where the Linear-backed branch above had nothing to work with. */
+            const linearBackedBatchIds = new Set(Array.from(nodes.values()).map(n => n.batchId));
+            const hasUsableParentIds = batch => parseEntries(batch && batch.linear_parent_ids)
+                .some(({ entry }) => String(entry.uuid || entry.id || entry.linear_issue_id || '').trim());
+            const normalizeChildTeam = t => {
+                const v = String(t || '').trim().toLowerCase();
+                return (v === 'graphics' || v === 'graphic' || v === 'gra') ? 'graphics' : 'video';
+            };
+            const nativeTeamCounts = new Map(); // batchId -> Map(team -> count)
+            rows.forEach(row => {
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid) return;
+                if (!nativeTeamCounts.has(bid)) nativeTeamCounts.set(bid, new Map());
+                const teamMap = nativeTeamCounts.get(bid);
+                const team = normalizeChildTeam(row && row.team);
+                teamMap.set(team, (teamMap.get(team) || 0) + 1);
+            });
+            const nativeNodeByBatchTeam = new Map(); // 'batchId::team' -> nodeId
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId || linearBackedBatchIds.has(batchId)) return;
+                if (!childCounts.get(batchId)) return;
+                if (hasUsableParentIds(batch)) return;
+                const teamMap = nativeTeamCounts.get(batchId);
+                if (!teamMap || !teamMap.size) return;
+                const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
+                Array.from(teamMap.keys()).sort().forEach((team, index) => {
+                    const nodeId = index === 0 ? batchId : batchId + '::' + team;
+                    const node = {
+                        batchId,
+                        batch,
+                        archived: batchArchived,
+                        uuid: '',
+                        // No Linear issue underneath a native batch, so there is
+                        // no `identifier` to mirror off a linear_parent_ids
+                        // entry the way the Linear-backed branch does; the
+                        // renderer already falls back to the batch's own name
+                        // and then this nodeId for title/displayId.
+                        identifier: '',
+                        url: '',
+                        team,
+                        nodeId
+                    };
+                    nodes.set(nodeId, node);
+                    nativeNodeByBatchTeam.set(batchId + '::' + team, nodeId);
+                });
+            });
             const links = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
                 if (!nativeId || parentLinks.has(nativeId)) return;
-                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
-                if (!node || !node.nodeId || node.batchId === nativeId) return;
-                links.set(nativeId, node.nodeId);
+                const linearNode = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                if (linearNode && linearNode.nodeId && linearNode.batchId !== nativeId) {
+                    links.set(nativeId, linearNode.nodeId);
+                    return;
+                }
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid) return;
+                const nativeNodeId = nativeNodeByBatchTeam.get(bid + '::' + normalizeChildTeam(row && row.team));
+                if (nativeNodeId && bid !== nativeId) links.set(nativeId, nativeNodeId);
             });
             return { links, nodes };
         }

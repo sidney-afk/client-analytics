@@ -55167,7 +55167,17 @@
                ANY usable entry (even one this pass left ambiguous or already
                claimed by a deliverable row), is untouched -- this branch only
                fires where the Linear-backed branch above had nothing to work
-               with. */
+               with.
+
+               GATED ON GENUINELY NATIVE-BORN CHILDREN, not merely "no
+               raw_issue_parent_id" -- a row born on Linear that simply has no
+               recorded parent (`same-batch-root` in
+               docs/syncview-design/tests/prod-structure-subset.js) is meant
+               to stay a root, proven by the adjacent fail-closed tests; it is
+               not evidence its batch needs a synthetic parent, and it must
+               never be swept into one. `linear_issue_uuid` is how a row
+               proves it has no Linear identity at all -- empty means
+               genuinely native. */
             const linearBackedBatchIds = new Set(Array.from(nodes.values()).map(n => n.batchId));
             const hasUsableParentIds = batch => parseEntries(batch && batch.linear_parent_ids)
                 .some(({ entry }) => String(entry.uuid || entry.id || entry.linear_issue_id || '').trim());
@@ -55175,10 +55185,11 @@
                 const v = String(t || '').trim().toLowerCase();
                 return (v === 'graphics' || v === 'graphic' || v === 'gra') ? 'graphics' : 'video';
             };
-            const nativeTeamsPresent = new Map(); // batchId -> Set(team)
+            const isNativeBorn = row => !String(row && row.linear_issue_uuid || '').trim();
+            const nativeTeamsPresent = new Map(); // batchId -> Set(team), native-born rows only
             rows.forEach(row => {
                 const bid = String(row && row.batch_id || '').trim();
-                if (!bid) return;
+                if (!bid || !isNativeBorn(row)) return;
                 if (!nativeTeamsPresent.has(bid)) nativeTeamsPresent.set(bid, new Set());
                 nativeTeamsPresent.get(bid).add(normalizeChildTeam(row && row.team));
             });
@@ -55227,6 +55238,11 @@
                    native-batch fallback below is only for a row with NO
                    parent edge to begin with. */
                 if (rawParentId) return;
+                /* And only for a row that is itself native-born. A row with a
+                   real Linear identity (`linear_issue_uuid` set) that simply
+                   has no recorded parent stays a root too -- same reasoning,
+                   see the comment above `nativeTeamsPresent`. */
+                if (!isNativeBorn(row)) return;
                 const bid = String(row && row.batch_id || '').trim();
                 if (!bid) return;
                 const nativeNodeId = nativeNodeByBatch.get(bid);

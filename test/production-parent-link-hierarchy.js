@@ -381,6 +381,33 @@ vm.runInContext(
   ok(!result.links.has('native-unresolved-1'),
     'a row with an unresolved explicit parent edge stays a root instead of falling back to its batch');
 }
+{
+  // A batch mixing genuinely native rows (no Linear identity at all) with a
+  // Linear-born row that simply has no recorded parent
+  // (docs/syncview-design/tests/prod-structure-subset.js's `same-batch-root`
+  // shape). The native rows are real evidence the batch needs a synthetic
+  // parent and link to it; the Linear-born row is NOT that evidence -- it
+  // already has a real Linear identity and no parent was ever recorded for
+  // it, so it must stay a root exactly like the unparented-batch-mate case
+  // proven for the Linear-backed branch above. Sweeping it into the native
+  // synthetic parent would invent a relationship the data never claimed.
+  const batchRows = [
+    { id: 'mixed-native-batch', client_slug: 'alpha', name: 'Mixed Native Batch',
+      linear_parent_ids: null },
+  ];
+  const childRows = [
+    { id: 'mixed-native-1', batch_id: 'mixed-native-batch', team: 'video' },
+    { id: 'mixed-native-2', batch_id: 'mixed-native-batch', team: 'video' },
+    { id: 'mixed-linear-root', batch_id: 'mixed-native-batch', team: 'video', linear_issue_uuid: 'linear-mixed-root' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  const mixedNodeId = result.links.get('mixed-native-1');
+  ok(!!mixedNodeId, 'the native rows still mint and link to a synthetic parent');
+  ok(result.links.get('mixed-native-2') === mixedNodeId,
+    'both native rows link to the SAME synthetic parent');
+  ok(!result.links.has('mixed-linear-root'),
+    'the Linear-born unparented row is NOT swept into the native synthetic parent -- it stays a root');
+}
 ok(/linear_issue_uuid/.test(source)
   && /production_deliverables_browser_v1/.test(source)
   && /raw_issue_parent_id,raw_project_id/.test(source)

@@ -27073,14 +27073,36 @@ adjacent "a missing parent fails closed as a visible root" /
 visible as a root rather than inventing a relationship. The native-batch
 fallback now only fires when `raw_issue_parent_id` is empty to begin with.
 
-**Evidence.** `test/production-parent-link-hierarchy.js` gained two fixtures:
-a native batch (`linear_parent_ids: null`) with 3 video + 3 graphics
-deliverables sharing one `batch_id`, asserting exactly ONE parent node mints
-and every child of both teams links to it (order-independent); and a native
-batch with one row carrying an unresolvable `raw_issue_parent_id`, asserting
-it stays a root instead of falling back to its batch. Every pre-existing
-fixture in that file (single-parent, two-team Linear-backed, mirrored-uuid
-tie-break) still passes unchanged. Also ran clean:
-`node docs/syncview-design/tests/prod-write-gateway-browser.js`. No live
-read, deployment, migration, or n8n edit — pure `index.html` + test change,
-deployed by the normal GitHub Pages push once merged.
+**A third bug, caught by `production-polish-gate`'s live-backend
+`prod-structure-subset.js` on this PR itself (initially misread as a
+pre-existing gate failure — it was not):** the native fallback was gated on
+"no `raw_issue_parent_id`" alone, which also matches a row that is genuinely
+Linear-born (has a real `linear_issue_uuid`) but simply has no recorded
+parent — `prod-structure-subset.js`'s own `same-batch-root` fixture is
+exactly this shape, and it is deliberately supposed to stay a root (the
+Linear-backed branch's adjacent "unparented batch-mate" test proves the same
+intent). The fallback swept it into the batch's synthetic native parent
+instead, which the gate correctly flagged as "Adapter invented a parent."
+Both the batch-minting gate and the per-row fallback now additionally
+require the row to be genuinely native-born (`linear_issue_uuid` empty) — a
+Linear-born unparented row is not evidence its batch needs a synthetic
+parent, and is never swept into one.
+
+**Evidence.** `test/production-parent-link-hierarchy.js` gained three
+fixtures: a native batch (`linear_parent_ids: null`) with 3 video + 3
+graphics deliverables sharing one `batch_id`, asserting exactly ONE parent
+node mints and every child of both teams links to it (order-independent); a
+native batch with one row carrying an unresolvable `raw_issue_parent_id`,
+asserting it stays a root instead of falling back to its batch; and a batch
+mixing genuinely native rows with a Linear-born unparented row, asserting
+the native rows link to the synthetic parent while the Linear-born row stays
+a root. Every pre-existing fixture in that file (single-parent, two-team
+Linear-backed, mirrored-uuid tie-break, unparented batch-mate) still passes
+unchanged. Also ran clean: `node docs/syncview-design/tests/prod-write-gateway-browser.js`.
+`docs/syncview-design/tests/prod-structure-subset.js` could not be run
+locally in this sandbox (fails identically on unmodified `main` — the app
+cannot boot past an error card without a live route out, the same
+`prod-boot-budget.js` limitation CLAUDE.md documents); relying on CI for
+that gate. No live read, deployment, migration, or n8n edit — pure
+`index.html` + test change, deployed by the normal GitHub Pages push once
+merged.

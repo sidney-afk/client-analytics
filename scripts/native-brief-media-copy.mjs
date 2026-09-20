@@ -29,18 +29,41 @@
  * rows.json shape (an array), matching the precedent set by
  * `linear-media-rescue.mjs scan <rows.json> <manifest.json>` — a
  * pre-extracted set of rows, not a live query run inside this script:
- *   [{ id, client_slug, team, brief, updated_at, status }]
+ *   [{ id, client_slug, team, brief, updated_at, status, linear_issue_uuid }]
+ * `linear_issue_uuid` (`deliverables.linear_issue_uuid`,
+ * migrations/2026-07-06-b1-linear-data-model.sql) is required on any row
+ * whose brief carries an `uploads.linear.app` occurrence — see "the stored
+ * URL is stale" below.
  *
  * Secrets are env-only, never CLI args (shell history) and never logged:
- *   LINEAR_API_KEY                 — Linear personal/API key for the download
+ *   LINEAR_API_KEY                 — Linear personal/API key for the GraphQL
+ *                                     re-fetch AND the asset download
  *   SUPABASE_URL                   — project REST/storage origin
  *   SUPABASE_SERVICE_ROLE_KEY      — service-role key (bucket is service-role only)
  *   NATIVE_BRIEF_MEDIA_COPY_CONFIRM — must equal COPY_NATIVE_BRIEF_MEDIA to --apply
  *
+ * THE URL STORED IN `brief` IS ALREADY STALE AND MUST NEVER BE GETted
+ * DIRECTLY. Per `docs/ops/LINEAR_MEDIA_RESCUE.md` §0 (measured 2026-09-07,
+ * read-only, live): Linear mints the `?signature=` JWT fresh on every API
+ * read and gives it a 300-second life; every URL sitting in `brief` was
+ * captured whenever that brief was last synced, so its signature died five
+ * minutes later and a GET of it now returns 401 regardless of the bearer
+ * header. The only remaining route to the bytes is to re-read the issue
+ * through the Linear API (`resolveFreshUrl`, GraphQL `issue(id:) { description }`,
+ * same convention as `scripts/production-write-drill.js`'s
+ * `ProductionWriteDrillDescription` query) and take whichever fresh
+ * occurrence shares the stale one's `mediaKey()` (origin+pathname — the
+ * signature is never a stable identity, exactly as `linear-media-rescue.mjs`
+ * documents). `docs/ops/LINEAR_EXIT_JOURNAL.md`'s 2026-09-18 entry records
+ * that the Linear API itself was STILL LIVE as of that measurement — the
+ * "Linear access ends 2026-09-15" line in `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`
+ * is a prepared, not-yet-executed plan, read back once as though it had
+ * already happened. This script does not assume either state; `apply`
+ * simply fails closed (a named `linear_graphql_failed_*` / `linear_download_failed_*`
+ * refusal, not a crash) the day that key is actually revoked.
+ *
  * The manifest and out-map carry live, signed `uploads.linear.app` URLs
- * (Linear mints a fresh `?signature=` JWT per read — see
- * linear-media-rescue.mjs for the measured 300s life of that signature) and
- * so must never land in git; `assertPrivatePath` (ported from
+ * and so must never land in git; `assertPrivatePath` (ported from
  * linear-media-rescue.mjs, same rule as its `privateFile()`) refuses both
  * output paths inside a git working tree.
  */
@@ -171,6 +194,7 @@ export async function buildManifest(rows) {
         deliverable_id: String(row.id),
         client_slug: String(row.client_slug),
         team: String(row.team),
+        linear_issue_uuid: row.linear_issue_uuid != null ? String(row.linear_issue_uuid) : null,
         source_updated_at: row.updated_at,
         source_sha256: briefSha256,
         source_offset: ref.offset,
@@ -192,6 +216,7 @@ export async function buildManifest(rows) {
     rows: (Array.isArray(rows) ? rows : []).map(r => ({
       id: String(r.id), client_slug: String(r.client_slug), team: String(r.team),
       status: r.status ?? null, updated_at: r.updated_at, brief: r.brief,
+      linear_issue_uuid: r.linear_issue_uuid != null ? String(r.linear_issue_uuid) : null,
     })),
     occurrences,
     counts: {
@@ -265,7 +290,37 @@ function restHeaders(config) {
   };
 }
 
-/** Download the file from Linear. Returns { bytes, mimeType, receipt }. */
+/**
+ * Re-read the issue through Linear's GraphQL API and return a FRESH signed
+ * URL for the same file (matched by `mediaKey()`, never the stale URL
+ * itself — see the file header comment). The stale URL is used only to
+ * compute the key to match against, never sent to Linear or fetched
+ * directly. Same GraphQL shape as `scripts/production-write-drill.js`'s
+ * `ProductionWriteDrillDescription` query.
+ */
+export async function resolveFreshUrl(linearIssueUuid, staleUrl, config, deps) {
+  if (!linearIssueUuid) throw new Error('linear_issue_uuid_missing');
+  const key = mediaKey(staleUrl);
+  const res = await deps.fetch('https://api.linear.app/graphql', {
+    method: 'POST',
+    headers: { authorization: config.linearApiKey, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: 'query NativeBriefMediaRefresh($id: String!) { issue(id: $id) { id description } }',
+      variables: { id: linearIssueUuid },
+    }),
+  });
+  if (!res.ok) throw new Error(`linear_graphql_failed_${res.status}`);
+  const json = await res.json();
+  if (json.errors) throw new Error('linear_graphql_error');
+  const description = json.data && json.data.issue && json.data.issue.description;
+  if (typeof description !== 'string') throw new Error('linear_issue_description_missing');
+  const fresh = briefMediaOccurrences(description).find(ref => mediaKey(ref.url) === key);
+  if (!fresh) throw new Error('linear_fresh_signature_not_found');
+  return fresh.url;
+}
+
+/** Download the file from Linear, given an ALREADY-FRESH URL (see
+ *  resolveFreshUrl). Returns { bytes, mimeType, contentSha256, receiptSha256 }. */
 export async function downloadFromLinear(url, config, deps) {
   const res = await deps.fetch(url, {
     method: 'GET',
@@ -346,56 +401,82 @@ export async function insertVerifiedRow(config, row, deps) {
 
 /**
  * Copy every occurrence in the manifest that does not already have a
- * verified row for its exact key tuple. `deps.fetch` and `deps.now` are
- * injectable so the offline test never touches a real network.
+ * verified row for its exact key tuple.
+ *
+ * IMPORTANT: one file (one `mediaKey()`) can appear in more than one
+ * deliverable's brief — a duplicate pasted into two cards, or the same
+ * asset referenced twice. `projectBriefMedia` (the reader) scopes its
+ * lookup by the CURRENT deliverable/client/team, so a row copied under one
+ * deliverable's identity is invisible to every other deliverable that
+ * shares the file — each distinct (deliverable_id, client_slug, team,
+ * source_offset) tuple needs its OWN verified row (own id, own
+ * content-addressed storage_path — the migration's formula ties the path
+ * to the row's own id, so the object write cannot be shared either).
+ * What CAN be shared, and is, via `downloadCache` keyed on `mediaKey()`: a
+ * single Linear GraphQL re-fetch + asset download + mime/size validation
+ * per distinct file, never per occurrence.
+ *
+ * `deps.fetch` and `deps.now` are injectable so the offline test never
+ * touches a real network.
  */
 export async function applyManifest(manifest, config, deps) {
   const outMap = {};
   const results = { copied: 0, skipped_idempotent: 0, refused: 0 };
-  const byKey = new Map();
-  for (const occ of manifest.occurrences) {
-    if (!byKey.has(occ.key)) byKey.set(occ.key, []);
-    byKey.get(occ.key).push(occ);
-  }
+  const downloadCache = new Map(); // mediaKey -> { ok:true, bytes, mimeType, contentSha256, receiptSha256 } | { ok:false, error }
 
-  for (const [key, occs] of byKey) {
-    const first = occs[0];
+  for (const occ of manifest.occurrences) {
     const tuple = occurrenceKeyTuple({
-      deliverableId: first.deliverable_id,
-      clientSlug: first.client_slug,
-      team: first.team,
-      briefSha256: first.source_sha256,
-      offset: first.source_offset,
+      deliverableId: occ.deliverable_id,
+      clientSlug: occ.client_slug,
+      team: occ.team,
+      briefSha256: occ.source_sha256,
+      offset: occ.source_offset,
     });
+    const tupleKey = occurrenceKeyString(tuple);
 
     const existing = await findExistingVerified(config, tuple, deps);
     if (existing) {
-      outMap[key] = { id: existing.id, storage_path: existing.storage_path, reused: true };
-      results.skipped_idempotent += occs.length;
+      outMap[tupleKey] = { id: existing.id, storage_path: existing.storage_path, reused: true };
+      results.skipped_idempotent += 1;
       continue;
     }
 
-    const { bytes, mimeType, contentSha256, receiptSha256 } = await downloadFromLinear(first.url, config, deps);
-    if (!VERIFIED_MIME.has(mimeType)) {
-      results.refused += occs.length;
-      outMap[key] = { error: 'unsupported_mime_type', reused: false };
-      continue;
+    let dl = downloadCache.get(occ.key);
+    if (!dl) {
+      try {
+        const freshUrl = await resolveFreshUrl(occ.linear_issue_uuid, occ.url, config, deps);
+        const downloaded = await downloadFromLinear(freshUrl, config, deps);
+        if (!VERIFIED_MIME.has(downloaded.mimeType)) {
+          dl = { ok: false, error: 'unsupported_mime_type' };
+        } else if (downloaded.bytes.length < 1 || downloaded.bytes.length > MAX_BYTES) {
+          dl = { ok: false, error: 'byte_length_out_of_range' };
+        } else {
+          dl = { ok: true, ...downloaded };
+        }
+      } catch (error) {
+        dl = { ok: false, error: String((error && error.message) || error) };
+      }
+      downloadCache.set(occ.key, dl);
     }
-    if (bytes.length < 1 || bytes.length > MAX_BYTES) {
-      results.refused += occs.length;
-      outMap[key] = { error: 'byte_length_out_of_range', reused: false };
+
+    if (!dl.ok) {
+      results.refused += 1;
+      outMap[tupleKey] = { error: dl.error, reused: false };
       continue;
     }
 
+    const { bytes, mimeType, contentSha256, receiptSha256 } = dl;
     const id = crypto.randomUUID();
     const storagePath = `${contentSha256}/${id}`;
     const readbackSha256 = await uploadAndReadBack(config, storagePath, bytes, mimeType, deps);
 
     if (readbackSha256 !== contentSha256) {
       /* Never mark verified on a byte mismatch. Record the refusal and move
-         on; nothing here writes a 'verified' row. */
-      results.refused += occs.length;
-      outMap[key] = { error: 'readback_mismatch', reused: false };
+         on; nothing here writes a 'verified' row. This is a per-occurrence
+         storage write, so it does not poison the shared download cache —
+         a later occurrence sharing this file gets its own fresh attempt. */
+      results.refused += 1;
+      outMap[tupleKey] = { error: 'readback_mismatch', reused: false };
       continue;
     }
 
@@ -409,11 +490,11 @@ export async function applyManifest(manifest, config, deps) {
       source_entity_id: tuple.source_entity_id,
       client_slug: tuple.client_slug,
       team: tuple.team,
-      source_updated_at: first.source_updated_at,
+      source_updated_at: occ.source_updated_at,
       source_sha256: tuple.source_sha256,
       source_offset: tuple.source_offset,
-      source_length: first.source_length,
-      original_url_sha256: first.original_url_sha256,
+      source_length: occ.source_length,
+      original_url_sha256: occ.original_url_sha256,
       audience: 'staff',
       state: 'verified',
       content_sha256: contentSha256,
@@ -425,8 +506,8 @@ export async function applyManifest(manifest, config, deps) {
       source_receipt_sha256: receiptSha256,
     };
     const inserted = await insertVerifiedRow(config, row, deps);
-    outMap[key] = { id: inserted.id, storage_path: inserted.storage_path, reused: false };
-    results.copied += occs.length;
+    outMap[tupleKey] = { id: inserted.id, storage_path: inserted.storage_path, reused: false };
+    results.copied += 1;
   }
 
   return { outMap, results };
@@ -443,7 +524,11 @@ function cmdApplyGate(argv, env) {
   }
 }
 
-async function cmdApply(manifestPath, outMapPath, argv, env) {
+/* `deps` defaults to the real global fetch and is overridable so this
+   command can also be driven directly, in-process, against a mocked
+   network (the offline test does this to prove the printed flip block is
+   really produced by a full run, not just by the pure receipt functions). */
+export async function cmdApply(manifestPath, outMapPath, argv, env, deps = { fetch }) {
   assertPrivatePath(manifestPath);
   assertPrivatePath(outMapPath);
   cmdApplyGate(argv, env);
@@ -458,41 +543,138 @@ async function cmdApply(manifestPath, outMapPath, argv, env) {
     );
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const { outMap, results } = await applyManifest(manifest, config, { fetch });
+  const { outMap, results } = await applyManifest(manifest, config, deps);
   fs.writeFileSync(outMapPath, JSON.stringify(outMap, null, 2));
   console.log(
     `copied=${results.copied} skipped_idempotent=${results.skipped_idempotent} refused=${results.refused}`
   );
   console.log(`out-map written (PRIVATE): ${outMapPath}`);
-  printFlagBlock();
-  return { outMap, results };
+  const coverage = computeCoverageReceipt(manifest, outMap);
+  const receipts = { coverage, recoveryReceiptSha256: computeRecoveryReceipt(outMap) };
+  console.log(
+    `coverage: ${coverage.resolved}/${coverage.total} resolved, complete=${coverage.complete}`
+  );
+  printFlagBlock(receipts);
+  return { outMap, results, receipts };
 }
 
 /* ------------------------------------------------------------------ *
  * Flag flip / rollback — informational only. Printed at the end of every
- * run, never executed by this script. Shape matches
- * migrations/2026-09-07-native-brief-media.sql's seed row
- * ('{"mode":"off","contract":"native_brief_media_v1"}') and what
- * projectBriefMedia() reads back (flag.data.value.mode / .contract).
+ * run, never executed by this script.
+ *
+ * `projectBriefMedia()` (supabase/functions/_shared/native-brief-media.mjs)
+ * requires MORE than `{mode:"required",contract:"native_brief_media_v1"}` on
+ * the flag value before it treats `required` as active — it also demands
+ * `recovery_contract === 'native_brief_media_recovery_v1'` and a valid
+ * (64-hex) `recovery_receipt_sha256` / `coverage_receipt_sha256`. A flip
+ * printed without those would deploy inert: every media-bearing brief would
+ * still fall back to the broken Linear URL (`complete:false`) exactly as
+ * before. So the REAL flip is only computable from a completed, zero-gap
+ * `apply` run's own out-map — it is never templated ahead of one.
+ *
+ *   coverage_receipt_sha256 attests to COMPLETENESS: a canonical digest of
+ *   every distinct verified-occurrence key tuple the manifest named, and
+ *   how many of them resolved (idempotent-skip or fresh copy) without a
+ *   single refusal. It is only produced, and only "complete", when
+ *   `results.refused === 0` across the whole manifest.
+ *
+ *   recovery_receipt_sha256 attests to WHAT WAS ACTUALLY COPIED: a
+ *   canonical digest of every (tuple, id, storage_path) the run produced,
+ *   sorted, so the receipt is stable across a re-run that only skips
+ *   already-verified tuples.
+ *
+ * `mode:"off"` needs neither field (the reader short-circuits on `off`
+ * before it ever reads them), so the rollback block is always the real,
+ * fully-runnable instruction, with or without a prior apply.
  * ------------------------------------------------------------------ */
-export function flagFlipSql() {
-  return `update public.syncview_runtime_flags
-   set value = '{"mode":"required","contract":"${BRIEF_MEDIA_CONTRACT}"}'::jsonb,
+const RECOVERY_CONTRACT = 'native_brief_media_recovery_v1';
+
+/* Deterministic key-sorted JSON so two runs over the same result produce the
+   same receipt, independent of object key insertion order. */
+function canonicalJson(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort()
+      .map(k => JSON.stringify(k) + ':' + canonicalJson(value[k])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Coverage receipt: every distinct verified-occurrence tuple the manifest
+ * named, and whether every one of them now resolves (existing verified row
+ * or a freshly copied one) with zero refusals. `complete` gates whether
+ * `flagFlipSql` may print a real, activating flip at all.
+ */
+export function computeCoverageReceipt(manifest, outMap) {
+  const tuples = [...new Set((manifest.occurrences || []).map(occ => occurrenceKeyString(occurrenceKeyTuple({
+    deliverableId: occ.deliverable_id, clientSlug: occ.client_slug, team: occ.team,
+    briefSha256: occ.source_sha256, offset: occ.source_offset,
+  }))))].sort();
+  const resolved = tuples.filter(t => outMap[t] && !outMap[t].error);
+  const payload = {
+    contract: BRIEF_MEDIA_CONTRACT,
+    total_occurrences: tuples.length,
+    resolved_occurrences: resolved.length,
+    resolved_tuples_sha256: sha256Hex(Buffer.from(canonicalJson(resolved), 'utf8')),
+  };
+  return {
+    complete: tuples.length > 0 && resolved.length === tuples.length,
+    total: tuples.length,
+    resolved: resolved.length,
+    sha256: sha256Hex(Buffer.from(canonicalJson(payload), 'utf8')),
+  };
+}
+
+/** Recovery receipt: every (tuple, id, storage_path) this out-map actually
+ *  resolved, sorted, so it is stable across an idempotent re-run. */
+export function computeRecoveryReceipt(outMap) {
+  const entries = Object.keys(outMap).sort()
+    .filter(t => outMap[t] && !outMap[t].error)
+    .map(t => ({ tuple: t, id: outMap[t].id, storage_path: outMap[t].storage_path, reused: outMap[t].reused === true }));
+  return sha256Hex(Buffer.from(canonicalJson(entries), 'utf8'));
+}
+
+export function flagFlipSql(receipts) {
+  if (receipts && receipts.coverage && receipts.coverage.complete && /^[a-f0-9]{64}$/.test(receipts.recoveryReceiptSha256)) {
+    const value = {
+      mode: 'required',
+      contract: BRIEF_MEDIA_CONTRACT,
+      recovery_contract: RECOVERY_CONTRACT,
+      recovery_receipt_sha256: receipts.recoveryReceiptSha256,
+      coverage_receipt_sha256: receipts.coverage.sha256,
+    };
+    return `update public.syncview_runtime_flags
+   set value = ${sqlJsonbLiteral(value)},
        updated_by = 'native-brief-media-copy'
  where key = 'native_brief_media';`;
+  }
+  return [
+    '-- NOT YET ELIGIBLE. projectBriefMedia() also requires recovery_contract,',
+    '-- recovery_receipt_sha256 and coverage_receipt_sha256 on the flag value',
+    "-- before it treats mode:\"required\" as active (supabase/functions/_shared/",
+    '-- native-brief-media.mjs). Those are generated from a completed, zero-gap',
+    "-- `apply` run's own out-map, not templated ahead of one — run `apply`",
+    '-- until it reports refused=0, then re-run to print the real flip.',
+  ].join('\n');
 }
 
 export function flagRollbackSql() {
+  const value = { mode: 'off', contract: BRIEF_MEDIA_CONTRACT };
   return `update public.syncview_runtime_flags
-   set value = '{"mode":"off","contract":"${BRIEF_MEDIA_CONTRACT}"}'::jsonb,
+   set value = ${sqlJsonbLiteral(value)},
        updated_by = 'native-brief-media-copy'
  where key = 'native_brief_media';`;
 }
 
-function printFlagBlock() {
+function sqlJsonbLiteral(value) {
+  return `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`;
+}
+
+function printFlagBlock(receipts) {
   console.log('');
   console.log('-- FLAG FLIP (informational only — never executed by this script):');
-  console.log(flagFlipSql());
+  console.log(flagFlipSql(receipts));
   console.log('');
   console.log('-- ROLLBACK (flag back to off):');
   console.log(flagRollbackSql());

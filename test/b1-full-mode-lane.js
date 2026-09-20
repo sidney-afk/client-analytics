@@ -47,7 +47,15 @@ ok(/default:\s*incremental/.test(workflow), 'the default is incremental, never f
  * mode collapses to the literal 'incremental' before the shell sees it. */
 ok(/B1_MODE:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.mode \|\| 'incremental'\s*\}\}/.test(workflow),
   'a non-dispatch event resolves mode to the literal incremental — cron cannot take the full path');
-ok(/schedule:\s*\n\s*- cron:/.test(workflow), 'the schedule still exists (this test would be vacuous without it)');
+/* THE CRON IS RETIRED (2026-09-20, Linear cutoff STEP 6 — see the workflow's own
+ * header), but the schedule block is kept in COMMENTED form rather than deleted,
+ * so this check still does its job: it proves the guard asserted just above is
+ * not being read against a workflow that never had a schedule at all. Matching
+ * the commented form as well as the live one is what keeps that true across the
+ * retirement, and the guard itself is unchanged and still separately asserted.
+ * Un-commenting the cron matches the live form again with no edit here. */
+ok(/^[ \t]*#?[ \t]*schedule:[ \t]*\n[ \t]*#?[ \t]*- cron:/m.test(workflow),
+  'the schedule still exists, live or as the retired commented block (this test would be vacuous without it)');
 
 // --- 3. --incremental is now conditional, not unconditional ----------------
 /* The defect was that ARGS always contained --incremental. If it returns to the

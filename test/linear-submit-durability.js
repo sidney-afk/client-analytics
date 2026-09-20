@@ -253,7 +253,18 @@ function makeHarness(fetchImpl, options = {}) {
     const showNotify = env.showNotify;
     ${FUNCTIONS}
     return {
-      submitLinearForm,
+      // This harness pins the retained F44 receipt implementation directly.
+      // The public Create Post entrypoint is separately exercised by
+      // native-intake-ui-source.js, including every now-held legacy exit.
+      submitLinearForm: mode => {
+        if (linearSubmitInFlight) return linearSubmitInFlight;
+        const request = _submitLinearFormOnce(mode);
+        const guarded = request.finally(() => {
+          if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+        });
+        linearSubmitInFlight = guarded;
+        return guarded;
+      },
       setPlanUrl: value => { _linearResolvedPlanUrl = value; env.planUrl = value; },
       state: () => ({ linearJustCreated, inFlight: !!linearSubmitInFlight })
     };

@@ -116,7 +116,11 @@ const f44Transport = extract('_linearAwaitCreate');
 assert(submitEntry.includes('_submitLinearFormRoutedOnce(mode)'));
 assert(routedSubmit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)'));
 assert(routedSubmit.includes('await _writeUiRerouteUseGatewayWhenReady'));
-assert(routedSubmit.includes('if (!useGateway)') && routedSubmit.includes('return _submitLinearFormLegacy(mode)'));
+assert(routedSubmit.includes("_linearHoldSubmission(mode, 'native_routing_unavailable'")
+  && routedSubmit.includes('return _linearHoldSubmission(mode'),
+  'Create Post must hold when routing would select the legacy transport');
+assert(!routedSubmit.includes('return _submitLinearFormLegacy(mode)'),
+  'Create Post must not retain a live legacy submission shortcut');
 assert(legacySubmit.includes('return _submitLinearFormOnce(mode)'));
 assert(f44Submit.includes('_linearPrepareReceipts') && f44Submit.includes('_linearAwaitCreate'));
 assert(f44Submit.includes('_linearApplyReceiptOutcomes'));

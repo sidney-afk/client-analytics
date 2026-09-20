@@ -27000,7 +27000,7 @@ against the real base branch one of them passes. Both are now fixed:
 The lesson is the cheap one: a control run proves nothing if it is run against
 the wrong base. `git fetch origin main` first, every time.
 
-## 217. [2026-09-19, DOCUMENTATION CORRECTED — implementation remains open] Native intake closure had conflated the outbound drain with direct browser legacy submission
+## 217. [2026-09-19, BROWSER FIX PREPARED — live acceptance pending] Native intake closure had conflated the outbound drain with direct browser legacy submission
 
 The first Step 26 intake plan treated a straddling batch and the browser legacy
 fallback as if one outbound switch governed both. Current source says otherwise:
@@ -27016,5 +27016,17 @@ if selected, requires an additive migration plus Storage-authorized installation
 and readback; it cannot ship through GitHub Pages. A flag-only cutoff uses the
 canonical Storage flag-control procedure, not the Section 4 function deploy.
 
-No production behavior changed in this repair. The browser closure, any optional
-observability, and the final cutoff remain separate future work.
+At the documentation-correction commit, no production behavior changed. The
+browser closure below is now prepared; optional observability and final cutoff
+remain separate future work.
+
+**Browser amendment.** The prepared Pages change removes every live caller of
+the legacy Submit transport. Saved legacy receipts, a throwing receipt read, a
+missing routing helper, and a false routing verdict now preserve the draft and
+show a durable hold with automatic next-load retry; no branch posts to either
+legacy form webhook. Native pending work remains ahead of legacy classification,
+so a straddling batch keeps its accepted request and epoch. A pre-existing
+legacy receipt remains held under its original recovery identity because safe
+same-identity completion requires backend support; the browser does not convert
+or replay it. Offline evidence is recorded by the intake UI suite; TEST-client
+and ordinary real-item acceptance remain pending and no live write was made.

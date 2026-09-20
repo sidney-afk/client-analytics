@@ -48,6 +48,7 @@ const context = {
   NATIVE_INTAKE_PENDING_KEY: 'pending',
   LINEAR_FORM_KEY: 'form',
   LAST_LINK_KEY: 'last-link',
+  LINEAR_INTAKE_HOLD_KEY: 'hold',
   localStorage: {
     getItem: key => store.has(key) ? store.get(key) : null,
     setItem: (key, value) => store.set(key, String(value)),
@@ -131,6 +132,15 @@ const result = {
   'shared intake builder creates one paired VID+GRA post with a deterministic shared card id');
 
   const actorContext = { clientSlug: 'fixture', initiating_actor_id: 'actor-a', initiating_actor_role: 'smm' };
+  const seeded = context._linearIntakePending('held', makePayload, actorContext, {
+    request_id: 'submission:held-identity', source_edited_at: '2026-09-19T12:00:00.000Z'
+  });
+  const seededReplay = context._linearIntakePending('held', () => ({ wrong: true }), actorContext);
+  ok(seeded.payload.request_id === 'submission:held-identity'
+    && seeded.payload.source_edited_at === '2026-09-19T12:00:00.000Z'
+    && seededReplay.payload.request_id === seeded.payload.request_id,
+  'a browser hold becomes a native pending job on the same preallocated identity and replays it exactly');
+  store.delete('pending');
   const first = context._linearIntakePending('same', makePayload, actorContext);
   const replay = context._linearIntakePending('same', () => ({ wrong: true }), actorContext);
   ok(first.payload.request_id === replay.payload.request_id
@@ -229,14 +239,14 @@ const result = {
   sensitive.payload.items[0].brief = 'private camera details';
   sensitive.result.batch = { id: 'batch-safe' };
   context._linearIntakeWrite(sensitive, { allowCreate: true });
-  store.set('form', 'private form'); store.set('last-link', 'private link');
+  store.set('form', 'private form'); store.set('last-link', 'private link'); store.set('hold', 'private held submission');
   await context._linearIntakePurgeSensitiveState();
   const scrubbedRaw = store.get('pending') || '';
   const scrubbed = JSON.parse(scrubbedRaw);
-  ok(!store.has('form') && !store.has('last-link')
+  ok(!store.has('form') && !store.has('last-link') && !store.has('hold')
     && !scrubbedRaw.includes('private notes') && !scrubbedRaw.includes('drive.invalid')
     && !scrubbedRaw.includes('camera details') && scrubbed.result.native_committed === true,
-  'sign-out scrubs sensitive intake payloads while retaining committed recovery IDs');
+  'sign-out scrubs form, hold, and sensitive intake payloads while retaining committed recovery IDs');
 
   store.delete('pending');
   const replacement = JSON.parse(JSON.stringify(first));
@@ -261,13 +271,16 @@ const result = {
     && /surface: 'submission'/.test(submit)
     && /_syncviewRequireStaffIdentity\('intake'\)/.test(submit)
     && /_writeUiRerouteUseGatewayWhenReady/.test(submit)
-    && /_submitLinearFormLegacy/.test(submit),
-  'Submit uses one authenticated native intake request only for an enrolled client');
+    && !/_submitLinearFormLegacy/.test(submit),
+  'Submit has one native intake route and no legacy fallback caller');
   ok(!/VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK|_calCardJobCreate|_writeLinearVideoCardsToCalendar/.test(submit),
   'the enrolled Submit lane cannot call a legacy create webhook or enqueue a Linear polling job');
   ok(/return _submitLinearFormOnce\(mode\)/.test(legacySubmit)
-    && submit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)')
-    && submit.includes('if (!useGateway)')
+    && submit.includes("_linearHoldSubmission(mode, 'saved_legacy_receipt'")
+    && submit.includes("_linearHoldSubmission(mode, 'legacy_receipt_read_failed'")
+    && submit.includes("_linearHoldSubmission(mode, 'routing_helper_missing'")
+    && submit.includes("_linearHoldSubmission(mode, 'native_routing_unavailable'")
+    && (source.match(/_submitLinearFormLegacy\(/g) || []).length === 1
     && /_linearPrepareReceipts/.test(f44Submit)
     && /_linearAwaitCreate/.test(f44Submit)
     && /_linearApplyReceiptOutcomes/.test(f44Submit)
@@ -277,7 +290,7 @@ const result = {
     && /await fetch\(target\.url/.test(f44Transport)
     && /_linearConfirmedCreate/.test(f44Transport)
     && !/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
-  'the non-enrolled Submit lane retains F44 receipts and never restores the pre-F44 direct fetch');
+  'all four legacy exits hold visibly while the old F44 transport has no live caller');
   ok(f44Received.includes("String(result.status || '').toLowerCase() !== 'received'")
     && f44Received.includes('result.durable_capture !== true')
     && f44Received.includes('result.triage_required !== true')
@@ -312,6 +325,145 @@ const result = {
   const lifecycle = source.slice(source.indexOf('function _writeUiResumeLegacyQueues'), source.indexOf('/* Point-adoption:', source.indexOf('function _writeUiResumeLegacyQueues')));
   ok(lifecycle.includes('_resumeNativeIntakeJob') && lifecycle.includes("'focus'") && lifecycle.includes("'startup'"),
   'native intake resumes on startup and the shared lifecycle paths');
+  const holdResume = extract('_linearResumeSubmissionHold');
+  ok(holdResume.includes("snapshot.hold.created_load_id === LINEAR_INTAKE_LOAD_ID")
+    && holdResume.includes('_submitLinearFormRoutedOnce(snapshot.hold.mode)')
+    && holdResume.includes('same_identity_backend_recovery_required')
+    && holdResume.includes('snapshot.hold.legacy_receipt_present')
+    && lifecycle.includes('_linearResumeSubmissionHold(reason')
+    && source.includes("_linearResumeSubmissionHold('startup')"),
+  'held Submit work retries once on the next page load while legacy identities remain held');
+  ok(extract('_linearIntakePending').includes('seed && seed.request_id')
+    && extract('_linearIntakePending').includes('seed && seed.source_edited_at')
+    && submit.includes('request_id: heldSnapshot.hold.request_id')
+    && submit.includes('_linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, heldSnapshot.raw)'),
+  'a held native retry promotes its preallocated identity without changing it');
+  ok(submit.includes('heldSnapshot.hold.computed_title')
+    && submit.includes('heldSnapshot.hold.computed_due_dates[number - 1]')
+    && submit.includes("String(heldDraft && heldDraft.filmingPlans || '').trim()")
+    && extract('_linearSubmissionHoldSnapshot').includes('hold.computed_due_dates')
+    && extract('renderLinearView').includes('heldSubmission.computed_title')
+    && extract('updateLinearTitle').includes('hold.computed_title')
+    && extract('_linearIntakePurgeSensitiveState').includes('removeItem(LINEAR_INTAKE_HOLD_KEY)'),
+  'an overnight hold preserves its visible title, filming plan, and due dates and cannot cross a staff sign-out');
+  ok(submit.indexOf('const pendingNativeIntake = _linearIntakeRead()')
+      < submit.indexOf('localStorage.getItem(LINEAR_RECEIPTS_KEY)')
+    && submit.includes('if (!pendingNativeIntake)')
+    && submit.includes('const useGateway = pendingNativeIntake')
+    && submit.includes('? true'),
+  'a straddling native batch keeps its request and accepted-epoch recovery path ahead of legacy classification');
+
+  function holdWorld(options) {
+    const heldStore = new Map();
+    const statusNode = { textContent: '' };
+    const inputNode = { value: 'Fixture Client', dataset: { clientSlug: 'fixture-client' } };
+    const legacyKey = 'linear-intake-v1:video:' + 'a'.repeat(64);
+    if (options && options.legacyReceipt) heldStore.set('receipts', JSON.stringify({
+      version: 1,
+      receipts: { video: { receipt_key: legacyKey } }
+    }));
+    const holdContext = {
+      LINEAR_INTAKE_HOLD_KEY: 'hold', LINEAR_RECEIPTS_KEY: 'receipts',
+      LINEAR_FORM_KEY: 'form', LAST_LINK_KEY: 'last', LINEAR_INTAKE_LOAD_ID: 'load-a',
+      // Empty = the async plan map has not resolved yet on this page load.
+      _linearResolvedPlanUrl: '',
+      localStorage: {
+        getItem(key) {
+          if (options && options.receiptReadThrows && key === 'receipts') throw new Error('blocked');
+          return heldStore.has(key) ? heldStore.get(key) : null;
+        },
+        setItem: (key, value) => heldStore.set(key, String(value)),
+        removeItem: key => heldStore.delete(key),
+      },
+      document: {
+        getElementById: id => id === 'linearClientSearch' ? inputNode : id === 'linearStatus' ? statusNode : null,
+        querySelectorAll: selector => selector === '[id^="videoCard_"]' ? [{ id: 'videoCard_1' }] : [],
+      },
+      buildLinearTitle: () => 'Fixture Client - 19 Sep 2026',
+      wlTodayISO: () => '2026-09-19',
+      wlAddWorkingDays: () => '2026-09-26',
+      saveLinearForm() {
+        const draft = { client: inputNode.value, clientSlug: inputNode.dataset.clientSlug,
+          filmingPlans: holdContext._linearResolvedPlanUrl || '', videos: [{ main_cam: 'fixture' }] };
+        heldStore.set('form', JSON.stringify(draft));
+        return draft;
+      },
+      _linearIntakeRead: () => null,
+      crypto: { randomUUID: () => 'hold-request' },
+      fetch: async () => { throw new Error('network must not run'); },
+      console,
+    };
+    if (options && options.routingFalse) holdContext._writeUiRerouteUseGatewayWhenReady = async () => false;
+    vm.createContext(holdContext);
+    vm.runInContext([
+      extract('_linearStableJson'), extract('_linearStorageError'), extract('_linearIntakeRequestId'),
+      extract('_linearDraftSnapshot'), extract('_linearSubmissionHoldSnapshot'),
+      extract('_linearSubmissionHoldRead'), extract('_linearSubmissionHoldReceiptKeys'),
+      extract('_linearSubmissionHoldMessage'), extract('_linearSubmissionHoldComputed'),
+      extract('_linearHoldSubmission'),
+      extract('_submitLinearFormRoutedOnce'),
+    ].join('\n'), holdContext);
+    return { context: holdContext, store: heldStore, statusNode, legacyKey };
+  }
+
+  for (const scenario of [
+    { label: 'saved legacy receipt', options: { legacyReceipt: true }, reason: 'saved_legacy_receipt' },
+    { label: 'throwing receipt read', options: { receiptReadThrows: true }, reason: 'legacy_receipt_read_failed' },
+    { label: 'missing routing helper', options: {}, reason: 'routing_helper_missing' },
+    { label: 'routing false', options: { routingFalse: true }, reason: 'native_routing_unavailable' },
+  ]) {
+    const world = holdWorld(scenario.options);
+    const result = await world.context._submitLinearFormRoutedOnce('video');
+    const hold = JSON.parse(world.store.get('hold'));
+    ok(result && result.held === true && result.reason === scenario.reason
+      && hold.request_id === 'submission:hold-request'
+      && hold.draft_raw === world.store.get('form')
+      && hold.computed_title === 'Fixture Client - 19 Sep 2026'
+      && hold.computed_due_dates.join(',') === '2026-09-26'
+      && /saved/i.test(world.statusNode.textContent)
+      && /next page load/i.test(world.statusNode.textContent)
+      && /Nothing was sent to Linear/i.test(world.statusNode.textContent),
+    scenario.label + ' becomes a durable self-retrying hold with zero legacy request');
+    if (scenario.options.legacyReceipt) {
+      ok(hold.legacy_receipt_keys.length === 1 && hold.legacy_receipt_keys[0] === world.legacyKey
+        && hold.legacy_receipt_present === true
+        && /same-identity backend recovery/.test(world.statusNode.textContent),
+      'saved legacy receipt keeps its original recovery identity and names the backend limitation');
+    }
+  }
+  {
+    // Reload ordering: a hold saved with a filming-plan link is retried before
+    // loadLinearPlanMap() resolves. Re-saving the form must restore the held
+    // link, not overwrite it and report a false held_submission_conflict.
+    const heldPlan = 'https://docs.example.test/plan';
+    const world = holdWorld({ routingFalse: true });
+    const heldDraft = JSON.stringify({ client: 'Fixture Client', clientSlug: 'fixture-client',
+      filmingPlans: heldPlan, videos: [{ main_cam: 'fixture' }] });
+    world.store.set('form', heldDraft);
+    world.store.set('hold', world.context._linearStableJson({
+      version: 1, mode: 'video', reason: 'native_routing_unavailable',
+      request_id: 'submission:earlier-load', source_edited_at: '2026-09-19T12:00:00.000Z',
+      client_name: 'Fixture Client', client_slug: 'fixture-client',
+      draft_raw: heldDraft, last_link_raw: null,
+      computed_title: 'Fixture Client - 19 Sep 2026', computed_due_dates: ['2026-09-26'],
+      legacy_receipt_keys: [], legacy_receipt_present: false,
+      created_at: '2026-09-19T12:00:00.000Z', created_load_id: 'load-b'
+    }));
+    const snapshot = world.context._linearDraftSnapshot('Fixture Client', heldDraft);
+    ok(snapshot.form_raw === heldDraft && world.context._linearResolvedPlanUrl === heldPlan,
+    'a held draft snapshot restores the held filming-plan link before re-saving, so the bytes stay identical');
+    world.context._linearResolvedPlanUrl = '';
+    const result = await world.context._submitLinearFormRoutedOnce('video');
+    const hold = JSON.parse(world.store.get('hold'));
+    ok(result && result.held === true && result.reason === 'native_routing_unavailable'
+      && result.request_id === 'submission:earlier-load'
+      && hold.request_id === 'submission:earlier-load'
+      && JSON.parse(hold.draft_raw).filmingPlans === heldPlan,
+    'a held retry before the plan map resolves keeps its identity and plan instead of a false conflict');
+    ok(submit.includes('_linearDraftSnapshot(clientName, heldSnapshot.hold.draft_raw)')
+      && extract('_linearHoldSubmission').includes('_linearDraftSnapshot(clientName, prior && prior.hold.draft_raw)'),
+    'both held-draft comparisons hand the snapshot the held bytes so only user-editable fields decide a conflict');
+  }
   const projectSource = extract('fetchLinearProjects');
   const projectBuilder = extract('_linearRebuildProjectSource');
   const rerouteSetter = extract('_writeUiSetRerouteFlagValue');

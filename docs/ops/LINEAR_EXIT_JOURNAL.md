@@ -13791,7 +13791,11 @@ execution map's STEP 1/3 row had described as latched by design.
 about 20:12Z; it dispatched the card reconcilers and the B1 refresh and
 paged about Linear mirror staleness, so it had no native purpose left.
 `SyncView Workload — Reconcile` (`lGwC9WWPVJtxphtf`) stays active by owner
-decision until a workload-source-freshness watcher exists. The five
+decision. The condition for stopping it is the runbook's (STEP 6 item 3): the
+Workload board no longer depends on `workload_issues` freshness. It still
+does — 28 `source='legacy'` rows, all CON/STR, have no native source yet.
+The freshness watcher (`workload-source-freshness.yml`) already exists and
+only reports a frozen mirror; it is not the gate. The five
 retire-classified GitHub workflows and three watchdog lanes were
 unscheduled/retired in #1449 (its own entry above). Then, by **owner decision the same evening (option 2 of two)**, `production-write-drill.yml` was unscheduled and the `production_write_drill` lane retired in the same PR, so **all four `retires_with: 'linear'` lanes are retired and no scheduled workflow in the repo requires a `LINEAR_*` secret** — `test/monitoring-watchdog.js` asserts that property in both directions. The cost is explicit in the workflow header: the daily native write-gateway proof is lost until a credential-free rewrite re-enables the cron and un-retires the lane together.
 
@@ -13828,7 +13832,7 @@ for the Storage session instead.
 Submit, Calendar, Workload, Samples, urgent ping, the `?intake=1` link in a
 private window, and opening one fresh test video to confirm its batch and
 siblings); the brief-media copy run if it has not run by then (before
-2026-10-15 and before STEP 7); a freshness watcher, then retiring the
-workload reconcile; repair or retirement of the post-merge
+2026-10-15 and before STEP 7); a native source for the 28 CON/STR
+legacy-source Workload rows, then retiring the workload reconcile; repair or retirement of the post-merge
 `production-polish-gate`, red on `main` since 2026-09-17 (29b addendum);
 STEP 7 key revoke, last.

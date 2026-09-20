@@ -72,6 +72,7 @@
     "bulk-refusals-honest.js",
     "cal-comp-dot-matches-slot-colors.js",
     "cal-linear-missing-banner-seal.js",
+    "cal-linear-status-meta-sealed-fetch.js",
     "cal-link-clear-honesty.js",
     "cal-na-status.js",
     "cal-review-needs-content.js",

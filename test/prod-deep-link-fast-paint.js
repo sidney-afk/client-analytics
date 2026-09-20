@@ -107,6 +107,7 @@ function newHarness(opts) {
     _prodAdapter: input => ({ ISSUES: (input || {}).deliverables || [] }),
     _prodRender() { const s = sandbox._prodState; log.renders.push({ loaded: s.loaded, loading: s.loading, view: s.view }); },
     _prodFetchAuthority: () => Promise.resolve(null),
+    _prodFetchNativeEpochTeams: () => Promise.resolve(null),
     _prodRestRows(table, select, params, pageSize, maxPages, options) {
       if (table === 'clients') return phase.clients.promise;
       if (table === 'team_members') return phase.members.promise;

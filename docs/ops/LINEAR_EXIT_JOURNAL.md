@@ -13653,3 +13653,35 @@ excluding behavior), `test/production-parent-link-hierarchy.js`,
 and `test/prod-deep-link-fast-paint.js` updated for the one new boot helper.
 OPEN_REPAIRS 221 records all three together. `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. No live read, deployment, migration, or n8n edit.
+
+### 2026-09-20 — Sub-issue creation removed outright from Production, not just gated (CLAUDE.md policy compliance)
+
+`_prodAddSubIssueButtonHTML` and both its call sites (the empty and
+populated `Sub-issues` section headers on an issue detail pane) are gone;
+`_prodSubIssuesSectionHTML` renders nothing at all for a childless parent
+and drops the button from the populated header. This was already gated
+closed at runtime by `PROD_CREATE_CLOSED_TEXT` (owner ruling 2026-08-23),
+but a gated-and-disabled button is still a rendered entry point, which
+violates the separate standing rule in `CLAUDE.md`: "Sub-issue creation must
+not be possible from SyncLinear — only from the content calendar." Searched
+every caller of `_prodOpenCreate`: only two existed in the whole file — the
+sub-issue button just removed, and the topbar "New issue" button, which
+opens `_prodOpenCreate()` with no `parentId` (mode `'parent'`, a top-level
+issue, not a sub-issue) and is out of this rule's scope, so it is untouched.
+No keyboard shortcut or command-palette entry called `_prodOpenCreate` at
+all. `_prodOpenCreate` itself is left alone per instructions — its
+subissue-mode branch is not dead: an ambiguous saved subissue draft still
+recovers through the topbar's "Recover issue" control, which calls
+`_prodOpenCreate()` with no `parentId` and reads the pending draft from
+`sessionStorage`. The Calendar's own Create Post path was not touched.
+Tests: `test/production-write-ui-source.js` and
+`test/production-preview-source.js` flipped their `_prodAddSubIssueButtonHTML`
+presence assertions to absence assertions; `test/prod-create-parents-native.js`
+and `test/prod-create-graphics-parent-scope.js` needed no change (neither
+references the removed button). Also corrected, since they pin the exact
+element removed: `docs/syncview-design/tests/prod-write-gateway-browser.js`
+(run — passes), `prod-structure-subset.js`, `prod-review-packet.js`,
+`prod-review-packet-validate.js`, and `prod-interaction-inventory.js` (all
+four are live-backend/screenshot lanes this sandbox cannot execute; fixed by
+inspection to keep them from drifting stale). No live read, deployment,
+migration, or n8n edit.

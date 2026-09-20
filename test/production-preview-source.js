@@ -230,11 +230,13 @@ check('topbar exposes guarded New issue plus the F95 freshness control, and no s
   && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
 check('visible write and creation affordances are guarded without scaffold pills',
   /data-prod-disabled="composer"/.test(prodBlock)
-  && /function _prodAddSubIssueButtonHTML\(compact\)[\s\S]*?_prodCreateGateText\(parent\.project, parent\.team, parent\)[\s\S]*?data-prod-add-subissue=/.test(prodBlock)
   && /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?gate[\s\S]*?disabled title=/.test(prodBlock)
   && !/data-prod-disabled="detail-controls"/.test(prodBlock)
   && !/data-prod-disabled="project-controls"/.test(prodBlock)
   && !/Controls disabled|prod-disabled-pill/.test(prodBlock));
+check('sub-issue creation is removed outright from Production, not merely gated (CLAUDE.md: only the content calendar creates)',
+  !/function _prodAddSubIssueButtonHTML/.test(prodBlock)
+  && !/data-prod-add-subissue/.test(prodBlock));
 check('deep links include deliverable, batch, team, and client filters', /q\.get\('d'\)/.test(prodBlock) && /q\.get\('batch'\)/.test(prodBlock) && /q\.get\('team'\)/.test(prodBlock) && /q\.get\('client'\)/.test(prodBlock));
 
 if (failures) {

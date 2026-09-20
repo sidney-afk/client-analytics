@@ -283,6 +283,54 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'an unclassifiable row falls back rather than refusing — an absence is the failure an editor cannot report');
   }
 
+  // ── A legacy row the snapshot bound to a native deliverable ──────────
+  // Linear-exit Workload slice 2: a legacy row still carries a durable
+  // `legacyBoundNativeId` when `workload_native_snapshot_v1()` matched it to a
+  // native deliverable (`native_plan_id`, already validated client-side by the
+  // gateway's `projectNativeSnapshot`). That binding is enough on its own --
+  // `_wlNativeTweakComments` takes a bare deliverable id and does not care
+  // which source classified the row.
+  {
+    const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: 'del_bound_one', nativeId: '' }];
+    const { context, calls } = build({ snapshot, byDeliverable: {
+      del_bound_one: [page([canonical('a')], { feedback: { version: 1, status: 'complete', complete: true, rows: [] } })] } });
+    const out = await context.wlFetchTweakComments(['wl-1']);
+    ok(calls.length === 1 && calls[0].url.includes('production-comments'),
+      'a legacy row with a bound native deliverable reads production-comments, not linear-tweak-comments');
+    ok(calls[0].body.deliverable_id === 'del_bound_one',
+      'keyed on the bound native id, not the legacy row id');
+    ok(out['wl-1'].length === 1 && out['wl-1'][0].body === 'canonical a' && out['wl-1'].native === true,
+      'and the popover shows the native feedback for it');
+  }
+  {
+    // No binding at all (never mirrored to a native deliverable, or a
+    // foreign/provider-authority row) -- still the legacy lane, unchanged.
+    const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: '', nativeId: '' }];
+    const { context, calls } = build({ snapshot, pages: [] });
+    await context.wlFetchTweakComments(['wl-1']);
+    ok(calls.every(c => !c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
+      'an unbound legacy row still falls to the legacy lane -- the coverage boundary in the plan doc');
+  }
+  {
+    // One bound legacy row and one unbound legacy row in the same popover:
+    // each takes its own lane rather than the whole collection being decided
+    // by whichever row is checked first.
+    const snapshot = [
+      { id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: 'del_bound_two', nativeId: '' },
+      { id: 'wl-2', workloadSource: 'legacy', legacyBoundNativeId: '', nativeId: '' },
+    ];
+    const { context, calls } = build({ snapshot, byDeliverable: {
+      del_bound_two: [page([canonical('a')], { feedback: { version: 1, status: 'complete', complete: true, rows: [] } })] },
+      legacyComments: { 'wl-2': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } });
+    const out = await context.wlFetchTweakComments(['wl-1', 'wl-2']);
+    ok(out['wl-1'].native === true && out['wl-1'][0].body === 'canonical a',
+      'the bound legacy row reads native feedback');
+    ok(out['wl-2'].native !== true && out['wl-2'][0].body === 'legacy note',
+      'the unbound legacy row beside it still reads the legacy lane');
+    ok(calls.some(c => c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
+      'both lanes are used, each for the row that actually needs it');
+  }
+
   // ── The request shape the house guard enforces ───────────────────────
   {
     const { context, calls } = build({ pages: [page([canonical('a')])] });

@@ -52134,10 +52134,10 @@
         if (!slug || !Array.isArray(videos) || !videos.length) return;
         const job = (opts && opts.job) || null;
         if (job) _calCardJobRemove(job.id);
-        showNotify('Calendar cards not created', clientName + ' is not enrolled in SyncView’s native '
-            + 'workflow, so SyncView cannot link the Linear issues it just created to calendar cards '
-            + 'automatically. Add the ' + videos.length + ' card' + (videos.length === 1 ? '' : 's')
-            + ' from the calendar with Create Post, or ask an admin to enroll this client.');
+        showNotify('Calendar cards not created', 'SyncView no longer links Linear issues to calendar '
+            + 'cards automatically here — that connector was retired. Add the ' + videos.length
+            + ' card' + (videos.length === 1 ? '' : 's') + ' for ' + clientName
+            + ' from the calendar with Create Post.');
     }
 
     /* ── Durable calendar-card write jobs ──

@@ -97,8 +97,8 @@ ok(/or open the calendar and use Create Post to add them now\./.test(INDEX),
    card-writing body outright in favor of a single all-or-nothing hold, since
    every active client is native-enrolled and reaches this function only
    through a stale pre-enrollment job or the retained rollback entry point. */
-ok(/Add the ' \+ videos\.length \+ ' card' \+ \(videos\.length === 1 \? '' : 's'\)\s*\n\s*\+ ' from the calendar with Create Post, or ask an admin to enroll this client\./.test(INDEX),
-  'the retired-path hold notice now points at Create Post instead of writing cards');
+ok(/that connector was retired\. Add the ' \+ videos\.length/.test(INDEX) && /from the calendar with Create Post\.'\);/.test(INDEX),
+  'the retired-path hold notice gives the real reason and points at Create Post instead of writing cards');
 ok(/Open the calendar and use Create Post to add them\./.test(INDEX),
   'the resumed-job retry-cap notice now points at Create Post');
 

@@ -156,8 +156,8 @@ reset();
   ok(fetchLog.length === 0, 'direct call: no calendar-upsert POST is ever made');
   ok(_calCardJobsRead().length === 0, 'direct call: the job is removed rather than left to retry forever');
   ok(notifications.length === 1, 'direct call: the user is told, exactly once');
-  ok(/Fixture Client/.test(notifications[0].msg) && /not enrolled/i.test(notifications[0].msg),
-    'direct call: the notice names the client and says it is not enrolled');
+  ok(/Fixture Client/.test(notifications[0].msg) && /retired/i.test(notifications[0].msg),
+    'direct call: the notice names the client and gives the real reason (retired), not a false enrollment claim');
   ok(/3 card/.test(notifications[0].msg) && /Create Post/.test(notifications[0].msg),
     'direct call: the notice says how many cards and how to add them manually');
 }
@@ -186,7 +186,7 @@ reset();
   await _resumePendingCalCardJobs(authorityState);
   ok(fetchLog.length === 0, 'resume: no calendar-upsert POST is made for a still-Linear-authoritative team');
   ok(_calCardJobsRead().length === 0, 'resume: the stale job is settled, not left to retry indefinitely');
-  ok(notifications.length === 1 && /Fixture Client/.test(notifications[0].msg) && /not enrolled/i.test(notifications[0].msg),
+  ok(notifications.length === 1 && /Fixture Client/.test(notifications[0].msg) && /retired/i.test(notifications[0].msg),
     'resume: the same visible hold fires, not a silent drop');
   ok(!queueDiagnostics.some(row => row.outcome === 'discarded_authority'),
     'resume: this is the hold path, not the discarded_authority path -- the two must stay distinct');

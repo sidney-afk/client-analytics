@@ -56396,7 +56396,7 @@
            read "Post" instead. Everything that treats the label as an
            IDENTITY -- _prodCopyIssueIds (Copy issue ID), the palette's search
            field, sort keys, `title || label` fallbacks -- keeps calling
-           _prodIssueLabel and still gets the real id (Codex P1 on #1455). */
+           _prodIssueLabel and still gets the real id (Codex P1 on PR 1455). */
         function _prodIssueDisplayLabel(d) {
             if (d && d.syntheticBatchParent === true) return 'Post';
             return _prodIssueLabel(d);

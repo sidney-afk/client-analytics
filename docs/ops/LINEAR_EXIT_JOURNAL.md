@@ -13638,8 +13638,15 @@ one of them is load-bearing, not housekeeping** (Codex P1 on #1449, verified):
 pager `qllIDZPkdNAPRj0b` dispatches `sample-linear-reconcile.yml` every 15
 minutes with `dry_run=false`, and that workflow's APPLY expression makes such a
 dispatch write-capable, so removing its cron stops a trigger and not the writes
-until the owner disables that node. Recorded in `docs/truth/N8N.md` and in the
-workflow's own header. No live read, deployment or database change occurred.
+until the owner disables that node. The owner then did so, outside this PR; a
+read-only check the same day returned `active: false` / `activeVersionId: null`,
+so both halves are off and only a hand dispatch now reaches that lane. Workload
+reconcile `lGwC9WWPVJtxphtf` stays active by owner decision until the freshness
+watcher is confirmed. Recorded in `docs/truth/N8N.md` and in the workflow's own
+header. `test/b1-full-mode-lane.js` also needed a one-line change: it asserted the
+B1 cron still existed so its cron-cannot-reach-full-mode guard would not be
+vacuous, and it now accepts the retired commented block as well as a live one —
+still failing if the schedule is deleted outright, guard untouched. No live read, deployment or database change occurred.
 
 ### 2026-09-20 — Production sweep, part two: three more sites checked for the same Linear-identity assumption; two were real, one was a false lead Codex caught
 

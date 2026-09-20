@@ -23,7 +23,10 @@ on:
   # exactly as a scheduled run was. So removing the cron reduces the trigger
   # count and changes nothing about the writes until that pager node is
   # disabled, which is the owner's step (STEP 6 item 1, and CLAUDE.md forbids
-  # editing an n8n workflow without explicit go-ahead). See docs/truth/N8N.md.
+  # editing an n8n workflow without explicit go-ahead). The owner deactivated that
+  # pager on 2026-09-20, verified read-only the same day (active:false,
+  # activeVersionId:null), so both halves are now off and only a hand dispatch
+  # reaches this lane. See docs/truth/N8N.md.
   #schedule:
   #  - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
   workflow_dispatch:

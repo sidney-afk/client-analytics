@@ -110,14 +110,19 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   native writes no longer feed. It also said to cut the pager and keep the schedule if only one
   could go — the cutoff does the reverse *in the end*, but only because STEP 6 retires both, and it
   orders the n8n pager FIRST for exactly this reason.
-  **⚠ UNTIL THE PAGER NODE IS DISABLED, THIS LANE IS NOT ACTUALLY STOPPED, AND IT STILL WRITES.**
-  The pager's dispatch supplies `dry_run=false`, and `sample-linear-reconcile.yml:57` computes
-  `APPLY` as `github.event_name == 'schedule' || github.event.inputs.dry_run != 'true'` — so a
-  pager-dispatched run is write-capable exactly as a scheduled one was. Removing the cron alone
-  therefore changes the trigger count and nothing about the writes. The n8n half is the owner's
-  (`CLAUDE.md` forbids editing an n8n workflow without explicit go-ahead in the same request); it is
-  listed for confirmation on PR #1449. Until it lands, treat Samples reconciliation as still running
-  every 15 minutes with apply on.
+  **The pager half mattered, and it is now also off.** Removing the cron alone would NOT have
+  stopped this lane: the pager's dispatch supplies `dry_run=false`, and `sample-linear-reconcile.yml`
+  computes `APPLY` as `github.event_name == 'schedule' || github.event.inputs.dry_run != 'true'`, so
+  a pager-dispatched run is write-capable exactly as a scheduled one was — the cron removal changes
+  the trigger count and nothing about the writes. The owner deactivated pager `qllIDZPkdNAPRj0b`
+  separately on 2026-09-20 (~20:12Z), outside PR #1449, which does not itself touch n8n.
+  **Verified by read-only API check on 2026-09-20: `active: false`, `activeVersionId: null`.** With
+  both halves off, Samples reconciliation now runs only when a human dispatches it by hand, and such
+  a dispatch still writes unless `dry_run` is left on.
+  Workload reconcile `lGwC9WWPVJtxphtf` remains ACTIVE by owner decision until the
+  workload-source-freshness watcher is confirmed — see STEP 6's warning that a stopped reconcile
+  freezes `workload_issues` rather than emptying it, which is indistinguishable from health in the
+  browser.
 - `linear-set-status` is the only n8n dueDate writer (+2d when overdue, on every call). The
   nightly due-date roller is NOT in n8n (see `docs/truth/LINEAR.md`).
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues

@@ -13551,3 +13551,46 @@ false` falls back, `complete: true` with a null `render_brief` falls back).
 Execution map's "Brief media" row updated from "unknown, verify" to name
 this PR and the remaining work: the one-time copy of Linear-hosted brief
 images into native storage, then flipping the flag, before 2026-10-15.
+
+### 2026-09-20 — Workload/Calendar native-row defects: four sites still assumed a Linear URL/UUID was always present
+
+Scoped and fixed four specific browser-only defects where Workload/Calendar
+code, written back when every row carried a Linear-born identifier, now runs
+against native (non-Linear) rows that never have one:
+
+`wlFetchNativeMetadata` filtered its read by `linear_issue_uuid=in.(...)`
+only, so a native row could never match and fell into
+`unavailableIssueIds` — blank due date, withheld write route. Added a second,
+id-keyed branch (`id=in.(...)`, same projection) that merges with the uuid
+branch; a chunk only fails now when BOTH branches fail for it.
+
+`_calLatestNativeBatches` read the `native_intake_epochs` flag inside a
+silent `catch`, so a failed read stamped every native batch
+`_nativeAppendTeams: []` — read by both `_calNativeBatchHasLinearParents` and
+`_calNativeBatchCompatible` as "cannot append", making the batch vanish from
+the Create Post picker entirely. Now fails OPEN (both teams treated as
+append-capable) and logs via `console.warn` instead of swallowing.
+
+`_calApplyFocusRequest` matched a deep-link identifier only against
+`linear_issue_id`, so a native card was never focusable by identifier. Now
+also matches `video_deliverable_id` / `graphic_deliverable_id`.
+
+`_calLinkDuplicatePeers` and the archive ledger's own key check
+(`_calIsArchivedRef`) keyed duplicate-card detection on the Linear fields
+alone, so two native-only cards sharing a deliverable id were invisible to
+each other and to the archive ledger. Added a shared `_calDupeKey(post, comp)`
+helper (Linear field, else `native:`-prefixed deliverable id) used
+consistently by both.
+
+All four are browser-only; no Edge Function, migration, flag, or n8n workflow
+touched. Tests extended with the real shipped functions:
+`test/workload-linear-browser.js` (id-branch merge, both-branches-fail throw,
+one-chunk-fails-while-another-succeeds degrade),
+`test/native-intake-ui-source.js` (fail-open flag-read via a mocked
+`_prodRestRows` in a VM sandbox), `test/calendar-deep-link-focus.js` (native
+deliverable-id identifier matching, Linear match still takes priority, no
+match still fails loudly), `test/calendar-linear-link-move.js` (native
+duplicate detection, archive-ledger native fallback, Linear/native key spaces
+never collide). `docs/syncview-design/tests/prod-write-gateway-browser.js`
+also run clean. OPEN_REPAIRS 218 records all four together. No live read,
+deployment, database installation, or n8n edit occurred.

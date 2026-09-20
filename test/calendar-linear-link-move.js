@@ -45,6 +45,7 @@ const _calLinkKey = def('_calLinkKey');
 const _calIsArchivedRef = def('_calIsArchivedRef');
 const _calDedupeByLinearIssue = def('_calDedupeByLinearIssue');
 const _calLinkDuplicatePeers = def('_calLinkDuplicatePeers');
+def('_calDupeKey'); // free-variable dep of _calLinkDuplicatePeers
 globalThis.calClientSlug = (n) => String(n || '').toLowerCase();
 globalThis._calArchivedRefs = () => new Set();
 
@@ -127,6 +128,48 @@ const peerComp = (p, comp) => { const g = (_calLinkDuplicatePeers(p) || []).find
 {
   globalThis.calState = { client: 'x', posts: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', linear_issue_id: VID1, status: 'In Progress' }] };
   ok(_calLinkDuplicatePeers({ id: 'a', name: 'A' }).length === 0, 'a link-less card has no duplicate peers');
+}
+// Native-only cards (no Linear URL): OPEN_REPAIRS defect fix. Duplicate
+// detection used to be keyed on the Linear URL alone, so two native cards
+// sharing a video_deliverable_id / graphic_deliverable_id were invisible to
+// each other. _calDupeKey falls back to the native deliverable id when the
+// Linear field is blank.
+{
+  const a = { id: 'a', name: 'A', video_deliverable_id: 'nat-vid-1', status: 'In Progress' };
+  const b = { id: 'b', name: 'B', video_deliverable_id: 'nat-vid-1', status: 'In Progress' };
+  const c = { id: 'c', name: 'C', video_deliverable_id: 'nat-vid-2', status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b, c] };
+  ok(peerComp(a, 'video').includes('B'), 'two native-only cards sharing a video_deliverable_id see each other as duplicates');
+  ok(_calLinkDuplicatePeers(c).length === 0, 'a native card with a unique video_deliverable_id has no duplicate peers');
+}
+{
+  const a = { id: 'a', name: 'A', graphic_deliverable_id: 'nat-gra-1', status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_deliverable_id: 'NAT-GRA-1', status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(peerComp(a, 'graphic').includes('B'), 'native graphic_deliverable_id match is case/space-insensitive, same as the Linear key');
+}
+// A Linear URL still wins over a coincidentally-equal native id string — the
+// two key spaces never collide (native ids are prefixed internally).
+{
+  const a = { id: 'a', name: 'A', linear_issue_id: VID1, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', video_deliverable_id: VID1, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(_calLinkDuplicatePeers(a).length === 0 && _calLinkDuplicatePeers(b).length === 0,
+    'a Linear URL on one card and the same string as a native id on another never collide');
+}
+// _calIsArchivedRef: the archive ledger's own key check falls back to the
+// native deliverable ids the same way, so an archived native-only duplicate
+// is excluded from duplicate detection just like a Linear-linked one.
+{
+  const live = { id: 'live', name: 'Live', video_deliverable_id: 'nat-vid-9', status: 'In Progress' };
+  const arch = { id: 'arch', name: 'Arch', video_deliverable_id: 'nat-vid-9', status: 'Archived' };
+  globalThis.calState = { client: 'x', posts: [live, arch] };
+  globalThis._calArchivedRefs = () => new Set(['nat-vid-9']);
+  ok(_calLinkDuplicatePeers(live).length === 0, 'an archived native-only twin (recognised via _calIsArchivedRef) does not raise a duplicate warning');
+  ok(_calIsArchivedRef(arch, new Set(['nat-vid-9'])) === true, '_calIsArchivedRef recognises a native-only row by its video_deliverable_id');
+  ok(_calIsArchivedRef({ id: 'x', graphic_deliverable_id: 'nat-gra-9' }, new Set(['nat-gra-9'])) === true,
+    '_calIsArchivedRef recognises a native-only row by its graphic_deliverable_id');
+  globalThis._calArchivedRefs = () => new Set();
 }
 
 console.log('\n============================================================');
@@ -484,12 +527,20 @@ const dedupeSrc = grabFunc('_calDedupeByLinearIssue');
 ok(!/return false/.test(dedupeSrc) && !/\.filter\(/.test(dedupeSrc),
    '_calDedupeByLinearIssue no longer drops any card (pass-through — nothing hidden)');
 const peersSrc = grabFunc('_calLinkDuplicatePeers');
-ok(/linear_issue_id/.test(peersSrc) && /graphic_linear_issue_id/.test(peersSrc),
-   '_calLinkDuplicatePeers checks BOTH the video and graphic slots');
+ok(/_calDupeKey\(post, 'video'\)/.test(peersSrc) && /_calDupeKey\(post, 'graphic'\)/.test(peersSrc)
+   && /_calDupeKey\(p, 'video'\)/.test(peersSrc) && /_calDupeKey\(p, 'graphic'\)/.test(peersSrc),
+   '_calLinkDuplicatePeers checks BOTH the video and graphic slots, through the shared _calDupeKey (Linear URL, else native deliverable id)');
+const dupeKeySrc = grabFunc('_calDupeKey');
+ok(/linear_issue_id/.test(dupeKeySrc) && /graphic_linear_issue_id/.test(dupeKeySrc)
+   && /video_deliverable_id/.test(dupeKeySrc) && /graphic_deliverable_id/.test(dupeKeySrc),
+   '_calDupeKey falls back from the Linear field to the matching native deliverable id');
 ok(/isArch/.test(peersSrc) && /calState\.posts/.test(peersSrc),
    '_calLinkDuplicatePeers excludes archived cards and reads the live card list');
 ok(/comp: 'video'/.test(peersSrc) && /comp: 'graphic'/.test(peersSrc),
    '_calLinkDuplicatePeers reports WHICH slot collides (video vs graphic)');
+const isArchivedRefSrc = grabFunc('_calIsArchivedRef');
+ok(/video_deliverable_id/.test(isArchivedRefSrc) && /graphic_deliverable_id/.test(isArchivedRefSrc),
+   '_calIsArchivedRef (the archive-ledger link key) also falls back to the native deliverable ids, consistent with _calDupeKey');
 const warnSrc = grabFunc('_calDupeWarnText');
 ok(/thumbnail/.test(warnSrc) && /Linear issue as/.test(warnSrc),
    '_calDupeWarnText names the component (thumbnail vs video) in the banner copy');

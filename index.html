@@ -15506,9 +15506,9 @@
         for (let index = 0; index < issueIds.length; index += 100) chunks.push(issueIds.slice(index, index + 100));
         const readChunk = async (chunk) => {
             const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
-            const readPage = async (table, select) => {
+            const readPage = async (table, select, filterField) => {
                 const url = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=' + select
-                    + '&linear_issue_uuid=in.' + encodeURIComponent(inFilter)
+                    + '&' + filterField + '=in.' + encodeURIComponent(inFilter)
                     + '&limit=' + String(chunk.length + 1);
                 const response = await fetch(url, {
                     cache: 'no-store',
@@ -15521,39 +15521,63 @@
                 const payload = await response.json().catch(() => ({}));
                 return { response, payload };
             };
-            try {
-                let projected = await readPage(
-                    'production_deliverables_browser_v1',
-                    'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels'
-                );
-                let legacyProjection = false;
-                if (!projected.response.ok) {
-                    const projectionError = {
-                        status: projected.response.status,
-                        code: String(projected.payload && projected.payload.code || ''),
-                        detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
-                    };
-                    if (!_prodBrowserProjectionMissing(projectionError)) {
+            // A native row (no Linear-born UUID) never matches a
+            // linear_issue_uuid filter, so it used to fall straight into
+            // unavailableIssueIds and lose its due date/write route. This
+            // reads a second, id-keyed branch with the same projection so a
+            // native row can still be proven by its own id, and merges its
+            // rows with the uuid branch used for Linear-born rows.
+            const readBranch = async (filterField) => {
+                try {
+                    let projected = await readPage(
+                        'production_deliverables_browser_v1',
+                        'id,client_slug,team,linear_issue_uuid,due_date,updated_at,workload_labels_complete,workload_labels',
+                        filterField
+                    );
+                    let legacyProjection = false;
+                    if (!projected.response.ok) {
+                        const projectionError = {
+                            status: projected.response.status,
+                            code: String(projected.payload && projected.payload.code || ''),
+                            detail: String(projected.payload && (projected.payload.message || projected.payload.details || projected.payload.hint) || '')
+                        };
+                        if (!_prodBrowserProjectionMissing(projectionError)) {
+                            throw new Error('Native Workload metadata HTTP ' + projected.response.status);
+                        }
+                        // Release transition only. No auth/network/server failure may
+                        // reopen the raw-body path after the safe view exists.
+                        projected = await readPage(
+                            'deliverables',
+                            'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw',
+                            filterField
+                        );
+                        legacyProjection = true;
+                    }
+                    if (!projected.response.ok) {
                         throw new Error('Native Workload metadata HTTP ' + projected.response.status);
                     }
-                    // Release transition only. No auth/network/server failure may
-                    // reopen the raw-body path after the safe view exists.
-                    projected = await readPage(
-                        'deliverables',
-                        'id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
-                    );
-                    legacyProjection = true;
+                    const page = projected.payload;
+                    if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
+                    page.forEach(row => {
+                        row.__legacy_workload_projection = legacyProjection;
+                        row.__native_metadata_key_field = filterField;
+                    });
+                    return { page };
+                } catch (error) {
+                    return { error };
                 }
-                if (!projected.response.ok) {
-                    throw new Error('Native Workload metadata HTTP ' + projected.response.status);
-                }
-                const page = projected.payload;
-                if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
-                page.forEach(row => { row.__legacy_workload_projection = legacyProjection; });
-                return { page };
-            } catch (error) {
-                return { error };
+            };
+            const [uuidBranch, idBranch] = await Promise.all([
+                readBranch('linear_issue_uuid'),
+                readBranch('id')
+            ]);
+            // The chunk only fails when BOTH branches fail -- either branch
+            // proving a row is enough, same as the existing per-id degrade
+            // (a bad response here withholds only the ids it touches).
+            if (uuidBranch.error && idBranch.error) {
+                return { error: uuidBranch.error };
             }
+            return { page: [...(uuidBranch.page || []), ...(idBranch.page || [])] };
         };
         const chunkResults = await Promise.all(chunks.map(readChunk));
         chunkResults.forEach((result, index) => {
@@ -15569,7 +15593,8 @@
         const byIssueId = new Map();
         const ambiguous = new Set();
         for (const row of rows) {
-            const issueId = String(row && row.linear_issue_uuid || '').trim();
+            const keyField = row && row.__native_metadata_key_field === 'id' ? 'id' : 'linear_issue_uuid';
+            const issueId = String(row && row[keyField] || '').trim();
             if (!issueId) continue;
             // Two native rows claiming one Linear issue means neither can be
             // proven. That is confined to this issue id — it says nothing about
@@ -32533,6 +32558,12 @@
         if (!p || !refs || !refs.size) return false;
         if (p.id && refs.has(String(p.id))) return true;
         if (p.linear_issue_id && refs.has(String(p.linear_issue_id))) return true;
+        // A native-only row (no Linear URL) has no linear_issue_id to check
+        // against the ledger; fall back to its own deliverable ids so an
+        // archived native duplicate is recognised the same way a
+        // Linear-linked one is. Same fallback _calDupeKey uses below.
+        if (p.video_deliverable_id && refs.has(String(p.video_deliverable_id))) return true;
+        if (p.graphic_deliverable_id && refs.has(String(p.graphic_deliverable_id))) return true;
         return false;
     }
     /* Collapse duplicate calendar rows that point at the same Linear
@@ -32553,6 +32584,23 @@
        the paste-time collision check (_calLinkConflict) so the warning predicts
        exactly what the dedupe would otherwise collapse. */
     function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    /* Normalised duplicate-detection key for one component (video/graphic) of
+       a post: the Linear sub-issue link when present, else the post's own
+       native deliverable id for that component. A native-only card (no
+       Linear URL) used to have no key at all -- invisible to
+       _calLinkDuplicatePeers and to _calIsArchivedRef's ledger check alike.
+       'native:' prefixes the fallback so a native deliverable id can never
+       collide with a Linear identifier string. Shared by both call sites in
+       _calLinkDuplicatePeers (the post's own key and its peers') and by
+       _calIsArchivedRef so all three treat a native duplicate consistently. */
+    function _calDupeKey(post, comp) {
+        const linear = _calLinkKey(comp === 'graphic'
+            ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id));
+        if (linear) return linear;
+        const native = _calLinkKey(comp === 'graphic'
+            ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id));
+        return native ? 'native:' + native : '';
+    }
     // Two active cards that point at the same Linear sub-issue USED to be collapsed
     // here — one was silently dropped from the calendar. That hidden-but-active card is
     // exactly what blocked its twin's link and made it "revert"/vanish with no warning.
@@ -32581,14 +32629,14 @@
             try { return !!(archived && _calIsArchivedRef(p, archived)); } catch (e) { return false; }
         };
         if (isArch(post)) return [];
-        const vKey = _calLinkKey(post.linear_issue_id);
-        const gKey = _calLinkKey(post.graphic_linear_issue_id);
+        const vKey = _calDupeKey(post, 'video');
+        const gKey = _calDupeKey(post, 'graphic');
         if (!vKey && !gKey) return [];
         const vPeers = new Set(), gPeers = new Set();
         for (const p of (calState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
             const nm = String(p.name || '').trim() || 'Untitled post';
-            const pv = _calLinkKey(p.linear_issue_id), pg = _calLinkKey(p.graphic_linear_issue_id);
+            const pv = _calDupeKey(p, 'video'), pg = _calDupeKey(p, 'graphic');
             if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
             if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
         }
@@ -39071,6 +39119,16 @@
             const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
             post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
             if (!post) {
+                // A native card with no Linear URL still carries its own
+                // video/graphic deliverable id -- match that directly
+                // (exact, case-insensitive) before giving up, so a
+                // native-sourced focus request can still find its card
+                // instead of always hitting "Not on this calendar yet".
+                post = calState.posts.find(p =>
+                    String(p.video_deliverable_id || '').toUpperCase() === ident
+                    || String(p.graphic_deliverable_id || '').toUpperCase() === ident);
+            }
+            if (!post) {
                 showNotify('Not on this calendar yet', ident + ' is not linked to a card on ' + calState.client + "'s content calendar.");
                 return;
             }
@@ -44795,7 +44853,18 @@
             nativeTeams = ['video', 'graphics'].filter(team => value && value[team]
                 && value[team].enabled === true && typeof value[team].epoch === 'string'
                 && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch));
-        } catch (_) { /* Existing parent-backed choices remain available. */ }
+        } catch (error) {
+            // Fail OPEN for append-capability, not fail closed to invisible.
+            // A parentless (native) batch's ONLY route into the picker is
+            // _nativeAppendTeams -- an empty array here (the old behavior)
+            // made _calNativeBatchHasLinearParents and _calNativeBatchCompatible
+            // both reject it, so the whole batch vanished from the list on a
+            // transient flag-read failure instead of merely losing a filter.
+            // Treating both teams as append-capable keeps it visible; the
+            // gateway still validates the real parent receipt on submit.
+            console.warn('[Calendar] native_intake_epochs flag read failed -- offering both teams as append-capable', error);
+            nativeTeams = ['video', 'graphics'];
+        }
         return rows.map(batch => !batch.linear_parent_ids || !Object.keys(batch.linear_parent_ids).length
             ? { ...batch, _nativeAppendTeams: nativeTeams } : batch);
     }

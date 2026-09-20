@@ -516,6 +516,44 @@ const result = {
     && !choice.includes('is-incompatible')
     && choice.includes("value=\"new\"${prevBatchChecked ? '' : ' checked'}"),
   'Create Post lists recent active batches, hides mode-incompatible batches entirely, and defaults to Start a new batch');
+  // OPEN_REPAIRS: the native_intake_epochs flag read used to be wrapped in a
+  // SILENT catch. A failed flag read left `nativeTeams` empty, so every
+  // parentless (native) batch got `_nativeAppendTeams: []`, which
+  // `_calNativeBatchCompatible`/`_calNativeBatchHasLinearParents` both read
+  // as "cannot append" -- the batch vanished from the picker entirely on a
+  // transient read failure. The fix fails OPEN for append-capability (both
+  // teams) instead of fail-closed to invisible, and logs instead of
+  // swallowing.
+  ok(!/catch \(_\) \{ \/\* Existing parent-backed choices remain available\. \*\/ \}/.test(latestBatch),
+  'the native_intake_epochs flag read no longer swallows its failure silently');
+  ok(/console\.warn\(/.test(latestBatch),
+  'a failed flag read is logged instead of silently swallowed');
+  {
+    // Execute the real function with a mocked _prodRestRows: the batches read
+    // succeeds with one parentless (native) batch, and the flags read throws.
+    const ctx = { console };
+    vm.createContext(ctx);
+    let flagReadCalls = 0;
+    ctx._prodRestRows = async (table) => {
+      if (table === 'batches') {
+        return [{ id: 'bat-native', client_slug: 'fixture-client', team: null,
+          name: 'Native batch', status: 'active', purpose: 'calendar',
+          created_at: '2026-09-18T00:00:00.000Z', updated_at: '2026-09-18T00:00:00.000Z',
+          linear_parent_ids: null }];
+      }
+      flagReadCalls++;
+      throw new Error('flag read failed (simulated network error)');
+    };
+    ctx._nativePostPurpose = () => 'calendar';
+    vm.runInContext(latestBatch, ctx);
+    const rows = await ctx._calLatestNativeBatches('fixture-client', 'calendar');
+    ok(flagReadCalls === 1, 'the harness actually exercised the failing flag-read branch');
+    ok(Array.isArray(rows) && rows.length === 1 && rows[0].id === 'bat-native',
+    'the parentless batch is still returned when the flag read fails');
+    ok(Array.isArray(rows[0]._nativeAppendTeams)
+      && rows[0]._nativeAppendTeams.includes('video') && rows[0]._nativeAppendTeams.includes('graphics'),
+    'a failed flag read fails OPEN: the batch is stamped append-capable for BOTH teams rather than empty/invisible');
+  }
   // Owner ruling 2026-08-16: creation asks what the post needs. The mode is
   // part of the dialog state, re-renders the picker (compatibility depends on
   // it), and rides the intent signature so a saved job of one shape can never

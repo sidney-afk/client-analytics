@@ -85,7 +85,9 @@ function harness(options) {
     'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast', '_calHideOwnToast',
     src + '\nreturn _calApplyFocusRequest;',
   )(
-    { client: 'Client', cardId: 'p_target' },
+    opts.identifier !== undefined
+      ? { client: 'Client', identifier: opts.identifier }
+      : { client: 'Client', cardId: opts.cardId === undefined ? 'p_target' : opts.cardId },
     calState,
     v => String(v || '').toLowerCase(),
     (title, body) => notified.push(title + '|' + body),
@@ -654,6 +656,59 @@ function harness(options) {
   ok(showToastSrc.indexOf("el.setAttribute('role', 'status')") < showToastSrc.indexOf('document.body.appendChild(el)'),
     'set before the element is ever inserted, so nothing can observe it without the announcement attributes');
 }
+
+/* ── OPEN_REPAIRS: native focus-by-identifier ───────────────────────────
+   Focus-by-identifier used to match ONLY against `linear_issue_id`. A
+   native card (no Linear URL) was therefore never focusable by identifier
+   at all, even when its own video/graphic deliverable id was the exact
+   value being looked up — it always fell through to "Not on this calendar
+   yet". _calApplyFocusRequest now also matches `video_deliverable_id` and
+   `graphic_deliverable_id` before giving up. */
+{
+  const nativePosts = [
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
+    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'DLV-5678' },
+    { id: 'p_linear', name: 'Linear card', linear_issue_id: 'https://linear.app/team/issue/VID-9/x' },
+  ];
+  const h = harness({ identifier: 'DLV-1234', posts: nativePosts });
+  h.runFrames(1);
+  ok(h.notified.length === 0, 'a native card is found by its video_deliverable_id — no failure notice');
+  ok(h.log.includes('class+cal-card-flash'), 'and it is flashed like any other identifier-shape match (non-persistent, no cardId)');
+}
+{
+  const nativePosts = [
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
+    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'DLV-5678' },
+  ];
+  const h = harness({ identifier: 'DLV-5678', posts: nativePosts });
+  h.runFrames(1);
+  ok(h.notified.length === 0, 'a native card is found by its graphic_deliverable_id — no failure notice');
+}
+{
+  // The Linear-URL match still runs FIRST; it is not bypassed by the new
+  // native fallback.
+  const posts = [
+    { id: 'p_linear', name: 'Linear card', linear_issue_id: 'https://linear.app/team/issue/VID-9/x' },
+    { id: 'p_native', name: 'Native card', video_deliverable_id: 'VID-9' },
+  ];
+  const h = harness({ identifier: 'VID-9', posts });
+  h.runFrames(1);
+  ok(h.notified.length === 0, 'an identifier that matches a Linear card is still resolved via the existing linear_issue_id path');
+}
+{
+  // No match anywhere (neither Linear nor native) still fails loudly, not silently.
+  const posts = [
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
+  ];
+  const h = harness({ identifier: 'DLV-9999', posts });
+  h.runFrames(1);
+  ok(h.notified.length === 1 && /Not on this calendar yet/.test(h.notified[0]),
+    'an identifier that matches neither the Linear field nor either native deliverable id still fails with the same message, not silently');
+}
+
+const applyFocusSrc = extractFunction(html, '_calApplyFocusRequest');
+ok(/p\.video_deliverable_id/.test(applyFocusSrc) && /p\.graphic_deliverable_id/.test(applyFocusSrc),
+  '_calApplyFocusRequest source checks both video_deliverable_id and graphic_deliverable_id for the identifier fallback');
 
 if (failures) {
   console.error(`\n${failures} calendar deep-link focus check(s) failed`);

@@ -89,7 +89,8 @@ const LATCH_ACTION = 'monitoring_watchdog_latch';
  */
 const LANES = Object.freeze([
   { key: 'reconciler_pager', label: 'reconciler drift pager', cadence: 'schedule ~10m (drifts)', max_age_minutes: 240,
-    hosts: ['linear-deliverables-reconcile.yml'], retires_with: 'linear', retired: null },
+    hosts: ['linear-deliverables-reconcile.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
   /*
    * The watchdog's own lane, and the only one with more than one host. Two
    * independent workflows run `--check`, and the check writes this beat, so
@@ -160,7 +161,8 @@ const LANES = Object.freeze([
   { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160,
     hosts: ['production-write-drill.yml'], retires_with: 'linear', retired: null },
   { key: 'b1_incremental_refresh', label: 'B1 incremental refresh', cadence: 'schedule 30m + pager', max_age_minutes: 240,
-    hosts: ['b1-linear-incremental-refresh.yml'], retires_with: 'linear', retired: null },
+    hosts: ['b1-linear-incremental-refresh.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
   /*
    * Added 2026-08-07 after an audit of what actually alerts.
    *
@@ -179,7 +181,8 @@ const LANES = Object.freeze([
    * tolerated for a re-run or a schedule slip, two are not.
    */
   { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160,
-    hosts: ['production-shadow-audit.yml'], retires_with: 'linear', retired: null },
+    hosts: ['production-shadow-audit.yml'], retires_with: 'linear',
+    retired: { at: '2026-09-20', reason: 'linear-cutoff' } },
   /*
    * Added 2026-08-08, from the reset audit. Both nightlies had been red for
    * WEEKS in silence — samples 26 consecutive nights (since 2026-07-13),

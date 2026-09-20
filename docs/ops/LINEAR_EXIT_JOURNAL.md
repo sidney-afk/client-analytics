@@ -13612,3 +13612,26 @@ duplicate detection, archive-ledger native fallback, Linear/native key spaces
 never collide). `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. OPEN_REPAIRS 218 records all four together. No live read,
 deployment, database installation, or n8n edit occurred.
+
+### 2026-09-20 — STEP 6 schedulers stopped: five Linear workflows unscheduled, three watchdog lanes retired
+
+Per `LINEAR_CUTOFF_RUNBOOK.md` STEP 6, the `cron:` blocks are commented out (not
+disabled in the Actions UI, so the repository does not lie about itself) on the
+five schedule-carrying workflows `LINEAR_EXIT_STEP29B_INVENTORY.md` advises
+retiring: `linear-deliverables-reconcile.yml`, `sample-linear-reconcile.yml`,
+`b1-linear-incremental-refresh.yml`, `production-shadow-audit.yml` and
+`linear-outbound-drain.yml` — the last being the "decide it rather than leave it
+running by omission" item STEP 7 hands back to STEP 6. `workflow_dispatch` is
+kept on all five. In the same commit, `reconciler_pager`,
+`b1_incremental_refresh` and `production_shadow_audit` carry
+`retired: { at: '2026-09-20', reason: 'linear-cutoff' }` in
+`scripts/monitoring-watchdog.js`, and both `REVIEWED_BLOB_SHA256` pins the
+runbook warns will drift are re-pinned from the committed blobs. `monitoring_watchdog`
+keeps `monitoring-deadman.yml` and `monitoring-crosscheck.yml` as two scheduled
+Linear-free hosts, which is what the suite requires. **Not done here:** the
+fourth `retires_with:'linear'` lane, `production_write_drill`, stays active
+because the inventory classifies its only host a *rewrite* candidate, not a
+retire one, and a retired lane with a scheduled host fails the suite — the two
+must move together, in whichever PR rewrites that workflow. No n8n workflow was
+touched; the runbook's own n8n items are listed in the PR for the owner. No live
+read, deployment or database change occurred.

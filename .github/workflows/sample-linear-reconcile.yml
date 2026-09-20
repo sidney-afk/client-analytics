@@ -11,8 +11,13 @@ name: Samples ⇄ Linear status reconcile
 # from the Actions tab (workflow_dispatch) — leave "dry_run" on to preview.
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
+  # Unscheduled 2026-09-20 by the Linear cutoff, STEP 6 of
+  # docs/ops/LINEAR_CUTOFF_RUNBOOK.md. Commented out rather than disabled in the
+  # Actions UI so the repository does not lie about itself. workflow_dispatch is
+  # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
+  # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #schedule:
+  #  - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
   workflow_dispatch:
     inputs:
       dry_run:

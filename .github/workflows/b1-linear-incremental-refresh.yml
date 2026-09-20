@@ -24,8 +24,13 @@ on:
       allow_closed_identifiers:
         description: 'Manual-only, narrow escape hatch (native_link_required, OPEN_REPAIRS 39/89): comma-separated Linear identifiers (e.g. "GRA-6384,VID-11945") of ALREADY-CLOSED issues to let through the isOpenIssue gate. Leave empty for a standard run — everything else (INSERT-ONLY, the existing-deliverable skip, the card-slot conflict withhold) still applies to a named issue exactly as it does to any other stray candidate, so naming one that already has a row or that collides with another card is still a no-op. Requires changed_since to reach back far enough that the identifier is actually in the fetched window.'
         default: ''
-  schedule:
-    - cron: '*/30 * * * *'
+  # Unscheduled 2026-09-20 by the Linear cutoff, STEP 6 of
+  # docs/ops/LINEAR_CUTOFF_RUNBOOK.md. Commented out rather than disabled in the
+  # Actions UI so the repository does not lie about itself. workflow_dispatch is
+  # kept: this lane is still runnable by hand. Undo: uncomment, and un-retire the
+  # matching lane in scripts/monitoring-watchdog.js in the same commit.
+  #schedule:
+  #  - cron: '*/30 * * * *'
 
 permissions:
   contents: read

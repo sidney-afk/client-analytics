@@ -91,8 +91,14 @@ ok(!/"Import from Linear"/.test(INDEX),
   'no in-app message still quotes "Import from Linear" as a recommended recovery action');
 ok(/or open the calendar and use Create Post to add them now\./.test(INDEX),
   'the post-submit background-write-failure notice now points at Create Post');
-ok(/or use Create Post on the calendar to add the rest now\./.test(INDEX),
-  'the partial-write-count notice now points at Create Post');
+/* The partial-write-count notice this used to pin (a per-card write loop
+   that could land some cards and miss others) no longer exists: 2026-09-20
+   (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md) retired _writeLinearVideoCardsToCalendar's
+   card-writing body outright in favor of a single all-or-nothing hold, since
+   every active client is native-enrolled and reaches this function only
+   through a stale pre-enrollment job or the retained rollback entry point. */
+ok(/Add the ' \+ videos\.length \+ ' card' \+ \(videos\.length === 1 \? '' : 's'\)\s*\n\s*\+ ' from the calendar with Create Post, or ask an admin to enroll this client\./.test(INDEX),
+  'the retired-path hold notice now points at Create Post instead of writing cards');
 ok(/Open the calendar and use Create Post to add them\./.test(INDEX),
   'the resumed-job retry-cap notice now points at Create Post');
 

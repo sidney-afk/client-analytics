@@ -92,6 +92,12 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // touched. Both hashes come from `git show HEAD:<path> | sha256sum` on the
   // commit that made the change, never typed by hand. (Previous pins:
   // f68282ca... for the workflow, 81861068... for the watchdog.)
+  //
+  // Re-pinned again 2026-09-20, same lane, ONE blob: the owner's decision to retire
+  // `production_write_drill` as well moved `scripts/monitoring-watchdog.js` a
+  // second time. WORKFLOW_PATH did not move again, so its pin is unchanged, and
+  // production-write-drill.yml is not a closure file. Membership UNCHANGED.
+  // (Previous pin: 590e88a7...)
   // Re-pinned 2026-08-04 with the monitoring-readiness change: the workflow
   // gained the heartbeat/dead-man steps and the n8n key for delivery receipts;
   // the pager moved to the shared relay client. Both blobs are re-reviewed.
@@ -312,7 +318,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // exit rather than dying with it. This pin records those source bytes and
   // approves nothing else. (Previous pin: b193214e...)
   'scripts/monitoring-watchdog.js':
-    '590e88a7b983fce27dbdc329a2a5f841016dc670bc93c5e9c1fe282572c5ec53',
+    'a94d1cb87b96cfa7a2fb40a5de0237eb9df410715c306d339973fb921c2f4744',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

@@ -36,6 +36,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-20 — Frozen mirror_outbox backlog marked terminal (authorized live write, owner decision), clearing the pending-age alarm. Before: 45 rows in (`pending`,`failed`,`shadow_ok`) — 17 real `failed` (`test_only=false`), 28 test `failed` (`test_only=true`), 0 `pending`, 0 `shadow_ok`. In one transaction, updated exactly those 45 rows to `status='skipped'`, `last_error='frozen at cutoff 2026-09-20 by owner decision; Linear retired, not sent'`; row count matched before commit. After: 0 rows in (`pending`,`failed`,`shadow_ok`); 45 `skipped` rows carry the freeze note. `linear-outbound-drain.yml` dispatched once (run 35534292911, succeeded): `mode` `off`, `backlog` **0**, `alerts.oldest_pending_age` **false** — alarm cleared as expected
+
 ### 2026-09-20 — Execution-map update: five capability rows closed or measured on today's slice, plus the outbound cutoff's own row
 
 Documentation only, against the execution map (`docs/ops/LINEAR_EXIT_EXECUTION_MAP.md`) and the step-29b inventory — no test run beyond the identity-exposure check, no code, migration, flag, or n8n change. Rows touched:

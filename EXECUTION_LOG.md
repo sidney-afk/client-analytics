@@ -7511,3 +7511,39 @@ Those three sites now render through `_prodIssueDisplayLabel`, which answers
 Copy issue ID, palette search, sort keys and deep links keep the real id.
 Verified by `test/prod-create-parents-native.js` (executes both helpers and
 pins the three presentation sites plus the copy path).
+
+**2026-09-20 — One-time Linear brief-image copy run (`scripts/native-brief-media-copy.mjs`,
+PR #1451, CLI fix PR #1452).** Read-only export: 487 `deliverables` rows had a
+`brief` containing an `uploads.linear.app` occurrence; 0 had a null
+`linear_issue_uuid` (none refused on that basis). `plan` (zero network calls):
+487 rows, 1339 occurrences across 1168 distinct files. `apply --apply` ran
+against the live database/storage/Linear API, authorized by the owner (service
+role key set directly in session environment, never logged). Two transient
+network failures during the run (`fetch failed`, then `storage_upload_failed_520`)
+were retried — the script's idempotency (`findExistingVerified`) made retry
+safe; no duplicate writes. Final result: **copied 238, skipped_idempotent 1100,
+refused 1** (`byte_length_out_of_range` — a genuine content-validation refusal,
+not transient). Coverage: 1338/1339 resolved, complete=false.
+`native_brief_media_occurrences` now holds 1338 verified rows (read back
+2026-09-20T22:56:19Z). Wrote only to the `syncview-native-brief-media` storage
+bucket and `native_brief_media_occurrences`; nothing written to Linear.
+
+**Flag not flipped.** With refused=1 (not 0), the script's own eligibility
+check printed `NOT YET ELIGIBLE` (its `projectBriefMedia()` gate requires
+`recovery_receipt_sha256` and `coverage_receipt_sha256`, generated only from
+a zero-gap run) and did not print a real FLAG FLIP block, so
+`syncview_runtime_flags.native_brief_media` was not touched. Per instruction,
+no SQL was run for this step; the eligibility notice was reported verbatim
+instead. Rollback SQL the script prints (for if the flag is ever turned on
+later, not run here): `update public.syncview_runtime_flags set value =
+'{"mode":"off","contract":"native_brief_media_v1"}'::jsonb, updated_by =
+'native-brief-media-copy' where key = 'native_brief_media';`
+
+Separately noted, not fixed here: the script's CLI entrypoint guard was
+broken on Windows before PR #1452 (`file://${process.argv[1]}` never equals
+`import.meta.url` on a Windows path), causing a silent no-op (exit 0, no
+output) on `plan`/`apply`. Worked around before #1452 merged by calling the
+exported `buildManifest()`/`assertPrivatePath()` directly; not needed after
+the fix landed. rows.json, manifest.json and out-map.json were written under
+`%USERPROFILE%\.syncview\brief-media\`, outside any git working tree, per
+the script's own `assertPrivatePath` refusal.

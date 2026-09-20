@@ -863,21 +863,11 @@ async function assertNoWriteRequests(requests) {
     if (parentWithChild) {
       await page.evaluate(id => window._prodOpenDeliverable(id), parentWithChild);
       await page.waitForSelector('[data-prod-section="subissues"] .prod-subrow', { timeout: 10000 });
-      const parentAddSubGate = await page.evaluate(id => {
-        const issue = _prodIssue(id);
-        return _prodCreateGateText(issue.project, issue.team, issue);
-      }, parentWithChild);
-      const parentAddSub = page.locator('[data-prod-section="subissues"] [data-prod-add-subissue]');
-      await expectExactCount(page, '[data-prod-section="subissues"] [data-prod-add-subissue]', 1, 'guarded add sub-issue affordance');
-      if (!parentAddSubGate
-        || (await parentAddSub.getAttribute('data-prod-add-subissue')) !== parentWithChild
-        || !(await parentAddSub.isDisabled())
-        || (await parentAddSub.getAttribute('title')) !== parentAddSubGate
-        || (await parentAddSub.getAttribute('data-prod-tip')) !== parentAddSubGate
-        || (await parentAddSub.getAttribute('onclick')) !== null
-        || (await parentAddSub.textContent()).trim() !== 'Add sub-issue') {
-        throw new Error('Parent sub-issue affordance did not expose the exact creation guard');
-      }
+      // Sub-issue creation is not reachable from Production at all
+      // (CLAUDE.md standing rule) -- only the content calendar creates.
+      // _prodAddSubIssueButtonHTML was removed outright, not just gated,
+      // so no [data-prod-add-subissue] affordance renders here anymore.
+      await expectExactCount(page, '[data-prod-section="subissues"] [data-prod-add-subissue]', 0, 'no add sub-issue affordance on a parent with children');
       const parentSubIssueShape = await page.evaluate(() => {
         const row = document.querySelector('[data-prod-section="subissues"] .prod-subrow');
         const id = row ? row.getAttribute('data-prod-subrow') : '';
@@ -897,28 +887,19 @@ async function assertNoWriteRequests(requests) {
     const zeroChildRoot = await page.evaluate(() => {
       const rows = _prodIssues();
       const issue = rows.find(row => !row.parent && !rows.some(child => child.parent === row.id));
-      return issue ? {
-        id: issue.id,
-        gate: _prodCreateGateText(issue.project, issue.team, issue),
-      } : null;
+      return issue ? { id: issue.id } : null;
     });
     if (zeroChildRoot) {
       await page.evaluate(id => window._prodOpenDeliverable(id), zeroChildRoot.id);
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-      if (await page.locator('[data-prod-section="subissues"]').count()) {
+      // The empty Sub-issues section used to render just to hold the Add
+      // sub-issue affordance; with that affordance removed outright, an
+      // empty parent renders neither the populated nor the former
+      // "subissues-empty" section at all.
+      if (await page.locator('[data-prod-section="subissues"], [data-prod-section="subissues-empty"]').count()) {
         throw new Error('Empty Sub-issues section should be hidden');
       }
-      const emptyAddSub = page.locator('[data-prod-section="subissues-empty"] [data-prod-add-subissue]');
-      await expectExactCount(page, '[data-prod-section="subissues-empty"] [data-prod-add-subissue]', 1, 'root issue guarded Add sub-issue affordance');
-      if (!zeroChildRoot.gate
-        || (await emptyAddSub.getAttribute('data-prod-add-subissue')) !== zeroChildRoot.id
-        || !(await emptyAddSub.isDisabled())
-        || (await emptyAddSub.getAttribute('title')) !== zeroChildRoot.gate
-        || (await emptyAddSub.getAttribute('data-prod-tip')) !== zeroChildRoot.gate
-        || (await emptyAddSub.getAttribute('onclick')) !== null
-        || (await emptyAddSub.textContent()).trim() !== 'Add sub-issue') {
-        throw new Error('Empty root sub-issue affordance did not expose the exact creation guard');
-      }
+      await expectExactCount(page, '[data-prod-add-subissue]', 0, 'no add sub-issue affordance on a childless root issue');
     }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });

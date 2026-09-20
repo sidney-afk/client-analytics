@@ -36,6 +36,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-20 — Frozen mirror_outbox backlog marked terminal (authorized live write, owner decision), clearing the pending-age alarm. Before: 45 rows in (`pending`,`failed`,`shadow_ok`) — 17 real `failed` (`test_only=false`), 28 test `failed` (`test_only=true`), 0 `pending`, 0 `shadow_ok`. In one transaction, updated exactly those 45 rows to `status='skipped'`, `last_error='frozen at cutoff 2026-09-20 by owner decision; Linear retired, not sent'`; row count matched before commit. After: 0 rows in (`pending`,`failed`,`shadow_ok`); 45 `skipped` rows carry the freeze note. `linear-outbound-drain.yml` dispatched once (run 35534292911, succeeded): `mode` `off`, `backlog` **0**, `alerts.oldest_pending_age` **false** — alarm cleared as expected
+
 ### 2026-09-20 — Execution-map update: five capability rows closed or measured on today's slice, plus the outbound cutoff's own row
 
 Documentation only, against the execution map (`docs/ops/LINEAR_EXIT_EXECUTION_MAP.md`) and the step-29b inventory — no test run beyond the identity-exposure check, no code, migration, flag, or n8n change. Rows touched:
@@ -13651,6 +13653,38 @@ excluding behavior), `test/production-parent-link-hierarchy.js`,
 and `test/prod-deep-link-fast-paint.js` updated for the one new boot helper.
 OPEN_REPAIRS 221 records all three together. `docs/syncview-design/tests/prod-write-gateway-browser.js`
 also run clean. No live read, deployment, migration, or n8n edit.
+
+### 2026-09-20 — Sub-issue creation removed outright from Production, not just gated (CLAUDE.md policy compliance)
+
+`_prodAddSubIssueButtonHTML` and both its call sites (the empty and
+populated `Sub-issues` section headers on an issue detail pane) are gone;
+`_prodSubIssuesSectionHTML` renders nothing at all for a childless parent
+and drops the button from the populated header. This was already gated
+closed at runtime by `PROD_CREATE_CLOSED_TEXT` (owner ruling 2026-08-23),
+but a gated-and-disabled button is still a rendered entry point, which
+violates the separate standing rule in `CLAUDE.md`: "Sub-issue creation must
+not be possible from SyncLinear — only from the content calendar." Searched
+every caller of `_prodOpenCreate`: only two existed in the whole file — the
+sub-issue button just removed, and the topbar "New issue" button, which
+opens `_prodOpenCreate()` with no `parentId` (mode `'parent'`, a top-level
+issue, not a sub-issue) and is out of this rule's scope, so it is untouched.
+No keyboard shortcut or command-palette entry called `_prodOpenCreate` at
+all. `_prodOpenCreate` itself is left alone per instructions — its
+subissue-mode branch is not dead: an ambiguous saved subissue draft still
+recovers through the topbar's "Recover issue" control, which calls
+`_prodOpenCreate()` with no `parentId` and reads the pending draft from
+`sessionStorage`. The Calendar's own Create Post path was not touched.
+Tests: `test/production-write-ui-source.js` and
+`test/production-preview-source.js` flipped their `_prodAddSubIssueButtonHTML`
+presence assertions to absence assertions; `test/prod-create-parents-native.js`
+and `test/prod-create-graphics-parent-scope.js` needed no change (neither
+references the removed button). Also corrected, since they pin the exact
+element removed: `docs/syncview-design/tests/prod-write-gateway-browser.js`
+(run — passes), `prod-structure-subset.js`, `prod-review-packet.js`,
+`prod-review-packet-validate.js`, and `prod-interaction-inventory.js` (all
+four are live-backend/screenshot lanes this sandbox cannot execute; fixed by
+inspection to keep them from drifting stale). No live read, deployment,
+migration, or n8n edit.
 
 ### 2026-09-20 — Brief media: the one-time copy script itself, built and tested, not run
 

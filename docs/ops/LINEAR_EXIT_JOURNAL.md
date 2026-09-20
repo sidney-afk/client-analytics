@@ -13634,7 +13634,12 @@ Linear-free hosts, which is what the suite requires. **Not done here:** the
 fourth `retires_with:'linear'` lane, `production_write_drill`, stays active
 because the inventory classifies its only host a *rewrite* candidate, not a
 retire one, and a retired lane with a scheduled host fails the suite — the two
-must move together, in whichever PR rewrites that workflow. No n8n workflow was
+must move together, in whichever PR rewrites that workflow. **Owner decision the
+same day: retire it now** -- `production-write-drill.yml` is unscheduled and
+`production_write_drill` carries the same retired stamp, so all four
+`retires_with:'linear'` lanes are retired and no scheduled workflow needs a
+LINEAR_* secret. The native write-gateway proof that drill gave daily is lost
+until a credential-free rewrite restores it. No n8n workflow was
 touched; the runbook's own n8n items are listed in the PR for the owner. **And
 one of them is load-bearing, not housekeeping** (Codex P1 on #1449, verified):
 pager `qllIDZPkdNAPRj0b` dispatches `sample-linear-reconcile.yml` every 15

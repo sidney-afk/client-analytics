@@ -43,6 +43,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 
 /* ------------------------------------------------------------------ *
@@ -450,7 +451,10 @@ const USAGE = `usage:
   linear-media-rescue.mjs upload  <manifest.json> <files-dir> <out-map.json>
   linear-media-rescue.mjs rewrite <manifest.json> <out-map.json> <forward.sql> <rollback.sql>`;
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL`, not string concatenation: on Windows `process.argv[1]` is
+// `C:\...` while `import.meta.url` is `file:///C:/...`, so the literal compare
+// never matched and the CLI exited 0 silently (found live 2026-09-20).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (cmd === 'scan' && rest.length === 2) cmdScan(...rest);
     else if (cmd === 'upload' && rest.length === 3) await cmdUpload(...rest);

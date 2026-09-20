@@ -36,6 +36,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-20 — PR #1436 browser-intake hold, read-only check: the 2 test-client deliverables created 05:14:59Z (VID-15027, GRA-8023) both have `linear_issue_uuid` null, and each has exactly 1 `mirror_outbox` row, status `skipped`, 0 attempts, no dispatch authorization. 0 queued and 0 sent outbound rows. Nothing was written
+
 ### 2026-09-19 — native intake plan: the correlated telemetry row is exempt from check 4's forbidden writes
 
 A correction to `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md`. Earlier entries

@@ -27166,11 +27166,24 @@ the REST of the file for the same assumption.
 
 1. **`_prodCreateParents`** (the parent-issue picker for the create/recovery
    dialog) filtered candidates on `issue.raw.linear_issue_uuid` being truthy.
-   A genuinely native card can never carry that field, so it could never be
-   offered as a parent to attach a sub-issue to — and neither could a
-   synthesized native batch-parent node (#1444), whose `raw` is the *batch*
-   row and so has no `linear_issue_uuid` column either. Fix drops that clause
-   from the filter; the attribution, project, and team clauses are unchanged.
+   A first pass read this as the same native-card exclusion #1444 removed
+   elsewhere and dropped the clause. **Codex review on PR #1447 caught that
+   it is not the same thing, and the pass was WRONG:**
+   `productionCreateParentRoute` (`supabase/functions/production-write/index.ts`)
+   resolves `parent_id` only against the `deliverables` table and requires
+   `parentLinearIssueId(parent)` (== `linear_issue_uuid`, no native fallback)
+   to be non-empty. A synthesized native batch-parent node's id is a BATCH
+   id, not a deliverable id, so the gateway would answer
+   `create_parent_not_found`; a genuinely native deliverable has no Linear
+   issue id, so it would answer `production_create_parent_scope`. Offering
+   either in the picker is only safe once the gateway can route to them too
+   — backend work this browser-only change cannot do. **The clause was put
+   back**, with a comment recording why, and the test rewritten to pin the
+   corrected (reverted) behavior instead of the wrong one. Nothing here is
+   reachable today regardless (creation is fully closed,
+   `production_create_closed` — OPEN_REPAIRS item covering `prod-create-closed.js`)
+   but the picker still has to be correct for when that closure lifts, since
+   the code is explicitly prepared for that.
 2. **`_prodResolveParentLinks` / Fix 3 investigation.** Traced a genuinely
    native child (neither `linear_issue_uuid` nor `raw_issue_parent_id`)
    through both passes by hand rather than assuming: `_prodResolveParentLinks`
@@ -27203,12 +27216,16 @@ the REST of the file for the same assumption.
    `_prodAttributionGateText` fallback ("Client attribution needs repair
    before writing.") already names the real state — no new copy invented.
 
-All three are browser-only (`index.html`); no Edge Function, migration, flag,
-or n8n workflow changed. Tests (each executes the real shipped function, not a
-reimplementation): `test/prod-create-parents-native.js` (new — native card and
-synthesized batch-parent both now offered, every other exclusion reason still
-holds); `test/production-parent-link-hierarchy.js` (extended — the two-pass
-trace above, run end to end); `test/prod-attribution-sync-pending-copy.js`
+Net result: two of the three surfaces were real gaps and are fixed (2 and 3);
+the third (1) turned out to already be correct as shipped, for a reason the
+first pass misread, and was restored to that correct state. All
+browser-only (`index.html`); no Edge Function, migration, flag, or n8n
+workflow changed. Tests (each executes the real shipped function, not a
+reimplementation): `test/prod-create-parents-native.js` (new — pins that a
+native card AND a synthesized batch-parent both stay excluded, that an
+ordinary Linear-backed card is still offered, and every other exclusion
+reason still holds); `test/production-parent-link-hierarchy.js` (extended —
+the two-pass trace above, run end to end); `test/prod-attribution-sync-pending-copy.js`
 (extended — cut-over team stops reading as syncing and falls through to the
 generic repair wording, a different team on the same row still reads as
 syncing, unloaded epoch fails open, a blank team never reads as cut over).

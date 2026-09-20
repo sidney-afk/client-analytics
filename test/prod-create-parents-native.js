@@ -1,16 +1,23 @@
 'use strict';
 
 /*
- * A NATIVE CARD (OR A SYNTHESIZED BATCH PARENT) IS A VALID PARENT TO ATTACH TO.
+ * A NATIVE CARD (OR A SYNTHESIZED BATCH PARENT) STAYS OUT OF THE CREATE
+ * PICKER UNTIL THE GATEWAY CAN ROUTE TO ONE.
  *
- * _prodCreateParents builds the parent-issue picker for the create/recovery
- * dialog. It filtered candidates on `issue.raw.linear_issue_uuid` being
- * truthy -- but a genuinely native row has no Linear identity at all (that is
- * the whole point of PR #1444), and the synthetic batch-parent node
- * _prodResolveBatchParentNodes mints for a native batch carries `raw:
- * node.batch` (a batches row), which has no `linear_issue_uuid` column
- * either. Both shapes are perfectly valid cards to attach a sub-issue to, and
- * both were silently excluded from the picker by this one clause.
+ * A first version of this fix dropped _prodCreateParents' `linear_issue_uuid`
+ * clause, reading it as the same native-card exclusion PR #1444 removed
+ * elsewhere. Codex review on PR #1447 caught that it is not the same thing:
+ * `productionCreateParentRoute` (supabase/functions/production-write/index.ts)
+ * resolves `parent_id` ONLY against the `deliverables` table and requires
+ * `parentLinearIssueId(parent)` -- `linear_issue_uuid`, with no native
+ * fallback -- to be non-empty. A synthesized batch-parent node's id is a
+ * BATCH id, not a deliverable id at all, so the gateway would answer
+ * `create_parent_not_found`; a genuinely native deliverable has no Linear
+ * issue id, so it would answer `production_create_parent_scope`. Offering
+ * either in the picker is only safe once the gateway can route to them too --
+ * backend work no `index.html`-only change can do. This suite pins the
+ * corrected (reverted) behavior: the clause stays, and BOTH native shapes
+ * stay excluded, alongside every other exclusion reason already proven here.
  *
  * Executes the real _prodCreateParents (and the real _prodWriteTeam,
  * _prodIssueLabel it calls) out of the shipped file; a source scan would pass
@@ -57,10 +64,10 @@ function extractFunction(name) {
   throw new Error('unclosed ' + name);
 }
 
-// The filter must NOT reference the UUID column at all any more.
+// The filter must still reference the UUID column -- that is the whole fix.
 const fnSource = extractFunction('_prodCreateParents');
-ok(!/linear_issue_uuid/.test(fnSource),
-  '_prodCreateParents no longer excludes candidates on linear_issue_uuid presence');
+ok(/linear_issue_uuid/.test(fnSource),
+  '_prodCreateParents still excludes candidates the gateway cannot route a create to (no linear_issue_uuid)');
 
 const sandbox = { String, Array, Object };
 vm.createContext(sandbox);
@@ -74,25 +81,28 @@ vm.runInContext(
 
 const ISSUES = [
   // A genuinely native, Linear-identity-less deliverable row with no parent.
+  // productionCreateParentRoute would answer production_create_parent_scope.
   {
     id: 'native-root', title: 'Native Root Card', parent: null, project: 'alpha', team: 'video',
     raw: { linear_issue_uuid: '' }
   },
   // A synthesized batch-parent node minted for a fully native batch (#1444):
-  // raw is the BATCH row, which has no linear_issue_uuid column at all.
+  // raw is the BATCH row, which has no linear_issue_uuid column at all, and
+  // its id is a batch id -- productionCreateParentRoute's deliverables lookup
+  // would answer create_parent_not_found.
   {
     id: 'native-batch-parent', title: 'Native Batch Parent', parent: null, project: 'alpha', team: 'video',
     syntheticBatchParent: true, raw: { id: 'bat_1', name: 'Native Batch Parent' }
   },
-  // An ordinary Linear-imported root, for contrast -- must still qualify.
+  // An ordinary Linear-imported root -- the gateway CAN route to this one.
   {
     id: 'linear-root', title: 'Linear Root Card', parent: null, project: 'alpha', team: 'video',
     raw: { linear_issue_uuid: 'lin-uuid-1' }
   },
   // Excluded for reasons OTHER than the UUID clause, to prove those still work.
-  { id: 'has-parent', title: 'Already A Child', parent: 'native-root', project: 'alpha', team: 'video', raw: {} },
-  { id: 'wrong-project', title: 'Wrong Client', parent: null, project: 'beta', team: 'video', raw: {} },
-  { id: 'wrong-team', title: 'Wrong Team', parent: null, project: 'alpha', team: 'graphics', raw: {} },
+  { id: 'has-parent', title: 'Already A Child', parent: 'native-root', project: 'alpha', team: 'video', raw: { linear_issue_uuid: 'lin-uuid-2' } },
+  { id: 'wrong-project', title: 'Wrong Client', parent: null, project: 'beta', team: 'video', raw: { linear_issue_uuid: 'lin-uuid-3' } },
+  { id: 'wrong-team', title: 'Wrong Team', parent: null, project: 'alpha', team: 'graphics', raw: { linear_issue_uuid: 'lin-uuid-4' } },
 ];
 
 sandbox.__ISSUES = ISSUES;
@@ -103,22 +113,22 @@ const draft = { clientSlug: 'alpha', team: 'video' };
 const parents = sandbox.createParents(draft);
 const ids = parents.map(p => p.id).sort();
 
-ok(ids.includes('native-root'),
-  'a genuinely native card (no Linear identity at all) is offered as a selectable parent');
-ok(ids.includes('native-batch-parent'),
-  'a synthesized native batch-parent node is offered as a selectable parent');
+ok(!ids.includes('native-root'),
+  'a genuinely native card (no Linear identity at all) stays excluded -- the gateway cannot route a create to it');
+ok(!ids.includes('native-batch-parent'),
+  'a synthesized native batch-parent node stays excluded -- its id is a batch id, not a deliverable id the gateway can find');
 ok(ids.includes('linear-root'),
-  'an ordinary Linear-backed card is still offered as a selectable parent');
+  'an ordinary Linear-backed card the gateway CAN route to is still offered as a selectable parent');
 ok(!ids.includes('has-parent'), 'a row that is already a child is still excluded');
 ok(!ids.includes('wrong-project'), 'a row for a different client is still excluded');
 ok(!ids.includes('wrong-team'), 'a row for a different team is still excluded');
-ok(ids.length === 3, 'exactly the three eligible roots are offered, nothing more (' + ids.join(',') + ')');
+ok(ids.length === 1 && ids[0] === 'linear-root',
+  'exactly the one gateway-routable root is offered, nothing more (' + ids.join(',') + ')');
 
-// Attribution must still gate the picker -- removing the UUID clause did not
-// also remove the attribution-resolved requirement.
-sandbox._prodAttributionResolved = issue => issue.id !== 'native-root';
+// Attribution must still gate the picker independently of the UUID clause.
+sandbox._prodAttributionResolved = issue => issue.id !== 'linear-root';
 const withoutAttribution = sandbox.createParents(draft).map(p => p.id);
-ok(!withoutAttribution.includes('native-root'),
+ok(!withoutAttribution.includes('linear-root'),
   'an unresolved-attribution row is still excluded regardless of its Linear identity');
 
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');

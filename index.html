@@ -57776,11 +57776,29 @@
                 savedAt: Date.now()
             };
         }
+        /* The `linear_issue_uuid` clause stays. It looks like the same
+           native-card exclusion #1444 removed elsewhere, and a first version
+           of this function dropped it on that reading -- but it is not that:
+           it is the one thing here that mirrors what the GATEWAY can actually
+           route to. `productionCreateParentRoute`
+           (supabase/functions/production-write/index.ts) resolves `parent_id`
+           only against `deliverables`, requires
+           `parentLinearIssueId(parent)` (== `linear_issue_uuid`, with no
+           native fallback) to be non-empty, and validates it against
+           `batches.linear_parent_ids` -- a synthetic batch-parent node's id
+           is a BATCH id, not a deliverable id, and a native deliverable
+           permanently has no Linear issue id, so the gateway refuses BOTH
+           with `create_parent_not_found` / `production_create_parent_scope`.
+           Offering them here would only be safe once the gateway can route to
+           them too, and that is backend work this browser-only change cannot
+           do. Caught by Codex review on PR #1447, which tried removing this
+           exact clause first. */
         function _prodCreateParents(draft) {
             return _prodIssues().filter(issue =>
                 issue && !issue.parent && _prodAttributionResolved(issue)
                 && issue.project === draft.clientSlug
                 && _prodWriteTeam(issue.team) === _prodWriteTeam(draft.team)
+                && String(issue.raw && issue.raw.linear_issue_uuid || '').trim()
             ).sort((a, b) => String(a.title || _prodIssueLabel(a)).localeCompare(String(b.title || _prodIssueLabel(b))));
         }
         function _prodCreateAssignees(draft) {

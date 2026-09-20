@@ -73,7 +73,7 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   decision. Controlled execution `432073` took only the hiring branch and returned
   `interview_booked`; no sales CRM, nurture, or sales alert node ran. See the public-safe recovery
   record in `n8n-backups/2026-08-25-hiring-process-status.md`.
-- Monitoring Pager + Reconciler Trigger `qllIDZPkdNAPRj0b` remains active. On 2026-08-03, after a
+- Monitoring Pager + Reconciler Trigger `qllIDZPkdNAPRj0b` — **DEACTIVATED by the owner 2026-09-20 at about 20:12Z** (Linear cutoff runbook STEP 6; verified read-only `active: false`). Its dispatch targets are unscheduled as of #1449. History below is kept as written. It **was** active: on 2026-08-03, after a
   private pre-edit export, only the `Trigger Reconciler V2` edge moved from the unchanged shared
   15-minute trigger to a new hourly minute-0 trigger. Calendar, Samples, V2-summary monitoring,
   incremental refresh, and outbound remain on the shared 15-minute path. Active version changed

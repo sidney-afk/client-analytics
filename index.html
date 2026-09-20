@@ -19278,16 +19278,26 @@
        snapshot would remove the need for the message; that is a projection
        change in the calendar's own region and is recorded in OPEN_REPAIRS 169
        rather than done here. */
-    function wlOpenInContentCalendar(clientName, identifier) {
+    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
         const canon = wlCanonicalClient(clientName);
         if (!canon) return;
         const ident = String(identifier || '').toUpperCase();
-        if (!ident) {
+        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
+        // no Linear identifier at all, so `ident` alone left every native
+        // deliverable unmatchable and this notice fired unconditionally for
+        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
+        // as its own field rather than folded into `identifier` -- folding it
+        // in would have sent it through `ident`'s uppercase-only sanitizing
+        // in _calApplyFocusRequest, which strips underscores and lowercase
+        // hex and mangles a UUID/native id. The notice now only fires when
+        // NEITHER identity is available to match on.
+        const nid = String(nativeId || '').trim();
+        if (!ident && !nid) {
             showNotify('Opening the calendar, not the card',
                 'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
                 + canon + "'s calendar is opening; find the card by title.");
         }
-        _calSetFocusRequest({ client: canon, identifier: ident });
+        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
         try {
             const pins = _calGetPins();
             if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
@@ -21648,7 +21658,7 @@
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';
             const calBtn = s.clientName
-                ? `<button type="button" class="workload-popover-item-cal" aria-label="Open in the content calendar" onclick="wlOpenInContentCalendar(${_jsAttrArg(s.clientName)},${_jsAttrArg(s.identifier || '')})"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
+                ? `<button type="button" class="workload-popover-item-cal" aria-label="Open in the content calendar" onclick="wlOpenInContentCalendar(${_jsAttrArg(s.clientName)},${_jsAttrArg(s.identifier || '')},${_jsAttrArg(s.nativeId || '')})"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
                 : '';
             // A sub-issue sitting in "Tweak Needed" gets a comment preview
             // box under its row — filled asynchronously below from Linear.
@@ -32584,22 +32594,37 @@
        the paste-time collision check (_calLinkConflict) so the warning predicts
        exactly what the dedupe would otherwise collapse. */
     function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
-    /* Normalised duplicate-detection key for one component (video/graphic) of
-       a post: the Linear sub-issue link when present, else the post's own
-       native deliverable id for that component. A native-only card (no
-       Linear URL) used to have no key at all -- invisible to
-       _calLinkDuplicatePeers and to _calIsArchivedRef's ledger check alike.
-       'native:' prefixes the fallback so a native deliverable id can never
-       collide with a Linear identifier string. Shared by both call sites in
-       _calLinkDuplicatePeers (the post's own key and its peers') and by
-       _calIsArchivedRef so all three treat a native duplicate consistently. */
+    /* Normalised duplicate-detection identity for one component
+       (video/graphic) of a post: the Linear sub-issue link AND the post's
+       own native deliverable id for that component, kept as two SEPARATE
+       keys rather than one field falling back to the other.
+       Codex review, PR for OPEN_REPAIRS 218 (P2): a single fallback key (URL
+       when present, else native id) missed the mixed state that happens
+       while provider linkage drains -- one card of a native-only duplicate
+       pair acquires a Linear URL before its twin does, so the URL-bearing
+       card gets a URL key and its still-native twin gets a native key, and
+       the two keys never collide even though both point at the same
+       underlying deliverable. `_calDupeMatch` below compares BOTH channels,
+       so that pair is still caught. A native id is never itself compared
+       against a Linear field (an unrelated string could coincidentally
+       match), only native-to-native and linear-to-linear. Shared by both
+       call sites in _calLinkDuplicatePeers (the post's own identity and its
+       peers'); _calIsArchivedRef's ledger check has its own, separate
+       native fallback (a Set-membership check, not a pairwise compare) but
+       reads the same two fields for the same reason. */
     function _calDupeKey(post, comp) {
-        const linear = _calLinkKey(comp === 'graphic'
-            ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id));
-        if (linear) return linear;
-        const native = _calLinkKey(comp === 'graphic'
-            ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id));
-        return native ? 'native:' + native : '';
+        return {
+            linear: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            native: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
+        };
+    }
+    // Two identities (each { linear, native } from _calDupeKey) collide when
+    // EITHER channel matches and is non-empty. Empty-vs-empty never counts,
+    // so two cards that both lack a component entirely are never flagged.
+    function _calDupeMatch(a, b) {
+        return !!((a.linear && a.linear === b.linear) || (a.native && a.native === b.native));
     }
     // Two active cards that point at the same Linear sub-issue USED to be collapsed
     // here — one was silently dropped from the calendar. That hidden-but-active card is
@@ -32631,14 +32656,15 @@
         if (isArch(post)) return [];
         const vKey = _calDupeKey(post, 'video');
         const gKey = _calDupeKey(post, 'graphic');
-        if (!vKey && !gKey) return [];
+        const vHas = !!(vKey.linear || vKey.native), gHas = !!(gKey.linear || gKey.native);
+        if (!vHas && !gHas) return [];
         const vPeers = new Set(), gPeers = new Set();
         for (const p of (calState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
             const nm = String(p.name || '').trim() || 'Untitled post';
             const pv = _calDupeKey(p, 'video'), pg = _calDupeKey(p, 'graphic');
-            if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
-            if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
+            if (vHas && (_calDupeMatch(vKey, pv) || _calDupeMatch(vKey, pg))) vPeers.add(nm);
+            if (gHas && (_calDupeMatch(gKey, pv) || _calDupeMatch(gKey, pg))) gPeers.add(nm);
         }
         const out = [];
         if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
@@ -39115,21 +39141,34 @@
             persistent = true;
         } else {
             const ident = String(req.identifier || '').replace(/[^A-Z0-9-]/g, '');
-            if (!ident) return;
-            const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
-            post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
-            if (!post) {
+            // Codex review, PR for OPEN_REPAIRS 218 (fix 3): `req.nativeId`
+            // is its OWN field, carried separately from `req.identifier` by
+            // wlOpenInContentCalendar. It must NOT go through `ident`'s
+            // strip above -- that regex assumes a Linear identifier
+            // (letters/digits/hyphen only) and silently mangles a native
+            // deliverable id by dropping underscores and any lowercase hex
+            // character, which broke every native match even when the id
+            // was being passed through correctly.
+            const nativeId = String(req.nativeId || '').trim().toUpperCase();
+            if (!ident && !nativeId) return;
+            if (ident) {
+                const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
+                post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
+            }
+            if (!post && nativeId) {
                 // A native card with no Linear URL still carries its own
                 // video/graphic deliverable id -- match that directly
-                // (exact, case-insensitive) before giving up, so a
-                // native-sourced focus request can still find its card
-                // instead of always hitting "Not on this calendar yet".
+                // (exact, case-insensitive, no character stripping) before
+                // giving up, so a native-sourced focus request can still
+                // find its card instead of always hitting "Not on this
+                // calendar yet".
                 post = calState.posts.find(p =>
-                    String(p.video_deliverable_id || '').toUpperCase() === ident
-                    || String(p.graphic_deliverable_id || '').toUpperCase() === ident);
+                    String(p.video_deliverable_id || '').toUpperCase() === nativeId
+                    || String(p.graphic_deliverable_id || '').toUpperCase() === nativeId);
             }
             if (!post) {
-                showNotify('Not on this calendar yet', ident + ' is not linked to a card on ' + calState.client + "'s content calendar.");
+                const label = ident || nativeId;
+                showNotify('Not on this calendar yet', label + ' is not linked to a card on ' + calState.client + "'s content calendar.");
                 return;
             }
         }
@@ -44849,8 +44888,24 @@
         let nativeTeams = [];
         try {
             const flags = await _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.native_intake_epochs', 2, 1);
-            const value = flags.length === 1 && flags[0].key === 'native_intake_epochs' && flags[0].value;
-            nativeTeams = ['video', 'graphics'].filter(team => value && value[team]
+            const row = Array.isArray(flags) && flags.length === 1 && flags[0] && flags[0].key === 'native_intake_epochs'
+                ? flags[0] : null;
+            const value = row && row.value;
+            // Codex review, PR for OPEN_REPAIRS 218 (P2): the ORIGINAL fix
+            // only failed open when `_prodRestRows` THREW. A 200 with no
+            // matching row, the wrong key, or a `value` that is not a usable
+            // object (null, an array, a primitive) bypassed the catch below
+            // entirely and left `nativeTeams` empty -- reproducing the exact
+            // invisible-picker bug this fix exists to close. Any unusable
+            // payload shape is deliberately thrown here so it takes the same
+            // fail-open path as a thrown read. A well-formed value object
+            // with some teams legitimately disabled is NOT unusable -- that
+            // is real per-team state, not a malformed read, and still
+            // produces its real (possibly partial or empty) nativeTeams list.
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                throw new Error('native_intake_epochs flag payload is missing or malformed');
+            }
+            nativeTeams = ['video', 'graphics'].filter(team => value[team]
                 && value[team].enabled === true && typeof value[team].epoch === 'string'
                 && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch));
         } catch (error) {

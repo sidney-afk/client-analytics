@@ -45,7 +45,8 @@ const _calLinkKey = def('_calLinkKey');
 const _calIsArchivedRef = def('_calIsArchivedRef');
 const _calDedupeByLinearIssue = def('_calDedupeByLinearIssue');
 const _calLinkDuplicatePeers = def('_calLinkDuplicatePeers');
-def('_calDupeKey'); // free-variable dep of _calLinkDuplicatePeers
+def('_calDupeKey'); // free-variable deps of _calLinkDuplicatePeers
+def('_calDupeMatch');
 globalThis.calClientSlug = (n) => String(n || '').toLowerCase();
 globalThis._calArchivedRefs = () => new Set();
 
@@ -156,6 +157,42 @@ const peerComp = (p, comp) => { const g = (_calLinkDuplicatePeers(p) || []).find
   globalThis.calState = { client: 'x', posts: [a, b] };
   ok(_calLinkDuplicatePeers(a).length === 0 && _calLinkDuplicatePeers(b).length === 0,
     'a Linear URL on one card and the same string as a native id on another never collide');
+}
+// Codex review, PR for OPEN_REPAIRS 218 (P2): the MIXED state that happens
+// while provider linkage drains -- two cards share the same native
+// deliverable, and ONE of them has since acquired a Linear URL while its
+// twin has not. Duplicate detection must compare BOTH identities (Linear
+// AND native), not just fall back to native when the URL is absent, or this
+// pair goes undetected the moment one twin gets linked.
+{
+  const a = { id: 'a', name: 'A', linear_issue_id: VID1, video_deliverable_id: 'nat-vid-mixed', status: 'In Progress' };
+  const b = { id: 'b', name: 'B', video_deliverable_id: 'nat-vid-mixed', status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(peerComp(a, 'video').includes('B'),
+    'the URL-bearing card still sees its still-native twin as a duplicate, via the shared video_deliverable_id');
+  ok(peerComp(b, 'video').includes('A'),
+    'and the still-native twin sees the URL-bearing card back, symmetrically');
+}
+{
+  // Same mixed state, graphic slot, and confirm it does NOT falsely cross
+  // into the video slot.
+  const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, graphic_deliverable_id: 'nat-gra-mixed', status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_deliverable_id: 'nat-gra-mixed', status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(peerComp(a, 'graphic').includes('B') && peerComp(a, 'video').length === 0,
+    'a mixed-state graphic duplicate is caught as comp=graphic, not video');
+}
+// _calDupeMatch itself, in isolation: exercises the two-channel OR directly.
+{
+  const _calDupeMatch = globalThis._calDupeMatch;
+  ok(_calDupeMatch({ linear: 'x', native: '' }, { linear: 'x', native: '' }) === true, 'linear-to-linear match');
+  ok(_calDupeMatch({ linear: '', native: 'y' }, { linear: '', native: 'y' }) === true, 'native-to-native match');
+  ok(_calDupeMatch({ linear: 'x', native: 'y' }, { linear: '', native: 'y' }) === true,
+    'mixed pair: one side has both identities, the other only native — still matches on native');
+  ok(_calDupeMatch({ linear: '', native: '' }, { linear: '', native: '' }) === false,
+    'two empty identities never match each other');
+  ok(_calDupeMatch({ linear: 'x', native: '' }, { linear: '', native: 'x' }) === false,
+    'a Linear value on one side never matches a native value on the other, even if the raw strings are equal');
 }
 // _calIsArchivedRef: the archive ledger's own key check falls back to the
 // native deliverable ids the same way, so an archived native-only duplicate
@@ -529,11 +566,21 @@ ok(!/return false/.test(dedupeSrc) && !/\.filter\(/.test(dedupeSrc),
 const peersSrc = grabFunc('_calLinkDuplicatePeers');
 ok(/_calDupeKey\(post, 'video'\)/.test(peersSrc) && /_calDupeKey\(post, 'graphic'\)/.test(peersSrc)
    && /_calDupeKey\(p, 'video'\)/.test(peersSrc) && /_calDupeKey\(p, 'graphic'\)/.test(peersSrc),
-   '_calLinkDuplicatePeers checks BOTH the video and graphic slots, through the shared _calDupeKey (Linear URL, else native deliverable id)');
+   '_calLinkDuplicatePeers reads BOTH the video and graphic identities, through the shared _calDupeKey');
+// Codex review, PR for OPEN_REPAIRS 218 (P2): pin that the comparison goes
+// through _calDupeMatch (checks BOTH the linear and native channels), not a
+// single-key equality that would miss the mixed drain state where one twin
+// has a URL and the other does not.
+ok(/_calDupeMatch\(vKey, pv\)/.test(peersSrc) && /_calDupeMatch\(vKey, pg\)/.test(peersSrc)
+   && /_calDupeMatch\(gKey, pv\)/.test(peersSrc) && /_calDupeMatch\(gKey, pg\)/.test(peersSrc),
+   '_calLinkDuplicatePeers compares identities through _calDupeMatch, both channels, both cross-slot directions');
 const dupeKeySrc = grabFunc('_calDupeKey');
 ok(/linear_issue_id/.test(dupeKeySrc) && /graphic_linear_issue_id/.test(dupeKeySrc)
    && /video_deliverable_id/.test(dupeKeySrc) && /graphic_deliverable_id/.test(dupeKeySrc),
-   '_calDupeKey falls back from the Linear field to the matching native deliverable id');
+   '_calDupeKey reads both the Linear field and the matching native deliverable id');
+const dupeMatchSrc = grabFunc('_calDupeMatch');
+ok(/a\.linear && a\.linear === b\.linear/.test(dupeMatchSrc) && /a\.native && a\.native === b\.native/.test(dupeMatchSrc),
+   '_calDupeMatch ORs the linear and native channels rather than falling back from one to the other');
 ok(/isArch/.test(peersSrc) && /calState\.posts/.test(peersSrc),
    '_calLinkDuplicatePeers excludes archived cards and reads the live card list');
 ok(/comp: 'video'/.test(peersSrc) && /comp: 'graphic'/.test(peersSrc),

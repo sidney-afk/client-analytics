@@ -85,8 +85,8 @@ function harness(options) {
     'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast', '_calHideOwnToast',
     src + '\nreturn _calApplyFocusRequest;',
   )(
-    opts.identifier !== undefined
-      ? { client: 'Client', identifier: opts.identifier }
+    opts.identifier !== undefined || opts.nativeId !== undefined
+      ? { client: 'Client', identifier: opts.identifier, nativeId: opts.nativeId }
       : { client: 'Client', cardId: opts.cardId === undefined ? 'p_target' : opts.cardId },
     calState,
     v => String(v || '').toLowerCase(),
@@ -659,34 +659,36 @@ function harness(options) {
 
 /* ── OPEN_REPAIRS: native focus-by-identifier ───────────────────────────
    Focus-by-identifier used to match ONLY against `linear_issue_id`. A
-   native card (no Linear URL) was therefore never focusable by identifier
-   at all, even when its own video/graphic deliverable id was the exact
-   value being looked up — it always fell through to "Not on this calendar
-   yet". _calApplyFocusRequest now also matches `video_deliverable_id` and
-   `graphic_deliverable_id` before giving up. */
+   native card (no Linear URL) was therefore never focusable at all, even
+   when its own video/graphic deliverable id was the exact value being
+   looked up — it always fell through to "Not on this calendar yet".
+   _calApplyFocusRequest now also matches `video_deliverable_id` and
+   `graphic_deliverable_id` against a SEPARATE `req.nativeId` field (never
+   `req.identifier` — see the Codex-review block below for why that
+   distinction is load-bearing, not cosmetic). */
 {
   const nativePosts = [
-    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
-    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'DLV-5678' },
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'del_1234' },
+    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'del_5678' },
     { id: 'p_linear', name: 'Linear card', linear_issue_id: 'https://linear.app/team/issue/VID-9/x' },
   ];
-  const h = harness({ identifier: 'DLV-1234', posts: nativePosts });
+  const h = harness({ nativeId: 'del_1234', posts: nativePosts });
   h.runFrames(1);
   ok(h.notified.length === 0, 'a native card is found by its video_deliverable_id — no failure notice');
   ok(h.log.includes('class+cal-card-flash'), 'and it is flashed like any other identifier-shape match (non-persistent, no cardId)');
 }
 {
   const nativePosts = [
-    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
-    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'DLV-5678' },
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'del_1234' },
+    { id: 'p_native_graphic', name: 'Native graphic card', graphic_deliverable_id: 'del_5678' },
   ];
-  const h = harness({ identifier: 'DLV-5678', posts: nativePosts });
+  const h = harness({ nativeId: 'del_5678', posts: nativePosts });
   h.runFrames(1);
   ok(h.notified.length === 0, 'a native card is found by its graphic_deliverable_id — no failure notice');
 }
 {
-  // The Linear-URL match still runs FIRST; it is not bypassed by the new
-  // native fallback.
+  // The Linear-URL match still runs FIRST when an identifier is present; it
+  // is not bypassed by the native fallback.
   const posts = [
     { id: 'p_linear', name: 'Linear card', linear_issue_id: 'https://linear.app/team/issue/VID-9/x' },
     { id: 'p_native', name: 'Native card', video_deliverable_id: 'VID-9' },
@@ -698,17 +700,95 @@ function harness(options) {
 {
   // No match anywhere (neither Linear nor native) still fails loudly, not silently.
   const posts = [
-    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'DLV-1234' },
+    { id: 'p_native_video', name: 'Native video card', video_deliverable_id: 'del_1234' },
   ];
-  const h = harness({ identifier: 'DLV-9999', posts });
+  const h = harness({ nativeId: 'del_9999', posts });
   h.runFrames(1);
   ok(h.notified.length === 1 && /Not on this calendar yet/.test(h.notified[0]),
-    'an identifier that matches neither the Linear field nor either native deliverable id still fails with the same message, not silently');
+    'a nativeId that matches neither the Linear field nor either native deliverable id still fails with the same message, not silently');
+}
+{
+  // Codex review, PR for OPEN_REPAIRS 218 (P1): the ORIGINAL fix added the
+  // native-fallback comparison but ran the native id through `ident`'s
+  // strip (`replace(/[^A-Z0-9-]/g, '')`), which drops underscores and any
+  // lowercase hex character -- exactly what a real native deliverable id
+  // (`del_1234abcd...`) is made of. A value with an underscore and lower-
+  // case hex MUST still match: this is the regression test for that.
+  const posts = [
+    { id: 'p_native', name: 'Native card', video_deliverable_id: 'del_1234abcd-ef00' },
+  ];
+  const h = harness({ nativeId: 'del_1234abcd-ef00', posts });
+  h.runFrames(1);
+  ok(h.notified.length === 0,
+    'a native id containing an underscore and lowercase hex chars still matches — it is compared WITHOUT the Linear-identifier character strip');
+}
+{
+  // Also confirm identifier and nativeId are independent channels: an
+  // identifier that would corrupt into a false match must not leak into
+  // the native comparison, and vice versa.
+  const posts = [
+    { id: 'p_a', name: 'A', video_deliverable_id: 'del_1234' },
+  ];
+  const h = harness({ identifier: 'del_1234', posts }); // wrong field on purpose
+  h.runFrames(1);
+  ok(h.notified.length === 1 && /Not on this calendar yet/.test(h.notified[0]),
+    'a native id placed in req.identifier (the wrong channel) does not accidentally match — identifier and nativeId are not interchangeable');
 }
 
 const applyFocusSrc = extractFunction(html, '_calApplyFocusRequest');
 ok(/p\.video_deliverable_id/.test(applyFocusSrc) && /p\.graphic_deliverable_id/.test(applyFocusSrc),
-  '_calApplyFocusRequest source checks both video_deliverable_id and graphic_deliverable_id for the identifier fallback');
+  '_calApplyFocusRequest source checks both video_deliverable_id and graphic_deliverable_id for the native-id fallback');
+ok(/req\.nativeId/.test(applyFocusSrc) && !/ident \+ nativeId|nativeId\.replace\(\/\[\^A-Z0-9-\]/.test(applyFocusSrc),
+  'req.nativeId is read as its own field and is never routed through the Linear-identifier character strip');
+
+/* ── Codex review, PR for OPEN_REPAIRS 218 (P1): the real caller chain ──
+   The Workload popover's "Open in the content calendar" button is the ONLY
+   real caller (`wlOpenInContentCalendar`). It used to pass just the Linear
+   identifier, so a pure-native sub-issue (no Linear identifier at all)
+   could never be focused by anything but its title. It now also receives
+   and forwards the native deliverable id as its own argument/field. */
+{
+  const wlSrc = extractFunction(html, 'wlOpenInContentCalendar');
+  ok(/function wlOpenInContentCalendar\(clientName, identifier, nativeId\)/.test(wlSrc),
+    'wlOpenInContentCalendar accepts a nativeId parameter, separate from the Linear identifier');
+  ok(/_calSetFocusRequest\(\{ client: canon, identifier: ident, nativeId: nid \}\)/.test(wlSrc),
+    'and forwards it onto the focus request as its own field, not folded into identifier');
+  ok(/if \(!ident && !nid\)/.test(wlSrc),
+    'the "no Linear identifier" notice only fires when NEITHER identity is available to match on');
+
+  const calBtnMarker = /wlOpenInContentCalendar\(\$\{_jsAttrArg\(s\.clientName\)\},\$\{_jsAttrArg\(s\.identifier \|\| ''\)\},\$\{_jsAttrArg\(s\.nativeId \|\| ''\)\}\)/;
+  ok(calBtnMarker.test(html),
+    'the Workload popover\'s "Open in the content calendar" button passes s.nativeId through as the third argument');
+
+  // Execute the real function end to end: a pure-native sub (no Linear
+  // identifier) must still reach _calSetFocusRequest with its nativeId, and
+  // must NOT show the "no Linear identifier" notice, now that it has a
+  // usable native identity to focus by.
+  const calls = { setFocusRequest: [], notified: [] };
+  const sandboxFn = new Function(
+    'wlCanonicalClient', 'showNotify', '_calSetFocusRequest', '_calGetPins', '_calSavePins', 'navTo',
+    wlSrc + '\nreturn wlOpenInContentCalendar;',
+  )(
+    name => name,
+    (title, body) => calls.notified.push({ title, body }),
+    req => calls.setFocusRequest.push(req),
+    () => [],
+    () => {},
+    () => {},
+  );
+  sandboxFn('Client', '', 'del_abcd_1234');
+  ok(calls.notified.length === 0,
+    'a pure-native sub-issue (no Linear identifier, real nativeId) does NOT show the "no Linear identifier" notice');
+  ok(calls.setFocusRequest.length === 1
+    && calls.setFocusRequest[0].nativeId === 'del_abcd_1234'
+    && calls.setFocusRequest[0].identifier === '',
+    'and the focus request carries the native id verbatim (case preserved here; _calApplyFocusRequest uppercases it for comparison), untouched by any Linear-identifier sanitizing');
+
+  calls.notified.length = 0; calls.setFocusRequest.length = 0;
+  sandboxFn('Client', '', '');
+  ok(calls.notified.length === 1,
+    'a sub-issue with NEITHER a Linear identifier nor a native id still shows the "no Linear identifier" notice, as before');
+}
 
 if (failures) {
   console.error(`\n${failures} calendar deep-link focus check(s) failed`);

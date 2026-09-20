@@ -1297,3 +1297,14 @@ said so.
     real caller could never run. Bytes-level lint
     (`test/migration-bare-delete-lint.js`) now covers what the connection
     cannot.
+
+## 2026-09-20 — a native post's parent node reads "Post", not `bat_<uuid>`
+
+- **Observed:** Submit-created posts showed their raw batch id in the
+  Production list id cell, the breadcrumb and the detail header (owner,
+  cutoff-day click-through).
+- **Now:** those three sites render `_prodIssueDisplayLabel`, which answers
+  "Post" for a synthetic batch parent. Identity surfaces (Copy issue ID,
+  palette search, sort, deep links) still use `_prodIssueLabel` and the real id.
+- **Parity note:** Linear never showed such a node at all; this is a native
+  affordance with no reference to match, kept deliberately plain.

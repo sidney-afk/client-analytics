@@ -56407,6 +56407,20 @@
         function _prodIssueLabel(d) {
             return d && (d.displayId || d.identifier || d.linear_identifier || d.id) || '';
         }
+        /* PRESENTATION ONLY. A natively-created post has no short identifier
+           of its own: the mint covers videos and thumbnails, not the batch
+           that groups them, so the synthetic parent node fell through to its
+           raw `bat_<uuid>` id in the list's id cell, the breadcrumb and the
+           detail header. Owner, 2026-09-20 cutoff-day pass: "the batch ID is
+           super long ... I don't know if that's normal". Those three sites
+           read "Post" instead. Everything that treats the label as an
+           IDENTITY -- _prodCopyIssueIds (Copy issue ID), the palette's search
+           field, sort keys, `title || label` fallbacks -- keeps calling
+           _prodIssueLabel and still gets the real id (Codex P1 on PR 1455). */
+        function _prodIssueDisplayLabel(d) {
+            if (d && d.syntheticBatchParent === true) return 'Post';
+            return _prodIssueLabel(d);
+        }
         /* A provider card's identifier is 9 characters; a native card has none
            yet and falls through to the 40-character deliverable id. The cell
            truncates either way now (see `.prod-id`), so the long one has to
@@ -56417,7 +56431,7 @@
            at all. This keeps the row readable until it does, and is not a
            substitute for it. */
         function _prodIssueIdHTML(d) {
-            const label = _prodIssueLabel(d);
+            const label = _prodIssueDisplayLabel(d);
             return '<span class="prod-id"' + (label ? _prodTitleAttrs(label) : '') + '>' + _calEsc(label) + '</span>';
         }
         function _prodFmtDate(v) {
@@ -66417,7 +66431,7 @@
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
             const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
-            const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
+            const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueDisplayLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
             // Sibling navigation (owner 2026-08-18): inside a sub-issue, step to
             // the previous/next sibling without going back to the parent. Order
             // matches the parent's sub-issue section (_prodChildrenOf).
@@ -67068,7 +67082,7 @@
                     .concat(String(parentAsset && parentAsset.url || '').trim() ? ['deliverable_file'] : [])
                 : null;
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
-                + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
+                + '<div class="prod-detail-id">' + _calEsc(_prodIssueDisplayLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
                 + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodAttributionNoticeHTML(d)

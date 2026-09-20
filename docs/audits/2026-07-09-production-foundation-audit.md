@@ -580,3 +580,16 @@ server-side writer at all once Linear stopped carrying it.
 Its narrow predicate — the MAPPED calendar value must actually differ from what
 the card holds — is what keeps it from re-stamping `video_status_at`, the urgent
 ping's deduplication key, on a change the card never showed.
+
+## Addendum, 2026-09-20 — the label a synthetic post shows, and what it does not widen
+
+The synthetic batch-parent node (#1444) had no short identifier to show, so
+it displayed its `bat_<uuid>` id. It now displays "Post" at the three places a
+person reads the id: the list id cell, the breadcrumb, the detail header.
+
+What this does not widen: identity. `_prodIssueLabel` still answers the batch
+id for that node, and it is what Copy issue ID, the command palette's search
+field, sort comparators and every `title || label` fallback call. `_prodIssue()`
+resolves by `id`/`displayId` and never by the label, so no deep link, no
+selection and no write path changes. Codex raised the identity/presentation
+split on #1455 and the split is now explicit in the helper names.

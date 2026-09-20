@@ -131,5 +131,34 @@ const withoutAttribution = sandbox.createParents(draft).map(p => p.id);
 ok(!withoutAttribution.includes('linear-root'),
   'an unresolved-attribution row is still excluded regardless of its Linear identity');
 
+// The synthesized node is LABELLED as a post, not as its raw batch id. Owner,
+// 2026-09-20 cutoff-day pass: "the batch ID is super long ... I don't know if
+// that's normal". A label only: _prodIssue() resolves by id/displayId and no
+// deep link is built from it, so nothing that routes to the node changes.
+{
+  const labelSrc = source.slice(source.indexOf('function _prodIssueLabel('),
+    source.indexOf('function _prodIssueIdHTML('));
+  ok(labelSrc.length > 0 && /function _prodIssueDisplayLabel\(/.test(labelSrc),
+    'both label helpers extract (harness is not vacuous)');
+  const SYN = { id: 'bat_00000000-0000-4000-8000-0000000000aa', syntheticBatchParent: true };
+  const display = new Function('d', labelSrc + '\nreturn _prodIssueDisplayLabel(d);');
+  const identity = new Function('d', labelSrc + '\nreturn _prodIssueLabel(d);');
+  ok(display(SYN) === 'Post',
+    'a synthetic batch-parent node DISPLAYS as "Post", never its raw bat_ id');
+  ok(identity(SYN) === SYN.id,
+    'but its IDENTITY label is still the batch id -- Copy issue ID, palette search and sort keys keep the real value (Codex P1 on #1455)');
+  ok(display({ id: 'del_x', displayId: 'VID-9001' }) === 'VID-9001',
+    'an ordinary card still shows its identifier');
+  ok(display({ id: 'del_y' }) === 'del_y',
+    'an unminted native card still falls through to its id (the mint is the fix for that one)');
+  // The three presentation sites use the display helper; the identity sites do not.
+  ok(/const label = _prodIssueDisplayLabel\(d\);/.test(source), 'the list id cell renders the display label');
+  ok(/prod-detail-id">' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\)/.test(source), 'the detail header renders the display label');
+  ok(/'<b>' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\) \+ '<\/b>'/.test(source), 'the breadcrumb renders the display label');
+  const { extractFunction } = require('./helpers/extract-function.js');
+  const copySrc = extractFunction(source, '_prodCopyIssueIds');
+  ok(copySrc.length > 0 && !/_prodIssueDisplayLabel/.test(copySrc), 'Copy issue ID never copies the display label');
+}
+
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');
 process.exit(failures ? 1 : 0);

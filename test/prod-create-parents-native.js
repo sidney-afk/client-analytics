@@ -155,8 +155,9 @@ ok(!withoutAttribution.includes('linear-root'),
   ok(/const label = _prodIssueDisplayLabel\(d\);/.test(source), 'the list id cell renders the display label');
   ok(/prod-detail-id">' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\)/.test(source), 'the detail header renders the display label');
   ok(/'<b>' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\) \+ '<\/b>'/.test(source), 'the breadcrumb renders the display label');
-  const copySrc = source.slice(source.indexOf('function _prodCopyIssueIds('), source.indexOf('function _prodCopyIssueIds(') + 1500);
-  ok(!/_prodIssueDisplayLabel/.test(copySrc), 'Copy issue ID never copies the display label');
+  const { extractFunction } = require('./helpers/extract-function.js');
+  const copySrc = extractFunction(source, '_prodCopyIssueIds');
+  ok(copySrc.length > 0 && !/_prodIssueDisplayLabel/.test(copySrc), 'Copy issue ID never copies the display label');
 }
 
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');

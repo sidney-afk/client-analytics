@@ -59,17 +59,21 @@ for (const name of BOARD_ONLY) {
   ok(calls === 0, `${name} has no reachable caller (it is retained for A9, not wired)`);
 }
 
-// The one exemption, pinned from both sides: exactly one function may reach the
-// provider reader, and exactly one caller may reach that function.
-const discovery = extractFunction(html, 'wlDiscoverProviderIssues');
-let liveMinusDiscovery = live.split(discovery).join('');
-ok(live.split('_wlLegacyLoadLinearIssues(').length - 1 === 1
-  && liveMinusDiscovery.split('_wlLegacyLoadLinearIssues(').length - 1 === 0,
-  'the provider reader has exactly one caller, and it is wlDiscoverProviderIssues');
-ok(liveMinusDiscovery.split('wlDiscoverProviderIssues(').length - 1 === 1,
-  'and wlDiscoverProviderIssues itself has exactly one caller');
-ok(/\(\{ issues \} = await wlDiscoverProviderIssues\(\)\);/.test(html),
-  'that caller is the post-create calendar poll, not anything on the board');
+// The exemption this file used to pin from both sides -- `wlDiscoverProviderIssues`,
+// the post-create calendar poll's one door onto the provider reader -- was
+// retired 2026-09-20 (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md, "what needs code"
+// item 2): every active client is native-enrolled now, and
+// `_writeLinearVideoCardsToCalendar` holds visibly instead of discovering
+// through Linear on the rare path that can still reach it. The symbol no
+// longer exists at all, so the door is not just shut -- it is gone. What
+// remains open is `_wlLegacyLoadLinearIssues` itself: it now has ZERO live
+// callers, same as the other three names in LEGACY above.
+ok(!/function wlDiscoverProviderIssues\(/.test(html),
+  'wlDiscoverProviderIssues no longer exists -- the discovery door is removed, not merely unwired');
+ok(!/\(\{ issues \} = await wlDiscoverProviderIssues\(\)\);/.test(html),
+  'and nothing still calls it by that shape');
+ok(live.split('_wlLegacyLoadLinearIssues(').length - 1 === 0,
+  '_wlLegacyLoadLinearIssues has no reachable caller left (its only one, wlDiscoverProviderIssues, is gone)');
 
 // The board's own readers must not have acquired a door of their own.
 for (const reader of ['loadLinearIssues', 'wlLoadSnapshot', 'wlRefetchSilent', 'wlFetchNativeSnapshot']) {
@@ -77,6 +81,13 @@ for (const reader of ['loadLinearIssues', 'wlLoadSnapshot', 'wlRefetchSilent', '
   ok(!/wlDiscoverProviderIssues|_wlLegacyLoadLinearIssues|LINEAR_ISSUES_WEBHOOK/.test(body),
     `${reader} reaches no provider read, directly or through the discovery door`);
 }
+// `_writeLinearVideoCardsToCalendar` is the one remaining path that could,
+// architecturally, still be reached for a not-yet-enrolled client (a stale
+// persisted job, or the retained rollback submission entry point). It must
+// never fall back to a live Linear read for that case -- it holds instead.
+ok(!/wlDiscoverProviderIssues|_wlLegacyLoadLinearIssues|LINEAR_ISSUES_WEBHOOK/
+    .test(extractFunction(html, '_writeLinearVideoCardsToCalendar')),
+  '_writeLinearVideoCardsToCalendar never falls back to a live Linear discovery read');
 
 // --- 2. the n8n Workload source is not reachable from live code -------------
 ok(!/LINEAR_ISSUES_WEBHOOK/.test(live.replace(/const LINEAR_ISSUES_WEBHOOK[^\n]*\n/, '')),

@@ -13434,3 +13434,52 @@ legacy routing, mixed popover, both lanes used independently) and
 `legacyBoundNativeId` correctly for bound, unbound, and native rows), plus
 `docs/syncview-design/tests/prod-write-gateway-browser.js`. No live read,
 deployment, or database installation occurred.
+
+### 2026-09-20 — Legacy Calendar post-create path retired; Workload due/label reads for bound legacy rows go native
+
+Two browser-only changes, both `index.html`.
+
+**Legacy Calendar post-create path retired.** `write_ui_reroute_clients`
+carries 43 members against a 43-client active roster (OPEN_REPAIRS row
+"slugs in `write_ui_reroute_clients` | 43"), so every active client now
+submits through the native intake route (`_submitLinearFormRoutedOnce`) and
+links its calendar cards through `_writeNativeSubmissionCardsToCalendar` from
+its own create-response IDs — never through `_writeLinearVideoCardsToCalendar`.
+`wlDiscoverProviderIssues()` (the direct, no-cache Linear poll it used) is
+deleted outright, and `_writeLinearVideoCardsToCalendar` itself no longer
+polls or writes anything: the only two ways it can still be reached — a stale
+job persisted before its client enrolled, or the retained rollback submission
+entry point (`_submitLinearFormOnce` / `_submitLinearFormLegacy`) — now both
+hit the same visible hold (`showNotify`, naming the client and the manual
+Create Post recovery) instead of a live Linear read. Offline coverage:
+`test/calendar-card-write-jobs.js` (rewritten section 2: both entry points
+hold, zero fetch calls, zero polling) and `test/workload-native-provider-closure.js`
+(updated: the discovery symbol no longer exists at all, not merely unwired).
+
+**Workload due/label reads for bound legacy rows go native.**
+`LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md` "what needs code" item 4. A legacy row
+the gateway already binds to a native deliverable (`legacyBoundNativeId`, the
+same field slice 1 carried onto the issue for the Tweak Needed popover) now
+reads its due date and workload labels from the native deliverables
+projection (`wlFetchNativeMetadata`, filtered by `linear_issue_uuid`, which
+the bound deliverable's own value equals) instead of the retained
+`workload-linear` metadata route — in both `wlFetchNativeSnapshot()`'s ingest
+and the interactive `wlFetchLinearMetadata()`. The row's WRITE authority is
+unchanged and still tags `linear`: `production-write`'s `authorityLane`
+requires the row's TEAM to be `syncview`-authoritative for a `workload`/`due`
+write (`legacyParityAllowed('workload','due')` is `false`, so there is no
+parity exception), and a bound row's team is, by definition, still
+Linear-authoritative — forcing the write there would fail every time. Only the
+read moved; `wlSetDueDate`/`wlDueWriteRoute` keep routing these rows' writes
+to `workload-linear`, unchanged. The backend capability that would let the
+WRITE move too is recorded as a next-slice item in PR
+`claude/practical-curie-ah4niq`'s description, not built here. Offline
+coverage: a new case in `test/workload-linear-browser.js` (bound row reads
+native, unbound row still reads workload-linear, both keep `linear` write
+authority for the bound row specifically).
+
+Both changes verified with `test/calendar-card-write-jobs.js`,
+`test/workload-native-provider-closure.js`, `test/workload-linear-browser.js`,
+and `docs/syncview-design/tests/prod-write-gateway-browser.js`. No Edge
+Function, migration, flag, or n8n workflow touched; no live read, deployment,
+or database installation occurred.

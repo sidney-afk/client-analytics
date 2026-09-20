@@ -516,6 +516,102 @@ const result = {
     && !choice.includes('is-incompatible')
     && choice.includes("value=\"new\"${prevBatchChecked ? '' : ' checked'}"),
   'Create Post lists recent active batches, hides mode-incompatible batches entirely, and defaults to Start a new batch');
+  // OPEN_REPAIRS: the native_intake_epochs flag read used to be wrapped in a
+  // SILENT catch. A failed flag read left `nativeTeams` empty, so every
+  // parentless (native) batch got `_nativeAppendTeams: []`, which
+  // `_calNativeBatchCompatible`/`_calNativeBatchHasLinearParents` both read
+  // as "cannot append" -- the batch vanished from the picker entirely on a
+  // transient read failure. The fix fails OPEN for append-capability (both
+  // teams) instead of fail-closed to invisible, and logs instead of
+  // swallowing.
+  ok(!/catch \(_\) \{ \/\* Existing parent-backed choices remain available\. \*\/ \}/.test(latestBatch),
+  'the native_intake_epochs flag read no longer swallows its failure silently');
+  ok(/console\.warn\(/.test(latestBatch),
+  'a failed flag read is logged instead of silently swallowed');
+  {
+    // Execute the real function with a mocked _prodRestRows: the batches read
+    // succeeds with one parentless (native) batch, and the flags read throws.
+    const ctx = { console };
+    vm.createContext(ctx);
+    let flagReadCalls = 0;
+    ctx._prodRestRows = async (table) => {
+      if (table === 'batches') {
+        return [{ id: 'bat-native', client_slug: 'fixture-client', team: null,
+          name: 'Native batch', status: 'active', purpose: 'calendar',
+          created_at: '2026-09-18T00:00:00.000Z', updated_at: '2026-09-18T00:00:00.000Z',
+          linear_parent_ids: null }];
+      }
+      flagReadCalls++;
+      throw new Error('flag read failed (simulated network error)');
+    };
+    ctx._nativePostPurpose = () => 'calendar';
+    vm.runInContext(latestBatch, ctx);
+    const rows = await ctx._calLatestNativeBatches('fixture-client', 'calendar');
+    ok(flagReadCalls === 1, 'the harness actually exercised the failing flag-read branch');
+    ok(Array.isArray(rows) && rows.length === 1 && rows[0].id === 'bat-native',
+    'the parentless batch is still returned when the flag read fails');
+    ok(Array.isArray(rows[0]._nativeAppendTeams)
+      && rows[0]._nativeAppendTeams.includes('video') && rows[0]._nativeAppendTeams.includes('graphics'),
+    'a failed flag read fails OPEN: the batch is stamped append-capable for BOTH teams rather than empty/invisible');
+  }
+  // Codex review, PR for OPEN_REPAIRS 218 (P2): the original fix only failed
+  // open when _prodRestRows THREW. A 200 response with an unusable payload
+  // (no matching row, the wrong key, or a non-object `value`) bypassed the
+  // catch entirely and reproduced the exact invisible-picker bug. Each shape
+  // below must ALSO fail open.
+  for (const [label, flagsResponse] of [
+    ['an empty array (no matching row)', []],
+    ['two rows (should never happen, but not exactly one)', [
+      { key: 'native_intake_epochs', value: { video: { enabled: true, epoch: 'e1' } } },
+      { key: 'native_intake_epochs', value: { video: { enabled: true, epoch: 'e2' } } },
+    ]],
+    ['the wrong key', [{ key: 'some_other_flag', value: { video: { enabled: true, epoch: 'e1' } } }]],
+    ['a null value', [{ key: 'native_intake_epochs', value: null }]],
+    ['a non-object (string) value', [{ key: 'native_intake_epochs', value: 'not-an-object' }]],
+    ['an array value', [{ key: 'native_intake_epochs', value: [] }]],
+  ]) {
+    const ctx = { console };
+    vm.createContext(ctx);
+    ctx._prodRestRows = async (table) => {
+      if (table === 'batches') {
+        return [{ id: 'bat-native', client_slug: 'fixture-client', team: null,
+          name: 'Native batch', status: 'active', purpose: 'calendar',
+          created_at: '2026-09-18T00:00:00.000Z', updated_at: '2026-09-18T00:00:00.000Z',
+          linear_parent_ids: null }];
+      }
+      return flagsResponse;
+    };
+    ctx._nativePostPurpose = () => 'calendar';
+    vm.runInContext(latestBatch, ctx);
+    const rows = await ctx._calLatestNativeBatches('fixture-client', 'calendar');
+    ok(Array.isArray(rows[0]._nativeAppendTeams)
+      && rows[0]._nativeAppendTeams.includes('video') && rows[0]._nativeAppendTeams.includes('graphics'),
+    'an unusable (non-throwing) flag payload -- ' + label + ' -- also fails OPEN, same as a thrown read');
+  }
+  // Control: a WELL-FORMED payload with a team legitimately disabled is real
+  // per-team state, not a malformed read, and must NOT be treated as a
+  // failure -- it keeps its real (partial) nativeTeams list.
+  {
+    const ctx = { console };
+    vm.createContext(ctx);
+    ctx._prodRestRows = async (table) => {
+      if (table === 'batches') {
+        return [{ id: 'bat-native', client_slug: 'fixture-client', team: null,
+          name: 'Native batch', status: 'active', purpose: 'calendar',
+          created_at: '2026-09-18T00:00:00.000Z', updated_at: '2026-09-18T00:00:00.000Z',
+          linear_parent_ids: null }];
+      }
+      return [{ key: 'native_intake_epochs', value: {
+        video: { enabled: true, epoch: 'e1' },
+        graphics: { enabled: false, epoch: 'e2' },
+      } }];
+    };
+    ctx._nativePostPurpose = () => 'calendar';
+    vm.runInContext(latestBatch, ctx);
+    const rows = await ctx._calLatestNativeBatches('fixture-client', 'calendar');
+    ok(rows[0]._nativeAppendTeams.includes('video') && !rows[0]._nativeAppendTeams.includes('graphics'),
+    'a well-formed payload with graphics legitimately disabled keeps its real partial list — not treated as a failure');
+  }
   // Owner ruling 2026-08-16: creation asks what the post needs. The mode is
   // part of the dialog state, re-renders the picker (compatibility depends on
   // it), and rides the intent signature so a saved job of one shape can never

@@ -27031,7 +27031,47 @@ same-identity completion requires backend support; the browser does not convert
 or replay it. Offline evidence is recorded by the intake UI suite; TEST-client
 and ordinary real-item acceptance remain pending and no live write was made.
 
-## 218. [2026-09-20, OPEN] Archive operations on a native deliverable produced a failed mirror_outbox row instead of the native skip marker
+## 218. [2026-09-20, FIXED] Workload/Calendar lost or mis-keyed native (non-Linear) rows in four places, because the code still assumed a Linear URL/UUID was always present
+
+Four browser-only defects, all the same root shape: code written when every row
+still carried a Linear-born identifier now runs against native rows that never
+have one, and each site either dropped the row, hid it, or matched the wrong
+one.
+
+1. **`wlFetchNativeMetadata`** filtered its read with `linear_issue_uuid=in.(...)`
+   only. A native row has no Linear-born UUID, so it could never match, and it
+   fell into `unavailableIssueIds` — blank due date, write route withheld. Fix
+   adds a second, id-keyed branch (`id=in.(...)`, same projection) and merges
+   its rows with the uuid branch; a chunk now only fails when BOTH branches
+   fail for it.
+2. **`_calLatestNativeBatches`** read `native_intake_epochs` inside a silent
+   `catch`. On a failed read, every native (parentless) batch was stamped
+   `_nativeAppendTeams: []`, which both `_calNativeBatchHasLinearParents` and
+   `_calNativeBatchCompatible` read as "cannot append" — the batch vanished
+   from the Create Post picker entirely, not just lost a nicety. Fix fails
+   OPEN (both teams treated as append-capable) instead of closed to invisible,
+   and logs the failure via `console.warn` instead of swallowing it.
+3. **`_calApplyFocusRequest`** matched a deep-link identifier only against
+   `linear_issue_id`. A native card with no Linear URL was never focusable by
+   identifier at all — always "Not on this calendar yet". Fix also matches
+   `video_deliverable_id` / `graphic_deliverable_id` (exact, case-insensitive)
+   before giving up.
+4. **`_calLinkDuplicatePeers`** (and the archive ledger's own key check,
+   `_calIsArchivedRef`) keyed duplicate-card detection on `linear_issue_id` /
+   `graphic_linear_issue_id` alone, so two native-only cards sharing a
+   `video_deliverable_id` / `graphic_deliverable_id` were invisible to each
+   other and to the archive ledger. Fix adds a shared `_calDupeKey(post, comp)`
+   helper — Linear field when present, else the matching native deliverable id
+   (`native:`-prefixed so the two key spaces can never collide) — used
+   consistently by both call sites in `_calLinkDuplicatePeers` and by
+   `_calIsArchivedRef`.
+
+All four are browser-only (`index.html`); no Edge Function, migration, flag, or
+n8n workflow changed. Tests extended (each executes the real shipped function):
+`test/workload-linear-browser.js`, `test/native-intake-ui-source.js`,
+`test/calendar-deep-link-focus.js`, `test/calendar-linear-link-move.js`.
+
+## 219. [2026-09-20, OPEN] Archive operations on a native deliverable produced a failed mirror_outbox row instead of the native skip marker
 
 On 2026-09-20 09:19Z, two `archive` operations on a native test-client card
 produced `mirror_outbox` rows with `status='failed'` and

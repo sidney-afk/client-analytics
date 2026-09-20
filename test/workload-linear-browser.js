@@ -779,6 +779,104 @@ async function run() {
     const emptyRows = await mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-empty' })]);
     assert.strictEqual(emptyRows[0].workload, null, 'an explicit complete empty native label relation remains valid');
 
+    /* OPEN_REPAIRS: a native row has no Linear-born linear_issue_uuid, so it
+     * never matched wlFetchNativeMetadata's linear_issue_uuid=in.(...)
+     * filter and silently landed in unavailableIssueIds -- its due date
+     * blanked and its write route withheld, even though the row exists and
+     * is fully provable by its OWN id. wlFetchNativeMetadata now also reads
+     * a second, id-keyed branch and merges it with the uuid branch. This
+     * mock differentiates the two branches by query string so the test
+     * actually exercises the id=in.(...) read, not just the pre-existing
+     * linear_issue_uuid one. */
+    {
+      const idBranchCalls = [];
+      mixed.fetch = async (url) => {
+        const u = String(url);
+        idBranchCalls.push(u);
+        if (u.includes('/rest/v1/production_deliverables_browser_v1')) {
+          if (u.includes('id=in.')) {
+            return { ok: true, status: 200, json: async () => [{
+              id: 'native-only-id',
+              client_slug: 'synthetic-client',
+              team: 'video',
+              linear_issue_uuid: '',
+              due_date: '2026-09-21',
+              updated_at: '2026-09-19T12:00:00Z',
+              workload_labels_complete: true,
+              workload_labels: [],
+            }] };
+          }
+          if (u.includes('linear_issue_uuid=in.')) {
+            // A pure native row can never match this branch -- assert the
+            // mock proves that rather than assuming it, by returning empty.
+            return { ok: true, status: 200, json: async () => [] };
+          }
+        }
+        throw new Error('unexpected fetch ' + u);
+      };
+      const nativeOnlyRows = await mixed.wlFetchNativeMetadata(['native-only-id']);
+      assert.strictEqual(idBranchCalls.some(u => u.includes('id=in.')), true,
+        'the id-keyed branch was actually queried');
+      assert.strictEqual(idBranchCalls.some(u => u.includes('linear_issue_uuid=in.')), true,
+        'the uuid-keyed branch is still queried too, for Linear-born rows sharing the same chunk');
+      assert.strictEqual(nativeOnlyRows.unavailableIssueIds.length, 0,
+        'a native-only row with no Linear UUID is no longer reported unavailable');
+      assert.strictEqual(nativeOnlyRows.length, 1, 'the native-only row is resolved');
+      assert.strictEqual(nativeOnlyRows[0].issue_id, 'native-only-id');
+      assert.strictEqual(nativeOnlyRows[0].due_date, '2026-09-21',
+        'its due date is proven through the id-keyed branch instead of blanking');
+    }
+    // A single chunk failing on BOTH branches still throws (nothing proven at
+    // all -- the pre-existing "every chunk failed" fail-total path), exactly
+    // as a single-branch failure always did.
+    {
+      mixed.fetch = async (url) => {
+        const u = String(url);
+        if (u.includes('/rest/v1/production_deliverables_browser_v1')) {
+          return { ok: false, status: 503, json: async () => ({ error: 'unavailable' }) };
+        }
+        throw new Error('unexpected fetch ' + u);
+      };
+      await assert.rejects(
+        mixed.wlFetchNativeMetadata(['still-unprovable']),
+        /HTTP 503/,
+        'a chunk failing on BOTH the uuid and id branches still throws when nothing at all was proven');
+    }
+    // But when ONE chunk's both branches fail while another chunk succeeds,
+    // the failure degrades to that chunk's ids only -- the existing per-id
+    // fail-closed safety property, now covering the id-branch failure too.
+    {
+      mixed.fetch = async (url) => {
+        const u = String(url);
+        if (!u.includes('/rest/v1/production_deliverables_browser_v1')) throw new Error('unexpected fetch ' + u);
+        if (u.includes('bad-chunk-id')) return { ok: false, status: 503, json: async () => ({ error: 'unavailable' }) };
+        if (u.includes('id=in.')) {
+          return { ok: true, status: 200, json: async () => [{
+            id: 'ok-native-id', client_slug: 'synthetic-client', team: 'video',
+            linear_issue_uuid: '', due_date: '2026-09-22', updated_at: '2026-09-19T12:00:00Z',
+            workload_labels_complete: true, workload_labels: [],
+          }] };
+        }
+        return { ok: true, status: 200, json: async () => [] };
+      };
+      const chunkSize = 100;
+      const okIds = ['ok-native-id'];
+      const badIds = Array.from({ length: chunkSize }, (_, i) => 'bad-chunk-id-' + i);
+      // badIds first and exactly 100 long so it fills chunk #1 entirely and
+      // okIds lands alone in chunk #2 -- chunking is purely positional
+      // (issueIds.slice(i, i+100)), so the two groups must not straddle a
+      // chunk boundary or this would test a mixed chunk instead.
+      const mixedRows = await mixed.wlFetchNativeMetadata([...badIds, ...okIds]);
+      assert.strictEqual(mixedRows.length, 1);
+      assert.strictEqual(mixedRows[0].issue_id, 'ok-native-id');
+      // Array.from (the outer realm's) rebuilds a same-realm array out of the
+      // VM-sandbox array, matching the pattern the rest of this file already
+      // uses -- a cross-realm array is structurally equal but never
+      // reference-/constructor-equal, which deepStrictEqual treats as unequal.
+      assert.deepStrictEqual(Array.from(mixedRows.unavailableIssueIds).sort(), badIds.slice().sort(),
+        'only the chunk that failed on both branches is reported unavailable; the other chunk\'s native-only row stays proven');
+    }
+
     mixed.fetch = async url => {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };

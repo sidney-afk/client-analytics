@@ -7434,3 +7434,37 @@ draft's exact node parameters instead, then published directly. One other
 and one earlier attempt on the Sales router before understanding this) also
 reached the real `hiring-automation` endpoint with a fake contact id; both
 correctly bounced `422 application_not_found` and wrote nothing.
+
+**2026-09-20 — Linear outbound cutoff: STEP 3 (outbound off) and STEP 1
+(parity off) executed live; drain dispatched once; STEP 0 census read before
+and after.** `linear_outbound_enabled` moved `{"mode":"live"}` -> `{"mode":"off"}`,
+verified inside the write transaction and again on a post-commit readback;
+committed at 2026-09-20 17:26:22.363379+00. The write ran twice — one intended
+call and one accidental re-run while checking the script's own exit code, both
+writing the identical `{"mode":"off"}` value; the recorded timestamp is the
+second (and current) call's `updated_at`. `linear_legacy_parity_enabled`
+moved `{"enabled":true}` (last set 2026-08-02 21:00:51.83Z) ->
+`{"enabled":false}`, same in-transaction verify-before-commit pattern, run
+exactly once, committed at 2026-09-20 17:35:54.465602+00.
+
+STEP 0 census, full breakdown (`status`/`legacy_parity`/`test_only`: count):
+failed/false/false 17, failed/false/true 28, skipped/false/false 579,
+skipped/false/true 177, skipped/true/false 499, stale/false/false 26,
+stale/false/true 5, stale/true/false 70, written/false/false 5856,
+written/false/true 2231, written/true/false 1097. STEP 0's second query
+(real-client rows: `legacy_parity=false`, `test_only=false`, status in
+pending/failed/shadow_ok): only `failed`, 17 rows, oldest
+2026-09-18 15:30:34.658803+00, newest 2026-09-18 15:35:26.293057+00 —
+unchanged on re-read after both flips and the drain dispatch.
+
+The drain workflow (`linear-outbound-drain.yml`) was dispatched once (run
+35526389014, `workflow_dispatch`, succeeded). Its summary: `mode: "off"`,
+`backlog: 45`, `oldest_pending_minutes`: video 3005, graphics 3005, against a
+30-minute alert threshold, and **`alerts.oldest_pending_age: true`** — not the
+`false` this step expected. With outbound off, the backlog cannot drain and
+its age only grows; this alert stays latched until the backlog is resolved or
+the alert is otherwise addressed.
+
+Disposition for the real-client rows still `failed` (the 17 above) and any
+other real-client row in `pending`/`failed`/`shadow_ok`: **frozen at cutoff
+by owner decision 2026-09-20; Linear is retired and these rows are not sent.**

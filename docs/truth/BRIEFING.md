@@ -120,7 +120,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   - `prod_authority` = `{"video":"syncview","graphics":"syncview"}` — NOTHING is
     Linear-authoritative any more (video half flipped 2026-08-28; the previous
     `{"video":"linear","graphics":"syncview"}` is now the video ROLLBACK signature).
-  - `linear_outbound_enabled` = `{"mode":"live"}` — NOT off.
+  - `linear_outbound_enabled` = `{"mode":"off"}` since 2026-09-20T17:26:22.363379Z.
   - `write_ui_reroute_clients` = the **full roster**, stamped
     `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14;
     membership tracks the `*_ef_clients` rosters by equality (41 at the video flip; the count

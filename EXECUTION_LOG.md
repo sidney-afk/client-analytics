@@ -7499,3 +7499,15 @@ empty, and **`alerts.oldest_pending_age: false`** — the alarm opened by the
 2026-09-20 17:26Z cutoff (recorded in the entry above) is now clear. This
 resolves that entry's "known state, pending a separate owner decision" note:
 the decision has been made and executed.
+
+## 2026-09-20 — Production: synthetic batch-parent node displays "Post"
+
+Browser-only change on `main` via PR #1455, no live write. A natively-created
+post has no short identifier (the mint covers videos and thumbnails, not the
+batch), so the synthetic parent node minted by #1444 showed its raw
+`bat_<uuid>` id in the list id cell, the breadcrumb and the detail header.
+Those three sites now render through `_prodIssueDisplayLabel`, which answers
+"Post" for `syntheticBatchParent === true`; `_prodIssueLabel` is unchanged, so
+Copy issue ID, palette search, sort keys and deep links keep the real id.
+Verified by `test/prod-create-parents-native.js` (executes both helpers and
+pins the three presentation sites plus the copy path).

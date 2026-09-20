@@ -1261,3 +1261,11 @@ drop function if exists public.production_native_calendar_status_map(text, text)
 drop function if exists public.production_native_calendar_status_above(text);
 commit;
 ```
+
+## 2026-09-20 — inverse for the "Post" display label (browser only)
+
+Revert the #1455 squash commit on `main`, or restore the three call sites in
+`index.html` (`_prodIssueIdHTML`, the breadcrumb `currentId`, the
+`.prod-detail-id` header) from `_prodIssueDisplayLabel(d)` to
+`_prodIssueLabel(d)` and delete `_prodIssueDisplayLabel`. No database, flag,
+Edge Function or n8n state is involved; GitHub Pages redeploys on push.

@@ -138,14 +138,25 @@ ok(!withoutAttribution.includes('linear-root'),
 {
   const labelSrc = source.slice(source.indexOf('function _prodIssueLabel('),
     source.indexOf('function _prodIssueIdHTML('));
-  ok(labelSrc.length > 0, 'the label helper extracts (harness is not vacuous)');
-  const label = new Function('d', labelSrc + '\nreturn _prodIssueLabel(d);');
-  ok(label({ id: 'bat_00000000-0000-4000-8000-0000000000aa', syntheticBatchParent: true }) === 'Post',
-    'a synthetic batch-parent node is labelled "Post", never its raw bat_ id');
-  ok(label({ id: 'del_x', displayId: 'VID-9001' }) === 'VID-9001',
+  ok(labelSrc.length > 0 && /function _prodIssueDisplayLabel\(/.test(labelSrc),
+    'both label helpers extract (harness is not vacuous)');
+  const SYN = { id: 'bat_00000000-0000-4000-8000-0000000000aa', syntheticBatchParent: true };
+  const display = new Function('d', labelSrc + '\nreturn _prodIssueDisplayLabel(d);');
+  const identity = new Function('d', labelSrc + '\nreturn _prodIssueLabel(d);');
+  ok(display(SYN) === 'Post',
+    'a synthetic batch-parent node DISPLAYS as "Post", never its raw bat_ id');
+  ok(identity(SYN) === SYN.id,
+    'but its IDENTITY label is still the batch id -- Copy issue ID, palette search and sort keys keep the real value (Codex P1 on #1455)');
+  ok(display({ id: 'del_x', displayId: 'VID-9001' }) === 'VID-9001',
     'an ordinary card still shows its identifier');
-  ok(label({ id: 'del_y' }) === 'del_y',
+  ok(display({ id: 'del_y' }) === 'del_y',
     'an unminted native card still falls through to its id (the mint is the fix for that one)');
+  // The three presentation sites use the display helper; the identity sites do not.
+  ok(/const label = _prodIssueDisplayLabel\(d\);/.test(source), 'the list id cell renders the display label');
+  ok(/prod-detail-id">' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\)/.test(source), 'the detail header renders the display label');
+  ok(/'<b>' \+ _calEsc\(_prodIssueDisplayLabel\(d\)\) \+ '<\/b>'/.test(source), 'the breadcrumb renders the display label');
+  const copySrc = source.slice(source.indexOf('function _prodCopyIssueIds('), source.indexOf('function _prodCopyIssueIds(') + 1500);
+  ok(!/_prodIssueDisplayLabel/.test(copySrc), 'Copy issue ID never copies the display label');
 }
 
 console.log(failures ? '\nFAILED ' + failures : '\nall ok');

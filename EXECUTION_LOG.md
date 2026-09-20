@@ -7479,3 +7479,23 @@ and the owner is running the full acceptance click-through the same day. The
 latched `oldest_pending_age` alarm (above) is a **known state**, pending a
 separate owner decision on whether to mark the frozen rows terminal so the
 alarm can clear; it is not being treated as resolved by this entry.
+
+**2026-09-20 — Frozen mirror_outbox backlog marked terminal (authorized live
+write, owner decision), clearing the pending-age alarm.** Read-only census
+first: the drain-counted backlog (`status` in `pending`/`failed`/`shadow_ok`)
+was **45 rows** — 17 real `failed` (`test_only=false`), 28 test `failed`
+(`test_only=true`), 0 `pending`, 0 `shadow_ok`; matched the earlier drain
+summary's `backlog: 45` exactly. In one transaction, all 45 rows were updated
+to `status='skipped'`, `last_error='frozen at cutoff 2026-09-20 by owner
+decision; Linear retired, not sent'`; the updated row count (45) was verified
+equal to the pre-write count before commit. Post-commit readback: 0 rows
+remain in `pending`/`failed`/`shadow_ok`; all 45 carry the freeze note under
+`status='skipped'`.
+
+`linear-outbound-drain.yml` was dispatched once more to confirm (run
+35534292911, `workflow_dispatch`, succeeded). Its summary: `mode: "off"`,
+`backlog: 0`, `oldest_pending_minutes` both null, `oldest_pending_alert_teams`
+empty, and **`alerts.oldest_pending_age: false`** — the alarm opened by the
+2026-09-20 17:26Z cutoff (recorded in the entry above) is now clear. This
+resolves that entry's "known state, pending a separate owner decision" note:
+the decision has been made and executed.

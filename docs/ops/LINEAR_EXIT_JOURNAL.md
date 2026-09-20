@@ -13477,3 +13477,28 @@ excluded while the other team's is kept, both-sealed issues zero Linear
 requests, authority rolling back to Linear restores the fetch with no code
 change, and the exclusion holds across multiple cards in one batch. No live
 read, deployment, database installation, or n8n edit occurred.
+
+### 2026-09-20 — Brief media: browser now reads the native projection, dormant behaviour unchanged
+
+`description_read` (`production-write`) has computed a native `media`
+projection (`projectBriefMedia`, `render_brief` etc.) since
+`migrations/2026-09-07-native-brief-media.sql`, but `index.html` never read
+`json.media` -- it drew `json.row.brief` directly, so a brief's raw
+`uploads.linear.app` image URLs kept rendering straight off Linear's CDN
+even though the native projection sat unused in every response.
+
+`_prodEnsureDescription` now prefers `json.media.render_brief` when
+`json.media.complete === true`, and keeps drawing `row.brief` exactly as
+before otherwise. That "otherwise" is the live behaviour today: with
+`native_brief_media` seeded `{"mode":"off",...}`, `projectBriefMedia`
+returns `render_brief: null`, so this change is not yet observable in
+practice -- it only stops the browser being blind to the projection once a
+future flip and media copy make it non-null. `native_brief_media` was not
+touched, no Edge Function or migration changed, and no live media has been
+copied or verified. New test: `test/prod-description-native-brief-media.js`
+(executes the shipped handler against four mocked `description_read`
+responses -- complete media wins, no media key falls back, `complete:
+false` falls back, `complete: true` with a null `render_brief` falls back).
+Execution map's "Brief media" row updated from "unknown, verify" to name
+this PR and the remaining work: the one-time copy of Linear-hosted brief
+images into native storage, then flipping the flag, before 2026-10-15.

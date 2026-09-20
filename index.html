@@ -21609,7 +21609,7 @@
            legacy-parent chip can share the list with a native row of another
            post during a mixed-authority state, and "any native row" would
            send that legacy parent to `?batch=<legacy uuid>`, which resolves
-           nothing (Codex P2 on #1454). */
+           nothing (Codex P2 on PR 1454). */
         const nativeBatchId = parentId && subs.some(s => s && s.workloadSource === 'native'
                 && String(s.parentId || '') === String(parentId))
             ? String(parentId) : '';

@@ -13975,10 +13975,12 @@ tomorrow morning. The hiring pollers stay on until the editor hire closes.
 OPEN_REPAIRS 227's onboarding measurements are answered for assignee
 eligibility (#1482) but the runbooks still need their native steps written.
 
-## 2026-09-21 (late) — the archived-cards cleanup is finished: four rows canceled on the owner's word
+## 2026-09-21 (late) — the four reported archived rows are canceled on the owner's word
 
 The last four rows of the class this journal has been tracking since the video
-editor's 2026-09-18 report are corrected, and OPEN_REPAIRS 224 is FIXED.
+editor's 2026-09-18 report are corrected. OPEN_REPAIRS 224 stays a WATCH rather
+than FIXED: the rows a person reported are done, the class is not, because the
+inbound webhook is enabled until STEP 7 and can still land a new stale row.
 
 Three of the four social media managers holding these cards were asked in Slack
 and moved their own rows to Backlog the same afternoon. The fourth was left out
@@ -13999,8 +14001,23 @@ would settle it, before either measurement was run.
 
 `canceled` rather than Backlog: it matches what those rows' own siblings say and
 records that the work was replaced, not postponed. One guarded statement over four
-ids, `returning` proving four rows changed, rollback recorded in the ledger entry
-with each row's prior `status_at`. Re-measured after: 0 of the four read `todo`.
+ids, `returning` proving four rows changed. Re-measured after: 0 of the four read
+`todo`.
+
+The rollback took two attempts to get right, and the second one is the lesson.
+The first version was a single `update ... set status = 'todo'`, which reads as
+obviously correct and is not: `track_b_deliverable_touch_timestamps` stamps
+`status_at := now()` whenever an UPDATE changes `status`, so restoring the status
+would have destroyed the four timestamps the entry had carefully saved. The status
+has to be restored first, then `status_at` restored by a second UPDATE that leaves
+`status` alone so the trigger never fires. The corrected form is written out in the
+ledger entry and was REHEARSED end to end on one test-client row before being
+published, with the rehearsal row left exactly as found.
+
+Both corrections came from the Codex review on #1488, which also caught the FIXED
+header above. Two review rounds today have now caught a claim of completeness that
+the evidence did not support; that is the pattern worth remembering, not either
+individual mistake.
 
 What is NOT closed by this. The wider class of archived-in-Linear rows still in an
 open status reads 123 excluding the test client. None was ever reported and none

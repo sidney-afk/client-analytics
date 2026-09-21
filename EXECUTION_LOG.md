@@ -7630,3 +7630,26 @@ remaining stale batches. The reporting video editor's late-card check
 cleanup) — a small number, the genuinely late cards.
 
 No client name or slug appears in this entry.
+
+**2026-09-21 — Cleanup 1 retry, corrected query, completed.** The prior
+attempt's query compared display names to the gateway's compressed form
+without applying the same compression and returned 307 rows against an
+expected 6; this retry normalizes `owner_name` the same way the gateway
+does (lowercase, accent-fold, strip a leading "Dr.", collapse " and "/" & "
+to "&", strip remaining non-alphanumerics) before comparing to
+`workload_plan.client`, and only considers rows that are native sub-issues
+or already carry a `native_plan_id`. Read-only check returned **exactly 6**
+rows, matching the supervisor's own read of this query at 00:40Z.
+
+6 `workload_plan` rows had their `plan_date` set to null (all had a non-null
+date before):
+  - `3cb8855d-acce-4a91-9968-039ee2c49bbf` (was `2026-07-31`)
+  - `649bc7c3-50fd-4380-9071-a6172f245a01` (was `2026-07-31`)
+  - `6d82ba8e-7454-4477-b3b9-a1f77cc8ed00` (was `2026-07-31`)
+  - `7c7b873a-3dfe-4925-bc2c-5fe8d6d79658` (was `2026-07-31`)
+  - `d00d5767-6e18-46c9-a107-58179c9bdd63` (was `2026-08-19`)
+  - `fc306311-8b7a-4d52-a406-8dbcb8c62314` (was `2026-08-14`)
+
+Single guarded update (`where issue_id = any($1) and plan_date is not null`),
+row count verified equal to 6 before commit. Re-running the corrected
+read-only query afterward returns **0**. No client name in this entry.

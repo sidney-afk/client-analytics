@@ -1,0 +1,2887 @@
+    function _sxrRenderBody(opts) {
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        const preserveScroll = !!(opts && opts.preserveScroll);
+        const scrollY0 = preserveScroll ? window.scrollY : null;
+        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
+        if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
+        if (sxrState.view === 'review' || sxrState.view === 'smmreview') {
+            body.innerHTML = (typeof renderSxrReview === 'function') ? renderSxrReview() : `<div class="cal-empty">Review queue — coming in Surface 4.</div>`;
+        } else {
+            body.innerHTML = renderSxrOrganizer();
+            if (typeof _sxrWireStrip === 'function') _sxrWireStrip();   // drag-reorder wiring
+            if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
+        }
+        if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+        _thumbCompareScheduleAvailability('samples');
+    }
+
+    /* ============================================================
+       --- SURFACE 3: the save engine ---
+       Clone of _calOnFieldInput/Blur + _calFlushCardSave + _calPromoteBlankCard +
+       _calRetrySave + _calSetCardStatus, re-pointed to the LIVE sample-review-upsert
+       webhook. Verified payload contract: POST { client, sample: wirePost,
+       comments_base_at } → { ok:true, sample } | { ok:false, error }.
+       Samples are always v2: existing rows get a FIELD-LEVEL PATCH (only edited
+       columns), new rows / forced retries send the whole card. comments_base_at is
+       always '' (no scalar-conflict guard under realtime). __CLEAR_LINK__ sentinel
+       for an intentional link clear. Linear push + comment merge are stubbed here
+       (Surfaces 7 and 5). These function defs OVERRIDE the Surface 2 stubs.
+       ============================================================ */
+
+    const SXR_SAVE_DEBOUNCE_MS = 650;
+    function _sxrMintId() { return 'sr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    const _sxrThumbRev = Object.create(null);
+    function _sxrBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _sxrThumbRev[pid] = t; return t; }
+
+    /* Structural fields rolled back when the upsert fails (free text is kept so a
+       user's typing is never erased). Samples set: video/graphic only — no
+       caption/title/scheduled_date/posted_at. */
+    const _SXR_ROLLBACK_FIELDS = [
+        'video_status', 'graphic_status', 'status', 'order_index',
+        'linear_issue_id', 'video_deliverable_id', 'graphic_linear_issue_id', 'graphic_deliverable_id',
+        'client_video_approved_at', 'client_graphic_approved_at',
+        'kasper_approved_at', 'kasper_approved_after_tweaks',
+    ];
+
+    /* Save-engine + reconcile state (declared once here; Surface 7 REFERENCES,
+       never redeclares, these). */
+    const _sxrNoLinearPush = new Set();          // single-shot outbound-push suppression keys
+    let _sxrLocalRecentSaves = new Map();        // realId → ts of our last successful write
+    let _sxrRecentSaveFields = new Map();        // realId → {wrote, base} sub-status snapshot
+    const _sxrFailedNewCards = new Set();         // new rows whose first save failed (keep on screen)
+    const _sxrConflictNotified = new Set();
+    let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
+
+    /* The comment data layer (_sxrCommentsFor / _sxrStringifyComments /
+       _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
+       it's hoisted, so the flush above resolves it at call time.
+       Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
+    function _sxrWireDragOnCard(card) {
+        if (!card || card.dataset.dragWired === '1') return;
+        card.dataset.dragWired = '1';
+        const strip = card.parentElement;
+        card.addEventListener('dragstart', (e) => {
+            if (e.target.closest('input, textarea, select, button')) { e.preventDefault(); return; }
+            if (sxrState.selectMode) { e.preventDefault(); return; }   // no drag while multi-selecting
+            e.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = strip.querySelector('.cal-card.dragging');
+            if (!dragging || dragging === card) return;
+            const rect = card.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            strip.insertBefore(dragging, after ? card.nextSibling : card);
+        });
+    }
+    /* Wire the Sheet strip: a drop handler that reads the DOM order and persists,
+       plus drag listeners on every draggable card. Called after each Sheet render
+       (idempotent — the dropWired flag guards the one-time strip listeners). */
+    function _sxrWireStrip() {
+        const strip = document.getElementById('sxrStrip');
+        if (!strip) return;
+        strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_sxrWireDragOnCard);
+        _calWireShiftScroll(strip);
+        _calWireDragEdgeScroll(strip);
+        if (strip.dataset.dropWired === '1') return;
+        strip.dataset.dropWired = '1';
+        strip.addEventListener('dragover', (e) => e.preventDefault());   // make the strip a valid drop target
+        strip.addEventListener('drop', () => {
+            if (_isClientLink) return;   // a read-only client can't persist a reorder
+            const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
+            if (!ids.length) return;
+            const byId = new Map(sxrState.posts.map(p => [p.id, p]));
+            // Recycle the visible cards' existing order_index slots — de-duped,
+            // strictly increasing, and skipping any slot held by a non-visible
+            // post — so the GET workflow's tiebreaker-free order_index sort can't
+            // snap a dropped card back (see the calendar's _calOnStripDrop notes).
+            const idSet = new Set(ids);
+            const hiddenSlots = new Set(sxrState.posts.filter(p => p && !idSet.has(p.id)).map(p => Number(p.order_index || 0)));
+            const rawSlots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            const slots = []; let prevSlot = -Infinity;
+            for (const v of rawSlots) { let s = v > prevSlot ? v : prevSlot + 1; while (hiddenSlots.has(s)) s++; slots.push(s); prevSlot = s; }
+            const items = ids.map((id, i) => ({ id, order_index: slots[i] }));
+            const prevOrder = new Map(sxrState.posts.map(p => [p.id, Number(p.order_index || 0)]));
+            let changed = false;
+            items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p && Number(p.order_index || 0) !== order_index) { p.order_index = order_index; changed = true; } });
+            if (!changed) return;   // dropped in place — nothing to persist
+            _sxrRecordReorderOptimistic(items);
+            try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts); } catch (e) {}
+            _sxrPersistReorder(items, prevOrder, sxrClientSlug(sxrState.client));
+        });
+    }
+    /* Reorder persistence: serialized + coalesced (two quick drags collapse to the
+       latest order), with an optimistic-order guard so a background reload that
+       lands before the write is READABLE can't adopt the stale server order_index
+       and snap cards back. Mirrors the calendar's persistCalReorder. */
+    let _sxrReorderInFlight = false;
+    let _sxrReorderPending = null;
+    const _sxrReorderOptimistic = new Map();   // id -> { order_index:Number, at:ms }
+    const SXR_REORDER_GUARD_MS = 12000;
+    function _sxrRecordReorderOptimistic(items) {
+        const at = Date.now();
+        (items || []).forEach(({ id, order_index }) => _sxrReorderOptimistic.set(id, { order_index: Number(order_index), at }));
+    }
+    async function _sxrPersistReorder(items, prevOrder, slug) {
+        if (slug == null) slug = sxrClientSlug(sxrState.client);
+        if (_sxrReorderInFlight) { _sxrReorderPending = { items, prevOrder, slug }; return; }   // coalesce
+        _sxrReorderInFlight = true;
+        _sxrLastLocalWriteAt = Date.now();   // treat as a local write so our own realtime echo defers (Surface 7)
+        try {
+            const resp = await _sxrReorderFetch(slug, { client: slug, items }, 'ui');
+            const json = await resp.clone().json().catch(() => null);
+            if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('reorder HTTP ' + resp.status));
+            // Fail closed on a partial/no-op reorder. The EF returns the count of
+            // rows it ACTUALLY matched; updated < items.length means part of the
+            // drag referenced a stale/mid-create/archived id and silently did not
+            // persist. Revert and tell the user rather than leaving the strip
+            // showing an order the sheet never accepted (F141, invariant 2). Scoped
+            // to the EF route, which returns the true count; the n8n fallback keeps
+            // its ok-flag contract.
+            if (_sxrSampleUseEf(slug) && Number((json && json.updated) || 0) < items.length) {
+                throw new Error((json && json.error) || 'reorder incomplete');
+            }
+            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+        } catch (e) {
+            // Revert to the captured order if nothing newer is queued and we're still on this client.
+            if (prevOrder && prevOrder.size && !_sxrReorderPending && sxrClientSlug(sxrState.client) === slug) {
+                sxrState.posts.forEach(p => { if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id); });
+                items.forEach(({ id }) => _sxrReorderOptimistic.delete(id));
+                try { _sxrCacheWrite(slug, sxrState.posts); } catch (e2) {}
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
+                if (typeof showNotify === 'function') showNotify("Couldn't save the new order", 'It was put back — please try again.');
+            }
+        } finally {
+            _sxrReorderInFlight = false;
+            if (_sxrReorderPending) { const next = _sxrReorderPending; _sxrReorderPending = null; _sxrPersistReorder(next.items, next.prevOrder, next.slug); }
+        }
+    }
+    // _sxrPushStatusToLinear / _sxrSyncStatusFromLinear — real versions in Surface 7, hoisted.
+
+    function _sxrClientFieldEditBlocked() { return _isClientLink; }   // client never edits fields (no collab)
+    function _sxrOnFieldInput(el) {
+        if (_sxrClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][fld] = val;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
+        if (_sxrSaveTimers[pid]) clearTimeout(_sxrSaveTimers[pid]);
+        _sxrSaveTimers[pid] = setTimeout(() => { _sxrSaveTimers[pid] = null; _sxrFlushCardSave(pid); }, SXR_SAVE_DEBOUNCE_MS);
+    }
+    function _sxrOnFieldBlur(el) {
+        if (!el || !el.dataset || _sxrClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][fld] = val;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
+        if (_sxrSaveTimers[pid]) { clearTimeout(_sxrSaveTimers[pid]); _sxrSaveTimers[pid] = null; }
+        _sxrFlushCardSave(pid);
+    }
+    function _sxrFlushAllPending() {
+        Object.keys(_sxrPendingEdits).forEach(pid => {
+            if (_sxrSaveTimers[pid]) { clearTimeout(_sxrSaveTimers[pid]); _sxrSaveTimers[pid] = null; }
+            _sxrFlushCardSave(pid);
+        });
+    }
+
+    function _sxrSetCardStatus(pid, state, msg) {
+        // Modern icon-only indicator at the end of the sample card's title row.
+        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state, msg);
+        // Foot element stays the Save-failed·Retry affordance; no longer carries
+        // the transient Saving…/Saved TEXT (that moved to the icon).
+        const tag = document.querySelector(`[data-saving="${pid}"]`);
+        if (tag) {
+            tag.classList.remove('is-saved', 'is-error');
+            if (state === 'error') { tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error'); }
+            else { tag.hidden = true; tag.textContent = ''; }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
+    }
+
+    /* Promote a blank card → a real minted row: rewrite EVERY attribute referencing
+       the old blank pid (the full attribute walk — the calendar learned the hard
+       way that a partial rewrite mints a second ghost row), inject grip + archive,
+       migrate pending edits, wire drag. */
+    function _sxrPromoteBlankCard(oldPid, newId) {
+        const strip = document.getElementById('sxrStrip');
+        if (!strip) return;
+        const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
+        if (!blank) return;
+        blank.classList.remove('is-blank');
+        blank.setAttribute('draggable', 'true');
+        const oldEsc = oldPid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(oldEsc, 'g');
+        const walk = (el) => {
+            if (!el || !el.attributes) return;
+            for (let i = 0; i < el.attributes.length; i++) {
+                const a = el.attributes[i];
+                if (typeof a.value === 'string' && a.value.indexOf(oldPid) !== -1) el.setAttribute(a.name, a.value.replace(re, newId));
+            }
+            for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
+        };
+        walk(blank);
+        if (!blank.querySelector('.cal-card-grip')) {
+            const grip = document.createElement('span');
+            grip.className = 'cal-card-grip'; grip.title = 'Drag to reorder';
+            grip.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>`;
+            blank.insertBefore(grip, blank.firstChild);
+        }
+        if (!blank.querySelector('.cal-card-del')) {
+            const del = document.createElement('button');
+            del.className = 'cal-card-del'; del.type = 'button'; del.title = 'Archive';
+            del.addEventListener('click', () => archiveSxrCard(newId));
+            del.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
+            blank.insertBefore(del, blank.firstChild);
+        }
+        if (_sxrPendingEdits[oldPid]) {
+            _sxrPendingEdits[newId] = Object.assign(_sxrPendingEdits[newId] || {}, _sxrPendingEdits[oldPid]);
+            delete _sxrPendingEdits[oldPid];
+        }
+        _sxrWireDragOnCard(blank);
+    }
+
+    async function _sxrAwaitCardSave(pid) {
+        for (;;) {
+            const active = _sxrSaveInFlight[pid];
+            if (active) { await active; continue; }
+            if (_sxrPendingEdits[pid]) { await _sxrFlushCardSave(pid); continue; }
+            return;
+        }
+    }
+    async function _sxrFlushCardSave(pid) {
+        let edits = _sxrPendingEdits[pid];
+        if (!edits) return;
+        // Leave the complete trailing batch untouched until the current owner
+        // releases the per-card save lock.
+        if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid);
+        const retryPost = sxrState.posts.find(p => p.id === pid);
+        const _saveSlug = sxrClientSlug(sxrState.client);
+        const retryPrincipal = _writeUiPrincipalKey();
+        if (retryPost && retryPost._writeUiRetrySourceAt
+            && retryPost._writeUiRetryPrincipal !== retryPrincipal) {
+            delete _sxrPendingEdits[pid];
+            retryPost._saveError = 'Source repair belongs to another signed-in actor';
+            try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {}
+            return;
+        }
+        if (retryPost && retryPost._writeUiRetrySourceAt
+            && !_writeUiJournalCoversRepairRefs(retryPost, 'sxr', 'card', _saveSlug, retryPrincipal)) {
+            retryPost._writeUiHeldSourceEdits = Object.assign({}, retryPost._writeUiHeldSourceEdits || {},
+                _writeUiSourceEditsOnly(retryPost._writeUiRetryEdits), _writeUiSourceEditsOnly(edits));
+            retryPost._saveError = 'Source repair receipt missing; explicit review required';
+            delete _sxrPendingEdits[pid];
+            _sxrCacheWrite(_saveSlug, sxrState.posts);
+            _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'source-repair' });
+            try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {}
+            return;
+        }
+        if (retryPost && (retryPost._writeUiRetryEdits || retryPost._writeUiHeldSourceEdits)) {
+            edits = Object.assign({}, retryPost._writeUiRetryEdits || {}, retryPost._writeUiHeldSourceEdits || {}, edits);
+        }
+        const sourceRepairRefsForWrite = [];
+        (Array.isArray(edits._writeUiRepairRefs) ? edits._writeUiRepairRefs : []).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
+        if (retryPost && retryPost._writeUiRetrySourceAt) {
+            _writeUiSnapshotRepairRefs(retryPost).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
+        }
+        const precommittedForWrite = edits._writeUiPrecommittedNative === true
+            || !!(retryPost && retryPost._writeUiRetrySourceAt);
+        const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
+        const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
+        delete edits._writeUiRepairRefs;
+        delete edits._writeUiPrecommittedNative;
+        delete edits._writeUiCompanionRepairs;
+        delete edits._writeUiPinnedSourceTransport;
+        delete _sxrPendingEdits[pid];
+        let _releaseSave;
+        _sxrSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
+        let realId = pid;
+        try {
+            const isBlank = _sxrIsBlankId(pid);
+            const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
+            if (isBlank && !hasContent) return;
+            if (isBlank) {
+                realId = _sxrMintId();
+                _sxrPromoteBlankCard(pid, realId);
+                _sxrSaveInFlight[realId] = _sxrSaveInFlight[pid];
+                // GHOST-CARD FIX: addSxrBlankCard pushed the optimistic blank
+                // into sxrState.posts under its __sxrblank__ pid (unlike the
+                // calendar, whose add is DOM-only). _sxrPromoteBlankCard only
+                // rewrites DOM attributes, so without dropping the stale blank
+                // here the findIndex(realId) below misses, the wasNewRow branch
+                // pushes a SECOND post object, and the next render paints the
+                // same card twice in the creating window (the server correctly
+                // has one row — the twin is purely local state). Splice it out
+                // so the save re-adds this card once, under its REAL id.
+                const staleIdx = sxrState.posts.findIndex(p => p.id === pid);
+                if (staleIdx >= 0) sxrState.posts.splice(staleIdx, 1);
+            }
+            let post;
+            const idx = sxrState.posts.findIndex(p => p.id === realId);
+            const prevSnapshot = idx >= 0 ? Object.assign({}, sxrState.posts[idx]) : null;
+            const wasNewRow = idx < 0;
+            if (idx < 0) {
+                const blank = _sxrBlankSample(); blank.id = realId;
+                post = Object.assign({}, blank, edits);
+                sxrState.posts.push(post);
+            } else {
+                post = Object.assign({}, sxrState.posts[idx], edits);
+                sxrState.posts[idx] = post;
+            }
+            const writeUiSourceAt = String(post._writeUiRetrySourceAt || new Date().toISOString());
+            const recoveringWriteUiSource = !!post._writeUiRetrySourceAt;
+            post.updated_at = writeUiSourceAt;
+            const bumpThumbRev = ('thumbnail_url' in edits || 'asset_url' in edits)
+                || _calShouldBumpThumbRevForGraphicStatus(edits, prevSnapshot, post);
+            if (bumpThumbRev) post.thumb_rev = _sxrBumpThumbRev(realId);
+            delete post._saveError;
+            _sxrSetCardStatus(realId, 'saving');
+            const suppressAll     = _sxrNoLinearPush.has(realId) || _sxrNoLinearPush.has(pid);
+            const suppressVideo   = suppressAll || _sxrNoLinearPush.has(realId + '|video')   || _sxrNoLinearPush.has(pid + '|video');
+            const suppressGraphic = suppressAll || _sxrNoLinearPush.has(realId + '|graphic') || _sxrNoLinearPush.has(pid + '|graphic');
+            [realId, pid].forEach(k => { _sxrNoLinearPush.delete(k); _sxrNoLinearPush.delete(k + '|video'); _sxrNoLinearPush.delete(k + '|graphic'); });
+            let gatewayAttempted = false;
+            let gatewayCommitted = precommittedForWrite;
+            const deferredLegacyStatusPushes = [];
+            const checkpointCommittedSource = () => {
+                if (!gatewayCommitted) return;
+                post._writeUiRetryEdits = Object.assign({}, edits);
+                post._writeUiRetrySourceAt = writeUiSourceAt;
+                post._writeUiRetryPrincipal = _writeUiPrincipalKey();
+                if (!_sxrCacheWrite(_saveSlug, sxrState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+            };
+            try {
+                checkpointCommittedSource();
+                _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, false);
+                for (const companion of companionRepairsForWrite) {
+                    if (!companion || companion.operation !== 'status') continue;
+                    const key = companion.component + '_status';
+                    const suppressed = companion.component === 'graphic' ? suppressGraphic : suppressVideo;
+                    if (!(key in edits) || suppressed) throw _writeUiGatewayError(409, 'repair_status_not_applied');
+                }
+                if ('video_status' in edits && !suppressVideo) {
+                    const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
+                    const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
+                    if (!reconciled) {
+                        const gatewayAttemptedBefore = gatewayAttempted;
+                        gatewayAttempted = true;
+                        const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                        const acknowledgement = await _sxrPushStatusToLinear(post.linear_issue_id, post.video_status, {
+                            post, component: 'video', sourceEditedAt,
+                            repairRecord: companion && companion.record,
+                            deferLegacyUntilSourceSave: true
+                        });
+                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                            gatewayAttempted = gatewayAttemptedBefore;
+                            deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
+                        }
+                        _writeUiAdoptRepairAck(post, acknowledgement);
+                        _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                        gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                        const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'samples');
+                        if (current) edits.video_status = current;
+                    }
+                    checkpointCommittedSource();
+                }
+                if ('graphic_status' in edits && !suppressGraphic) {
+                    const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
+                    const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
+                    if (!reconciled) {
+                        const gatewayAttemptedBefore = gatewayAttempted;
+                        gatewayAttempted = true;
+                        const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                        const acknowledgement = await _sxrPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
+                            post, component: 'graphic', sourceEditedAt,
+                            repairRecord: companion && companion.record,
+                            deferLegacyUntilSourceSave: true
+                        });
+                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                            gatewayAttempted = gatewayAttemptedBefore;
+                            deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
+                        }
+                        _writeUiAdoptRepairAck(post, acknowledgement);
+                        _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                        gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                        const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'samples');
+                        if (current) edits.graphic_status = current;
+                    }
+                    checkpointCommittedSource();
+                }
+                _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, true);
+                let wirePost;
+                if (!wasNewRow && Object.keys(edits).length > 0) {
+                    // FIELD-LEVEL PATCH — only the columns this edit touched.
+                    wirePost = { id: post.id };
+                    for (const k of Object.keys(edits)) {
+                        if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
+                        wirePost[k] = post[k];
+                    }
+                    SXR_REVIEW_COMPONENTS.forEach(comp => {
+                        const fk = comp + '_tweaks';
+                        if (fk in edits) { wirePost[fk] = _sxrStringifyComments(_sxrCommentsFor(post, comp)); if (comp === 'video') wirePost.tweaks = wirePost[fk]; }
+                    });
+                    if ('video_status' in edits || 'graphic_status' in edits) wirePost.status = post.status;
+                    if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
+                    // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
+                    _sxrApplyClearSentinels(wirePost);
+                } else {
+                    // Whole card (new row, or a forced retry with empty edits).
+                    wirePost = Object.assign({}, post);
+                    wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
+                    wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
+                    wirePost.tweaks = wirePost.video_tweaks;
+                    delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
+                    delete wirePost._baseAt; delete wirePost._saveError;
+                    delete wirePost._writeUiRetryEdits; delete wirePost._writeUiHeldSourceEdits; delete wirePost._writeUiRetrySourceAt;
+                    delete wirePost._writeUiRetryPrincipal;
+                    delete wirePost._writeUiPrecommittedNative;
+                    delete wirePost._writeUiRepairRefs;
+                    _calStripThumbnailFolderFields(wirePost);
+                    _sxrApplyClearSentinels(wirePost, edits);
+                }
+                _sxrLastLocalWriteAt = Date.now();
+                const resp = await _sxrUpsertFetchPinned(
+                    _saveSlug,
+                    { client: _saveSlug, sample: wirePost, comments_base_at: '' },
+                    'ui',
+                    pinnedSourceTransportForWrite
+                );
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json.ok) throw new Error(json.error || 'save failed');
+                if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefsForWrite);
+                const saved = json.sample || post;
+                const i2 = sxrState.posts.findIndex(p => p.id === realId);
+                if (i2 >= 0) {
+                    // Overlay the echo onto the FULL local row, THEN migrate (so an
+                    // omitted sub-status is never invented and a column the echo
+                    // omits keeps its correct local value).
+                    const merged = Object.assign({}, sxrState.posts[i2], saved);
+                    _sxrMigrateShape(merged);
+                    const queued = _sxrPendingEdits[realId];
+                    if (queued) for (const k in queued) merged[k] = sxrState.posts[i2][k];
+                    _sxrMergePostComments(merged, sxrState.posts[i2]);
+                    merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');
+                    sxrState.posts[i2] = merged;
+                }
+                _sxrLocalRecentSaves.set(realId, Date.now());
+                _sxrRecentSaveFields.set(realId, {
+                    wrote: { video_status: post.video_status, graphic_status: post.graphic_status },
+                    base: prevSnapshot ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status } : {}
+                });
+                _sxrLastLocalWriteAt = Date.now();
+                _sxrConflictNotified.delete(realId);
+                _sxrFailedNewCards.delete(realId);
+                const _okPost = sxrState.posts.find(p => p.id === realId);
+                if (_okPost) {
+                    if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._writeUiRetryEdits; delete _okPost._writeUiHeldSourceEdits; delete _okPost._writeUiRetrySourceAt;
+                    delete _okPost._writeUiRetryPrincipal;
+                    if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
+                    else delete _okPost._writeUiPrecommittedNative;
+                }
+                _sxrCacheWrite(_saveSlug, sxrState.posts, { clearRepairIds: [realId] });
+                _sxrSetCardStatus(realId, 'saved');
+                if (bumpThumbRev) _sxrForceThumbRefresh(realId);
+                if ('thumbnail_url' in edits) {
+                    const thumbPost = sxrState.posts.find(p => p.id === realId);
+                    if (thumbPost) _calResolveThumbnailFolder('samples', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost, { sxr: true });
+                }
+                if (isBlank && wasNewRow) {
+                    const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
+                    if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
+                }
+                if (_okPost) {
+                    deferredLegacyStatusPushes.forEach(push => {
+                        const isGraphic = push.component === 'graphic';
+                        _sxrLegacyPushStatusToLinear(
+                            isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
+                            _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
+                            { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
+                        );
+                    });
+                }
+            } catch (e) {
+                console.warn('[Samples] save failed', e);
+                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
+                _sxrSetCardStatus(realId, 'error', e.message || 'save failed');
+                const iErr = sxrState.posts.findIndex(p => p.id === realId);
+                if (wasNewRow) {
+                    _sxrFailedNewCards.add(realId);
+                    if (iErr >= 0) sxrState.posts[iErr]._saveError = _writeUiFailureSentence(e, 'save failed');
+                } else if (prevSnapshot && iErr >= 0) {
+                    const cur = sxrState.posts[iErr];
+                    if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
+                    cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                    cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    if (gatewayCommitted) {
+                        cur._writeUiRetryEdits = Object.assign({}, edits);
+                        cur._writeUiRetrySourceAt = writeUiSourceAt;
+                        cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
+                        delete cur._writeUiPrecommittedNative;
+                        _sxrCacheWrite(_saveSlug, sxrState.posts);
+                    }
+                }
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
+            }
+        } finally {
+            delete _sxrSaveInFlight[pid];
+            delete _sxrSaveInFlight[realId];
+            if (_releaseSave) _releaseSave();
+            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
+            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+        }
+    }
+
+    /* Retry a failed save — queue an empty bucket so the flush re-sends the whole
+       current row through the normal funnel (fixes the old broken retry that
+       early-returned on an empty bucket). */
+    function _sxrRetrySave(pid) {
+        if (!pid) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
+        _sxrSetCardStatus(pid, 'saving');
+        _sxrFlushCardSave(pid);
+    }
+
+    /* ============================================================
+       --- SURFACE 4: the SMM Review queue + the review state machine ---
+       Clone of renderCalReview / _calReviewItems / _calReviewCardHtml /
+       _calReviewCardBody / _calReviewPanelHtml / the approve / request-change /
+       comment handlers + the comment DATA layer (shared with Surface 5 Notes),
+       over video+graphic. _CAL_REVIEW_CFG: SMM 'For SMM Approval'->'Kasper Approval',
+       client 'Client Approval'->'Approved'. The SMM keeps the Approve→Kasper /
+       Approve→Client split + the "First review" smart default. The resolve chooser
+       is simplified (open change-requests are resolved inline on approve — no modal);
+       the Linear comment push is stubbed for Surface 7.
+       ============================================================ */
+
+    /* Pure review/thumb helpers REUSED from the calendar. */
+    const _sxrDeriveThumb = _calDeriveThumb, _sxrIsFrameLink = _calIsFrameLink, _sxrIsFolderLink = _calIsFolderLink;
+    const _sxrReviewFrameHtml = _calReviewFrameHtml, _sxrMiniLinkBadgeHtml = _calMiniLinkBadgeHtml, _sxrThumbIconSvg = _calThumbIconSvg;
+    const _sxrKcardReuseThumbInto = (typeof _kcardReuseThumbInto === 'function') ? _kcardReuseThumbInto : function () {};
+
+    /* ── Comment data layer (forked over video+graphic; shared with Notes) ── */
+    function _sxrCommentsFor(post, comp) {
+        if (!post) return [];
+        if (comp === 'graphic') return Array.isArray(post.graphic_comments) ? post.graphic_comments : [];
+        if (Array.isArray(post.video_comments)) return post.video_comments;
+        return Array.isArray(post.comments) ? post.comments : [];
+    }
+    // Video-thread loader used by the Notes modal at 6 call sites as the fallback
+    // when post.comments isn't already an array (e.g. a raw/unmigrated row from a
+    // realtime echo). Was referenced but never defined — a latent ReferenceError
+    // that crashed the modal on those rows. Aliases the shape-agnostic reader.
+    function _sxrLoadComments(post) { return _sxrCommentsFor(post, 'video'); }
+    function _sxrSetCommentsFor(post, comp, arr) {
+        if (!post) return;
+        const list = Array.isArray(arr) ? arr : [];
+        const str = _sxrStringifyComments(list);
+        if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
+        post.video_comments = list; post.comments = list; post.video_tweaks = str; post.tweaks = str;
+    }
+    function _sxrCanonicalCommentsFor(post, comp) {
+        const slots = post && post._canonicalCommentsByComponent;
+        return slots && Array.isArray(slots[comp]) ? slots[comp] : [];
+    }
+    function _sxrSetCanonicalCommentsFor(post, comp, arr) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        if (!post._canonicalCommentsByComponent
+            || typeof post._canonicalCommentsByComponent !== 'object'
+            || Array.isArray(post._canonicalCommentsByComponent)) {
+            post._canonicalCommentsByComponent = Object.create(null);
+        }
+        post._canonicalCommentsByComponent[comp] = Array.isArray(arr) ? arr : [];
+    }
+    // Canonical-where-linked, legacy-where-not. A Samples card with no native
+    // deliverable binding has no canonical thread to address — F42 cannot import
+    // one either — so the client surface acts on the same legacy card arrays
+    // staff already acts on there. A LINKED card keeps the canonical contract.
+    function _sxrCommentsForAction(post, comp) {
+        return _isClientLink && _prodCanonicalCommentGate(post, comp).linked
+            ? _sxrCanonicalCommentsFor(post, comp)
+            : _sxrCommentsFor(post, comp);
+    }
+    function _sxrStringifyComments(arr) { const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : []; return list.length ? JSON.stringify(list) : ''; }
+    function _sxrCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
+    function _sxrMergeCommentLists(a, b) {
+        const out = new Map();
+        const absorb = (list) => { if (!Array.isArray(list)) return; for (const c of list) { if (!c || !c.id) continue; const prev = out.get(c.id); if (!prev || _sxrCommentStamp(c) >= _sxrCommentStamp(prev)) out.set(c.id, c); } };
+        absorb(a); absorb(b); return Array.from(out.values());
+    }
+    function _sxrMergePostComments(winner, other) {
+        if (!winner || !other) return winner;
+        for (const comp of SXR_COMPONENTS) _sxrSetCommentsFor(winner, comp, _sxrMergeCommentLists(_sxrCommentsFor(winner, comp), _sxrCommentsFor(other, comp)));
+        if (Array.isArray(winner.video_comments)) winner.comments = winner.video_comments;
+        return winner;
+    }
+    function _sxrMsgAudience(c) { if (!c) return 'client'; if (c.audience === 'internal' || c.audience === 'client') return c.audience; return (c.role === 'kasper' || c.role === 'smm') ? 'internal' : 'client'; }
+    function _sxrMsgIsTweak(c) { if (!c) return false; if (typeof c.is_tweak === 'boolean') return c.is_tweak; return true; }
+    function _sxrNextTweakRound(post, comp) { const list = _sxrCommentsForAction(post, comp); return Array.isArray(list) ? list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1 : 1; }
+    /* The client-visible LEGACY rows for a component, computed WITHOUT
+       consulting the canonical gate.
+
+       This has to be gate-independent. The projection needs to know what the
+       client can see today in order to decide whether replacing it would hide
+       anything — but _sxrCommentsForView asks the gate first, and on a linked
+       card the gate answers "canonical", so asking it returns the canonical
+       view and the projection learns nothing about the legacy rows it is
+       about to overwrite. That circularity made the hold dead code.
+
+       Thread audience lives on the ROOT and replies inherit it; Kasper
+       authorship is hard-hidden belt-and-braces so internal review chatter
+       can never surface on a mis-tagged thread. */
+    function _sxrClientVisibleLegacyRows(post, comp) {
+        // One definition of the root-audience rule, shared with the canonical
+        // side of the coverage comparison so the two sets stay comparable.
+        return _prodRootAudienceClientRows(_sxrCommentsFor(post, comp));
+    }
+    function _sxrCommentsForView(post, comp) {
+        if (!_isClientLink) {
+            const list = _sxrCommentsFor(post, comp);
+            return Array.isArray(list)
+                ? list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden)
+                : [];
+        }
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (!canonicalGate.linked) {
+            // UNLINKED card: no native deliverable binding exists, so there is
+            // no canonical thread for this component and F42 has nothing to
+            // import into. Fall back to the pre-Slice-4 legacy card-array view.
+            // Staff already reads these arrays here; this aligns the client
+            // surface. Same filter the projection uses to decide whether a
+            // replacement would hide anything.
+            return _sxrClientVisibleLegacyRows(post, comp);
+        }
+        // A verified client link on a LINKED card never falls back to the legacy
+        // card arrays. Until this exact SXR card/component/deliverable read
+        // succeeds, the canonical client thread is simply unavailable.
+        if (!canonicalGate.ready || !canonicalGate.client) return [];
+        const list = _sxrCanonicalCommentsFor(post, comp);
+        return list.filter(c => c
+            && c.canonical === true
+            && c.audience === 'client'
+            && (!c.deleted || c.canonical)
+            && !c.hidden);
+    }
+    function _sxrCommentRoots(arr) { return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentReplies(arr, rootId) { return arr.filter(c => c.parent_id === rootId && (!c.deleted || c.canonical) && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentRole() { return _isClientLink ? 'client' : 'smm'; }
+    function _sxrCurrentAuthor() { return _isClientLink ? (sxrState.client ? String(sxrState.client) : 'Client') : 'Synchro Social'; }
+    function _sxrMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    function _sxrOpenCommentCount(post) { if (!post) return 0; let n = 0; for (const c of SXR_COMPONENTS) { const list = _sxrCommentsForView(post, c); for (const root of _sxrCommentRoots(list || [])) { if (!root.deleted && _sxrMsgIsTweak(root) && !root.done) n++; } } return n; }
+    function _sxrFmtCommentTime(iso) { const t = Date.parse(iso || ''); if (!isFinite(t)) return ''; const mins = Math.round((Date.now() - t) / 60000); if (mins < 1) return 'just now'; if (mins < 60) return mins + 'm ago'; const hrs = Math.round(mins / 60); if (hrs < 24) return hrs + 'h ago'; const days = Math.round(hrs / 24); if (days < 7) return days + 'd ago'; return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    function _sxrAvatarInitial(name, role) { const s = String(name || '').trim(); if (s) return s.charAt(0).toUpperCase(); return role === 'client' ? 'C' : 'S'; }
+    function _sxrLinearUrlFor(post, comp) { if (!post) return ''; if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim(); return String(post.linear_issue_id || '').trim(); }
+    // _sxrPostLinearComment — real version in Surface 7 (outbox-backed), hoisted.
+
+    /* ── Kasper-seen ledger + review predicates ── */
+    const SXR_KASPER_SEEN_KEY = 'syncview_sxr_kasper_seen_v1';
+    const _sxrKasperSeen = (() => { try { return new Set(JSON.parse(localStorage.getItem(SXR_KASPER_SEEN_KEY) || '[]')); } catch (e) { return new Set(); } })();
+    function _sxrKasperSeenKey(pid, comp) { return String(pid) + '|' + comp; }
+    function _sxrMarkKasperSeen(pid, comp) { const k = _sxrKasperSeenKey(pid, comp); if (!pid || _sxrKasperSeen.has(k)) return; _sxrKasperSeen.add(k); try { localStorage.setItem(SXR_KASPER_SEEN_KEY, JSON.stringify([..._sxrKasperSeen])); } catch (e) {} }
+    function _sxrWasKasperSeen(pid, comp) { return _sxrKasperSeen.has(_sxrKasperSeenKey(pid, comp)); }
+    function _sxrHasBeenToKasper(post, comp) {
+        if (!post) return false;
+        if (_sxrWasKasperSeen(post.id, comp)) return true;
+        if (String(post.kasper_seen || '').split(',').map(s => s.trim()).indexOf(comp) !== -1) { _sxrMarkKasperSeen(post.id, comp); return true; }
+        const cs = _sxrNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved') { _sxrMarkKasperSeen(post.id, comp); return true; }
+        if ((_sxrCommentsFor(post, comp) || []).some(c => c && c.role === 'kasper')) { _sxrMarkKasperSeen(post.id, comp); return true; }
+        return false;
+    }
+    function _sxrRecordKasperSeenOnPost(post, comp) {
+        _sxrMarkKasperSeen(post.id, comp);
+        const set = new Set(String(post.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean));
+        SXR_COMPONENTS.forEach(c => { if (_sxrWasKasperSeen(post.id, c)) set.add(c); });
+        set.add(comp);
+        const csv = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+        post.kasper_seen = csv; return csv;
+    }
+    function _sxrShowApprovedAfterTweaks(post, comp) {
+        const set = new Set(String((post && post.kasper_approved_after_tweaks) || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return false;
+        return _sxrNormStatus((post && post[comp + '_status']) || 'In Progress') !== 'Approved';
+    }
+    function _sxrHasMedia(p) { return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim()); }
+
+    /* ── Review render ── */
+    const _sxrReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
+    const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
+    /* One definition of where an SMM approval lands, so the pre-resolve guard
+       and the approve cannot disagree. Calendar twin: _calSmmApproveTo. */
+    function _sxrSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
+    /* The resolve chooser's auto-route destination. Default differs from the
+       approve-onward above for the same reason as the calendar twin
+       (_calAutoResolveDestStatus). */
+    function _sxrAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
+    }
+    function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
+    function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
+    function _sxrApprovalBadgeCount(mode) {
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        return (sxrState.posts || []).reduce((n, p) => { if (mode === 'smm' && !_sxrHasMedia(p)) return n; const awaiting = SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === reviewStatus); return n + (awaiting ? 1 : 0); }, 0);
+    }
+    function _sxrUpdateReviewBadge() {
+        document.querySelectorAll('#sxrView .cal-view-btn').forEach(btn => {
+            const v = btn.dataset.calView; if (v !== 'review' && v !== 'smmreview') return;
+            const count = _sxrApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client');
+            let badge = btn.querySelector('.cal-view-badge');
+            if (count > 0) { if (!badge) { badge = document.createElement('span'); badge.className = 'cal-view-badge'; btn.appendChild(badge); } badge.textContent = String(count); }
+            else if (badge) badge.remove();
+        });
+    }
+    function _sxrReviewItems() {
+        const mode = _sxrReviewMode();
+        return (sxrState.posts || []).filter(p => {
+            if (_sxrNormStatus(p.status || '') === 'Approved') return false;
+            if (mode === 'smm') { if (!_sxrHasMedia(p)) return false; return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm')); }
+            if (_isClientLink) return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'client'));
+            return true;
+        }).slice().sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+    }
+    /* THE SAMPLES TWIN of _calReviewStrandedForMedia, and it was missing.
+       _sxrReviewItems drops a sample with no media BEFORE testing whether it is
+       awaiting approval, and _sxrApprovalBadgeCount repeats the same skip, so
+       the badge agrees with the wrong list. A sample sitting at For SMM
+       Approval with no asset_url and no thumbnail_url therefore vanished from
+       the queue the SMM works from, under an empty state that said nothing was
+       waiting.
+       The calendar had exactly this and it was fixed on 2026-08-31 (item 87.3,
+       PR 1185 -- no hash, because the colour guard reads one as a hex literal,
+       which is why every PR reference in this file is written that way). The
+       ledger predicted this file at the time: "fixing one surface and not its
+       sibling is how this gate got missed the first time." It was missed the
+       second time too.
+       The MEDIA GATE ITSELF IS UNCHANGED, deliberately. _sxrReviewCardHtml is
+       built around a video or a thumbnail; admitting a card with neither would
+       render approve and request-change controls over a deliverable that does
+       not exist. The card stays out and the reader is told it is out, which is
+       the shape the owner ratified on the calendar. */
+    function _sxrReviewStrandedForMedia() {
+        if (_sxrReviewMode() !== 'smm') return [];
+        return (sxrState.posts || []).filter(p => {
+            if (!p) return false;
+            if (_sxrNormStatus(p.status || '') === 'Approved') return false;
+            if (_sxrHasMedia(p)) return false;
+            return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm'));
+        });
+    }
+    function _sxrReviewStrandedNoticeHtml() {
+        const stranded = _sxrReviewStrandedForMedia();
+        if (!stranded.length) return '';
+        const n = stranded.length;
+        const names = stranded.slice(0, 4).map(p => _sxrEsc(String(p.name || p.id || 'Untitled'))).join(', ');
+        const more = n > 4 ? ' and ' + (n - 4) + ' more' : '';
+        return '<div class="cal-review-stranded" data-sxr-review-stranded="' + n + '">'
+            + n + (n === 1 ? ' sample is' : ' samples are') + ' waiting on SMM approval but cannot be reviewed here yet, '
+            + 'because no video or thumbnail has landed on ' + (n === 1 ? 'it' : 'them') + ' — '
+            + names + more + '.</div>';
+    }
+    function renderSxrReview() {
+        const items = _sxrReviewItems();
+        /* Above the queue in BOTH states, same as the calendar. An empty queue
+           with stranded work is the case that made this necessary; a non-empty
+           queue quietly missing a card is the same lie, just harder to see. */
+        const stranded = _sxrReviewStrandedNoticeHtml();
+        if (!items.length) {
+            const msg = _sxrReviewMode() === 'smm'
+                ? (stranded
+                    ? 'Nothing can be reviewed here right now.'
+                    : 'Nothing waiting on SMM approval right now — samples with a linked video or thumbnail appear here when they reach the SMM Approval stage.')
+                : 'Nothing to review right now — every sample is either fully approved or still being worked on.';
+            return `<div class="cal-review-wrap">${stranded}<div class="cal-empty">${msg}</div></div>`;
+        }
+        return `<div class="cal-review-wrap">${stranded}<div class="cal-review-list">${items.map(p => _sxrReviewCardHtml(p)).join('')}</div></div>`;
+    }
+    function _sxrReviewPendingLabel(p) {
+        const mode = _sxrReviewMode();
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        const showInFlight = mode !== 'client' || !_isClientLink;
+        const awaiting = [], inFlight = [];
+        for (const c of SXR_REVIEW_COMPONENTS) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === reviewStatus) awaiting.push(c); else if (showInFlight && cs === 'Tweaks Needed') inFlight.push(c); }
+        if (!awaiting.length && !inFlight.length) return '';
+        const human = (list) => { const labels = list.map(c => `<span class="kcard-pending-strong">${_sxrEsc(COMP_LABELS[c])}</span>`); if (labels.length === 1) return labels[0]; return labels.slice(0, -1).join(', ') + ' and ' + labels.slice(-1)[0]; };
+        const parts = [];
+        if (awaiting.length) parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + (mode === 'smm' ? ' SMM approval' : ' your review'));
+        if (inFlight.length) parts.push(mode === 'smm' ? ('tweaks requested on ' + human(inFlight)) : ("we're working on your tweaks for " + human(inFlight)));
+        const joined = parts.join(' · ');
+        return joined.charAt(0).toUpperCase() + joined.slice(1);
+    }
+    function _sxrReviewCardHtml(p) {
+        const escId = _sxrEscAttr(p.id);
+        const expanded = _sxrReviewState.expanded.has(p.id);
+        const info = _sxrDeriveThumbInfo(p);
+        const thumbHtml = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const pendingLabel = _sxrReviewPendingLabel(p);
+        const compPills = _sxrClientCompPillsHtml(p);
+        const body = expanded ? _sxrReviewCardBody(p) : '';
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
+            <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
+                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
+                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
+                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${_thumbCompareSlotHtml('samples', p, true, 'review')}
+                    <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+    function _sxrReviewCardBody(p) {
+        const mode = _sxrReviewMode();
+        const activeComps = (mode === 'smm')
+            ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'smm'))
+            : (_isClientLink ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'client')) : SXR_REVIEW_COMPONENTS.slice());
+        if (!activeComps.length) return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing left to review on this sample.</div></div>`;
+        const cols = activeComps.length;
+        return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${activeComps.map(comp => _sxrReviewPanelHtml(p, comp)).join('')}</div>`;
+    }
+    function _sxrReviewPanelHtml(p, comp) {
+        const escId = _sxrEscAttr(p.id), escComp = _sxrEscAttr(comp);
+        const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Approved' ? 'approved' : (subStatus === 'Tweaks Needed' ? 'tweaks' : 'pending');
+        const comments = _sxrCommentsForView(p, comp);
+        if (state === 'approved') {
+            const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="approved"><span class="cal-review-mini-icon">${checkIco}</span><span class="cal-review-mini-label">${_sxrEsc(COMP_LABELS[comp])} approved</span><span class="cal-review-mini-sub">Locked in</span></div>`;
+        }
+        const previewHtml = _sxrReviewComponentPreview(p, comp);
+        const draftKey = p.id + '|' + comp;
+        const draft = _sxrReviewState.drafts[draftKey] || '';
+        const saving = !!_sxrReviewState.saving[draftKey];
+        const err = _sxrReviewState.errors[draftKey] || '';
+        const mode = _sxrReviewMode();
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        const canAct = (mode === 'smm' || _isClientLink) ? (subStatus === reviewStatus || subStatus === 'Tweaks Needed') : true;
+        const hasDraft = !!draft.trim();
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const showApprove = canAct && subStatus !== 'Approved';
+        const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
+        const tweakEnabled = canAct && !saving && hasDraft;
+        const stateLabel = inTweaks ? 'Changes requested' : (subStatus === 'Client Approval' ? 'Awaiting your approval' : (subStatus === 'For SMM Approval' ? 'Awaiting SMM approval' : subStatus));
+        const placeholder = inTweaks ? 'The team is working on it. Anything else to add?' : 'Add a note or request a change…';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>` : '';
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}"><div class="cal-review-comment-head"><strong>${_sxrEsc(author)}</strong><span class="cal-review-comment-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${resolvedBadge}</div><div class="cal-review-comment-body">${_sxrEsc(c.body || '')}</div></div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const statusPill = !inTweaks ? '' : `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>`;
+        const seenByKasper = mode === 'smm' && _sxrHasBeenToKasper(p, comp);
+        const firstReviewBadge = (mode === 'smm' && showApprove && !seenByKasper) ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper yet">First review</span>` : '';
+        const aatBadge = (mode === 'smm' && _sxrShowApprovedAfterTweaks(p, comp)) ? `<span class="cal-review-aat-pill" title="Kasper pre-cleared this for the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>` : '';
+        let approveControl = '';
+        if (showApprove) {
+            if (mode === 'smm') {
+                const primary = seenByKasper ? 'client' : 'kasper', alt = seenByKasper ? 'kasper' : 'client';
+                const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
+                const dis = approveEnabled ? '' : 'disabled';
+                const altIdle = 'Approve & send to ' + lbl(alt) + ' instead';
+                approveControl = `<div class="cal-review-approve-split"><button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button><button type="button" class="cal-review-approve-alt" ${dis} data-idle-title="${_sxrEscAttr(altIdle)}" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _sxrEscAttr(altIdle)}" onclick="_sxrReviewApprove('${escId}','${escComp}','${alt}')">${lbl(alt)}</button></div>`;
+            } else {
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_sxrEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+            }
+        }
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${firstReviewBadge}${aatBadge}<div class="cal-review-panel-head-right">${statusPill}</div></div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${approveControl}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_sxrReviewOnDraftInput(this,'${escId}','${escComp}')" ${canAct ? '' : 'readonly'}>${_sxrEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewComment('${escId}','${escComp}')" title="Leave a comment — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_sxrEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+    function _sxrReviewComponentPreview(p, comp) {
+        if (comp === 'video') {
+            const url = String(p.asset_url || '').trim();
+            if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
+            const thumbUrl = _sxrDeriveThumb(p);
+            const bg = thumbUrl ? `<img class="cal-review-video-bg" src="${_sxrEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'">` : '';
+            return `<a class="cal-review-video-tile${thumbUrl ? '' : ' cal-review-video-tile-blank'}" href="${_sxrEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video">${bg}<span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+        }
+        const raw = String(p.thumbnail_url || '').trim();
+        if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+        const info = _sxrDeriveThumbInfo(p);
+        const imgUrl = info.url;
+        if (!imgUrl) {
+            const kind = _sxrIsFrameLink(raw) ? 'frame' : (_sxrIsFolderLink(raw) ? 'folder' : '');
+            if (kind) return _sxrReviewFrameHtml(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw, '', kind);
+            return `<div class="cal-review-preview-empty">Thumbnail can't preview.</div>`;
+        }
+        // Use the calendar's preview-thumb markup so the WHOLE thumbnail shows
+        // (object-fit: contain, centred) AND open it in the same full-screen
+        // lightbox the calendar uses (_calOpenThumbLightbox) instead of a new
+        // tab — parity with the SMM Review / Client / Kasper preview.
+        const escPid = _sxrEscAttr(p.id);
+        return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_sxrOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen">${_calThumbImgTag(info, '_calOnReviewThumbError')}</button></div>`;
+    }
+    function _sxrReviewToggleCard(pid) { if (_sxrReviewState.expanded.has(pid)) _sxrReviewState.expanded.delete(pid); else _sxrReviewState.expanded.add(pid); _sxrReviewRepaintCard(pid); }
+    function _sxrReviewRepaintCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!el || !post) return;
+        // Preserve the caret if the reviewer is typing in this card's draft when
+        // the repaint fires (same guard the Kasper queue uses).
+        const cap = _svCaptureFocus(el);
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrReviewCardHtml(post);
+        if (tmp.firstElementChild) { _sxrKcardReuseThumbInto(el, tmp.firstElementChild); el.replaceWith(tmp.firstElementChild); }
+        _svRestoreFocus(cap);
+        _sxrUpdateReviewBadge();
+    }
+    function _sxrReviewRemoveCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        if (!el) return;
+        const list = el.closest('.cal-review-list');
+        const finish = () => { el.remove(); if (!list || !list.querySelector('.cal-review-card')) _sxrRenderBody({ preserveScroll: true }); _sxrUpdateReviewBadge(); };
+        const h = el.offsetHeight; if (!h) { finish(); return; }
+        el.style.overflow = 'hidden'; el.style.height = h + 'px'; el.style.transition = 'height .2s ease, opacity .15s ease, margin .2s ease';
+        void el.offsetHeight; el.style.opacity = '0'; el.style.height = '0px'; el.style.marginTop = '0px'; el.style.marginBottom = '0px';
+        let done = false; const onEnd = () => { if (done) return; done = true; finish(); };
+        el.addEventListener('transitionend', onEnd, { once: true }); setTimeout(onEnd, 280);
+    }
+    function _sxrReviewOpenInSheet(pid) {
+        sxrState.focusPid = pid;
+        if (sxrState.view !== 'organizer') { sxrState.view = 'organizer'; _sxrSavePrefs(); document.querySelectorAll('#sxrView .cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer')); _sxrApplyZoom(); }
+        _sxrRenderBody();
+        setTimeout(() => { const card = document.querySelector(`.cal-card[data-pid="${pid}"]`); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
+    }
+
+    /* ── Review handlers (approve / request-change / comment) ── */
+    function _sxrReviewOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp;
+        _sxrReviewState.drafts[key] = ta.value;
+        delete _sxrReviewState.draftActionIds[key];
+        const nowHasDraft = !!ta.value.trim();
+        const card = ta.closest('.cal-review-card'); if (!card) return;
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]'); if (!panel) return;
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-comment-btn').forEach(b => { b.disabled = !nowHasDraft || !!_sxrReviewState.saving[key]; });
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = nowHasDraft || !!_sxrReviewState.saving[key];
+            // See _calReviewOnDraftInput: data-idle-title is read back, not
+            // reconstructed, so restoring it can never drift from render.
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
+    }
+    function _sxrOpenTweaksForComp(post, comp) { const list = _sxrCommentsFor(post, comp); return Array.isArray(list) ? list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _sxrMsgIsTweak(c)) : []; }
+    function _sxrResolveTweaksDone(post, comp, ids) {
+        if (!post || !Array.isArray(ids) || !ids.length) return false;
+        const list = _sxrCommentsFor(post, comp).slice();
+        const want = new Set(ids), at = new Date().toISOString(), by = _sxrCurrentAuthor();
+        let changed = false;
+        for (const c of list) { if (c && !c.parent_id && want.has(c.id) && !c.done && !c.deleted) { c.done = true; c.done_at = at; c.done_by = by; c.updated_at = at; changed = true; } }
+        if (!changed) return false;
+        _sxrSetCommentsFor(post, comp, list);
+        _sxrPendingEdits[post.id] = Object.assign(_sxrPendingEdits[post.id] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        return true;
+    }
+    /* ── Resolve-and-route chooser (ported faithfully from the calendar's _cal*
+       family). When the SMM clears the LAST open change-request on a component
+       (Notes "mark done") OR approves a component that still has open
+       change-requests (Review tab), the cleared work must be ROUTED — the SMM
+       picks Kasper / the client / straight to Approved — not silently resolved.
+       Reuses the shared #resolveDestOverlay DOM. ── */
+    let _sxrResolveDestCb = null;
+    function _sxrResolveDestRecommend(post, comp) {
+        if (!post) return 'client';
+        if (_sxrShowApprovedAfterTweaks(post, comp)) return 'client';
+        if (_sxrHasBeenToKasper(post, comp)) return 'client';
+        return 'kasper';
+    }
+    function _sxrResolveDestReason(post, comp) {
+        if (!post) return '';
+        if (_sxrShowApprovedAfterTweaks(post, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_sxrHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
+    function _sxrShowResolveDest(opts) {
+        opts = opts || {};
+        const overlay = document.getElementById('resolveDestOverlay');
+        const msg = document.getElementById('resolveDestMsg');
+        const checklist = document.getElementById('resolveDestChecklist');
+        const kBtn = document.getElementById('resolveDestKasper');
+        const cBtn = document.getElementById('resolveDestClient');
+        const aBtn = document.getElementById('resolveDestApprove');
+        const openTweaks = (Array.isArray(opts.openTweaks) ? opts.openTweaks : []).filter(Boolean);
+        // No overlay (stripped DOM) → fall back to the recommended route + resolve all.
+        if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
+        const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        // The checklist earns its keep only with a genuine choice (2+ open); with
+        // one, the single change-request is implied by the route, so we hide it.
+        if (checklist) {
+            if (openTweaks.length >= 2) {
+                checklist.innerHTML = openTweaks.map(t => {
+                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
+                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
+                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _sxrEscAttr(t.id) + '" checked>'
+                        + '<span><span class="rd-round">' + _sxrEsc(rd) + '</span> · ' + _sxrEsc(who) + ' — ' + _sxrEsc(short) + '</span></label>';
+                }).join('');
+                checklist.hidden = false;
+            } else { checklist.innerHTML = ''; checklist.hidden = true; }
+        }
+        const n = openTweaks.length;
+        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
+                   : n === 1 ? 'This change request will be marked done. ' : '';
+        const toKasper = opts.recommend === 'kasper';
+        const toApproved = opts.recommend === 'approved';
+        if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
+            + (toApproved ? 'mark it approved — or to Kasper or the client first.'
+               : toKasper ? 'to Kasper for approval — or straight to the client.'
+                          : 'to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
+        kBtn.classList.toggle('primary', toKasper);
+        cBtn.classList.toggle('primary', !toKasper && !toApproved);
+        aBtn.classList.toggle('primary', toApproved);
+        const tickedIds = () => {
+            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
+            return Array.from(checklist.querySelectorAll('input[data-rd-id]')).filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
+        };
+        _sxrResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
+        const pick = (dest) => { const cb = _sxrResolveDestCb; const ids = tickedIds(); _sxrDismissResolveDest(); if (cb) cb(dest, ids); };
+        kBtn.onclick = () => pick('kasper');
+        cBtn.onclick = () => pick('client');
+        aBtn.onclick = () => pick('approved');
+        // "Mark done — don't change the status" (dest 'stay'): resolve the ticked
+        // change-requests but route nowhere. Only from Notes — the Review tab's
+        // "Approve & send" is inherently a route, so it hides this escape.
+        const stayBtn = document.getElementById('resolveDestStay');
+        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        overlay.classList.add('active');
+    }
+    function _sxrDismissResolveDest() {
+        const overlay = document.getElementById('resolveDestOverlay');
+        if (overlay) overlay.classList.remove('active');
+        _sxrResolveDestCb = null;
+    }
+    function _sxrResolveLastTweak(pid, comp, rootId) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const root = _sxrOpenTweaksForComp(post, comp).find(c => c.id === rootId);
+        _sxrShowResolveDest({
+            comp: comp,
+            recommend: _sxrResolveDestRecommend(post, comp),
+            reason: _sxrResolveDestReason(post, comp),
+            openTweaks: root ? [root] : [],
+            fromReview: false,
+            onChoose: async (destPick, ids) => {
+                /* Refuse before resolving — see the calendar twin in
+                   _calResolveLastTweak. */
+                if (destPick !== 'stay') {
+                    const _blocked = _sxrReviewBlockReason(post, comp, _sxrAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
+                const chosen = (ids && ids.length) ? ids : [rootId];
+                const canonicalGate = _prodCanonicalCommentGate(post, comp);
+                if (canonicalGate.linked) {
+                    for (const id of chosen) {
+                        const comment = _sxrCommentsFor(post, comp).find(row => row && row.id === id);
+                        if (!comment) continue;
+                        const receipt = await _writeUiCommitCardCommentLifecycle(
+                            'sxr', post, comp, comment, 'resolve', undefined,
+                            { resolveDestination: destPick }
+                        );
+                        if (!receipt) return;
+                    }
+                } else {
+                    _sxrResolveTweaksDone(post, comp, chosen);
+                }
+                if (destPick !== 'stay') _sxrApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                if (canonicalGate.linked) await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+                else _sxrWatchNoteSave(pid);
+                _sxrRefreshCommentsBtn(pid);
+                _sxrUpdateCardStatusDisplay(pid);
+                _sxrCaptureModalDrafts();
+                _sxrRenderCommentsModal();
+            }
+        });
+    }
+    function _sxrReviewApprove(pid, comp, dest) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // SMM approving a component that still has open change-requests routes it
+        // onward via the chooser (resolve the ticked requests + pick a destination)
+        // instead of silently auto-resolving. Mirrors _calReviewApprove.
+        if (_sxrReviewMode() === 'smm' && _sxrCanResolveComment()) {
+            const open = _sxrOpenTweaksForComp(post, comp);
+            if (open.length) {
+                const key = pid + '|' + comp;
+                if (_sxrReviewState.saving[key]) return;
+                _sxrShowResolveDest({
+                    comp: comp,
+                    recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
+                    reason: _sxrResolveDestReason(post, comp),
+                    openTweaks: open,
+                    fromReview: true,
+                    onChoose: (pickDest, ids) => {
+                        /* Refuse before the tweak thread is touched -- see the
+                           calendar twin in _calReviewApprove. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _sxrReviewBlockReason(post, comp, _sxrSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
+                        const resolvedBefore = {
+                            video_comments: post.video_comments,
+                            graphic_comments: post.graphic_comments
+                        };
+                        _sxrResolveTweaksDone(post, comp, ids);
+                        if (pickDest === 'stay') {
+                            _sxrWatchNoteSave(pid);
+                            _sxrRefreshCommentsBtn(pid);
+                            _sxrUpdateCardStatusDisplay(pid);
+                            _sxrReviewRepaintCard(pid);
+                        } else {
+                            _sxrReviewApplyApprove(pid, comp, pickDest, resolvedBefore);
+                        }
+                    }
+                });
+                return;
+            }
+        }
+        _sxrReviewApplyApprove(pid, comp, dest);
+    }
+    function _sxrReviewApplyApprove(pid, comp, dest, resolvedBefore) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        if (_sxrReviewState.saving[key]) return;
+        const mode = _sxrReviewMode();
+        const subKey = comp + '_status';
+        if (_isClientLink) { const cur = String(post[subKey] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
+        const prev = Object.assign({ [subKey]: post[subKey], status: post.status, [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`], kasper_seen: post.kasper_seen }, resolvedBefore || {});
+        let approveTo = _SXR_REVIEW_CFG[mode].approveTo;
+        if (mode === 'smm') approveTo = _sxrSmmApproveTo(dest);
+        /* Guarded before the kasper_seen stamp, or the sample is marked seen
+           for a review that never happened. Calendar twin: _calReviewApplyApprove. */
+        const _sxrBlocked = _sxrReviewBlockReason(post, comp, approveTo);
+        if (_sxrBlocked) {
+            showNotify('Nothing to review yet', _sxrBlocked);
+            return false;
+        }
+        let kasperSeenCsv = null;
+        if (approveTo === 'Kasper Approval') kasperSeenCsv = _sxrRecordKasperSeenOnPost(post, comp);
+        post[subKey] = approveTo;
+        if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
+        post.status = computeSampleOverallStatus(post);
+        post.updated_at = new Date().toISOString();
+        _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.errorActionIds[key];
+        _sxrMarkLocalStatus(pid, comp);
+        const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+        _sxrReviewRepaintCard(pid);
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [subKey]: post[subKey], status: post.status }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {}, kasperSeenCsv != null ? { kasper_seen: kasperSeenCsv } : {});
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            _sxrReviewState.saving[key] = false;
+            const current = sxrState.posts.find(p => p.id === pid) || post;
+            if (current._saveError) {
+                if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
+                _sxrReviewState.errors[key] = current._saveError || 'Save failed';
+                _sxrReviewRepaintCard(pid);
+                return;
+            }
+            if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
+        });
+    }
+    function _sxrReviewComment(pid, comp) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        const body = String(_sxrReviewState.drafts[key] || '').trim();
+        if (!body || _sxrReviewState.saving[key]) return;
+        const role = _sxrCommentRole();
+        const list = _sxrCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({ id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: false, audience: (role === 'client') ? 'client' : 'internal', body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' });
+        _sxrSetCommentsFor(post, comp, list);
+        post.updated_at = _now;
+        _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.draftActionIds[key];
+        delete _sxrReviewState.errorActionIds[key];
+        _sxrReviewRepaintCard(pid);
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+    }
+    function _sxrReviewRequestTweak(pid, comp) {
+        const initialPost = sxrState.posts.find(p => p.id === pid);
+        if (!initialPost) return;
+        const key = pid + '|' + comp;
+        const rawDraft = String(_sxrReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
+        if (!body || _sxrReviewState.saving[key]) return;
+        if (_isClientLink) {
+            const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
+        const _legacySlug = _writeUiSourceClientSlug('sxr', { post: initialPost });
+        let attemptId = '';
+        let action = null;
+        let deferredLegacyAttempt = false;
+        let deferredLegacySourceOnly = false;
+        let deferredLegacyOutboxIds = [];
+        _sxrReviewState.saving[key] = true;
+        _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.errorActionIds[key];
+        _sxrReviewRepaintCard(pid);
+
+        // Begin the exact-target lock before reading ownership or constructing
+        // any source snapshot. A waiting tab therefore cannot commit a list
+        // captured before the first tab request became visible.
+        Promise.resolve().then(() => _writeUiLegacyTargetWithLock(
+            'sxr',
+            _legacySlug,
+            pid,
+            comp,
+            async () => {
+                const post = sxrState.posts.find(p => p.id === pid);
+                if (!post) throw new Error('This review item is no longer available');
+                if (_isClientLink) {
+                    const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
+                    if (currentStatus !== 'client approval' && currentStatus !== 'tweaks needed') {
+                        throw new Error('This item changed while your request was waiting. Your draft is preserved.');
+                    }
+                }
+                attemptId = String(_sxrReviewState.draftActionIds[key] || '')
+                    || _sxrMintCommentId();
+                let inspection = await _writeUiLegacyInspectTargetTweak(
+                    'sxr', _legacySlug, pid, comp, post, body, attemptId
+                );
+                inspection = await _writeUiLegacyRefreshActiveTweak('sxr', inspection);
+                if (inspection.state === 'conflict') {
+                    return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
+                }
+                if (inspection.state === 'committed') {
+                    return {
+                        state: 'committed',
+                        item: inspection.item,
+                        ids: inspection.ids || [],
+                        comment_id: inspection.comment_id,
+                        source_only: inspection.source_only === true
+                    };
+                }
+
+                const retryGate = inspection.state === 'active'
+                    && inspection.pair && inspection.pair.gate
+                    ? inspection.pair.gate
+                    : null;
+                const commentId = retryGate
+                    ? String(retryGate.comment_id || '')
+                    : attemptId;
+                const role = retryGate ? String(retryGate.comment_role || '') : _sxrCommentRole();
+                const author = retryGate ? String(retryGate.comment_author || '') : _sxrCurrentAuthor();
+                const audience = retryGate
+                    ? String(retryGate.comment_audience || '')
+                    : (role === 'client' ? 'client' : 'internal');
+                const list = _sxrCommentsFor(post, comp).slice();
+                const existing = list.find(comment => comment
+                    && String(comment.id || '') === commentId);
+                if (existing && (
+                    String(existing.body || '').trim() !== body
+                    || String(existing.author || '') !== author
+                    || String(existing.role || '') !== role
+                    || String(existing.audience || '') !== audience
+                    || existing.is_tweak !== true
+                )) {
+                    return {
+                        state: 'conflict',
+                        conflict: {
+                            state: 'conflict',
+                            comment_id: commentId,
+                            delivered: false,
+                            item: inspection.item || null,
+                            reason: 'local_comment_signature_mismatch'
+                        },
+                        attempt_id: attemptId
+                    };
+                }
+                const _now = retryGate && inspection.item && inspection.item.queuedAt
+                    ? new Date(Number(inspection.item.queuedAt)).toISOString()
+                    : new Date().toISOString();
+                const newComment = existing || {
+                    id: commentId,
+                    parent_id: null,
+                    author,
+                    role,
+                    is_tweak: true,
+                    audience,
+                    round: _sxrNextTweakRound(post, comp),
+                    body,
+                    created_at: _now,
+                    updated_at: _now,
+                    done: false,
+                    done_at: '',
+                    done_by: ''
+                };
+                const previousComments = list.map(comment => Object.assign({}, comment));
+                const previousFields = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    client_video_approved_at: post.client_video_approved_at,
+                    client_graphic_approved_at: post.client_graphic_approved_at,
+                    kasper_approved_at: post.kasper_approved_at,
+                    updated_at: post.updated_at
+                };
+                if (!existing) list.push(newComment);
+                _sxrSetCommentsFor(post, comp, list);
+                post[comp + '_status'] = 'Tweaks Needed';
+                post.status = computeSampleOverallStatus(post);
+                post.updated_at = new Date().toISOString();
+                _sxrReviewState.drafts[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('sxr', pid, comp);
+                const repairEdits = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    [comp + '_tweaks']: _sxrStringifyComments(list)
+                };
+                _sxrClearStaleApprovals(post, repairEdits);
+                const optimisticFields = {};
+                Object.keys(previousFields).forEach(field => { optimisticFields[field] = post[field]; });
+                const mode = _sxrReviewMode();
+                const clearsCard = (mode === 'smm' || _isClientLink)
+                    && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+                action = {
+                    post,
+                    newComment,
+                    comment_id: commentId,
+                    insertedComment: !existing,
+                    previousComments,
+                    previousFields,
+                    optimisticFields,
+                    localStatusMarker,
+                    clearsCard,
+                    rollbackApplied: false
+                };
+                _sxrReviewRepaintCard(pid);
+
+                const acknowledgement = inspection.state === 'active'
+                    || inspection.rearmed_team_delivery === true
+                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    : await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
+                        post,
+                        component: comp,
+                        comment: newComment,
+                        audience: _sxrMsgAudience(newComment),
+                        isTweak: _sxrMsgIsTweak(newComment),
+                        round: newComment.round,
+                        repairEdits: Object.assign({}, repairEdits),
+                        reserveStatusIntent: { status: post[comp + '_status'] },
+                        deferLegacyUntilSourceSave: true
+                    });
+                const deferredLegacyComment =
+                    !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyAttempt = deferredLegacyComment;
+                const committedBatch = Object.assign({}, repairEdits);
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                if (deferredLegacyComment) {
+                    const staged = await _writeUiQueueDeferredLegacyTweak(
+                        'sxr',
+                        post,
+                        comp,
+                        newComment,
+                        body,
+                        newComment.author,
+                        repairEdits,
+                        inspection
+                    );
+                    if (staged.state === 'conflict') {
+                        return {
+                            state: 'conflict',
+                            conflict: staged,
+                            attempt_id: attemptId,
+                            action
+                        };
+                    }
+                    deferredLegacySourceOnly = staged.source_only === true;
+                    deferredLegacyOutboxIds = staged.ids || [];
+                    if (staged.state === 'committed') {
+                        return {
+                            state: 'committed',
+                            item: staged.item,
+                            ids: deferredLegacyOutboxIds,
+                            comment_id: staged.comment_id,
+                            source_only: deferredLegacySourceOnly,
+                            action
+                        };
+                    }
+                    committedBatch._writeUiPinnedSourceTransport =
+                        _writeUiLegacyPinnedSourceTransport('sxr', deferredLegacyOutboxIds);
+                }
+                const pending = _sxrPendingEdits[pid] || (_sxrPendingEdits[pid] = {});
+                _writeUiMergeCommittedBatch(pending, committedBatch);
+                if (deferredLegacyOutboxIds.length) _sxrNoLinearPush.add(pid + '|' + comp);
+                await _sxrFlushCardSave(pid);
+                return {
+                    state: 'saved',
+                    action,
+                    ids: deferredLegacyOutboxIds,
+                    deferred: deferredLegacyComment,
+                    source_only: deferredLegacySourceOnly
+                };
+            }
+        )).then(async outcome => {
+            _sxrReviewState.saving[key] = false;
+            const current = sxrState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            if (outcome && outcome.state === 'conflict') {
+                const targetConflict = outcome.conflict || {};
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                if (targetConflict.delivered
+                    && targetConflict.item
+                    && targetConflict.source_superseded !== true) {
+                    _writeUiLegacyReconcileCommittedTweak('sxr', targetConflict.item);
+                } else if (targetConflict.source_superseded !== true) {
+                    _writeUiScheduleDeferredLegacyTweak('sxr');
+                }
+                _sxrReviewState.drafts[key] = rawDraft;
+                _sxrReviewState.errors[key] = targetConflict.source_superseded === true
+                    ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
+                    : (targetConflict.delivered
+                        ? 'A change request from another tab was saved first. Your draft is preserved; review the latest status and retry.'
+                        : 'Another change request for this item is still being confirmed. Your draft is preserved; retry after it finishes.');
+                const failedActionId = String(outcome.action && outcome.action.comment_id
+                    || outcome.attempt_id
+                    || attemptId);
+                _sxrReviewState.draftActionIds[key] = failedActionId;
+                _sxrReviewState.errorActionIds[key] = failedActionId;
+                _sxrRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (outcome && outcome.state === 'committed') {
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                let committedDeliveryOutcome = null;
+                let committedDeliveryPending = false;
+                if (outcome.ids && outcome.ids.length) {
+                    try {
+                        committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                            'sxr', outcome.ids
+                        );
+                    } catch (error) {
+                        if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                            throw error;
+                        }
+                        committedDeliveryPending = true;
+                        _writeUiScheduleDeferredLegacyTweak('sxr');
+                        _writeUiReportFailure('sxr', 'comment', error);
+                    }
+                }
+                if ((outcome.item && outcome.item.team_delivery_superseded === true)
+                    || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _writeUiApplySupersededTeamDelivery(
+                        'sxr', current, comp, outcome.action || action, key, rawDraft,
+                        outcome.comment_id || attemptId
+                    );
+                    return;
+                }
+                const sourceOnlySuperseded =
+                    (outcome.item && outcome.item.source_only_superseded === true)
+                    || (committedDeliveryOutcome
+                        && committedDeliveryOutcome.state === 'source_only_superseded');
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                if (outcome.item) _writeUiLegacyReconcileCommittedTweak('sxr', outcome.item);
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof showToast === 'function') {
+                    showToast(sourceOnlySuperseded
+                        ? 'Change request saved — a newer status was applied'
+                        : (outcome.source_only
+                            ? 'Change request already saved'
+                            : (committedDeliveryPending
+                                ? 'Change request saved — team delivery is being confirmed'
+                                : 'Change request already saved')));
+                }
+                return;
+            }
+            if (current._saveError) {
+                const confirmed = _writeUiLegacyCommittedTweak('sxr', _legacySlug, pid, comp, current);
+                if (confirmed && confirmed.delivered === true
+                    && confirmed.team_delivery_superseded !== true
+                    && action && confirmed.comment_id === String(action.comment_id || '')) {
+                    if (!action.rollbackApplied) {
+                        _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                        action.rollbackApplied = true;
+                    }
+                    _sxrReviewState.drafts[key] = '';
+                    _sxrReviewState.errors[key] = '';
+                    delete _sxrReviewState.draftActionIds[key];
+                    delete _sxrReviewState.errorActionIds[key];
+                    _writeUiLegacyReconcileCommittedTweak('sxr', confirmed.item);
+                    _sxrRenderBody({ preserveScroll: true });
+                    return;
+                }
+                if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('sxr');
+                if (!current._writeUiRetrySourceAt && action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = rawDraft;
+                _sxrReviewState.errors[key] = current._saveError || 'Save failed';
+                _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+                _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                _sxrRenderBody({ preserveScroll: true });
+                return;
+            }
+            let deliveryPending = false;
+            let deliveryOutcome = null;
+            if (deferredLegacyOutboxIds.length) {
+                try {
+                    deliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                        'sxr', deferredLegacyOutboxIds
+                    );
+                } catch (error) {
+                    if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                        throw error;
+                    }
+                    deliveryPending = true;
+                    _writeUiScheduleDeferredLegacyTweak('sxr');
+                    _writeUiReportFailure('sxr', 'comment', error);
+                }
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _writeUiApplySupersededTeamDelivery(
+                    'sxr', current, comp, action, key, rawDraft,
+                    action && action.comment_id || attemptId
+                );
+                return;
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('sxr', deliveryOutcome.item);
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof showToast === 'function') {
+                    showToast('Change request saved — a newer status was applied');
+                }
+                return;
+            }
+            if (action && action.clearsCard) _sxrReviewRemoveCard(pid);
+            else _sxrReviewRepaintCard(pid);
+            if (_sxrCommentRole() === 'client' && !current._saveError
+                && typeof showToast === 'function') {
+                showToast(deferredLegacySourceOnly
+                    ? (deliveryPending
+                        ? 'Change request saved — confirmation is still pending'
+                        : 'Change request sent')
+                    : (deliveryPending
+                        ? 'Change request saved — team delivery is being confirmed'
+                        : 'Change request sent — the team has been notified'));
+            }
+        }).catch(e => {
+            if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
+                _writeUiScheduleDeferredLegacyTweak('sxr');
+            }
+            _sxrReviewState.saving[key] = false;
+            const current = sxrState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            const confirmed = _writeUiLegacyCommittedTweak('sxr', _legacySlug, pid, comp, current);
+            if (confirmed
+                && confirmed.delivered === true
+                && confirmed.team_delivery_superseded !== true
+                && String(e && e.code || '') !== 'legacy_tweak_delivery_unconfirmed'
+                && action
+                && confirmed.comment_id === String(action.comment_id || '')) {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('sxr', confirmed.item);
+                _sxrRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
+                _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                action.rollbackApplied = true;
+            }
+            _sxrReviewState.drafts[key] = rawDraft;
+            _writeUiReportFailure('sxr', 'comment', e);
+            _sxrReviewState.errors[key] = _writeUiFailureSentence(e);
+            _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+            _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+            _sxrRenderBody({ preserveScroll: true });
+        });
+    }
+
+    /* ── Comments button (open-tweak count + unread dot + AAT badge) ── */
+    // A fresh message from the OTHER role (not mine), newer than the last time I
+    // opened this card's Notes, lights the unread dot. Mirrors _calHasUnreadNotes;
+    // reuses the shared _notesGetSeen ledger (keyed by post id — sample ids are
+    // distinct from calendar ids, so there's no collision).
+    function _sxrHasUnreadNotes(post) {
+        if (!post) return false;
+        const myRole = _sxrCommentRole();
+        const seen = _notesGetSeen(post.id);
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsForView(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    // "Approved after tweaks" badge — Kasper pre-cleared a still-in-flight component
+    // (his "approve after tweaks"); the SMM should verify the edit then send onward.
+    // Mirrors _calAatBadgeHtml.
+    function _sxrAatBadgeHtml(post) {
+        if (!post || !SXR_COMPONENTS.some(c => _sxrShowApprovedAfterTweaks(post, c))) return '';
+        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
+    }
+    function _sxrCommentsBtnHtml(post, pid) {
+        const open = _sxrOpenCommentCount(post);
+        const unread = _sxrHasUnreadNotes(post);
+        const cls = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
+        const tip = unread ? 'New replies — open Notes' : (open > 0 ? open + ' open change request' + (open === 1 ? '' : 's') : 'Notes');
+        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn cal-card-notes${cls}" data-comments-btn="${pid}" onclick="openSxrComments('${pid}')" title="${_sxrEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_sxrAatBadgeHtml(post)}</span>`;
+    }
+    function _sxrRefreshCommentsBtn(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const wrap = document.querySelector(`.cal-foot-tweaks[data-comments-wrap="${sel}"]`);
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!wrap || !post) return;
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrCommentsBtnHtml(post, pid);
+        if (tmp.firstElementChild) wrap.replaceWith(tmp.firstElementChild);
+    }
+
+    /* ============================================================
+       --- SURFACE 5: the Notes / comments modal ---
+       Clone of openCalComments / _calRenderCommentsModal / _calComposerHtml /
+       _calCommentActionsHtml + the append / delete / resolve / reply handlers +
+       the compose toggles, over video+graphic. Reuses the calendar's GLOBAL
+       cal-comments-* / cal-cm-* CSS for pixel parity and the Surface 4 comment
+       data layer. Component picker = Video / Thumbnail. The resolve-route chooser
+       is simplified (Mark done resolves in place; no Kasper/Client route modal);
+       the Linear comment push rides Surface 7's _sxrPostLinearComment.
+       ============================================================ */
+
+    let _sxrOpenCommentsPid = null;
+    let _sxrReplyTarget = null;
+    let _sxrReplyDrafts = Object.create(null);
+    /* THE SAMPLES TWIN of the calendar's reply-draft store (OPEN_REPAIRS 101,
+       point 4). It was left out when that shipped, and the omission is the
+       repeat of a pattern this ledger has already recorded twice: item 87.3
+       ended "whatever is done here must also be checked against the Samples
+       twin", and the SMM queue gate was then missed on samples a second time
+       anyway. `_sxrCommentRole()` returns 'client' on a share link and the
+       comments button carries no client gate, so this surface loses a client's
+       words in exactly the way the calendar did.
+
+       Same shape deliberately -- one key per card holding a parentId -> text
+       map, the same cap, the text never truncated -- so the two surfaces cannot
+       drift into different behaviour. */
+    const SXR_REPLY_DRAFTS_PREFIX = 'sv_sxrReplyDrafts_';
+    function _sxrReplyDraftsLoad(pid) {
+        if (!pid) return {};
+        try {
+            const raw = JSON.parse(sessionStorage.getItem(SXR_REPLY_DRAFTS_PREFIX + pid) || '{}');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+            const out = Object.create(null);
+            for (const k of Object.keys(raw)) if (typeof raw[k] === 'string' && raw[k]) out[k] = raw[k];
+            return out;
+        } catch (e) { return {}; }
+    }
+    function _sxrReplyDraftsPersist(pid) {
+        if (!pid) return;
+        try {
+            const keys = Object.keys(_sxrReplyDrafts).filter(k => _sxrReplyDrafts[k]);
+            const kept = keys.slice(-CAL_REPLY_DRAFT_MAX);
+            if (!kept.length) { sessionStorage.removeItem(SXR_REPLY_DRAFTS_PREFIX + pid); return; }
+            const map = {};
+            for (const k of kept) map[k] = _sxrReplyDrafts[k];
+            sessionStorage.setItem(SXR_REPLY_DRAFTS_PREFIX + pid, JSON.stringify(map));
+        } catch (e) {}
+    }
+    let _sxrEditTarget = null;
+    let _sxrEditDrafts = Object.create(null);
+    let _sxrRootDraft = '';
+    let _sxrComposeAudience = 'internal';
+    let _sxrComposeIsTweak = false;
+    let _sxrComposeComp = 'video';
+    let _sxrShowResolved = false;
+    function _sxrNotesMarkSeen(pid) { _notesMarkSeen(pid); /* opening/closing Notes = caught up → clears the unread dot (shared ledger) */ }
+
+    function openSxrComments(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _sxrOpenCommentsPid = pid;
+        _sxrReplyTarget = null;
+        _sxrEditTarget = null;
+        for (const k of Object.keys(_sxrReplyDrafts)) delete _sxrReplyDrafts[k];
+        // Wiped first because the map is shared across cards, then refilled from
+        // this card's own store -- the calendar ordering, for the same reason.
+        Object.assign(_sxrReplyDrafts, _sxrReplyDraftsLoad(pid));
+        for (const k of Object.keys(_sxrEditDrafts)) delete _sxrEditDrafts[k];
+        _sxrRootDraft = '';
+        try { _sxrRootDraft = sessionStorage.getItem('sv_sxrNoteDraft_' + pid) || ''; } catch (e) {}
+        _sxrComposeAudience = 'internal';
+        _sxrComposeIsTweak = false;
+        _sxrComposeComp = 'video';
+        _sxrShowResolved = false;
+        _sxrNotesMarkSeen(pid);
+        _prodProjectCanonicalCardComments('sxr', pid);
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; const ta = document.getElementById('sxrCommentComposer'); if (ta) ta.focus(); }, 30);
+    }
+    function closeSxrComments() {
+        _sxrCaptureModalDrafts();
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        const pid = _sxrOpenCommentsPid;
+        _sxrOpenCommentsPid = null; _sxrReplyTarget = null; _sxrEditTarget = null;
+        if (pid) { _sxrNotesMarkSeen(pid); _sxrRefreshCommentsBtn(pid); }
+    }
+    function _sxrCaptureModalDrafts() {
+        const root = document.getElementById('sxrCommentsModal');
+        if (!root) return;
+        const composer = root.querySelector('#sxrCommentComposer');
+        if (composer) {
+            if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = composer.value;
+            else if (_sxrReplyTarget) { _sxrReplyDrafts[_sxrReplyTarget] = composer.value; _sxrReplyDraftsPersist(_sxrOpenCommentsPid); }
+            else _sxrRootDraft = composer.value;
+        }
+    }
+    function _sxrRenderCommentsModal() {
+        const pid = _sxrOpenCommentsPid;
+        const modal = document.getElementById('sxrCommentsModal');
+        if (!modal || !pid) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) { closeSxrComments(); return; }
+        const videoComments = _sxrCommentsForAction(post, 'video');
+        post.comments = videoComments;
+        const compThreads = SXR_COMPONENTS.flatMap(c => {
+            const list = _sxrCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) return [];
+            return _sxrCommentRoots(list).map(r => ({ comp: c, list, root: r }));
+        });
+        compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        const resolvedCount = compThreads.filter(e => e.root.done).length;
+        const visibleThreads = _sxrShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
+        const postName = _sxrEsc(post.name || 'Untitled sample');
+        const renderRow = (c, isReply, comp) => {
+            const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
+            const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+            const initial = _sxrAvatarInitial(author, c.role);
+            const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+            const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_sxrEsc(COMP_LABELS[comp])}</span>` : '';
+            const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal') ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>` : '';
+            const typeTag = (!isReply && _sxrMsgIsTweak(c)) ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the sample to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>` : '';
+            const editedTag = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
+            const attachments = Array.isArray(c.attachments) && c.attachments.length
+                ? '<div class="prod-comment-attachments">' + c.attachments.map(item =>
+                    '<a class="prod-comment-attachment" href="' + _sxrEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _sxrEsc(item.name || 'Attachment') + '</a>'
+                ).join('') + '</div>'
+                : '';
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _sxrEsc(c.body || '')}${editedTag}${attachments}</div></div>${_sxrCommentActionsHtml(c, isReply)}</div>`;
+        };
+        const renderThread = (entry) => { const replies = _sxrCommentReplies(entry.list, entry.root.id); return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">${renderRow(entry.root, false, entry.comp)}${replies.map(r => renderRow(r, true, entry.comp)).join('')}</div>`; };
+        const emptyMsg = _sxrShowResolved
+            ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
+            : (resolvedCount ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>` : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
+        const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : emptyMsg;
+        const histBtn = resolvedCount ? `<button class="cal-comments-hist${_sxrShowResolved ? ' is-active' : ''}" type="button" onclick="_sxrToggleShowResolved()" title="${_sxrShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_sxrShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>` : '';
+        const actionFailure = post._canonicalCommentActionError
+            ? _writeUiCommentActionFailureHtml(
+                post._canonicalCommentActionError,
+                '_writeUiRetryCardCommentAction(\'sxr\',' + _sxrJsArg(pid) + ')'
+            )
+            : '';
+        modal.innerHTML = `
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text"><h3 id="sxrCommentsTitle">${_sxrShowResolved ? 'Resolved' : 'Notes'}</h3><p>${postName}</p></div>
+                ${histBtn}
+                <button class="cal-comments-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            ${actionFailure}
+            <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
+            ${_sxrComposerHtml(post, videoComments)}`;
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
+    }
+    function _sxrCanDeleteComment(c) { return _sxrCommentRole() === 'smm' || c.role === 'client'; }
+    function _sxrCanResolveComment() { return _sxrCommentRole() === 'smm'; }
+    function _sxrCommentActionsHtml(c, isReply) {
+        if (c.deleted) return '';
+        const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const undoIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
+        const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
+        const rootId = isReply ? c.parent_id : c.id;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_sxrJsArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const editBtn = c.canonical && c.can_edit ? `<button class="cal-cm-action" type="button" onclick="_sxrBeginCommentEdit(${_sxrJsArg(c.id)})" title="Edit"><span>Edit</span></button>` : '';
+        const canResolve = c.canonical ? c.can_resolve : (_sxrCanResolveComment() && _sxrMsgIsTweak(c));
+        const doneBtn = (!isReply && canResolve) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`) : '';
+        const canDelete = c.canonical ? c.can_delete : _sxrCanDeleteComment(c);
+        const delBtn = canDelete ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>` : '';
+        if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
+    }
+    function _sxrComposePlaceholder(role) {
+        if (role === 'client') return 'Message your Synchro Social team…';
+        return _sxrComposeAudience === 'client' ? 'Write a note the client will see…' : 'Team-only note (you + Kasper)…';
+    }
+    function _sxrComposerHtml(post, comments) {
+        const role = _sxrCommentRole();
+        const author = _sxrCurrentAuthor();
+        const initial = _sxrAvatarInitial(author, role);
+        const roleCls = role === 'client' ? 'is-client' : 'is-smm';
+        const isReply = !!_sxrReplyTarget;
+        const isEdit = !!_sxrEditTarget;
+        const allLists = SXR_COMPONENTS.map(c => _sxrCommentsForAction(post, c));
+        const targetId = isEdit ? _sxrEditTarget : _sxrReplyTarget;
+        const target = targetId ? allLists.flatMap(l => l).find(c => c && c.id === targetId) : null;
+        const draft = isEdit ? (_sxrEditDrafts[_sxrEditTarget] || '') : isReply ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '');
+        const placeholder = isEdit ? 'Edit this note...' : isReply ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…` : _sxrComposePlaceholder(role);
+        const replyingTo = target ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_sxrEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_sxrBeginCommentEdit(null)' : '_sxrBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>` : '';
+        const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
+        const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
+        if (role === 'client' && !canonicalGate.linked) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+        }
+        if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
+                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
+                + '</div>' + (canonicalGate.status === 'error'
+                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'sxr\',' + _sxrJsArg(post.id) + ')">Retry</button>'
+                    : 'The composer unlocks after this exact deliverable is authorized.')
+                + '</div>';
+        }
+        const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client) ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note"><span class="cal-cm-audience-cap">Who sees this?</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — you and Kasper.">${lockIco}Kasper / team</button><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button></div></div>` : '';
+        const changeToggle = (!isReply && !isEdit && role === 'client') ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request"><span class="cal-cm-audience-cap">This is a…</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${!_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_sxrSetComposeIsTweak(false)">Comment</button><button type="button" class="cal-cm-aud-btn${_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_sxrSetComposeIsTweak(true)" title="Request a change — moves the sample to Tweaks Needed">Request a change</button></div></div>` : '';
+        const compPicker = !isReply && !isEdit ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about"><span class="cal-cm-audience-cap">About the…</span><div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c => `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_sxrEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_sxrEsc(COMP_LABELS[c] || c)}</button>`).join('')}</div></div>` : '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        return `<div class="cal-cm-composer-wrap">${replyingTo}${compPicker}${audienceToggle}${changeToggle}<div class="cal-cm-composer"><div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_sxrEsc(initial)}</div><textarea id="sxrCommentComposer" rows="1" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_sxrEsc(draft)}</textarea><div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button></div></div></div>`;
+    }
+    function _sxrAutosizeComposer(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
+    function _sxrOnComposerInput(ta) {
+        _sxrAutosizeComposer(ta);
+        if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = ta.value;
+        else if (_sxrReplyTarget) { _sxrReplyDrafts[_sxrReplyTarget] = ta.value; _sxrReplyDraftsPersist(_sxrOpenCommentsPid); }
+        else { _sxrRootDraft = ta.value; try { if (ta.value) sessionStorage.setItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid, ta.value); else sessionStorage.removeItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid); } catch (e) {} }
+        const wrap = ta.closest('.cal-cm-composer'); if (!wrap) return;
+        const sendBtn = wrap.querySelector('.cal-cm-send'); if (sendBtn) sendBtn.disabled = !ta.value.trim();
+    }
+    function _sxrOnComposerKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sxrSubmitComposer(); } else if (e.key === 'Escape' && (_sxrReplyTarget || _sxrEditTarget)) { e.preventDefault(); if (_sxrEditTarget) _sxrBeginCommentEdit(null); else _sxrBeginReply(null); } }
+    function _sxrBeginReply(rootId) {
+        _sxrCaptureModalDrafts();
+        _sxrEditTarget = null;
+        _sxrReplyTarget = rootId || null;
+        const feed = document.getElementById('sxrCommentsFeed');
+        const prevScroll = feed ? feed.scrollTop : null;
+        _sxrRenderCommentsModal();
+        const feed2 = document.getElementById('sxrCommentsFeed');
+        if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
+    }
+    function _sxrBeginCommentEdit(commentId) {
+        _sxrCaptureModalDrafts();
+        const post = sxrState.posts.find(p => p.id === _sxrOpenCommentsPid);
+        const comp = post && commentId ? _sxrFindCompForCommentId(post, commentId) : '';
+        const list = post && comp ? _sxrCommentsForAction(post, comp) : [];
+        const target = Array.isArray(list) ? list.find(c => c && c.id === commentId) : null;
+        _sxrReplyTarget = null;
+        _sxrEditTarget = target && target.canonical && target.can_edit ? commentId : null;
+        if (_sxrEditTarget && _sxrEditDrafts[_sxrEditTarget] == null) {
+            _sxrEditDrafts[_sxrEditTarget] = String(target.body || '');
+        }
+        _sxrRenderCommentsModal();
+        return false;
+    }
+    async function _sxrSubmitComposer() {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        _sxrCaptureModalDrafts();
+        const body = (_sxrEditTarget
+            ? (_sxrEditDrafts[_sxrEditTarget] || '')
+            : _sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
+        if (!body) return;
+        if (_sxrEditTarget) {
+            const editId = _sxrEditTarget;
+            if (!await _sxrSaveCommentEdit(pid, editId, body)) return;
+            delete _sxrEditDrafts[editId];
+            _sxrEditTarget = null;
+            _sxrRenderCommentsModal();
+            return;
+        }
+        const parentId = _sxrReplyTarget;
+        const saved = await _sxrAppendComment(pid, parentId, body);
+        if (!saved) return;
+        if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
+        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        _sxrReplyTarget = null;
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
+    }
+    function _sxrWatchNoteSave(pid) {
+        return Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            const p = sxrState.posts.find(x => x.id === pid);
+            if (p && p._saveError && _sxrOpenCommentsPid === pid && typeof showNotify === 'function') showNotify('Note source sync pending', 'The native note is safe. Samples sync will retry automatically (' + p._saveError + ').');
+        });
+    }
+    function _sxrFindCompForCommentId(post, commentId) {
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsForAction(post, c);
+            if (Array.isArray(list) && list.some(x => x.id === commentId)) return c;
+        }
+        return 'video';
+    }
+    async function _sxrSaveCommentEdit(pid, commentId, body, retryCursor) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const comp = _sxrFindCompForCommentId(post, commentId);
+        const target = _sxrCommentsForAction(post, comp).find(c => c && c.id === commentId);
+        const gate = _prodCanonicalCommentGate(post, comp);
+        if (!target || !target.canonical || !target.can_edit || !gate.linked || !gate.ready) return false;
+        const receipt = await _writeUiCommitCardCommentLifecycle(
+            'sxr', post, comp, target, 'edit', body, retryCursor
+        );
+        if (!receipt) return false;
+        await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+        return true;
+    }
+    function _sxrRetryCommentEdit(commentId, body, retryCursor) {
+        const pid = _sxrOpenCommentsPid;
+        if (!pid) return false;
+        _sxrEditTarget = commentId;
+        _sxrReplyTarget = null;
+        _sxrEditDrafts[commentId] = String(body || '');
+        _sxrSaveCommentEdit(pid, commentId, _sxrEditDrafts[commentId], retryCursor).then(saved => {
+            if (!saved) {
+                _sxrRenderCommentsModal();
+                return;
+            }
+            delete _sxrEditDrafts[commentId];
+            _sxrEditTarget = null;
+            _sxrRenderCommentsModal();
+        });
+        return false;
+    }
+    async function _sxrAppendComment(pid, parentId, body) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = parentId ? _sxrFindCompForCommentId(post, parentId) : (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0 ? _sxrComposeComp : 'video');
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        // A LINKED card keeps the fail-closed canonical contract: an unready or
+        // unauthorized exact client thread never falls back. An UNLINKED card
+        // has no canonical thread to authorize against at all, so the client
+        // posts through the same legacy path staff uses there.
+        if (_isClientLink && canonicalGate.linked && (!canonicalGate.ready || !canonicalGate.client)) {
+            if (typeof showNotify === 'function') showNotify('Notes are not available', 'This exact client thread is not authorized.');
+            return false;
+        }
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            if (typeof showNotify === 'function') showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+            return false;
+        }
+        const arr = _sxrCommentsForAction(post, comp).slice();
+        const role = _sxrCommentRole();
+        const _now = new Date().toISOString();
+        const isRoot = !parentId;
+        let nativeCommentCommitted = false;
+        let committedBatch = null;
+        const msg = { id: _sxrMintCommentId(), parent_id: parentId || null, author: _sxrCurrentAuthor(), role, body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' };
+        if (isRoot) { msg.audience = (role === 'client') ? 'client' : _sxrComposeAudience; msg.is_tweak = (role === 'client') ? _sxrComposeIsTweak : false; if (msg.is_tweak) msg.round = _sxrNextTweakRound(post, comp); }
+        if (comp === 'video' || comp === 'graphic') {
+            const rootMsg = isRoot ? msg : arr.find(c => c && c.id === parentId);
+            try {
+                /* Canonical-where-linked, legacy-where-not, for ADD too. The
+                   full account is on the calendar twin in _calAppendComment and
+                   on `_prodCommentAddRoutesLegacy`, which is what decides this
+                   — the CROSSWALK, not the gate, so a slot with no deliverable
+                   id and a valid link held by the coverage invariant both keep
+                   the transport they have today. The Samples-specific half is
+                   that `_sxrPostLinearComment` already consults the gate for a
+                   CLIENT link and routes a STAFF add on
+                   `_writeUiUseGatewayWhenReady` — the reroute allowlist —
+                   alone. So a staff reply to a root that fell back to the
+                   legacy card store went to the gateway, which has no parent to
+                   answer to, and the typed text died in the catch below.
+                   `canonicalUnlinked` closes exactly that half: the linked
+                   client contract above and the front door inside the transport
+                   both keep their current decisions. */
+                const canonicalUnlinked = await _prodCommentAddRoutesLegacy('sxr', post, comp);
+                const acknowledgement = await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, msg.author, { post, component: comp, comment: msg, parentId: msg.parent_id, audience: _sxrMsgAudience(rootMsg), isTweak: isRoot && _sxrMsgIsTweak(msg), round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null, canonicalUnlinked });
+                committedBatch = {};
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+                // Canonical adoption/projection only exists for a LINKED card.
+                // On an unlinked card the write took the legacy transport, so
+                // fall through to the legacy card-array append below.
+                if (_isClientLink && canonicalGate.linked && nativeCommentCommitted) {
+                    if (acknowledgement.comment) {
+                        _prodComments.adopt(_writeUiNativeId(post, comp), acknowledgement.comment);
+                    }
+                    await _prodProjectCanonicalCardComments('sxr', pid);
+                    // A client change request still advances the Samples status,
+                    // but its canonical comment is never copied into the legacy
+                    // card comment arrays or source-save payload.
+                    if (isRoot && msg.is_tweak && _sxrApplyAutoStatus(pid, 'client_added', comp)) {
+                        await _sxrWatchNoteSave(pid);
+                    }
+                    _sxrRefreshCommentsBtn(pid);
+                    _sxrUpdateCardStatusDisplay(pid);
+                    return true;
+                }
+            } catch (e) {
+                _writeUiReportFailure('sxr', 'comment', e);
+                return false;
+            }
+        }
+        arr.push(msg);
+        _sxrSetCommentsFor(post, comp, arr);
+        if (comp === 'video') post.comments = arr;
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(arr) });
+        if (isRoot && role === 'client' && msg.is_tweak) _sxrApplyAutoStatus(pid, 'client_added', comp);
+        if (committedBatch) _writeUiMergeCommittedBatch(_sxrPendingEdits[pid], committedBatch);
+        await _sxrWatchNoteSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+        _sxrUpdateCardStatusDisplay(pid);
+        return true;
+    }
+    function _sxrToggleCommentDone(rootId) {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
+        const comp = _sxrFindCompForCommentId(post, rootId);
+        const list = _sxrCommentsForAction(post, comp).slice();
+        const root = list.find(c => c.id === rootId && !c.parent_id); if (!root) return;
+        const wasDone = !!root.done;
+        // Resolving the LAST open SMM change-request routes the component onward
+        // (Kasper / client / approved) — the SMM picks first via the chooser. Defer
+        // the whole resolution (mark-done + status flip) until they confirm, so the
+        // comment doesn't vanish before the choice and a cancel applies nothing.
+        // Count the OTHER still-open change-requests, this root excluded.
+        const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _sxrMsgIsTweak(c) && c.id !== rootId).length;
+        const deferToChooser = !wasDone && _sxrCommentRole() === 'smm' && otherOpen === 0;
+        if (deferToChooser) { _sxrResolveLastTweak(pid, comp, rootId); return; }
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked) {
+            _writeUiCommitCardCommentLifecycle('sxr', post, comp, root, wasDone ? 'unresolve' : 'resolve')
+                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('sxr', post, comp));
+            return;
+        }
+        if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
+        else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _sxrCurrentAuthor(); }
+        root.updated_at = new Date().toISOString();
+        _sxrSetCommentsFor(post, comp, list);
+        if (comp === 'video') post.comments = list;
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        _sxrWatchNoteSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+        _sxrUpdateCardStatusDisplay(pid);
+        _sxrCaptureModalDrafts();
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
+    }
+    function _sxrDeleteComment(commentId) {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
+        const comp = _sxrFindCompForCommentId(post, commentId);
+        const arr = _sxrCommentsForAction(post, comp).slice();
+        const target = arr.find(c => c.id === commentId);
+        if (!target || (target.canonical ? !target.can_delete : !_sxrCanDeleteComment(target))) return;
+        const isRoot = !target.parent_id;
+        const msg = target.canonical
+            ? (isRoot
+                ? "Delete this note? Replies remain in the thread under a deleted-note marker. This can't be undone."
+                : "Delete this reply? A deleted-note marker remains. This can't be undone.")
+            : isRoot
+                ? "This deletes the message and every reply in this thread. This can't be undone."
+                : "Delete this reply? This can't be undone.";
+        showConfirm('Delete note?', msg, async () => {
+            const canonicalGate = _prodCanonicalCommentGate(post, comp);
+            if (canonicalGate.linked) {
+                const receipt = await _writeUiCommitCardCommentLifecycle('sxr', post, comp, target, 'delete');
+                if (receipt) await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+                return;
+            }
+            const _delAt = new Date().toISOString();
+            const next = arr.map(c => (c.id === commentId || c.parent_id === commentId) ? Object.assign({}, c, { deleted: true, updated_at: _delAt }) : c);
+            _sxrSetCommentsFor(post, comp, next);
+            if (comp === 'video') post.comments = next;
+            _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(next) });
+            _sxrWatchNoteSave(pid);
+            _sxrRefreshCommentsBtn(pid);
+            _sxrUpdateCardStatusDisplay(pid);
+            _sxrCaptureModalDrafts();
+            _sxrRenderCommentsModal();
+        }, 'Delete');
+    }
+    function _sxrApplyAutoStatus(pid, trigger, comp, dest) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const which = comp || 'video';
+        const subKey = which + '_status';
+        let next = null;
+        if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') next = 'Tweaks Needed';
+        else if (trigger === 'smm_resolved_last') next = _sxrAutoResolveDestStatus(dest);
+        if (!next || post[subKey] === next) return false;
+        /* Resolving the last change-request auto-routes the component onward.
+           That is still sending it for review, so it obeys the same rule --
+           and returning false here is what the calendar twin does, so the
+           caller repaints instead of pretending the move happened. */
+        if (_sxrReviewBlockReason(post, which, next)) return false;
+        post[subKey] = next;
+        post.status = computeSampleOverallStatus(post);
+        post.updated_at = new Date().toISOString();
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        if (next === 'Kasper Approval') { const csv = _sxrRecordKasperSeenOnPost(post, which); if (csv != null) _sxrPendingEdits[pid].kasper_seen = csv; }
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        _sxrMarkLocalStatus(pid, which);
+        return true;
+    }
+    function _sxrSetComposeAudience(val) {
+        _sxrComposeAudience = (val === 'client') ? 'client' : 'internal';
+        const seg = document.querySelector('[data-cm-toggle="audience"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta && !_sxrReplyTarget) ta.placeholder = _sxrComposePlaceholder('smm');
+    }
+    function _sxrSetComposeIsTweak(val) {
+        _sxrComposeIsTweak = !!val;
+        const seg = document.querySelector('[data-cm-toggle="tweak"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', (b.dataset.tweak === '1') === _sxrComposeIsTweak));
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta && !_sxrReplyTarget) ta.placeholder = _sxrComposeIsTweak ? 'Describe the change you need…' : _sxrComposePlaceholder('client');
+    }
+    function _sxrSetComposeComp(val) {
+        _sxrComposeComp = (SXR_COMPONENTS.indexOf(val) >= 0) ? val : 'video';
+        const seg = document.querySelector('[data-cm-toggle="comp"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
+    }
+    function _sxrToggleShowResolved() { _sxrShowResolved = !_sxrShowResolved; _sxrCaptureModalDrafts(); _sxrRenderCommentsModal(); }
+
+    /* ============================================================
+       --- SURFACE 6: the client portal (read-only multi-tab) ---
+       The biggest gap from attempt #1. The client surface reuses the SAME machinery
+       as the SMM, gated by the shared `_isClientLink` flag:
+         · Review tab  — _sxrReviewMode()==='client' → _SXR_REVIEW_CFG.client
+                          (Client Approval → Approved); client approve/request-change.
+         · Sheet tab   — _sxrRenderInlineCard ro=true branch: read-only pills, link
+                          pills open-only, NO add/edit/status/archive/drag/select.
+         · Notes       — client role; _sxrCommentsForView hides internal/Kasper.
+       NEW here: the client-link mount (embed shell: title "Sample reviews", tabs
+       Review + Sheet) + client-visibility gating. Client is always read/review-only
+       (no collab). The share link carries ?sxr=1 (samples is default-OFF).
+       ============================================================ */
+    function _sxrIsClientReady(p) {
+        // A sample is visible to the client once any component has left "In Progress"
+        // (been sent for review). Archived samples are never shown. No collab.
+        if (!p || String(p.status || '').toLowerCase() === 'archived') return false;
+        return SXR_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || 'In Progress') !== 'In Progress');
+    }
+    function mountSxrClientView(clientName) {
+        if (_isClientLink) {
+            const cap = _syncviewClientEntryCapability;
+            if (!cap || !cap.verified || cap.view !== 'sample-reviews' || _syncviewClientEntrySlug(clientName) !== cap.slug) {
+                _syncviewInvalidClientLinkScreen();
+                return;
+            }
+            clientName = cap.client;
+        }
+        if (typeof _calV2Teardown === 'function') _calV2Teardown();
+        if (!_sxrEnabled()) return;
+        _sxrEnsureFreshnessWiring();
+        // The exact verified Review route now owns the document. Lift the
+        // pre-paint selector only after the capability/client match so no
+        // generic or wrong-client SXR surface can appear between states.
+        document.documentElement.removeAttribute('data-boot-nav');
+        document.documentElement.removeAttribute('data-boot-subtab');
+        if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown();
+        document.body.classList.add('cal-page');
+        const content = document.getElementById('content');
+        if (content) content.innerHTML = renderSxrView();
+        sxrState.client = clientName;
+        sxrState.embedded = true;        // client shell: embed title + Review/Sheet tabs, no per-client tabs
+        sxrState.view = 'review';        // the client lands on their approval queue
+        sxrState.zoom = _sxrNormZoom((_sxrLoadPrefs() || {}).zoom);
+        sxrState.posts = [];
+        sxrState.error = null;
+        sxrState.previewId = null;
+        sxrState.selectMode = false;
+        _sxrRenderShell();
+        loadSxrCards();
+    }
+
+    /* ============================================================
+       --- SURFACE 7: realtime + freshness + the Linear push layer ---
+       Clone of _calV2EnsureSubscribed (channel sxr-<slug> on sample_reviews) +
+       _calRefreshOnReturn (tab-return refetch — the piece attempt #1 missed) + the
+       deferred-render guard + the legacy Linear FE layer (drain-only debt on
+       syncview_sxr_linear_outbox_v1, plus native per-target serialization,
+       suppression, point-adoption, stale-regress). REUSES the shared, poison-
+       hardened Linear webhooks + status mapper. Inbound Linear rides realtime
+       (the embedded n8n branch) — the FE only pushes outbound. These defs make the
+       Surface 2/3/4 Linear/realtime stubs real (hoisted).
+       ============================================================ */
+
+    /* Background-reload MERGE — a realtime / tab-return reload must not clobber an
+       in-flight edit, a just-typed comment, or a freshly-set status mid-round-trip. */
+    // Mirror of _calPostsEqualForRender for the SAMPLES schema: if none of the
+    // fields the SMM-sheet / review renderer actually paints changed, the rebuilt
+    // DOM would be identical, so a BACKGROUND reload can SKIP the full _sxrRenderBody
+    // repaint that otherwise FLASHES the queue ~4s later when our own write's
+    // realtime echo lands (the "mark done / send to client felt laggy" symptom).
+    // Keys derived from renderSxrReview / renderSxrOrganizer + _sxrMigrateShape's
+    // default-fill list — NOT cloned from the calendar (samples has no caption /
+    // title / CTA / scheduled-date; it adds creative_direction + its eye toggle).
+    function _sxrPostsEqualForRender(a, b) {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+        const keys = ['id','order_index','status','name',
+                      'asset_url','thumbnail_url','thumb_rev','creative_direction','hide_creative_direction',
+                      'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
+                      'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
+                      'video_status','graphic_status',
+                      'updated_at'];
+        for (let i = 0; i < a.length; i++) {
+            for (const k of keys) {
+                if (String(a[i][k] == null ? '' : a[i][k]) !== String(b[i][k] == null ? '' : b[i][k])) return false;
+            }
+            // Comment arrays via the accessor so the comments/video_comments duality
+            // (and the graphic list) is compared exactly as the renderer reads it.
+            for (const comp of SXR_COMPONENTS) {
+                if (JSON.stringify(_sxrCommentsFor(a[i], comp) || []) !== JSON.stringify(_sxrCommentsFor(b[i], comp) || [])) return false;
+            }
+        }
+        return true;
+    }
+    /* ── Recent-save reconcile (port of the calendar's _calRecentSaveReconcile
+       over the samples schema: video + graphic sub-statuses, no caption/title) ──
+       Within the local-status-fresh window a background realtime reload normally
+       KEEPS our just-set status so a stale reconciler / self echo can't revert it.
+       But a GENUINE newer change from ANOTHER role — Kasper requesting a change
+       (→ Tweaks Needed), a client/SMM approval — must still win, or the note dot
+       updates live while the status pill stays stuck at our value until a manual
+       refresh (the P1 realtime-status bug). Adopt only the sub-statuses the server
+       moved to a NEW value (differs from BOTH what we wrote and its pre-save
+       base); a bare stale Linear round-trip (a status-only regression with no new
+       change-request comment) is refused and kept local. Returns a merged clone,
+       or null to keep local. Pure besides the status normaliser + overall recompute. */
+    function _sxrRecentSaveReconcile(lp, fp, rsf) {
+        if (!lp || !fp || !rsf) return null;
+        const lT = Date.parse(lp.updated_at || '');
+        const fT = Date.parse(fp.updated_at || '');
+        if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
+        let merged = null;
+        for (const comp of SXR_COMPONENTS) {
+            const f = comp + '_status';
+            const sv = fp[f];
+            if (sv == null) continue;
+            const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+            const base = rsf.base ? rsf.base[f] : undefined;
+            if (sv !== wrote && sv !== base) {
+                if (_sxrIsStaleLinearRegress(lp, fp, comp, rsf)) continue;
+                if (!merged) merged = Object.assign({}, lp);
+                merged[f] = sv;
+            }
+        }
+        if (merged) merged.status = computeSampleOverallStatus(merged);
+        return merged;
+    }
+    /* Is the server's value for `comp` a stale Linear status-sync round-trip of a
+       DRIFTED issue that would clobber a fresh local approval — as opposed to a
+       genuine new action? True only when we wrote an at-or-above-Client-Approval
+       status and the server REGRESSES it below with NO new open change-request
+       comment to justify it (a real Tweaks-Needed always lands a comment; a bare
+       Linear round-trip does not). Port of _calIsStaleLinearRegress; samples has
+       no Scheduled/Posted so the "above" set is just Client Approval / Approved. */
+    function _sxrIsStaleLinearRegress(lp, fp, comp, rsf) {
+        if (!lp || !fp || !rsf) return false;
+        if (comp !== 'video' && comp !== 'graphic') return false;
+        const f = comp + '_status';
+        const sv = fp[f];
+        if (sv == null) return false;
+        const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+        const base = rsf.base ? rsf.base[f] : undefined;
+        if (sv === wrote || sv === base) return false;
+        const ABOVE = { 'Client Approval': 1, 'Approved': 1 };
+        if (!(ABOVE[_sxrNormStatus(wrote)] && !ABOVE[_sxrNormStatus(sv)])) return false;
+        return !_sxrReconcileHasGenuineTweak(fp, lp, comp);
+    }
+    /* Does the server row carry a NEW (not in our local copy) open change-request
+       on this component — the fingerprint of a genuine Tweaks-Needed (which always
+       writes a comment alongside the status) vs a bare Linear round-trip? Port of
+       _calReconcileHasGenuineTweak. */
+    function _sxrReconcileHasGenuineTweak(fp, lp, comp) {
+        const fc = _sxrCommentsFor(fp, comp);
+        if (!Array.isArray(fc) || !fc.length) return false;
+        const lById = new Map();
+        const lc = _sxrCommentsFor(lp, comp);
+        if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
+        return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
+    }
+    function _sxrMergeServerRows(server) {
+        const local = sxrState.posts || [];
+        const localById = new Map(local.map(p => [p.id, p]));
+        const out = [], serverIds = new Set();
+        const adoptThumbnailMeta = (post, serverPost) => {
+            if (!post || !serverPost) return post;
+            if (String(post.thumbnail_url || '').trim() !== String(serverPost.thumbnail_url || '').trim()) return post;
+            const keys = ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'];
+            let changed = false;
+            for (const k of keys) {
+                if (String(post[k] || '') !== String(serverPost[k] || '')) { changed = true; break; }
+            }
+            let next = post;
+            if (changed) {
+                next = Object.assign({}, post);
+                keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
+            }
+            return _thumbAdoptPersistedRevision(next, serverPost);
+        };
+        const carrySourceRepair = (post, localPost) => {
+            if (!post || !localPost || !localPost._writeUiRetrySourceAt) return post;
+            const next = post === localPost ? post : Object.assign({}, post);
+            next._writeUiRetrySourceAt = localPost._writeUiRetrySourceAt;
+            next._writeUiRetryEdits = Object.assign({}, localPost._writeUiRetryEdits || {});
+            next._writeUiHeldSourceEdits = Object.assign({}, localPost._writeUiHeldSourceEdits || {});
+            next._writeUiRetryPrincipal = localPost._writeUiRetryPrincipal || '';
+            next._writeUiRepairRefs = _writeUiSnapshotRepairRefs(localPost);
+            if (next._writeUiRepairRefs.length) next._writeUiPrecommittedNative = true;
+            next._saveError = localPost._saveError || 'Source repair pending';
+            return next;
+        };
+        for (const srv of server) {
+            serverIds.add(srv.id);
+            const loc = localById.get(srv.id);
+            // In-flight save or queued edit: the server row is by definition
+            // pre-change for this card — keep local, fold in the server's comments.
+            if (loc && (_sxrPendingEdits[srv.id] || _sxrSaveInFlight[srv.id])) {
+                const kept = carrySourceRepair(adoptThumbnailMeta(loc, srv), loc);
+                _sxrMergePostComments(kept, srv); out.push(kept); continue;
+            }
+            // Recent local status write (5-min grace): keep our just-set status
+            // against a stale reconciler / self echo — BUT adopt any sub-status the
+            // server genuinely moved to a NEW value (a peer's Tweaks-Needed /
+            // approval) so a live change from another role isn't swallowed and its
+            // status pill flips without a manual refresh. Port of the calendar's
+            // stillRecent → _calRecentSaveReconcile path.
+            if (loc && _sxrIsLocalStatusFresh(srv.id)) {
+                const rsf = _sxrRecentSaveFields.get(srv.id);
+                const reconciled = rsf ? _sxrRecentSaveReconcile(loc, srv, rsf) : null;
+                // reconciled is a clone of loc with the adopted server status, so
+                // fold the SERVER row's comments in (Kasper's new tweak note lives
+                // there, not on loc) — mirrors the calendar's merge(winner, fp).
+                if (reconciled) {
+                    const kept = carrySourceRepair(adoptThumbnailMeta(reconciled, srv), loc);
+                    _sxrMergePostComments(kept, srv); out.push(kept);
+                } else {
+                    const kept = carrySourceRepair(adoptThumbnailMeta(loc, srv), loc);
+                    _sxrMergePostComments(kept, srv); out.push(kept);
+                }
+                continue;
+            }
+            // Default: adopt the server copy (fold local comments in).
+            if (loc) _sxrMergePostComments(srv, loc);
+            out.push(carrySourceRepair(srv, loc));
+        }
+        // Keep local-only cards the server doesn't have yet (blank / just-created /
+        // failed-new / pending) so a reload can't drop them.
+        for (const loc of local) {
+            if (serverIds.has(loc.id)) continue;
+            if (_sxrIsBlankId(loc.id) || _sxrPendingEdits[loc.id] || _sxrSaveInFlight[loc.id] || _sxrFailedNewCards.has(loc.id)) out.push(loc);
+        }
+        // Pin a freshly dragged order_index over a stale fetch until the reorder
+        // write is readable (or the guard expires) — prevents drag snap-back.
+        if (typeof _sxrReorderOptimistic !== 'undefined' && _sxrReorderOptimistic.size) {
+            for (const row of out) {
+                const ro = _sxrReorderOptimistic.get(row.id);
+                if (!ro) continue;
+                if (Date.now() - ro.at < SXR_REORDER_GUARD_MS) row.order_index = ro.order_index;
+                else _sxrReorderOptimistic.delete(row.id);
+            }
+        }
+        return out;
+    }
+
+    /* Deferred-render guard — hold a background repaint while the user is mid-edit. */
+    let _sxrPendingBackgroundRender = false;
+    let _sxrPendingRenderInterval = null;
+    function _sxrIsBusy() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return false;
+        const a = document.activeElement;
+        const isTextEntry = !!(a && ((a.tagName === 'INPUT' && /^(text|url|email|search|number|tel|password|date)$/i.test(a.type || 'text')) || a.tagName === 'TEXTAREA' || a.isContentEditable));
+        if (isTextEntry && (body.contains(a) || (a.closest && a.closest('#sxrCommentsModal')))) return true;
+        if (Object.keys(_sxrPendingEdits).length > 0) return true;
+        if (_sxrOpenStatusMenu) return true;
+        return false;
+    }
+    function _sxrSchedulePendingRender() {
+        if (_sxrPendingRenderInterval) return;
+        _sxrPendingRenderInterval = setInterval(() => {
+            if (!_sxrPendingBackgroundRender) { clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null; return; }
+            if (_sxrIsBusy()) return;
+            _sxrPendingBackgroundRender = false;
+            clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null;
+            _sxrRenderBody({ preserveScroll: true });
+        }, 1200);
+    }
+    function _sxrMaybeRunPendingRender() {
+        if (!_sxrPendingBackgroundRender || _sxrIsBusy()) return;
+        _sxrPendingBackgroundRender = false;
+        if (_sxrPendingRenderInterval) { clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null; }
+        _sxrRenderBody({ preserveScroll: true });
+    }
+
+    /* Tab-return refetch — a backgrounded tab's socket suspends and Supabase never
+       replays missed rows, so on return pull one catch-up. Gated on the surface
+       being mounted (and the flag) so it's inert otherwise. */
+    let _sxrLastReturnLoad = 0;
+    const SXR_RETURN_REFRESH_MIN_MS = 8000;
+    function _sxrRefreshOnReturn() {
+        if (!_sxrEnabled() || document.visibilityState === 'hidden') return;
+        if (!sxrState.client || !document.getElementById('sxrBody')) return;
+        if (Date.now() - _sxrLastNetworkLoadAt < SXR_RETURN_REFRESH_MIN_MS) return;
+        if (_sxrBgLoadInFlight || sxrState.loading) return;
+        const now = Date.now();
+        if (now - _sxrLastReturnLoad < 500) return;
+        _sxrLastReturnLoad = now;
+        loadSxrCards({ background: true });
+    }
+
+    /* ── Local-status freshness (reconcile guard) ── */
+    const _sxrLocalStatusAt = Object.create(null);
+    const SXR_LOCAL_STATUS_GRACE_MS = 5 * 60 * 1000;
+    function _sxrMarkLocalStatus(pid, comp) { _sxrLocalStatusAt[pid + '|' + (comp || '')] = Date.now(); if (comp) _sxrLocalStatusAt[pid + '|'] = Date.now(); }
+    function _sxrIsLocalStatusFresh(pid, comp) { const ts = _sxrLocalStatusAt[pid + '|' + (comp || '')] || _sxrLocalStatusAt[pid + '|'] || 0; return !!ts && (Date.now() - ts) < SXR_LOCAL_STATUS_GRACE_MS; }
+
+    /* ── Legacy drain-only queue + native per-target serialized writes ── */
+    const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
+    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug, options) {
+        const record = {
+            id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
+            transport: 'legacy_n8n',
+            // Same principal stamp as _linearOutboxEnqueue: an enrolled
+            // client's deliberately-legacy comment must survive the drain's
+            // enrollment re-derivation instead of being quarantined.
+            client_link: _isClientLink === true,
+            // Twin of the calendar stamp: a comment the add lane routed legacy
+            // because the slot crosswalk is broken, on an enrolled slug. See
+            // _linearOutboxEnqueue for why the drain has to be told.
+            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
+            client_slug: String(clientSlug || '')
+        };
+        await _writeUiLegacyAppendOutboxItem('sxr', record);
+        _sxrLinearOutboxScheduleRetry();
+        return true;
+    }
+    function _sxrLinearOutboxScheduleRetry(suppliedOwner) {
+        const owner = suppliedOwner || _writeUiLegacyResumeOwner();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner) || _sxrLinearOutboxTimer) return;
+        _sxrLinearOutboxTimer = setTimeout(() => {
+            _sxrLinearOutboxTimer = null;
+            if (_writeUiLegacyResumeOwnerCurrent(owner)) _sxrLinearOutboxFlush(owner);
+        }, SXR_LINEAR_OUTBOX_RETRY_MS);
+    }
+    function _sxrLinearOutboxFlush(suppliedOwner) {
+        const owner = suppliedOwner || _writeUiLegacyResumeOwner();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+            return Promise.resolve({ outcomes: [], deferred: true });
+        }
+        const ownerKey = _writeUiLegacyResumeOwnerKey(owner);
+        if (_sxrLinearOutboxPromise && _sxrLinearOutboxOwnerKey === ownerKey) {
+            return _sxrLinearOutboxPromise;
+        }
+        const tracked = _sxrLinearOutboxFlushRun(owner).finally(() => {
+            if (_sxrLinearOutboxPromise === tracked) {
+                _sxrLinearOutboxPromise = null;
+                _sxrLinearOutboxOwnerKey = '';
+            }
+        });
+        _sxrLinearOutboxOwnerKey = ownerKey;
+        _sxrLinearOutboxPromise = tracked;
+        return tracked;
+    }
+    async function _sxrLinearOutboxFlushRun(owner) {
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
+        await _writeUiPrimeRerouteFlag();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
+        return _writeUiLegacyDrainWithLock('sxr', async () => {
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
+        const snapshot = _sxrLinearOutboxRead();
+        const items = owner.kind === 'client'
+            ? snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))
+            : snapshot;
+        if (!items.length) return { outcomes: [] };
+        // item 63, twin of the calendar drain: the direct-delivery branch is a
+        // write to an external system, so it requires a live authority read --
+        // Linear team delivers as before, flipped team quarantines, unreadable
+        // flag delivers nothing and spends no attempts.
+        const drainAuthority = await _writeUiRefreshAuthority();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { outcomes: [], deferred: true };
+        let enriched = false;
+        for (const it of items) {
+            if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
+            const seed = it.id || ('legacy_' + String(it.queuedAt || Date.now()));
+            if (!it.requestId) { it.requestId = _writeUiIntentId('sxr', it.kind, [seed]); enriched = true; }
+            if (it.kind === 'comment' && it.payload && !it.payload.native_comment_id) { it.payload.native_comment_id = _writeUiIntentId('sxr', 'comment', [seed, 'native']); enriched = true; }
+        }
+        const remaining = [];
+        const outcomes = [];
+        const sourceGateStates = new Map();
+        const supersededGroups = new Map();
+        let leaseRevoked = false;
+        let deliveryStarted = false;
+        itemLoop: for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+            const it = items[itemIndex];
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+                leaseRevoked = true;
+                _writeUiLegacyRetainFrom(items, itemIndex, remaining);
+                break itemLoop;
+            }
+            const payload = it.payload || {};
+            if (it && it.source_gate) {
+                const gateKey = _writeUiLegacyGateSignature(it.source_gate);
+                const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('sxr', it);
+                if (storedTerminal) {
+                    supersededGroups.set(gateKey, {
+                        stored: true,
+                        sourceOnly: false,
+                        tombstone: storedTerminal
+                    });
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_superseded',
+                        comment_id: String(storedTerminal.source_gate
+                            && storedTerminal.source_gate.comment_id || ''),
+                        item: storedTerminal
+                    });
+                    continue;
+                }
+                let gateState = sourceGateStates.get(gateKey);
+                if (!sourceGateStates.has(gateKey)) {
+                    gateState = await _writeUiLegacySourceGateState(it, 3);
+                    if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+                        leaseRevoked = true;
+                        _writeUiLegacyRetainFrom(items, itemIndex, remaining);
+                        break itemLoop;
+                    }
+                    sourceGateStates.set(gateKey, gateState);
+                }
+                if (gateState === 'unknown' || gateState === 'pending' || gateState === 'landed_pending') {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only'
+                    && (gateState === 'conflict'
+                        || gateState === 'principal_mismatch'
+                        || gateState === 'target_changed')) {
+                    _writeUiLegacyQuarantine('sxr', it, 'source_gate_' + gateState);
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'superseded') {
+                    let terminal = supersededGroups.get(gateKey);
+                    if (!terminal) {
+                        const group = items.filter(row => row && row.source_gate
+                            && _writeUiLegacyGateSignature(row.source_gate) === gateKey);
+                        const sourceOnly = it.transport === 'source_only';
+                        const canonical = sourceOnly
+                            ? it
+                            : (group.find(row => row && row.kind === 'comment') || it);
+                        const tombstone = sourceOnly
+                            ? _writeUiLegacySupersededSourceItem(canonical)
+                            : _writeUiLegacySupersededTeamItem(canonical);
+                        terminal = {
+                            stored: _writeUiLegacyRememberCommittedTweak('sxr', tombstone),
+                            sourceOnly,
+                            tombstone
+                        };
+                        supersededGroups.set(gateKey, terminal);
+                        if (terminal.stored) {
+                            _writeUiQueueDiagnostic(
+                                'sxr',
+                                sourceOnly ? 'source_only_superseded' : 'source_gate_superseded',
+                                canonical
+                            );
+                        }
+                    }
+                    if (!terminal.stored) {
+                        remaining.push(it);
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: terminal.sourceOnly
+                                ? 'source_only_superseded_pending'
+                                : 'team_delivery_superseded_pending',
+                            comment_id: String(terminal.tombstone.source_gate
+                                && terminal.tombstone.source_gate.comment_id || ''),
+                            item: terminal.tombstone
+                        });
+                        continue;
+                    }
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: terminal.sourceOnly
+                            ? 'source_only_superseded'
+                            : 'team_delivery_superseded',
+                        comment_id: String(terminal.tombstone.source_gate
+                            && terminal.tombstone.source_gate.comment_id || ''),
+                        item: terminal.tombstone
+                    });
+                    continue;
+                }
+                if (gateState === 'conflict' || gateState === 'principal_mismatch' || gateState === 'target_changed') {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'source_gate_' + gateState)) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'expired') {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'source_gate_expired')) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState !== 'committed') {
+                    _writeUiQueueDiagnostic('sxr', 'source_gate_' + gateState, it);
+                    continue;
+                }
+                if (!_writeUiLegacyRememberCommittedTweak('sxr', it)
+                    || !_writeUiLegacyReconcileCommittedTweak('sxr', it)) {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only') {
+                    _writeUiQueueDiagnostic('sxr', 'source_only_confirmed', it);
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'source_only_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                    continue;
+                }
+                const recordedReceipt = _writeUiLegacyRecordedTeamDeliveryReceiptItem('sxr', it);
+                if (recordedReceipt) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: recordedReceipt
+                    });
+                    continue;
+                }
+            }
+            /* it.client_link: twin of the calendar drain. A client comment is
+               deliberately legacy regardless of enrollment; without this
+               clause an ENROLLED slug's client item is quarantined
+               ('legacy_actor_unverifiable') with zero retries. Honoring the
+               stamp preserves the quarantine's point — blocking enrolled
+               STAFF writes from the legacy lane — because a client_link item
+               was never gateway traffic to begin with. */
+            if (it && it.transport === 'legacy_n8n'
+                && (it.source_gate || it.client_link || it.canonical_unlinked
+                    || !_writeUiRerouteUseGateway(it.client_slug))) {
+                // item 63: same authority test as the calendar drain, with the
+                // same deliberate source_gate exemption -- see the calendar
+                // drain comment for why quarantining a committed source
+                // gated pair breaks the client retry contract.
+                if (!it.source_gate) {
+                    const directIssue = String(payload.issue || '').trim();
+                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
+                    if (!directMatch) {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                    if (!drainAuthority) { remaining.push(it); continue; }
+                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
+                    if (drainAuthority[directTeam] === 'syncview') {
+                        if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
+                        remaining.push(it);
+                        continue;
+                    }
+                }
+                if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
+                const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+                let delivered = false;
+                try {
+                    if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+                        leaseRevoked = true;
+                        _writeUiLegacyRetainFrom(items, itemIndex, remaining);
+                        break itemLoop;
+                    }
+                    deliveryStarted = true;
+                    const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    let ok = resp && resp.ok;
+                    try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
+                    if (!ok) throw new Error('http ' + (resp && resp.status));
+                    delivered = true;
+                } catch (e) {
+                    it.attempts = Number(it.attempts || 0) + 1;
+                    it.lastError = (e && e.message) || String(e);
+                    remaining.push(it);
+                }
+                if (delivered && it.source_gate) {
+                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
+                    if (!_writeUiLegacyRememberCommittedTweak('sxr', receiptItem)) {
+                        remaining.push(receiptItem);
+                    } else {
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: 'team_delivery_confirmed',
+                            comment_id: String(it.source_gate.comment_id || ''),
+                            item: receiptItem
+                        });
+                    }
+                }
+                continue;
+            }
+            const issue = String(payload.issue || '').trim();
+            const issueMatch = issue.match(/\b(VID|GRA)-\d+\b/i);
+            if (!issueMatch) {
+                if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
+                remaining.push(it); continue;
+            }
+            if (it.kind === 'comment' || it.kind === 'status') {
+                if (_writeUiLegacyQuarantine('sxr', it, 'legacy_actor_unverifiable')) continue;
+                remaining.push(it);
+                continue;
+            }
+            try {
+                if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+                    leaseRevoked = true;
+                    _writeUiLegacyRetainFrom(items, itemIndex, remaining);
+                    break itemLoop;
+                }
+                await _writeUiGatewayPost({
+                    surface: 'sxr', operation: it.kind, team: issueMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video',
+                    issue, requestId: it.requestId, sourceEditedAt: it.queuedAt, legacyOnly: true,
+                    legacyResumeOwner: owner,
+                    onLegacyResumeTransportStart: () => { deliveryStarted = true; },
+                    status: it.kind === 'status' ? _writeUiNativeStatus(payload.status) : undefined,
+                    comment: it.kind === 'comment' ? { body: String(payload.body || ''), audience: _isClientLink ? 'client' : 'internal', native_comment_id: payload.native_comment_id } : undefined
+                });
+                _writeUiQueueDiagnostic('sxr', 'drained', it);
+                if (it.source_gate) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                }
+            } catch (e) {
+                if (String(e && e.code || '') === 'legacy_resume_lease_revoked') {
+                    leaseRevoked = true;
+                    _writeUiLegacyRetainFrom(items, itemIndex, remaining);
+                    break itemLoop;
+                }
+                if (Number(e && e.status) === 409 && String(e && e.code || '') === 'legacy_parity_not_allowed') { _writeUiQueueDiagnostic('sxr', 'discarded_authority_flip', it, e); continue; }
+                if ([400, 404].includes(Number(e && e.status))) {
+                    if (_writeUiLegacyQuarantine('sxr', it, String(e && e.code || 'legacy_payload_invalid'))) continue;
+                    remaining.push(it); continue;
+                }
+                if ([401, 403, 409, 503].includes(Number(e && e.status)) || !(e && e.status)) { it.lastError = String(e && (e.code || e.message) || e); remaining.push(it); continue; }
+                it.attempts = Number(it.attempts || 0) + 1; it.lastError = (e && e.message) || String(e);
+                if (it.attempts >= SXR_LINEAR_OUTBOX_MAX && _writeUiLegacyQuarantine('sxr', it, 'legacy_retry_cap')) continue;
+                remaining.push(it);
+            }
+        }
+        if (leaseRevoked && !deliveryStarted) return { outcomes: [], deferred: true };
+        let finalized;
+        try {
+            finalized = await _writeUiLegacyFinalizeFlush(
+                'sxr',
+                items,
+                remaining,
+                () => deliveryStarted || _writeUiLegacyResumeOwnerCurrent(owner)
+            );
+        } catch (error) {
+            const terminal = Array.from(supersededGroups.values())
+                .find(entry => entry && !entry.sourceOnly);
+            if (terminal) {
+                error.team_delivery_superseded = true;
+                error.comment_id = String(terminal.tombstone
+                    && terminal.tombstone.source_gate
+                    && terminal.tombstone.source_gate.comment_id || '');
+                error.terminal_item = terminal.tombstone || null;
+            }
+            throw error;
+        }
+        if (finalized && finalized.deferred === true) return { outcomes: [], deferred: true };
+        if (remaining.length && _writeUiLegacyResumeOwnerCurrent(owner)) _sxrLinearOutboxScheduleRetry(owner);
+        return { outcomes };
+        });
+    }
+    window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
+    window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
+    const _sxrLinearPushChain = Object.create(null);
+    const _sxrLinearPushLatest = Object.create(null);

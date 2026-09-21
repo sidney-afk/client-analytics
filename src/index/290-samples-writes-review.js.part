@@ -1,0 +1,1810 @@
+    function _sxrLegacyPushStatusToLinear(issueUrl, status, meta) {
+        const url = String(issueUrl || '').trim(), st = String(status || '').trim();
+        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
+        if (!url || !st || st === 'Scheduled' || st === 'Posted') return;
+        _sxrLinearPushLatest[url] = st;
+        const run = async () => {
+            if (_sxrLinearPushLatest[url] !== st) return;
+            const payload = { issue: url, status: st };
+            try {
+                const resp = await fetch(LINEAR_SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                let ok = resp && resp.ok;
+                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Samples] Linear status push failed - queued', e);
+                try {
+                    await _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Samples] Linear status retry could not be preserved', queueError);
+                }
+            }
+        };
+        _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
+    }
+    function _sxrLegacyPostLinearComment(issueUrl, body, author, meta) {
+        const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
+        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
+        if (!url || !txt) return;
+        const payload = { issue: url, body: txt, author: String(author || _sxrCurrentAuthor() || 'SyncView') };
+        (async () => {
+            try {
+                const resp = await fetch(LINEAR_ADD_COMMENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                let ok = resp && resp.ok;
+                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Samples] Linear comment failed - queued', e);
+                try {
+                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug,
+                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
+                } catch (queueError) {
+                    console.warn('[Samples] Linear comment retry could not be preserved', queueError);
+                }
+            }
+        })();
+    }
+    async function _sxrPushStatusToLinear(issueUrl, status, meta) {
+        /* Same rule as the comment writer beside this one. No caller reaches
+           here with a caption or title today -- `_kasperPersistPost` loops
+           video and graphic, `_calReassertLinearStatus` refuses anything else,
+           and every other caller names its component -- but the collapse on
+           the next line would send one to the VIDEO deliverable if one ever
+           did, and this file already says why that is not good enough: "a rule
+           that depends on the caller never exercising a documented behaviour
+           of its own argument is not a rule". OPEN_REPAIRS 127. */
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            // Same source-only shape as the comment writers, deferred flag included.
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
+        }
+        if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
+            _sxrLegacyPushStatusToLinear(issueUrl, status, meta);
+            return Promise.resolve({ skipped: true, legacy_transport: true });
+        }
+        const url = String(issueUrl || '').trim(), st = String(status || '').trim();
+        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+        const nativeId = _writeUiNativeId(meta && meta.post, component);
+        const targetKey = nativeId || url;
+        if (!st || st === 'Scheduled' || st === 'Posted') return Promise.resolve({ skipped: true });   // samples never push the calendar-only states
+        const nativeStatus = _writeUiNativeStatus(st);
+        if (!nativeStatus) return Promise.resolve({ skipped: true });
+        if (!targetKey) {
+            return _writeUiClassifyTargetless('sxr', component, meta);
+        }
+        const repair = meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('sxr', 'status', meta);
+        const run = async () => {
+            return _writeUiGatewayWithRepair({
+                    surface: 'sxr', operation: 'status', team: _writeUiTeam(component), issue: url,
+                    nativeId, status: nativeStatus,
+                    sourceEditedAt: meta && meta.sourceEditedAt,
+                    requestId: _writeUiIntentId('sxr', 'status', [meta && meta.post && meta.post.id, component, nativeStatus, meta && meta.sourceEditedAt || Date.now()])
+                }, repair);
+        };
+        const chain = (_sxrLinearPushChain[targetKey] || Promise.resolve()).then(run, run);
+        _sxrLinearPushChain[targetKey] = chain.catch(() => {});
+        return chain;
+    }
+    async function _sxrPostLinearComment(issueUrl, body, author, meta) {
+        // Same rule as the calendar twin. SXR_COMPONENTS is video+graphic only,
+        // so nothing reaches this today -- it is here because the collapse
+        // below is identical, and a rule that lives on one of two identical
+        // surfaces is how the 87.8 / 87.16 pair happened.
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            // Same source-only shape as the comment writers, deferred flag included.
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
+        }
+        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+        const nativeId = _writeUiNativeId(meta && meta.post, component);
+        // Canonical-where-linked, legacy-where-not. A client write is canonical
+        // only when the card actually carries a native deliverable binding; an
+        // UNLINKED card takes the identical transport decision staff takes
+        // (reroute flag on -> gateway, off -> legacy n8n delivery), which is
+        // exactly the pre-Slice-4 behavior for these cards.
+        const clientGate = _isClientLink
+            ? _prodCanonicalCommentGate(meta && meta.post, component)
+            : null;
+        const clientCanonicalWrite = !!(clientGate && clientGate.linked);
+        const clientSurface = clientCanonicalWrite
+            ? _prodVerifiedClientCommentMutationContext('sxr', meta && meta.post, component, nativeId)
+            : null;
+        // Same 2026-08-13 incident, Samples side. The LINKED client thread
+        // below supplies clientSurface.card_id and stays fail-closed on the
+        // gateway — that path is correct and deliberately untouched. The
+        // UNLINKED client thread has no verified card crosswalk, so the old
+        // clientCommentTargetAllowed rejected it every time (only 3 linked
+        // sample cards existed against 5,427 total — unlinked is the normal
+        // case) and PR 1064 routed it legacy. FRONT-DOOR REPAIR: the gateway
+        // now accepts the unlinked thread under
+        // clientCommentFrontDoorTargetAllowed, so it goes legacy UNLESS the
+        // client_comment_gateway_enabled flag is ON and this tab can build a
+        // verified gateway context (null = fail-legacy, the PR 1064 behavior).
+        const clientFrontDoorSurface = !clientCanonicalWrite && _isClientLink
+            ? await _prodClientCommentGatewayContext('sxr', meta && meta.post, component)
+            : null;
+        /* Same disjunct as the calendar twin, same reasons: the ADD lane's
+           crosswalk answer for the exact component of the write, kept off the
+           client front door (which owns its own crosswalk decision) and placed
+           last so the reroute-flag priming still runs. Unreachable from the
+           `clientCanonicalWrite` branch below, which is a LINKED card by
+           definition and stays fail-closed. */
+        const canonicalUnlinkedAdd = !!(meta && meta.canonicalUnlinked) && !clientFrontDoorSurface;
+        if (clientCanonicalWrite) {
+            // A LINKED client thread stays fail-closed and never falls back.
+            if (!clientGate.ready || !clientGate.client || !nativeId || !clientSurface) {
+                throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+            }
+        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface) || canonicalUnlinkedAdd) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
+            _sxrLegacyPostLinearComment(issueUrl, body, author, meta);
+            return Promise.resolve({ skipped: true, legacy_transport: true });
+        }
+        const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
+        if (!txt) return Promise.resolve({ skipped: true });
+        if (!url && !nativeId) {
+            const targetless = await _writeUiClassifyTargetless('sxr', component, meta);
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, targetless, {
+                    source_only: true,
+                    deferred_until_source_save: true
+                })
+                : targetless;
+        }
+        const repair = clientCanonicalWrite || _isClientLink
+            ? null
+            : meta && meta.repairRecord
+                ? meta.repairRecord
+                : _writeUiBuildSourceRepair('sxr', 'comment', meta);
+        const comment = meta && meta.comment;
+        const nativeCommentId = String(comment && comment.id || _writeUiIntentId('sxr', 'comment', [Date.now(), txt.slice(0, 24)]));
+        return _writeUiGatewayWithRepair({
+                    surface: 'sxr', operation: 'comment', team: _writeUiTeam(component), issue: url,
+                    nativeId,
+                    sourceEditedAt: comment && (comment.updated_at || comment.created_at),
+                    requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : clientFrontDoorSurface ? { card_id: clientFrontDoorSurface.card_id } : {}) }
+                }, repair);
+    }
+    function _writeUiApplyJournalEdits(post, edits, surface) {
+        const applied = {};
+        for (const [key, value] of Object.entries(edits || {})) {
+            const match = /^(video|graphic|caption|title)_tweaks$/.exec(key);
+            if (!match) { post[key] = value; applied[key] = value; continue; }
+            let intended = [];
+            try { intended = value ? JSON.parse(value) : []; } catch (e) { intended = []; }
+            const component = match[1];
+            if (surface === 'sxr') {
+                const merged = _sxrMergeCommentLists(_sxrCommentsFor(post, component), intended);
+                _sxrSetCommentsFor(post, component, merged);
+                applied[key] = _sxrStringifyComments(merged);
+            } else {
+                const merged = _calMergeCommentLists(_calCommentsFor(post, component), intended);
+                _calSetCommentsFor(post, component, merged);
+                applied[key] = _calStringifyComments(merged);
+            }
+        }
+        // A receipt can return a newer reviewer state. Keep the existing stale-
+        // approval rule when applying a captured stamp to that current state.
+        for (const component of ['video', 'graphic']) {
+            const key = 'client_' + component + '_approved_at';
+            if (applied[key] && !['Client Approval', 'Approved', 'Scheduled', 'Posted'].includes(String(post[component + '_status'] || ''))) {
+                post[key] = applied[key] = '';
+            }
+        }
+        return applied;
+    }
+    function _writeUiRepairGroups(principal) {
+        const state = _writeUiRepairJournalRead();
+        const groups = new Map();
+        state.rows.filter(row => row.principal === principal).forEach(row => {
+            const key = [row.surface, row.lane || 'card', row.client_slug, row.post_id].join('|');
+            const group = groups.get(key) || {
+                key, surface: row.surface, lane: row.lane || 'card', client_slug: row.client_slug,
+                post_id: row.post_id, source_at: row.source_at, edits: {}, intents: [], refs: []
+            };
+            group.edits = Object.assign(group.edits, row.edits || {});
+            group.intents = group.intents.concat((row.intents || []).map(intent => Object.assign({}, intent, {
+                _repair_key: row.key, _repair_token: row.token
+            })));
+            group.refs.push({ key: row.key, token: row.token });
+            if (String(row.source_at || '') > String(group.source_at || '')) group.source_at = row.source_at;
+            groups.set(key, group);
+        });
+        return { groups: Array.from(groups.values()), unknown: state.unknown };
+    }
+    function _writeUiJournalHasRepair(surface, lane, slug, postId, principal) {
+        const state = _writeUiRepairJournalRead();
+        return state.rows.some(row => row.surface === surface && (row.lane || 'card') === lane
+            && row.client_slug === slug && row.post_id === postId && row.principal === principal);
+    }
+    function _writeUiJournalCoversRepairRefs(post, surface, lane, slug, principal) {
+        const refs = _writeUiSnapshotRepairRefs(post);
+        if (!refs.length) return false;
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) return false;
+        return refs.every(ref => state.rows.some(row => row.key === ref.key && row.token === ref.token
+            && row.surface === surface && (row.lane || 'card') === lane
+            && row.client_slug === slug && row.post_id === String(post && post.id || '')
+            && row.principal === principal));
+    }
+    function _writeUiRepairRecordForIntent(intent) {
+        if (!intent || !intent._repair_key || !intent._repair_token || !intent.key) {
+            throw _writeUiGatewayError(507, 'repair_intent_unavailable');
+        }
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
+        const stored = state.rows.find(row => row.key === intent._repair_key && row.token === intent._repair_token);
+        if (!stored) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
+        const record = JSON.parse(JSON.stringify(stored));
+        record.primary_intent_key = intent.key;
+        return record;
+    }
+    function _writeUiMaxSourceClock() {
+        let best = '';
+        let bestMs = -Infinity;
+        for (const value of arguments) {
+            const raw = String(value || '').trim();
+            const ms = Date.parse(raw);
+            if (Number.isFinite(ms) && ms > bestMs) { best = raw; bestMs = ms; }
+        }
+        return best;
+    }
+    function _writeUiValidatePinnedRepairPayload(group, intent, post) {
+        let payload = null;
+        try { payload = JSON.parse(String(intent && intent.gateway_payload || '')); } catch (e) {}
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            throw _writeUiGatewayError(507, 'repair_payload_invalid');
+        }
+        const component = intent.component === 'graphic' ? 'graphic' : 'video';
+        const payloadSource = Date.parse(String(payload.source_edited_at || ''));
+        const intentSource = Date.parse(String(intent.source_at || group.source_at || ''));
+        if (String(payload.operation || '') !== String(intent.operation || '')
+            || String(payload.surface || '') !== String(group.surface || '')
+            || (!Number.isFinite(payloadSource) || !Number.isFinite(intentSource) || payloadSource !== intentSource)
+            || (payload.id && typeof payload.id !== 'string')
+            || (payload.issue && typeof payload.issue !== 'string')) {
+            throw _writeUiGatewayError(409, 'repair_payload_mismatch');
+        }
+        if (!payload.id && !payload.issue) throw _writeUiGatewayError(409, 'repair_payload_mismatch');
+        if (intent.operation === 'status') {
+            if (_writeUiNativeStatus(payload.status) !== _writeUiNativeStatus(intent.status)) {
+                throw _writeUiGatewayError(409, 'repair_payload_mismatch');
+            }
+        } else if (intent.operation === 'comment') {
+            const comment = payload.comment && typeof payload.comment === 'object' ? payload.comment : {};
+            if (String(comment.native_comment_id || '') !== String(intent.comment && intent.comment.id || '')
+                || String(comment.body || '') !== String(intent.comment && intent.comment.body || '')) {
+                throw _writeUiGatewayError(409, 'repair_payload_mismatch');
+            }
+        } else throw _writeUiGatewayError(400, 'repair_operation_unsupported');
+        return payload;
+    }
+    function _writeUiReceiptMatchesSource(group, intent, post, receipt) {
+        const row = receipt && receipt.row;
+        if (!row || typeof row !== 'object') return false;
+        const component = intent && intent.component === 'graphic' ? 'graphic' : 'video';
+        const nativeId = _writeUiNativeId(post, component);
+        const nativeMatches = !!nativeId && String(row.id || '') === nativeId;
+        const cardMatches = !!String(row.card_id || '') && String(row.card_id) === String(group.post_id || '');
+        const rowTeamRaw = String(row.team || '').trim().toLowerCase();
+        const rowTeam = ['graphics', 'gra'].includes(rowTeamRaw) ? 'graphics'
+            : ['video', 'vid'].includes(rowTeamRaw) ? 'video' : '';
+        return String(row.client_slug || '') === String(group.client_slug || '')
+            && rowTeam === _writeUiTeam(component)
+            && (nativeMatches || cardMatches);
+    }
+    async function _writeUiReadRepairReceipt(group, intent, post) {
+        if (!intent || !intent.gateway_payload) return null;
+        if (!_writeUiHasCredential()) throw _writeUiGatewayError(401, 'credentials_required');
+        const payload = _writeUiValidatePinnedRepairPayload(group, intent, post);
+        payload.reconcile_only = true;
+        const response = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', 'Content-Type': 'application/json',
+                'X-Syncview-Source': group.surface
+            }, WRITE_UI_PRODUCTION_WRITE_URL),
+            body: JSON.stringify(payload)
+        });
+        const json = await response.json().catch(() => ({}));
+        if (response.status === 409 || json && json.outcome === 'conflict') {
+            throw _writeUiGatewayError(409, json && json.error || 'intent_conflict');
+        }
+        if (!response.ok || !json || json.ok !== true
+            || !['committed_exact', 'absent'].includes(String(json.outcome || ''))) {
+            throw _writeUiGatewayError(response.status || 503, json && json.error || 'reconcile_receipt_unavailable');
+        }
+        if (!_writeUiReceiptMatchesSource(group, intent, post, json)) {
+            throw _writeUiGatewayError(409, 'repair_receipt_target_mismatch');
+        }
+        return json;
+    }
+    function _writeUiCanonicalSourceComment(row, fallback) {
+        row = row && typeof row === 'object' ? row : {};
+        fallback = fallback && typeof fallback === 'object' ? fallback : {};
+        const lifecycleAt = _writeUiMaxSourceClock(
+            row.source_updated_at, row.edited_at, row.deleted_at, row.resolved_at,
+            row.source_created_at, row.updated_at, row.created_at,
+            fallback.updated_at, fallback.created_at
+        );
+        return {
+            id: String(row.native_comment_id || fallback.id || row.id || ''),
+            parent_id: String(fallback.parent_id || ''),
+            author: String(row.author_name || fallback.author || 'Unknown author'),
+            role: String(row.role || fallback.role || ''),
+            audience: String(row.audience || fallback.audience || 'internal'),
+            body: String(row.body == null ? fallback.body || '' : row.body),
+            created_at: String(row.source_created_at || fallback.created_at || row.created_at || lifecycleAt),
+            updated_at: lifecycleAt,
+            is_tweak: row.is_tweak === true || fallback.is_tweak === true,
+            round: Number.isInteger(row.round) ? row.round : (Number.isInteger(fallback.round) ? fallback.round : null),
+            deleted: !!String(row.deleted_at || ''),
+            done: !!String(row.resolved_at || ''),
+            done_at: String(row.resolved_at || ''),
+            done_by: String(row.resolved_by_name || '')
+        };
+    }
+    /* F50 vocabulary rule for every repair/replay projector: a native status
+       reaches a card ONLY through _calMapNativeStatusStrict. The display table
+       (_writeUiDisplayStatus) emits Backlog/Todo/Canceled/Duplicate — words no
+       card vocabulary contains — and an unmapped native must LEAVE THE CARD
+       AS IT IS (owner ruling 2026-08-10), not throw: a permanently-canceled
+       deliverable would otherwise wedge its repair intent forever. The throw
+       stays only for a native the vocabulary itself cannot recognise. */
+    function _writeUiCardOrigin(intent) {
+        // Repair COMPANION intents may not carry `surface` directly, but their
+        // repair key is always prefixed with it ('sxr|…' / 'calendar|…'), so a
+        // samples recovery can never be mistaken for calendar and given a
+        // Scheduled/Posted word its vocabulary does not contain.
+        const surface = String((intent && intent.surface)
+            || String(intent && intent._repair_key || '').split('|')[0]
+            || '').toLowerCase();
+        return surface === 'sxr' ? 'samples' : 'calendar';
+    }
+    async function _writeUiAdoptRepairReceipt(group, intent, post, receipt) {
+        if (!receipt || receipt.outcome !== 'committed_exact' || !receipt.row) {
+            throw _writeUiGatewayError(503, 'reconcile_receipt_invalid');
+        }
+        const component = intent.component === 'graphic' ? 'graphic' : 'video';
+        if (intent.operation === 'status') {
+            const native = _writeUiNativeStatus(receipt.row.status);
+            if (!native) throw _writeUiGatewayError(503, 'native_replay_status_unavailable');
+            const status = _calMapNativeStatusStrict(native, _writeUiCardOrigin(intent));
+            if (status) {
+                post[component + '_status'] = status;
+                group.edits[component + '_status'] = status;
+            }
+            group.source_at = _writeUiMaxSourceClock(group.source_at, receipt.row.status_at, receipt.row.updated_at) || group.source_at;
+        } else if (intent.operation === 'comment') {
+            if (!receipt.comment || String(receipt.comment.native_comment_id || '') !== String(intent.comment && intent.comment.id || '')) {
+                throw _writeUiGatewayError(409, 'repair_comment_receipt_mismatch');
+            }
+            const canonical = _writeUiCanonicalSourceComment(receipt.comment, intent.comment);
+            const current = group.surface === 'sxr' ? _sxrCommentsFor(post, component) : _calCommentsFor(post, component);
+            let intended = [];
+            try {
+                const raw = group.edits[component + '_tweaks'];
+                intended = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(intended)) intended = [];
+            } catch (e) { intended = []; }
+            // Preserve every unsynced comment represented by this group, then
+            // overlay the canonical receipt last so later edits/tombstones win.
+            const merged = group.surface === 'sxr'
+                ? _sxrMergeCommentLists(_sxrMergeCommentLists(current, intended), [canonical])
+                : _calMergeCommentLists(_calMergeCommentLists(current, intended), [canonical]);
+            if (group.surface === 'sxr') {
+                _sxrSetCommentsFor(post, component, merged);
+                group.edits[component + '_tweaks'] = _sxrStringifyComments(merged);
+            } else {
+                _calSetCommentsFor(post, component, merged);
+                group.edits[component + '_tweaks'] = _calStringifyComments(merged);
+            }
+            group.source_at = _writeUiMaxSourceClock(
+                group.source_at, receipt.comment.source_updated_at, receipt.comment.edited_at,
+                receipt.comment.deleted_at, receipt.comment.resolved_at, receipt.comment.updated_at
+            ) || group.source_at;
+        }
+        const ref = await _writeUiMarkRepairCommitted({
+            key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
+        }, { row: receipt.row }, { reconciled: true, reason: 'committed_exact_receipt' });
+        _writeUiAdoptRepairAck(post, { native_committed: true, row: receipt.row, source_repair: ref });
+        intent.native_committed = true;
+        intent.reconciled = true;
+        return receipt;
+    }
+    async function _writeUiReadCurrentNativeStatus(post, component) {
+        const id = _writeUiNativeId(post, component);
+        if (!id) throw _writeUiGatewayError(409, 'native_link_required');
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=id,status,status_at,updated_at&id=eq.' + encodeURIComponent(id) + '&limit=2';
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+        });
+        const rows = await response.json().catch(() => null);
+        if (!response.ok || !Array.isArray(rows) || rows.length !== 1) {
+            throw _writeUiGatewayError(503, 'native_replay_read_unavailable');
+        }
+        return rows[0];
+    }
+    async function _writeUiReconcileReplayStatus(group, intent, post) {
+        const component = intent && intent.component === 'graphic' ? 'graphic' : 'video';
+        const intended = _writeUiNativeStatus(intent && intent.status
+            || group && group.edits && group.edits[component + '_status']
+            || post && post[component + '_status']);
+        if (!intended) throw _writeUiGatewayError(400, 'repair_status_invalid');
+        const current = await _writeUiReadCurrentNativeStatus(post, component);
+        const currentStatus = _writeUiNativeStatus(current && current.status);
+        if (!currentStatus) throw _writeUiGatewayError(503, 'native_replay_status_unavailable');
+        const sourceClock = Date.parse(String(intent && intent.source_at || group && group.source_at || ''));
+        const currentClock = Date.parse(String(current && (current.status_at || current.updated_at) || ''));
+        const clockProvesCurrent = Number.isFinite(sourceClock) && Number.isFinite(currentClock)
+            && currentClock >= sourceClock;
+        const matches = currentStatus === intended && clockProvesCurrent;
+        const superseded = currentStatus !== intended && clockProvesCurrent;
+        if (!matches && !superseded) {
+            // A missing/unusable native clock is not permission to overwrite a
+            // different current value during recovery. Keep the journal debt.
+            if (!Number.isFinite(sourceClock) || !Number.isFinite(currentClock)) {
+                throw _writeUiGatewayError(503, 'native_replay_clock_unavailable');
+            }
+            return false;
+        }
+        if (superseded) {
+            // Same F50 vocabulary rule as _writeUiAdoptRepairReceipt: an
+            // unmapped newer native (canceled/triage/duplicate, or
+            // scheduled/posted on the samples surface) leaves the card as it
+            // is; the repair still resolves as 'newer_native_status'.
+            const display = _calMapNativeStatusStrict(currentStatus, _writeUiCardOrigin(intent));
+            if (display) {
+                post[component + '_status'] = display;
+                group.edits[component + '_status'] = display;
+            }
+        }
+        const ref = await _writeUiMarkRepairCommitted({
+            key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
+        }, { row: current }, {
+            reconciled: true,
+            reason: superseded ? 'newer_native_status' : 'matching_native_status'
+        });
+        _writeUiAdoptRepairAck(post, { native_committed: true, row: current, source_repair: ref });
+        intent.native_committed = true;
+        intent.reconciled = true;
+        return true;
+    }
+    async function _writeUiReplayRepairIntents(group, post) {
+        for (const intent of group.intents || []) {
+            if (!intent || !intent.key) continue;
+            const component = intent.component === 'graphic' ? 'graphic' : 'video';
+            // localStorage acknowledgement bits are recovery hints, never proof.
+            // An attempted intent must be reconciled against the authenticated
+            // atomic outbox receipt before any source edit is applied.
+            const receipt = await _writeUiReadRepairReceipt(group, intent, post);
+            if (receipt && receipt.outcome === 'committed_exact') {
+                await _writeUiAdoptRepairReceipt(group, intent, post, receipt);
+                continue;
+            }
+            if (intent.operation === 'status') {
+                // Status is destructive/non-commutative. Exact absence (or a
+                // never-attempted companion) may not be replayed without CAS.
+                // A newer native status safely supersedes it; otherwise retain
+                // the journal for an explicit reapply.
+                if (await _writeUiReconcileReplayStatus(group, intent, post)) continue;
+                throw _writeUiGatewayError(409, 'status_reapply_required');
+            }
+            const meta = {
+                post, component, sourceEditedAt: intent.source_at || group.source_at,
+                clientSlug: group.client_slug, repairLane: group.lane, repairEdits: group.edits,
+                repairRecord: _writeUiRepairRecordForIntent(intent)
+            };
+            let acknowledgement;
+            if (intent.operation === 'comment' && intent.comment && intent.comment.id) {
+                // Exact receipt absence proves the atomic native/comment/outbox
+                // transaction did not commit. Reissuing this append-only stable
+                // native id through the CURRENT authority lane is safe.
+                meta.comment = intent.comment;
+                meta.parentId = intent.comment_meta && intent.comment_meta.parent_id;
+                meta.audience = intent.comment_meta && intent.comment_meta.audience;
+                meta.isTweak = !!(intent.comment_meta && intent.comment_meta.is_tweak);
+                meta.round = intent.comment_meta && Number.isInteger(intent.comment_meta.round) ? intent.comment_meta.round : null;
+                acknowledgement = group.surface === 'sxr'
+                    ? await _sxrPostLinearComment(_sxrLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta)
+                    : await _calPostLinearComment(_calLinearUrlFor(post, component), intent.comment.body, intent.comment.author, meta);
+            } else throw _writeUiGatewayError(400, 'repair_operation_unsupported');
+            if (acknowledgement && acknowledgement.native_committed) {
+                _writeUiAdoptRepairAck(post, acknowledgement);
+                const ref = acknowledgement.source_repair || await _writeUiMarkRepairCommitted({
+                    key: intent._repair_key, token: intent._repair_token, primary_intent_key: intent.key
+                }, acknowledgement);
+                _writeUiAdoptRepairAck(post, { native_committed: true, source_repair: ref });
+            }
+        }
+    }
+    async function _writeUiReplayJournalGroup(group, principal) {
+        let post = null;
+        let item = null;
+        if (group.lane === 'kasper-calendar' && typeof _kasperState === 'object') {
+            item = (_kasperState.items || []).find(row => row && row.post && row.post.id === group.post_id && row.slug === group.client_slug);
+            post = item && item.post;
+        } else if (group.lane === 'kasper-sxr' && typeof _sxrKasperState === 'object') {
+            item = (_sxrKasperState.items || []).find(row => row && row.post && row.post.id === group.post_id && row.slug === group.client_slug);
+            post = item && item.post;
+        } else if (group.surface === 'calendar' && typeof calState === 'object'
+            && calClientSlug(calState.client) === group.client_slug) {
+            post = (calState.posts || []).find(row => row && row.id === group.post_id);
+        } else if (group.surface === 'sxr' && typeof sxrState === 'object'
+            && sxrClientSlug(sxrState.client) === group.client_slug) {
+            post = (sxrState.posts || []).find(row => row && row.id === group.post_id);
+        }
+        if (!post) return false;
+        if (group.lane === 'kasper-sxr' && post._writeUiKasperRepair
+            && !_writeUiJournalCoversRepairRefs(post, 'sxr', 'kasper-sxr', group.client_slug, principal)) {
+            throw _writeUiGatewayError(409, 'source_repair_receipt_required');
+        }
+        // Do not project unverified journal data into the card. Receipt proof
+        // and current-native supersession run first; only their reconciled
+        // result is eligible for source repair.
+        await _writeUiReplayRepairIntents(group, post);
+        // Replay may adopt a newer native status. Rebuild the exact source patch
+        // after that read so the stale pre-replay object cannot overwrite it.
+        if (Object.keys(group.edits || {}).some(key => /^(video|graphic)_status$/.test(key))) {
+            group.edits.status = group.surface === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post);
+        }
+        const edits = _writeUiApplyJournalEdits(post, group.edits, group.surface);
+        post.updated_at = group.source_at;
+        post._writeUiRetryEdits = Object.assign({}, edits);
+        post._writeUiRetrySourceAt = group.source_at;
+        post._writeUiRetryPrincipal = principal;
+        if (group.lane === 'kasper-calendar') {
+            await _kasperPersistPost(item, { precommitted: true, refs: group.refs });
+        } else if (group.lane === 'kasper-sxr') {
+            const sourceRepairRefs = group.refs.map(ref => ({ key: ref.key, token: ref.token }));
+            await _sxrKasperPersist(item, edits);
+            if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefs)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefs);
+            delete post._writeUiKasperRepair;
+            if (typeof _kasperState === 'object' && _kasperState) {
+                _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row
+                    && !(row.id === group.post_id && row.slug === group.client_slug));
+                _kasperPersistCache();
+            }
+        } else if (group.surface === 'calendar') {
+            _calPendingEdits[post.id] = Object.assign({}, edits, _calPendingEdits[post.id] || {}, {
+                _writeUiPrecommittedNative: true,
+                _writeUiRepairRefs: group.refs.map(ref => ({ key: ref.key, token: ref.token }))
+            });
+            await _calFlushCardSave(post.id);
+        } else {
+            _sxrPendingEdits[post.id] = Object.assign({}, edits, _sxrPendingEdits[post.id] || {}, {
+                _writeUiPrecommittedNative: true,
+                _writeUiRepairRefs: group.refs.map(ref => ({ key: ref.key, token: ref.token }))
+            });
+            await _sxrFlushCardSave(post.id);
+        }
+        return true;
+    }
+    function _writeUiSourceRepairSuperseded(post) {
+        // 2026-08-28 (OPEN_REPAIRS item 54): a RECEIPT-LESS checkpoint whose
+        // row the server has moved PAST is residue of a committed write, not
+        // recoverable work. The receipt is consumed only on source success
+        // (_writeUiCompleteSourceRepairRefs), the native half precommitted
+        // before the checkpoint existed, and the checkpoint sets updated_at
+        // EQUAL to its own stamp — so a STRICTLY newer server updated_at on
+        // this row proves a commit landed after this repair began, and the
+        // worst a drop can cost is the legacy-source half of a write whose
+        // native truth already holds. Held edits are the one thing typed
+        // after the badge that never reached any lane; their presence blocks
+        // the heal. Unparseable stamps fail closed to the held badge. Found
+        // live 2026-08-28: one SMM's card wore the badge for a day because
+        // nothing could ever clear a superseded checkpoint.
+        if (!post || !post._writeUiRetrySourceAt) return false;
+        if (Object.keys(post._writeUiHeldSourceEdits || {}).length) return false;
+        const stamp = Date.parse(String(post._writeUiRetrySourceAt));
+        const server = Date.parse(String(post.updated_at || ''));
+        return Number.isFinite(stamp) && Number.isFinite(server) && server > stamp;
+    }
+    function _writeUiClearSupersededSourceRepair(post) {
+        delete post._writeUiRetryEdits;
+        delete post._writeUiHeldSourceEdits;
+        delete post._writeUiRetrySourceAt;
+        delete post._writeUiRetryPrincipal;
+        delete post._writeUiRepairRefs;
+        delete post._writeUiPrecommittedNative;
+        if (post._saveError && /^Source repair/.test(String(post._saveError))) delete post._saveError;
+    }
+    function _writeUiResumeSourceRepairs() {
+        _writeUiLegacyReconcileCommittedTombstones();
+        if (!_writeUiHasCredential()) return Promise.resolve();
+        const principal = _writeUiPrincipalKey();
+        const tasks = [];
+        const journal = _writeUiRepairGroups(principal);
+        const journalCardKeys = new Set(journal.groups.map(group => group.surface + '|' + group.post_id));
+        // Healing requires a FULLY READABLE journal (Codex P2 on #1174): with
+        // unreadable rows present, "no receipt found" does not mean "receipt
+        // consumed" — a receipt for this card may sit among the rows that
+        // failed to parse, and dropping the checkpoint would destroy the
+        // replay those rows still represent. The consumed-receipt signature
+        // is a readable journal with zero rows for the card.
+        const journalUnreadable = Number(journal.unknown || 0) > 0;
+        journal.groups.forEach(group => tasks.push(_writeUiReplayJournalGroup(group, principal)));
+        // A display-cache checkpoint without its exact journal receipt can be
+        // left behind by a crash between source success and cache cleanup. It
+        // is not proof of a native commit and must never auto-apply stale data.
+        // A SUPERSEDED one (see _writeUiSourceRepairSuperseded) is healed;
+        // anything else is retained for diagnostics/manual review, and only
+        // journal groups replay. Healing must go through the cache writer's
+        // clearRepairIds path — a plain write re-injects the prior repair copy.
+        if (typeof calState !== 'undefined' && calState && Array.isArray(calState.posts)) {
+            const healedIds = [];
+            calState.posts.forEach(post => {
+                if (!post || !post.id || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]
+                    || journalCardKeys.has('calendar|' + post.id)
+                    || !principal || post._writeUiRetryPrincipal !== principal) return;
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
+                    _writeUiClearSupersededSourceRepair(post);
+                    healedIds.push(post.id);
+                    _writeUiQueueDiagnostic('calendar', 'cache_only_repair_superseded', { kind: 'source-repair' });
+                    return;
+                }
+                post._saveError = 'Source repair receipt missing; explicit review required';
+                _writeUiQueueDiagnostic('calendar', 'cache_only_repair_held', { kind: 'source-repair' });
+            });
+            if (healedIds.length) {
+                try { _calCacheWrite(calClientSlug(calState.client), calState.posts, { clearRepairIds: healedIds }); } catch (e) {}
+            }
+        }
+        if (typeof sxrState !== 'undefined' && sxrState && Array.isArray(sxrState.posts)) {
+            const healedIds = [];
+            sxrState.posts.forEach(post => {
+                if (!post || !post.id || !post._writeUiRetrySourceAt || _sxrSaveInFlight[post.id]
+                    || journalCardKeys.has('sxr|' + post.id)
+                    || !principal || post._writeUiRetryPrincipal !== principal) return;
+                if (!journalUnreadable && _writeUiSourceRepairSuperseded(post)) {
+                    _writeUiClearSupersededSourceRepair(post);
+                    healedIds.push(post.id);
+                    _writeUiQueueDiagnostic('sxr', 'cache_only_repair_superseded', { kind: 'source-repair' });
+                    return;
+                }
+                post._saveError = 'Source repair receipt missing; explicit review required';
+                _writeUiQueueDiagnostic('sxr', 'cache_only_repair_held', { kind: 'source-repair' });
+            });
+            if (healedIds.length) {
+                try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts, { clearRepairIds: healedIds }); } catch (e) {}
+            }
+        }
+        return Promise.all(tasks);
+    }
+    function _writeUiStoredSourceRepairState() {
+        const seen = new Set();
+        let unknown = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i) || '';
+            if (!(key.indexOf(CAL_CACHE_KEY_PREFIX) === 0 || key.indexOf(SXR_CACHE_PREFIX) === 0)) continue;
+            try {
+                const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+                if (!parsed || !Array.isArray(parsed.posts)) { unknown++; continue; }
+                (Array.isArray(parsed.posts) ? parsed.posts : []).forEach(post => {
+                    if (post && post.id && post._writeUiRetrySourceAt) seen.add(key + '|' + post.id);
+                });
+            } catch (e) { unknown++; }
+        }
+        try {
+            const raw = localStorage.getItem(KASPER_CACHE_KEY);
+            if (raw) {
+                const kasper = JSON.parse(raw);
+                if (!kasper || !Array.isArray(kasper.items) || !Array.isArray(kasper.sxrRepairs)) unknown++;
+                else {
+                    kasper.items.forEach(item => {
+                        if (item && item.post && item.post.id && item.post._writeUiRetrySourceAt) seen.add('kasper|' + item.post.id);
+                    });
+                    kasper.sxrRepairs.forEach(repair => {
+                        if (repair && repair.id) seen.add('kasper-sxr|' + repair.id);
+                    });
+                }
+            }
+        } catch (e) { unknown++; }
+        const journal = _writeUiRepairJournalRead();
+        journal.rows.forEach(row => seen.add('journal|' + row.surface + '|' + row.client_slug + '|' + row.post_id));
+        unknown += journal.unknown;
+        return { count: seen.size, unknown };
+    }
+    function _writeUiStoredSourceRepairCount() { return _writeUiStoredSourceRepairState().count; }
+    function _writeUiStoredQueueUnknownCount() {
+        let unknown = 0;
+        const arrayKeys = [LINEAR_OUTBOX_KEY, SXR_LINEAR_OUTBOX_KEY, CAL_CARD_JOBS_KEY, WRITE_UI_LEGACY_QUARANTINE_KEY];
+        arrayKeys.forEach(key => {
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw && !Array.isArray(JSON.parse(raw))) unknown++;
+            } catch (e) { unknown++; }
+        });
+        try {
+            const raw = localStorage.getItem(NATIVE_INTAKE_PENDING_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (!parsed || !parsed.payload || !_linearIntakeJobId(parsed)) unknown++;
+            }
+        } catch (e) { unknown++; }
+        return unknown;
+    }
+    let _writeUiLegacyResumePromise = null;
+    let _writeUiLegacyResumeActiveOwnerKey = '';
+    function _writeUiResumeLegacyQueues(reason, clientEntryRun) {
+        const owner = _writeUiLegacyResumeOwner(clientEntryRun);
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+            return Promise.resolve({ deferred: true });
+        }
+        const ownerKey = _writeUiLegacyResumeOwnerKey(owner);
+        if (_writeUiLegacyResumePromise && _writeUiLegacyResumeActiveOwnerKey === ownerKey) {
+            return _writeUiLegacyResumePromise;
+        }
+        const tracked = (async () => {
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            // Resolve the client allowlist before classifying identified retry
+            // debt. Legacy n8n retries do not depend on Linear authority, so a
+            // prod_authority read outage must not strand non-enrolled clients.
+            // Heal, not just prime (item 70): a boot whose flag read timed out
+            // is stuck dark for the life of the page otherwise, and post-flip
+            // the dark lane swallows every write while the screen goes green.
+            await _writeUiHealRerouteFlag();
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            const submissionHoldResume = typeof _linearResumeSubmissionHold === 'function'
+                ? _linearResumeSubmissionHold(reason || 'resume').catch(() => {})
+                : Promise.resolve();
+            const calendarHasOwnedDebt = _linearOutboxRead()
+                .some(item => _writeUiLegacyItemOwnedBy(item, owner));
+            const sxrHasOwnedDebt = _sxrLinearOutboxRead()
+                .some(item => _writeUiLegacyItemOwnedBy(item, owner));
+            if (owner.kind === 'client') {
+                await Promise.all([
+                    calendarHasOwnedDebt ? _linearOutboxFlush(owner) : Promise.resolve(),
+                    sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve(),
+                    submissionHoldResume
+                ]);
+                return { deferred: !_writeUiLegacyResumeOwnerCurrent(owner) };
+            }
+            _writeUiExpireV1Caches();
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            const nativeIntakeResume = _linearIntakeRead()
+                ? _resumeNativeIntakeJob(reason || 'resume').catch(() => {})
+                : Promise.resolve();
+            const linearQueueResume = Promise.all([
+                calendarHasOwnedDebt ? _linearOutboxFlush(owner) : Promise.resolve(),
+                sxrHasOwnedDebt ? _sxrLinearOutboxFlush(owner) : Promise.resolve()
+            ]);
+            const authority = await _writeUiRefreshAuthority();
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
+                await Promise.all([linearQueueResume, nativeIntakeResume]);
+                return { deferred: true };
+            }
+            if (!authority) {
+                await Promise.all([linearQueueResume, nativeIntakeResume]);
+                return { deferred: false };
+            }
+            _writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+            _calPruneLinearMetaForAuthority();
+            _calHydrateLinearMeta();
+            // OPEN_REPAIRS item 59: this is the one path that learns of a
+            // freshly read authority value (boot, and every later
+            // focus/visibility/online/timer re-check). Re-render the grid
+            // that renders the Linear link seal from it, but only when the
+            // value is new information -- comparing against the last value
+            // it was rendered under, not merely that authority is known --
+            // so the routine re-checks above stay a no-op render-wise.
+            //
+            // ONLY the currently active surface, gated on currentNav, and
+            // never over an edit in progress.
+            //
+            // CORRECTED 2026-08-30. An earlier revision of this comment said
+            // the unconditional version broke the Production tab by rewriting
+            // hidden calendar DOM underneath it. That is not true and the repo
+            // already disproves it twice: navTo replaces the whole content
+            // element, so calBody does not survive a move to Production, and
+            // both renderers open with an early return when their body element
+            // is absent -- the unconditional call was a no-op there, not a
+            // clobber. The CI failure it was blamed for is OPEN_REPAIRS item
+            // 60, proven base-branch red on a clean worktree of main. The gate
+            // stays because scoping a side effect to the visible surface is
+            // right on its own merits and matches what the rest of the file
+            // does, NOT because it repaired that failure.
+            //
+            // The busy check is the file-wide rule for a BACKGROUND repaint:
+            // both renderers replace innerHTML, which drops a focused input,
+            // an open status menu and the transient inline link input. Defer
+            // to the pending-render lane instead, exactly as the link-adopt
+            // path above does.
+            {
+                const authoritySig = JSON.stringify(authority);
+                if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
+                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
+                    if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
+                        if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
+                            _calPendingBackgroundRender = true;
+                            if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
+                        } else {
+                            _calRenderBody({ preserveScroll: true });
+                        }
+                    }
+                    if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
+                        if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                            _sxrPendingBackgroundRender = true;
+                            if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                        } else {
+                            _sxrRenderBody({ preserveScroll: true });
+                        }
+                    }
+                }
+            }
+            await Promise.all([
+                linearQueueResume,
+                _calCardJobsRead().length ? _resumePendingCalCardJobs(authority) : Promise.resolve(),
+                _writeUiResumeSourceRepairs(),
+                typeof _kasperResumeSourceRepairs === 'function' ? _kasperResumeSourceRepairs() : Promise.resolve(),
+                typeof _sxrKasperResumeSourceRepairs === 'function' ? _sxrKasperResumeSourceRepairs() : Promise.resolve(),
+                nativeIntakeResume,
+                submissionHoldResume
+            ]);
+            return { deferred: !_writeUiLegacyResumeOwnerCurrent(owner) };
+        })().finally(() => {
+            if (_writeUiLegacyResumePromise === tracked) {
+                _writeUiLegacyResumePromise = null;
+                _writeUiLegacyResumeActiveOwnerKey = '';
+            }
+        });
+        _writeUiLegacyResumeActiveOwnerKey = ownerKey;
+        _writeUiLegacyResumePromise = tracked;
+        return tracked;
+    }
+    window.addEventListener('focus', () => { _writeUiResumeLegacyQueues('focus'); });
+    window.addEventListener('pageshow', () => { _writeUiResumeLegacyQueues('resume'); });
+    window.addEventListener('online', () => { _writeUiResumeLegacyQueues('online'); });
+    window.addEventListener('pagehide', () => {
+        const owner = _writeUiLegacyResumeOwner();
+        if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
+        const calendarCount = _linearOutboxRead()
+            .filter(item => _writeUiLegacyItemOwnedBy(item, owner)).length;
+        const sxrCount = _sxrLinearOutboxRead()
+            .filter(item => _writeUiLegacyItemOwnedBy(item, owner)).length;
+        const staffSuffix = owner.kind === 'staff'
+            ? '|cards:' + _calCardJobsRead().length
+                + '|native-intake:' + (_linearIntakeRead() ? 1 : 0)
+                + '|source-repairs:' + _writeUiStoredSourceRepairCount()
+            : '';
+        _writeUiQueueDiagnostic('lifecycle', 'pagehide_snapshot', {
+            kind: 'calendar:' + calendarCount
+                + '|sxr:' + sxrCount
+                + staffSuffix
+        });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') _writeUiResumeLegacyQueues('visible'); });
+    setInterval(() => { _writeUiResumeLegacyQueues('timer'); }, 60 * 1000);
+    _writeUiResumeLegacyQueues('startup');
+    window.peekWriteUiLegacyQueueState = function () {
+        const repairState = _writeUiStoredSourceRepairState();
+        const unknown = repairState.unknown + _writeUiStoredQueueUnknownCount();
+        return {
+            app_epoch: 2,
+            observed_at: new Date().toISOString(),
+            calendar_linear: _linearOutboxRead().length,
+            sxr_linear: _sxrLinearOutboxRead().length,
+            submission_cards: _calCardJobsRead().length,
+            native_intake: _linearIntakeRead() ? 1 : 0,
+            source_repairs: repairState.count,
+            legacy_quarantine: _writeUiLegacyQuarantineRead().length,
+            unknown_records: unknown,
+            drain_state: unknown ? 'unknown' : 'observed'
+        };
+    };
+    /* Point-adoption: when a Linear sub-issue link is freshly set, adopt its current
+       Linear status onto the card (suppressing the outbound echo of that adopt).
+       Refuses a PARENT issue and rejects the calendar-only Scheduled/Posted. */
+    async function _sxrSyncStatusFromLinear(pid, issueUrl, comp) {
+        const which = (comp === 'graphic') ? 'graphic' : 'video';
+        let mapped;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: issueUrl }) });
+            const json = await resp.json();
+            if (!json.ok || !json.parent) return;
+            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            if (subs.length) { _sxrRenderBody({ preserveScroll: true }); return; }   // a parent — don't adopt
+            mapped = _sxrMapLinearStatusStrict(json.parent.status);
+        } catch (e) { return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post || !mapped || mapped === 'Scheduled' || mapped === 'Posted') return;
+        const subKey = which + '_status';
+        if (_sxrNormStatus(post[subKey] || '') === mapped) return;
+        post[subKey] = mapped;
+        post.status = computeSampleOverallStatus(post);
+        _sxrNoLinearPush.add(pid); _sxrNoLinearPush.add(pid + '|' + which);   // break the adopt→push echo
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][subKey] = mapped; _sxrPendingEdits[pid].status = post.status;
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        _sxrFlushCardSave(pid);
+        _sxrRenderBody({ preserveScroll: true });
+    }
+    const _sxrLinearReassertAt = new Map();
+    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
+    function _sxrReassertLinearStatus(post, comp) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
+        const nativeId = _writeUiNativeId(post, comp);
+        if (!url && !nativeId) return;
+        const st = _sxrNormStatus(post[comp + '_status'] || '');
+        if (!st) return;
+        const key = (nativeId || url) + '|' + st, now = Date.now();
+        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
+        _sxrLinearReassertAt.set(key, now);
+        _sxrPushStatusToLinear(url, st, { post, component: comp, sourceEditedAt: post.updated_at })
+            .catch(e => _writeUiReportFailure('sxr', 'status', e));
+    }
+
+    /* ── Realtime subscription (channel sxr-<slug> on sample_reviews) ── */
+    let _sxrV2ClientObj = null, _sxrV2ClientPromise = null;
+    function _sxrV2Client() {
+        if (!_sxrReady()) return Promise.resolve(null);
+        if (_sxrV2ClientObj) return Promise.resolve(_sxrV2ClientObj);
+        if (_sxrV2ClientPromise) return _sxrV2ClientPromise;
+        _sxrV2ClientPromise = _sxrV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _sxrV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 5 } } });
+            return _sxrV2ClientObj;
+        }).catch(e => { console.warn('[Samples] supabase init failed', e); _sxrV2ClientPromise = null; return null; });
+        return _sxrV2ClientPromise;
+    }
+    let _sxrV2Channel = null, _sxrV2SubSlug = null, _sxrV2RtTimer = null, _sxrV2RtPending = false, _sxrV2SubscribedOnce = false;
+    const SXR_RT_DEBOUNCE_MS = 350, SXR_RT_SELF_ECHO_MS = 4000;
+    async function _sxrV2EnsureSubscribed(slug) {
+        if (!_sxrReady() || !slug) return;
+        if (_sxrV2SubSlug === slug && _sxrV2Channel) return;
+        _sxrV2Teardown();
+        const client = await _sxrV2Client();
+        if (!client) return;
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        _sxrV2SubSlug = slug; _sxrV2SubscribedOnce = false;
+        try {
+            _sxrV2Channel = client.channel(SXR_RT_CHANNEL_PREFIX + slug)
+                .on('postgres_changes', { event: '*', schema: 'public', table: SXR_TABLE, filter: 'client=eq.' + slug }, () => _sxrV2OnRealtimeChange(slug))
+                .subscribe((status) => { if (status === 'SUBSCRIBED') { if (_sxrV2SubscribedOnce) _sxrV2OnRealtimeChange(slug); _sxrV2SubscribedOnce = true; } });
+        } catch (e) { _sxrV2Channel = null; _sxrV2SubSlug = null; }
+    }
+    function _sxrV2OnRealtimeChange(slug) {
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        if (_sxrV2RtTimer) clearTimeout(_sxrV2RtTimer);
+        _sxrV2RtTimer = setTimeout(function tick() {
+            _sxrV2RtTimer = null;
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            const sinceLocal = Date.now() - _sxrLastLocalWriteAt;
+            if (sinceLocal < SXR_RT_SELF_ECHO_MS) { _sxrV2RtTimer = setTimeout(tick, SXR_RT_SELF_ECHO_MS - sinceLocal); return; }   // self-echo
+            if (_sxrBgLoadInFlight || sxrState.loading) { _sxrV2RtPending = true; return; }
+            loadSxrCards({ background: true });
+        }, SXR_RT_DEBOUNCE_MS);
+    }
+    function _sxrV2DrainPending(slug) { if (_sxrV2RtPending) { _sxrV2RtPending = false; _sxrV2OnRealtimeChange(slug); } }
+    function _sxrV2Teardown() {
+        _sxrAbortActiveLoad();
+        if (_sxrV2RtTimer) { clearTimeout(_sxrV2RtTimer); _sxrV2RtTimer = null; }
+        if (_sxrV2Channel) { try { if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrV2Channel); else if (typeof _sxrV2Channel.unsubscribe === 'function') _sxrV2Channel.unsubscribe(); } catch (e) {} }
+        _sxrV2Channel = null; _sxrV2SubSlug = null;
+    }
+    window.sxrV2Status = function () { return { flag: _sxrEnabled(), ready: _sxrReady(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_sxrV2Channel, slug: _sxrV2SubSlug }; };
+
+    /* ── Kasper-queue realtime (channel kasper-sxr on sample_reviews, cross-client) ──
+       Mirror of the calendar's _kasperV2EnsureSubscribed (channel 'kasper-cal' on
+       calendar_posts). The samples Kasper queue spans EVERY client, so a single
+       UNFILTERED channel pushes a throttled _sxrKasperLoadQueue when any
+       sample_reviews row changes — so a card the SMM sends to Kasper, or a
+       client/SMM edit, surfaces WITHOUT a manual Refresh (the "Kasper review doesn't
+       update unless I refresh" fix). Push-only — an idle tab makes no calls. The
+       per-slug sxr-<slug> channel (Samples main review tab) is a SEPARATE concern;
+       this reuses the shared _sxrV2Client builder but its own channel + state. */
+    let _sxrKasperV2Channel = null, _sxrKasperV2RtTimer = null;
+    function _sxrKasperViewBusy() {
+        // Settle window after a local Kasper/SMM write so our OWN echo doesn't trigger
+        // a rebuild that reloads thumbnails / drops his caret (mirrors _kasperViewBusy).
+        if (Date.now() - _sxrLastLocalWriteAt < SXR_RT_SELF_ECHO_MS) return true;
+        const sv = _sxrKasperState.saving || {};
+        for (const k in sv) { if (sv[k]) return true; }                       // a save in flight
+        // A stray non-empty draft no longer blocks a peer's live update. Drafts
+        // live in _sxrKasperState.drafts and are re-read when a card rebuilds,
+        // and _svPreserveFocus keeps the caret, so a background reload is safe
+        // even with a half-typed comment sitting in the queue. Blocking on ANY
+        // draft left the whole cross-client queue stale until every draft was
+        // cleared — a teammate's change (e.g. an SMM edit) never surfaced.
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;   // actively typing → brief defer, re-armed and serviced on blur
+        return false;
+    }
+    async function _sxrKasperV2EnsureSubscribed() {
+        if (!_sxrReady() || _sxrKasperV2Channel) return;
+        const client = await _sxrV2Client();
+        if (!client || _sxrKasperV2Channel) return;   // re-check: a teardown / second mount may have raced the lib load
+        try {
+            _sxrKasperV2Channel = client
+                .channel('kasper-sxr')
+                .on('postgres_changes', { event: '*', schema: 'public', table: SXR_TABLE }, () => {
+                    if (_sxrKasperV2RtTimer) clearTimeout(_sxrKasperV2RtTimer);
+                    _sxrKasperV2RtTimer = setTimeout(function tick() {
+                        _sxrKasperV2RtTimer = null;
+                        // Re-arm while Kasper is mid-review; a teammate's change while
+                        // he's idle still comes through (matches the cal's 2s re-arm).
+                        if (_sxrKasperViewBusy()) { _sxrKasperV2RtTimer = setTimeout(tick, 2000); return; }
+                        if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
+                    }, 1500);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Samples Kasper] realtime subscribe failed', e);
+            _sxrKasperV2Channel = null;
+        }
+    }
+    function _sxrKasperV2Teardown() {
+        if (_sxrKasperV2RtTimer) { clearTimeout(_sxrKasperV2RtTimer); _sxrKasperV2RtTimer = null; }
+        if (_sxrKasperV2Channel) {
+            try {
+                if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrKasperV2Channel);
+                else if (typeof _sxrKasperV2Channel.unsubscribe === 'function') _sxrKasperV2Channel.unsubscribe();
+            } catch (e) {}
+        }
+        _sxrKasperV2Channel = null;
+    }
+
+    /* Freshness wiring is installed only when the current staff preference or
+       verified Review capability enables SXR. Before strict client verification
+       this adds no listeners and touches no client state. */
+    let _sxrFreshnessWired = false;
+    function _sxrEnsureFreshnessWiring() {
+        if (_sxrFreshnessWired || !_sxrEnabled()) return;
+        _sxrFreshnessWired = true;
+        document.addEventListener('focusout', () => { setTimeout(_sxrMaybeRunPendingRender, 60); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && sxrState.client) _sxrFlushAllPending(); });
+        window.addEventListener('pagehide', () => { if (sxrState.client) _sxrFlushAllPending(); });
+        window.addEventListener('pageshow', _sxrRefreshOnReturn);
+        document.addEventListener('visibilitychange', _sxrRefreshOnReturn);
+        window.addEventListener('focus', _sxrRefreshOnReturn);
+    }
+    _sxrEnsureFreshnessWiring();
+
+    /* ============================================================
+       --- SURFACE 8: the Kasper samples sub-tab (cross-client) ---
+       A "Samples" sub-tab on the Kasper page (registered + dispatched via the two
+       // SXR_LINE hooks). Loads sample_reviews CROSS-CLIENT (Supabase REST, no
+       client filter) for components at Kasper Approval, renders per-component review
+       panels, and persists each card with ITS OWN client slug (never sxrState /
+       _kasperPersistPost). Kasper: Approve -> Client Approval · Approve-after-tweaks
+       -> back to SMM + pre-clear (kasper_approved_after_tweaks) · Request change ->
+       Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
+       v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
+       ============================================================ */
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), urgentCollapsed: false, waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
+    // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
+    //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
+    //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
+    //  · a component still shows while at Tweaks Needed IF Kasper has an
+    //    unresolved tweak on it (the re-review hand-off).
+    function _sxrCompHasUnresolvedKasperTweak(post, comp) {
+        const list = _sxrCommentsFor(post, comp);
+        if (!Array.isArray(list)) return false;
+        return list.some(x => x && x.role === 'kasper' && _sxrMsgIsTweak(x) && !x.done && !x.deleted);
+    }
+    function _sxrCompKasperVisible(post, comp) {
+        if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
+        const cs = _sxrNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval') return true;
+        if (cs === 'Tweaks Needed' && _sxrCompHasUnresolvedKasperTweak(post, comp)) return true;
+        return false;
+    }
+    function _sxrPostKasperVisible(post) {
+        return SXR_REVIEW_COMPONENTS.some(c => _sxrCompKasperVisible(post, c));
+    }
+    function _sxrKasperFindItem(pid) { return (_sxrKasperState.items || []).find(it => it && it.post && it.post.id === pid); }
+    // ── Decision-flow helpers (clones of the calendar _kasper* equivalents) ──
+    // A component still at Kasper Approval = an undecided component; an unlinked
+    // thumbnail never blocks "Finish reviewing" (it can't be acted on).
+    function _sxrKasperUndecidedComps(post) {
+        return SXR_REVIEW_COMPONENTS.filter(c =>
+            !(c === 'graphic' && !_calCompLinked(post, c))
+            && _sxrNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+    }
+    function _sxrKasperPostHasUnresolvedKasperTweak(post) {
+        return SXR_REVIEW_COMPONENTS.some(c => _sxrCompHasUnresolvedKasperTweak(post, c));
+    }
+    function _sxrKasperLatestMsgAt(post) {
+        let latest = '';
+        for (const c of SXR_REVIEW_COMPONENTS) for (const m of _sxrCommentsFor(post, c)) {
+            if (m && m.created_at && String(m.created_at) > latest) latest = String(m.created_at);
+        }
+        return latest;
+    }
+    // Finished = handed to the SMM (kasper_finished_at stamp or local dismiss).
+    // Re-surfaces on a genuine fresh ask: an actionable component back at Kasper
+    // Approval (server-confirmed), or a message after the finish stamp.
+    function _sxrKasperIsFinished(post) {
+        if (!post) return false;
+        const stampedAt = String(post.kasper_finished_at || '');
+        const localFin = !!(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
+        if (!stampedAt && !localFin) return false;
+        // Once finished, the card STAYS in "Tweaks pending" and returns to
+        // "Waiting" ONLY when a component is genuinely re-sent to Kasper Approval
+        // (undecided). A later message — even a client tweak — must NOT pull it
+        // back into his queue: parity with the calendar's _kasperIsFinished, which
+        // deliberately removed the reply-resurfaces-it behaviour (the friction of
+        // finished cards bouncing back on every comment). See KASPER_REVIEW_GLOBAL_ROLLOUT.
+        if (stampedAt && _sxrKasperUndecidedComps(post).length) return false;
+        return true;
+    }
+    function _sxrKasperIsClosed(post) {
+        if (!post) return false;
+        const closedAt = String(post.kasper_closed_at || '');
+        const localClosed = !!(_sxrKasperState.closed && _sxrKasperState.closed[post.id]);
+        if (!closedAt && !localClosed) return false;
+        if (closedAt) { const latest = _sxrKasperLatestMsgAt(post); if (latest && latest > closedAt) return false; }
+        return true;
+    }
+    // Waiting = he still has a call to make; Tweaks pending = finished + handed off.
+    function _sxrKasperPartitionItems(items) {
+        // Urgent is a split of waiting, exactly as on the calendar queue, and
+        // over the SAME predicate — a sample and a post read as urgent for the
+        // same reason, so the two queues can never disagree about a ping.
+        const urgent = [], waiting = [], tweaks = [];
+        for (const it of items) {
+            if (_sxrKasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
+            else waiting.push(it);
+        }
+        return { urgent, waiting, tweaks };
+    }
+    // Approved-history (in-session — a "recently approved" list; clears on reload).
+    function _sxrKasperHistoryEntryFromPost(post, client, slug, approvedAt) {
+        return { id: post.id, client, slug, name: post.name || 'Untitled', asset_url: String(post.asset_url || ''), thumbnail_url: String(post.thumbnail_url || ''), approvedAt };
+    }
+    function _sxrKasperRecordHistory(entry) {
+        _sxrKasperState.history = [entry].concat((_sxrKasperState.history || []).filter(x => x.id !== entry.id)).slice(0, 60);
+    }
+    async function _sxrKasperFetchAllSamples() {
+        // Same archived exclusion as loadSxrCards — Kasper's queue drops archived
+        // rows anyway (see the loop below); fetching them cross-client meant
+        // pulling the WHOLE history of every client on each queue refresh.
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)';
+        return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
+    }
+    async function _sxrKasperLoadQueue(force) {
+        if (_sxrKasperState.loading) return;
+        _sxrKasperState.loading = true; _sxrKasperState.error = false;
+        if (force) _sxrKasperRenderQueue();
+        try {
+            // SMM map (cross-client) in parallel — drives the per-card Slack button.
+            const [rows, smmMap] = await Promise.all([
+                _sxrKasperFetchAllSamples(),
+                _kasperLoadSMMMap().catch(() => new Map()),
+            ]);
+            _sxrKasperState.smmByClient = smmMap;
+            const items = [];
+            const repairById = new Map(((_kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
+            for (const p of (rows || [])) {
+                if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
+                p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
+                const repair = repairById.get(p.id);
+                if (repair) {
+                    Object.assign(p, repair.post || {}, repair.patch || {});
+                    p._writeUiKasperRepair = repair;
+                    _sxrMigrateShape(p);
+                }
+                // Membership: anything Kasper can still act on OR a card he has
+                // FINISHED (it sits in "Tweaks pending"); minus cards he X-closed.
+                if (!(_sxrPostKasperVisible(p) || _sxrKasperIsFinished(p))) continue;
+                if (_sxrKasperIsClosed(p)) continue;
+                const slug = String(p.client || '');
+                const client = wlCanonicalClient(slug) || slug;
+                items.push({ post: p, slug, client, smm: smmMap.get(wlNormalizeClient(client)) || smmMap.get(slug) || null });
+            }
+            items.sort((a, b) => String(a.client).localeCompare(String(b.client)));
+            // Prune local dismiss/close flags whose card has fully left the queue
+            // (so the sets can't grow without bound and a re-routed card reappears).
+            const ids = new Set(items.map(it => it.post.id));
+            for (const id of Object.keys(_sxrKasperState.dismissed)) if (!ids.has(id)) delete _sxrKasperState.dismissed[id];
+            for (const id of Object.keys(_sxrKasperState.closed)) if (!ids.has(id)) delete _sxrKasperState.closed[id];
+            // Preserve expanded / touched-comps across refreshes.
+            const prev = new Map((_sxrKasperState.items || []).map(x => [x.post.id, x]));
+            for (const it of items) { const old = prev.get(it.post.id); if (old && old._touched) it._touched = old._touched; }
+            _sxrKasperState.items = items; _sxrKasperState.loaded = true;
+            setTimeout(() => { if (typeof _sxrKasperResumeSourceRepairs === 'function') _sxrKasperResumeSourceRepairs(); }, 0);
+        } catch (e) { _sxrKasperState.error = true; }
+        finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
+    }
+    function _sxrKasperRenderQueue() {
+        // Keep the Samples subtab pill live even when this fires from a background
+        // load while another Kasper tab is showing.
+        if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
+        const host = document.getElementById('kasperContent');
+        if (!host) return;
+        // #kasperContent is shared by every Kasper tab; a background samples load
+        // landing while another tab is open must not overwrite that tab's content.
+        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
+        if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
+        const st = _sxrKasperState;
+        const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
+        if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
+        if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
+        const { urgent, waiting, tweaks } = _sxrKasperPartitionItems(st.items);
+        // Waiting bucket (collapsible head matches Tweaks-pending / history so the
+        // three feel like siblings). Defaults open — it's where Kasper works.
+        const waitingBody = waiting.length
+            ? `<div class="kasper-list">${waiting.map(it => _sxrKasperRenderCard(it)).join('')}</div>`
+            : `<div class="kasper-empty"><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Nothing is waiting for your review right now.</div></div>`;
+        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${st.waitingCollapsed ? ' collapsed' : ''}" id="sxrKasperWaitingWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleWaiting()">
+                <span class="kasper-history-title">Waiting for your review</span>
+                <span class="kasper-history-count">${waiting.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${waitingBody}</div>
+        </div>`;
+        // A full-queue rebuild (e.g. an approve that clears a card, or a
+        // background realtime reload) must not yank the caret out of a draft
+        // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
+        // swap, gated to #kasperContent so we never steal focus from elsewhere.
+        _svPreserveFocus(() => {
+            host.innerHTML = head + _sxrKasperRenderUrgentSection(urgent) + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
+        }, host);
+    }
+    /* Samples twin of _kasperRenderUrgentSection — above "Waiting for your
+       review", hidden when empty, same cards and same chrome. */
+    function _sxrKasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${urgent.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
+        </div>`;
+    }
+    function _sxrKasperRenderTweaksSection(tweaks) {
+        if (!tweaks.length) return '';
+        return `<div class="kasper-history-wrap${_sxrKasperState.tweaksCollapsed ? ' collapsed' : ''}" id="sxrKasperTweaksWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleTweaks()">
+                <span class="kasper-history-title">Tweaks pending</span>
+                <span class="kasper-history-count">${tweaks.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
+        </div>`;
+    }
+    function _sxrKasperRenderHistorySection() {
+        const list = _sxrKasperState.history || [];
+        if (!list.length) return '';
+        const rows = list.map(e => {
+            const thumb = e.thumbnail_url || e.asset_url || '';
+            const thumbHtml = thumb ? `<img loading="lazy" src="${_sxrEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+            const t = Date.parse(e.approvedAt); const timeStr = isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+            const videoBtn = e.asset_url ? `<a href="${_sxrEscAttr(e.asset_url)}" target="_blank" rel="noopener">Video</a>` : '';
+            return `<div class="kasper-history-row"><div class="kasper-history-thumb">${thumbHtml}</div><div class="kasper-history-main"><div class="kasper-history-line1">${_sxrEsc(e.name)}</div><div class="kasper-history-line2"><span class="kasper-history-client">${_sxrEsc(e.client)}</span>${timeStr ? ' · approved ' + _sxrEsc(timeStr) : ''}</div></div><div class="kasper-history-actions">${videoBtn}</div></div>`;
+        }).join('');
+        return `<div class="kasper-history-wrap${_sxrKasperState.historyCollapsed ? ' collapsed' : ''}" id="sxrKasperHistoryWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleHistory()">
+                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-count">${list.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
+        </div>`;
+    }
+    function _sxrKasperToggleUrgent() {
+        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
+        const w = document.getElementById('sxrKasperUrgentWrap');
+        if (!w) return;
+        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
+        const head = w.querySelector('.kasper-history-head');
+        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
+    }
+    function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
+    function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
+    function _sxrKasperToggleHistory() { _sxrKasperState.historyCollapsed = !_sxrKasperState.historyCollapsed; const w = document.getElementById('sxrKasperHistoryWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.historyCollapsed); }
+    function _sxrKasperRenderCard(item) {
+        const p = item.post, pid = p.id;
+        const expanded = !!_sxrKasperState.expanded[pid];
+        const info = _sxrDeriveThumbInfo(p);
+        const thumb = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        // Full-screen thumbnail zoom on the card strip (mirrors the calendar's
+        // kcard-thumb-zoom → _kasperOpenLightbox); _sxrOpenThumbLightbox resolves
+        // the Kasper card from _sxrKasperState.items.
+        const zoomBtn = info.url ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_sxrOpenThumbLightbox('${_sxrEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>` : '';
+        const awaiting = SXR_REVIEW_COMPONENTS.filter(c => _sxrCompKasperVisible(p, c));
+        const video = String(p.asset_url || '').trim();
+        const watch = video ? `<a class="kcard-watch-btn" href="${_sxrEscAttr(video)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>` : '';
+        // "Finish reviewing" — explicit hand-off, enabled only once every component
+        // has a decision (a comment doesn't count). Approved → logged history;
+        // change requested → handed to SMM (Tweaks pending). Once finished the card
+        // shows "Sent to SMM" until a fresh ask resurfaces it.
+        const undecided = _sxrKasperUndecidedComps(p);
+        const canFinish = undecided.length === 0;
+        const isFinished = _sxrKasperIsFinished(p);
+        const finishTitle = canFinish
+            ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending". Nothing is approved unless you approved it.'
+            : 'Decide on the ' + undecided.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish.';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>`;
+        const doneBtn = isFinished
+            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you.">${checkIco}Sent to SMM</button>`
+            : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_sxrKasperDismiss('${_sxrEscAttr(pid)}')" title="${_sxrEscAttr(finishTitle)}">${checkIco}Finish reviewing</button>`;
+        const pillsHtml = undecided.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecided.map(c => `<span class="kcard-comp-pill">${_sxrEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : '';
+        // New-message chip — a message Kasper didn't write, on an internal thread,
+        // newer than his last look (the SHARED _kasperHasUnreadReply reads the same
+        // video_comments/graphic_comments arrays).
+        const newMsg = _kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : '';
+        /* SMM row. The Slack deep link was removed 2026-08-20 (owner ruling):
+           the team moved off Slack to Roam, so the button opened a dead tool,
+           and its "not found" fallback asked Kasper to fix a Google Sheet he
+           does not own. When the manager is unknown we render NOTHING rather
+           than an error he cannot act on. The URGENT ping is a separate n8n
+           path (_calUrgentSlackDispatch) and is deliberately untouched. */
+        const smm = item.smm;
+        const smmHtml = smm && smm.name
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}</span>`
+            : '';
+        // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
+        // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
+        const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
+        const pending = awaiting.length
+            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
+            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
+        const body = expanded
+            ? (awaiting.length
+                ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>`
+                : `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing pending your approval on this card.</div></div>`)
+            : '';
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-kasper-pid="${_sxrEscAttr(pid)}">
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It comes back if someone posts a new message on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
+                <div class="kcard-thumb">${thumb}${zoomBtn}</div>
+                <div class="kcard-main">
+                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
+                    <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
+                    <div class="kcard-meta-row">${smmHtml}</div>
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${urgentBtn}
+                    ${doneBtn}
+                    ${watch}
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')" aria-label="${expanded ? 'Collapse card' : 'Expand card'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+    function _sxrKasperPanelHtml(item, comp) {
+        const p = item.post, pid = p.id, escId = _sxrEscAttr(pid), escComp = _sxrEscAttr(comp);
+        const key = pid + '|' + comp;
+        const draft = _sxrKasperState.drafts[key] || '';
+        const saving = !!_sxrKasperState.saving[key];
+        const hasDraft = !!draft.trim();
+        const preview = _sxrReviewComponentPreview(p, comp);
+        const comments = _sxrCommentsForView(p, comp);
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        // State machine mirror of the calendar hero panel: once a component is at
+        // Tweaks Needed the framing is "Changes requested" and Approve is SUPPRESSED
+        // (he already sent it back); only Comment / Approve-after-tweaks / Request
+        // stay. A "Comment" is an internal-only note that does NOT change status.
+        const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const showApprove = !inTweaks;
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Describe the change you need…';
+        const commentIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>`;
+        const thread = comments.length ? comments.map(c => { const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'); return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${c.done ? ' is-resolved' : ''}"><div class="cal-review-comment-head"><strong>${_sxrEsc(author)}</strong><span class="cal-review-comment-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${c.done ? '<span class="cal-review-resolved-pill">Resolved</span>' : ''}</div><div class="cal-review-comment-body">${_sxrEsc(c.body || '')}</div></div>`; }).join('') : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}" data-state="${inTweaks ? 'tweaks' : 'pending'}">
+            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${stateLabel ? `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>` : ''}</div>
+            <div class="cal-review-panel-preview">${preview}</div>
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _sxrEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval.">${commentIco}Comment</button>
+                    <button type="button" class="cal-review-aat-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-clear for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            <div class="cal-review-thread">${thread}</div>
+        </div>`;
+    }
+    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; _sxrKasperRepaint(pid); }
+    function _sxrKasperRepaint(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector(`[data-sxr-kasper-pid="${sel}"]`); if (!el) return;
+        // Preserve the caret: if Kasper is typing a tweak/comment in this card
+        // when an after-save repaint fires, a bare replaceWith destroys that
+        // textarea and kicks focus out. Capture (gated to this card) before the
+        // swap, restore against the fresh DOM after. (Mirrors _kasperRepaintCard.)
+        const cap = _svCaptureFocus(el);
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrKasperRenderCard(it);
+        if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
+        _svRestoreFocus(cap);
+    }
+    function _sxrKasperOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp; _sxrKasperState.drafts[key] = ta.value;
+        const panel = ta.closest('.cal-review-panel'); if (!panel) return;
+        const has = !!ta.value.trim(), saving = !!_sxrKasperState.saving[key];
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => b.disabled = !has || saving);
+        panel.querySelectorAll('.cal-review-approve-main').forEach(b => {
+            b.disabled = has || saving;
+            b.title = has ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
+    }
+    async function _sxrKasperPersist(item, patch) {
+        const sample = Object.assign({ id: item.post.id }, patch);
+        const resp = await _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui');
+        if (!resp.ok) throw new Error('http ' + resp.status);
+        const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
+        return j.sample || sample;
+    }
+    async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
+        const p = it.post;
+        const cachedRepair = p._writeUiKasperRepair
+            || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
+        if (cachedRepair) {
+            _sxrKasperState.saving[key] = false;
+            /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
+               never declared, so every cached-repair refusal here threw a
+               TypeError before the diagnostic or the repaint ran. Exposed by
+               the Codex finding on the guard above (PR 1278); same fix. */
+            showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
+            _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
+            _sxrKasperRepaint(pid);
+            return;
+        }
+        const before = JSON.parse(JSON.stringify(p));
+        const patch = mutate(p);
+        p.updated_at = new Date().toISOString();
+        const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
+        _sxrKasperState.saving[key] = true;
+        _sxrLastLocalWriteAt = Date.now();   // self-echo: defer the realtime queue refresh of our own write
+        _sxrKasperRepaint(pid);
+        let gatewayAttempted = false;
+        let gatewayCommitted = false;
+        let deferredLegacyComment = false;
+        let deferredLegacyStatus = false;
+        const sourceRepairRefsForWrite = [];
+        let repair = null;
+        const checkpointRepair = () => {
+            if (!gatewayCommitted) return;
+            repair = repair || {
+                version: 1, id: p.id, slug: it.slug, component: comp,
+                principal: _writeUiPrincipalKey(), sourceEditedAt: p.updated_at,
+                patch: Object.assign({}, patch), post: JSON.parse(JSON.stringify(p)),
+                linearComment: linearComment || '', linearMeta: linearMeta || null,
+                statusCommitted: false, commentCommitted: false
+            };
+            p._writeUiKasperRepair = repair;
+            _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== repair.id).concat([repair]);
+            if (!_kasperPersistCache()) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+        };
+        try {
+            const url = _sxrLinearUrlFor(p, comp);
+            let companion = null;
+            if (linearComment) {
+                // Composite tweak actions are comment-first. The same journal
+                // record reserves the status companion, so a rejected comment
+                // can never leak through a status record's source patch.
+                const gatewayAttemptedBefore = gatewayAttempted;
+                gatewayAttempted = true;
+                const acknowledgement = await _sxrPostLinearComment(url, linearComment, 'Kasper', {
+                    post: p, component: comp, comment: linearMeta, audience: 'internal',
+                    isTweak: !!(linearMeta && _sxrMsgIsTweak(linearMeta)), round: linearMeta && linearMeta.round,
+                    clientSlug: it.slug, repairLane: 'kasper-sxr', repairEdits: patch,
+                    reserveStatusIntent: patch[comp + '_status'] ? { status: patch[comp + '_status'] } : null,
+                    deferLegacyUntilSourceSave: true
+                });
+                deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                if (deferredLegacyComment) gatewayAttempted = gatewayAttemptedBefore;
+                _writeUiAdoptRepairAck(p, acknowledgement);
+                _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                const commentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+                gatewayCommitted = gatewayCommitted || commentCommitted;
+                if (commentCommitted) { checkpointRepair(); repair.commentCommitted = true; checkpointRepair(); }
+                companion = _writeUiRepairCompanions(acknowledgement && acknowledgement.source_repair)
+                    .find(row => row && row.operation === 'status' && row.component === comp) || null;
+            }
+            if (patch[comp + '_status']) {
+                let reconciled = false;
+                // A freshly reserved status companion belongs to this in-flight
+                // action and has never reached the gateway. Reconciliation is
+                // only for a companion recovered after an earlier attempt;
+                // otherwise a newer native clock can incorrectly overwrite this
+                // fresh Samples decision before the source save (F140).
+                if (companion && companion.intent && companion.intent.attempted === true) {
+                    reconciled = await _writeUiReconcileReplayStatus({ edits: patch, source_at: companion.source_at }, companion.intent, p);
+                    if (reconciled) gatewayCommitted = true;
+                }
+                if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
+                    gatewayAttempted = true;
+                    const acknowledgement = await _sxrPushStatusToLinear(url, patch[comp + '_status'], {
+                        post: p, component: comp, sourceEditedAt: companion ? companion.source_at : p.updated_at,
+                        clientSlug: it.slug, repairLane: 'kasper-sxr', repairEdits: patch,
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: true
+                    });
+                    deferredLegacyStatus = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                    if (deferredLegacyStatus) gatewayAttempted = gatewayAttemptedBefore;
+                    _writeUiAdoptRepairAck(p, acknowledgement);
+                    _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                    gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                    if ((!acknowledgement || acknowledgement.native_committed !== true)
+                        && !(acknowledgement && acknowledgement.skipped === true && !companion)) {
+                        throw _writeUiGatewayError(503, 'status_commit_required');
+                    }
+                }
+                if (gatewayCommitted) { checkpointRepair(); repair.statusCommitted = true; checkpointRepair(); }
+            }
+            await _sxrKasperPersist(it, patch);
+            const persistedUrl = _sxrLinearUrlFor(p, comp);
+            if (deferredLegacyStatus) {
+                _sxrLegacyPushStatusToLinear(persistedUrl, patch[comp + '_status'], {
+                    post: p, component: comp, sourceEditedAt: p.updated_at, clientSlug: it.slug
+                });
+            }
+            if (deferredLegacyComment) {
+                _sxrLegacyPostLinearComment(persistedUrl, linearComment, 'Kasper', {
+                    post: p, component: comp, comment: linearMeta, audience: 'internal', clientSlug: it.slug
+                });
+            }
+            if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(p, sourceRepairRefsForWrite);
+            delete p._writeUiKasperRepair;
+            _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);
+            _kasperPersistCache();
+            _sxrKasperState.saving[key] = false;
+            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+            // Pin the card in the queue (touched) — it no longer auto-vanishes when
+            // a component leaves Kasper Approval. It only leaves via "Finish
+            // reviewing" (→ history / Tweaks pending) or the X (Close). The approve
+            // handler's afterPersist may complete + log a fully-approved card.
+            it._touched = true;
+            if (afterPersist && afterPersist(p, it)) return;
+            _sxrKasperRepaint(pid);
+        } catch (e) {
+            if (!gatewayCommitted) {
+                Object.assign(p, before);
+                if (linearComment) _sxrKasperState.drafts[key] = linearComment;
+            } else {
+                try { checkpointRepair(); } catch (checkpointError) {}
+            }
+            _sxrKasperState.saving[key] = false;
+            _sxrKasperRepaint(pid);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e);
+            else if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
+        }
+    }
+    async function _sxrKasperResumeSourceRepairs() {
+        const principal = _writeUiPrincipalKey();
+        const repairs = ((_kasperState && _kasperState.sxrRepairs) || []).slice();
+        for (const repair of repairs) {
+            if (!repair || repair.principal !== principal || !repair.id || !repair.slug) continue;
+            if (_writeUiJournalHasRepair('sxr', 'kasper-sxr', repair.slug, repair.id, principal)) continue;
+            repair.error = 'Source repair receipt missing; explicit review required';
+            _writeUiQueueDiagnostic('sxr', 'cache_only_repair_held', { kind: 'kasper-source-repair' });
+            _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== repair.id).concat([repair]);
+            _kasperPersistCache();
+        }
+    }
+    function _sxrKasperApproveComp(pid, comp) {
+        const it0 = _sxrKasperFindItem(pid);
+        /* Handler-level guard, mirroring _kasperApproveComp. */
+        if (it0) {
+            const _blocked = _sxrReviewBlockReason(it0.post, comp, 'Client Approval');
+            if (_blocked) {
+                /* showNotify, not an inline error: this surface has no
+                   per-component error store -- _sxrKasperState declares none
+                   and _sxrKasperPanelHtml renders none -- and the first draft
+                   of this guard wrote to one anyway, which threw a TypeError
+                   and made the Approve button look dead. The catch block in
+                   _sxrKasperApplyAndPersist reports its failures this same
+                   way, so the refusal now reads like every other refusal here.
+                   Found by Codex on PR 1278. */
+                showNotify('Nothing to review yet', _blocked);
+                return;
+            }
+        }
+        const prevStatus = it0 ? String(it0.post[comp + '_status'] || 'Kasper Approval') : 'Kasper Approval';
+        _sxrKasperApplyAndPersist(pid, comp,
+            (p) => {
+                p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p);
+                const patch = { [comp + '_status']: 'Client Approval', status: p.status };
+                // Stamp the Kasper sign-off (cross-device, mirrors the calendar's
+                // _kasperApproveComp) so the audit trail can record kasper_approve
+                // and history timestamps are real, not synthesized. First-wins.
+                if (!p.kasper_approved_at) { p.kasper_approved_at = new Date().toISOString(); patch.kasper_approved_at = p.kasper_approved_at; }
+                if (!p.kasper_approved_by) { p.kasper_approved_by = 'Kasper'; patch.kasper_approved_by = p.kasper_approved_by; }
+                return patch;
+            },
+            null,
+            (p, it) => {
+                // Card fully done (nothing at Kasper Approval, no unresolved tweaks)
+                // → log to Approved history + remove, with an Undo (mirrors the
+                // calendar). Otherwise keep it pinned so he can keep deciding.
+                const stillKasper = SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+                const stillTweaks = _sxrKasperPostHasUnresolvedKasperTweak(p);
+                if (stillKasper || stillTweaks) {
+                    // Partial approve — the card stays for the remaining decisions,
+                    // but Kasper still gets the confirmation + Undo (the calendar's
+                    // toast shows in BOTH branches; without it a partial approve
+                    // gave no feedback and no way back).
+                    if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(it, comp, prevStatus, null) });
+                    return false;
+                }
+                const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, new Date().toISOString());
+                _sxrKasperRecordHistory(entry);
+                const removed = it;
+                _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+                _sxrKasperRenderQueue();
+                if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(removed, comp, prevStatus, entry.id) });
+                return true;
+            });
+    }
+    function _sxrKasperUndoApprove(item, comp, prevStatus, entryId) {
+        if (!item) return;
+        _sxrKasperState.history = (_sxrKasperState.history || []).filter(e => e.id !== entryId);
+        const p = item.post;
+        p[comp + '_status'] = prevStatus;
+        p.status = computeSampleOverallStatus(p);
+        if (!_sxrKasperFindItem(p.id)) _sxrKasperState.items.push(item);
+        _sxrKasperRenderQueue();
+        _sxrKasperApplyAndPersist(p.id, comp, current => {
+            current[comp + '_status'] = prevStatus;
+            current.status = computeSampleOverallStatus(current);
+            return { [comp + '_status']: prevStatus, status: current.status };
+        });
+    }
+    // Comment — internal-only note. No status change, no Linear ping; the card
+    // stays exactly where it is (still awaiting his approval).
+    function _sxrKasperAddCommentComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: false, audience: 'internal', body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            return { [comp + '_tweaks']: _sxrStringifyComments(list) };
+        });
+    }
+    // "Finish reviewing" — explicit hand-off. Guard: every component decided.
+    // Clean approve-all → Approved history; any change request → stamped finished
+    // and moved to "Tweaks pending" until the SMM addresses it or a fresh ask
+    // supersedes it (see _sxrKasperIsFinished). Stamps persist (the upsert drops
+    // unknown columns, so the local flag is the same-device fallback).
+    function _sxrKasperDismiss(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const p = it.post;
+        if (_sxrKasperUndecidedComps(p).length) return;
+        if (!_sxrKasperPostHasUnresolvedKasperTweak(p)) {
+            const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, p.kasper_approved_at || new Date().toISOString());
+            _sxrKasperRecordHistory(entry);
+            _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+            _sxrKasperRenderQueue();
+        } else {
+            const stamp = _sxrKasperLatestMsgAt(p) || new Date().toISOString();
+            _sxrKasperAppendFinishLog(p, stamp);
+            p.kasper_finished_at = stamp;
+            _sxrKasperState.dismissed[pid] = true;
+            // Mark seen up to the finish stamp (clears the New-message chip on
+            // hand-off — matches the calendar's _kasperDismiss). The chip otherwise
+            // persists while reviewing, exactly like the calendar.
+            try { _kasperMarkSeenAt(pid, stamp); } catch (e) {}
+            _sxrKasperRenderQueue();
+            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => {});
+        }
+    }
+    function _sxrKasperAppendFinishLog(post, stampIso) {
+        let log = []; try { log = JSON.parse(post.kasper_finish_log || '[]'); if (!Array.isArray(log)) log = []; } catch { log = []; }
+        const prev = log.length ? log[log.length - 1].at : null;
+        log.push({ at: stampIso, prev, kind: 'handoff', statuses: { video: post.video_status || null, graphic: post.graphic_status || null }, overall: post.status || null });
+        if (log.length > 50) log = log.slice(-50);
+        post.kasper_finish_log = JSON.stringify(log);
+    }
+    // Close (the X) — hide the card, no decision required. Cross-device via the
+    // persisted kasper_closed_at; re-surfaces on a new message or a re-route.
+    function _sxrKasperClose(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const p = it.post;
+        p.kasper_closed_at = new Date().toISOString();
+        _sxrKasperState.closed[pid] = true;
+        _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+        _sxrKasperRenderQueue();
+        _sxrKasperPersist(it, { kasper_closed_at: p.kasper_closed_at }).catch(() => {});
+    }
+    // URGENT ping — mirrors _kasperSendUrgentSlack: resolve the post + client from
+    // the cross-client Kasper queue and reuse the SHARED _calUrgentSlackDispatch
+    // (same #video-editing webhook + message). Gate is _sxrShowUrgent (video at
+    // Tweaks Needed with a linked sub-issue).
+    function _sxrKasperSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
+        const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
+        const issue = String(it.post.linear_issue_id || '').trim();
+        if (!issue && !String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
+        _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
+            native: String(it.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(it.slug || sxrClientSlug(client)),
+                deliverable_id: _writeUiNativeId(it.post, 'video'), card_id: String(it.post.id), surface: 'samples', video_status_at: String(it.post.video_status_at || '') } : null,
+            currentClientSlug: () => String((_sxrKasperFindItem(pid) || {}).slug || ''),
+            currentPost: () => (_sxrKasperFindItem(pid) || {}).post,
+            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
+        });
+    }
+    function _sxrKasperRequestTweakComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', round: _sxrNextTweakRound(p, comp), body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            p[comp + '_status'] = 'Tweaks Needed'; p.status = computeSampleOverallStatus(p);
+            // A plain "Request change" supersedes any prior "approve after tweaks"
+            // pre-clearance on this component (mirror of the calendar's
+            // _calClearApprovedAfterTweaks call) — otherwise the SMM still saw
+            // the pre-clear badge and the resolve chooser recommended skipping
+            // Kasper's re-review.
+            const aat = new Set(String(p.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+            const hadAat = aat.delete(comp);
+            if (hadAat) p.kasper_approved_after_tweaks = SXR_COMPONENTS.filter(c => aat.has(c)).join(',');
+            // Kasper just moved a sub to Tweaks Needed — stale client/Kasper
+            // approval stamps must clear too (mirror of _calClearStaleApprovals
+            // in the calendar handler), folded into the persisted patch.
+            const stale = {};
+            _sxrClearStaleApprovals(p, stale);
+            return Object.assign(
+                { [comp + '_status']: 'Tweaks Needed', status: p.status, [comp + '_tweaks']: _sxrStringifyComments(list) },
+                hadAat ? { kasper_approved_after_tweaks: p.kasper_approved_after_tweaks } : {},
+                stale);
+        }, body);
+    }
+    function _sxrKasperApproveAfterTweaksComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', round: _sxrNextTweakRound(p, comp), body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            // Pre-clear for the client, mirroring the calendar's
+            // _kasperRequestTweakComp(…, approveAfterTweaks=true): the component
+            // goes to TWEAKS NEEDED so the editor applies the fix first, then
+            // routes it back to For SMM Approval where the pre-clear flag tells
+            // the SMM it's already cleared by Kasper (parity bug B — was jumping
+            // straight to For SMM Approval, skipping the editor-fix stage).
+            p[comp + '_status'] = 'Tweaks Needed';
+            const set = new Set(String(p.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean)); set.add(comp);
+            p.kasper_approved_after_tweaks = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+            p.status = computeSampleOverallStatus(p);
+            return { [comp + '_status']: 'Tweaks Needed', status: p.status, kasper_approved_after_tweaks: p.kasper_approved_after_tweaks, [comp + '_tweaks']: _sxrStringifyComments(list) };
+        }, body);
+    }
+
+    /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY
+       samples statement that runs at load — and it only reads the flag and toggles
+       one element's display: no network, no supabase-js, no realtime. */
+    try {
+        if (_sxrEnabled()) {
+            const _sxrNavEl = document.getElementById('navSxr');
+            if (_sxrNavEl) _sxrNavEl.style.display = '';
+            _navPillSync(false);   // a revealed tab reflows the strip
+        }
+    } catch (e) {}
+    // <<< SXR_END

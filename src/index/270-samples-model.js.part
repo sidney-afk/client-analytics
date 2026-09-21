@@ -1,0 +1,2696 @@
+    // >>> SXR_BEGIN
+    /* ============================================================
+       SAMPLES (REVIEW) MODULE  —  ?sxr=1 (default-OFF), route #sample-reviews
+       A whole-surface clone of the Content Calendar review machinery, re-pointed
+       to the LIVE `sample_reviews` Supabase table + the `sample-review-*` n8n
+       webhooks, over the components ['video','graphic'] only. Built as a fully
+       ADDITIVE, namespaced fork (every new symbol carries `sxr`) so it can never
+       affect the calendar and is removable by deleting the SXR fences.
+       See docs/features/SAMPLES_REBUILD_STRATEGY.md / docs/features/SAMPLES_REBUILD_SPEC.md.
+       --- SURFACE 0: constants, flag isolation, shared-util aliases, state ---
+       ============================================================ */
+
+    /* Status vocabulary: the calendar's set MINUS the publishing-only
+       Scheduled/Posted (samples never schedule). Terminal = Approved (+Archived). */
+    const SXR_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved'];
+    const SXR_PRIORITY  = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5 };
+    /* Two components only — no caption, no title. `graphic` renders as "Thumbnail". */
+    const SXR_COMPONENTS = ['video','graphic'];
+    const SXR_REVIEW_COMPONENTS = ['video','graphic'];
+
+    /* Live backend (docs/features/SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
+       the get webhook; writes are field-level patches to the upsert webhook. The
+       Supabase project + anon key are SHARED with the calendar (same browser key). */
+    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
+    const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+    const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+    const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
+    const SXR_REORDER_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
+    const SXR_REORDER_URL = SXR_REORDER_N8N_URL; // legacy fallback alias; do not fetch directly
+    const SXR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-reorder';
+    const SXR_TABLE       = 'sample_reviews';
+    const SXR_RT_CHANNEL_PREFIX = 'sxr-';
+    const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
+    const SXR_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const SXR_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _sxrApplyClearSentinels(wirePost, touched) {
+        SXR_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
+        });
+    }
+    const SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients';
+
+    /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
+       of cloning keeps the cloned surfaces uniformly `_sxr*` (clean grep/teardown)
+       while still CALLING the shared implementation, so its security / pagination /
+       Linear-mapping fixes reach samples for free (see docs/features/SAMPLES_PARITY_LOG.md §0). */
+    const _sxrEsc = _calEsc, _sxrEscAttr = _calEscAttr, _sxrJsArg = _jsAttrArg;
+    const _sxrNormalizeClient = wlNormalizeClient;
+    const _sxrSupabaseFetchAllRows = _calSupabaseFetchAllRows;
+    const _sxrV2LoadLib = _calV2LoadLib;
+    const _sxrMapLinearStatusStrict = _calMapLinearStatusStrict;
+    const _sxrIdentFromUrl = _calIdentFromUrl;
+
+    /* Feature flag — DEFAULT-OFF (the inverse of the calendar's v2 default).
+       `?sxr=1` turns it on and is sticky in localStorage; `?sxr=0` opts back out.
+       With the flag off NO samples code runs: the nav tab stays hidden, the router
+       never mounts the view (mountSxrView early-returns), and supabase-js is never
+       loaded. This isolation is a hard requirement (docs/features/SAMPLES_REBUILD_SPEC.md §6). */
+    const SXR_ON_KEY  = 'syncview_sxr_on';
+    const SXR_OFF_KEY = 'syncview_sxr_off';
+    let _sxrFlagCache = null;
+    function _sxrEnabled() {
+        // Client entry is owned by its strict capability, never by a staff
+        // browser's sticky Samples preference. Before verification this stays
+        // inert; the exact verified Review capability enables only its mount.
+        if (_isClientLink) {
+            const cap = _syncviewClientEntryCapability;
+            return !!(cap && cap.verified && cap.view === 'sample-reviews');
+        }
+        if (_sxrFlagCache !== null) return _sxrFlagCache;
+        // GA rollout (2026-07-02): default ON for everyone — the "Samples New"
+        // nav tab ships beside the old Samples tab so SMMs can migrate; the old
+        // module retires later. `?sxr=0` remains the sticky per-browser opt-out
+        // (the rollback documented in docs/features/SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
+        let on = true;
+        try {
+            const q = new URLSearchParams(location.search).get('sxr');
+            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY,'1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
+            else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY,'1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
+            else { on = (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
+        } catch { on = true; }
+        _sxrFlagCache = on;
+        return on;
+    }
+    /* Realtime/REST readiness: flag on AND the shared anon key present. */
+    function _sxrReady() { return _sxrEnabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+
+    /* Per-surface state — the calendar's calState, TRIMMED: no month/week cursors,
+       no month/status filters, no collab/title settings (all excluded). */
+    const sxrState = {
+        view: 'organizer',          // 'organizer' (Sheet) | 'smmreview' (Review)
+        client: null,
+        posts: [],
+        loading: false,
+        error: null,
+        previewId: null,
+        embedded: false,
+        zoom: 'default',
+        selectMode: false,
+        selectAction: 'archive',
+        selected: new Set(),
+        lastSel: null,
+        focusCard: null,
+    };
+
+    /* Slug for a client name/object (samples reuse the shared normalizer). */
+    function sxrClientSlug(c) { return _sxrNormalizeClient(c && c.name ? c.name : c); }
+    let _sxrSampleEfClients = new Set();
+    let _sxrSampleFlagPromise = null;
+    let _sxrSampleFlagChannel = null;
+    function _sxrSetSampleFlagValue(value) {
+        _sxrSampleEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('sample-review EF clients:', Array.from(_sxrSampleEfClients).join(',') || '(none)');
+    }
+    async function _sxrFetchSampleFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _sxrSetSampleFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SXR_SAMPLE_REVIEW_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _sxrSetSampleFlagValue({ clients: [] });
+            console.warn('[Samples] sample-review EF flag read failed; using n8n fallback', e);
+        }
+    }
+    async function _sxrSubscribeSampleFlag() {
+        if (_sxrSampleFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _sxrSampleFlagChannel) return;
+        try {
+            _sxrSampleFlagChannel = client
+                .channel('syncview-sample-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SXR_SAMPLE_REVIEW_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Samples] sample-review EF flag realtime subscribe failed', e);
+            _sxrSampleFlagChannel = null;
+        }
+    }
+    function _sxrPrimeSampleRoutingFlag() {
+        if (!_sxrSampleFlagPromise) {
+            _sxrSampleFlagPromise = _sxrFetchSampleFlagOnce().then(() => _sxrSubscribeSampleFlag()).catch(() => null);
+        }
+        return _sxrSampleFlagPromise;
+    }
+    function _sxrSampleUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = sxrClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _sxrSampleEfClients.has(slug);
+    }
+    function _sxrUpsertUrlForClient(clientOrSlug) {
+        return _sxrSampleUseEf(clientOrSlug) ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
+    }
+    function _sxrReorderUrlForClient(clientOrSlug) {
+        return _sxrSampleUseEf(clientOrSlug) ? SXR_REORDER_EF_URL : SXR_REORDER_N8N_URL;
+    }
+    function _sxrWriteHeaders(source, url) {
+        let role = 'smm';
+        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
+    }
+    function _sxrUpsertFetch(clientOrSlug, payload, source) {
+        _sxrPrimeSampleRoutingFlag();
+        const url = _sxrUpsertUrlForClient(clientOrSlug);
+        return fetch(url, {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _sxrUpsertFetchPinned(clientOrSlug, payload, source, transport) {
+        if (transport !== 'supabase' && transport !== 'webhook') {
+            return _sxrUpsertFetch(clientOrSlug, payload, source);
+        }
+        const url = transport === 'supabase' ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
+        return fetch(url, {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _sxrReorderFetch(clientOrSlug, payload, source) {
+        _sxrPrimeSampleRoutingFlag();
+        const post = (url) => fetch(url, {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+        if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
+        return post(SXR_REORDER_EF_URL).then(async (resp) => {
+            let json = null;
+            try { json = await resp.clone().json(); } catch (e) {}
+            if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('sample reorder EF HTTP ' + resp.status));
+            return resp;
+        });
+    }
+    _sxrPrimeSampleRoutingFlag();
+
+    /* Map a legacy/external status string onto the samples set. Clone of
+       _calNormStatus minus the Scheduled/Posted members (which samples reject). */
+    function _sxrNormStatus(s) {
+        const v = String(s || '').trim();
+        if (!v || /^draft$/i.test(v)) return 'In Progress';
+        if (/^(for )?kasper approval$/i.test(v)) return 'Kasper Approval';
+        if (/^smm approval$/i.test(v)) return 'For SMM Approval';
+        const m = SXR_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
+        return m || v;
+    }
+    /* Overall card status = worst-of its sub-statuses. Clone of computeOverallStatus
+       over SXR_COMPONENTS; the reduce seed is 'Approved' (best) since there is no
+       Scheduled/Posted above it. */
+    function computeSampleOverallStatus(p) {
+        if (!p) return 'In Progress';
+        const subs = SXR_COMPONENTS.map(c => _sxrNormStatus(p[c + '_status'] || 'In Progress'));
+        return subs.reduce((acc, s) => (SXR_PRIORITY[s] != null && SXR_PRIORITY[acc] != null && SXR_PRIORITY[s] < SXR_PRIORITY[acc]) ? s : acc, 'Approved');
+    }
+    /* Clear stale client-approval stamps when a sub drops below Client Approval.
+       Clone of _calClearStaleApprovals over SXR_COMPONENTS; the above-set has no
+       Scheduled/Posted and there is no title clause. */
+    function _sxrClearStaleApprovals(post, pending) {
+        if (!post) return;
+        const above = new Set(['Client Approval', 'Approved']);
+        SXR_COMPONENTS.forEach(c => {
+            const sub = _sxrNormStatus(post[c + '_status'] || '');
+            const stampKey = 'client_' + c + '_approved_at';
+            if (!above.has(sub) && post[stampKey]) {
+                post[stampKey] = '';
+                if (pending) pending[stampKey] = '';
+            }
+        });
+        // The overall Kasper stamp goes stale the same way (calendar parity):
+        // once no component sits at/above Client Approval, a kept stamp would
+        // make the next Kasper approval reuse the OLD timestamp (the approve
+        // handler only stamps when empty).
+        if (post.kasper_approved_at) {
+            const anyAbove = SXR_COMPONENTS.some(c => above.has(_sxrNormStatus(post[c + '_status'] || '')));
+            if (!anyAbove) {
+                post.kasper_approved_at = '';
+                if (pending) pending.kasper_approved_at = '';
+            }
+        }
+    }
+
+    /* Per-client archive ledger (clone of _calArchived*, sxr-namespaced key so it
+       never collides with the calendar's). Hides a row the user archived while the
+       Archived write propagates / against a resurrecting realtime echo. */
+    const SXR_ARCHIVE_GRACE_MS = 60 * 1000;
+    function _sxrArchivedKey(slug) { return 'syncview_sxr_archived_v1_' + slug; }
+    function _sxrArchivedReadRaw(slug) {
+        if (!slug) return {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_sxrArchivedKey(slug)) || '{}');
+            if (Array.isArray(raw)) { const m = {}; raw.forEach(r => { if (r) m[String(r)] = 0; }); return m; }
+            return (raw && typeof raw === 'object') ? raw : {};
+        } catch { return {}; }
+    }
+    function _sxrArchivedWriteRaw(slug, obj) {
+        if (!slug) return;
+        try { localStorage.setItem(_sxrArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
+    }
+    function _sxrArchivedRefs(slug) {
+        if (!slug) return new Set();
+        return new Set(Object.keys(_sxrArchivedReadRaw(slug)));
+    }
+    function _sxrArchivedAdd(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _sxrArchivedReadRaw(slug); const now = Date.now(); let changed = false;
+        refs.filter(Boolean).forEach(r => { const k = String(r); if (m[k] !== now) { m[k] = now; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+    function _sxrArchivedRemove(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _sxrArchivedReadRaw(slug); let changed = false;
+        refs.filter(Boolean).forEach(r => { const k = String(r); if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+
+    /* ============================================================
+       --- SURFACE 1: shell, toolbar (Review+Sheet), per-client tabs,
+           zoom, kebab (Share only), data load, body dispatcher ---
+       Clone of _calRenderShell / mountCalendar / loadCalendarPosts /
+       _calRenderBody / onCalViewChange / the tab strip, re-pointed to
+       sample_reviews and STRIPPED of: Month/Week views, the All-months +
+       All-content filter dropdowns, the import/bulk-sync/edit-platforms/
+       edit-caption-prompt/collaborative/YouTube-title kebab items, and the
+       multi-post caption button. Reuses the calendar's GLOBAL cal-* CSS.
+       ============================================================ */
+
+    /* View/zoom prefs — own key so samples prefs never collide with the calendar. */
+    const SXR_PREFS_KEY = 'syncview_sxr_prefs_v1';
+    function _sxrLoaderHtml(label) { return _calLoaderHtml(label || 'Loading sample reviews'); }
+    function _sxrLoadPrefs() { try { return JSON.parse(localStorage.getItem(SXR_PREFS_KEY) || '{}'); } catch { return {}; } }
+    function _sxrSavePrefs() {
+        try {
+            const prev = _sxrLoadPrefs();
+            const client = sxrState.embedded ? prev.client : sxrState.client;
+            localStorage.setItem(SXR_PREFS_KEY, JSON.stringify({ view: sxrState.view, client, zoom: sxrState.zoom }));
+        } catch {}
+    }
+
+    /* Open client tabs (pins) + the pure tab-strip helpers + the client matcher
+       are SHARED with the calendar (same clients in both surfaces). */
+    const _sxrGetPins = _calGetPins, _sxrSavePins = _calSavePins;
+    const _sxrChevron = _calChevron, _sxrClientHue = _calClientHue;
+    const _sxrTabScrollBy = _calTabScrollBy, _sxrUpdateTabScroll = _calUpdateTabScroll, _sxrScrollTabStripToActive = _calScrollTabStripToActive;
+    const _sxrMatchClients = _calMatchClients;
+
+    /* Deep-link focus request (set by the router on #sample-reviews/<slug>/<id>). */
+    let _sxrFocusRequest = null;
+
+    function renderSxrView() {
+        return `<div class="cal-view" id="sxrView">${_sxrLoaderHtml()}</div>`;
+    }
+
+    function mountSxrView() {
+        if (!_sxrEnabled()) return;   // default-OFF isolation: never mount with the flag off
+        if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown();
+        // Resolve a deep-link (#sample-reviews/<slug>/<cardId>) captured at boot.
+        try {
+            const dh = window.__sxrDeepHash; window.__sxrDeepHash = null;
+            if (dh && dh.indexOf('sample-reviews/') === 0) {
+                const parts = dh.slice('sample-reviews/'.length).split('/');
+                const slug = parts[0]; const cardId = parts[1] || null;
+                const match = (typeof WL_CLIENT_NAMES !== 'undefined' ? WL_CLIENT_NAMES : []).find(n => _sxrNormalizeClient(n) === slug) || null;
+                _sxrFocusRequest = (match || cardId) ? { client: match, cardId } : null;
+            }
+        } catch (e) {}
+        const prefs = _sxrLoadPrefs();
+        const pins  = _sxrGetPins();
+        let initial = null;
+        if (_sxrFocusRequest && _sxrFocusRequest.client && wlIsAllowedClient(_sxrFocusRequest.client)) initial = _sxrFocusRequest.client;
+        else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
+        else if (pins.length > 0) initial = pins[0];
+        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        sxrState.client = initial;
+        sxrState.embedded = false;
+        sxrState.view = (_sxrFocusRequest ? 'organizer' : (prefs.view === 'smmreview' ? 'smmreview' : 'organizer'));
+        sxrState.zoom = _sxrNormZoom(prefs.zoom);
+        sxrState.posts = [];
+        sxrState.error = null;
+        sxrState.previewId = null;
+        _sxrRenderShell();
+        if (sxrState.client) loadSxrCards();
+        else _sxrRenderBody();
+    }
+
+    function _sxrRenderShell() {
+        const view = document.getElementById('sxrView');
+        if (!view) return;
+        const embedded = !!sxrState.embedded;
+        const leftHtml = embedded
+            ? `<div class="cal-embed-title"><strong>${_sxrEsc(sxrState.client || '')}</strong><span>Sample reviews</span></div>`
+            : `<div class="cal-tabs" id="sxrTabs"></div>`;
+        // Kebab: ONLY "Share with client" survives. Every other calendar kebab item
+        // (imports, bulk-Linear-sync, edit-caption-prompt, edit-platforms, collab,
+        // YouTube-title-review) is on the exclusion list and is dropped.
+        const kebabHtml = (sxrState.client && !_isClientLink)
+            ? `<div class="cal-kebab-wrap">
+                    <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
+                    <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
+                        <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                    </div>
+                </div>`
+            : '';
+        // Archive-only select mode (no colour-tag, no multi-post caption — both excluded).
+        const selectBtnHtml = (sxrState.client && !_isClientLink && sxrState.view === 'organizer')
+            ? `<button class="cal-select-btn${sxrState.selectMode ? ' active' : ''}" type="button" data-select-action="archive" onclick="_sxrToggleSelectMode()" title="Select multiple samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            : '';
+        const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet' };
+        // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
+        const tabViews = _isClientLink ? ['review','organizer'] : ['smmreview','organizer'];
+        view.innerHTML = `
+            <div class="cal-toolbar">
+                <div class="cal-toolbar-left">${leftHtml}</div>
+                <div class="cal-toolbar-mid">
+                    <div class="cal-view-toggle">
+                        ${tabViews.map(v => {
+                            const n = (v === 'review' || v === 'smmreview') ? _sxrApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
+                            const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
+                            return `<button type="button" class="cal-view-btn${sxrState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onSxrViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
+                        }).join('')}
+                    </div>
+                    <div class="cal-zoom" id="sxrZoomCtl" title="Card size">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                        <button type="button" id="sxrZoomOut" onclick="sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                        <button type="button" id="sxrZoomIn" onclick="sxrZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                    </div>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    ${selectBtnHtml}
+                    ${kebabHtml}
+                </div>
+            </div>
+            <div class="cal-body" id="sxrBody">${_sxrLoaderHtml()}</div>
+            <div class="cal-lightbox" id="sxrLightbox" onclick="closeSxrLightbox()">
+                <img alt="" onclick="event.stopPropagation()">
+                <button class="cal-lightbox-close" type="button" onclick="closeSxrLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            <div class="cal-comments-overlay" id="sxrCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSxrComments()">
+                <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
+            </div>
+        `;
+        if (!embedded) {
+            _sxrRenderTabs();
+            _sxrWireOutsideTabSearchClose();
+        }
+        _sxrApplyZoom();
+    }
+
+    /* Zoom — three discrete card sizes (Sheet only), saved to localStorage. */
+    const SXR_ZOOM_LEVELS = ['s', 'm', 'l'];
+    function _sxrNormZoom(z) { const map = { small:'m', default:'l', large:'l', s:'s', m:'m', l:'l' }; return map[z] || 'm'; }
+    function _sxrApplyZoom() {
+        const view = document.getElementById('sxrView');
+        if (view) view.dataset.zoom = sxrState.zoom || 'm';
+        const i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        const out = document.getElementById('sxrZoomOut'), inb = document.getElementById('sxrZoomIn');
+        if (out) out.disabled = i <= 0;
+        if (inb) inb.disabled = i >= SXR_ZOOM_LEVELS.length - 1;
+        const ctl = document.getElementById('sxrZoomCtl');
+        if (ctl) { ctl.style.display = ''; ctl.style.visibility = sxrState.view === 'organizer' ? 'visible' : 'hidden'; }
+    }
+    function sxrZoom(delta) {
+        let i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        if (i < 0) i = 1;
+        i = Math.max(0, Math.min(SXR_ZOOM_LEVELS.length - 1, i + delta));
+        sxrState.zoom = SXR_ZOOM_LEVELS[i];
+        _sxrSavePrefs();
+        _sxrApplyZoom();
+    }
+
+    function _sxrToggleKebab(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('sxrKebabMenu');
+        if (!menu) return;
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden) setTimeout(() => document.addEventListener('mousedown', _sxrKebabOutside), 0);
+    }
+    function _sxrCloseKebab() {
+        const menu = document.getElementById('sxrKebabMenu');
+        if (menu) menu.hidden = true;
+        document.removeEventListener('mousedown', _sxrKebabOutside);
+    }
+    function _sxrKebabOutside(e) { if (!e.target.closest('.cal-kebab-wrap')) _sxrCloseKebab(); }
+
+    /* Share-with-client link — carries ?sxr=1 because samples is default-OFF
+       (without it a fresh client browser never mounts the surface). */
+    async function _sxrCopyShareLink() {
+        if (!sxrState.client) return;
+        let url; try { url = await _syncviewIssueClientShareUrl(sxrState.client, 'sample-reviews'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
+        else window.prompt('Copy this link:', url);
+    }
+
+    /* Per-client tab strip (clone of _calRenderTabs; reuses the shared pins). */
+    function _sxrRenderTabs() {
+        const tabs = document.getElementById('sxrTabs');
+        if (!tabs) return;
+        const pins = _sxrGetPins();
+        const active = sxrState.client;
+        const tabHtml = pins.map(name => {
+            const isActive = name === active;
+            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_sxrClientHue(name)}" data-cal-tab="${_sxrEscAttr(name)}" onclick="onSxrTabClick(${_sxrJsArg(name)})">
+                <span class="cal-tab-name">${_sxrEsc(name)}</span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onSxrTabRemove(${_sxrJsArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
+            </button>`;
+        }).join('');
+        const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+        const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
+        const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
+        tabs.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_sxrTabScrollBy('sxrTabsScroll',-1)">${_sxrChevron(-1)}</button>`
+            + `<div class="cal-tabs-scroll" id="sxrTabsScroll" onscroll="_sxrUpdateTabScroll('sxrTabsScroll')">${tabHtml}</div>`
+            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_sxrTabScrollBy('sxrTabsScroll',1)">${_sxrChevron(1)}</button>`
+            + `<div class="cal-tab-add-wrap" id="sxrTabAddWrap">
+                <button type="button" class="${addBtnCls}" onclick="onSxrTabAddClick(event)" title="Add client">${addBtnLabel}</button>
+                <div class="cal-tab-search" id="sxrTabSearchPanel" hidden>
+                    <div class="wl-client-search">
+                        <input type="text" class="wl-client-search-input" id="sxrClientSearchInput" placeholder="Search clients…" autocomplete="off">
+                        <div class="wl-client-search-results" id="sxrClientSearchResults" hidden role="listbox"></div>
+                    </div>
+                </div>
+            </div>`;
+        _sxrScrollTabStripToActive('sxrTabsScroll');
+        _sxrUpdateTabScroll('sxrTabsScroll');
+    }
+
+    function onSxrTabClick(name) {
+        if (!name || name === sxrState.client) return;
+        onSxrClientChange(name);
+    }
+    function onSxrClientChange(name) {
+        if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
+        sxrState.client = name;
+        _sxrResetSelection();
+        sxrState.posts = [];
+        _sxrSavePrefs();
+        _sxrRenderTabs();
+        loadSxrCards();
+    }
+    function onSxrTabRemove(name) {
+        const pins = _sxrGetPins().filter(n => n !== name);
+        _sxrSavePins(pins);
+        if (sxrState.client === name) {
+            if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
+            const next = pins[0] || null;
+            sxrState.client = next;
+            _sxrResetSelection();
+            sxrState.posts = [];
+            _sxrSavePrefs();
+            _sxrRenderTabs();
+            if (next) loadSxrCards();
+            else _sxrRenderBody();
+        } else {
+            _sxrRenderTabs();
+        }
+    }
+    function onSxrTabAddClick(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('sxrTabSearchPanel');
+        if (!panel) return;
+        const opening = panel.hidden;
+        panel.hidden = !opening;
+        if (opening) {
+            _sxrRenderClientSearchResults('');
+            const input = document.getElementById('sxrClientSearchInput');
+            if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
+            _sxrWireSearchInput();
+        }
+    }
+    function _sxrCloseTabSearch() { const panel = document.getElementById('sxrTabSearchPanel'); if (panel) panel.hidden = true; }
+    function _sxrWireOutsideTabSearchClose() {
+        if (document._sxrOutsideWired) return;
+        document._sxrOutsideWired = true;
+        document.addEventListener('click', (e) => { if (!e.target.closest('#sxrTabAddWrap')) _sxrCloseTabSearch(); });
+    }
+    function _sxrWireSearchInput() {
+        const input = document.getElementById('sxrClientSearchInput');
+        if (!input || input.dataset.wired === '1') return;
+        input.dataset.wired = '1';
+        input.addEventListener('input', () => _sxrRenderClientSearchResults(input.value.trim()));
+    }
+    function _sxrRenderClientSearchResults(q) {
+        const results = document.getElementById('sxrClientSearchResults');
+        if (!results) return;
+        const matches = _sxrMatchClients(q);
+        const pins    = _sxrGetPins();
+        const pinned  = matches.filter(c => pins.includes(c)).sort((a,b) => pins.indexOf(a) - pins.indexOf(b));
+        const others  = matches.filter(c => !pins.includes(c)).sort((a,b) => a.localeCompare(b));
+        const row = (name) => {
+            const isPinned = pins.includes(name);
+            return `<div class="wl-client-search-result is-pin-row" onclick="onSxrPickClient(${_sxrJsArg(name)})">
+                <span>${_sxrEsc(name)}</span>
+                <button type="button" class="wl-client-search-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Open' : 'Add'}">${isPinned ? '★' : '☆'}</button>
+            </div>`;
+        };
+        let html = '';
+        if (!matches.length) {
+            html = '<div class="wl-client-search-result is-empty-prompt">No clients match</div>';
+        } else {
+            if (pinned.length) { html += '<div class="wl-client-search-section">Already added</div>' + pinned.map(row).join(''); if (others.length) html += '<div class="wl-client-search-divider"></div>'; }
+            if (others.length) { if (pinned.length) html += '<div class="wl-client-search-section">Add a client</div>'; html += others.map(row).join(''); }
+        }
+        results.innerHTML = html;
+        results.hidden = false;
+    }
+    function onSxrPickClient(name) {
+        const pins = _sxrGetPins();
+        if (!pins.includes(name)) { pins.unshift(name); _sxrSavePins(pins); }
+        _sxrCloseTabSearch();
+        onSxrClientChange(name);
+    }
+
+    /* Body dispatcher lives below (the opts-aware version in Surface 3) — this
+       Surface-1 stub was superseded and removed to keep _sxrRenderBody defined
+       exactly once. */
+
+    function onSxrViewChange(v) {
+        if (!['review','smmreview','organizer'].includes(v)) return;
+        sxrState.view = v;
+        if (v !== 'organizer') sxrState.focusPid = null;
+        _sxrSavePrefs();
+        if (v !== 'organizer' && sxrState.selectMode) _sxrResetSelection();
+        document.querySelectorAll('#sxrView .cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
+        const selBtn = document.querySelector('#sxrView .cal-select-btn');
+        if (selBtn) { selBtn.style.display = v === 'organizer' ? '' : 'none'; selBtn.classList.toggle('active', sxrState.selectMode); }
+        _sxrApplyZoom();
+        _sxrRenderBody();
+    }
+
+    function _sxrSetRefreshing(on) { const el = document.getElementById('sxrRefreshing'); if (el) el.hidden = !on; }
+    function _sxrSetStaleNotice(on) { const el = document.getElementById('sxrStaleNotice'); if (el) el.hidden = !on; }
+    // _sxrApprovalBadgeCount — real version in Surface 4 (Review), hoisted.
+    function _sxrToggleSelectMode() {
+        if (_isClientLink) return;   // multi-select / bulk-archive is SMM-only
+        sxrState.selectMode = !sxrState.selectMode;
+        sxrState.selected = new Set();
+        sxrState.lastSel = null;
+        document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.toggle('active', sxrState.selectMode));
+        _sxrRenderBody({ preserveScroll: true });
+    }
+    function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
+    function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
+    // closeSxrComments / openSxrComments — real versions in Surface 5 (Notes), hoisted.
+
+    /* --- Data load (trimmed clone of loadCalendarPosts: keeps cache-prime,
+       background refresh, archived-ledger filter, normalize/migrate, the
+       Supabase-REST-with-webhook-fallback read, seq guard, timeout, stale
+       notice; drops the excluded caption-prompt / caption-job / collab-settings
+       machinery). Realtime + save-merge are layered on in Surfaces 3 and 7. --- */
+    const SXR_LOAD_TIMEOUT_MS = 20000;
+    const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v2_';
+    let _sxrLoadSeq = 0;
+    let _sxrLoadController = null;
+    let _sxrBgLoadInFlight = false;
+    let _sxrLastNetworkLoadAt = 0;
+    function _sxrAbortActiveLoad() {
+        const controller = _sxrLoadController;
+        _sxrLoadController = null;
+        if (!controller) return false;
+        // Make the aborted request stale before its rejection handler runs, so
+        // teardown never renders an error or reopens realtime for a departed view.
+        ++_sxrLoadSeq;
+        try { controller.abort(); } catch (e) {}
+        return true;
+    }
+    const SXR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS
+    function _sxrCacheRead(slug) {
+        try {
+            const authority = _writeUiAuthoritySnapshot();
+            if (!authority) return null;
+            const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null');
+            if (!o || !Array.isArray(o.posts)) return null;
+            const hasRepair = o.posts.some(post => post && post._writeUiRetrySourceAt);
+            if (!o.at || (!hasRepair && (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS)) return null;
+            return Object.assign({}, o, { posts: _writeUiFilterCachedPosts(o.posts, authority) });
+        } catch { return null; }
+    }
+    function _sxrCacheWrite(slug, posts, options) {
+        // Cache only rows a render can ever paint. Archived rows are filtered on
+        // every read anyway, and a long-lived client can accumulate thousands of
+        // them — enough to blow the localStorage quota, after which the silently
+        // swallowed setItem failure kept a STALE snapshot alive forever (an
+        // archived card flashed on every refresh until the live fetch hid it).
+        const incoming = (Array.isArray(posts) ? posts : []).filter(p => p && _sxrNormStatus(p.status) !== 'Archived');
+        const key = SXR_CACHE_PREFIX + slug;
+        let priorRepairs = [];
+        try {
+            const prior = JSON.parse(localStorage.getItem(key) || '{}');
+            const cleared = new Set(options && Array.isArray(options.clearRepairIds) ? options.clearRepairIds : []);
+            priorRepairs = (Array.isArray(prior.posts) ? prior.posts : []).filter(post => post && post.id && post._writeUiRetrySourceAt && !cleared.has(post.id));
+        } catch (e) {}
+        const repairById = new Map(priorRepairs.map(post => [post.id, post]));
+        const live = incoming.map(post => (post && post._writeUiRetrySourceAt) ? post : (repairById.get(post && post.id) || post));
+        const liveIds = new Set(live.map(post => post && post.id));
+        priorRepairs.forEach(post => { if (!liveIds.has(post.id)) live.push(post); });
+        // Canonical crosswalk verdicts and read statuses are never persisted —
+        // see _prodStripEphemeralCanonicalState. A stale verdict rehydrated
+        // from this cache would be an authorization nobody re-checked.
+        const payload = JSON.stringify({
+            schema: 2, posts: _prodStripEphemeralCanonicalPosts(live), at: Date.now()
+        });
+        try { localStorage.setItem(key, payload); return true; } catch {}
+        // Quota hit — evict the other clients' sample caches and retry once.
+        try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf(SXR_CACHE_PREFIX) === 0 && k !== key) localStorage.removeItem(k);
+            }
+            localStorage.setItem(key, payload);
+            return true;
+        } catch {
+            // Still failing → drop this slug's cache: no cache beats a stale one
+            // (the boot render just waits for the live fetch instead of lying).
+            if (!priorRepairs.length) try { localStorage.removeItem(key); } catch {}
+            return false;
+        }
+    }
+    function _sxrIsArchivedRef(p, refs) {
+        if (!p) return false;
+        if (_sxrNormStatus(p.status) === 'Archived') return true;   // persisted-archived rows must never render, even on a fresh ledger
+        if (refs.has(String(p.id))) return true;
+        const vl = String(p.linear_issue_id || ''), gl = String(p.graphic_linear_issue_id || '');
+        return !!((vl && refs.has(vl)) || (gl && refs.has(gl)));
+    }
+    /* Never seeds caption/title; ensures the two component statuses + the link/media
+       columns exist so the card/save code can read them safely. */
+    function _sxrMigrateShape(p) {
+        if (!p) return p;
+        SXR_COMPONENTS.forEach(c => { if (p[c + '_status'] == null || p[c + '_status'] === '') p[c + '_status'] = 'In Progress'; });
+        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id','thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        // Parse the per-component comment threads from the *_tweaks string columns
+        // (so the Review/Notes surfaces can read them); seed the local kasper-seen
+        // cache from the cross-device kasper_seen CSV.
+        SXR_COMPONENTS.forEach(c => {
+            const arrKey = c + '_comments', strKey = c + '_tweaks';
+            if (!Array.isArray(p[arrKey])) {
+                const raw = String(p[strKey] == null ? '' : p[strKey]).trim();
+                let arr = [];
+                // Samples has no legacy-seed path at all, so ANY content this
+                // parse fails to carry — unparseable JSON, a non-array, a
+                // non-JSON string, or a row without an id — is content the app
+                // silently drops while the column keeps holding it. Mark the
+                // read incomplete so a canonical projection refuses to
+                // overwrite what it cannot demonstrably carry.
+                if (raw.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            arr = parsed.filter(x => x && x.id);
+                            _prodMarkLegacyReadIncomplete(p, c, arr.length !== parsed.length);
+                        } else _prodMarkLegacyReadIncomplete(p, c, true);
+                    } catch (e) { _prodMarkLegacyReadIncomplete(p, c, true); }
+                } else _prodMarkLegacyReadIncomplete(p, c, !!raw);
+                p[arrKey] = arr;
+            }
+            (p[arrKey] || []).forEach(x => { if (x && !x.updated_at) x.updated_at = x.created_at || ''; });
+        });
+        p.comments = p.video_comments;
+        String(p.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean).forEach(c => { if (typeof _sxrMarkKasperSeen === 'function') _sxrMarkKasperSeen(p.id, c); });
+        return p;
+    }
+    function _sxrCleanArchiveLedger(slug, posts) {
+        if (!slug || !posts || !posts.length) return;
+        const m = _sxrArchivedReadRaw(slug);
+        if (!Object.keys(m).length) return;
+        const now = Date.now();
+        const liveRefs = new Set();
+        posts.forEach(p => {
+            if (!p || String(p.status || '') === 'Archived') return;
+            liveRefs.add(String(p.id));
+            if (p.linear_issue_id) liveRefs.add(String(p.linear_issue_id));
+            if (p.graphic_linear_issue_id) liveRefs.add(String(p.graphic_linear_issue_id));
+        });
+        let changed = false;
+        Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > SXR_ARCHIVE_GRACE_MS && liveRefs.has(ref)) { delete m[ref]; changed = true; } });
+        // Hard TTL (mirror of _calCleanArchiveLedger): refs whose rows stay
+        // archived never come back "live", so without this they piled up forever.
+        Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > 24 * 60 * 60 * 1000) { delete m[ref]; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+    async function _sxrFetchPosts(slug, signal) {
+        // status filter: archived rows are never rendered, and long-lived test/QA
+        // clients accumulate thousands of them — without the filter every load
+        // (and the localStorage cache) dragged megabytes of dead rows around.
+        // NULL-safe or= form because PostgREST neq drops NULL-status rows.
+        // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
+        try {
+            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
+            return { ok: true, posts: rows };
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
+            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            const j = await resp.json();
+            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
+        }
+    }
+    async function loadSxrCards(opts) {
+        opts = opts || {};
+        // One Samples transport may own the surface at a time. A replacement
+        // load revokes the prior controller before taking its own sequence.
+        _sxrAbortActiveLoad();
+        if (!sxrState.client) { _sxrRenderBody(); return; }
+        const seq = ++_sxrLoadSeq;
+        const slug = sxrClientSlug(sxrState.client);
+        const cached = !opts.skipCache ? _sxrCacheRead(slug) : null;
+        const haveCache = !!(cached && cached.posts.length > 0);
+        if (haveCache && sxrState.posts.length === 0) {
+            const refs = _sxrArchivedRefs(slug);
+            sxrState.posts = cached.posts.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            sxrState.loading = false; sxrState.error = null;
+            _sxrRenderBody();
+            setTimeout(() => { if (typeof _writeUiResumeSourceRepairs === 'function') _writeUiResumeSourceRepairs(); }, 0);
+        }
+        const background = (!!opts.background && sxrState.posts.length > 0) || (sxrState.posts.length > 0 && haveCache);
+        if (background) { _sxrBgLoadInFlight = true; _sxrSetRefreshing(true); }
+        else { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); sxrState.loading = true; sxrState.error = null; _sxrRenderBody(); }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        _sxrLoadController = ctrl;
+        const TIMEOUT = Symbol('sxr-load-timeout');
+        let timeoutId = null;
+        const timeoutPromise = new Promise(res => { timeoutId = setTimeout(() => { if (ctrl) { try { ctrl.abort(); } catch {} } res(TIMEOUT); }, SXR_LOAD_TIMEOUT_MS); });
+        _sxrLastNetworkLoadAt = Date.now();
+        try {
+            const result = await Promise.race([_sxrFetchPosts(slug, ctrl ? ctrl.signal : null), timeoutPromise]);
+            if (_sxrLoadController === ctrl) _sxrLoadController = null;
+            if (seq !== _sxrLoadSeq) return;                      // a newer load superseded us
+            if (sxrClientSlug(sxrState.client) !== slug) return;  // client switched mid-load
+            if (result === TIMEOUT) throw new Error('timeout');
+            const rows = (result && result.posts) || [];
+            _sxrCleanArchiveLedger(slug, rows);
+            const refs = _sxrArchivedRefs(slug);
+            const fresh = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            // Background (realtime / tab-return) reloads MERGE so an in-flight edit /
+            // comment isn't clobbered (Surface 7); a foreground load adopts the server.
+            const _sxrPrevPosts = sxrState.posts;
+            const _sxrMerged = (background && typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
+            // Did anything the renderer paints actually change? On a background echo
+            // that already matches our optimistic state (the realtime self-echo of
+            // our OWN just-saved write) it didn't — so skip the full rebuild and only
+            // swap the cheap comment-count footer, exactly like the calendar's
+            // loadCalendarPosts !dataChanged path. This is the "send to client felt
+            // laggy" fix: the click was already instant; this kills the late repaint.
+            const _sxrDataChanged = !background || typeof _sxrPostsEqualForRender !== 'function' || !_sxrPostsEqualForRender(_sxrPrevPosts, _sxrMerged);
+            sxrState.posts = _sxrMerged;
+            _thumbRefreshChangedCards('samples', _sxrPrevPosts, _sxrMerged);
+            sxrState.loading = false; sxrState.error = null;
+            _sxrCacheWrite(slug, _sxrMerged.some(post => post && post._writeUiRetrySourceAt) ? _sxrMerged : rows);
+            setTimeout(() => { if (typeof _writeUiResumeSourceRepairs === 'function') _writeUiResumeSourceRepairs(); }, 0);
+            _sxrSetStaleNotice(false);
+            if (background && !_sxrDataChanged) {
+                // No visible change → don't rebuild (a full _sxrRenderBody flashes the
+                // queue). Refresh only the unread-notes dots so a note the LWW merge
+                // folded into a kept-local row can't be missed (the calendar's same
+                // false-negative fallback). Never touches a focused field.
+                if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+                // …and repaint the derived status pill in place, for the same
+                // reason: the merge can fold a peer's change into a kept-local row
+                // (LWW false-negative), leaving the pill stale while the note dot
+                // updated. Focus-guarded, so it never yanks a caret (P1 fix).
+                if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
+            }
+            // Defer the repaint while the user is mid-edit so a realtime reload can't
+            // clobber their caret / unsaved field (Surface 7 deferred-render guard).
+            else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+                // The full render is deferred while busy, but a peer's status change
+                // must still show LIVE — repaint just the status pills in place
+                // (focus-guarded) so "Tweaks Needed"/approvals don't wait for blur
+                // or the next reload. Mirrors the note-dot refresh above (P1 fix).
+                if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
+            }
+            else _sxrRenderBody();
+            if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
+            if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
+            /* Native cards materialize BEFORE the Linear mirror drains, so a
+               link field can be legitimately empty at creation. Adopt the urls
+               from the deliverable rows once the drain has stamped them — the
+               samples twin of the calendar's _calAdoptDeliverableLinks tail
+               task. Fire-and-forget: adoption is a repair, never load-blocking.
+
+               ON THE SUCCESS PATH, like the calendar twin, which runs it "on
+               EVERY successful load, background included". It shipped in PR
+               1098 inside the CATCH block by mistake, so it ran only when the load
+               THREW — i.e. never, on a healthy tab. Two real samples created
+               2026-08-20 kept the orange "Link the Linear sub-issue" banner
+               with their GRA issues already minted, and reloading could not
+               clear it because the reload succeeded. */
+            _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
+            /* Edits typed on this client while the view was elsewhere, held by
+               `_sxrParkEditsForClient` because flushing them then would have
+               written them under whichever client was on screen. `sxrState`
+               describes this client now, so the normal engine can have them. */
+            try { _sxrRestoreParkedEdits(slug); } catch (e) {}
+        } catch (e) {
+            if (_sxrLoadController === ctrl) _sxrLoadController = null;
+            if (seq !== _sxrLoadSeq) return;
+            if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
+            else { sxrState.loading = false; sxrState.error = e; _sxrRenderBody(); }
+            // Open realtime even when the initial fetch failed, so the view goes
+            // live the moment a peer's change lands — otherwise a first-load
+            // network blip left the tab silent until a manual refresh.
+            if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
+            if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (_sxrLoadController === ctrl) _sxrLoadController = null;
+            if (seq === _sxrLoadSeq) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
+        }
+    }
+
+    /* ============================================================
+       --- SURFACE 2: the SMM Sheet card ---
+       Clone of renderCalOrganizer + _calRenderInlineCard + the link-field pills,
+       the Linear pile/slot/edit/commit (+conflict/move/dupe), the status menu +
+       Set-all, and the floating thumbnail. STRIPPED of: caption (+generator/
+       prompt), CTA, scheduled-date chip, platforms strip, colour tag, the YouTube
+       title square, and URGENT. Adds the samples-only creative-direction field +
+       visibility eye. Components iterate SXR_COMPONENTS; per spec the triggers are
+       ALWAYS settable (no lock — samples has no caption escape hatch).
+       The real field-patch SAVE engine is Surface 3; here the field handlers update
+       state + repaint optimistically and _sxrFlushCardSave is a stub.
+       ============================================================ */
+
+    /* Pure, post-shape-agnostic helpers REUSED from the calendar (thumbnail
+       derivation/media, link key, status label). Component labels/colours are
+       shared constants (COMP_LABELS already maps graphic→"Thumbnail"). */
+    // Status label. The client-facing relabels ("Ready for your review" …) are
+    // identical to the calendar, so defer to _calStatusLabel on a client link.
+    // On the SMM surface the calendar personalises "Client Approval" to
+    // "<ClientFirstName> Approval" via _calClientFirstName(), which reads
+    // calState.client — EMPTY on the samples surface. Compute the first name from
+    // sxrState.client instead so samples shows "Sidney Approval", not "Client
+    // Approval" (parity bug E).
+    const _sxrStatusLabel = (s) => {
+        s = s || 'In Progress';
+        if (_isClientLink) return _calStatusLabel(s);
+        if (s === 'Client Approval') {
+            const full = String((typeof sxrState === 'object' && sxrState.client) || '').trim();
+            return (full ? full.split(/\s+/)[0] : 'Client') + ' Approval';
+        }
+        return s;
+    };
+    const _sxrLinkKey = _calLinkKey;
+    const _sxrDeriveThumbInfo = _calDeriveThumbInfo, _sxrThumbMediaHtml = _calThumbMediaHtml;
+    const _sxrStatusSlug = (s) => String(s).toLowerCase().replace(/\s+/g, '-');
+
+    /* Save-layer state + handlers. Surface 3 replaces _sxrFlushCardSave with the
+       real debounced field-patch engine; until then edits update local state and
+       repaint so the card is fully interactive (optimistic, not yet persisted). */
+    let _sxrPendingEdits = Object.create(null);
+    let _sxrSaveTimers = Object.create(null);
+    let _sxrSaveInFlight = Object.create(null);
+    // _sxrOnFieldInput / _sxrOnFieldBlur / _sxrFlushCardSave / _sxrRetrySave are the
+    // real save engine — defined in Surface 3 below.
+    // _sxrMarkLocalStatus / _sxrIsLocalStatusFresh — real versions in Surface 7, hoisted.
+    /* Refresh just the status pills on a card without re-rendering the whole
+       sheet — used after an auto-status change (e.g. the SMM resolves the last
+       tweak and routes it to Kasper from the Notes modal) so the card behind
+       the modal updates immediately instead of saying "Tweaks Needed" until
+       the next full reload. Port of _calUpdateCardStatusDisplay over the
+       samples card DOM (per-component pills + URGENT badge + client pills;
+       samples have no overall status pill, title square or approve bar). */
+    function _sxrUpdateCardStatusDisplay(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        for (const c of SXR_COMPONENTS) {
+            const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
+            if (!subWrap) continue;
+            const cs = _sxrNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            // data-val keeps the STORED status; the pill shows the same
+            // substitution the full samples render uses.
+            const shown = _calPillDisplayStatus(post, c, cs);
+            subWrap.setAttribute('data-val', cs);
+            const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
+            if (trigger) {
+                Array.from(trigger.classList).forEach(cls => {
+                    if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
+                });
+                trigger.classList.add('cal-fld-status-' + _sxrStatusSlug(shown));
+                const labelEl = trigger.querySelector('.cal-fld-substatus-label');
+                if (labelEl) labelEl.textContent = _sxrStatusLabel(shown);
+            }
+            // Reconcile the URGENT badge in place, same predicates as the full
+            // render, so it can't linger after the component leaves the status
+            // that earned it — and so a pill changing flavour swaps its button
+            // rather than keeping the handler for the wrong recipient.
+            const showUrgent = _sxrShowUrgent(post, c);
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
+                urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                const escPid = _sxrEscAttr(pid);
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(escPid, '_sxrSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
+            }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+        if (card) {
+            const chip = card.querySelector('.cal-client-status');
+            if (chip) chip.innerHTML = _sxrClientCompPillsHtml(post);
+        }
+        // The Review/Sheet tab badges count by status — keep them in lockstep too.
+        if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+    }
+    /* Repaint every card's status pill(s) IN PLACE from the already-merged
+       sxrState.posts, without rebuilding the card (so its inputs / caret survive).
+       Used by the realtime shortcut branches in loadSxrCards so a peer's status
+       change (Kasper request-change → Tweaks Needed, an approval → next state)
+       flips the pill LIVE even when the full render is skipped (no-visible-diff
+       false-negative) or deferred (user mid-edit) — the note dot already refreshes
+       there, and the derived status pill must too (the P1 realtime-status bug).
+       Wrapped in _svPreserveFocus, gated to #sxrBody, so it can never steal the
+       caret from a field being typed in (the PR-705 focus guard). _sxrUpdateCardStatusDisplay
+       only mutates pill spans/classes + the URGENT badge (never an input node), so
+       this is a pure repaint. */
+    function _sxrRepaintLiveStatus() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        _svPreserveFocus(() => {
+            try { (sxrState.posts || []).forEach(p => _sxrUpdateCardStatusDisplay(p.id)); } catch (e) {}
+        }, body);
+    }
+    function _sxrAutosize(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
+
+    /* ── Thumbnail: reuse the pure derivation; FORK only the overlay-preserving
+       media swap so a media-link edit can't wipe the Linear pile / warn. ── */
+    const SXR_THUMB_OVERLAY_SEL = '.cal-thumb-linear-warn, .cal-linear-slot';
+    function _sxrSetThumbMedia(thumbDiv, mediaHtml) {
+        if (!thumbDiv) return;
+        const overlays = Array.from(thumbDiv.children).filter(el => el.matches(SXR_THUMB_OVERLAY_SEL));
+        thumbDiv.innerHTML = mediaHtml;
+        overlays.forEach(el => thumbDiv.appendChild(el));
+    }
+    function _sxrOnThumbImgError(img) {
+        const parent = img.parentElement;
+        if (!parent) return;
+        _sxrSetThumbMedia(parent, img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml());
+    }
+    function _sxrThumbContent(p) { return _sxrThumbMediaHtml(_sxrDeriveThumbInfo(p), '_sxrOnThumbImgError'); }
+    function _sxrForceThumbRefresh(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumb = card.querySelector('.cal-card-thumb');
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (thumb && post) _sxrSetThumbMedia(thumb, _sxrThumbContent(post));
+    }
+    function _sxrThumbClick(e, pid) {
+        if (e.target.tagName === 'IMG' || e.target.closest('.cal-thumb-zoom')) _sxrOpenThumbLightbox(pid);
+    }
+    function _sxrOpenThumbLightbox(pid) {
+        // Look in the active strip first; fall back to the Kasper sub-tab's
+        // cross-client items so the review preview's lightbox works there too
+        // (the Kasper card isn't in sxrState.posts).
+        let post = sxrState.posts.find(p => p.id === pid);
+        if (!post && typeof _sxrKasperState === 'object') {
+            const it = (_sxrKasperState.items || []).find(x => x && x.post && x.post.id === pid);
+            if (it) post = it.post;
+        }
+        const info = post ? _sxrDeriveThumbInfo(post) : null;
+        if (!info || !info.url) return;
+        const ovl = document.getElementById('sxrLightbox');
+        if (!ovl) return;
+        const img = ovl.querySelector('img');
+        if (img) img.src = info.url;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+    }
+
+    /* ── Media link pills (Video / Thumbnail only — no caption link) ── */
+    function _sxrOpenThumbnailFolder(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        const url = _calThumbnailFolderUrl(post, post && post.thumbnail_url);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function _sxrLinkFieldHtml(pid, fld, val, placeholder, ro, post) {
+        const v = String(val || '').trim();
+        const isThumb = fld === 'thumbnail_url';
+        const kind = isThumb ? 'thumb' : 'post';
+        const label = isThumb ? 'Thumbnail' : 'Video';
+        const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
+        const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_sxrOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            : '';
+        const compareSlot = isThumb ? _thumbCompareSlotHtml('samples', post, false, 'link') : '';
+        const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+        if (ro) {
+            if (!v) return '';
+            if (isThumb) return '';
+            const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
+            return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}"><a class="cal-link-pill-open" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a></div>`;
+        }
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_sxrEsc(v)}" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)">`;
+        if (v) {
+            return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
+                <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                ${folderBtn}
+                ${compareSlot}
+                <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
+                ${input}
+            </div>`;
+        }
+        return `<div class="cal-link-field cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">${input}</div>`;
+    }
+    function _sxrOnLinkInput(input) { _sxrOnFieldInput(input); }
+    function _sxrOnLinkBlur(input) {
+        _sxrOnFieldBlur(input);
+        if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') {
+            _sxrForceThumbRefresh(input.dataset.pid);
+            // Media presence gates SMM-review eligibility (_sxrHasMedia), so the
+            // Review tab badge count can change with this edit — sync it in place
+            // (the optimistic value is already in sxrState.posts, and a background
+            // self-echo skips the full repaint via _sxrPostsEqualForRender).
+            if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+        }
+        const field = input.closest('.cal-link-field');
+        if (field) {
+            const post = sxrState.posts.find(p => p.id === input.dataset.pid);
+            field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, post);
+        }
+    }
+    function _sxrOpenLink(pid, fld) {
+        const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
+        const v = input ? input.value.trim() : '';
+        if (!v) return;
+        window.open(/^https?:\/\//i.test(v) ? v : 'https://' + v, '_blank', 'noopener,noreferrer');
+    }
+    function _sxrEditLink(pid, fld) {
+        const field = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"]`);
+        if (!field) return;
+        field.classList.add('editing');
+        const input = field.querySelector('.cal-link-input');
+        if (input) { input.focus(); input.select(); }
+    }
+
+    /* ── Linear sub-issue pile (video + graphic), edit + commit with guards ── */
+    function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
+    function _sxrLinearSlotHtml(pid, url, comp) {
+        if (_isClientLink) return '';
+        const which = comp || 'video';
+        const u = String(url || '').trim();
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const compCls = ' cal-linear-btn-' + which;
+        if (u) {
+            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
+            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            if (_writeUiLinkSlotSealed(which)) {
+                // Same as the calendar: opening and REMOVING both survive the
+                // seal; only the paste is refused.
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
+            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+        }
+        const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
+        // Sealed and empty renders nothing, exactly as on the calendar: under
+        // SyncView authority an unlinked Linear slot is the correct state.
+        if (_writeUiLinkSlotSealed(which)) return '';
+        return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
+    }
+    /* SyncView Production sub-issue link on a SAMPLE card — the samples twin of
+       _calProdSlotHtml (owner 2026-08-19: "we should see the button to open it
+       in our production"). Rendered only when the sample carries a native
+       deliverable id for that component, so legacy linked-by-hand samples show
+       nothing new. Read-only navigation into ?prod=1, never a write. */
+    function _sxrProdSlotHtml(p, comp) {
+        if (_isClientLink) return '';
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        if (!id) return '';
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
+        return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+    }
+    /* ── Fill a missing component, from the SAMPLE card that is missing it ──
+     *
+     * The samples twin of _calFillComponent, and it exists for the reason the
+     * owner gave on 2026-09-07: "when there's a calendar that has a post that
+     * is just a thumbnail, there's a little thing where we can add a video or a
+     * thumbnail to the batch... but we don't have the same system for samples."
+     *
+     * IT IS WORSE HERE THAN ON THE CALENDAR. Measured live 2026-09-07 across
+     * the 26 non-archived sample cards: 2 carry both components, 3 only a
+     * video, 21 only a thumbnail, 0 neither. So 24 of 26, across 6 clients,
+     * are half a post, against 127 of 688 on the calendar. A samples batch is
+     * usually commissioned as thumbnails alone and then needs a video beside
+     * one of them, which is exactly the gap this closes.
+     *
+     * NOTHING NEW IS ASKED OF THE SERVER, and that is not luck. `production-write`
+     * has admitted `component_fill` from the `sxr` surface since the day the
+     * operation shipped, and public.production_component_fill reads and locks
+     * the card in `sample_reviews` rather than `calendar_posts` when the batch
+     * carries purpose='samples'. Both halves were written for two surfaces and
+     * only one ever got a button. This is that button; no migration and no
+     * deploy stand between it and being live.
+     *
+     * The gate is the calendar's, rule for rule: a sibling to inherit the
+     * batch, the Linear parent route, the sort position and the title from; an
+     * empty slot BOTH ways so a legacy half-link is left to be repaired rather
+     * than doubled; staff only; not on a blank row; not on an archived card;
+     * and only where the target team is SyncView-authoritative, because under a
+     * rollback the native create is refused at the database and the button
+     * would be a dead one.
+     */
+    function _sxrFillSiblingId(p, which) {
+        if (_isClientLink || !p) return '';
+        const pid = String(p.id || '');
+        if (!pid || _sxrIsBlankId(pid)) return '';
+        if (String(p.status || '').toLowerCase() === 'archived') return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const other = target === 'graphic' ? 'video' : 'graphic';
+        const idOf = comp => String((comp === 'graphic'
+            ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        const linkOf = comp => String((comp === 'graphic'
+            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
+        // Empty BOTH ways. A card carrying a Linear url with no native id is a
+        // legacy half-link, not a missing component, and filling it would leave
+        // the card pointing at two different issues.
+        if (idOf(target) || linkOf(target)) return '';
+        if (!_writeUiLinkSlotSealed(target)) return '';
+        return idOf(other);
+    }
+    function _sxrFillComponentSlotHtml(p, which) {
+        const sibling = _sxrFillSiblingId(p, which);
+        if (!sibling) return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const pid = String(p.id || '');
+        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
+        return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
+            + ` onclick="_sxrFillComponent('${_sxrEscAttr(pid)}','${target}')"`
+            + ` title="This sample has no ${label} yet. Add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}."`
+            + ` aria-label="Add the missing ${label} to this sample">${plus}</button>`;
+    }
+    /* Deterministic in the card and team, so every press is the SAME write: the
+       first creates and any later one replays and returns the row the first one
+       made. Same contract as _calFillRequestId, under its own `sfill:` prefix
+       so a samples fill and a calendar fill can never resolve to one deliverable
+       id. The gateway derives that id from this string, and the two card
+       tables mint their ids independently. */
+    function _sxrFillRequestId(pid, team) {
+        return ('sfill:' + team + ':' + String(pid || '')).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 190);
+    }
+    /* Write ONLY this component slot back to the sample. sample-review-upsert
+       copies just the keys the payload carries, so a fill cannot touch the
+       name, the media links, the creative direction, the statuses, the tweaks
+       or the other component.
+     *
+     * IT RUNS INSIDE THE PER-CARD SAVE QUEUE, and that is the whole safety of
+     * it (Codex P1 on PR 1342). Awaiting the in-flight save once was not enough:
+     * that save's `finally` starts a REPLACEMENT `_sxrSaveInFlight[pid]` for
+     * any edit queued while it was draining, so the continuation resumed
+     * beside a save this write had never waited for. The follow-on save is
+     * usually a field-level patch that carries no link column, but the
+     * whole-card branch (a new row, or `_sxrRetrySave` re-sending the current
+     * row with an empty bucket) sends all four link columns from local state,
+     * and a copy built before this update carries them EMPTY. Landing after
+     * this write, it detaches the component that was just created while the
+     * card reports success.
+     *
+     * So: drain with `_sxrAwaitCardSave` (which also flushes queued edits, not
+     * merely the active save), then HOLD the lock across the write. Any flush
+     * that starts meanwhile hits `if (_sxrSaveInFlight[pid]) return
+     * _sxrAwaitCardSave(pid)` and re-reads local state afterwards, so its
+     * whole-card copy carries the link this wrote rather than the emptiness
+     * that preceded it. Released in a `finally` in the same order the save
+     * engine releases it, so a throw here can never strand the card. */
+    async function _sxrFillWriteCardLink(clientSlug, pid, team, deliverableId, issueUrl) {
+        try { await _sxrAwaitCardSave(pid); } catch (e) {}
+        let releaseSave;
+        _sxrSaveInFlight[pid] = new Promise(resolve => { releaseSave = resolve; });
+        try {
+            const sample = team === 'graphics'
+                ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
+                : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
+            const response = await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample, comments_base_at: '' }, 'samples-component-fill');
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true) throw new Error('sample_card_write_failed');
+            // Our own row change is about to arrive on the realtime channel; mark
+            // it as a local write so the strip is not rebuilt underneath the
+            // person who just pressed the button, as every samples write does.
+            _sxrLastLocalWriteAt = Date.now();
+            /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
+               tabs while a request is in flight, and `sxrState.posts` then holds
+               the NEW client's rows while `clientSlug` still names the old one.
+               Writing that array under the old slug's cache key would leave one
+               client's samples cached as another's, to be rendered on the next
+               visit until its network read lands. The server write above is
+               already correct and stays; only the local state, the cache and the
+               repaint are skipped, and the next load of that client reads the
+               link back from the row. */
+            if (sxrClientSlug(sxrState.client) !== clientSlug) return;
+            const post = sxrState.posts.find(item => item && item.id === pid);
+            // The two columns this wrote, not the whole echo: the row on screen
+            // may carry edits this write never sent, and the echo would undo them.
+            if (post) Object.assign(post, sample);
+            try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
+            /* Deferred while somebody is typing, exactly as the link adopter
+               defers: a full _sxrRenderBody() detaches the focused input and eats
+               the caret (the PR-705 focus guard). */
+            try {
+                if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                    _sxrPendingBackgroundRender = true;
+                    if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                } else {
+                    _sxrRenderBody({ preserveScroll: true });
+                }
+            } catch (e) {}
+        } finally {
+            delete _sxrSaveInFlight[pid];
+            if (releaseSave) releaseSave();
+            /* THE QUEUED EDIT BELONGS TO THE CLIENT IT WAS TYPED ON (Codex P1
+               on PR 1342, second pass). `_sxrFlushCardSave` derives `_saveSlug`
+               and the row from `sxrState` AT FLUSH TIME, and a card absent from
+               `sxrState.posts` is treated as a new row and INSERTED --
+               `sample_reviews` is keyed by (client, id), so a flush that lands
+               after a client switch writes one client's edit as a brand-new
+               sample under another. Holding the lock is what opens that window
+               twice over: `onSxrClientChange` calls `_sxrFlushAllPending`
+               first, but every flush it starts hits
+               `if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and
+               defers behind THIS write, then wakes after the switch.
+
+               So when the view has moved on the bucket leaves
+               `_sxrPendingEdits`, which is what stops that deferred
+               `_sxrAwaitCardSave`: it re-reads the map, finds nothing, and
+               returns instead of writing to the wrong client.
+
+               IT IS PARKED, NOT DROPPED (Codex P1 on PR 1342, fourth pass, and
+               it was right about the first version of this). Deleting it traded
+               a wrong-client write for silent data loss, and the person had no
+               way to know: `onSxrClientChange` had already tried to flush that
+               edit and its flush was sitting behind this very lock, so the
+               bucket was its only copy. Parking keeps it against the slug and
+               card it was typed on, `_sxrRestoreParkedEdits` puts it back the
+               next time that client loads, and the normal engine flushes it
+               there with the right `sxrState` -- so the status machinery, the
+               Linear pushes and the repair refs all run as they would have. */
+            if (_sxrPendingEdits[pid]) {
+                if (sxrClientSlug(sxrState.client) === clientSlug) _sxrFlushCardSave(pid);
+                else _sxrParkEditsForClient(clientSlug, pid);
+            }
+        }
+    }
+    /* Edits typed on a card whose client the view then left, held against the
+       slug and card they belong to until that client is loaded again.
+     *
+     * The samples save engine reads `sxrState` at flush time, so a bucket
+     * flushed after a client switch is written under whichever client is on
+     * screen -- and `sample_reviews` is keyed by (client, id), so it lands as a
+     * brand-new sample under someone else. The fill is the one place that can
+     * hold the save lock long enough for `onSxrClientChange`'s own flush to be
+     * still waiting when the switch happens, which is why the parking lives
+     * here rather than in the engine.
+     *
+     * BOUNDED, because this is a repair and not a queue: one bucket per card
+     * per client, and a cap so a tab left open for a week cannot grow it
+     * without limit. Nothing here writes; restoring hands the edits back to the
+     * engine, which does. */
+    const _sxrParkedEdits = Object.create(null);
+    const SXR_PARKED_EDIT_MAX_CARDS = 50;
+    function _sxrParkEditsForClient(slug, pid) {
+        const edits = _sxrPendingEdits[pid];
+        delete _sxrPendingEdits[pid];
+        const key = String(slug || '');
+        if (!key || !edits || !Object.keys(edits).length) return;
+        const forClient = _sxrParkedEdits[key] || (_sxrParkedEdits[key] = Object.create(null));
+        if (!forClient[pid] && Object.keys(forClient).length >= SXR_PARKED_EDIT_MAX_CARDS) {
+            _writeUiQueueDiagnostic('sxr', 'parked_edit_capacity_dropped',
+                { kind: 'component_fill' }, { code: 'parked_edit_cap' });
+            /* SAID OUT LOUD, like every other outcome on this path. The bucket
+               already left `_sxrPendingEdits` two lines above and the cap
+               refuses to take it, so this branch DESTROYS the edit -- the one
+               thing parking exists to stop. A diagnostic row records it for
+               whoever asks later; nobody asks later, because the person who
+               typed it was never told it was gone. */
+            showNotify('That edit was not saved',
+                'This tab is already holding unsaved edits for ' + SXR_PARKED_EDIT_MAX_CARDS
+                + ' other cards on ' + key + ', so this one could not be held as well. It was not'
+                + ' written anywhere and cannot be brought back. Open ' + key + ' again to save the'
+                + ' edits being held, then retype this one.');
+            return;
+        }
+        /* WHOSE EDIT IT IS, kept with it (Codex P1 on PR 1342, fifth pass).
+           Staff identity is shared through localStorage, so the account can
+           change before that client is opened again -- and a restored bucket is
+           flushed with whoever is signed in THEN. A parked status edit would go
+           through the native gateway attributed to somebody who never made it.
+           The principal is recorded here and compared on the way out. */
+        const previous = forClient[pid];
+        forClient[pid] = {
+            principal: _writeUiPrincipalKey(),
+            edits: Object.assign({}, previous && previous.edits, edits)
+        };
+        _writeUiQueueDiagnostic('sxr', 'queued_edit_parked_off_client',
+            { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
+        /* SAID OUT LOUD, AND SAID ACCURATELY. The edit is held in this tab and
+           nowhere else: it does not survive a reload, and promising that it
+           "saves itself" would be a promise a page refresh breaks (Codex P1,
+           fifth pass). So it says what is true and what to do about it. */
+        showNotify('That edit is not saved yet',
+            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again in this tab and it will save. If you reload first, retype it.');
+    }
+    /* Called after a successful load for `slug`, where `sxrState` finally
+       describes the client these edits belong to. A card the load did not
+       return is NOT restored: re-queuing it would make the engine insert it as
+       a new row, which is the defect this exists to avoid. */
+    function _sxrRestoreParkedEdits(slug) {
+        const key = String(slug || '');
+        const forClient = key && _sxrParkedEdits[key];
+        if (!forClient) return 0;
+        if (sxrClientSlug(sxrState.client) !== key) return 0;
+        let restored = 0;
+        const principalNow = _writeUiPrincipalKey();
+        for (const pid of Object.keys(forClient)) {
+            const entry = forClient[pid] || {};
+            if (!(sxrState.posts || []).some(post => post && post.id === pid)) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_card_gone',
+                    { kind: 'component_fill' }, { code: 'card_absent_on_restore' });
+                /* Told, for the same reason the principal-changed drop below is
+                   told. This is the branch the person waited for: they were
+                   promised "open the client again and it will save", they did,
+                   and the card the load returned no longer includes theirs. Not
+                   restoring is right -- re-queuing would make the engine INSERT
+                   it as a brand-new sample, which is the defect parking exists
+                   to avoid -- but silence turns a correct refusal into the
+                   silent data loss of the promise. */
+                showNotify('An unsaved edit was discarded',
+                    'A change typed on a card of ' + key + ' was still waiting to be saved, and that'
+                    + ' card is no longer in this client \u2014 archived, moved or removed while it'
+                    + ' waited. Nothing was written, and the change is gone.');
+                continue;
+            }
+            // Not this person's edit to send. Dropped rather than replayed under
+            // a principal that never typed it, and said out loud.
+            if (!principalNow || entry.principal !== principalNow) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_principal_changed',
+                    { kind: 'component_fill' }, { code: 'principal_changed_before_restore' });
+                showNotify('An unsaved edit was discarded',
+                    'A change typed here before the signed-in account changed was not saved, because it is not this account\u2019s to send. Nothing was written.');
+                continue;
+            }
+            /* NEWER INPUT WINS (Codex P1 on PR 1342, fifth pass). Returning to a
+               client paints from cache first, so somebody can be typing in this
+               very card while the background load that triggers this restore is
+               still in flight. Assigning the parked bucket LAST would overwrite
+               what they just typed and flush the older value straight to the
+               server. */
+            _sxrPendingEdits[pid] = Object.assign({}, entry.edits, _sxrPendingEdits[pid] || {});
+            delete forClient[pid];
+            restored += 1;
+            _sxrFlushCardSave(pid);
+        }
+        if (!Object.keys(forClient).length) delete _sxrParkedEdits[key];
+        return restored;
+    }
+    window.peekSxrParkedEdits = function () {
+        const out = {};
+        for (const slug of Object.keys(_sxrParkedEdits)) out[slug] = Object.keys(_sxrParkedEdits[slug]);
+        return out;
+    };
+    async function _sxrFillComponent(pid, which) {
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const team = target === 'graphic' ? 'graphics' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const post = sxrState.posts.find(item => item && item.id === pid);
+        // Re-checked against live state, not the state the button was drawn
+        // from: a tab left open while somebody else filled this slot must not
+        // send the write at all.
+        const siblingId = _sxrFillSiblingId(post, target);
+        if (!siblingId) {
+            showNotify('Nothing to add', 'This sample already has its ' + label + ', or its other half is missing. Reload to see the current state.');
+            return;
+        }
+        const clientSlug = sxrClientSlug(sxrState.client);
+        if (!clientSlug) return;
+        const cardName = String((post && post.name) || '').trim();
+        // Refused early as well as at confirm time, so somebody who is not
+        // signed in is told before a dialog promises them anything.
+        try { await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) {
+            showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+            return;
+        }
+        // The live authority read, not the cached one the button was drawn from.
+        const sealed = await _writeUiLinkSlotSealedLive(target);
+        if (!sealed || sealed.sealed !== true) {
+            const notice = _writeUiLinkSlotSealedNotice(target, sealed && sealed.reason || 'authority_unavailable');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        /* THE VIEW CAN MOVE UNDER BOTH AWAITS ABOVE (Codex P1 on PR 1342, second
+           pass). The identity read and the live authority read are network
+           round trips, and staff switch Samples client tabs during them. The
+           captured `clientSlug`, `post` and `siblingId` still describe the
+           client that was on screen when the button was pressed, so a dialog
+           that opened afterwards would sit over the NEW client while carrying
+           the old one's identifiers -- and confirming it would mint real
+           Production and Linear work for a client the person is no longer
+           looking at. Re-checked here, and AGAIN inside the callback, because
+           the dialog itself is a wait: it can sit open across a tab switch. */
+        if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+            showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+            return;
+        }
+        // The principal that opened the dialog, as the write path itself
+        // computes one, so the comparison below is against the same value the
+        // gateway will be told about rather than a parallel notion of identity.
+        const principalKey = _writeUiPrincipalKey();
+        showConfirm(
+            'Add the missing ' + label + '?',
+            'This creates the ' + label + ' for ' + (cardName ? '“' + cardName + '”' : 'this sample')
+                + ' on ' + clientSlug + ', in the same batch as its '
+                + (target === 'graphic' ? 'video' : 'thumbnail')
+                + ', and attaches it to that card. It appears in Production and mirrors to Linear.',
+            async () => {
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                /* THE DIALOG IS A WAIT, AND TWO MORE THINGS MOVE UNDER IT
+                   (Codex P1 x2 on PR 1342, third pass).
+
+                   WHO. `_sxrFillComponentSubmit` never used the captured
+                   `identity` -- it was a gate result and nothing more -- while
+                   `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()`
+                   at REQUEST time. Staff identity is shared through localStorage
+                   and synced across tabs by `_syncviewStaffIdentityStorageChanged`,
+                   so a sign-in change in another tab lands in this one while the
+                   dialog sits open, and the person who pressed Confirm is
+                   recorded as the author of work somebody else asked for. The
+                   identity is re-required (which re-verifies it, so a lapsed
+                   verification is caught too) and its principal key compared
+                   with the one that opened the dialog. The parameter is gone
+                   from the submitter rather than left there unused, because an
+                   argument nothing reads is a claim the code does not keep.
+
+                   WHAT AUTHORITY. AGENTS.md: read back current runtime
+                   authority before acting, never treat a snapshot as a
+                   permanent guarantee. The read above happened BEFORE the
+                   dialog, so a SyncView -> Linear rollback during the wait
+                   would still have sent a create. The gateway refuses it and
+                   nothing wrong is written, but the refusal is avoidable and
+                   the boundary is ours to hold, not the server's. */
+                try { await _syncviewRequireStaffIdentity('intake'); }
+                catch (error) {
+                    showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+                    return;
+                }
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
+                const sealedNow = await _writeUiLinkSlotSealedLive(target);
+                if (!sealedNow || sealedNow.sealed !== true) {
+                    const notice = _writeUiLinkSlotSealedNotice(target, sealedNow && sealedNow.reason || 'authority_unavailable');
+                    showNotify(notice[0], notice[1]);
+                    return;
+                }
+                /* BOTH CHECKS AGAIN, AFTER THE LAST AWAIT (Codex P1 on PR 1342,
+                   fourth pass). The authority read is a network round trip like
+                   the two before it, so a cross-tab sign-in landing during THAT
+                   one slipped past a principal comparison made before it. The
+                   rule is simply that the last thing before the write is a
+                   re-check, not that there is a re-check somewhere. */
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug);
+            },
+            'Add ' + label);
+    }
+    /* Is the card this fill was started for still the card on screen, and still
+       missing the same component with the same sibling? Every asynchronous step
+       between the press and the write re-asks it, so a client switch, a peer's
+       fill or a reload that lands in between stops the write rather than
+       redirecting it. */
+    function _sxrFillStillCurrent(pid, target, clientSlug, siblingId) {
+        if (sxrClientSlug(sxrState.client) !== clientSlug) return false;
+        const current = sxrState.posts.find(item => item && item.id === pid);
+        return !!current && _sxrFillSiblingId(current, target) === siblingId;
+    }
+    async function _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug) {
+        const requestId = _sxrFillRequestId(pid, team);
+        let result = null;
+        let failure = null;
+        try {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify({
+                    operation: 'component_fill',
+                    surface: 'sxr',
+                    client_slug: clientSlug,
+                    card_id: pid,
+                    team,
+                    sibling_id: siblingId,
+                    request_id: requestId,
+                    source_edited_at: new Date().toISOString()
+                })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || !body || body.ok !== true || body.native_committed !== true) {
+                const error = new Error(String(body && body.error || 'native_write_failed'));
+                error.code = String(body && body.error || 'native_write_failed');
+                error.status = response.status;
+                throw error;
+            }
+            result = body;
+        } catch (error) { failure = error; }
+
+        /* THE REPAIR ARM, shared with the calendar down to the lookup: both of
+           these mean the component exists and this card is the stale half.
+           Occupied because somebody filled it, and idempotency_conflict because
+           somebody ELSE filled it (the actor is part of the dedup identity).
+           Neither is a reason to leave the card unlinked, which is the very
+           state this feature exists to end. */
+        if (failure && ['component_fill_team_occupied', 'idempotency_conflict'].includes(String(failure.code || ''))) {
+            const existing = await _calFillLookupExisting(clientSlug, pid, team).catch(() => null);
+            if (existing && existing.id) {
+                try {
+                    await _sxrFillWriteCardLink(clientSlug, pid, team, String(existing.id), existing.linear_issue_url);
+                    // The row somebody else made may itself still be draining.
+                    if (!String(existing.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
+                    showNotify('Already there', 'This sample already had a ' + label + '. The card is linked to it now.');
+                    return;
+                } catch (repairError) { failure = repairError; }
+            }
+        }
+        /* `component_fill_card_missing` means something different HERE than it
+           does on the calendar, and the shared handler's answer to it (evict
+           the display caches, tell the reader to reload) would be wrong twice
+           over on a sample.
+
+           The RPC picks which table to read the card from by the BATCH purpose:
+           `sample_reviews` when it is 'samples', `calendar_posts` otherwise. A
+           sample whose batch is recorded purpose='calendar' is therefore looked
+           for among the calendar cards, where it has never been. Measured
+           2026-09-07: 3 of the 24 half-complete sample cards live in one such
+           batch, minted by the F42 adoption path, its children carrying
+           origin='samples' while the batch itself says 'calendar'. The card is
+           not missing, the cache is not stale, and no reload changes anything,
+           so this says what is actually true and stops there. OPEN_REPAIRS 162
+           carries the two ways to close it; both are the owner's to pick. */
+        if (failure && String(failure.code || '') === 'component_fill_card_missing') {
+            _writeUiQueueDiagnostic('sxr', 'ui_write_failure', { kind: 'component_fill' }, failure);
+            showNotify('This sample can’t be completed yet',
+                'Nothing was created. Its batch is recorded as a calendar batch, so the write looked for this card among the calendar cards. Reloading will not help. Tell the owner, and quote this code: component_fill_card_missing.');
+            return;
+        }
+        if (failure) {
+            _writeUiReportFailure('sxr', 'component_fill', failure);
+            return;
+        }
+        const item = result && result.item && typeof result.item === 'object' ? result.item : {};
+        if (!String(item.id || '')) {
+            _writeUiReportFailure('sxr', 'component_fill',
+                Object.assign(new Error('native_response_refresh_failed'), { code: 'native_response_refresh_failed' }));
+            return;
+        }
+        try {
+            await _sxrFillWriteCardLink(clientSlug, pid, team, String(item.id), item.linear_issue_url);
+        } catch (error) {
+            /* The component IS made, and the retry is genuinely safe (the request
+               id is deterministic, so it replays and re-attempts this same card
+               write), so say exactly that rather than reporting a failure that
+               would send someone looking for work that is already there. */
+            showNotify('The ' + label + ' was created',
+                'It is in Production, but this card could not be linked to it just yet. Press the button again in a moment and it will finish the job.');
+            return;
+        }
+        /* THE LINEAR URL IS USUALLY NOT IN THAT RESPONSE (Codex P2 on PR 1342,
+           second pass). On a live fill the gateway schedules the outbound drain
+           and answers `mirror_pending: true` before the issue exists, so the
+           card is written with the deliverable id and an EMPTY Linear url. That
+           is enough to retire the fill button, which means nothing on the card
+           asks for the link any more and it would sit empty until an unrelated
+           reload happened to run the adopter. This is the same hole a freshly
+           created sample had, and `_sxrAdoptLinksAfterCreate` is the answer
+           already written for it: four guarded polls across the window the
+           mirror actually takes (measured 15s on the 2026-08-20 create), each
+           one abandoning if the view moved on, skipping any slot already
+           filled, and refusing a row whose card_id binds elsewhere. */
+        if (!String(item.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
+        showNotify('Added', result && result.mirror_pending === true
+            ? 'The ' + label + ' is on this sample; the Linear mirror is still draining.'
+            : 'The ' + label + ' is on this sample.');
+    }
+    function _sxrLinearPileHtml(pid, p) {
+        const v = _sxrLinearSlotHtml(pid, p.linear_issue_id, 'video');
+        const g = _sxrLinearSlotHtml(pid, p.graphic_linear_issue_id, 'graphic');
+        const pv = _sxrProdSlotHtml(p, 'video');
+        const pg = _sxrProdSlotHtml(p, 'graphic');
+        // The fill button takes the place the missing component would have
+        // occupied, so a half-complete sample reads as one pile with a gap to
+        // close rather than as a card that is simply missing something.
+        const fv = _sxrFillComponentSlotHtml(p, 'video');
+        const fg = _sxrFillComponentSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+    }
+    /* The samples twin of _calAdoptDeliverableLinks. A native sample is
+       materialized before the Linear mirror finishes draining, so its
+       linear_issue_id / graphic_linear_issue_id can be empty at creation while
+       the deliverable ids are already set — the reported live case: the video
+       url had drained in time, the graphics url (GRA issue) had not, and
+       nothing ever came back for it. Reads the deliverable rows, writes the
+       missing url onto the sample row, guarded so a superseded load or an
+       id that no longer matches never writes. */
+    /* The adopter runs as a tail task of loadSxrCards — but creating a sample
+       does NOT reload the tab (the card is spliced into local state), so a
+       freshly created sample kept the orange "Link the Linear sub-issue"
+       banner until somebody happened to reload. Measured on a real 2026-08-20
+       create: the card landed at 15:10:40 and its Linear issue was minted at
+       15:10:55, so even a reload fired at create time would have found nothing
+       to adopt. Poll a few times across that window instead.
+
+       Every attempt is the SAME guarded adopter: it re-reads _sxrLoadSeq and
+       abandons if the view moved on, skips any slot already filled, and
+       refuses a row whose card_id binds elsewhere. So a late timer that fires
+       after the user switched clients is a no-op, and a duplicate adopt is
+       impossible. */
+    const SXR_ADOPT_AFTER_CREATE_DELAYS_MS = [4000, 10000, 20000, 45000];
+    function _sxrAdoptLinksAfterCreate(slug) {
+        const target = String(slug || '').trim();
+        if (!target) return;
+        SXR_ADOPT_AFTER_CREATE_DELAYS_MS.forEach(delay => {
+            setTimeout(() => {
+                try {
+                    if (typeof sxrClientSlug !== 'function' || typeof sxrState === 'undefined'
+                        || !sxrState || sxrClientSlug(sxrState.client) !== target) return;
+                    _sxrAdoptDeliverableLinks(_sxrLoadSeq, target).catch(() => {});
+                } catch (error) { /* a background top-up never surfaces */ }
+            }, delay);
+        });
+    }
+    async function _sxrAdoptDeliverableLinks(seq, slug) {
+        if (seq !== _sxrLoadSeq) return 0;
+        const wanted = new Map();
+        for (const post of sxrState.posts || []) {
+            if (!post || _sxrIsBlankId(post.id)) continue;
+            for (const component of ['video', 'graphic']) {
+                const field = component === 'video' ? 'linear_issue_id' : 'graphic_linear_issue_id';
+                if (String(post[field] || '').trim()) continue;
+                const deliverableId = _writeUiNativeId(post, component);
+                if (!deliverableId || wanted.has(deliverableId)) continue;
+                wanted.set(deliverableId, { pid: post.id, component, field });
+            }
+        }
+        if (!wanted.size) return 0;
+        const rows = await _calFetchDeliverableLinkRows([...wanted.keys()]);
+        if (seq !== _sxrLoadSeq || !rows.size) return 0;
+        let adopted = 0;
+        for (const [deliverableId, slot] of wanted) {
+            const row = rows.get(deliverableId);
+            const url = String((row && row.linear_issue_url) || '').trim();
+            if (!url) continue;
+            const boundCard = String((row && row.card_id) == null ? '' : row.card_id).trim();
+            if (boundCard && boundCard !== slot.pid) continue;
+            const post = (sxrState.posts || []).find(p => p && p.id === slot.pid);
+            if (!post || String(post[slot.field] || '').trim()) continue;
+            if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
+            try {
+                const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt');
+                const json = await resp.json().catch(() => ({}));
+                if (!json || json.ok !== true) continue;
+                post[slot.field] = url;
+                adopted += 1;
+            } catch (error) {
+                console.warn('[Samples] could not adopt the deliverable link for ' + slot.component, error);
+            }
+        }
+        if (adopted && seq === _sxrLoadSeq) {
+            try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+            /* Adoption finishes a fetch and an upsert AFTER the load returned, so
+               this repaint can land while the SMM is mid-edit. Route it through
+               the same deferred-render guard loadSxrCards uses for background
+               reloads, or a full _sxrRenderBody() would detach the focused input
+               and eat the caret. preserveScroll on both legs: the adopter lands
+               late enough that the user may well have scrolled. */
+            if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                _sxrPendingBackgroundRender = true;
+                if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+            } else {
+                _sxrRenderBody({ preserveScroll: true });
+            }
+        }
+        return adopted;
+    }
+    function _sxrTitleRowHtml(pid, p, ro, editableText) {
+        const nameRo = (editableText == null) ? ro : !editableText;
+        return `<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+    }
+    function _sxrLinearEdit(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        const cur = post ? String((which === 'graphic') ? (post.graphic_linear_issue_id || '') : (post.linear_issue_id || '')) : '';
+        const ph = which === 'graphic' ? 'Paste the GRA (graphic) sub-issue link…' : 'Paste the VID (video) sub-issue link…';
+        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_sxrEscAttr(cur)}" placeholder="${_sxrEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${pid}','${which}')" onblur="_sxrLinearCommit(this,'${pid}','${which}')">`;
+        const inp = row.querySelector('input');
+        if (inp) { inp.focus(); inp.select(); }
+    }
+    /* The sample-review twin of _calLinearClear -- see the reasoning there. */
+    function _sxrLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        /* The unfixed twin of the calendar dialog, corrected the same way and
+           for the same reason. _sxrAdoptDeliverableLinks refills any EMPTY link
+           column from the sample native deliverable on the next load and again
+           on the after-create timers, so on a native sample the clear is real
+           for a moment and then undone -- while this dialog promised it would
+           stick. Clearing does not touch the deliverable id, so there is no
+           version of this where the adopter stays away.
+           The BEHAVIOUR is deliberately unchanged. The adopter exists because a
+           native sample is materialized before the Linear mirror drains, and the
+           reported live case was a graphics URL that arrived late; suppressing
+           it for cleared rows would trade an honest sentence for a real gap.
+           The trap in copying the calendar version verbatim is the state object:
+           this reads sxrState.posts, and calState.posts here would silently take
+           the non-native branch for every sample.
+
+           The promise is CONDITIONAL for the same reason the calendar twin is:
+           a stored deliverable id proves the field is non-empty and nothing
+           more, while the adopter also needs the row to read back, to carry a
+           linear_issue_url, to still be bound to THIS sample, and to save. See
+           the note on _calLinearClear. */
+        const post = (sxrState.posts || []).find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this sample. The issue itself is not touched. This sample is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this sample. The issue itself is not touched, and nothing else about the sample changes.';
+        showConfirm('Remove this link?', body,
+            () => { _sxrLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
+    function _sxrLinearKey(e, pid, comp) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
+    }
+    function _sxrLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
+    async function _sxrLinearCommit(input, pid, comp) {
+        const which = comp || 'video';
+        const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        const cancelled = input.dataset.cancel === '1';
+        const val = input.value.trim();
+        const post = sxrState.posts.find(p => p.id === pid);
+        const cur = post ? String(post[fld] || '') : '';
+        const changed = !cancelled && val !== cur;
+        const restoreRow = () => {
+            const row = document.querySelector(`[data-title-row="${pid}"]`);
+            if (row) row.innerHTML = _sxrTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+        };
+        const applyCommit = (value) => {
+            if (post) post[fld] = value;
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            _sxrPendingEdits[pid][fld] = value;
+            _sxrFlushCardSave(pid);
+            if (value) _sxrArchivedRemove(sxrClientSlug(sxrState.client), [value]);
+            _sxrRenderBody({ preserveScroll: true });
+            if (value && post && typeof _sxrSyncStatusFromLinear === 'function') _sxrSyncStatusFromLinear(pid, value, which);
+        };
+        if (!changed) { restoreRow(); return; }
+        if (val) {
+            // Seal guard first, on a live authority read -- the calendar twin
+            // carries the full reasoning. Clearing (`val === ''`) is untouched.
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
+            const ident = _sxrIdentFromUrl(val);
+            const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
+            if (!looksLinear || !ident) {
+                showNotify('That isn’t a Linear link', 'Paste a Linear sub-issue URL like https://linear.app/your-team/issue/' + _sxrLinearExpectPrefix(which) + '-123. What you entered has no Linear issue id, so it wasn’t saved.');
+                restoreRow(); return;
+            }
+            const prefix = ident.split('-')[0];
+            const want = _sxrLinearExpectPrefix(which);
+            if ((prefix === 'GRA' || prefix === 'VID') && prefix !== want) {
+                const isG = prefix === 'GRA';
+                showConfirm('Wrong slot for this link?', 'That looks like a ' + (isG ? 'GRAPHIC (GRA-)' : 'VIDEO (VID-)') + ' sub-issue, but you’re setting the ' + (which === 'graphic' ? 'GRAPHIC' : 'VIDEO') + ' link. Use it here anyway?', () => applyCommit(val), 'Use it anyway');
+                return;
+            }
+            const conflict = _sxrLinkConflict(val, pid);
+            if (conflict) { _sxrShowLinkConflict(pid, which, val, conflict); return; }
+        }
+        applyCommit(val);
+    }
+    let _sxrPendingLinkMove = Object.create(null);
+    function _sxrLinkConflict(link, selfPid) {
+        const key = _sxrLinkKey(link);
+        if (!key) return null;
+        const archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client));
+        for (const p of sxrState.posts) {
+            if (!p || p.id === selfPid) continue;
+            if (String(p.status || '').toLowerCase() === 'archived') continue;
+            if (_sxrIsArchivedRef(p, archived)) continue;
+            if (_sxrLinkKey(p.linear_issue_id) === key || _sxrLinkKey(p.graphic_linear_issue_id) === key) return p;
+        }
+        return null;
+    }
+    function _sxrShowLinkConflict(pid, which, val, conflict) {
+        _sxrPendingLinkMove[pid] = { which, val, oldPid: conflict.id };
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const nm = String(conflict.name || '').trim() || 'Untitled sample';
+        row.innerHTML = `<div class="cal-link-conflict" data-link-conflict="${_sxrEscAttr(pid)}"><span class="cal-link-conflict-msg">This Linear sub-issue is already linked to “${_sxrEsc(nm)}”.</span><span class="cal-link-conflict-actions"><button type="button" class="cal-link-conflict-move" onclick="_sxrMoveLinkConfirm('${pid}')">Move it here</button><button type="button" class="cal-link-conflict-cancel" onclick="_sxrLinkConflictCancel('${pid}')">Cancel</button></span></div>`;
+    }
+    /* Put the ordinary title row back where a conflict row is rendered. Shared
+       by Cancel and by a refused Move so the two cannot drift: a conflict row
+       left on screen after the pending move is gone is a dead control. */
+    function _sxrRestoreTitleRow(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (row) row.innerHTML = _sxrTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+    function _sxrLinkConflictCancel(pid) {
+        delete _sxrPendingLinkMove[pid];
+        _sxrRestoreTitleRow(pid);
+    }
+    function _sxrMoveLinkConfirm(pid) {
+        const mv = _sxrPendingLinkMove[pid];
+        if (!mv) return;
+        delete _sxrPendingLinkMove[pid];
+        /* A REFUSED MOVE MUST NOT LEAVE THE CONFLICT ROW BEHIND (Codex finding
+           3, 2026-09-08). The pending move is dropped on the line above --
+           before `_sxrMoveLink` has had a chance to refuse -- so when the seal
+           refuses (item 176) or the client changed underneath (finding 2), the
+           rendered "Move it here" row stayed on screen with nothing behind it:
+           `_sxrPendingLinkMove[pid]` is gone, so every further click returns at
+           the `if (!mv)` guard and does nothing at all. The user is told the
+           move was refused and then handed a button that silently no-ops.
+           Dropping the pending move first is still right -- retaining it would
+           leave a second click able to re-fire a write that was just refused --
+           so the row is restored instead, exactly as Cancel does. */
+        Promise.resolve(_sxrMoveLink(mv.oldPid, pid, mv.which, mv.val))
+            .then(moved => { if (!moved) _sxrRestoreTitleRow(pid); })
+            .catch(() => _sxrRestoreTitleRow(pid));
+    }
+    /* Returns TRUE only when the move actually happened. Every refusal answers
+       false so `_sxrMoveLinkConfirm` can put the title row back (finding 3). */
+    async function _sxrMoveLink(oldPid, newPid, which, val) {
+        if (_isClientLink) return false;   // moving a Linear link is SMM-only
+        /* FREEZE THE CLIENT BEFORE THE AUTHORITY AWAIT (Codex finding 2,
+           2026-09-08). The seal read below is network-bound, and
+           `sxrState.client` / `sxrState.posts` are mutable: staff can click
+           "Move it here" and switch Samples clients while it is in flight. The
+           continuation then reads the NEW client's state, `newPid` matches
+           nothing in it, and the writes below still stamp
+           `_sxrPendingEdits[newPid]` and call `_sxrFlushCardSave(newPid)` --
+           which, finding no id it recognises, treats it as a new row and saves
+           the previous client's card into the client now on screen. That is a
+           cross-client WRITE, and the client lifecycle is the one thing that
+           must not break, so the odds do not soften it.
+           `addSxrBlankCard` right below already freezes its slug across exactly
+           this kind of wait; this is the same guard on the same shape. Silent,
+           like that one: the user has moved on to another client and a toast
+           about the one they left is noise. `slug` is captured here rather than
+           after the seal because the code below uses it too, and it must be the
+           INITIATING client's. */
+        const slug = sxrClientSlug(sxrState.client);
+        /* The calendar twin `_calMoveLink` gates here and says exactly why:
+           "a guard which lives only on the surface that usually calls it is a
+           guard with a hole in it." THIS TWIN WAS THAT HOLE. `_sxrLinearCommit`
+           does check the seal before `applyCommit`, but the conflict flow does
+           not go through it -- `_sxrMoveLinkConfirm` is a different surface and
+           reaches this function directly. So a staff member could move a Linear
+           link onto a samples card on a syncview-authoritative team, and the
+           move also fires `_sxrSyncStatusFromLinear`, which POSTs
+           `linear-subissues` and will hang once that endpoint is gone.
+           Seal FIRST, before the old card's link is cleared: a refusal that has
+           already mutated the source card is the item-66 shape, where the tool
+           refuses and still leaves the user worse off than before they clicked. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        // The client check comes FIRST: if the tab moved on, this move belongs
+        // to nobody on screen, and a seal notice about the client they left is
+        // the wrong thing to say.
+        if (!slug || sxrClientSlug(sxrState.client) !== slug) return false;
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return false;
+        }
+        const key = _sxrLinkKey(val);
+        const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        const oldPost = sxrState.posts.find(p => p.id === oldPid);
+        if (oldPost) {
+            let cleared = false;
+            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(f => {
+                if (_sxrLinkKey(oldPost[f]) === key) {
+                    oldPost[f] = '';
+                    if (!_sxrPendingEdits[oldPid]) _sxrPendingEdits[oldPid] = {};
+                    _sxrPendingEdits[oldPid][f] = '';
+                    cleared = true;
+                }
+            });
+            if (cleared) {
+                _sxrRenderBody({ preserveScroll: true });
+                try { await _sxrFlushCardSave(oldPid); } catch (e) {}
+                /* THE SECOND AWAIT HAS THE SAME HAZARD AS THE FIRST (Codex,
+                   2026-09-08). The freeze above protects the AUTHORITY read;
+                   this flush is a separate network round trip, and a client
+                   switch during it lands the continuation on the new client's
+                   `sxrState.posts` with the same consequence: `newPid` matches
+                   nothing, and the writes below stamp `_sxrPendingEdits[newPid]`
+                   and call `_sxrFlushCardSave(newPid)` anyway, saving the
+                   previous client's card into the client now on screen. One
+                   guarded await and one unguarded one is not a guard; it is the
+                   same hole moved four lines down.
+                   The source card's link IS already cleared and saved at this
+                   point, so bailing here leaves the move half-done. That is
+                   deliberate and it is the lesser harm: an incomplete move on a
+                   client the user has navigated away from is recoverable and
+                   visible, while a cross-client WRITE is neither. Closing the
+                   half-state needs a transactional move, which is not this
+                   repair. */
+                if (sxrClientSlug(sxrState.client) !== slug) return false;
+            }
+        }
+        const newPost = sxrState.posts.find(p => p.id === newPid);
+        if (newPost) newPost[newFld] = val;
+        if (!_sxrPendingEdits[newPid]) _sxrPendingEdits[newPid] = {};
+        _sxrPendingEdits[newPid][newFld] = val;
+        _sxrFlushCardSave(newPid);
+        if (val) _sxrArchivedRemove(slug, [val]);
+        _sxrRenderBody({ preserveScroll: true });
+        if (val && typeof _sxrSyncStatusFromLinear === 'function') _sxrSyncStatusFromLinear(newPid, val, which);
+        return true;
+    }
+    function _sxrLinkDuplicatePeers(post) {
+        if (!post) return [];
+        let archived = null;
+        try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
+        const isArch = (p) => (String((p && p.status) || '').toLowerCase() === 'archived') || (() => { try { return !!(archived && _sxrIsArchivedRef(p, archived)); } catch (e) { return false; } })();
+        if (isArch(post)) return [];
+        const vKey = _sxrLinkKey(post.linear_issue_id), gKey = _sxrLinkKey(post.graphic_linear_issue_id);
+        if (!vKey && !gKey) return [];
+        const vPeers = new Set(), gPeers = new Set();
+        for (const p of (sxrState.posts || [])) {
+            if (!p || p.id === post.id || isArch(p)) continue;
+            const nm = String(p.name || '').trim() || 'Untitled sample';
+            const pv = _sxrLinkKey(p.linear_issue_id), pg = _sxrLinkKey(p.graphic_linear_issue_id);
+            if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
+            if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
+        }
+        const out = [];
+        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
+        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
+        return out;
+    }
+    function _sxrDupeWarnText(groups) {
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+    }
+
+    /* ── Status menu + Set-all (samples: 6 statuses, video+graphic, always settable) ── */
+    let _sxrOpenStatusMenu = null;
+    function _sxrCloseStatusMenu() {
+        if (!_sxrOpenStatusMenu) return;
+        const m = _sxrOpenStatusMenu.el;
+        if (m && m.parentNode) m.parentNode.removeChild(m);
+        _sxrOpenStatusMenu = null;
+    }
+    function _sxrStatusToggleMenu(event, pid, triggerEl, comp) {
+        event.stopPropagation(); event.preventDefault();
+        const which = comp || '';
+        const menuKey = pid + (which ? '|' + which : '');
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.key === menuKey) { _sxrCloseStatusMenu(); return; }
+        _sxrCloseStatusMenu();
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const currentStatus = which ? (post[which + '_status'] || 'In Progress') : (post.status || 'In Progress');
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        /* Same treatment as the calendar twin. NOTE the divergence: SXR_STATUSES
+           has no 'N/A', so the note cannot offer it -- samples carry exactly two
+           components and both are expected to exist. */
+        const _sxrMenuBlocked = {};
+        if (which) {
+            for (const s of SXR_STATUSES) {
+                const reason = _sxrReviewBlockReason(post, which, s);
+                if (reason) _sxrMenuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = SXR_STATUSES.map(s => {
+            const blocked = _sxrMenuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_sxrEscAttr(blocked)}"` : ''} onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_sxrMenuBlocked).length
+                ? `<div class="cal-fld-status-note">${_sxrEsc('The review statuses need ' + (which === 'graphic' ? 'a thumbnail' : 'a video') + ' first.')}</div>`
+                : '');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200), menuH = menu.offsetHeight;
+        let left = rect.left; const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft; if (left < 10) left = 10;
+        menu.style.left = left + 'px';
+        const gap = 5, spaceBelow = window.innerHeight - rect.bottom - 10, spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
+        else top = Math.max(10, rect.top - menuH - gap);
+        menu.style.top = top + 'px';
+        menu.style.minWidth = Math.max(rect.width, 200) + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _sxrOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
+    }
+    /* ── The samples twin of the calendar's review-content gate ──────────
+       Mirrored per docs/features/SAMPLES_PARITY_LOG.md: a component cannot be
+       sent for review while the thing to review is empty. Samples carry only
+       video and thumbnail (no caption, no title), so only those two rules
+       apply, and both read the SAME media fields the calendar does --
+       asset_url and thumbnail_url -- which is why the content predicate is
+       _kasperCompReviewable rather than a samples-local copy of it. A second
+       copy is exactly the drift this log exists to prevent. */
+    const SXR_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _sxrStatusNeedsContent(status) {
+        return SXR_REVIEW_STATUSES.has(_sxrNormStatus(status || ''));
+    }
+    function _sxrCompHasContent(post, comp) { return _kasperCompReviewable(post, comp); }
+    function _sxrReviewBlockReason(post, comp, status) {
+        if (!_sxrStatusNeedsContent(status)) return '';
+        if (_sxrCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        return '';
+    }
+    const SXR_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail' };
+    function _sxrStatusPick(pid, status, comp) {
+        if (_isClientLink) return;
+        _sxrCloseStatusMenu();
+        const which = comp || '';
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        /* Bucket created only once the move is going ahead -- an empty
+           _sxrPendingEdits entry is a full-card resend, same as the calendar. */
+        if (which) {
+            const key = which + '_status';
+            if (post[key] === status) return;
+            const blocked = _sxrReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            post[key] = status;
+            _sxrPendingEdits[pid][key] = status;
+            post.status = computeSampleOverallStatus(post);
+            _sxrPendingEdits[pid].status = post.status;
+            _sxrMarkLocalStatus(pid, which);
+        } else {
+            if (post.status === status) return;
+            const movable = SXR_COMPONENTS.filter(c => !_sxrReviewBlockReason(post, c, status));
+            const held = SXR_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Both parts of this sample are still empty, so there is nothing to send for approval.');
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            movable.forEach(c => { post[c + '_status'] = status; _sxrPendingEdits[pid][c + '_status'] = status; });
+            post.status = computeSampleOverallStatus(post);
+            _sxrPendingEdits[pid].status = post.status;
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
+            _sxrMarkLocalStatus(pid);
+        }
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        post.updated_at = new Date().toISOString();
+        _sxrRenderBody({ preserveScroll: true });
+        _sxrFlushCardSave(pid);
+    }
+    function _sxrOpenSetAllMenu(event, pid, triggerEl) {
+        event.stopPropagation(); event.preventDefault();
+        const menuKey = pid + '|__setall__';
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.key === menuKey) { _sxrCloseStatusMenu(); return; }
+        _sxrCloseStatusMenu();
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        /* The header spells out what Set all will actually do for THIS sample,
+           the way the calendar twin already did. It was a hardcoded "Apply to
+           Video & Thumbnail" over a card whose own pill, 180 lines up, was
+           greyed out because one of those two has no work item behind it. */
+        const sxrSettable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const sxrSkipped = SXR_COMPONENTS.filter(c => !sxrSettable.includes(c));
+        const sxrHeadLabel = sxrSettable.length === 0
+            ? 'Neither component has a work item behind it'
+            : sxrSkipped.length
+                ? `Apply to ${sxrSettable.map(c => COMP_LABELS[c]).join(', ')} — ${sxrSkipped.map(c => COMP_LABELS[c]).join(' & ')} ${sxrSkipped.length === 1 ? 'has' : 'have'} no work item`
+                : 'Apply to Video & Thumbnail';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_sxrEsc(sxrHeadLabel)}</div>`
+            + SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}" onclick="_sxrSetAllStatus('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 220), menuH = menu.offsetHeight;
+        let left = rect.left; const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft; if (left < 10) left = 10;
+        let top = rect.bottom + 6;
+        if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
+        menu.style.left = left + 'px'; menu.style.top = top + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _sxrOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
+    }
+    /* This returned `true` unconditionally AND was dead -- neither the menu nor
+       the apply loop called it -- so Set all iterated SXR_COMPONENTS regardless
+       of whether a component had anything behind it.
+
+       That is not a copy defect, it is DATA LOSS, and worse than the sweep
+       filed it. An unlinked component reaches _sxrPushStatusToLinear with no
+       url and no native id, so _writeUiClassifyTargetless raises
+       native_link_required. The throw lands in the VIDEO leg, before the
+       graphic leg and before the source upsert: both pills flip on screen, a
+       "Write not saved" dialog appears, the card takes a _saveError badge, and
+       nothing persists -- the legitimate half is destroyed with the impossible
+       one. When it is the GRAPHIC that is unlinked the video leg has already
+       committed natively, so the deliverable moves and the sample row does not,
+       and the two systems disagree until someone notices.
+
+       MEASURED: 1,135 samples have a fully unlinked video component and 1,045 a
+       fully unlinked graphic; 205 have video unlinked while graphic IS linked --
+       the exact mixed card where Set all looks sensible and takes the good half
+       down with it.
+
+       The predicate is _calCompLinked, NOT the old url-only calendar test.
+       Porting that verbatim was the named trap: it would skip a native-only
+       card whose pill is unlocked and whose write would have succeeded. */
+    function _sxrSetAllSettable(post, comp) {
+        if (!post) return false;
+        return _calCompLinked(post, comp);
+    }
+    const _SXR_SETALL_TERMINAL = new Set(['Approved']);
+    function _sxrSetAllSkipKey(status) { return 'sxr-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-'); }
+    function _sxrSetAllStatus(pid, status) {
+        if (_isClientLink) return;
+        _sxrCloseStatusMenu();
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const linked = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const settable = linked.filter(c => !_sxrReviewBlockReason(post, c, status));
+        const heldEmpty = linked.filter(c => !settable.includes(c));
+        const skipped = SXR_COMPONENTS.filter(c => !linked.includes(c));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
+        if (!settable.length) {
+            showNotify('Nothing to set', 'Neither component on this sample has a work item behind it, so there is nothing here to update.');
+            return;
+        }
+        const apply = (dontAskAgain) => {
+            if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch {} }
+            const staged = {};
+            let changed = false;
+            for (const c of settable) {
+                const key = c + '_status';
+                if (_sxrNormStatus(post[key] || '') === status) continue;
+                post[key] = status; staged[key] = status; changed = true;
+            }
+            if (!changed) return;
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            const edits = Object.assign(_sxrPendingEdits[pid], staged);
+            post.status = computeSampleOverallStatus(post);
+            edits.status = post.status;
+            _sxrMarkLocalStatus(pid);
+            _sxrClearStaleApprovals(post, edits);
+            post.updated_at = new Date().toISOString();
+            _sxrRenderBody({ preserveScroll: true });
+            _sxrFlushCardSave(pid);
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
+        };
+        let skip = false;
+        try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch {}
+        if (_SXR_SETALL_TERMINAL.has(status) && !skip) {
+            const body = `Set ${settable.map(c => COMP_LABELS[c]).join(' and ')} to "${status}".`
+                + (skipped.length
+                    ? ` (${skipped.map(c => COMP_LABELS[c]).join(' and ')} ${skipped.length === 1 ? 'has' : 'have'} no work item behind ${skipped.length === 1 ? 'it' : 'them'} — skipped.)`
+                    : '');
+            showConfirm(`Set all to "${status}"?`, body, apply, status, "Don't ask me again");
+        } else apply(false);
+    }
+    /* Close the samples status/set-all menu on outside click / resize / scroll —
+       the calendar registers the same three listeners for _calOpenStatusMenu.
+       Without them the body-appended menu floated forever (a full re-render
+       doesn't remove it), and _sxrIsBusy() kept reporting "busy" while it
+       dangled, deferring every background/realtime repaint indefinitely. */
+    document.addEventListener('click', (e) => {
+        if (!_sxrOpenStatusMenu) return;
+        if (_sxrOpenStatusMenu.el && _sxrOpenStatusMenu.el.contains(e.target)) return;
+        if (_sxrOpenStatusMenu.triggerEl && _sxrOpenStatusMenu.triggerEl.contains(e.target)) return;
+        _sxrCloseStatusMenu();
+    }, true);
+    window.addEventListener('resize', _sxrCloseStatusMenu);
+    window.addEventListener('scroll', _sxrCloseStatusMenu, true);
+
+    /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted.
+       openSxrComments — real version in Surface 5 (Notes modal), hoisted. */
+
+    /* ── Creative direction (samples-only) + client-visibility eye ── */
+    function _sxrCreativeHidden(p) { const h = p && p.hide_creative_direction; return h === true || h === 1 || String(h || '').toLowerCase() === 'true' || String(h || '') === '1'; }
+    function _sxrCreativeDirectionHtml(pid, p, editableText) {
+        const v = String(p.creative_direction || '');
+        const hidden = _sxrCreativeHidden(p);
+        if (_isClientLink && hidden) return '';   // client never sees creative direction hidden from them
+        const eyeOn = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
+        const eyeOff = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.2A6.8 6.8 0 0 1 8 3.5c4.5 0 7 4.5 7 4.5a12 12 0 0 1-2 2.6M9.6 9.4A2 2 0 0 1 6.6 6.6"/><path d="M3 3l10 10"/></svg>`;
+        const eye = _isClientLink ? '' : `<button type="button" class="sxr-cd-eye${hidden ? ' is-hidden' : ''}" onclick="_sxrToggleCreativeVisibility('${pid}')" title="${hidden ? 'Hidden from client — click to show' : 'Visible to client — click to hide'}" aria-label="Toggle client visibility">${hidden ? eyeOff : eyeOn}</button>`;
+        return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onfocus="_sxrOnTextEditFocus(this)" onblur="_sxrOnTextEditBlur(this)" onkeydown="_sxrOnTextEditKey(event)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
+    }
+    function _sxrTextDragLock(el, lock) {
+        const card = el && el.closest('.cal-card');
+        if (!card) return;
+        if (lock) {
+            if (card.dataset.sxrDragPrev == null) card.dataset.sxrDragPrev = card.getAttribute('draggable') || 'false';
+            card.setAttribute('draggable', 'false');
+        } else if (card.dataset.sxrDragPrev != null) {
+            card.setAttribute('draggable', card.dataset.sxrDragPrev);
+            delete card.dataset.sxrDragPrev;
+        }
+    }
+    function _sxrOnTextEditFocus(el) {
+        _sxrTextDragLock(el, true);
+        if (el && el.tagName === 'TEXTAREA') _sxrAutosize(el);
+    }
+    function _sxrOnTextEditBlur(el) {
+        _sxrTextDragLock(el, false);
+        _sxrOnFieldBlur(el);
+    }
+    function _sxrOnTextEditKey(e) {
+        if (e) e.stopPropagation();
+    }
+    function _sxrToggleCreativeVisibility(pid) {
+        if (_isClientLink) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const next = _sxrCreativeHidden(post) ? '' : '1';
+        post.hide_creative_direction = next;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid].hide_creative_direction = next;
+        _sxrFlushCardSave(pid);
+        _sxrRenderBody({ preserveScroll: true });
+    }
+    function _sxrClientCompPillsHtml(p) {
+        // Read-only per-component status pills for the client Sheet (Surface 6).
+        return SXR_COMPONENTS.map(c => {
+            const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');
+            const label = COMP_LABELS[c] + ': ' + _sxrStatusLabel(cs);
+            return `<span class="cal-review-sub-pill cal-fld-status-${_sxrStatusSlug(cs)}" data-comp-pill="${c}" title="${_sxrEscAttr(label)}">${_sxrEsc(label)}</span>`;
+        }).join('');
+    }
+
+    /* ── The card ── */
+    function renderSxrOrganizer() {
+        const posts = sxrState.posts.slice()
+            .filter(p => p.id === sxrState.focusPid || !_isClientLink || (typeof _sxrIsClientReady === 'function' && _sxrIsClientReady(p)))
+            .sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+        const empty = posts.length === 0;
+        const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        const canAddCard = !_isClientLink;
+        const addBtn = empty
+            ? (canAddCard ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}<span>Add the first sample</span></button>` : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No samples to show yet</div><div class="cal-filter-empty-sub">Finished samples will appear here.</div></div>`)
+            : (canAddCard ? `<button class="cal-card-add" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}</button>` : '');
+        const selectBar = (sxrState.selectMode && !_isClientLink)
+            ? `<div class="cal-select-bar" id="sxrSelectBar"><span class="cal-select-count" id="sxrSelectCount">0 selected</span><button type="button" class="cal-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()" disabled>Archive</button><button type="button" class="cal-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
+            : '';
+        return `<div class="cal-organizer-wrap"><div class="cal-organizer-strip${empty ? ' is-empty' : ''}${sxrState.selectMode ? ' cal-selecting' : ''}" id="sxrStrip">${posts.map(p => _sxrRenderInlineCard(p, false, false)).join('')}${addBtn}</div>${selectBar}</div>`;
+    }
+    // URGENT ping predicate — Video only, at Tweaks Needed with a Linear sub-issue
+    // to tag the editor from. Mirror of _calShowUrgent.
+    function _sxrShowUrgent(p, c) {
+        if (!p || c !== 'video') return false;
+        if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
+        return !!(String(p.linear_issue_id || '').trim() || String(p.video_deliverable_id || '').trim());
+    }
+    /* Kasper-ping gate for samples. Same rule as the calendar's
+       _calShowKasperUrgent over the two components samples carries, MINUS the
+       content check -- and that asymmetry is deliberate, not an oversight.
+       The calendar queue drops a content-less card into its stranded notice, so
+       a ping there would point at a card Kasper cannot see; the samples queue
+       keeps it (membership is _sxrPostKasperVisible, which asks about status and
+       the graphic link only), so the ping lands on a card that really is in his
+       list. Copying the calendar's gate here would hide a working affordance,
+       which is the failure AGENTS.md's permissive directive is about. The two
+       gates track their own queues; if the samples queue ever starts stranding
+       cards, this is the line that has to follow it. */
+    function _sxrShowKasperUrgent(p, c) {
+        if (!_kasperUrgentPingOn(sxrState && sxrState.client)) return false;   // same gate as the calendar
+        if (!p || !c) return false;
+        if (_sxrNormStatus(p[c + '_status'] || '') !== 'Kasper Approval') return false;
+        if (c === 'graphic' && !_calCompLinked(p, c)) return false;
+        return true;
+    }
+    function _sxrKasperUrgentPingComp(post) {
+        return SXR_REVIEW_COMPONENTS.find(c => _sxrShowKasperUrgent(post, c)) || '';
+    }
+    async function _sxrPersistKasperUrgentForPost(clientOrSlug, post, comp, ping) {
+        if (!post || !post.id) return null;
+        const slug = sxrClientSlug(clientOrSlug);
+        const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
+        const resp = await fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post[comp + '_status_at'] || '').trim() && String(post.kasper_urgent_status_at || '').trim()) {
+            post[comp + '_status_at'] = post.kasper_urgent_status_at;
+        }
+        try { _sxrUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    /* Ping Kasper about a SAMPLE waiting on him. Same dispatch, same marker;
+       the DM link points at his Samples subtab rather than the calendar queue,
+       because that is the only place this card is visible to him. */
+    async function _sxrSendKasperUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        // Live re-read, not the boot cache: the switch must stop an open tab.
+        // Same as the calendar: the roster needs to be asked about a client.
+        if (!(await _kasperUrgentPingOnLive(sxrState && sxrState.client))) { showNotify('Urgent pings are off', 'The Kasper urgent ping is currently disabled. Nothing was sent.'); return; }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', _urgentKind('kasper').alreadySent); return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _sxrKasperUrgentPingComp(post);
+        if (!comp) { if (typeof showNotify === 'function') showNotify('Not waiting on Kasper', 'Nothing on this sample is at Kasper Approval right now, so there is nothing to ping him about.'); return; }
+        _calUrgentSlackDispatch(btn, String(post.linear_issue_id || '').trim(), String(sxrState.client || '').trim(), post.name, {
+            kind: 'kasper',
+            payload: { url: _calKasperReviewUrl('samples'), surface: 'samples', component: comp },
+            persist: (ping) => _sxrPersistKasperUrgentForPost(sxrState.client, post, comp, ping)
+        });
+    }
+    async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
+        if (!post || !post.id) return null;
+        const slug = sxrClientSlug(clientOrSlug);
+        const patch = _calBuildUrgentPatch(post, ping || {});
+        const resp = await fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post.video_status_at || '').trim() && String(post.video_urgent_status_at || '').trim()) {
+            post.video_status_at = post.video_urgent_status_at;
+        }
+        try { _sxrUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
+    // Ping the editor in #video-editing for an urgent video tweak. Reuses the
+    // calendar's shared confirm→POST→latch dispatch (same webhook + message), just
+    // sourcing the video sub-issue + client name from sxr state.
+    function _sxrSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const issue = String(post.linear_issue_id || '').trim();
+        if (!issue && !String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        const sourceClient = sxrState.client;
+        _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
+            native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: sxrClientSlug(sxrState.client),
+                deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'samples', video_status_at: String(post.video_status_at || '') } : null,
+            currentClientSlug: () => sxrClientSlug(sxrState.client),
+            currentPost: () => sxrState.posts.find(p => p.id === pid),
+            persist: (ping) => _sxrPersistUrgentSentForPost(sourceClient, post, ping)
+        });
+    }
+    function _sxrRenderInlineCard(p, isBlank, isCurrent) {
+        const pid = _sxrEscAttr(p.id);
+        const ro = _isClientLink && !isBlank;
+        const editableText = !_isClientLink || isBlank;
+        const selectable = sxrState.selectMode && !ro && !isBlank;
+        const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
+        const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
+            const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');
+            // Same unlinked -> N/A display rule as the calendar card.
+            const shownStatus = _calPillDisplayStatus(p, c, cs);
+            const slug = _sxrStatusSlug(shownStatus);
+            // A component with no Linear sub-issue can't be routed, so its status
+            // pill is locked until one is linked (mirror _calRenderInlineCard).
+            const lock = !_calCompLinked(p, c) ? ' is-locked' : '';
+            // URGENT ping — Video only, once it's at Tweaks Needed with a Linear
+            // sub-issue we can tag the editor from.
+            const showUrgent = _sxrShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _sxrShowKasperUrgent(p, c);
+            const urgentBtn = showUrgent
+                ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_sxrSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
+                    <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
+                    <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
+                    <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(shownStatus))}</span>
+                </button>${urgentBtn}
+            </div>`;
+        }).join('');
+        const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${pid}',this)" title="Set both statuses to the same value">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </button>`;
+        const statusHtml = ro
+            ? `<div class="cal-client-status">${_sxrClientCompPillsHtml(p)}</div>`
+            : `${(setAllHtml || subStatusHtml) ? `<div class="cal-card-substatus-row">${setAllHtml}${subStatusHtml}</div>` : ''}`;
+        const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const warnHtml = needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${pid}')" title="Link this sample to its Linear sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>` : '';
+        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && sxrState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
+            ${selectable ? `<div class="cal-card-select-overlay" onclick="_sxrCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
+            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_sxrCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
+            <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
+            <div class="cal-card-body">
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
+                ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
+                ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}
+                ${_sxrCreativeDirectionHtml(pid, p, editableText)}
+                <div class="cal-card-foot">
+                    ${_sxrCommentsBtnHtml(p, pid)}
+                    ${p._saveError
+                        ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_sxrRetrySave('${pid}')" title="${_sxrEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
+                        : `<span class="cal-card-saving" data-saving="${pid}" hidden></span>`}
+                </div>
+                <div class="cal-card-status-row">${statusHtml}</div>
+            </div>
+        </div>`;
+    }
+
+    /* ── Create (single) — promote-on-first-save is Surface 3 ── */
+    let _sxrBlankSeq = 0;
+    function _sxrNextBlankId() { _sxrBlankSeq++; return '__sxrblank__' + _sxrBlankSeq; }
+    function _sxrIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__sxrblank__'); }
+    function _sxrBlankSample() {
+        const maxOrder = sxrState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        return { id: _sxrNextBlankId(), order_index: maxOrder + 1, name: '', creative_direction: '', hide_creative_direction: '', asset_url: '', thumbnail_url: '', linear_issue_id: '', graphic_linear_issue_id: '', video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', comments: [] };
+    }
+    /* The samples "+" now routes exactly the way the calendar's does (owner
+       2026-08-19: "the samples tab behaves exactly like the calendar tab").
+       An enrolled client gets the SAME native Create Post dialog, which mints
+       the batch, the Linear parent, the video sub-issue and the thumbnail
+       sub-issue before any card exists. An unenrolled client keeps the local
+       blank card, so this can never leave someone with no way to add a sample.
+
+       Mirrors addCalBlankCard deliberately, including abandoning the click if
+       the visible client changed while the rollout flag was loading -- the
+       action belongs to the client that was on screen when it was clicked. */
+    function _sxrInsertLocalBlankCard() {
+        const blank = _sxrBlankSample();
+        sxrState.posts.push(blank);
+        _sxrRenderBody();
+        setTimeout(() => {
+            const card = document.querySelector(`.cal-card[data-pid="${blank.id}"]`);
+            if (card) { const nm = card.querySelector('.cal-fld-name'); if (nm) nm.focus(); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }, 60);
+    }
+    async function addSxrBlankCard() {
+        if (_isClientLink) return;
+        const clientName = String(sxrState.client || '').trim();
+        const clientSlug = sxrClientSlug(clientName);
+        let useGateway = false;
+        try { useGateway = await _writeUiRerouteUseGatewayWhenReady(clientSlug); }
+        catch (error) { useGateway = false; }
+        if (!clientSlug || sxrClientSlug(sxrState.client) !== clientSlug) return;
+        if (!useGateway) {
+            _sxrInsertLocalBlankCard();
+            return;
+        }
+        _calOpenNativePost(clientName, clientSlug, 'sxr');
+    }
+
+    /* ── Archive (single card + anti-resurrection ledger) ── */
+    function archiveSxrCard(pid) {
+        if (_isClientLink) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        showConfirm('Archive this sample?', "It's kept (archived) on our server and can be recovered.", () => {
+            const slug = sxrClientSlug(sxrState.client);
+            const refs = [pid];
+            if (post) { if (post.linear_issue_id) refs.push(post.linear_issue_id); if (post.graphic_linear_issue_id) refs.push(post.graphic_linear_issue_id); }
+            _sxrArchivedAdd(slug, refs);
+            const snapshot = sxrState.posts.slice();
+            sxrState.posts = sxrState.posts.filter(p => p.id !== pid);
+            _sxrRenderBody();
+            try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+            if (!_sxrIsBlankId(pid)) {
+                _sxrArchiveOne(pid, slug).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
+            }
+        }, 'Archive');
+    }
+    async function _sxrArchiveOne(pid, slug) {
+        delete _sxrPendingEdits[pid];
+        if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
+        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
+        if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
+    }
+    function _sxrCardSelectClick(e, pid) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Shift-range over the cards ACTUALLY ON SCREEN (selectable ones in the
+        // rendered strip), never all of sxrState.posts — so a shift-click can't
+        // silently select (and bulk-archive) blank/read-only cards.
+        const order = Array.from(document.querySelectorAll('#sxrStrip .cal-card-selectable[data-pid]'))
+            .map(el => el.getAttribute('data-pid'));
+        if (e.shiftKey && sxrState.lastSel && sxrState.lastSel !== pid) {
+            const a = order.indexOf(sxrState.lastSel), b = order.indexOf(pid);
+            if (a >= 0 && b >= 0) { const lo = Math.min(a, b), hi = Math.max(a, b); for (let i = lo; i <= hi; i++) sxrState.selected.add(order[i]); }
+        } else {
+            if (sxrState.selected.has(pid)) sxrState.selected.delete(pid);
+            else sxrState.selected.add(pid);
+        }
+        sxrState.lastSel = pid;
+        _sxrSyncSelectionUI();
+    }
+    function _sxrSyncSelectionUI() {
+        document.querySelectorAll('#sxrStrip .cal-card[data-pid]').forEach(card => {
+            card.classList.toggle('cal-card-selected', sxrState.selected.has(card.getAttribute('data-pid')));
+        });
+        const n = sxrState.selected.size;
+        const count = document.getElementById('sxrSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const archive = document.getElementById('sxrSelectArchive');
+        if (archive) archive.disabled = n === 0;
+    }
+    function _sxrArchiveSelected() {
+        if (_isClientLink) return;   // bulk archive is SMM-only (defense in depth beyond select-mode)
+        const ids = Array.from(sxrState.selected).filter(id => id && !_sxrIsBlankId(id));
+        if (!ids.length) return;
+        // Pin the slug at click time — the archive HTTPs can take seconds; if the
+        // SMM switches client mid-flight, ledger/cache writes still attribute to
+        // the calendar this action started from.
+        const slug = sxrClientSlug(sxrState.client);
+        showConfirm('Archive ' + ids.length + ' sample' + (ids.length === 1 ? '' : 's') + '?',
+            "They're kept (archived) on our server and can always be recovered.",
+            () => {
+                const idSet = new Set(ids);
+                const refsById = new Map();
+                sxrState.posts.forEach(p => {
+                    if (!idSet.has(p.id)) return;
+                    const refs = [p.id];
+                    if (p.linear_issue_id) refs.push(p.linear_issue_id);
+                    if (p.graphic_linear_issue_id) refs.push(p.graphic_linear_issue_id);
+                    refsById.set(p.id, refs);
+                });
+                // Pre-populate the archive ledger BEFORE the writes fire so a
+                // background poll racing them can't resurrect the rows; failed
+                // archives are rolled back below so they reappear honestly.
+                const allRefs = [];
+                refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
+                _sxrArchivedAdd(slug, allRefs);
+                sxrState.posts = sxrState.posts.filter(p => !idSet.has(p.id));
+                sxrState.selectMode = false;
+                sxrState.selected = new Set();
+                sxrState.lastSel = null;
+                document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.remove('active'));
+                _sxrRenderBody({ preserveScroll: true });
+                try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug))).then(results => {
+                    const failedRefs = [];
+                    results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
+                    if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }
+                });
+            }, 'Archive');
+    }
+
+    /* ── Copy a deep-link to one card ── */
+    function _sxrCopyCardLink(e, pid) {
+        if (e) e.stopPropagation();
+        const slug = sxrClientSlug(sxrState.client);
+        const url = location.origin + location.pathname + '?sxr=1#sample-reviews/' + encodeURIComponent(slug) + '/' + encodeURIComponent(pid);
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
+        else window.prompt('Copy this link:', url);
+    }
+
+    /* Body dispatcher — enhanced for the Sheet (preserve scroll on optimistic
+       repaints from card actions; drag wiring is a Surface 2 follow-up). */

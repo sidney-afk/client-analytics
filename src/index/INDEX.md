@@ -29,4 +29,9 @@
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 2022 | Video-only and Thumbnail-only were already built, but sat |
 | 23 | `210-production-state-writes.js.part` | 3002 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 24 | `999-remainder.html.part` | 30767 | An ABSENT persisted slug is missing evidence, not |
+| 24 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
+| 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
+| 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 29 | `999-remainder.html.part` | 17946 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |

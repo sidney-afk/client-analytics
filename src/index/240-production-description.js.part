@@ -1,0 +1,2607 @@
+        function _prodSyncDescriptionRow(id, value, updatedAt) {
+            const row = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(id || ''));
+            if (!row) return;
+            row.brief = value;
+            if (updatedAt) row.updated_at = updatedAt;
+            _prodState.adapter = null;
+        }
+        function _prodAdoptDescriptionValue(id, value, updatedAt) {
+            const state = _prodDescriptionState(id);
+            if (!state) return null;
+            const next = _prodDescriptionText(value);
+            const previousBaseline = state.baseline;
+            const cleanDraft = state.editing && state.draft === previousBaseline;
+            state.value = next;
+            state.baseline = next;
+            state.hasValue = true;
+            state.status = 'ready';
+            state.refreshing = false;
+            state.refreshError = '';
+            state.sourceUpdatedAt = updatedAt || state.sourceUpdatedAt || '';
+            if (state.editing) {
+                if (cleanDraft) {
+                    state.draft = next;
+                    state.selectionStart = Math.min(state.selectionStart, next.length);
+                    state.selectionEnd = Math.min(state.selectionEnd, next.length);
+                    state.remoteChanged = false;
+                    state.error = '';
+                } else if (previousBaseline !== next) {
+                    state.remoteChanged = true;
+                    state.error = 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.';
+                    state.requestId = '';
+                }
+            } else {
+                state.draft = next;
+                state.remoteChanged = false;
+                state.error = '';
+            }
+            return state;
+        }
+        function _prodCaptureDescriptionFocus(root) {
+            const id = String(_prodState.openId || '');
+            const state = id && _prodState.descriptions.get(id);
+            if (!root || !state || !state.editing) return null;
+            const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
+            const active = document.activeElement;
+            if (!panel || !active || !panel.contains(active)) return null;
+            const control = active.getAttribute && active.getAttribute('data-prod-description-control') || '';
+            if (control === 'source') {
+                state.selectionStart = Number.isFinite(active.selectionStart) ? active.selectionStart : state.selectionStart;
+                state.selectionEnd = Number.isFinite(active.selectionEnd) ? active.selectionEnd : state.selectionEnd;
+            }
+            if (control === 'rich') _prodDescriptionRememberCaret(id, active);
+            return { id, control };
+        }
+        /* FOCUS MUST NOT MOVE THE PAGE. Owner, 2026-09-06: "when I click edit
+           and scroll down, it scrolls back up." Every render rebuilds the
+           pane and puts focus and the caret back; Chrome reveals a restored
+           caret by scrolling its container, so a reader who had scrolled past
+           the editor was pulled back to the caret line on the next tick. The
+           pane's offset is taken before the restore and put back after it. */
+        function _prodDescriptionKeepScroll(fn) {
+            const pane = document.querySelector('#prodRoot .prod-detail-main');
+            const top = pane ? pane.scrollTop : 0;
+            const x = window.scrollX;
+            const y = window.scrollY;
+            let out;
+            try { out = fn(); } finally {
+                if (pane && pane.scrollTop !== top) pane.scrollTop = top;
+                if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+            }
+            return out;
+        }
+        function _prodDescriptionRememberCaret(id, root) {
+            const state = _prodDescriptionState(id);
+            const caret = state && root ? _prodDescRichCaret(root) : null;
+            if (!caret) return;
+            state.caretBlock = caret.block;
+            state.caretOffset = caret.offset;
+        }
+        function _prodDescriptionEditorControl(state) {
+            return state && state.source ? 'source' : 'rich';
+        }
+        function _prodRestoreDescriptionFocus(snapshot) {
+            if (!snapshot || !snapshot.id || !snapshot.control) return false;
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(snapshot.id) + '"]');
+            const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(snapshot.control) + '"]');
+            if (!target) return false;
+            try {
+                _prodDescriptionKeepScroll(() => {
+                    target.focus({ preventScroll: true });
+                    const state = _prodState.descriptions.get(snapshot.id);
+                    if (snapshot.control === 'source' && target.setSelectionRange) {
+                        const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                        const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                        target.setSelectionRange(start, end);
+                    }
+                    if (snapshot.control === 'rich') _prodDescRichSetCaret(target, { block: state && state.caretBlock, offset: state && state.caretOffset });
+                });
+            } catch (e) { return false; }
+            return document.activeElement === target;
+        }
+        /* FOCUS SURVIVES THE REBUILD -- for every control, not only the
+           description editor.
+
+           _prodRender replaces prodRoot.innerHTML wholesale, which destroys
+           whatever the person was focused on: focus falls back to <body>, the
+           caret disappears, and a keyboard user is dropped at the top of the
+           tab. The description editor had a bespoke rescue for exactly this and
+           nothing else did, so a background tick landing while someone was
+           typing a folder link -- or tabbing across the asset rows -- silently
+           took the focus away mid-keystroke.
+
+           This fires constantly rather than rarely, which is why it is worth a
+           general fix instead of a second special case. _prodRefreshAssetSurfaces
+           IS _prodRender, and _prodEnsureAssets calls it on every status
+           transition, so merely OPENING a row re-renders once on `loading` and
+           again on `ready`. That is the "it still refreshes like two times in a
+           row" the owner reports (2026-09-01): the READS are not duplicated --
+           the ensure guard returns the cached state -- the RENDERS are, and each
+           one was a focus loss. Owner: "for the UI experience, this should never
+           bother anyone."
+
+           The key is built from the identifying `data-prod-*` attributes on the
+           element and its ancestors, so it survives a rebuild that produces
+           equivalent-but-new nodes. Attributes describing transient CONDITION
+           are deliberately excluded, and that exclusion is the load-bearing
+           part: `data-prod-assets-status` flips loading -> ready across exactly
+           the re-render this exists to survive, so a key containing it could
+           never match on the far side. It would fail silently, restoring
+           nothing, and look identical to having no fix at all. */
+        /* The test for "volatile" is what the VALUE carries, not what the name
+           reads like, and getting that backwards costs precision in both
+           directions. `data-prod-pstatus` sounds like a condition and holds a
+           CLIENT ID -- excluding it would drop the only thing identifying which
+           project-status button was focused. `data-prod-disabled` likewise
+           holds a control name ("composer", "bulk-<act>"), not a boolean.
+           Meanwhile `data-prod-assets-status` really does hold loading/ready.
+           So: the tooltip, whose text tracks the value it describes, plus the
+           suffixes whose values are states. `-ready` is one of them, found by
+           review on #1206: `data-prod-description-ready` flips 1 -> 0 when
+           `_prodMarkDescriptionsStale()` runs, which is immediately BEFORE the
+           very `_prodRender` this exists to survive, so the Description Edit
+           button could never be restored. `-error` has no instance yet and is
+           here on purpose -- this filter fails SILENTLY when it is too narrow,
+           so a suffix that could only ever hold a condition is worth
+           pre-empting rather than discovering. */
+        const PROD_FOCUS_VOLATILE_ATTR = /^data-prod-tip$|-(state|status|freshness|error|ready)$/;
+        function _prodFocusSelectorPart(node) {
+            // An id is unique in the document, so it is the whole key by itself.
+            if (node.id) return '#' + CSS.escape(node.id);
+            const parts = [];
+            const attrs = node.attributes || [];
+            for (let i = 0; i < attrs.length; i++) {
+                const name = attrs[i].name;
+                if (name.indexOf('data-prod-') !== 0) continue;
+                if (PROD_FOCUS_VOLATILE_ATTR.test(name)) continue;
+                parts.push('[' + name + '="' + String(attrs[i].value).replace(/[\\"]/g, '\\$&') + '"]');
+            }
+            return parts.join('');
+        }
+        /* Most focusable controls in this tab carry no `data-prod-*` at all.
+           `.prod-assets-refresh` has none, and `.prod-nav-btn` has only
+           `data-prod-tip`, which the filter above drops. Identity attributes
+           alone therefore covered a minority of the controls -- and worse than
+           that, on `.prod-assets-refresh` the walk climbed past the button to
+           its `[data-prod-assets]` SECTION and produced a key naming the
+           ancestor. Restoring that focuses a <section>, not the button.
+           Raised by review on #1206, which was right on both halves.
+
+           So the key is anchored at the nearest node that HAS an identity, and
+           the remaining steps down to the control are structural
+           (`:nth-child`). With no identified ancestor anywhere the anchor is
+           the root, which is stable because it is `prodRoot` itself.
+
+           A structural step names a POSITION, not an element, so it can resolve
+           to something else entirely if the rebuild changed shape. The shape
+           check on restore is what makes that safe rather than a coin flip:
+           tag plus the first class token, which is the component's own class
+           (`prod-nav-btn`) while state classes like `active` are appended after
+           it and are free to change across the very re-render being survived. */
+        /* Tag and class are NOT enough on their own, and assuming they were is
+           the sharpest thing review caught on #1206. Every comment lifecycle
+           control is `<button class="prod-comment-action">` with no attribute
+           distinguishing it -- only its onclick and its label differ. Resolving
+           a comment during the 30-second refresh removes Reply and shifts Edit,
+           Reopen and Delete up one, so a positional key lands on the old
+           ordinal and a tag-plus-class check waves it through. Focus moves
+           silently from Edit to Reopen and the next keypress performs the wrong
+           lifecycle write.
+
+           So the shape carries the accessible name too. It is the only
+           discriminator these buttons have, and it is the right one: it is what
+           the person thought they were focused on. A label that legitimately
+           changed (Resolve -> Reopen on the same button) refuses the restore
+           rather than taking it, which is correct -- that control now means
+           something else. */
+        function _prodFocusShape(el) {
+            if (!el) return '';
+            const first = String(el.className || '').trim().split(/\s+/)[0] || '';
+            const label = String(
+                (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('title')))
+                || el.textContent || ''
+            ).replace(/\s+/g, ' ').trim().slice(0, 40);
+            return String(el.tagName || '') + '.' + first + '#' + label;
+        }
+        function _prodFocusStructuralTail(el, anchor) {
+            const steps = [];
+            for (let node = el; node && node !== anchor; node = node.parentElement) {
+                const parent = node.parentElement;
+                if (!parent) return '';
+                const index = Array.prototype.indexOf.call(parent.children, node) + 1;
+                if (index < 1) return '';
+                steps.unshift(':nth-child(' + index + ')');
+            }
+            return steps.join(' > ');
+        }
+        function _prodCaptureFocus(root) {
+            const active = document.activeElement;
+            if (!root || !active || active === root || !root.contains(active)) return null;
+            const identity = [];
+            let anchor = null;
+            for (let node = active; node && node !== root; node = node.parentElement) {
+                const part = _prodFocusSelectorPart(node);
+                if (part) {
+                    if (!anchor) anchor = node;
+                    identity.unshift(part);
+                    if (node.id) break;
+                }
+            }
+            const tail = _prodFocusStructuralTail(active, anchor || root);
+            let selector = '';
+            if (anchor === active) selector = identity.join(' ');
+            else if (anchor && tail) selector = identity.join(' ') + ' > ' + tail;
+            else if (!anchor && tail) selector = ':scope > ' + tail;
+            if (!selector) return null;
+            const snapshot = { selector, shape: _prodFocusShape(active) };
+            // Only text-ish controls report a caret; a number or checkbox reads
+            // null here and is restored as plain focus, which is correct.
+            if (typeof active.selectionStart === 'number') {
+                snapshot.selectionStart = active.selectionStart;
+                snapshot.selectionEnd = active.selectionEnd;
+                snapshot.selectionDirection = active.selectionDirection || 'none';
+            }
+            return snapshot;
+        }
+        function _prodRestoreFocus(snapshot, root) {
+            if (!snapshot || !snapshot.selector || !root) return false;
+            let target = null;
+            // A selector built from live attribute values can still be invalid
+            // CSS if a value carried something exotic; a throw here must not
+            // take the whole render down with it.
+            try { target = root.querySelector(snapshot.selector); } catch (e) { return false; }
+            if (!target || typeof target.focus !== 'function') return false;
+            // The structural half of a key is a position. If the rebuild moved
+            // things, this is a DIFFERENT control -- restore nothing rather
+            // than put the caret somewhere the reader did not leave it.
+            if (snapshot.shape && _prodFocusShape(target) !== snapshot.shape) return false;
+            try {
+                // preventScroll matters: restoring focus must not yank the pane
+                // to the control, or the fix trades a focus jump for a scroll
+                // jump and the reader is no better off.
+                target.focus({ preventScroll: true });
+                if (snapshot.selectionStart != null && typeof target.setSelectionRange === 'function') {
+                    const length = String(target.value == null ? '' : target.value).length;
+                    target.setSelectionRange(
+                        Math.min(snapshot.selectionStart, length),
+                        Math.min(snapshot.selectionEnd, length),
+                        snapshot.selectionDirection
+                    );
+                }
+            } catch (e) { return false; }
+            return document.activeElement === target;
+        }
+        /* `options.point` is the click that opened the editor: the editing
+           surface is laid out exactly like the read view, so the caret can be
+           placed where the click landed. `options.link` is the index of a link
+           whose hover card asked to edit it from the read view. */
+        function _prodFocusDescriptionControl(id, control, options) {
+            options = options || {};
+            setTimeout(() => {
+                const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+                const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(String(control || '')) + '"]');
+                if (!target) return;
+                try {
+                    _prodDescriptionKeepScroll(() => {
+                        target.focus({ preventScroll: true });
+                        const state = _prodDescriptionState(id);
+                        if (control === 'source' && target.setSelectionRange) {
+                            const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                            const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                            target.setSelectionRange(start, end);
+                        }
+                        if (control === 'rich') {
+                            let placed = false;
+                            if (options.point && document.caretRangeFromPoint) {
+                                const range = document.caretRangeFromPoint(options.point.x, options.point.y);
+                                if (range && target.contains(range.startContainer)) {
+                                    const selection = window.getSelection();
+                                    selection.removeAllRanges();
+                                    selection.addRange(range);
+                                    placed = true;
+                                }
+                            }
+                            if (!placed) _prodDescRichSetCaret(target, { block: state && state.caretBlock, offset: state && state.caretOffset });
+                            _prodDescriptionRememberCaret(id, target);
+                            if (Number.isInteger(options.link)) {
+                                const anchor = target.querySelectorAll('a')[options.link];
+                                if (anchor) _prodDescLinkPopShow(anchor, true);
+                            }
+                        }
+                    });
+                } catch (e) {}
+            }, 0);
+        }
+        /* The ONE-row batch description read, in one place because two surfaces
+           need it: the synthetic batch parent's panel (through
+           _prodEnsureDescription) and the direct batch-detail view (through
+           _prodEnsureBatchDescription). Both render from `_prodState.batches`,
+           so both are fixed by writing the column back onto that row.
+
+           The page size is 1000, not 1, and that is load-bearing rather than
+           arbitrary: _prodRestRows only RETURNS when a page comes back shorter
+           than the page size, so asking for 1 row with pageSize 1 fills the
+           only page and falls out of the loop into
+           `batches read exceeded pagination cap` -- an exact match throws
+           instead of answering. Raised by Codex review on #1364, where it made
+           every batch-parent description read fail. `id=eq.<uuid>` can return
+           at most one row, so any size above 1 terminates; 1000 matches the
+           sibling id-list read in _prodDeepLinkRowQuery rather than inventing a
+           second convention. */
+        async function _prodReadBatchDescriptionRow(batchId) {
+            const rows = await _prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.' + encodeURIComponent(batchId), 1000, 1);
+            const row = Array.isArray(rows) ? rows.find(item => String(item && item.id || '') === String(batchId)) : null;
+            if (!row) throw new Error('batch_description_read_failed');
+            return row;
+        }
+        /* The direct batch-detail view (`?batch=<id>`, view 'batch') renders
+           `batch.description` straight off the row and has no deliverable and
+           no description state machine, so _prodEnsureDescription cannot serve
+           it -- that one is reached only from view 'detail' with an openId.
+           Without this the view sat on its loading skeleton forever once the
+           column left the boot read. Raised by Codex review on #1364.
+
+           Terminating, like _prodEnsureLabels: a row that HAS the column
+           returns before the read, and a failed read is remembered, so the
+           _prodRender -> ensure -> _prodRender cycle cannot spin. */
+        function _prodNextBatchDescriptionToken(batchId) {
+            const next = Number(_prodState.batchDescriptionTokens.get(batchId) || 0) + 1;
+            _prodState.batchDescriptionTokens.set(batchId, next);
+            return next;
+        }
+        /* Retire every in-flight direct-batch description read, so its answer
+           can no longer land. `batchIds` null means all of them (the manual
+           refresh); otherwise just the batches whose row the delta replaced.
+           The token bump is the half that matters -- dropping the read state
+           alone lets a NEW read start while the old one is still in the air,
+           and then the older answer overwrites the newer text and its older
+           stamp onto the row, which never refetches again because it now looks
+           loaded. Tokens are only ever bumped, never cleared, so a token held
+           across a reset cannot collide with a fresh one. */
+        function _prodInvalidateBatchDescriptionReads(batchIds) {
+            const targets = batchIds == null
+                ? new Set([].concat(
+                    Array.from(_prodState.batchDescriptionTokens.keys()),
+                    Array.from(_prodState.batchDescriptionReads.keys())))
+                : new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
+            targets.forEach(batchId => {
+                _prodNextBatchDescriptionToken(batchId);
+                _prodState.batchDescriptionReads.delete(batchId);
+                /* And the in-flight entry, or the next caller JOINS a read this
+                   invalidation just retired -- whose answer the token check will
+                   throw away, leaving the caller with nothing. Dropping it here
+                   means the next caller starts a fresh read instead; the retired
+                   promise still settles harmlessly against its stale token. */
+                _prodState.batchDescriptionInFlight.delete(batchId);
+            });
+        }
+        async function _prodEnsureBatchDescription(batchId, force) {
+            batchId = String(batchId || '');
+            if (!batchId) return;
+            const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+            if (!row) return;
+            if (!force && _prodHasOwn(row, 'description')) return;
+            /* A read already in the air is JOINED, not skipped. Returning here
+               resumed the caller's `await` immediately, before the column
+               existed -- so a second panel (the two synthetic parents of a
+               split-team batch, or moving from `?batch=` to its parent mid-read)
+               saw an absent column, called it a failure, and then refused to try
+               again because its own error guard blocked it. Raised by Codex on
+               #1364. */
+            const inFlight = _prodState.batchDescriptionInFlight.get(batchId);
+            if (inFlight) return inFlight;
+            const readState = _prodState.batchDescriptionReads.get(batchId);
+            if (!force && readState === 'error') return;
+            _prodState.batchDescriptionReads.set(batchId, 'loading');
+            const token = _prodNextBatchDescriptionToken(batchId);
+            const generation = _prodState.projectionGeneration;
+            /* Two different ways to stop being current, and they must be
+               released differently.
+
+               TOKEN MOVED: a newer read of this same batch owns the state entry
+               now, so this one touches NOTHING. Deleting it here would either
+               strand that read's 'loading' or invite a third read on top of the
+               two already in the air.
+
+               GENERATION MOVED ONLY: no newer read necessarily exists, so this
+               read is still the owner and MUST release the entry -- leaving
+               'loading' behind would wedge the batch out of ever loading again,
+               because the guard above refuses to start a read while one is
+               marked in flight. In today's code the full load that moves the
+               generation always runs _prodMarkDescriptionsStale first, which
+               clears the entry anyway; this does not depend on that ordering
+               holding forever. */
+            const tokenCurrent = () => token === _prodState.batchDescriptionTokens.get(batchId);
+            const stillCurrent = () => tokenCurrent() && generation === _prodState.projectionGeneration;
+            const release = () => { if (tokenCurrent()) _prodState.batchDescriptionReads.delete(batchId); };
+            const run = (async () => {
+            try {
+                const fresh = await _prodReadBatchDescriptionRow(batchId);
+                if (!stillCurrent()) { release(); return; }
+                const live = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                if (!live) {
+                    _prodState.batchDescriptionReads.delete(batchId);
+                    return;
+                }
+                live.description = fresh.description == null ? '' : String(fresh.description);
+                if (fresh.updated_at) live.updated_at = fresh.updated_at;
+                _prodState.adapter = null;
+                _prodState.batchDescriptionReads.set(batchId, 'ready');
+            } catch (error) {
+                if (!stillCurrent()) { release(); return; }
+                _prodState.batchDescriptionReads.set(batchId, 'error');
+            }
+            /* Repaint ONLY when this batch's description is what the reader is
+               looking at. Repainting unconditionally rebuilt the whole surface
+               for a batch nobody had open -- and a rebuild replaces the
+               contenteditable description editor, so it destroyed an in-progress
+               edit on an UNRELATED row along with the caret and focus. Caught by
+               the mocked browser gate on #1364, twice, at the step that hovers a
+               link in a deliverable's editor and expects focus to come back:
+               40e9dda passes that step in the same sandbox, this did not.
+               The panel that delegated here does its own repaint afterwards, and
+               a batch nobody is looking at needs none -- the state is written
+               either way, and the next natural render picks it up. */
+            const openIssue = _prodState.view === 'detail' && _prodState.openId
+                ? _prodIssue(_prodOpenRowId())
+                : null;
+            const visible = (_prodState.view === 'batch' && String(_prodState.openBatchId || '') === batchId)
+                || !!(openIssue && openIssue.syntheticBatchParent === true && String(openIssue.batchId || '') === batchId);
+            /* NOT `_prodRenderWhenIdle`, and the browser gate is what says so.
+
+               This repaint is the COMPLETION of a read this very panel asked
+               for, not an unsolicited background tick. Routing it through the
+               idle guard deferred it whenever a contenteditable was focused --
+               which, for the description panel, is the ordinary state rather
+               than the exception -- so the description never arrived and focus
+               was never restored. `inplace_link` timed out twice here and
+               passes on 43b1455; neutering the guard alone made it pass again,
+               which is how this was narrowed to this one line.
+
+               The rule the guard encodes is about UNSOLICITED repaints landing
+               on a reader who is mid-interaction. A panel painting the answer
+               it is waiting for is the interaction. */
+            if (visible && document.getElementById('prodRoot')) _prodRender();
+            })();
+            _prodState.batchDescriptionInFlight.set(batchId, run);
+            try { await run; }
+            finally {
+                /* Only if the map still holds THIS read. Deleting unconditionally
+                   is the classic single-flight bug: an invalidated read A settles
+                   after a fresh read B has stored its own promise, and A's
+                   cleanup then evicts B -- so the next render sees no read in
+                   flight, starts C, advances the token, and guarantees B's
+                   perfectly good answer is thrown away. Longer loading and
+                   redundant requests, from a line that looks like tidying up.
+                   Raised by Codex on #1364. */
+                if (_prodState.batchDescriptionInFlight.get(batchId) === run) {
+                    _prodState.batchDescriptionInFlight.delete(batchId);
+                }
+            }
+        }
+        async function _prodEnsureDescription(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || state.saving) return state || null;
+            if (issue.syntheticBatchParent === true) {
+                /* ONE OWNER for a batch description, and this panel is not it.
+
+                   Until 2026-09-09 this branch ran its own read beside
+                   `_prodEnsureBatchDescription`: two readers of the same batch
+                   row, cooperating through a shared token across two state
+                   maps. Codex found four separate defects in that arrangement
+                   over three review rounds (#1364) -- an older answer landing on
+                   a newer one, a save silently reverted by a read that started
+                   before it, a displaced reader stranding its own panel, and a
+                   displaced reader stranding the OTHER reader's shared entry --
+                   and each fix created the conditions for the next. The
+                   arrangement was the defect; the fixes were symptoms.
+
+                   So the read moved to a single owner keyed by BATCH id, and
+                   this panel now waits for it and reflects the row. There is one
+                   token, one read state, one place that writes the column. The
+                   whole class of "which reader owns this entry" question is
+                   gone rather than answered again.
+
+                   What stays here is the part that is genuinely per-PANEL: a
+                   split-team batch has two synthetic parents sharing one
+                   batchId, and each has its own editor state, caret and scope.
+                   Those still need their own token and their own release. */
+                const batchId = String(issue.batchId || '');
+                /* Reconcile from the ROW before honouring a remembered failure.
+
+                   The two synthetic parents of a split-team batch keep separate
+                   panel states over one shared row. If the shared read fails,
+                   both remember 'error'; when the reader retries from one of
+                   them the row is populated, but the sibling's own 'error' made
+                   the guard below return before it ever looked at the row -- so
+                   it kept saying "Description could not load." until it was
+                   retried separately or a full refresh cleared it. Raised by
+                   Codex on #1364.
+
+                   Scoped to a panel that is actually showing nothing (an error,
+                   or no value yet) so a loaded panel is not re-adopted on every
+                   render, and idempotent: adopting sets 'ready' and hasValue, so
+                   this cannot re-enter. */
+                if (batchId && (state.status === 'error' || !state.hasValue)) {
+                    const loadedRow = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                    if (loadedRow && _prodHasOwn(loadedRow, 'description')) {
+                        _prodAdoptDescriptionValue(id, loadedRow.description, loadedRow.updated_at);
+                        const reconciled = _prodState.descriptions.get(id);
+                        if (reconciled) reconciled.scopeSignature = _prodIssueScopeSignature(issue);
+                        if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                        return state;
+                    }
+                }
+                if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;
+                if (!batchId) {
+                    state.refreshing = false;
+                    state.status = state.hasValue ? 'ready' : 'error';
+                    if (!state.hasValue) state.error = 'Description could not load.';
+                    return state;
+                }
+                const panelToken = _prodNextDescriptionRequestToken(id);
+                const panelGeneration = _prodState.projectionGeneration;
+                const panelScope = _prodIssueScopeSignature(issue);
+                const panelStillCurrent = () => {
+                    const live = _prodIssue(id);
+                    return panelToken === _prodState.descriptionRequestTokens.get(id)
+                        && panelGeneration === _prodState.projectionGeneration
+                        && !!live && String(live.batchId || '') === batchId
+                        && _prodIssueScopeSignature(live) === panelScope;
+                };
+                state.refreshing = true;
+                state.refreshError = '';
+                state.refreshSilent = !force;
+                state.status = state.hasValue ? 'stale' : 'loading';
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                // The owner reads, guards and records. It never throws.
+                await _prodEnsureBatchDescription(batchId, force);
+                if (!panelStillCurrent()) {
+                    /* Release THIS panel only. The owner holds the shared read
+                       state and releases it on its own exits, which is why a
+                       synthetic parent replaced mid-read by a real one can no
+                       longer strand it. */
+                    state.refreshing = false;
+                    state.refreshError = '';
+                    state.status = state.hasValue ? 'stale' : 'idle';
+                    return null;
+                }
+                const batchRow = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+                if (batchRow && _prodHasOwn(batchRow, 'description')) {
+                    _prodAdoptDescriptionValue(id, batchRow.description, batchRow.updated_at);
+                    const adoptedBatch = _prodState.descriptions.get(id);
+                    if (adoptedBatch) adoptedBatch.scopeSignature = panelScope;
+                } else if (_prodState.batchDescriptionReads.get(batchId) === 'error') {
+                    state.refreshing = false;
+                    if (state.hasValue) {
+                        state.status = 'stale';
+                        state.refreshError = 'Description could not refresh. The text shown may be outdated.';
+                    } else {
+                        state.status = 'error';
+                        state.error = 'Description could not load.';
+                    }
+                } else {
+                    /* No column yet and no recorded failure: the read was retired
+                       (an invalidation, a moved generation) rather than failed.
+                       'idle' rather than 'error' on purpose -- the guard at the
+                       top of this function blocks a retry on 'error', so calling
+                       a not-yet-loaded description a failure wedges the panel
+                       until a manual refresh. This leaves the next render free to
+                       ask again. */
+                    state.refreshing = false;
+                    state.refreshError = '';
+                    state.status = state.hasValue ? 'stale' : 'idle';
+                }
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return state;
+            }
+            if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                state.refreshing = false;
+                state.status = state.hasValue ? 'stale' : 'error';
+                state.error = state.hasValue ? state.error : 'Staff sign-in is required to load this description.';
+                state.refreshError = state.hasValue ? 'Staff sign-in is required to refresh this description.' : '';
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return null;
+            }
+            const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
+            const issueTeam = _prodWriteTeam(issue.team);
+            const projectionGeneration = _prodState.projectionGeneration;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextDescriptionRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
+            const requestStillCurrent = () => {
+                const liveIssue = _prodIssue(id);
+                return requestToken === _prodState.descriptionRequestTokens.get(id)
+                    && projectionGeneration === _prodState.projectionGeneration
+                    && verificationEpoch === _syncviewStaffVerificationEpoch
+                    && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                    && !!liveIssue
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
+            };
+            state.refreshing = true;
+            state.refreshError = '';
+            state.refreshSilent = !force;
+            if (state.hasValue) state.status = 'stale';
+            else state.status = 'loading';
+            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'description_read',
+                        surface: 'production',
+                        id,
+                        client_slug: clientSlug
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                const row = json && json.row;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true
+                    || !row
+                    || String(row.id || '') !== id
+                    || String(row.client_slug || '').trim() !== clientSlug
+                    || _prodWriteTeam(row.team) !== issueTeam) {
+                    throw new Error(String(json && json.error || 'description_read_failed'));
+                }
+                /* The native `media` projection is a READ-ONLY rendering aid,
+                   never the canonical text: `render_brief` rewrites image
+                   references to short-lived (5-minute) signed storage URLs,
+                   and row.brief -- the value _prodSyncDescriptionRow and
+                   _prodAdoptDescriptionValue seed the editable draft/baseline
+                   from -- stays the untouched server brief so an unrelated
+                   edit can never persist an expiring signed URL over the
+                   original Linear-hosted one. The projection is attached
+                   separately, below, as state.renderValue -- read only by the
+                   display line, never by _prodBeginDescriptionEdit or
+                   _prodSaveDescription. */
+                _prodSyncDescriptionRow(id, row.brief, row.updated_at);
+                _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
+                const media = json && json.media;
+                const renderBrief = (media && media.complete === true && typeof media.render_brief === 'string')
+                    ? media.render_brief
+                    : '';
+                const renderExpiresAt = renderBrief && media && typeof media.expires_at === 'string'
+                    ? Date.parse(media.expires_at) || 0
+                    : 0;
+                /* The scope this text is true for; _prodDescriptionState
+                   refuses to draw it if the row leaves that scope.
+
+                   Read back out of the map rather than stamping the `state`
+                   captured before the await, and NOT through
+                   _prodDescriptionState: _prodAdoptDescriptionValue writes
+                   through its own lookup, so the object it just populated is
+                   not necessarily the one captured here -- and stamping the
+                   wrong one would leave the displayed value UNSTAMPED, which
+                   is precisely the value the gate can never refuse. Going
+                   through the accessor would be worse still: it runs the gate,
+                   and a state carrying an older scope's stamp would have the
+                   text just adopted wiped back out. */
+                const adopted = _prodState.descriptions.get(id);
+                if (adopted) {
+                    adopted.scopeSignature = scopeSignature;
+                    // Display-only: never read by the editable draft/baseline
+                    // or by the save payload -- see the comment above.
+                    adopted.renderValue = renderBrief;
+                    adopted.renderExpiresAt = renderExpiresAt;
+                }
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return state;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                state.refreshing = false;
+                if (state.hasValue) {
+                    state.status = 'stale';
+                    state.refreshError = 'Description could not refresh. The text shown may be outdated.';
+                } else {
+                    state.status = 'error';
+                    state.error = 'Description could not load.';
+                }
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return null;
+            }
+        }
+        function _prodDescriptionRememberSelection(id, input) {
+            const state = _prodDescriptionState(id);
+            if (!state || !input) return;
+            state.selectionStart = Number.isFinite(input.selectionStart) ? input.selectionStart : state.selectionStart;
+            state.selectionEnd = Number.isFinite(input.selectionEnd) ? input.selectionEnd : state.selectionEnd;
+        }
+        function _prodDescriptionDraftInput(id, value, input) {
+            const state = _prodDescriptionState(id);
+            if (!state || state.saving) return;
+            value = String(value == null ? '' : value);
+            if (state.draft !== value) state.requestId = '';
+            state.draft = value;
+            state.error = state.remoteChanged
+                ? 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.'
+                : '';
+            _prodDescriptionRememberSelection(id, input);
+            const panel = input && input.closest('[data-prod-description]');
+            const counter = panel && panel.querySelector('[data-prod-description-count]');
+            const save = panel && panel.querySelector('[data-prod-description-control="save"]');
+            if (counter) {
+                counter.textContent = value.length.toLocaleString() + ' / 100,000';
+                counter.classList.toggle('is-invalid', value.length > 100000);
+                counter.classList.toggle('is-quiet', counter.hasAttribute('data-prod-description-count-quiet') && value.length < 90000);
+            }
+            /* Both paths that touch this button must agree: an upload in
+               flight keeps it shut whatever the count says (Codex on #1310,
+               round nine). */
+            if (save) save.disabled = value.length > 100000 || state.uploading > 0;
+            const error = panel && panel.querySelector('[data-prod-description-write-error]');
+            if (error && !state.remoteChanged) error.remove();
+        }
+        function _prodBeginDescriptionEdit(id, options) {
+            options = options || {};
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state) return false;
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
+                return false;
+            }
+            if (state.status !== 'ready' || state.refreshing) {
+                // Not "press Refresh" any more -- that control is gone, and
+                // the next line already performs the read it was asking for.
+                _prodToast('Loading the current description…');
+                _prodEnsureDescription(id, true);
+                return false;
+            }
+            state.editing = true;
+            state.preview = false;
+            state.saving = false;
+            state.draft = state.value;
+            state.baseline = state.value;
+            state.error = '';
+            state.refreshError = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            state.selectionStart = state.draft.length;
+            state.selectionEnd = state.draft.length;
+            /* In place, in its rendered form, unless the text cannot come
+               back out of the visual editor byte for byte. Then it opens as
+               Markdown and says why, because silently normalising a
+               description that Linear mirrors is worse than a textarea. */
+            state.source = !_prodDescRichRoundTrips(state.draft);
+            state.sourceReason = state.source ? 'This description uses Markdown the visual editor cannot keep exactly, so it opened as Markdown.' : '';
+            state.caretBlock = state.draft.split('\n').length - 1;
+            state.caretOffset = 1e9;
+            _prodRender();
+            _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
+            return false;
+        }
+        /* The read view is the editor: a click on the text starts editing
+           with the caret where the click landed. Links and images keep their
+           own click. */
+        function _prodDescriptionBodyClick(event, id) {
+            const target = event && event.target;
+            if (target && target.closest && target.closest('a, img, button')) return true;
+            const selection = window.getSelection && window.getSelection();
+            if (selection && !selection.isCollapsed) return true;
+            _prodBeginDescriptionEdit(id, { point: { x: event.clientX, y: event.clientY } });
+            return false;
+        }
+        /* Markdown ⇄ visual. The visual side is refused, with the reason on
+           screen, when the current draft would not survive the trip. */
+        function _prodSetDescriptionMode(id, mode) {
+            const state = _prodDescriptionState(id);
+            if (!state || !state.editing || state.saving) return false;
+            const toSource = mode === 'source';
+            if (!toSource && !_prodDescRichRoundTrips(state.draft)) {
+                state.sourceReason = 'This Markdown cannot be shown exactly in the visual editor. Keep editing it as Markdown.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+                return false;
+            }
+            /* Carry the caret across: a Markdown offset becomes (line, column)
+               and back, which is exact for plain text and close enough where
+               markup differs. */
+            const draft = String(state.draft || '');
+            if (toSource && !state.source) {
+                const lines = draft.split('\n');
+                const block = Math.min(Math.max(0, state.caretBlock || 0), lines.length - 1);
+                const column = Math.min(Number(state.caretOffset) || 0, lines[block].length);
+                const offset = lines.slice(0, block).reduce((n, line) => n + line.length + 1, 0) + column;
+                state.selectionStart = offset;
+                state.selectionEnd = offset;
+            } else if (!toSource && state.source) {
+                const before = draft.slice(0, Math.min(Number(state.selectionStart) || 0, draft.length));
+                const parts = before.split('\n');
+                state.caretBlock = parts.length - 1;
+                state.caretOffset = parts[parts.length - 1].length;
+            }
+            state.source = toSource;
+            state.sourceReason = '';
+            state.preview = false;
+            _prodRender();
+            _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
+            return false;
+        }
+        function _prodCancelDescriptionEdit(id) {
+            const state = _prodDescriptionState(id);
+            if (!state || state.saving) return false;
+            state.editing = false;
+            state.preview = false;
+            state.source = false;
+            state.sourceReason = '';
+            state.draft = state.value;
+            state.error = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            _prodDescLinkPopHide(true);
+            _prodRender();
+            _prodFocusDescriptionControl(id, 'edit');
+            return false;
+        }
+        /* Everything the visual editor does between keystrokes: the typing
+           shortcuts, the DOM tidy, and the Markdown the draft is made of. */
+        function _prodDescriptionRichInput(id, root) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root || state.saving) return false;
+            _prodDescRichShortcut(root);
+            _prodDescRichNormalize(root);
+            _prodDescriptionRememberCaret(id, root);
+            _prodDescriptionDraftInput(id, _prodDescRichSerialize(root), root);
+            return true;
+        }
+        /* Rebuild the editor from its own Markdown, caret kept: after a paste
+           this is what turns pasted `- item` and `[label](url)` text into the
+           shapes they mean. */
+        function _prodDescriptionRichRebuild(id, root) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root) return false;
+            const caret = _prodDescRichCaret(root) || { block: state.caretBlock, offset: state.caretOffset };
+            root.innerHTML = _prodDescRichBuild(state.draft);
+            _prodDescRichNormalize(root);
+            _prodDescRichSetCaret(root, caret);
+            _prodDescriptionRememberCaret(id, root);
+            return true;
+        }
+        function _prodDescriptionRichRoot(id) {
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            return panel && panel.querySelector('[data-prod-description-control="rich"]') || null;
+        }
+        function _prodDescriptionEditorKeydown(event, id) {
+            const root = event && event.currentTarget;
+            if (root && root.getAttribute && root.getAttribute('data-prod-description-control') === 'rich') {
+                if ((event.ctrlKey || event.metaKey) && String(event.key || '').toLowerCase() === 'k') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const anchor = _prodDescRichAnchorAtCaret(root) || _prodDescRichMakeLink(root, '', '');
+                    if (anchor) _prodDescLinkPopShow(anchor, true);
+                    return false;
+                }
+                if (event.key !== 'Escape' && !((event.ctrlKey || event.metaKey) && event.key === 'Enter') && _prodDescRichKeydown(event, root)) {
+                    _prodDescriptionRichInput(id, root);
+                    return false;
+                }
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                _prodCancelDescriptionEdit(id);
+                return false;
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                _prodSaveDescription(event, id);
+                return false;
+            }
+            return true;
+        }
+        /* ---- In-place description editor (2026-09-06) --------------------------
+           Owner: "when we click edit it shouldn't change the way we are viewing
+           things ... like linear ... links ... we shouldn't see those weird brackets
+           ... when we paste an image we should just see the actual image."
+
+           The editing surface IS the rendered surface: a contenteditable built from
+           the Markdown with the same classes the read view uses, one block per source
+           line, and a serializer that walks it back to Markdown. Every block and every
+           inline mark carries the exact source form it came from (`data-md`,
+           `data-md-prefix`, `data-md-raw`), so an untouched description serializes
+           byte-for-byte to what was loaded. _prodDescRichRoundTrips() proves that before
+           the editor is offered; a description it cannot keep opens in Markdown.
+
+           No library. The block model is deliberately small: paragraph, heading,
+           bullet, rule. Inline: bold, italic, code, link (three source forms), image,
+           and the upload placeholder. Anything else is text and stays text. */
+        const PROD_DESC_RICH_PLACEHOLDER_RE = /!\[Uploading image (\d+)…\]\(\)/;
+        const PROD_DESC_RICH_BLOCK_TYPES = ['p', 'h', 'ul', 'hr'];
+        function _prodDescRichAttr(s) {
+          return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
+        }
+        function _prodDescRichInline(s) {
+          s = _prodDescRichAttr(s);
+          const st = [];
+          const keep = h => { st.push(h); return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK'; };
+          /* Marker attributes carry no `*` or `_`, so the bold and italic passes
+             below cannot match inside a tag they already produced. */
+          const label = l => String(l || '')
+            .replace(/^\*\*([^*]+)\*\*$/, '<strong data-md="bb">$1</strong>')
+            .replace(/^__([^_]+)__$/, '<strong data-md="uu">$1</strong>')
+            .replace(/^`([^`]+)`$/, '<code>$1</code>');
+          const anchor = (l, u, form) => '<a href="' + u + '" data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+          const image = (l, u, form) => '<img class="prod-desc-image" src="' + u + '" alt="' + l + '" data-md="' + form + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+          const placeholder = n => '<span class="prod-desc-uploading" data-md-placeholder="' + n + '" contenteditable="false">Uploading image…</span>';
+          const trimLinkTail = u => {
+            let suffix = '';
+            while (u) {
+              if (u.endsWith('**')) { suffix = '**' + suffix; u = u.slice(0, -2); }
+              else if (u.endsWith('*')) { suffix = '*' + suffix; u = u.slice(0, -1); }
+              else if (u.endsWith('&gt;')) { suffix = '&gt;' + suffix; u = u.slice(0, -4); }
+              else if (/[)\].,!?;]$/.test(u)) { suffix = u.slice(-1) + suffix; u = u.slice(0, -1); }
+              else break;
+            }
+            return { url: u, suffix };
+          };
+          s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
+          s = s.replace(/!\[Uploading image (\d+)…\]\(\)/g, (m, n) => keep(placeholder(n)));
+          s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(image(l, u, 'angle')));
+          s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(image(l, u, 'plain')));
+          s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(anchor(l, u, 'angle')));
+          s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(anchor(l, u, 'named')));
+          s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => { const out = trimLinkTail(u); return keep(anchor(out.url, out.url, 'bare')) + out.suffix; });
+          s = s.replace(/\*\*([^*]+)\*\*/g, '<strong data-md="bb">$1</strong>');
+          s = s.replace(/\*([^*\n]+)\*/g, '<em data-md="s">$1</em>');
+          s = s.replace(/(^|\s)__([^_]+)__(?=\s|$|[.,!?])/g, '$1<strong data-md="uu">$2</strong>');
+          s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, '$1<em data-md="u">$2</em>');
+          return s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
+        }
+        function _prodDescRichBlockHTML(kind, prefix, inner, raw) {
+          if (kind === 'hr') return '<div class="prod-md-hr" data-md="hr" data-md-raw="' + _prodDescRichAttr(raw || '---') + '" contenteditable="false"><hr class="prod-md-rule"></div>';
+          const body = inner || '<br>';
+          if (kind === 'h') return '<div class="prod-md-heading" data-md="h" data-md-prefix="' + _prodDescRichAttr(prefix || '# ') + '">' + body + '</div>';
+          if (kind === 'ul') return '<div class="prod-md-bullet" data-md="ul" data-md-prefix="' + _prodDescRichAttr(prefix || '- ') + '"><span class="prod-md-bullet-mark" contenteditable="false">•</span><span class="prod-md-bullet-text">' + body + '</span></div>';
+          return '<div class="prod-md-p" data-md="p"' + (raw ? ' data-md-raw="' + _prodDescRichAttr(raw) + '"' : '') + '>' + body + '</div>';
+        }
+        function _prodDescRichBuild(markdown) {
+          const lines = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n').split('\n');
+          const blocks = lines.map(line => {
+            let m;
+            if (!line.trim()) return { kind: 'blank', html: _prodDescRichBlockHTML('p', '', '', line) };
+            if ((m = /^(-{3,})\s*$/.exec(line))) return { kind: 'hr', html: _prodDescRichBlockHTML('hr', '', '', line) };
+            if ((m = /^(#{1,4}\s+)(.*)$/.exec(line))) return { kind: 'h', html: _prodDescRichBlockHTML('h', m[1], _prodDescRichInline(m[2])) };
+            if ((m = /^([-*]\s+)(.*)$/.exec(line))) return { kind: 'ul', html: _prodDescRichBlockHTML('ul', m[1], _prodDescRichInline(m[2])) };
+            return { kind: 'p', html: _prodDescRichBlockHTML('p', '', _prodDescRichInline(line)) };
+          });
+          /* The read view draws no blank line beside a heading or rule. The editor
+             keeps every line in the model and collapses those on screen, so the
+             first paint already sits exactly where the read view sat. */
+          const blockish = b => !!b && (b.kind === 'h' || b.kind === 'hr');
+          return blocks.map((b, i) => (b.kind === 'blank' && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])))
+            ? b.html.replace('class="prod-md-p"', 'class="prod-md-p prod-md-gap"')
+            : b.html).join('');
+        }
+        function _prodDescRichContainer(block) {
+          if (!block) return null;
+          if (block.getAttribute('data-md') === 'ul') return block.querySelector('.prod-md-bullet-text') || block;
+          return block;
+        }
+        function _prodDescRichSerializeInline(el) {
+          let out = '';
+          Array.from(el.childNodes).forEach(n => {
+            if (n.nodeType === 3) { out += n.nodeValue; return; }
+            if (n.nodeType !== 1) return;
+            const tag = n.tagName;
+            if (tag === 'BR') return;
+            if (tag === 'IMG') {
+              const alt = n.getAttribute('alt') || '';
+              const src = n.getAttribute('src') || '';
+              out += n.getAttribute('data-md') === 'angle' ? '![' + alt + '](<' + src + '>)' : '![' + alt + '](' + src + ')';
+              return;
+            }
+            if (n.hasAttribute('data-md-placeholder')) { out += '![Uploading image ' + n.getAttribute('data-md-placeholder') + '…]()'; return; }
+            if (n.classList && n.classList.contains('prod-md-bullet-mark')) return;
+            const inner = _prodDescRichSerializeInline(n);
+            if (tag === 'A') {
+              const href = n.getAttribute('href') || '';
+              const form = n.getAttribute('data-md') || 'named';
+              /* A URL with whitespace or a `)` in it, or one ending in the
+                 punctuation a bare link sheds, cannot survive the plain forms: it
+                 goes out as `[label](<url>)`, which the parser reads back exactly
+                 (Codex on #1310's follow-up, #1320). */
+              const fragile = /[\s)]/.test(href) || /[)\].,!?;*]$/.test(href);
+              if (form === 'bare' && inner === href && !fragile) { out += href; return; }
+              if (form === 'angle' || fragile) { out += '[' + (inner || href) + '](<' + href + '>)'; return; }
+              out += '[' + (inner || href) + '](' + href + ')';
+              return;
+            }
+            if (tag === 'STRONG' || tag === 'B') { const mk = n.getAttribute('data-md') === 'uu' ? '__' : '**'; out += inner ? mk + inner + mk : ''; return; }
+            if (tag === 'EM' || tag === 'I') { const mk = n.getAttribute('data-md') === 'u' ? '_' : '*'; out += inner ? mk + inner + mk : ''; return; }
+            if (tag === 'CODE') { out += inner ? '`' + inner + '`' : ''; return; }
+            out += inner;
+          });
+          return out;
+        }
+        function _prodDescRichSerialize(root) {
+          const lines = [];
+          Array.from(root.childNodes).forEach(node => {
+            if (node.nodeType !== 1) { const t = String(node.textContent || ''); if (t.trim()) lines.push(t); return; }
+            const kind = node.getAttribute('data-md') || 'p';
+            if (kind === 'hr') { lines.push(node.getAttribute('data-md-raw') || '---'); return; }
+            const inline = _prodDescRichSerializeInline(_prodDescRichContainer(node));
+            if (kind === 'h') { lines.push((node.getAttribute('data-md-prefix') || '# ') + inline); return; }
+            if (kind === 'ul') { lines.push((node.getAttribute('data-md-prefix') || '- ') + inline); return; }
+            lines.push(inline || node.getAttribute('data-md-raw') || '');
+          });
+          return lines.join('\n');
+        }
+        /* The one honesty check: can this Markdown come back out unchanged? */
+        function _prodDescRichRoundTrips(markdown) {
+          const source = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n');
+          const probe = document.createElement('div');
+          probe.innerHTML = _prodDescRichBuild(source);
+          return _prodDescRichSerialize(probe) === source;
+        }
+        function _prodDescRichBlockOf(root, node) {
+          while (node && node !== root) {
+            if (node.parentNode === root) return node.nodeType === 1 ? node : null;
+            node = node.parentNode;
+          }
+          return null;
+        }
+        function _prodDescRichMakeBlock(kind, prefix) {
+          const host = document.createElement('div');
+          host.innerHTML = _prodDescRichBlockHTML(kind, prefix, '', '');
+          return host.firstChild;
+        }
+        function _prodDescRichIsEmpty(container) {
+          if (!container) return true;
+          if (container.querySelector && container.querySelector('img,[data-md-placeholder]')) return false;
+          return !String(container.textContent || '').length;
+        }
+        /* An empty container must hold exactly one <br>: an empty text node left
+           behind by a split gives the caret nowhere to be, and Chrome then drops it
+           to the start of the editable root on the next key. */
+        function _prodDescRichSettle(container) {
+          if (!container) return;
+          if (_prodDescRichIsEmpty(container)) {
+            Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR')) n.remove(); });
+            if (!container.firstChild) container.appendChild(document.createElement('br'));
+            while (container.childNodes.length > 1) container.lastChild.remove();
+            return;
+          }
+          Array.from(container.childNodes).forEach(n => { if (n.nodeType === 3 && !n.nodeValue) n.remove(); });
+        }
+        /* Browser edits leave <b>, <i>, styled spans, nested divs and stray <br>s
+           behind. Fold every one of them back into the block model so the serializer
+           only ever sees shapes it knows. Idempotent. */
+        function _prodDescRichNormalize(root) {
+          const unwrap = el => { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); el.remove(); };
+          const clean = el => {
+            Array.from(el.querySelectorAll('*')).forEach(n => {
+              if (!n.isConnected) return;
+              if (n.hasAttribute('style')) n.removeAttribute('style');
+              const tag = n.tagName;
+              if (tag === 'B' || (tag === 'STRONG' && !n.hasAttribute('data-md'))) {
+                const s = document.createElement('strong'); s.setAttribute('data-md', 'bb');
+                while (n.firstChild) s.appendChild(n.firstChild);
+                n.replaceWith(s);
+                return;
+              }
+              if (tag === 'I' || (tag === 'EM' && !n.hasAttribute('data-md'))) {
+                const e = document.createElement('em'); e.setAttribute('data-md', 's');
+                while (n.firstChild) e.appendChild(n.firstChild);
+                n.replaceWith(e);
+                return;
+              }
+              if (tag === 'A') { if (!n.hasAttribute('data-md')) n.setAttribute('data-md', 'named'); n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); return; }
+              if (tag === 'IMG') { if (String(n.getAttribute('src') || '').indexOf('https://') !== 0) n.remove(); else n.classList.add('prod-desc-image'); return; }
+              if (tag === 'STRONG' || tag === 'EM' || tag === 'CODE' || tag === 'BR' || tag === 'HR') return;
+              if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
+              if (tag === 'DIV') return;
+              unwrap(n);
+            });
+          };
+          /* 1. Stray top-level inline nodes become paragraphs. */
+          let run = [];
+          const flush = () => {
+            if (!run.length) return;
+            const p = _prodDescRichMakeBlock('p');
+            p.innerHTML = '';
+            root.insertBefore(p, run[0]);
+            run.forEach(n => p.appendChild(n));
+            run = [];
+          };
+          Array.from(root.childNodes).forEach(n => {
+            const block = n.nodeType === 1 && n.tagName === 'DIV';
+            if (block) { flush(); if (!PROD_DESC_RICH_BLOCK_TYPES.includes(n.getAttribute('data-md') || '')) { n.className = 'prod-md-p'; n.setAttribute('data-md', 'p'); } return; }
+            run.push(n);
+          });
+          flush();
+          /* 2. Inline cleanup, nested divs hoisted, blocks split at <br>. */
+          clean(root);
+          let guard = 0;
+          Array.from(root.children).forEach(block => {
+            const kind = block.getAttribute('data-md');
+            if (kind === 'hr') { block.innerHTML = '<hr class="prod-md-rule">'; block.setAttribute('contenteditable', 'false'); return; }
+            if (kind === 'ul' && !block.querySelector('.prod-md-bullet-text')) {
+              const text = document.createElement('span'); text.className = 'prod-md-bullet-text';
+              Array.from(block.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.classList.contains('prod-md-bullet-mark'))) text.appendChild(n); });
+              block.appendChild(text);
+            }
+            if (kind === 'ul' && !block.querySelector('.prod-md-bullet-mark')) {
+              const mark = document.createElement('span'); mark.className = 'prod-md-bullet-mark'; mark.setAttribute('contenteditable', 'false'); mark.textContent = '•';
+              block.insertBefore(mark, block.firstChild);
+            }
+            let current = block;
+            while (guard++ < 10000) {
+              const container = _prodDescRichContainer(current);
+              const boundary = Array.from(container.querySelectorAll('br,div')).find(b => !(b.tagName === 'BR' && b === container.lastChild && container.childNodes.length > 1) && !(b.tagName === 'BR' && container.childNodes.length === 1));
+              if (!boundary) break;
+              const range = document.createRange();
+              range.setStartAfter(boundary);
+              range.setEnd(container, container.childNodes.length);
+              const tail = range.extractContents();
+              const nested = boundary.tagName === 'DIV' ? boundary : null;
+              boundary.remove();
+              const next = _prodDescRichMakeBlock('p');
+              next.innerHTML = '';
+              if (nested) { while (nested.firstChild) next.appendChild(nested.firstChild); }
+              next.appendChild(tail);
+              if (nested && !next.firstChild && !tail.childNodes.length) { /* an empty nested div: a blank line */ }
+              current.after(next);
+              current = next;
+            }
+          });
+          /* 3. Every block is focusable: an empty container holds one <br>, a
+             filled one holds no trailing <br> and no empty text nodes. */
+          Array.from(root.children).forEach(block => {
+            const kind = block.getAttribute('data-md');
+            if (kind === 'hr') return;
+            const container = _prodDescRichContainer(block);
+            _prodDescRichSettle(container);
+            if (container.childNodes.length > 1) {
+              const last = container.lastChild;
+              if (last.nodeType === 1 && last.tagName === 'BR') last.remove();
+            }
+            if (kind === 'p' && !_prodDescRichIsEmpty(container)) block.removeAttribute('data-md-raw');
+          });
+          /* 4. Same rule as _prodDescRichBuild: a blank line beside a heading or rule is
+             kept in the model and collapsed on screen. */
+          const blocks = Array.from(root.children);
+          blocks.forEach((block, i) => {
+            const kind = block.getAttribute('data-md');
+            const blank = kind === 'p' && _prodDescRichIsEmpty(_prodDescRichContainer(block));
+            const blockish = b => !!b && ['h', 'hr'].includes(b.getAttribute('data-md'));
+            block.classList.toggle('prod-md-gap', blank && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])));
+          });
+          root.classList.toggle('is-empty', blocks.length <= 1 && (!blocks[0] || _prodDescRichIsEmpty(_prodDescRichContainer(blocks[0]))));
+          return root;
+        }
+        /* Caret as (block index, character offset in the block), which survives a
+           rebuild of the same Markdown. */
+        function _prodDescRichCaret(root) {
+          const sel = window.getSelection && window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          const block = _prodDescRichBlockOf(root, sel.focusNode);
+          if (!block) return { block: 0, offset: 0 };
+          const container = _prodDescRichContainer(block);
+          const range = document.createRange();
+          range.selectNodeContents(container);
+          if (container.contains(sel.focusNode)) range.setEnd(sel.focusNode, sel.focusOffset);
+          return { block: Array.prototype.indexOf.call(root.children, block), offset: range.toString().length };
+        }
+        function _prodDescRichSetCaret(root, pos) {
+          const sel = window.getSelection && window.getSelection();
+          if (!sel) return false;
+          const blocks = root.children;
+          if (!blocks.length) return false;
+          let block = blocks[Math.min(Math.max(0, Number(pos && pos.block) || 0), blocks.length - 1)];
+          /* A rule holds no caret and a collapsed blank line draws no box: settle
+             on the nearest block that can show one. */
+          const holds = b => !!b && b.getAttribute('data-md') !== 'hr' && !b.classList.contains('prod-md-gap');
+          if (!holds(block)) {
+            let next = block.nextElementSibling;
+            while (next && !holds(next)) next = next.nextElementSibling;
+            let prev = block.previousElementSibling;
+            while (prev && !holds(prev)) prev = prev.previousElementSibling;
+            block = next || prev || block;
+          }
+          const container = _prodDescRichContainer(block);
+          const range = document.createRange();
+          let remaining = Math.max(0, Number(pos && pos.offset) || 0);
+          let placed = false;
+          const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+          let text;
+          while ((text = walker.nextNode())) {
+            const len = text.nodeValue.length;
+            if (remaining <= len) { range.setStart(text, remaining); placed = true; break; }
+            remaining -= len;
+          }
+          if (!placed) range.setStart(container, container.childNodes.length);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return true;
+        }
+        function _prodDescRichConvert(block, kind, prefix) {
+          const next = _prodDescRichMakeBlock(kind, prefix);
+          const from = _prodDescRichContainer(block);
+          const to = _prodDescRichContainer(next);
+          to.innerHTML = '';
+          while (from.firstChild) to.appendChild(from.firstChild);
+          _prodDescRichSettle(to);
+          block.replaceWith(next);
+          return next;
+        }
+        function _prodDescRichCaretAtStart(container, range) {
+          const probe = document.createRange();
+          probe.selectNodeContents(container);
+          probe.setEnd(range.startContainer, range.startOffset);
+          if (probe.toString().length) return false;
+          const frag = probe.cloneContents();
+          return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+        }
+        function _prodDescRichCaretAtEnd(container, range) {
+          const probe = document.createRange();
+          probe.selectNodeContents(container);
+          probe.setStart(range.endContainer, range.endOffset);
+          if (probe.toString().length) return false;
+          const frag = probe.cloneContents();
+          return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+        }
+        /* Enter: split the block at the caret. A bullet continues as a bullet, an
+           empty bullet leaves the list, a heading is followed by a paragraph, and a
+           paragraph reading `---` becomes a rule. Returns true when handled. */
+        function _prodDescRichSplitBlock(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!root.contains(range.startContainer)) return false;
+          if (!range.collapsed) range.deleteContents();
+          let block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const kind = block.getAttribute('data-md');
+          const place = target => { const r = document.createRange(); r.setStart(target, 0); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); };
+          if (kind === 'hr') { const p = _prodDescRichMakeBlock('p'); block.after(p); place(p); return true; }
+          const container = _prodDescRichContainer(block);
+          if (kind === 'p' && /^-{3,}$/.test(String(container.textContent || '').trim()) && _prodDescRichCaretAtEnd(container, range)) {
+            const hr = _prodDescRichMakeBlock('hr'); hr.setAttribute('data-md-raw', String(container.textContent || '').trim());
+            const p = _prodDescRichMakeBlock('p');
+            block.replaceWith(hr); hr.after(p); place(p); return true;
+          }
+          if (kind === 'ul' && _prodDescRichIsEmpty(container)) { place(_prodDescRichContainer(_prodDescRichConvert(block, 'p'))); return true; }
+          const tail = document.createRange();
+          tail.setStart(range.startContainer, range.startOffset);
+          tail.setEnd(container, container.childNodes.length);
+          const frag = tail.extractContents();
+          const next = _prodDescRichMakeBlock(kind === 'ul' ? 'ul' : 'p', block.getAttribute('data-md-prefix'));
+          const nextContainer = _prodDescRichContainer(next);
+          nextContainer.innerHTML = '';
+          nextContainer.appendChild(frag);
+          _prodDescRichSettle(nextContainer);
+          _prodDescRichSettle(container);
+          block.after(next);
+          place(nextContainer);
+          return true;
+        }
+        /* Backspace at the start of a block: a bullet or heading becomes a
+           paragraph first; a paragraph joins the block above (a rule above is
+           simply removed). Returns true when handled. */
+        function _prodDescRichJoinBack(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed || !root.contains(range.startContainer)) return false;
+          const block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const kind = block.getAttribute('data-md');
+          const container = _prodDescRichContainer(block);
+          if (kind !== 'hr' && !_prodDescRichCaretAtStart(container, range)) return false;
+          const place = (target, offset) => { _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, target), offset }); };
+          if (kind === 'ul' || kind === 'h') { place(_prodDescRichConvert(block, 'p'), 0); return true; }
+          const prev = block.previousElementSibling;
+          if (!prev) return true;
+          if (prev.getAttribute('data-md') === 'hr') { prev.remove(); place(block, 0); return true; }
+          const prevContainer = _prodDescRichContainer(prev);
+          const last = prevContainer.lastChild;
+          if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+          const offset = String(prevContainer.textContent || '').length;
+          Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && _prodDescRichIsEmpty(container))) prevContainer.appendChild(n); });
+          _prodDescRichSettle(prevContainer);
+          block.remove();
+          place(prev, offset);
+          return true;
+        }
+        /* Delete at the end of a block: the block below joins this one. */
+        function _prodDescRichJoinForward(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed || !root.contains(range.startContainer)) return false;
+          const block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const container = _prodDescRichContainer(block);
+          if (block.getAttribute('data-md') === 'hr' || !_prodDescRichCaretAtEnd(container, range)) return false;
+          const next = block.nextElementSibling;
+          if (!next) return true;
+          if (next.getAttribute('data-md') === 'hr') { next.remove(); return true; }
+          const offset = String(container.textContent || '').length;
+          const last = container.lastChild;
+          if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+          const nextContainer = _prodDescRichContainer(next);
+          Array.from(nextContainer.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && _prodDescRichIsEmpty(nextContainer))) container.appendChild(n); });
+          _prodDescRichSettle(container);
+          next.remove();
+          _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, block), offset });
+          return true;
+        }
+        /* Typing `- `, `* ` or `# ` at the start of an empty line turns the line
+           into that block, the way Linear does. Called after input. */
+        function _prodDescRichShortcut(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+          const block = _prodDescRichBlockOf(root, sel.focusNode);
+          if (!block || block.getAttribute('data-md') !== 'p') return false;
+          const text = String(block.textContent || '');
+          let kind = '';
+          if (/^[-*] $/.test(text)) kind = 'ul';
+          else if (/^#{1,4} $/.test(text)) kind = 'h';
+          if (!kind) return false;
+          const next = _prodDescRichMakeBlock(kind, text);
+          block.replaceWith(next);
+          _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, next), offset: 0 });
+          return true;
+        }
+        /* Plain text at the caret; each newline starts a new block. */
+        function _prodDescRichInsertText(root, text) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+          const lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
+          let range = sel.getRangeAt(0);
+          if (!range.collapsed) range.deleteContents();
+          const put = value => {
+            if (!value) return;
+            const node = document.createTextNode(value);
+            range = sel.getRangeAt(0);
+            range.insertNode(node);
+            range.setStartAfter(node);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          };
+          put(lines[0]);
+          for (let i = 1; i < lines.length; i++) {
+            if (!_prodDescRichSplitBlock(root)) break;
+            put(lines[i]);
+          }
+          return true;
+        }
+        /* Wrap the selection in a link (or drop a link at the caret). Returns the
+           anchor, so the popover can open on it. */
+        function _prodDescRichMakeLink(root, url, label) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          const range = sel.getRangeAt(0);
+          const a = document.createElement('a');
+          a.setAttribute('data-md', 'named');
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+          a.setAttribute('href', url || '');
+          if (range.collapsed) { a.textContent = label || url || 'link'; if (!label && !url) a.setAttribute('data-md-new', '1'); }
+          else a.appendChild(range.extractContents());
+          range.insertNode(a);
+          range.selectNodeContents(a);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return a;
+        }
+        function _prodDescRichAnchorAtCaret(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          let node = sel.focusNode;
+          while (node && node !== root) { if (node.nodeType === 1 && node.tagName === 'A') return node; node = node.parentNode; }
+          return null;
+        }
+        /* Keys the block model owns. Everything else is the browser's. */
+        function _prodDescRichKeydown(event, root) {
+          if (!event || !root) return false;
+          if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichSplitBlock(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          if (event.key === 'Backspace' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichJoinBack(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichJoinForward(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          /* Tab is deliberately NOT taken: there is no indentation to perform, and
+             a keyboard user has to be able to reach Markdown, Cancel and Save
+             (Codex on #1320). */
+          return false;
+        }
+        /* ---- Link popover ------------------------------------------------------
+           Hover a link in a description and a small card shows where it goes, with
+           Open, and -- where the description is editable -- Edit (text and URL) and
+           Remove. One body-mounted element, shared by every description on the page.
+           Ctrl/Cmd+K in the editor opens the same card for the link at the caret, or
+           makes one from the selection. */
+        // PORT-DELTA: the wired description surface is .prod-desc (artifact: .d-desc).
+        const PROD_DESC_LINK_SCOPE = '.prod-desc';
+        const _prodDescLinkPop = { el: null, anchor: null, timer: 0, editing: false };
+        function _prodDescLinkPopEnsure() {
+          if (_prodDescLinkPop.el && _prodDescLinkPop.el.isConnected) return _prodDescLinkPop.el;
+          const el = document.createElement('div');
+          el.id = 'prodDescLinkPop';
+          el.className = 'prod-linkpop';
+          el.setAttribute('role', 'dialog');
+          el.setAttribute('aria-label', 'Link');
+          el.hidden = true;
+          el.innerHTML = '<div class="prod-linkpop-view"><a class="prod-linkpop-url" data-prod-linkpop="open" target="_blank" rel="noopener noreferrer"></a>'
+            + '<button type="button" class="prod-linkpop-btn" data-prod-linkpop="edit">Edit</button></div>'
+            + '<form class="prod-linkpop-form" data-prod-linkpop-form>'
+            + '<label class="prod-linkpop-field"><span>Text</span><input data-prod-linkpop-text autocomplete="off" spellcheck="false"></label>'
+            + '<label class="prod-linkpop-field"><span>URL</span><input data-prod-linkpop-href autocomplete="off" spellcheck="false" placeholder="https://"></label>'
+            + '<div class="prod-linkpop-note" data-prod-linkpop-note hidden></div>'
+            + '<div class="prod-linkpop-actions"><button type="button" class="prod-linkpop-btn" data-prod-linkpop="remove">Remove link</button><span class="prod-linkpop-spacer"></span>'
+            + '<button type="button" class="prod-linkpop-btn" data-prod-linkpop="cancel">Cancel</button><button type="submit" class="prod-linkpop-btn prod-linkpop-apply">Apply</button></div></form>';
+          document.body.appendChild(el);
+          el.addEventListener('mouseenter', () => { clearTimeout(_prodDescLinkPop.timer); });
+          el.addEventListener('mouseleave', () => { if (!_prodDescLinkPop.editing) _prodDescLinkPopHideSoon(); });
+          el.addEventListener('click', event => {
+            const btn = event.target.closest('[data-prod-linkpop]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-prod-linkpop');
+            if (action === 'open') return;
+            event.preventDefault();
+            if (action === 'edit') _prodDescLinkPopEdit();
+            else if (action === 'cancel') _prodDescLinkPopHide(true);
+            else if (action === 'remove') _prodDescLinkPopRemove();
+          });
+          el.querySelector('[data-prod-linkpop-form]').addEventListener('submit', event => { event.preventDefault(); _prodDescLinkPopApply(); });
+          el.addEventListener('keydown', event => {
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); _prodDescLinkPopHide(true); }
+          });
+          _prodDescLinkPop.el = el;
+          return el;
+        }
+        function _prodDescLinkPopEditable(anchor) {
+          const root = anchor && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+          if (root) return { root, read: false };
+          const body = anchor && anchor.closest ? anchor.closest('[data-prod-desc-click-edit]') : null;
+          return body ? { root: body, read: true } : null;
+        }
+        function _prodDescLinkPopPlace(anchor) {
+          const el = _prodDescLinkPop.el;
+          const rect = anchor.getBoundingClientRect();
+          el.hidden = false;
+          const width = el.offsetWidth || 260;
+          const height = el.offsetHeight || 40;
+          let left = rect.left;
+          let top = rect.bottom + 6;
+          if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+          if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - 6 - height);
+          el.style.left = Math.round(left) + 'px';
+          el.style.top = Math.round(top) + 'px';
+        }
+        function _prodDescLinkPopShow(anchor, edit) {
+          if (!anchor || !anchor.isConnected) return false;
+          const el = _prodDescLinkPopEnsure();
+          clearTimeout(_prodDescLinkPop.timer);
+          _prodDescLinkPop.anchor = anchor;
+          _prodDescLinkPop.editing = false;
+          const href = anchor.getAttribute('href') || '';
+          const url = el.querySelector('.prod-linkpop-url');
+          url.setAttribute('href', href);
+          url.textContent = href.replace(/^https?:\/{2}/, '').replace(/\/$/, '') || 'No URL yet';
+          const editable = _prodDescLinkPopEditable(anchor);
+          el.querySelector('[data-prod-linkpop="edit"]').hidden = !editable;
+          el.classList.remove('is-editing');
+          _prodDescLinkPopPlace(anchor);
+          if (edit) _prodDescLinkPopEdit();
+          return true;
+        }
+        function _prodDescLinkPopEdit() {
+          const anchor = _prodDescLinkPop.anchor;
+          const editable = _prodDescLinkPopEditable(anchor);
+          if (!anchor || !editable) return false;
+          if (editable.read) {
+            /* A read view: hand the request to whoever owns the editor. It begins
+               editing and re-opens this card on the same link. */
+            const index = Array.prototype.indexOf.call(editable.root.querySelectorAll('a'), anchor);
+            _prodDescLinkPopHide(true);
+            editable.root.dispatchEvent(new CustomEvent('desc-link-edit', { bubbles: true, detail: { index } }));
+            return true;
+          }
+          const el = _prodDescLinkPop.el;
+          _prodDescLinkPop.editing = true;
+          el.classList.add('is-editing');
+          el.querySelector('[data-prod-linkpop-text]').value = anchor.hasAttribute('data-md-new') ? '' : (anchor.textContent || '');
+          el.querySelector('[data-prod-linkpop-note]').hidden = true;
+          el.querySelector('[data-prod-linkpop-href]').value = anchor.getAttribute('href') || '';
+          _prodDescLinkPopPlace(anchor);
+          const focus = el.querySelector(anchor.getAttribute('href') ? '[data-prod-linkpop-text]' : '[data-prod-linkpop-href]');
+          focus.focus();
+          focus.select();
+          return true;
+        }
+        function _prodDescLinkPopNotify(anchorOrRoot) {
+          const root = anchorOrRoot && anchorOrRoot.closest ? anchorOrRoot.closest('[contenteditable="true"]') : null;
+          if (root) root.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        function _prodDescLinkPopApply() {
+          const anchor = _prodDescLinkPop.anchor;
+          const el = _prodDescLinkPop.el;
+          if (!anchor || !anchor.isConnected || !el) { _prodDescLinkPopHide(true); return false; }
+          const text = String(el.querySelector('[data-prod-linkpop-text]').value || '').trim();
+          let href = String(el.querySelector('[data-prod-linkpop-href]').value || '').trim();
+          const note = el.querySelector('[data-prod-linkpop-note]');
+          const refuse = (field, why) => { note.textContent = why; note.hidden = false; el.querySelector(field).focus(); return false; };
+          if (href && !/^https?:\/{2}/i.test(href)) href = 'https://' + href;
+          if (!/^https?:\/{2}\S+$/i.test(href)) return refuse('[data-prod-linkpop-href]', 'Enter a full https:// address.');
+          /* The Markdown forms cannot carry these: a `]` ends the label and `<`
+             or `>` end the angle URL. Said here, not lost at the next render. */
+          if (/[\[\]]/.test(text)) return refuse('[data-prod-linkpop-text]', 'Link text cannot contain [ or ].');
+          if (/[<>]/.test(href)) return refuse('[data-prod-linkpop-href]', 'The address cannot contain < or >.');
+          note.hidden = true;
+          anchor.setAttribute('href', href);
+          anchor.textContent = text || href;
+          anchor.setAttribute('data-md', text && text !== href ? 'named' : 'bare');
+          anchor.removeAttribute('data-md-new');
+          const root = anchor.closest('[contenteditable="true"]');
+          _prodDescLinkPopHide(true);
+          _prodDescLinkPopNotify(root);
+          return true;
+        }
+        function _prodDescLinkPopRemove() {
+          const anchor = _prodDescLinkPop.anchor;
+          if (!anchor || !anchor.isConnected) { _prodDescLinkPopHide(true); return false; }
+          const root = anchor.closest('[contenteditable="true"]');
+          /* The root and the caret are taken BEFORE the anchor goes, because the
+             hide routine finds them through the anchor (Codex on #1320). */
+          let last = null;
+          while (anchor.firstChild) { last = anchor.firstChild; anchor.parentNode.insertBefore(last, anchor); }
+          const parent = anchor.parentNode;
+          anchor.remove();
+          _prodDescLinkPop.anchor = null;
+          _prodDescLinkPopHide(true);
+          if (root) {
+            try { root.focus({ preventScroll: true }); } catch (e) {}
+            const sel = window.getSelection && window.getSelection();
+            if (sel && parent) {
+              const r = document.createRange();
+              if (last && last.parentNode) r.setStartAfter(last); else r.setStart(parent, 0);
+              r.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(r);
+            }
+          }
+          _prodDescLinkPopNotify(root);
+          return true;
+        }
+        function _prodDescLinkPopHide(now) {
+          clearTimeout(_prodDescLinkPop.timer);
+          const el = _prodDescLinkPop.el;
+          if (!el) return;
+          const done = () => {
+            const wasEditing = _prodDescLinkPop.editing;
+            el.hidden = true;
+            el.classList.remove('is-editing');
+            /* A link that was created empty and then abandoned is not a link. */
+            const anchor = _prodDescLinkPop.anchor;
+            const root = anchor && anchor.isConnected && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+            if (anchor && root && !anchor.getAttribute('href')) {
+              if (!anchor.hasAttribute('data-md-new')) { while (anchor.firstChild) anchor.parentNode.insertBefore(anchor.firstChild, anchor); }
+              anchor.remove();
+              _prodDescLinkPopNotify(root);
+            }
+            /* The card's inputs had the focus; the writer was in the editor and
+               goes back there, just after the link. */
+            if (wasEditing && root) {
+              try { root.focus({ preventScroll: true }); } catch (e) {}
+              const sel = window.getSelection && window.getSelection();
+              if (sel && anchor && anchor.isConnected) {
+                const r = document.createRange();
+                r.setStartAfter(anchor);
+                r.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(r);
+              }
+            }
+            _prodDescLinkPop.anchor = null;
+            _prodDescLinkPop.editing = false;
+          };
+          if (now) done(); else _prodDescLinkPop.timer = setTimeout(done, 250);
+        }
+        function _prodDescLinkPopHideSoon() { _prodDescLinkPopHide(false); }
+        function _prodDescLinkPopWire() {
+          if (_prodDescLinkPop.wired || typeof document === 'undefined') return;
+          _prodDescLinkPop.wired = true;
+          document.addEventListener('mouseover', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (!anchor) return;
+            if (_prodDescLinkPop.editing) return;
+            clearTimeout(_prodDescLinkPop.timer);
+            _prodDescLinkPop.timer = setTimeout(() => _prodDescLinkPopShow(anchor, false), 120);
+          });
+          document.addEventListener('mouseout', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (!anchor) return;
+            clearTimeout(_prodDescLinkPop.timer);
+            if (_prodDescLinkPop.anchor === anchor && !_prodDescLinkPop.editing) _prodDescLinkPopHideSoon();
+            else if (!_prodDescLinkPop.anchor) _prodDescLinkPop.timer = 0;
+          });
+          document.addEventListener('focusin', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (anchor && !_prodDescLinkPop.editing) _prodDescLinkPopShow(anchor, false);
+          });
+          document.addEventListener('mousedown', event => {
+            if (!_prodDescLinkPop.el || _prodDescLinkPop.el.hidden) return;
+            if (_prodDescLinkPop.el.contains(event.target)) return;
+            if (_prodDescLinkPop.anchor && _prodDescLinkPop.anchor.contains(event.target)) return;
+            _prodDescLinkPopHide(true);
+          });
+          /* Inside the editor a plain click places the caret; Ctrl/Cmd+click opens. */
+          document.addEventListener('click', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest('[contenteditable="true"] a') : null;
+            if (!anchor) return;
+            if (event.ctrlKey || event.metaKey) return;
+            event.preventDefault();
+          });
+          document.addEventListener('scroll', () => { if (_prodDescLinkPop.el && !_prodDescLinkPop.el.hidden && !_prodDescLinkPop.editing) _prodDescLinkPopHide(true); }, true);
+        }
+        _prodDescLinkPopWire();
+        /* A link's hover card, opened on the READ view, asked to edit that
+           link: begin editing and re-open the card on the same link in the
+           editor. The card only dispatches this where the body is marked
+           click-to-edit, which the panel does only when the write gate is
+           open, and _prodBeginDescriptionEdit re-checks that gate itself. */
+        if (typeof document !== 'undefined' && document.addEventListener) {
+            document.addEventListener('desc-link-edit', function (event) {
+                const panel = event && event.target && event.target.closest ? event.target.closest('[data-prod-description]') : null;
+                if (!panel) return;
+                const index = event.detail && Number.isInteger(event.detail.index) ? event.detail.index : null;
+                _prodBeginDescriptionEdit(panel.getAttribute('data-prod-description'), { link: index });
+            });
+        }
+        /* ---- Pasting an image into a description (2026-09-05) ------------
+           Owner, 2026-08-31: "could you look into pasting images in the
+           description? ... same way it does in linear." #1204 shipped the
+           render half; this is the paste half, and the storage decision
+           behind it is written up in docs/ops/DESCRIPTION_IMAGE_UPLOAD.md.
+
+           SHAPE. A paste (or drop) that carries an image file is intercepted;
+           anything else -- ordinary text -- is left to the browser untouched.
+           A placeholder line is inserted at the caret straight away so the
+           editor answers the keystroke, the bytes are downscaled HERE (see
+           _prodDescriptionImageFit) and posted to description-image-upload,
+           and the placeholder is swapped for `![alt](https://…)` when the
+           URL comes back. On failure the placeholder is removed and a toast
+           says why: a paste that half-works is worse than one that does not.
+
+           WHY THE BROWSER DOWNSCALES. A Retina screenshot is 2x, so pasted
+           as-is it renders enormous -- and Linear draws the mirrored markdown
+           image at its natural size, where no CSS of ours reaches. Capping
+           the long edge at 1600px keeps text readable and is the one lever
+           that sizes the picture on BOTH surfaces. A GIF passes through
+           untouched, because redrawing it on a canvas would drop its frames.
+
+           Nothing here holds a storage key. The function verifies the bytes
+           and the actor; this only shapes and ships them. */
+        const PROD_DESCRIPTION_IMAGE_MAX_EDGE = 1600;
+        const PROD_DESCRIPTION_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+        const PROD_DESCRIPTION_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+        const PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE = /!\[Uploading image \d+…\]\(\)/;
+        let _prodDescriptionImageSeq = 0;
+        function _prodDescriptionImagePlaceholder(n) {
+            return '![Uploading image ' + n + '…]()';
+        }
+        /* Long-edge fit. Never upscales; a small image keeps its own pixels. */
+        function _prodDescriptionImageFit(width, height, maxEdge) {
+            width = Math.max(1, Math.round(Number(width) || 0));
+            height = Math.max(1, Math.round(Number(height) || 0));
+            maxEdge = Math.max(1, Number(maxEdge) || PROD_DESCRIPTION_IMAGE_MAX_EDGE);
+            const longest = Math.max(width, height);
+            const scale = longest > maxEdge ? maxEdge / longest : 1;
+            return {
+                scale,
+                width: Math.max(1, Math.round(width * scale)),
+                height: Math.max(1, Math.round(height * scale))
+            };
+        }
+        /* PNG stays PNG: screenshots are text and flat colour, which JPEG
+           smears and PNG keeps crisp, and PNG keeps transparency. Anything
+           else that had to be redrawn is re-encoded as JPEG, which is what a
+           photo wants. */
+        function _prodDescriptionImageOutputType(sourceType) {
+            return String(sourceType || '').toLowerCase() === 'image/png' ? 'image/png' : 'image/jpeg';
+        }
+        function _prodDescriptionImageAlt(file, n) {
+            const name = String(file && file.name || '').trim();
+            const base = name.replace(/\.[a-z0-9]+$/i, '');
+            /* The clipboard names every paste "image.png"; that is not an
+               alt text, it is the absence of one. */
+            const meaningful = base && !/^(image|screenshot|pasted[ _-]?image|clipboard)(\s*\(?\d*\)?)?$/i.test(base);
+            const alt = (meaningful ? base : 'Pasted image ' + n).replace(/[\[\]\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+            return alt.slice(0, 80);
+        }
+        function _prodDescriptionImageErrorText(error) {
+            const code = String(error && error.code || '');
+            const status = Number(error && error.status || 0);
+            if (code === 'unsupported_image_type' || code === 'image_type_mismatch' || code === 'image_bytes_unrecognized') {
+                return 'Only PNG, JPEG, WebP or GIF images can be pasted.';
+            }
+            if (code === 'image_incomplete' || code === 'image_undecodable') return 'That image file is cut off or damaged. Try copying it again.';
+            if (code === 'image_encode_failed') return 'This browser could not prepare the image. Try a PNG or JPEG.';
+            if (code === 'animated_webp_unsupported') return 'Animated WebP is not supported here. Paste a GIF or a still image instead.';
+            if (code === 'image_too_large') return 'That image is over 4 MB even after resizing. Try a smaller crop.';
+            if (code === 'rate_limited') return 'Too many images uploaded in the last hour. Try again a little later.';
+            if (code === 'operation_forbidden') return 'Only admin and SMM accounts can add images to a description.';
+            if (status === 401 || code === 'credentials_required' || code === 'invalid_staff_key' || code === 'roster_actor_required' || code === 'roster_actor_not_unique') {
+                return 'Staff sign-in is required to upload an image.';
+            }
+            if (status === 404) return 'Image upload is not available yet on this backend.';
+            if (code === 'upload_disabled') return 'Image upload is switched off right now.';
+            return 'The image could not be uploaded. The description is unchanged.';
+        }
+        /* Image files out of a DataTransfer. During a dragover the files are
+           not readable yet, so `probeOnly` answers from the item kinds. */
+        function _prodDescriptionTransferImages(transfer, probeOnly) {
+            const out = [];
+            if (!transfer) return out;
+            const items = transfer.items;
+            if (items && items.length) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (!item || item.kind !== 'file' || !/^image\//i.test(String(item.type || ''))) continue;
+                    if (probeOnly) { out.push(item); continue; }
+                    const file = item.getAsFile && item.getAsFile();
+                    if (file) out.push(file);
+                }
+                return out;
+            }
+            const files = transfer.files;
+            if (files && files.length) {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file && /^image\//i.test(String(file.type || ''))) out.push(file);
+                }
+            }
+            return out;
+        }
+        function _prodDescriptionPaste(event, id) {
+            const files = _prodDescriptionTransferImages(event && event.clipboardData, false);
+            const input = event.currentTarget || event.target;
+            if (!files.length) {
+                /* No image on the clipboard. In the textarea the browser's own
+                   paste is right. In the visual editor the text is placed as
+                   blocks, a URL pasted over a selection becomes its link, and
+                   pasted Markdown is rendered straight away. */
+                const rich = input && input.getAttribute && input.getAttribute('data-prod-description-control') === 'rich';
+                const text = rich && event.clipboardData ? String(event.clipboardData.getData('text/plain') || '') : '';
+                if (!rich || !text) return true;
+                event.preventDefault();
+                const selection = window.getSelection();
+                if (selection && !selection.isCollapsed && /^https?:\/\/\S+$/.test(text.trim())) _prodDescRichMakeLink(input, text.trim());
+                else _prodDescRichInsertText(input, text);
+                _prodDescriptionRichInput(id, input);
+                _prodDescriptionRichRebuild(id, input);
+                return false;
+            }
+            event.preventDefault();
+            _prodDescriptionInsertImages(id, input, files);
+            return false;
+        }
+        function _prodDescriptionDragOver(event) {
+            const transfer = event && event.dataTransfer;
+            if (!_prodDescriptionTransferImages(transfer, true).length) return true;
+            event.preventDefault();
+            try { transfer.dropEffect = 'copy'; } catch (e) {}
+            const input = event.currentTarget || event.target;
+            if (input && input.classList) input.classList.add('is-drop-target');
+            return false;
+        }
+        function _prodDescriptionDragLeave(event) {
+            const input = event && (event.currentTarget || event.target);
+            if (input && input.classList) input.classList.remove('is-drop-target');
+            return true;
+        }
+        function _prodDescriptionDrop(event, id) {
+            const input = event && (event.currentTarget || event.target);
+            if (input && input.classList) input.classList.remove('is-drop-target');
+            const files = _prodDescriptionTransferImages(event && event.dataTransfer, false);
+            if (!files.length) return true;
+            event.preventDefault();
+            _prodDescriptionInsertImages(id, input, files);
+            return false;
+        }
+        function _prodDescriptionSourceInput(id) {
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            return panel && panel.querySelector('[data-prod-description-control="source"]') || null;
+        }
+        /* Insert `text` at the caret ON ITS OWN LINE, in the live textarea
+           when there is one and in the draft either way. The draft is the
+           truth _prodRender redraws from, so a re-render mid-upload cannot
+           lose the placeholder. */
+        function _prodDescriptionInsertAtCaret(id, input, text) {
+            const state = _prodDescriptionState(id);
+            if (!state) return false;
+            const rich = _prodDescriptionRichRoot(id);
+            if (rich && !(input && input.tagName === 'TEXTAREA')) return _prodDescriptionRichInsertLine(id, rich, text);
+            const live = input && input.tagName === 'TEXTAREA' ? input : _prodDescriptionSourceInput(id);
+            const value = String(live ? live.value : state.draft || '');
+            let start = live && Number.isFinite(live.selectionStart) ? live.selectionStart : state.selectionStart;
+            let end = live && Number.isFinite(live.selectionEnd) ? live.selectionEnd : state.selectionEnd;
+            start = Math.min(Math.max(0, Number(start) || 0), value.length);
+            end = Math.min(Math.max(start, Number(end) || start), value.length);
+            const before = value.slice(0, start);
+            const after = value.slice(end);
+            const lead = before && !/\n$/.test(before) ? '\n' : '';
+            const tail = after && !/^\n/.test(after) ? '\n' : '';
+            const inserted = lead + text + tail;
+            const next = before + inserted + after;
+            const caret = before.length + inserted.length;
+            if (live) {
+                live.value = next;
+                try { live.setSelectionRange(caret, caret); } catch (e) {}
+            }
+            state.selectionStart = caret;
+            state.selectionEnd = caret;
+            _prodDescriptionDraftInput(id, next, live);
+            return true;
+        }
+        /* The visual-editor twin of the textarea insert above: the text lands
+           on its own line, the same newline rules, and the editor is rebuilt
+           from the Markdown so the placeholder shows as its chip. */
+        function _prodDescriptionRichInsertLine(id, root, text) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root) return false;
+            if (document.activeElement !== root || !_prodDescRichCaret(root)) {
+                try { root.focus({ preventScroll: true }); } catch (e) {}
+                _prodDescRichSetCaret(root, { block: state.caretBlock, offset: state.caretOffset });
+            }
+            const selection = window.getSelection();
+            const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+            const block = range ? _prodDescRichBlockOf(root, range.startContainer) : null;
+            const container = _prodDescRichContainer(block);
+            const leftEmpty = !container || _prodDescRichCaretAtStart(container, range);
+            const rightEmpty = !container || _prodDescRichCaretAtEnd(container, range);
+            _prodDescRichInsertText(root, (leftEmpty ? '' : '\n') + text + (rightEmpty ? '' : '\n'));
+            _prodDescriptionRichInput(id, root);
+            _prodDescriptionRichRebuild(id, root);
+            return true;
+        }
+        /* Swap a placeholder for its result (or for nothing). Works on the
+           live editor, visual or Markdown, else on the draft, and keeps the
+           caret where the writer left it. */
+        function _prodDescriptionReplaceInDraft(id, placeholder, replacement) {
+            const state = _prodDescriptionState(id);
+            if (!state) return false;
+            const rich = _prodDescriptionRichRoot(id);
+            if (rich) {
+                const n = (String(placeholder).match(/Uploading image (\d+)/) || [])[1];
+                const chip = n && rich.querySelector('[data-md-placeholder="' + n + '"]');
+                if (!chip) return false;
+                const block = _prodDescRichBlockOf(rich, chip);
+                if (replacement) {
+                    const host = document.createElement('span');
+                    host.innerHTML = _prodDescRichInline(replacement);
+                    while (host.firstChild) chip.parentNode.insertBefore(host.firstChild, chip);
+                }
+                chip.remove();
+                /* A failed paste takes the line it was given with it. */
+                if (!replacement && block && _prodDescRichIsEmpty(_prodDescRichContainer(block)) && rich.children.length > 1) block.remove();
+                _prodDescriptionRichInput(id, rich);
+                return true;
+            }
+            const live = _prodDescriptionSourceInput(id);
+            const value = String(live ? live.value : state.draft || '');
+            const at = value.indexOf(placeholder);
+            if (at < 0) return false;
+            let block = placeholder;
+            let from = at;
+            if (!replacement) {
+                /* Take the line the placeholder was given with it, so a failed
+                   paste does not leave a blank line behind. */
+                if (value[at + block.length] === '\n') block = block + '\n';
+                else if (at > 0 && value[at - 1] === '\n' && (at + block.length === value.length)) { from = at - 1; block = '\n' + block; }
+            }
+            const next = value.slice(0, from) + (replacement || '') + value.slice(from + block.length);
+            const delta = (replacement || '').length - block.length;
+            const shift = pos => pos > from ? Math.max(from, pos + delta) : pos;
+            const start = shift(live && Number.isFinite(live.selectionStart) ? live.selectionStart : state.selectionStart);
+            const end = shift(live && Number.isFinite(live.selectionEnd) ? live.selectionEnd : state.selectionEnd);
+            if (live) {
+                const focused = document.activeElement === live;
+                live.value = next;
+                if (focused) { try { live.setSelectionRange(start, end); } catch (e) {} }
+            }
+            state.selectionStart = start;
+            state.selectionEnd = end;
+            _prodDescriptionDraftInput(id, next, live);
+            if (!live && state.editing && state.preview) _prodRender();
+            return true;
+        }
+        function _prodDescriptionSetUploading(id, delta) {
+            const state = _prodDescriptionState(id);
+            if (!state) return;
+            state.uploading = Math.max(0, (Number(state.uploading) || 0) + delta);
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            const save = panel && panel.querySelector('[data-prod-description-control="save"]');
+            if (save) save.disabled = state.saving || state.uploading > 0 || String(state.draft || '').length > 100000;
+            const hint = panel && panel.querySelector('[data-prod-description-hint]');
+            if (hint) hint.textContent = state.uploading > 0
+                ? 'Uploading ' + (state.uploading === 1 ? 'image' : state.uploading + ' images') + '…'
+                : 'Paste or drop an image to add it';
+        }
+        function _prodDescriptionInsertImages(id, input, files) {
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || !state.editing || state.saving) return false;
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
+                return false;
+            }
+            files.forEach(file => { _prodDescriptionUploadImage(id, input, file); });
+            return true;
+        }
+        function _prodDescriptionCanvasBlob(canvas, type, quality) {
+            return new Promise(resolve => {
+                try { canvas.toBlob(blob => resolve(blob || null), type, quality); } catch (e) { resolve(null); }
+            });
+        }
+        /* An animated WebP is a VP8X container with bit 1 of its flags set.
+           Read off the first 21 bytes; no decode. */
+        async function _prodDescriptionWebpAnimated(file) {
+            try {
+                const head = new Uint8Array(await file.slice(0, 21).arrayBuffer());
+                if (head.length < 21) return false;
+                const tag = String.fromCharCode(head[12], head[13], head[14], head[15]);
+                return tag === 'VP8X' && (head[20] & 0x02) !== 0;
+            } catch (e) {
+                return false;
+            }
+        }
+        /* Shape the bytes before they travel: downscale to the long edge,
+           re-encode, and refuse here what the server would refuse anyway so
+           the writer hears it without a round trip. */
+        async function _prodDescriptionPrepareImage(file) {
+            const type = String(file && file.type || '').toLowerCase();
+            const fail = code => { const e = new Error(code); e.code = code; return e; };
+            if (!PROD_DESCRIPTION_IMAGE_TYPES.includes(type)) throw fail('unsupported_image_type');
+            const passThrough = () => {
+                if (file.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES) throw fail('image_too_large');
+                return { blob: file, type };
+            };
+            /* An animated WebP would be flattened to one frame by the redraw
+               below, and the server cannot decode its bitstream to accept it
+               raw, so it is refused outright and said so (Codex on #1310,
+               round nine). A still WebP is redrawn as before. */
+            if (type === 'image/webp' && await _prodDescriptionWebpAnimated(file)) throw fail('animated_webp_unsupported');
+            let bitmap = null;
+            try { bitmap = await createImageBitmap(file); } catch (e) { bitmap = null; }
+            /* A GIF is never redrawn (that would drop its frames), but it IS
+               decoded first: a file whose first frame this browser cannot
+               decode is refused rather than shipped, since the server checks
+               a GIF's block structure and not its LZW stream. The original
+               bytes travel untouched on success. Codex on #1310, round nine. */
+            if (type === 'image/gif') {
+                if (!bitmap) throw fail('image_undecodable');
+                if (bitmap.close) bitmap.close();
+                return passThrough();
+            }
+            /* A file this browser cannot decode is refused HERE, not shipped
+               for the server to guess at: the server checks structure, not
+               pixels, and a file that fails to decode in the browser would
+               fail to render for every reader too. (Codex on #1310, round
+               eight.) The one exception is GIF above, which is never
+               decoded here because redrawing it would drop its frames. */
+            if (!bitmap) throw fail('image_undecodable');
+            const fit = _prodDescriptionImageFit(bitmap.width, bitmap.height, PROD_DESCRIPTION_IMAGE_MAX_EDGE);
+            /* PNG and JPEG that already fit travel byte-identical. WebP is
+               ALWAYS redrawn: the server cannot decode its bitstream, so a
+               WebP reaches it only as a PNG or JPEG this browser has
+               actually decoded. */
+            if (fit.scale === 1 && file.size <= PROD_DESCRIPTION_IMAGE_MAX_BYTES && type !== 'image/webp') {
+                if (bitmap.close) bitmap.close();
+                return { blob: file, type, width: bitmap.width, height: bitmap.height };
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = fit.width;
+            canvas.height = fit.height;
+            const context = canvas.getContext('2d');
+            if (!context) { if (bitmap.close) bitmap.close(); throw fail('image_encode_failed'); }
+            context.drawImage(bitmap, 0, 0, fit.width, fit.height);
+            if (bitmap.close) bitmap.close();
+            let outType = _prodDescriptionImageOutputType(type);
+            let blob = await _prodDescriptionCanvasBlob(canvas, outType, 0.9);
+            if (blob && blob.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES && outType === 'image/png') {
+                outType = 'image/jpeg';
+                blob = await _prodDescriptionCanvasBlob(canvas, outType, 0.88);
+            }
+            if (!blob) throw fail('image_encode_failed');
+            if (blob.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES) throw fail('image_too_large');
+            return { blob, type: outType, width: fit.width, height: fit.height };
+        }
+        function _prodDescriptionImageHeaderValue(value) {
+            return String(value == null ? '' : value).replace(/[^A-Za-z0-9_.:@-]+/g, '').slice(0, 160);
+        }
+        async function _prodDescriptionPostImage(issue, prepared) {
+            const headers = {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json',
+                'Content-Type': prepared.type
+            };
+            const clientSlug = _prodDescriptionImageHeaderValue(issue.authorityProject || issue.storedClientSlug || issue.project || '');
+            const issueId = _prodDescriptionImageHeaderValue(issue.id);
+            if (clientSlug) headers['X-Syncview-Image-Client'] = clientSlug;
+            if (issueId) headers['X-Syncview-Image-Issue'] = issueId;
+            const request = {
+                method: 'POST',
+                cache: 'no-store',
+                headers: _syncviewEfHeaders(headers, PROD_DESCRIPTION_IMAGE_EF_URL),
+                body: prepared.blob
+            };
+            /* A hung upload must not pin Save shut forever: the placeholder is
+               removed and the writer told, exactly as for any other failure. */
+            try {
+                if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+                    request.signal = AbortSignal.timeout(60000);
+                }
+            } catch (e) {}
+            const response = await fetch(PROD_DESCRIPTION_IMAGE_EF_URL, request);
+            const json = await response.json().catch(() => ({}));
+            const url = String(json && json.url || '');
+            if (!response.ok || !json || json.ok !== true || !/^https:\/\/[^\s)]+$/.test(url)) {
+                const error = new Error(String(json && json.error || 'upload_failed'));
+                error.code = String(json && json.error || '');
+                error.status = response.status;
+                throw error;
+            }
+            return url;
+        }
+        async function _prodDescriptionUploadImage(id, input, file) {
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state) return false;
+            const n = ++_prodDescriptionImageSeq;
+            const placeholder = _prodDescriptionImagePlaceholder(n);
+            _prodDescriptionInsertAtCaret(id, input, placeholder);
+            _prodDescriptionSetUploading(id, 1);
+            try {
+                const prepared = await _prodDescriptionPrepareImage(file);
+                const url = await _prodDescriptionPostImage(issue, prepared);
+                const markdown = '![' + _prodDescriptionImageAlt(file, n) + '](' + url + ')';
+                if (!_prodDescriptionReplaceInDraft(id, placeholder, markdown)) {
+                    /* The editor was cancelled or the draft was replaced
+                       while the bytes were in flight. The upload succeeded
+                       and is durable; the writer simply is not in a state to
+                       receive it, so say so rather than inserting into a
+                       draft they did not ask to change. */
+                    _prodToast('Image uploaded, but the description editor had closed. Paste it again.');
+                }
+                return true;
+            } catch (error) {
+                _prodDescriptionReplaceInDraft(id, placeholder, '');
+                _prodToast(_prodDescriptionImageErrorText(error));
+                return false;
+            } finally {
+                _prodDescriptionSetUploading(id, -1);
+            }
+        }
+        /* A rendered image opens full size on click. Delegated, because the
+           renderer is a string builder and an inline handler attribute is
+           exactly the shape test/prod-description-images.js forbids. */
+        function _prodDescriptionImageOpen(event) {
+            const target = event && event.target;
+            const image = target && target.closest ? target.closest('img.prod-desc-image') : null;
+            if (!image) return false;
+            const src = String(image.getAttribute('src') || '');
+            if (!/^https:\/\//.test(src)) return false;
+            event.preventDefault();
+            window.open(src, '_blank', 'noopener,noreferrer');
+            return true;
+        }
+        if (typeof document !== 'undefined' && document.addEventListener) {
+            document.addEventListener('click', _prodDescriptionImageOpen);
+            /* Enter and Space on the focused image, so the full-size view is
+               not mouse-only. Raised by Codex on #1310. */
+            document.addEventListener('keydown', function (event) {
+                if (!event || (event.key !== 'Enter' && event.key !== ' ')) return;
+                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                _prodDescriptionImageOpen(event);
+            });
+        }
+        async function _prodSaveDescription(event, id) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || !state.editing || state.saving) return false;
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
+                return false;
+            }
+            const description = String(state.draft == null ? '' : state.draft);
+            if (description.includes('\0')) {
+                state.error = 'Descriptions cannot contain NUL characters.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
+                return false;
+            }
+            /* A placeholder is not a description. Saving it would mirror the
+               literal text "Uploading image 1…" to Linear and lose the URL
+               that arrives a second later. */
+            if (state.uploading > 0 || PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE.test(description)) {
+                state.error = 'An image is still uploading. Save once it has finished.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
+                return false;
+            }
+            if (description.length > 100000) {
+                state.error = 'Descriptions can contain at most 100,000 characters.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
+                return false;
+            }
+            if (!state.requestId) state.requestId = _prodWriteRequestId('description');
+            const previous = {
+                value: state.value,
+                baseline: state.baseline,
+                hasValue: state.hasValue,
+                status: state.status,
+                updatedAt: state.sourceUpdatedAt,
+                renderValue: state.renderValue,
+                renderExpiresAt: state.renderExpiresAt
+            };
+            _prodNextDescriptionRequestToken(id);
+            state.refreshing = false;
+            state.saving = true;
+            state.preview = false;
+            state.value = description;
+            state.hasValue = true;
+            state.status = 'ready';
+            state.error = '';
+            state.refreshError = '';
+            state.remoteChanged = false;
+            /* The rendered projection was computed against the PREVIOUS text.
+               Saving new text makes it stale immediately -- keeping it would
+               show the old media-rewritten brief over the just-saved one. */
+            state.renderValue = '';
+            state.renderExpiresAt = 0;
+            if (issue.syntheticBatchParent === true) _prodSyncBatchDescriptionRow(id, description, '');
+            else _prodSyncDescriptionRow(id, description, '');
+            _prodRender();
+            try {
+                /* A batch parent writes the POST's description onto the batch
+                   row, so it uses its own operation and answers with a batch
+                   rather than a deliverable. Everything downstream of the two
+                   lines below is shared, because from the panel's point of view
+                   the only difference is which field carried the committed
+                   text back. */
+                const batchParent = issue.syntheticBatchParent === true;
+                const json = await _prodGatewayWrite(
+                    issue,
+                    _prodDescriptionOperation(issue),
+                    { description },
+                    state.requestId
+                );
+                const committedRow = batchParent ? (json && json.batch) : (json && json.row);
+                if (!json || !committedRow) throw new Error('write_failed');
+                /* The batch answer carries its text at the TOP LEVEL, not on
+                   the row: publicRow is the shared deliverable projection and
+                   has no description field. Reading it off the row returned
+                   undefined on every successful save, which this then wrote
+                   back over the text the user had just typed. Raised by review
+                   on #1203. */
+                const committed = _prodDescriptionText(
+                    batchParent ? json.description : committedRow.brief
+                );
+                state.value = committed;
+                state.baseline = committed;
+                state.draft = committed;
+                state.hasValue = true;
+                state.status = 'ready';
+                state.saving = false;
+                state.editing = false;
+                state.preview = false;
+                state.error = '';
+                state.remoteChanged = false;
+                state.requestId = '';
+                state.sourceUpdatedAt = committedRow.updated_at || state.sourceUpdatedAt;
+                if (batchParent) _prodSyncBatchDescriptionRow(id, committed, committedRow.updated_at);
+                else _prodSyncDescriptionRow(id, committedRow.brief, committedRow.updated_at);
+                _prodToast('Description updated');
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'edit');
+            } catch (error) {
+                /* A write_conflict hands back the row that won. For a batch
+                   parent that is a BATCH carrying `description`, not a
+                   deliverable carrying `brief` -- reading the wrong field would
+                   silently replace the loser's text with an empty string and
+                   present it as the server's answer. */
+                const parentConflict = issue.syntheticBatchParent === true;
+                /* The winning row arrives as `batch` with its text beside it,
+                   because publicRow has no description field. Reading `brief`
+                   off it -- which the first version did -- found nothing, so
+                   the loser kept its own stale text and, worse, its own stale
+                   CLOCK, and every retry conflicted again forever. */
+                const serverRow = parentConflict
+                    ? (error && error.batch && typeof error.batchDescription === 'string' ? error.batch : null)
+                    : (error && error.row
+                        && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null);
+                if (serverRow) {
+                    state.value = _prodDescriptionText(
+                        parentConflict ? error.batchDescription : serverRow.brief
+                    );
+                    state.baseline = state.value;
+                    state.hasValue = true;
+                    state.status = 'ready';
+                    state.sourceUpdatedAt = serverRow.updated_at || state.sourceUpdatedAt;
+                    if (parentConflict) _prodSyncBatchDescriptionRow(id, state.value, serverRow.updated_at);
+                    else _prodSyncDescriptionRow(id, serverRow.brief, serverRow.updated_at);
+                } else {
+                    state.value = previous.value;
+                    state.baseline = previous.baseline;
+                    state.hasValue = previous.hasValue;
+                    state.status = previous.status;
+                    state.sourceUpdatedAt = previous.updatedAt;
+                    // The genuine revert: the text itself did not change, so
+                    // whatever rendered projection was valid for it before
+                    // the failed attempt is still valid for it now.
+                    state.renderValue = previous.renderValue;
+                    state.renderExpiresAt = previous.renderExpiresAt;
+                    if (parentConflict) _prodSyncBatchDescriptionRow(id, previous.value, previous.updatedAt);
+                    else _prodSyncDescriptionRow(id, previous.value, previous.updatedAt);
+                }
+                state.saving = false;
+                state.editing = true;
+                state.preview = false;
+                /* The SAME operation the write used. Computing the refusal
+                   text with the other name is what turned a gate that had
+                   already decided into the last-resort sentence. */
+                state.error = _prodWriteErrorText(error, issue, _prodDescriptionOperation(issue));
+                state.remoteChanged = !!serverRow;
+                if (String(error && error.code || '') === 'write_conflict') state.requestId = '';
+                _prodToast(state.error);
+                _prodRender();
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
+            }
+            return false;
+        }
+        function _prodRefreshDescription(id) {
+            // Same acknowledgement rule as the manual refresh: the fetch may
+            // finish (or early-return) with the panel unchanged, and the
+            // press still deserves a visible response.
+            _prodToast('Refreshing description\u2026');
+            _prodEnsureDescription(id, true);
+            return false;
+        }
+        function _prodDescriptionPanelHTML(issue) {
+            const state = _prodDescriptionState(issue && issue.id);
+            if (!issue || !state) return '';
+            const id = String(issue.id || '');
+            const status = state.refreshing ? 'refreshing' : state.status;
+            const count = String(state.draft || '').length;
+            /* The Edit control is gated on the operation the save will send, so a
+               button can never render enabled for a write its own gate refuses. */
+            const gateAttrs = _prodWriteGateAttrs(issue, _prodDescriptionOperation(issue), { title: 'Edit description', tip: 'Edit description' });
+            const writable = _prodCanWrite(issue, _prodDescriptionOperation(issue));
+            if (state.editing) {
+                const source = !!state.source;
+                /* IN PLACE (2026-09-06). The visual editor is the read view
+                   made editable: same classes, same type, same box, grows with
+                   the text. Markdown is one toggle away, and is what opens when
+                   the text cannot be shown exactly. */
+                const handlers = ' onkeydown="return _prodDescriptionEditorKeydown(event,' + _jsAttrArg(id) + ')"'
+                    + ' onpaste="return _prodDescriptionPaste(event,' + _jsAttrArg(id) + ')"'
+                    + ' ondrop="return _prodDescriptionDrop(event,' + _jsAttrArg(id) + ')"'
+                    + ' ondragover="return _prodDescriptionDragOver(event)"'
+                    + ' ondragleave="return _prodDescriptionDragLeave(event)"';
+                const editor = source
+                    ? '<div class="prod-description-editor"><textarea class="prod-description-textarea" data-prod-description-control="source" aria-label="Description Markdown source" maxlength="100000"'
+                        + ' oninput="_prodDescriptionDraftInput(' + _jsAttrArg(id) + ',this.value,this)"'
+                        + ' onselect="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + ' onkeyup="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + ' onclick="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + handlers + (state.saving ? ' disabled' : '') + '>' + _calEsc(state.draft) + '</textarea>'
+                        + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
+                        + '<span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>'
+                        + '</div></div>'
+                    : '<div class="prod-description-rich prod-desc' + (String(state.draft || '').trim() ? '' : ' is-empty') + '" data-prod-description-control="rich" contenteditable="' + (state.saving ? 'false' : 'true') + '" role="textbox" aria-multiline="true" aria-label="Description" spellcheck="true"'
+                        + ' oninput="_prodDescriptionRichInput(' + _jsAttrArg(id) + ',this)"'
+                        + ' onkeyup="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
+                        + ' onclick="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
+                        + handlers + '>' + _prodDescRichBuild(state.draft) + '</div>'
+                        + '<div class="prod-description-footer prod-description-footer-rich"><span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>'
+                        + '<span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + (count < 90000 ? ' is-quiet' : '') + '" data-prod-description-count data-prod-description-count-quiet="1">' + count.toLocaleString() + ' / 100,000</span>'
+                        + '</div>';
+                const editorState = state.error
+                    ? '<div class="prod-description-state is-error" data-prod-description-write-error>' + _calEsc(state.error) + '</div>'
+                    : state.refreshing
+                        ? '<div class="prod-description-state" data-prod-description-refreshing>Refreshing the server description. Your draft and cursor are preserved.</div>'
+                        : state.saving
+                            ? '<div class="prod-description-state" data-prod-description-saving>Saving description…</div>'
+                            : state.sourceReason
+                                ? '<div class="prod-description-state" data-prod-description-source-notice>' + _calEsc(state.sourceReason) + '</div>'
+                                : '';
+                return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" data-prod-description-mode="' + (source ? 'source' : 'rich') + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
+                    + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
+                    + '<div class="prod-description-actions">'
+                    + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="markdown-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg(source ? 'rich' : 'source') + ')"' + (state.saving ? ' disabled' : '') + '>Markdown</button>'
+                    + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
+                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
+                    + '</div></div>' + editor + editorState + '</section>';
+            }
+            /* The read view is click-to-edit where a write is allowed: the
+               text is the control, the way it is in Linear. The Edit button
+               stays for the keyboard and for the gate's own copy when a write
+               is refused. */
+            const clickEdit = writable && state.status === 'ready' && !state.refreshing;
+            const body = state.status === 'error'
+                ? ''
+                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodDescriptionHTML(state.renderValue || state.value, state.hasValue, 'No description.', true) + '</div>';
+            const readState = state.status === 'error'
+                ? '<div class="prod-description-state is-error" data-prod-description-error>' + _calEsc(state.error || 'Description could not load.')
+                    + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'
+                : state.refreshError
+                    ? '<div class="prod-description-state is-error" data-prod-description-refresh-error>' + _calEsc(state.refreshError)
+                        + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'
+                    : (state.status === 'stale' || state.refreshing) && !state.refreshSilent
+                        ? '<div class="prod-description-state" data-prod-description-refreshing>Refreshing description… The text shown may be outdated.</div>'
+                        : '';
+            return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
+                + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
+                /* The header Refresh button is gone (2026-08-30). Its premise
+                   was that Linear could change a description underneath the
+                   page, which the flip retired: linear-inbound is detect-only
+                   for both teams now, and the only remaining writer of an
+                   existing brief is this panel itself. The 30-second delta tick
+                   plus the freshness chip cover staleness, and on a batch parent
+                   the button was a phantom -- it fired a toast for a row the
+                   gateway cannot read. _prodRefreshDescription itself STAYS: the
+                   Retry buttons in the two error banners are the real escape
+                   from a failed read, and that case is load-bearing. */
+                + '<div class="prod-description-actions">'
+                + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
+                + '</div></div>' + body + readState + '</section>';
+        }
+        function _prodFileLinkLabel(file) {
+            const raw = String(file || '').trim();
+            if (!raw) return 'Open link';
+            let url = null;
+            try { url = new URL(raw); } catch (e) { return 'Open link'; }
+            const host = String(url.hostname || '').replace(/^www\./i, '').toLowerCase();
+            const path = String(url.pathname || '');
+            if (host.endsWith('drive.google.com')) {
+                if (/\/folders\//i.test(path)) return 'Open folder';
+                return 'Open file';
+            }
+            if (host.endsWith('docs.google.com')) return 'Open document';
+            if (host.endsWith('dropbox.com')) {
+                if (/\/scl\/fo\/|\/sh\//i.test(path)) return 'Open folder';
+                return 'Open file';
+            }
+            if (host.endsWith('frame.io') || host.endsWith('app.frame.io')) return 'Open Frame.io';
+            return 'Open link';
+        }
+        function _prodAssetStateLabel(state) {
+            const labels = {
+                missing: 'Missing',
+                invalid: 'Invalid',
+                checking: 'Checking',
+                available: 'Available',
+                expired: 'Expired',
+                permission_denied: 'Permission denied',
+                unavailable: 'Unavailable',
+                /* Browser-side only: the gateway's vocabulary has no such
+                   state. It is `unavailable` whose probe never completed,
+                   separated here because the two read as opposite claims. */
+                unverified: 'Not checked'
+            };
+            return labels[String(state || '')] || 'Unavailable';
+        }
+        function _prodAssetsPanelHTML(issue, options) {
+            options = options || {};
+            if (!issue) return '';
+            const id = String(issue.id || '');
+            const state = _prodAssetState(id, issue);
+            const allowedSlots = new Set(options.slots || PROD_ASSET_SPECS.map(spec => spec.key));
+            const specs = PROD_ASSET_SPECS.filter(spec => allowedSlots.has(spec.key));
+            const graphics = _prodWriteTeam(issue.team) === 'graphics';
+            const editorHTML = spec => {
+                const operation = spec.write || '';
+                const pending = state.saving || _prodWritePending(id, operation);
+                const batchWide = operation === 'batch_asset';
+                return '<form class="prod-assets-editor" data-prod-assets-editor="' + _calEscAttr(id) + '"'
+                    + ' data-prod-assets-editor-slot="' + _calEscAttr(spec.key) + '"'
+                    + ' onsubmit="return _prodSaveAsset(event,' + _jsAttrArg(id) + ')">'
+                    + '<input class="prod-assets-input" data-prod-asset-input="' + _calEscAttr(id) + '" type="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="'
+                    + _calEscAttr(batchWide ? 'Paste a supported HTTPS folder link, or clear it to empty' : 'Paste a supported HTTPS deliverable link')
+                    + '" value="' + _calEscAttr(state.draft) + '" oninput="_prodAssetDraftInput(' + _jsAttrArg(id) + ',this.value)"' + (pending ? ' disabled' : '') + '>'
+                    /* Say the blast radius before the press, not after. These
+                       two links live on the batch, so this edit is visible on
+                       every sibling sub-issue and on the parent -- which is the
+                       point, and exactly the kind of thing a reader should not
+                       have to discover by watching another issue change. */
+                    + (batchWide ? '<div class="prod-assets-scope">Shared by the whole post — the parent issue and every sub-issue show this link.</div>' : '')
+                    + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
+                    + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>'
+                    + (pending ? 'Saving…' : (batchWide ? 'Save for the batch' : 'Save deliverable')) + '</button></div>'
+                    + (state.writeError ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.writeError) + '</div>' : '') + '</form>';
+            };
+            const rows = specs.map(spec => {
+                const asset = state.assets && state.assets[spec.key] || { url: '', state: 'missing' };
+                const url = String(asset.url || '').trim();
+                const rawAssetState = String(asset.state || (url ? 'checking' : 'missing'));
+                /* UNVERIFIED IS NOT UNAVAILABLE, and the gateway already knows
+                   which is which. From probeAssetUrl's own note: "`unavailable`
+                   with a status means the fetch completed and the content was
+                   not media. `unavailable` WITHOUT one means" the redirect
+                   chain was refused, the request timed out, or the host was
+                   unreachable.
+
+                   Those are opposite messages to a reader. One says the link
+                   does not lead to reviewable work. The other says this server
+                   could not look -- which is the NORMAL answer for a private
+                   Frame.io project, whose share URL redirects to an auth host
+                   that is deliberately not on the probe's redirect allowlist.
+
+                   Owner report 2026-08-31: a Frame folder link he had just
+                   saved, and could open, sat under a red Unavailable. The probe
+                   was not wrong; the word was. It is a REPORT, never a gate
+                   (see the batch_asset gateway note), so a slot it could not
+                   reach must not be painted like a broken one. */
+                const assetState = rawAssetState === 'unavailable'
+                    && String(url || '').trim()
+                    && !Number(asset.http_status || 0)
+                    ? 'unverified'
+                    : rawAssetState;
+                /* The VALUE column is the loud one. Changing only the state
+                   pill left "Not provided" sitting where the reader looks
+                   first, so the row still asserted the absence it was supposed
+                   to stop asserting -- and the correction lived in a tooltip on
+                   a non-focusable span, which keyboard and touch users never
+                   see at all. When the slot is unreadable rather than empty,
+                   the explanation IS the value. */
+                const unreadable = !url && assetState === 'unavailable' && String(asset.guidance || '').trim();
+                /* Borrowed, and it says so. This link is the one on the card
+                   bound to this deliverable -- the same field the SMM calls
+                   Video URL -- shown here because the deliverable carries no
+                   canonical file of its own yet. Presenting it silently would
+                   make the panel claim a value it does not hold; naming the
+                   source is also the only thing that explains why editing this
+                   row changes what the calendar shows. */
+                const borrowed = url && (asset.source === 'calendar_card' || asset.source === 'samples_card')
+                    ? '<span class="prod-asset-origin">from the '
+                        + (asset.source === 'samples_card' ? 'samples card' : 'content calendar')
+                        + '</span>'
+                    /* The filming plan resolved from the client rather than
+                       from this batch's own column, which is empty for every
+                       batch not made through the intake path. Same rule as
+                       above: the panel names the source instead of passing the
+                       client's plan off as the batch's. It also answers the
+                       question the reader would otherwise ask -- this slot has
+                       no Edit control, so "where did this come from" has no
+                       other way of being answered on screen. */
+                    : url && asset.source === 'client_plan'
+                    ? '<span class="prod-asset-origin">from the client</span>'
+                    /* The post holds this link on a different batch row than
+                       the one this deliverable names. Same rule as the two
+                       above: a row says when it is showing something it does
+                       not itself store. It also answers the question the reader
+                       would otherwise ask on a split post -- why the parent and
+                       the sub-issue now agree when their rows do not. */
+                    : url && asset.source === 'post'
+                    ? '<span class="prod-asset-origin">from the post</span>'
+                    : '';
+                /* FIRST PAINT DRAWS A SKELETON, not a word.
+                   After the revalidate-in-place change, `checking` on an empty
+                   slot can only mean one thing: nobody has read this row yet.
+                   A refresh keeps its last answer on screen, so this no longer
+                   appears between two identical states -- which is what made it
+                   read as the page being flaky rather than as it loading.
+                   Owner ruling 2026-08-31: "the first time I understand ... I
+                   would prefer a skeleton animation."
+                   Shape over text, because a shimmer says "not yet" without
+                   asserting anything about the slot, which is the whole
+                   difference between this and every other state here. */
+                const pending = !url && assetState === 'checking';
+                const value = pending
+                    ? '<span class="prod-asset-skeleton" aria-label="Checking access"></span>'
+                    : url
+                        ? '<a href="' + _calEscAttr(url) + '" target="_blank" rel="noopener noreferrer" title="' + _calEscAttr(url) + '">' + _calEsc(_prodFileLinkLabel(url)) + '</a>' + borrowed
+                        : '<span>' + _calEsc(unreadable ? String(asset.guidance).trim() : 'Not provided') + '</span>';
+                const tip = String(asset.guidance || (asset.checked_at ? 'Checked ' + asset.checked_at : _prodAssetStateLabel(assetState)));
+                /* The control belongs on the ROW, not in the header.
+                   There used to be one writable slot, so one header button
+                   could mean "the deliverable file" without saying so. Three
+                   slots are writable now and one -- the filming plan -- must
+                   never be, and a single header button cannot express that: it
+                   would either offer the wrong slot or need the reader to
+                   already know which one it means. A row that can be edited
+                   says so on itself, and the filming plan simply carries no
+                   control, which is the whole rule made visible. */
+                const operation = spec.write || '';
+                const editable = !options.readOnly && !!operation;
+                const rowEditor = editable
+                    ? '<button class="prod-assets-action prod-asset-edit" type="button"'
+                        + ' data-prod-asset-edit="' + _calEscAttr(spec.key) + '"'
+                        + ' onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(spec.key) + ')"'
+                        + _prodWriteGateAttrs(issue, operation, {
+                            tip: operation === 'batch_asset'
+                                ? 'Edit this link for every issue on this post'
+                                : 'Attach or replace the canonical deliverable'
+                        }) + '>Edit</button>'
+                    : '';
+                return '<div class="prod-asset-row" data-prod-asset-slot="' + _calEscAttr(spec.key) + '">'
+                    + '<span class="prod-asset-label">' + _calEsc(graphics && spec.graphicsLabel ? spec.graphicsLabel : spec.label) + '</span>'
+                    + '<span class="prod-asset-value">' + value + '</span>'
+                    + (pending
+                        ? '<span class="prod-asset-state prod-asset-skeleton prod-asset-skeleton-pill" data-state="checking" aria-hidden="true"></span>'
+                        : '<span class="prod-asset-state" data-state="' + _calEscAttr(assetState) + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">' + _calEsc(_prodAssetStateLabel(assetState)) + '</span>')
+                    + rowEditor + '</div>'
+                    + (state.editing === spec.key ? editorHTML(spec) : '');
+            }).join('');
+            /* Attach is no longer graphics-only. The database learned the video
+               projection (2026-08-30-artifact-video-projection.sql: file_url
+               lands in calendar_posts.asset_url keyed on video_deliverable_id,
+               where a graphics artifact lands in thumbnail_url keyed on
+               graphic_deliverable_id), and the two server guards above it moved
+               with it. So the panel asks the ONE question it should always have
+               asked -- may this person write this operation on this row -- and
+               lets _prodCanWrite answer for both teams. `graphics` survives
+               only to pick the row LABEL, which genuinely differs. */
+            /* One gate sentence for the panel, taken from the slots it actually
+               shows. A panel of writable rows whose reader may write none of
+               them still owes an explanation; a panel that is read-only by
+               construction (the batch parent view) owes none, because it is
+               not offering anything. */
+            const writableSpecs = options.readOnly ? [] : specs.filter(spec => spec.write);
+            const blockedSpec = writableSpecs.find(spec => !_prodCanWrite(issue, spec.write));
+            const gate = writableSpecs.length && blockedSpec && writableSpecs.every(
+                spec => !_prodCanWrite(issue, spec.write))
+                ? _prodWriteGateText(issue, blockedSpec.write)
+                : '';
+            const readError = state.error
+                ? '<div class="prod-assets-error" role="alert">' + _calEsc(state.error) + '</div>'
+                : gate && !state.editing
+                    ? '<div class="prod-asset-value">' + _calEsc(gate) + '</div>'
+                    : '';
+            return '<section class="prod-assets" data-prod-assets="' + _calEscAttr(id) + '" data-prod-assets-status="' + _calEscAttr(state.status) + '">'
+                + '<div class="prod-assets-head"><span class="prod-assets-title">Assets</span><span class="prod-spacer"></span>'
+                /* Refresh access re-probes Drive and Frame sharing through the
+                   authenticated prober, which has no row to authorize on a
+                   synthetic batch parent -- so there it toasted and changed
+                   nothing, the same phantom the Description header just lost.
+                   One rule for both refresh controls: if the reader cannot act,
+                   do not offer the control. */
+                + (issue.syntheticBatchParent === true ? ''
+                    : '<button class="prod-assets-refresh" type="button" onclick="return _prodRefreshAssetsManual(' + _jsAttrArg(id) + ')"' + (state.status === 'loading' ? ' disabled' : '') + '>' + (state.status === 'loading' ? 'Checking…' : 'Refresh access') + '</button>')
+                + '</div><div class="prod-assets-list">' + rows + '</div>' + readError + '</section>';
+        }
+        function _prodPlacePop(pop, x, y) {
+            if (!pop) return;
+            const r = pop.getBoundingClientRect();
+            let nx = x;
+            let ny = y;
+            if (nx + r.width > innerWidth - 8) nx = innerWidth - r.width - 8;
+            if (ny + r.height > innerHeight - 8) ny = Math.max(8, innerHeight - r.height - 8);
+            nx = Math.max(8, nx);
+            ny = Math.max(8, ny);
+            pop.style.left = nx + 'px';
+            pop.style.top = ny + 'px';
+        }
+        // PORT-DELTA: body overlay IDs/classes are namespaced for the embedded Production tab.

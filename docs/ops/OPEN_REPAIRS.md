@@ -27261,3 +27261,79 @@ only the batch id names the parent. Legacy groups are unchanged
 the real resolution block for a native two-video group with and without the
 batch row in the snapshot; both new checks were seen red against the pre-fix
 source.
+
+## 223. [2026-09-21, OPEN] `scripts/native-brief-media-copy.mjs` and `scripts/linear-media-rescue.mjs` die on a bare transport error instead of retrying it
+
+**Seen on the owner's machine during the 2026-09-20 brief-media apply** (1,339
+occurrences). The apply crashed twice mid-run — once on a bare `fetch failed`,
+once on an HTTP 520 from the storage host — and each time the operator re-ran
+the script by hand; the second run resumed from the receipts and finished
+1338/1338 (the 1,339th occurrence was a file over the bucket's 50 MB limit,
+`byte_length_out_of_range`, and the owner chose to drop it from its
+deliverable rather than raise the limit). Nothing was lost, because every
+verified copy writes a receipt before the next one starts, but a nine-minute
+run should not need a human at the keyboard to survive one dropped connection.
+
+**Cause.** Both scripts treat any thrown `fetch` as fatal. They retry only on
+the status codes they enumerate; a connection reset arrives as an exception,
+not a status, and the 520 is not in the list.
+
+**Fix, owed.** Wrap each copy attempt in a bounded retry (3 attempts,
+exponential backoff, same receipt semantics) covering thrown transport errors
+and 5xx. Add a unit case that injects one `fetch failed` and one 520 into a
+two-occurrence plan and asserts both occurrences verify on the retry with
+exactly one receipt each. No live run is needed to land this; the next apply
+(a recovery or a re-copy) is the real test.
+
+## 224. [2026-09-21, MEASURED, watch] Cards archived in Linear before the cutoff stayed open in native Workload
+
+**Reported by the video editor on 2026-09-18** ("my workload is bugged": 14
+overdue cards, one phantom in-progress card). **Measured 2026-09-20:** 13 of
+the 14 and the phantom had been archived in Linear between 2026-08-19 and
+2026-08-27 (`workload_issues.active=false`) while their native `deliverables`
+rows stayed open, because the archive never crossed to the native side — the
+outbound mirror carries `archive` as an operation (`linear-outbound/mapping.mjs`)
+but nothing carried a Linear-side archive back onto a native row.
+
+**Cleared 2026-09-20 by Storage (owner-authorized):** 105 stale cards across 15
+batches (11 whole batches archived, 9 cards canceled, including the graphics
+backlog). The editor's late count read 1 afterwards; stale batches 0.
+
+**Why it stays open as a watch item.** Linear's inbound webhook is still
+enabled (`linear_inbound_enabled` true) until the STEP 7 key revoke, so a
+late archive in Linear could still arrive and would still not cross. After the
+revoke there is no Linear side and the class closes by construction. Re-measure
+once with the same query after the revoke; if 0, mark FIXED-by-retirement.
+
+## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
+
+**Found while investigating the archive-park report (see the session entry
+that follows this one).** `supabase/functions/_shared/write-refusal-diagnostics.mjs`
+builds a hashed receipt for every gateway refusal and calls
+`production_write_refusal_record_v1`, which inserts into
+`write_refusal_diagnostics.receipts_v1`. **That table holds 0 rows, ever**
+(read-only count 2026-09-21). **Cause, corrected the same day after the Codex
+review of the PR that added this entry:** the recorder was never wired in.
+The deployed `supabase/functions/production-write/index.ts` does not import or
+call `reportGatewayRefusal`; the only thing that adds that call is
+`scripts/linear-exit-write-diagnostics-compose.js`, and
+`docs/ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` says plainly that
+the composed gateway was prepared and tested in isolation but not merged,
+deployed or activated. So the zero-row count is expected, not a failing RPC,
+race or grant; those remain unmeasured because nothing has ever called the RPC
+from a live refusal.
+
+**Why it matters.** This was the one server-side trace that could have told us,
+in seconds, whether the archive-park request reached the gateway and was
+refused or never arrived. It is exactly the observability OPEN_REPAIRS 101 asked
+for, and it has never been switched on: the schema, RPC and module shipped, the
+gateway that would call them did not.
+
+**Fix, owed.** Merge and deploy the prepared composition: run
+`scripts/linear-exit-write-diagnostics-compose.js` against `production-write`
+(and the browser half it composes), review the composed source, deploy it through
+the Section 4 lane (capture first, per `CLAUDE.md`), then add a post-deploy
+probe that asserts one synthetic refusal produces one row in
+`write_refusal_diagnostics.receipts_v1`. Only if that probe still reads 0 does
+the RPC shape, the 500 ms race or the schema grant become the question. Report
+the count only, never the identifiers.

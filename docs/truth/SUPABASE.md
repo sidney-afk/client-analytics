@@ -58,7 +58,10 @@
 > `migrations/2026-08-24-hiring-applications.sql` installed a separate private application mirror,
 > invite-job outbox, and minimal event ledger. The `hiring_invites_enabled` row is exactly false;
 > an existing, malformed, or enabled value would have aborted the migration rather than being
-> adopted or overwritten. Both `hiring-applications` and the server-to-server
+> adopted or overwritten. **Corrected 2026-09-21: that was the install-time value. Live, the
+> row reads `{"enabled": true}` (updated 2026-08-28T23:49Z) and `hiring_practical_tests_enabled`
+> reads `{"enabled": true}` (updated 2026-09-16T14:21Z), so candidate email and practical-test
+> mail are sent for the editor hire; the dispatchers are in `docs/truth/N8N.md`.** Both `hiring-applications` and the server-to-server
 > `hiring-automation` bridge are deployed. The active n8n capture workflow mirrors only the
 > dedicated application event and alerts Kasper; a strict branch in the existing iClosed booked-call
 > receiver records only the dedicated interview booking. The invitation dispatcher remains inactive

@@ -7831,7 +7831,18 @@ then removed its two endpoint constants and timeout from
 receipt detection, draft identity/conflict checks, and visible recovery path
 remain. Pre-deletion assembled-page proof found no executable caller outside
 the chain; post-build proof found zero target-symbol references. The assembled
-page shrank from 5,776,430 to 5,745,660 bytes.
+page shrank from 5,781,350 to 5,750,579 bytes (−30,771), with the new assembled
+sha256 `ed3407bc0c5fdd7d405032aaaa31160dd05ba4c98b2538c1e034017f5baf0155`.
+
+Those two figures are the committed artifacts, verified with `git cat-file -s`,
+and they are NOT the ones the executor session measured. It worked from a base
+that predated the B1-1 deletion and the Workload archive fix, so it recorded
+5,776,430 → 5,745,660 against a page that no longer existed by the time the
+change was published. The supervisor applied its patch onto current main and
+re-measured. The delta is identical either way, which is what made the stale
+absolutes easy to miss; the Codex review on #1487 caught them. Anyone auditing
+a byte count later needs the absolutes to match a real commit, so record the
+numbers from the committed artifact rather than from the working base.
 The first full-suite run exposed stale Linear-dead harness coverage for the two
 removed webhook routes; the harness regex and its contract test were narrowed
 to the one remaining non-prefixed Linear-backed route before publication.

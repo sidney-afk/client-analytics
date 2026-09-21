@@ -7762,7 +7762,7 @@ called. A2's suggested order says so explicitly and the two are easy to
 confuse by name.
 
 Page bytes 5,776,430 → 5,775,541 (−889). New assembled sha256
-``a0c2a6064cf9b52e548860a0bb6802d840004ebeb71c6f14d42067abe5091850``.
+`a0c2a6064cf9b52e548860a0bb6802d840004ebeb71c6f14d42067abe5091850`.
 
 Gates: `npm run check:index`, `node test/run-all.js`,
 `node docs/syncview-design/tests/prod-write-gateway-browser.js`,

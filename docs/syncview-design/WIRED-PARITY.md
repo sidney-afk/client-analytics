@@ -1332,9 +1332,11 @@ said so.
   have a real parent deliverable row; native post-cutoff batches do not.
 - **Now:** `_prodBatchParentIssue(batch)` resolves a batch's real hierarchy
   parent when exactly one exists (never a synthetic batch-mint node), and
-  `_prodOpenBatch`, the `?batch=` URL route, and the boot deep-link
-  fallback all open that row's detail instead. Two team parents, or none,
-  leave the reader on the batch view unchanged. `_prodBatchDetail` now
+  `_prodOpenBatch` and the authoritative boot deep-link fallback both open
+  that row's detail instead once data has settled (the `?batch=` URL prime
+  itself does not — see the 2026-09-21 correction in `EXECUTION_LOG.md`, a
+  Codex finding on PR #1471). Two team parents, or none, leave the reader on
+  the batch view unchanged. `_prodBatchDetail` now
   renders its deliverables with `_prodSubIssueRowHTML`, the same rich row
   (client chip, due date, assignee, file pill) the parent view's sub-issue
   section already used — one client's 32-deliverable batch now renders

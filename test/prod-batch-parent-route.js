@@ -127,18 +127,22 @@ ok(sameParentBothTeams._prodBatchParentIssue({
 }).id === 'VID-4',
   '_prodBatchParentIssue de-dupes the same resolved parent named under two team keys rather than reading it as two');
 
-/* ---- source: the three call sites consult the helper before the batch view ---- */
+/* ---- source: the two call sites consult the helper before the batch view ---- */
 
 ok(/function _prodOpenBatch\(id\) \{[\s\S]{0,900}_prodBatchParentIssue\(_prodBatch\(id\)\)/.test(source),
   '_prodOpenBatch checks _prodBatchParentIssue before falling back to the batch view');
 ok(/_prodOpenDeliverable\(parent\.displayId \|\| parent\.id\)/.test(source),
   '_prodOpenBatch opens the resolved parent through _prodOpenDeliverable');
 
-ok(/const primeParent = _prodBatchParentIssue\(_prodBatch\(batch\)\);/.test(source),
-  '_prodPrimeFromUrl (the ?prod=1&batch= URL route) also checks _prodBatchParentIssue');
-
 ok(/wanted\.kind === 'batch' && _prodBatch\(wanted\.id\)\) \{\s*const parent = _prodBatchParentIssue\(_prodBatch\(wanted\.id\)\);/.test(source),
-  '_prodApplyDeepLinkFallback\'s authoritative wanted-id branch checks _prodBatchParentIssue too');
+  '_prodApplyDeepLinkFallback\'s authoritative wanted-id branch checks _prodBatchParentIssue');
+
+// The redirect is deliberately NOT attempted in _prodPrimeFromUrl -- doing so
+// there, before `deepLink` is recorded, made the authoritative pass's
+// `openedElsewhere` guard mistake the redirect for the reader having already
+// navigated away and skip its own URL-correcting branch (Codex, #1471).
+ok(!/_prodBatchParentIssue\(_prodBatch\(batch\)\)/.test(source),
+  '_prodPrimeFromUrl does not attempt the parent redirect itself -- only the authoritative pass does');
 
 /* ---- source: _prodBatchDetail draws rows with the parent view's own renderer --- */
 

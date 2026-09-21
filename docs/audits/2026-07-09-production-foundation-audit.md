@@ -606,14 +606,19 @@ excludes none that was, and touches no write path, grant or Edge Function.
 
 ## Addendum, 2026-09-21 — batch-view real-parent routing, and what it does not widen
 
-`_prodOpenBatch`, `_prodPrimeFromUrl`, and `_prodApplyDeepLinkFallback` now
-check `_prodBatchParentIssue(batch)` before settling on the plain batch view
-(`?prod=1&batch=<id>`): when a batch imported from Linear has exactly one
-real hierarchy-parent row, the reader lands on that row's own detail
-(`?prod=1&d=<identifier>`) instead. `_prodBatchDetail` also now draws its
-deliverables list with `_prodSubIssueRowHTML`, the same row renderer the
-parent view's own sub-issue section uses, in place of a second plainer
-markup string.
+`_prodOpenBatch` and `_prodApplyDeepLinkFallback`'s authoritative wanted-id
+branch now check `_prodBatchParentIssue(batch)` before settling on the plain
+batch view (`?prod=1&batch=<id>`): when a batch imported from Linear has
+exactly one real hierarchy-parent row, the reader lands on that row's own
+detail (`?prod=1&d=<identifier>`) instead. `_prodPrimeFromUrl`, the URL prime
+that runs before any data has loaded, deliberately does NOT also check it —
+doing so in the first version made the authoritative pass's `openedElsewhere`
+guard mistake the early redirect for the reader having already navigated
+away and skip its own URL-correcting branch (Codex, PR #1471); the batch
+view is the honest first paint instead, and the redirect happens once, on
+settled data. `_prodBatchDetail` also now draws its deliverables list with
+`_prodSubIssueRowHTML`, the same row renderer the parent view's own
+sub-issue section uses, in place of a second plainer markup string.
 
 This widens no capability. `_prodBatchParentIssue` only reads
 `linear_parent_ids` (already loaded via `PROD_BATCH_SELECT`) and resolves

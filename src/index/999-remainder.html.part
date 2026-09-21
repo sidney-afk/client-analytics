@@ -50117,16 +50117,16 @@
                 const d = q.get('d');
                 const batch = q.get('batch');
                 if (d) { _prodState.openId = d; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
-                else if (batch) {
-                    // Whatever is already in memory (a warm adapter from
-                    // earlier this session) can resolve the redirect right
-                    // away; a cold boot resolves nothing here and the
-                    // authoritative pass in _prodApplyDeepLinkFallback below
-                    // catches it once live data lands.
-                    const primeParent = _prodBatchParentIssue(_prodBatch(batch));
-                    if (primeParent) { _prodState.openId = primeParent.displayId || primeParent.id; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
-                    else { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
-                }
+                // The batch-to-real-parent redirect is deliberately NOT resolved
+                // here (Codex, #1471): priming this state before `deepLink` is
+                // recorded below would make `_prodApplyDeepLinkFallback`'s
+                // `openedElsewhere` guard read the redirect as the reader having
+                // already navigated away, skip its own redirect branch, and leave
+                // `?batch=` in the URL while a `?d=` detail was shown. The
+                // authoritative pass is the one place with both a settled read
+                // and the URL-correction call, so the batch view is the honest
+                // first paint and that pass alone performs the redirect.
+                else if (batch) { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
                 else {
                     _prodState.openId = '';
                     _prodState.openBatchId = '';

@@ -133,7 +133,10 @@ ok(live(postCutoffRow) === true,
 // --- behavioural checks: _wlArchivedNativeIds end to end, fetch mocked -----
 
 function runArchivedNativeIds(rows, markerRowsByChunk) {
-  const ctx = { console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key' };
+  const ctx = {
+    console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key',
+    AbortController, setTimeout, clearTimeout,
+  };
   vm.createContext(ctx);
   const calls = [];
   ctx.fetch = async (url) => {
@@ -152,6 +155,7 @@ function runArchivedNativeIds(rows, markerRowsByChunk) {
     grabFunc('_prodDeliverableLive'),
     grabFunc('_prodHeaders'),
     grabConst('WL_ARCHIVE_MARKER_SELECT'),
+    grabConst('WL_PLAN_READ_TIMEOUT_MS'),
     grabFunc('_wlFetchArchiveMarkerRows'),
     grabFunc('_wlArchivedNativeIds'),
     'this.run = (rows) => _wlArchivedNativeIds(rows);',
@@ -190,18 +194,55 @@ async function runAsyncChecks() {
   {
     // A failed archive-marker read must never blank or shrink the board: the
     // permissive default this file's own comment cites (AGENTS.md).
-    const ctx = { console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key' };
+    const ctx = {
+      console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key',
+      AbortController, setTimeout, clearTimeout,
+    };
     vm.createContext(ctx);
     ctx.fetch = async () => { throw new Error('network down'); };
     vm.runInContext([
       grabFunc('_prodHasOwn'), grabFunc('_prodNormKey'), grabFunc('_prodLinearRaw'),
       grabFunc('_prodRawHasAny'), grabFunc('_prodRawMarkerTruthy'), grabFunc('_prodDeliverableLive'),
-      grabFunc('_prodHeaders'), grabConst('WL_ARCHIVE_MARKER_SELECT'),
+      grabFunc('_prodHeaders'), grabConst('WL_ARCHIVE_MARKER_SELECT'), grabConst('WL_PLAN_READ_TIMEOUT_MS'),
       grabFunc('_wlFetchArchiveMarkerRows'), grabFunc('_wlArchivedNativeIds'),
       'this.run = (rows) => _wlArchivedNativeIds(rows);',
     ].join('\n'), ctx);
     const archived = await ctx.run([{ id: 'del_x', source: 'native', is_sub_issue: true }]);
     ok(archived.size === 0, 'a failed archive-marker read leaves every row unfiltered rather than hiding the whole board');
+  }
+
+  {
+    // A hung request (overloaded/half-open connection, never rejects and
+    // never resolves on its own) must still be bounded: the archive-marker
+    // fetch gets the same AbortController timeout as the primary
+    // workload-plan fetch, so Promise.all settles and the fail-open catch in
+    // _wlArchivedNativeIds actually runs, instead of leaving a cold Workload
+    // load pending on the archive check forever. `ctx.setTimeout` here fires
+    // immediately (0ms) rather than waiting out the real WL_PLAN_READ_TIMEOUT_MS,
+    // so the test proves the wiring without taking the real timeout to run.
+    let aborted = false;
+    const ctx = {
+      console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key',
+      AbortController,
+      setTimeout: (fn) => setTimeout(fn, 0),
+      clearTimeout,
+    };
+    vm.createContext(ctx);
+    ctx.fetch = (url, opts) => new Promise((resolve, reject) => {
+      const signal = opts && opts.signal;
+      if (signal) signal.addEventListener('abort', () => { aborted = true; reject(new Error('AbortError')); });
+      // Never resolves and never rejects on its own -- simulates a hung connection.
+    });
+    vm.runInContext([
+      grabFunc('_prodHasOwn'), grabFunc('_prodNormKey'), grabFunc('_prodLinearRaw'),
+      grabFunc('_prodRawHasAny'), grabFunc('_prodRawMarkerTruthy'), grabFunc('_prodDeliverableLive'),
+      grabFunc('_prodHeaders'), grabConst('WL_ARCHIVE_MARKER_SELECT'), grabConst('WL_PLAN_READ_TIMEOUT_MS'),
+      grabFunc('_wlFetchArchiveMarkerRows'), grabFunc('_wlArchivedNativeIds'),
+      'this.run = (rows) => _wlArchivedNativeIds(rows);',
+    ].join('\n'), ctx);
+    const archived = await ctx.run([{ id: 'del_hang', source: 'native', is_sub_issue: true }]);
+    ok(aborted === true, 'a hung archive-marker request is aborted by the bounded timeout instead of hanging forever');
+    ok(archived.size === 0, 'the aborted request still resolves the board via the fail-open path, not a stuck Promise.all');
   }
 
   console.log(failures === 0

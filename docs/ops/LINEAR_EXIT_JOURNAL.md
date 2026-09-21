@@ -13959,6 +13959,16 @@ code breaks the gate until the current-state docs are swept in the same commit.
 Recorded as OPEN_REPAIRS 228. Dated audits are left alone; they are the evidence
 the deletion rests on.
 
+**The archived-cards cleanup is MOSTLY, not fully, closed.** Three of the four
+managers holding those cards were asked and all three moved their own rows to Backlog
+the same afternoon, so no bulk write was needed. The fourth was left out of the message
+on purpose, because her four August rows carry a Linear-era archive mark and are hidden
+on every surface, so she would have had nothing to look at. Re-measured at close, those
+four still read `todo`. They are invisible, not corrected. OPEN_REPAIRS 224 now says so
+plainly and must not be marked FIXED until they read something else. Found by the Codex
+review on #1486, which caught that this journal said four managers and the ledger said
+three replied.
+
 **Still open at close.** STEP 7, the Linear credential revoke, has no date; the
 standing recommendation is 2026-09-27. The n8n weekday re-measure is due
 tomorrow morning. The hiring pollers stay on until the editor hire closes.

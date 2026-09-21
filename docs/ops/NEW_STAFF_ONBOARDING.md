@@ -23,8 +23,8 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 | Supabase `team_members` | Gates the SyncView "Staff sign in" roster dropdown, and carries role/team | Manual insert. No admin UI and no invite flow exist for this. |
 | Shared role key (`ROLE_KEY_ADMIN` / `ROLE_KEY_SMM` / `ROLE_KEY_CREATIVE`) | The actual credential. One key per role tier, not one per person | Nothing to generate, just hand over the key that already exists |
 | `team_members.team` | For an editor or designer, this must exactly match the team they work in (`video` / `graphics`), it gates both assignee eligibility and their write permissions | Manual, set at insert time, not optional for these two roles |
-| Linear workspace | Lets them log in and, once invited, gives you the ID to put in `team_members.linear_user_id`, which gates whether an editor or designer can be picked as an assignee | Seat invite is manual. Nothing currently backfills `linear_user_id` on its own, see §4 |
-| SMM's personal Linear API key | Only relevant once they are assigned a client. Stored per client assignment row in the Google Sheet, not on `team_members` | Self generated in Linear once they have a seat |
+| ~~Linear workspace~~ **RETIRED 2026-09-20** | ~~Lets them log in and, once invited, gives you the ID to put in `team_members.linear_user_id`, which gates whether an editor or designer can be picked as an assignee~~ No seat is issued any more. Whether native assignee eligibility still reads `linear_user_id` for a hire who never had one is unverified; OPEN_REPAIRS 227 owes that check before the next editor or designer hire is onboarded | Seat invite is manual. Nothing currently backfills `linear_user_id` on its own, see §4 |
+| ~~SMM's personal Linear API key~~ **RETIRED 2026-09-20** | ~~Only relevant once they are assigned a client. Stored per client assignment row in the Google Sheet, not on `team_members`~~ No key is generated any more; outbound writes are off | Self generated in Linear once they have a seat |
 | `pto_members` | Whether their Time Off request form works at all | Admin sets it in SyncView's own Time Off panel, see §6. Not every hire gets this benefit, that is an owner call |
 | SyncView Google Sheet, "Social Media Managers" tab | Keyed by client, not by person, one row per client assignment | Not a general onboarding step, only touched when an SMM is actually assigned a client, see §7 |
 | Slack workspace | The client creative channel automation reads the assigned SMM's row in the Sheet above, not anything on `team_members` | Seat invite is manual; the rest happens at client assignment time |
@@ -38,11 +38,11 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 - [ ] Get: full name, email, role (`admin` / `smm` / `editor` / `designer`), and for an editor or designer, which team they are in (`video` for editor, `graphics` for designer, this is mandatory, not situational)
 - [ ] Insert their `team_members` row (see §2)
 - [ ] Hand them the existing shared role key for their tier, through a channel you would already trust with a secret. Never in this repo, never in a public Slack channel
-- [ ] Invite them to the Linear workspace. For an editor or designer, look up their Linear user ID once they have joined and set `team_members.linear_user_id` by hand, nothing does this for you (see §4)
+- ~~Invite them to the Linear workspace. For an editor or designer, look up their Linear user ID once they have joined and set `team_members.linear_user_id` by hand, nothing does this for you (see §4)~~ **RETIRED 2026-09-20: do not invite anyone to Linear.** For an editor or designer, confirm they appear in the Create Post assignee list after the `team_members` insert; if they do not, that is the OPEN_REPAIRS 227 gap (eligibility may still read the retired `linear_user_id`), report it rather than working around it
 - [ ] Invite them to Slack (§5). If they are an editor, also register them for urgent tweak pings (§5), this is a separate step
 - [ ] If this hire gets the Time Off benefit, set them up in SyncView's Time Off admin panel (§6), otherwise their request form will not work
 - [ ] If assigning a client right away, that is a separate, per client step, follow §7 and `NEW_CLIENT_ONBOARDING.md`
-- [ ] For an editor or designer, also register them in Workload's roster (§8), a working login and Linear mapping are not enough on their own for Workload's planning views
+- [ ] For an editor or designer, also register them in Workload's roster (§8), a working login is not enough on its own for Workload's planning views
 - [ ] Confirm they can actually log in: SyncView, Staff sign in, their name should now be in the dropdown, then their tier's role key. For an editor, also confirm they appear in the Create Post assignee picker for the video team. A designer has no equivalent picker, see §2's `default_for_team` note instead
 
 ## 2. The `team_members` insert
@@ -93,6 +93,8 @@ relays it to the new hire directly. There is nothing to rotate or generate for o
 person, unless you are deliberately rotating that tier's key for everyone at once.
 
 ## 4. Linear
+
+**RETIRED 2026-09-20: do not perform any step in this section.** Kept as provenance for hires onboarded before the cutoff. See OPEN_REPAIRS 227 for the native replacement that is still owed.
 
 **Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
 

@@ -1321,3 +1321,27 @@ said so.
   title compare, stable id tiebreak — owner ruling 2026-08-19).
 - **Parity note:** matches how Linear's own sub-issue lists read; no
   reference-page behavior changes.
+
+## 2026-09-21 — batch view opens a batch's real parent card, and draws batch rows like sub-issues
+
+- **Observed:** opening a batch parent from the Workload calendar landed on
+  the plain batch view (`?prod=1&batch=<id>`, a status chip and
+  "Deliverables N"), while the parent card's own detail view
+  (`?prod=1&d=<identifier>`, "Sub-issues N" with client chip, link, due date,
+  assignee) is the correct page (owner report). Batches imported from Linear
+  have a real parent deliverable row; native post-cutoff batches do not.
+- **Now:** `_prodBatchParentIssue(batch)` resolves a batch's real hierarchy
+  parent when exactly one exists (never a synthetic batch-mint node), and
+  `_prodOpenBatch` and the authoritative boot deep-link fallback both open
+  that row's detail instead once data has settled (the `?batch=` URL prime
+  itself does not — see the 2026-09-21 correction in `EXECUTION_LOG.md`, a
+  Codex finding on PR #1471). Two team parents, or none, leave the reader on
+  the batch view unchanged. `_prodBatchDetail` now
+  renders its deliverables with `_prodSubIssueRowHTML`, the same rich row
+  (client chip, due date, assignee, file pill) the parent view's sub-issue
+  section already used — one client's 32-deliverable batch now renders
+  identically in both places.
+- **Parity note:** matches Linear, where the parent card is the one page a
+  post's own issue link opens. The three Workload deep links that
+  deliberately point at the batch view on purpose (`wlParentUrl`, the
+  client-groups `syncUrl`, the popover `parentSyncUrl`) are unchanged.

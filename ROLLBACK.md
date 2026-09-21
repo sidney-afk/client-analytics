@@ -1280,3 +1280,19 @@ Revert this change's commit, or restore `_prodBatchRows` to
 `.sort(_prodChildOrder)`) and inline `_prodChildOrder`'s body back into
 `_prodChildrenOf` if a future edit wants them decoupled again. No database,
 flag, Edge Function or n8n state is involved; GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for batch-view real-parent routing and rich sub-issue rows (browser only)
+
+Revert this change's commit, or by hand: delete `_prodBatchParentIssue`;
+restore `_prodOpenBatch`'s original body (drop the `_prodBatchParentIssue`
+check and its `_prodOpenDeliverable` short-circuit); in `_prodPrimeFromUrl`,
+restore the `batch` branch to `_prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch';`
+with no parent lookup; in `_prodApplyDeepLinkFallback`, restore the
+`wanted.kind === 'batch'` branch to
+`_prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';`,
+drop the `redirectedToParent` flag and its use in `opened`, and drop the
+`_prodSetQuery` call added there; in `_prodBatchDetail`, restore the
+deliverables list to
+`rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + _prodIssueIdHTML(d) + '<span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('')`
+in place of `rows.map(_prodSubIssueRowHTML).join('')`. No database, flag,
+Edge Function or n8n state is involved; GitHub Pages redeploys on push.

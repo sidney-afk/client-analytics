@@ -29,4 +29,4 @@
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 2022 | Video-only and Thumbnail-only were already built, but sat |
 | 23 | `210-production-state-writes.js.part` | 3002 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 24 | `999-remainder.html.part` | 30693 | An ABSENT persisted slug is missing evidence, not |
+| 24 | `999-remainder.html.part` | 30767 | An ABSENT persisted slug is missing evidence, not |

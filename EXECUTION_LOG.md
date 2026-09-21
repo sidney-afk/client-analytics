@@ -7670,3 +7670,68 @@ improvement), and the batch view's asset-prefetch picks the numerically-first
 row instead of an arbitrary one (harmless). Verified by
 `test/prod-batch-detail-order.js` (synthetic 16-video/16-thumbnail batch in
 shuffled fetch order; red on `origin/main`, green after).
+
+## 2026-09-21 — Production: batch view opens a batch's real parent card, and draws batch rows like sub-issues
+
+Browser-only change, no live write. Owner report: opening a batch parent
+from the Workload calendar landed on the plain batch view
+(`?prod=1&batch=<id>`, a status chip and "Deliverables N"), while the parent
+card's own detail view (`?prod=1&d=<identifier>`, "Sub-issues N" with client
+chip, link, due date, assignee) is the correct page. A batch imported from
+Linear has a real parent deliverable row (`isHierarchyParent` true, not the
+read-only synthetic node a batch mints for its own children); a native
+post-cutoff batch does not.
+
+Added `_prodBatchParentIssue(batch)`: reads `linear_parent_ids` (keyed by
+team, same vocabulary `_calNativeBatchParentTeams` reads), resolves each
+named id through `_prodIssue()`, keeps only real hierarchy parents, and
+answers with the row only when exactly one resolves — two team parents, or
+none, means no single card and the caller stays on the batch view. Consulted
+before the batch view is entered from two places: `_prodOpenBatch` (click)
+and the authoritative wanted-id branch of `_prodApplyDeepLinkFallback` (the
+boot read, once live data lands — also corrects the URL from `?batch=` to
+`?d=<identifier>` via `_prodSetQuery(..., false)`, a replace rather than a
+push since nobody navigated to the redirect). `_prodPrimeFromUrl` (the
+`?batch=` URL prime, run before any data is loaded) deliberately does NOT
+attempt the redirect itself — see the 2026-09-21 correction entry below. The
+three Workload deep links that send a native batch to the batch view on
+purpose (`wlParentUrl`, the client-groups `syncUrl`, the popover
+`parentSyncUrl`) are untouched — this is the one place every other deep link
+into a batch benefits from the redirect.
+
+`_prodBatchDetail` now renders its deliverables list with
+`_prodSubIssueRowHTML` (the parent view's own row: client chip, due date,
+assignee, file pill) instead of a second, plainer `prod-subrow` markup string
+— one client's 32-deliverable batch was the case checked, and its batch view
+and its parent's sub-issue section now render byte-identical rows for the
+same deliverable.
+
+Verified by `test/prod-batch-parent-route.js` (one real parent resolves →
+routes to detail; two team parents or none → batch view stays; a synthetic
+batch-mint node never counts even when it resolves; source assertions that
+all three call sites consult the helper and that `_prodBatchDetail` calls
+`_prodSubIssueRowHTML`; red on `origin/main`, green after), plus
+`test/prod-batch-detail-order.js`, `test/prod-batch-parent-panels.js`, and
+`docs/syncview-design/tests/prod-write-gateway-browser.js` (all still green).
+
+## 2026-09-21 — Correction: batch-parent redirect dropped from `_prodPrimeFromUrl` (Codex, PR #1471)
+
+The first version of the change above also resolved `_prodBatchParentIssue`
+inside `_prodPrimeFromUrl`'s `batch` branch, so a warm in-memory adapter
+(from earlier the same session) could redirect to the parent's detail on the
+very first paint, before any network read. Codex caught the bug this
+introduced: `_prodPrimeFromUrl` runs before `_prodState.deepLink` is
+recorded (`{ kind: 'batch', id: <the batch id> }`), so setting `openId` to
+the PARENT's id there made `_prodApplyDeepLinkFallback`'s `openedElsewhere`
+guard — `_prodState.openId && !sameAsWanted(_prodState.openId)` — read as
+true (the parent's id is never the same as `wanted.id`, the batch id). That
+skipped the whole authoritative branch, including the `_prodSetQuery` call
+that corrects the URL, leaving `?batch=` in the address bar while a `?d=`
+detail was already showing; a batch whose cached parent no longer resolved
+live also risked the settling-eviction clearing the pane with no missing
+notice. Removed the early attempt; only `_prodApplyDeepLinkFallback`'s
+authoritative pass performs the redirect now, so the batch view is the
+honest first paint and the one code path that redirects is also the one
+that corrects the URL. `test/prod-batch-parent-route.js` updated to assert
+the negative (`_prodPrimeFromUrl` does not call `_prodBatchParentIssue`) in
+place of the removed assertion.

@@ -101,6 +101,13 @@ function newHarness(live) {
   vm.runInContext(
     extractFunction('_prodRowSetComplete')
       + '\n'
+      /* _prodApplyDeepLinkFallback's 'batch' branch now also consults this
+         (PR #1471, real-parent routing) -- the stub batches this harness
+         builds carry no linear_parent_ids, so it always answers null here
+         and the redirect path this suite doesn't exercise never fires; it
+         still has to be in scope or the extracted call throws. */
+      + extractFunction('_prodBatchParentIssue')
+      + '\n'
       + extractFunction('_prodApplyDeepLinkFallback')
       + '\nthis.apply = _prodApplyDeepLinkFallback;',
     sandbox,

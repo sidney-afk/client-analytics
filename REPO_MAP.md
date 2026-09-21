@@ -22,7 +22,7 @@ commit as any structural change.
 | `synchro-social-favicon.png`, `synchro-social-logo.png`, `syncview-favicon.png` | Runtime images referenced by `index.html` via relative URL. Must stay at root. |
 | `.gitattributes`, `.gitignore` | LF normalization (unit tests string-extract from `index.html`); ignore rules for generated artifacts. |
 | `.vscode/` | Editor settings only (`settings.json` maps `*.html.part`/`*.css.part`/`*.js.part` to their base language for syntax highlighting in `src/index/` fragments). No build behavior. |
-| `src/index/` | The ordered byte fragments `index.html` is assembled from (`npm run build:index`), plus the generated navigation map at `src/index/INDEX.md`. Edit fragments, never `index.html` directly; `npm run check:index` proves assembled bytes == working-tree `index.html` == committed `index.html`. |
+| `src/` (currently just `src/index/`) | The ordered byte fragments `index.html` is assembled from (`npm run build:index`), plus the generated navigation map at `src/index/INDEX.md`. Edit fragments, never `index.html` directly; `npm run check:index` proves assembled bytes == working-tree `index.html` == committed `index.html`. |
 
 ## Runtime asset folders (served by GitHub Pages — do NOT move)
 

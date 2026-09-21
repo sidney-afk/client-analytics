@@ -146,28 +146,38 @@ async function main() {
 
     // Change under test:
     //   (a) copy the EXACT slug line verbatim into a brand-new fragment file
-    //       (this is the modularization-split shape: a byte-identical move).
+    //       under src/index/*.part (this is the modularization-split shape:
+    //       a byte-identical move into a verified fragment destination).
     //   (b) separately, add a genuinely new line elsewhere naming the
     //       synthetic staff member — never present in base's index.html.
+    //   (c) copy that SAME verbatim slug line into a non-fragment tracked
+    //       file. Owner-tightened 2026-09-21 (Codex P1 on #1464): the
+    //       exemption is scoped to src/index/*.part destinations only, so an
+    //       identical move anywhere else is still new exposure.
     fs.writeFileSync(path.join(repo, 'src', 'index', '999-remainder.part'),
       `<script>\n${movedLine}\n</script>\n`);
     fs.writeFileSync(path.join(repo, 'docs-note.txt'),
       `New note that was never in index.html, mentioning ${SYNTHETIC_STAFF_NAME} by name.\n`);
-    commit(repo, 'split index.html and add an unrelated new note');
+    fs.writeFileSync(path.join(repo, 'docs-note-2.txt'), `${movedLine}\n`);
+    commit(repo, 'split index.html and add unrelated new notes');
 
     const result = await runCheck(repo, base, env);
 
     ok(result.roster_terms_checked === 2, 'fixture roster carries exactly the two synthetic terms');
 
     const slugFile = (result.files || []).find((f) => f.file === 'src/index/999-remainder.part');
-    ok(!slugFile, '(a) a line moved verbatim from the base index.html into a new fragment is NOT reported as new exposure');
+    ok(!slugFile, '(a) a line moved verbatim from the base index.html into a src/index/*.part fragment is NOT reported as new exposure');
 
     const noteFile = (result.files || []).find((f) => f.file === 'docs-note.txt');
     ok(!!noteFile && noteFile.staff_name === 1,
       '(b) a genuinely new line naming a roster term, never present in the base index.html, IS still reported');
 
-    ok(result.matched_by_kind.client_slug === 0,
-      'the moved slug line contributes zero matched client-slug terms');
+    const nonFragmentSlugFile = (result.files || []).find((f) => f.file === 'docs-note-2.txt');
+    ok(!!nonFragmentSlugFile && nonFragmentSlugFile.client_slug === 1,
+      '(c) the SAME verbatim moved line landing outside src/index/*.part IS still reported — the exemption is scoped to fragment destinations, not any file');
+
+    ok(result.matched_by_kind.client_slug === 1,
+      'exactly one matched client-slug term: the non-fragment copy, not the fragment one');
     ok(result.matched_by_kind.staff_name === 1,
       'the new staff-name line contributes exactly one matched staff-name term');
   } finally {

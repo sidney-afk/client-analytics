@@ -251,7 +251,14 @@ function addedLinesContaining(term, base) {
     if (line.startsWith('+++ ')) { flush(); current = null; continue; }
     if (!current) continue;
     if (line.startsWith('+') && !line.startsWith('+++') && line.includes(term)) {
-      if (preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html — not new exposure
+      /* Owner-tightened 2026-09-21 (Codex P1 on #1464): the exemption below is
+         scoped to a verified fragment cut, not any destination whatsoever —
+         only a line landing in a `src/index/*.part` fragment can be a moved
+         byte of the modularization split; a roster term reaching any other
+         file is new exposure regardless of whether the same line happens to
+         already exist somewhere in `index.html`. */
+      const isFragmentDestination = current.startsWith('src/index/') && current.endsWith('.part');
+      if (isFragmentDestination && preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html into a fragment — not new exposure
       count++;
     }
   }

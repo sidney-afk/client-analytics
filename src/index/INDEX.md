@@ -14,7 +14,7 @@
 | 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1788 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `070-workload-source.js.part` | 3291 | Workload Calendar |
+| 9 | `070-workload-source.js.part` | 3303 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3333 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2252 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
@@ -36,7 +36,7 @@
 | 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2696 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2887 | SURFACE 3: the save engine |
-| 31 | `290-samples-writes-review.js.part` | 1810 | Same rule as the comment writer beside this one. No caller reaches |
+| 31 | `290-samples-writes-review.js.part` | 1795 | Same rule as the comment writer beside this one. No caller reaches |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |

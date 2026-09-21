@@ -15023,7 +15023,19 @@
             const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
             const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
                 + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT) + '&id=in.(' + encodeURIComponent(list) + ')';
-            const response = await fetch(url, { cache: 'no-store', headers: _prodHeaders() });
+            // Same bounded timeout as the primary workload-plan fetch: an
+            // auxiliary read that hangs (overloaded/half-open connection) must
+            // still resolve so the caller's fail-open catch actually runs,
+            // instead of leaving Promise.all -- and a cold Workload load --
+            // pending indefinitely.
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+            let response;
+            try {
+                response = await fetch(url, { cache: 'no-store', headers: _prodHeaders(), signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
+            }
             if (!response.ok) throw new Error('archive-marker read failed: HTTP ' + response.status);
             const rows = await response.json();
             if (!Array.isArray(rows)) throw new Error('archive-marker read returned an unexpected shape');
@@ -74878,21 +74890,6 @@
         _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
         _sxrFlushCardSave(pid);
         _sxrRenderBody({ preserveScroll: true });
-    }
-    const _sxrLinearReassertAt = new Map();
-    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
-    function _sxrReassertLinearStatus(post, comp) {
-        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
-        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
-        const nativeId = _writeUiNativeId(post, comp);
-        if (!url && !nativeId) return;
-        const st = _sxrNormStatus(post[comp + '_status'] || '');
-        if (!st) return;
-        const key = (nativeId || url) + '|' + st, now = Date.now();
-        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
-        _sxrLinearReassertAt.set(key, now);
-        _sxrPushStatusToLinear(url, st, { post, component: comp, sourceEditedAt: post.updated_at })
-            .catch(e => _writeUiReportFailure('sxr', 'status', e));
     }
 
     /* ── Realtime subscription (channel sxr-<slug> on sample_reviews) ── */

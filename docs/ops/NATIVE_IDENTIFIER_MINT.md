@@ -1,5 +1,7 @@
 # The native naming mint
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier statement that all identifier writers are Linear is obsolete for native work: both teams use native identifier minting. Existing `linear_identifier` fields are retained names, not proof of an outbound provider dependency. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 > ## ⚠ STATUS CORRECTED 2026-09-19 — the migration IS applied
 >
 > **This file said "SOURCE ONLY … has not been applied to the live database"

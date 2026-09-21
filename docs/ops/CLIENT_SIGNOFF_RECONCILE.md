@@ -1,5 +1,7 @@
 # Client review ⇄ card reconciler
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The outbound-carrier discussion describes historical receipts. A native source commit and its receipt do not require a successful Linear delivery; preserve the reconciler’s source-commit and identity checks. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 Completes a client review action the server already committed but whose card
 never received it.
 
@@ -206,6 +208,8 @@ systems agreeing about round numbers, which they do not always (2 of 317 live
 body matches sit on a different round).
 
 ## Outbound delivery is not source commit
+
+**Corrected 2026-09-21:** Linear carrier status below describes old receipts. Post-cutoff native completion does not need a Linear delivery; retain source-commit validation and exact receipt identity rather than treating an unsent provider row as a new send instruction.
 
 A row exists in `mirror_outbox` because the **native write committed**. Its
 `status` describes what the Linear carrier did *afterwards*: `pending` while in

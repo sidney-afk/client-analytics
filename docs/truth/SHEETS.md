@@ -1,5 +1,7 @@
 # Google Sheets — current truth
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-09-18 @ 043369b5 (re-verification of the same claims the 2026-08-19 stamp covered — the three `*_ef_clients` rosters, the duplicate-slug claim and the code anchors — plus the live Clients Info header row. Three facts had drifted; they are corrected in the block directly below, not silently. Sheet tabs other than Clients Info, and the Video Editors and Social Media Managers column claims, were NOT re-read this pass.)
 >
 > **Re-verification 2026-09-18, results and corrections to claims further down this page:**

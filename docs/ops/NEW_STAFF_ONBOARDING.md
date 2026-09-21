@@ -1,5 +1,7 @@
 # New staff onboarding (admin / SMM / editor / designer)
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The Linear invitations, projects, API-key and provider-assignment steps below are historical and are not requirements for new native work. Preserve existing IDs for old records; do not invent or remove mappings. Native provisioning is a guarded operator procedure, not an automatic consequence of this correction; see `docs/ops/NATIVE_CLIENT_PROVISIONING.md`. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 This is the staff equivalent of `docs/ops/NEW_CLIENT_ONBOARDING.md`. Until now nothing
 documented how a new hire actually gets into SyncView, Linear, and Slack, so every session
 was rederiving it from scratch. This was written immediately after running the steps below
@@ -13,6 +15,8 @@ table, not in git. A bare first name is fine on its own; two or more words that 
 push, since that check reads the live table straight from Supabase, not a fixture.
 
 ## 0. The systems involved (mental map)
+
+**Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
 
 | System | What it does here | Manual or automatic |
 |---|---|---|
@@ -28,6 +32,8 @@ push, since that check reads the live table straight from Supabase, not a fixtur
 | Company email | Identity anchor for the above | Owner's call. Some existing staff use a personal address instead, and that is fine |
 
 ## 1. Quick checklist
+
+**Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
 
 - [ ] Get: full name, email, role (`admin` / `smm` / `editor` / `designer`), and for an editor or designer, which team they are in (`video` for editor, `graphics` for designer, this is mandatory, not situational)
 - [ ] Insert their `team_members` row (see §2)
@@ -87,6 +93,8 @@ relays it to the new hire directly. There is nothing to rotate or generate for o
 person, unless you are deliberately rotating that tier's key for everyone at once.
 
 ## 4. Linear
+
+**Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
 
 Two separate things ride on a Linear seat, and neither happens automatically.
 
@@ -161,6 +169,8 @@ skips that and is not the supported path.
 
 ## 7. Assigning a client
 
+**Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
+
 Not a general onboarding step; skip this section entirely for a hire with no client yet,
 there is no "blank" roster entry to create for them in advance. What to do next also
 depends on whether the client is brand new or already has a different SMM, the two are
@@ -193,6 +203,8 @@ are ordinary manual actions in their respective tools, this doc's automation was
 a client's first SMM, not a handoff between two.
 
 ## 8. Workload roster (editor and designer)
+
+**Corrected 2026-09-21:** Do not require a Linear seat, new Linear API key or provider-created ID for native staff work. Preserve existing legacy mappings; validate native role, team and assignee eligibility through the operator process. The Linear-dependent steps below are retained pre-cutoff instructions.
 
 A separate system from everything above, and easy to miss because nothing else in this
 doc touches it: Workload's capacity and assignment-filter views read from three constants

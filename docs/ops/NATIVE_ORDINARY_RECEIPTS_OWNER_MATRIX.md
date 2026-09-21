@@ -1,5 +1,7 @@
 # Native ordinary receipt owner matrix
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Provider-default wording describes the source/preparation baseline, not permission to dispatch provider work after cutoff. Native receipts remain evidence of committed native operations; retained outbox names do not imply Linear delivery. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 The native capability remains `provider` by default. Retirement activation remains blocked until the PostgreSQL proof listed below passes.
 
 | Gateway operation | Owning SQL path | Receipt disposition | Evidence |

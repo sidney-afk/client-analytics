@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Track B — deep-audit & plan-hardening handoff (for a fresh Fable 5 session)
 
 **Paste this whole file as the opening prompt of the new session.** Your job is **planning and

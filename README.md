@@ -1,5 +1,7 @@
 # SyncView
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The introduction, Workload and integration descriptions below retain the earlier topology. Workload is native, and production work no longer depends on a Linear task or an outbound mirror. See [cutoff record](docs/ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 SyncView is the internal client-operations dashboard for Synchro Social — a single-page
 web app for running the content pipeline end to end: planning the content calendar,
 reviewing samples and thumbnails, tracking YouTube title review, handling client

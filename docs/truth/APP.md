@@ -1,5 +1,7 @@
 # App logic (`index.html`) — current truth
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 Source-only draft addition (2026-09-05): SyncLinear's **Feedback & tweaks** view
 keeps all canonical comments and adds staff-only read-only notes from the exact
 mapped Calendar/Samples component. Missing or partial source coverage is explicit;
@@ -87,6 +89,8 @@ mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 > binds to the stable iClosed contact ID, not email.
 
 ## Shape
+
+**Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
 
 One ~45.8k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),
 three review flows (client / Kasper / SMM), the visible Linear mirror/work surface (internal
@@ -346,6 +350,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   managed, desktop side-by-side, and narrow-screen stacked.
 
 ## Workload
+
+**Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
 
 - **Normal Workload loading is native.** `loadLinearIssues()` returns `wlFetchNativeSnapshot()` for
   boot, explicit Refresh and snapshot adoption. The snapshot comes from the `workload-plan` Edge
@@ -631,6 +637,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Linear sync surface
 
+**Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
+
 - Every consistency surface (status/assignee/due/name/comments), outboxes, flags:
   `docs/audits/2026-07-05-logic-sync.md`; current sync reality: `docs/truth/LINEAR.md`.
 - The password-bypassed `?intake=1` page and both live intake webhooks likewise carry no caller
@@ -683,6 +691,8 @@ Executed by `test/write-ui-link-slot-seal.js` against the shipped functions; the
 reported by `scripts/calendar-native-link-gap-check.js`.
 
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
+
+**Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
 
 - Visible top-nav label is **SyncLinear** (renamed from **Linear** 2026-08-21); the internal module/key remains `production`. #812's
   status/comment/due/assignee controls are deployed through `production-write`. F201 candidate source

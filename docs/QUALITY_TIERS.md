@@ -1,5 +1,7 @@
 # Quality tiers — what this website promises, zone by zone
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Tier-1 intake and production data correctness now refer to native submission receipts and native production rows. The older form-to-Linear chain and mirror wording below are historical; quality requirements still apply. See [cutoff record](ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **Owner-ratified contract** (draft assignments below proposed 2026-07-17; the owner may move
 any surface between tiers — that placement IS the product decision). Every QA skill
 (`/site-assurance`, `/bug-archaeology`, `/master-test`, `/overnight-test`, `/human-audit`,

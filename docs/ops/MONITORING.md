@@ -1,5 +1,7 @@
 # SyncView Monitoring Coverage
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 This page answers: what watches each critical SyncView sync edge, where alerts land, and how to
 contain or roll it back. A one-step kill may stop new behavior; F27 and F51 prove that safe team
 authority recovery and exact Edge Function rollback require additional evidence.

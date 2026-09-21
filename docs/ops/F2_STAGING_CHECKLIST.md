@@ -1,5 +1,7 @@
 # F2 staging checklist — the owner's exact sequence
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 Closes `OPEN_REPAIRS.md` item 9 ("the machine gates are currently unsatisfiable").
 This is the provisioning the `FLIP_RUNBOOK.md` evidence/preflight lanes REQUIRE
 but do not perform: they verify a database role, three GitHub Environment

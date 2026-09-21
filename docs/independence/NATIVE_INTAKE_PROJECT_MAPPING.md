@@ -1,5 +1,7 @@
 # Native intake project-mapping readiness
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. This is the legacy Linear-project readiness tool, not a requirement to create projects in Linear for new native work. Use the guarded native provisioning contract in `docs/ops/NATIVE_CLIENT_PROVISIONING.md` and verify its prerequisites before any operator action. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 `production-write` must resolve exactly one Linear project for each client/team
 pair before native Submit intake can mirror the resulting deliverables. The
 readiness inventory is deliberately separate from the gateway and is

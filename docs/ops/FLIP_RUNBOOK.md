@@ -1,5 +1,7 @@
 # FLIP RUNBOOK — owner-executable flag flips & emergency stops
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 **Who this is for.** The owner, alone, possibly in a hurry, without Codex. Every flip below is
 copy-paste through the Supabase **SQL Editor** only; Table Editor is read-only for this runbook.
 Created 2026-07-13 (audit F18 — the payload for "enforcing" that used to circulate silently

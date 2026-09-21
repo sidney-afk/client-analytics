@@ -1,5 +1,7 @@
 # Session Bootstrap — get any AI session grounded in 5 minutes
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 **Who this is for:** any new Claude/Codex session working on SyncView. Read this INSTEAD of
 re-auditing the whole system from scratch. Everything here is either a pointer to a live source
 of truth (trust those) or a stable recipe (verified 2026-07-14). When this file and reality

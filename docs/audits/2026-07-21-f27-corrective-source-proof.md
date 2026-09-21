@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # F27 corrective source proof — two P1 races and a bounded drill
 
 **Status:** source-only corrective candidate. Nothing in this work applied SQL,

@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Step 26/27 — native intake and closure of its legacy fallback
 
 This is a **design and acceptance plan only**. It authorizes no database access, flag change, deployment, workflow edit, or merge. Source statements are against current `main`; live measurements cited from the earlier session are not fresh verification by this document.

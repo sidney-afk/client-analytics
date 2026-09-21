@@ -1,5 +1,7 @@
 # Endpoint inventory — what `index.html` actually calls
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-09-07 @ 4e57e744 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
@@ -26,6 +28,8 @@ n8n writer (F67); this is an open auth/failover defect, not a safe fallback cont
 register and `ROLLBACK.md` before changing routing.
 
 ## n8n webhooks (54)
+
+**Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
 Calendar:
 - `webhook/calendar-get`, `webhook/calendar-upsert-post`, `webhook/calendar-append-post`,

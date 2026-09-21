@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # The n8n webhooks that read Linear, and what replaces each one
 
 > **Lane LX-N8N.** Written 2026-09-08 against `main@d8866d9` (the tip after #1354

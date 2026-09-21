@@ -1,5 +1,7 @@
 # Wired Production Parity Ledger
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The ledger retains native UI and historical comparison evidence. External Linear mirror convergence and Linear-authoritative live-state descriptions below are superseded; UI parity is not the legacy-parity runtime flag. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 Draft source addition, 2026-09-05: the existing comment panel becomes **Feedback
 & tweaks**, preserving canonical rows and adding authorized exact-component
 read-only Calendar/Samples notes. Incomplete sources stay explicit. This is not

@@ -1,5 +1,7 @@
 # Linear exit: execution map
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The identifier row’s older “legacy route still live” wording is superseded by the outbound-off row. The Brief media row’s earlier pending-copy state is also superseded: `ROLLBACK.md` records 1338/1338 occurrences resolved and native brief media required on 2026-09-20/21. This does not close unrelated acceptance evidence by inference. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 One flat, numbered list of every step from here to a website that no longer
 depends on Linear. This is the map an execution session follows and reports
 against. It does not replace the detailed instructions; each step links to

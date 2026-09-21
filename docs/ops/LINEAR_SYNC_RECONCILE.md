@@ -1,5 +1,7 @@
 # Linear ⇄ SyncView status reconciler
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 > **CURRENT-STATE OVERRIDE (2026-07-14; F46/F67/F71).** The combined n8n Linear→card receiver
 > described below is inactive/unpublished, not the event fast path. Pager-dispatched reconcilers are
 > the current healing path. The legacy n8n card writers are unauthenticated and therefore not “safe”

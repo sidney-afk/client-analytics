@@ -1,0 +1,314 @@
+# A1 — documentation freshness after the Linear cutoff
+
+Date: 2026-09-21. Supervisor: Fable. Scope: Phase A of the roadmap read from
+`claude/optimistic-rubin-o7jj1z` (PR #1477); this audit branch starts at `origin/main`.
+
+## Scope and method
+
+- Enumerated every Markdown file under `docs/`, plus `README.md`, `REPO_MAP.md`, `ROLLBACK.md` and `EXECUTION_LOG.md`: **282 existing files**.
+- First examined `docs/CLIENT_LIFECYCLE_MAP.md`. Searched case-insensitively for Linear (including legacy route/symbol names), mirror outbox, parity and system-of-record wording; 249 files matched. Reviewed document roles and matching passages to distinguish operational guidance from dated evidence and code/fixture references.
+- Reconciled a second search for source-of-truth, provider, outbound, issue-tracker and staff-work phrases. The additional non-Linear matches concern other services, isolated recovery or native contracts, not Linear authority.
+- Current-state corrections are additive and dated, with adjacent notices at key lifecycle, onboarding, truth and operator sections. Historical records receive one dated cutoff pointer; their bodies are preserved. No runtime source or code changed.
+- `docs/ops/OPEN_REPAIRS.md` and `docs/ops/LINEAR_EXIT_JOURNAL.md` were included in the search denominator but explicitly excluded from edits and from the still-true judgment, as requested. No `src/index/` fragment was changed.
+- “Still true” below means **no correction needed for these four Linear claims**, not a fresh verification of all facts, deployment state, metrics or open findings in that document.
+
+## Current boundary and findings
+
+The owner states, and the cutoff record confirms, that Linear was retired as a work surface on 2026-09-20. Staff work in SyncView. `linear_outbound_enabled` is `{"mode":"off"}` and `linear_legacy_parity_enabled` is `{"enabled":false}`. The inbound webhook remains; STEP 7 credential revocation is still the owner's decision. See [the cutoff record](../../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
+The lifecycle map still assigned editing to Linear and provisioning to Linear projects; onboarding runbooks still required seats, keys and projects; truth docs still described a live two-way mirror; monitoring and rollback guidance still assumed pre-cutoff mirror operations. These are corrected without erasing the earlier statements or authorizing any live action. Native client provisioning retains its own installation and authorization prerequisites.
+
+The execution map also retained “legacy route still live” in the identifier row and pending brief-media copy language. Its dated correction points to the executed outbound cutoff and the completed 1338/1338 media record already in `ROLLBACK.md`; it does not infer closure of unrelated acceptance checks.
+
+The F27 checklist is generated from the complete runbook hash. Its notice was added to the runbook's marked checklist block and the existing generator was run; no generator or operator step was edited.
+
+## Validation and review
+
+`node test/truth-sync.js`: 542 passed, 0 failed. `node test/repo-map-sync.js`: 724 passed, 0 failed. Generated F27 checklist and whitespace checks pass. Historical-body byte preservation and the unchanged exclusions were independently checked. The post-commit exposure gate and Codex review remain publication/handoff gates; their results belong to the PR. No merge, deployment, live write or workflow change is part of A1. Exact token metering is unavailable; the handoff will report that limitation rather than invent a count.
+
+## Files touched
+
+- `EXECUTION_LOG.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `README.md` — corrected: The introduction, Workload and integration descriptions below retain the earlier topology. Workload is native, and production work no longer depends on a Linear task or an outbound mirror.
+- `REPO_MAP.md` — corrected: Linear-named files and legacy paths below remain repository inventory, not evidence that their transports are active. Production/Sync is the native staff work surface.
+- `ROLLBACK.md` — corrected: Earlier live-state and rollback rows retain pre-cutoff procedures. Re-enabling parity, outbound draining or Linear authority would reverse the cutoff and requires a deliberate owner-approved recovery; it is not the normal response to a native UI defect. Preserve the frozen tokenless writers.
+- `docs/CLIENT_LIFECYCLE_MAP.md` — corrected: The provisioning and production diagrams, stage descriptions, sync schedules, backend map and Track B row below retain the earlier topology. Linear projects, task editing and two-way mirroring are no longer staff workflow requirements. SMMs use Content Calendar and creatives use Sync; native provisioning has its own guarded operator contract.
+- `docs/FIND_ANYTHING.md` — corrected: The Linear and migration links below route to retained history and cutoff context; current production work is native. Read the cutoff record before applying an older flip or sync procedure.
+- `docs/QUALITY_TIERS.md` — corrected: Tier-1 intake and production data correctness now refer to native submission receipts and native production rows. The older form-to-Linear chain and mirror wording below are historical; quality requirements still apply.
+- `docs/archive/AUDIT-2026-07-03.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/CALENDAR_QA_AUDIT_2026-06-20.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/CALENDAR_REALTIME_MIGRATION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/CALENDAR_V2_AUDIT_HANDOFF.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/CALENDAR_V2_HANDOFF_2026-06-14.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/CLEANUP_2026-06-29.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/LINEAR_DRIFT_INCIDENT_2026-06-19.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/N8N_SAVE_LATENCY_AUDIT_2026-06-15.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/PHASE3_AUDIT_PROMPT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/SAMPLES_PARITY_PLAN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/SAMPLES_V2_PLAN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/TRACK_B_FABLE5_HANDOFF.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/WORKLOAD_REFRESH_AUDIT_2026-06-17.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/qa/DIVERGENCE_REPORT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/archive/qa/PARITY_LEDGER.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-03-code.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-03-linear.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-03-n8n.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-03-supabase.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-linear.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-logic-calendar.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-logic-reviews.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-logic-samples.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-logic-sync.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-n8n.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-reaudit-summary.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-sheets.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-05-supabase.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-06-data-assumption-sweep.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-07-linear-state-map.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-09-production-foundation-audit.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-11-b3-inbound-mirror-scenario-harness.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-11-b4-postmerge-shadow-evidence.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-19-boot-refresh-history-audit.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-20-f27-team-rollback-proof.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-21-f27-corrective-source-proof.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-22-f27-install-operator-toolkit.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-28-graphics-flip-gates-report.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-29-b3-zero-gate-investigation.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-07-30-flip-status-review.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-02-graphics-f2-evidence-lane.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-04-monitoring-readiness-cutover.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-05-attribution-stamp-soak-signal.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-05-attribution-write-paths.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-05-production-comment-mark-done-cas.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-08-05-roster-project-coverage.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/audits/2026-09-15-linear-dead-rehearsal.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/CLIENT_FOOTAGE_SUBMISSION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/SAMPLES_GO_LIVE.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/SAMPLES_PARITY_LOG.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/SAMPLES_REBUILD_SPEC.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/SAMPLES_REBUILD_STRATEGY.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/features/YOUTUBE_TITLE_REVIEW_DESIGN.md` — corrected: The title-review product flow remains; the Part B Linear-routing description records its earlier transport. Component feedback and review work use native paths after cutoff, without requiring an outbound Linear comment.
+- `docs/independence/B4_READINESS.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/CODEX_PROMPT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/CREATE_POST_INTAKE_MODEL.md` — corrected: The locked intake product model does not require a live Linear project or provider-created parent after cutoff. Native submission and retry receipts own the workflow; retained names and links describe earlier routing.
+- `docs/independence/CUTOVER_AUDIT_2026-07-13.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/EDGE_FUNCTIONS_MIGRATION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/F42_CARD_DELIVERABLE_LINKAGE_REPORT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/GO_LIVE_CHECKLIST.md` — corrected: The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record.
+- `docs/independence/GRAPHICS_FLIP_STATUS.md` — corrected: The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record.
+- `docs/independence/INDEPENDENCE_PLAN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_COMMENT_BACKFILL_PLAYBOOK.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_A.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_B.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_C.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_D.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_E.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_BRIEF_F.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_CLAUDE_RESUME_20260914.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_HANDOFF.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/LINEAR_EXIT_LANES.md` — corrected: The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record.
+- `docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` — corrected: The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record.
+- `docs/independence/LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/N8N_REPLACEMENT_PLAN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/NATIVE_INTAKE_PROJECT_MAPPING.md` — corrected: This is the legacy Linear-project readiness tool, not a requirement to create projects in Linear for new native work. Use the guarded native provisioning contract in `docs/ops/NATIVE_CLIENT_PROVISIONING.md` and verify its prerequisites before any operator action.
+- `docs/independence/PHASE0_AUDIT_2026-07-28.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/PHASE2_MERGE_READINESS_2026-07-16.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/SAMPLES_NATIVE_CREATE_PLAN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/SLACK_ROAM_MIGRATION_AUDIT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/SYSTEM_MAP.md` — corrected: The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record.
+- `docs/independence/TRACK_A_EDGE_FUNCTIONS_SPEC.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/B1_STRAY_CATCHER_DESIGN.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/CI_GATE_AUDIT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/CLIENT_SIGNOFF_RECONCILE.md` — corrected: The outbound-carrier discussion describes historical receipts. A native source commit and its receipt do not require a successful Linear delivery; preserve the reconciler’s source-commit and identity checks.
+- `docs/ops/COMMENT_GATEWAY_ROLLOUT.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/DEPLOY_REQUEST_2026-08-05_SECTION4.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md` — corrected: The outbound-mirror discussion below records the earlier design. Native description images do not need a Linear mirror. Historical upload rescue is separate from staff work in Linear; completed native brief-media coverage is recorded in `ROLLBACK.md`.
+- `docs/ops/F27_INSTALL_CHECKLIST.md` — generated: Regenerated from the corrected runbook; retained all steps and updated the source hash.
+- `docs/ops/F27_INSTALL_RUNBOOK.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/F27_WRITE_AUTH_WINDOW.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/F2_STAGING_CHECKLIST.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/FLIP_BUG_LEDGER.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/FLIP_DAY_TEST_LOG_2026-08-30.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/FLIP_DAY_TEST_PLAYBOOK.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/FLIP_RUNBOOK.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/FLIP_TEST_ROUND2.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/FLIP_TEST_ROUND3.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/FLIP_TEST_ROUND3_PROMPT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/LINEAR_CUTOFF_RUNBOOK.md` — corrected: STEPS 1–6 are executed; the original access deadline and forward steps below are preserved history/recovery instructions, not a new cutoff schedule. The inbound webhook is still present; STEP 7 remains the owner’s decision.
+- `docs/ops/LINEAR_EXIT_EXECUTION_MAP.md` — corrected: The identifier row’s older “legacy route still live” wording is superseded by the outbound-off row. The Brief media row’s earlier pending-copy state is also superseded: `ROLLBACK.md` records 1338/1338 occurrences resolved and native brief media required on 2026-09-20/21. This does not close unrelated acceptance evidence by inference.
+- `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_INSTALLATION_DAY_20260914.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_OWNER_BEFORE_AFTER_20260914.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md` — corrected: Earlier preparation and provider-live status below is retained history. The cutoff has executed; the current remaining Linear boundary is the inbound webhook and owner-gated credential revocation, not a fresh installation or authority flip.
+- `docs/ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_REPAIR_INSTALL.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP26_NATIVE_LABELS.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP29B_INVENTORY.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_EXIT_URGENT_LINK_VERIFICATION.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/LINEAR_INTAKE_RECOVERY.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/LINEAR_SYNC_RECONCILE.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/MONITORING.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/MOVE_CARD_BETWEEN_CLIENTS.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/NATIVE_IDENTIFIER_MINT.md` — corrected: The earlier statement that all identifier writers are Linear is obsolete for native work: both teams use native identifier minting. Existing `linear_identifier` fields are retained names, not proof of an outbound provider dependency.
+- `docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` — corrected: The catalog capture remains retained evidence; the old September 15 access deadline and instructions premised on a live staff Linear catalog are historical. Native labels are used for ongoing work; no recapture or credential action is authorized here.
+- `docs/ops/NATIVE_ORDINARY_RECEIPTS_OWNER_MATRIX.md` — corrected: Provider-default wording describes the source/preparation baseline, not permission to dispatch provider work after cutoff. Native receipts remain evidence of committed native operations; retained outbox names do not imply Linear delivery.
+- `docs/ops/NEW_CLIENT_ONBOARDING.md` — corrected: The Linear invitations, projects, API-key and provider-assignment steps below are historical and are not requirements for new native work. Preserve existing IDs for old records; do not invent or remove mappings. Native provisioning is a guarded operator procedure, not an automatic consequence of this correction; see `docs/ops/NATIVE_CLIENT_PROVISIONING.md`.
+- `docs/ops/NEW_STAFF_ONBOARDING.md` — corrected: The Linear invitations, projects, API-key and provider-assignment steps below are historical and are not requirements for new native work. Preserve existing IDs for old records; do not invent or remove mappings. Native provisioning is a guarded operator procedure, not an automatic consequence of this correction; see `docs/ops/NATIVE_CLIENT_PROVISIONING.md`.
+- `docs/ops/PARITY_ARM_WINDOW.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/PRE_FLIP_HEALTH_CHECK.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/SESSION_BOOTSTRAP.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/SLICE5_APPLY_WINDOW.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/ops/TEST_CLIENT_GRAPHICS_PROJECT_MAPPING.md` — corrected: The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct.
+- `docs/ops/WORKLOAD_NATIVE_SOURCE.md` — historical: Added one dated cutoff pointer; original body preserved byte-for-byte.
+- `docs/syncview-design/ADAPTER.md` — corrected: The Linear-shaped adapter fields are a retained data/fixture shape, not a requirement for live provider reads or outbound writes. The production work surface is native.
+- `docs/syncview-design/README.md` — corrected: “Linear” and “SyncLinear” below include historical labels for the native Production/Sync surface. The wired UI is not a live mirror of the external Linear service; frozen prototype measurements remain dated evidence.
+- `docs/syncview-design/WIRED-PARITY.md` — corrected: The ledger retains native UI and historical comparison evidence. External Linear mirror convergence and Linear-authoritative live-state descriptions below are superseded; UI parity is not the legacy-parity runtime flag.
+- `docs/testing/ASSURANCE_LEDGER.md` — corrected: The old intake/mirror row labels describe the surface at the date of each proof. They are not current Linear workflow requirements, and those old receipts do not certify today’s native flow.
+- `docs/testing/CALENDAR-TEST-CATALOG.md` — corrected: Historical Linear-push and mirror checks below are not live acceptance steps after cutoff. Retain offline legacy/guard coverage; native Calendar saves and receipts must be tested without restoring outbound or parity.
+- `docs/testing/README.md` — corrected: Legacy Linear-named suites and mocked provider guards remain source/test inventory. Do not interpret historical end-to-end descriptions as permission to mutate Linear or restart mirror workers; current native work needs native proof.
+- `docs/truth/APP.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/BRIEFING.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/ENDPOINTS.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/LINEAR.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/N8N.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/SHEETS.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/truth/SUPABASE.md` — corrected: Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings.
+- `docs/audits/2026-09-21-base-audit/A1-docs-freshness.md` — audit scope, findings, validation and every file disposition.
+
+## Files judged still true within A1 scope
+
+- `docs/archive/AUDIT-2026-06-18.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/archive/AUDIT_2026-06-15.md` — Dated security/testing or no-Linear design statements; no live Linear work-surface assertion.
+- `docs/archive/HEADLESS_TESTING_EVAL_2026-06-26.md` — Dated security/testing or no-Linear design statements; no live Linear work-surface assertion.
+- `docs/archive/REDEPLOY_2026-07-03.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/archive/SAMPLES_SUPABASE_KICKOFF.md` — Dated security/testing or no-Linear design statements; no live Linear work-surface assertion.
+- `docs/archive/qa/PARITY_REPORT.md` — Historical Calendar/Samples UI or realtime parity, not an active Linear mirror contract.
+- `docs/archive/qa/SAMPLES_REALTIME_STATUS.md` — Historical Calendar/Samples UI or realtime parity, not an active Linear mirror contract.
+- `docs/archive/qa/SCENARIO_REPORT.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/archive/qa/TEMPORAL_REPORT.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/audits/2026-07-03-synchrosocial-repo.md` — Dated source/scope or UI evidence; mentions do not establish current Linear authority or writes.
+- `docs/audits/2026-07-04-a4-gate-evidence.md` — Dated source/scope or UI evidence; mentions do not establish current Linear authority or writes.
+- `docs/audits/2026-07-06-prod-parity-gaps.md` — Dated source/scope or UI evidence; mentions do not establish current Linear authority or writes.
+- `docs/audits/2026-07-15-pto-release-audit.md` — Dated source/scope or UI evidence; mentions do not establish current Linear authority or writes.
+- `docs/audits/2026-07-17-bug-archaeology.md` — Dated source/scope or UI evidence; mentions do not establish current Linear authority or writes.
+- `docs/audits/2026-07-17-pto-lifecycle-simulation/FINDINGS.md` — Negative scope statement: no Linear object changed.
+- `docs/audits/2026-07-17-pto-lifecycle-simulation/VISUAL_REVIEW.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/audits/2026-07-19-f141-live-drill/README.md` — Negative scope statement: no Linear object changed.
+- `docs/audits/2026-07-19-vault-audit.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/audits/2026-07-22-staff-boot-refresh-history-audit.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/audits/2026-09-07-native-urgent-ui.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/CLIENT_CREDENTIALS_DESIGN.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/COMPONENT_FEEDBACK.md` — Native UI, retained route names, or negative scope statements; no external Linear work-surface requirement.
+- `docs/features/FILMING_PLANS_DESIGN.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/HIRING_PROCESS.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/KASPER_AD_PERFORMANCE.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/LEGACY_ONBOARDING.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/ONBOARDING_EDGE_MIGRATION.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/ONBOARDING_FALLBACK.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/ONBOARDING_FORM.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/PTO_TRACKER.md` — Native UI, retained route names, or negative scope statements; no external Linear work-surface requirement.
+- `docs/features/PTO_TRACKER_HANDOFF.md` — Native UI, retained route names, or negative scope statements; no external Linear work-surface requirement.
+- `docs/features/SALES_INTAKE_DESIGN.md` — Native UI, retained route names, or negative scope statements; no external Linear work-surface requirement.
+- `docs/features/SMM_WEEKLY_REPORTS.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/THUMBNAIL_CACHE_ROLLOUT.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/THUMBNAIL_REVISION_HISTORY.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/TIKTOK_PILOT_AUDIT.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/UI_DESIGN_STANDARDS.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/features/dark-mode.md` — Native UI, retained route names, or negative scope statements; no external Linear work-surface requirement.
+- `docs/independence/F42_CARD_COMMENT_IMPORT_RUNBOOK.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/F42_LINKAGE_DEFECT_REPAIR_PLAN.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_COMPLETE_DATA_CHECKPOINT_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_COMPOSITION_CHECKPOINT_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_CONTROL_RECOVERY_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/independence/LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/independence/SAMPLES_LEGACY_REMOVAL_MAP.md` — Retained identifiers, isolated recovery evidence, or no-provider-work constraints; cutoff does not invalidate these scoped claims.
+- `docs/ops/EF_DEPLOY_MANIFEST.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/F34_LINEAR_ASSET_RESCUE.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/GRAPHICS_FLIP_STATUS.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/LINEAR_EXIT_ATOMIC_WRITER_INSTALLATION_BINDING.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_B9_CATALOG_REDERIVATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_CI_ROUTING.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_CREDENTIAL_RECOVERY_CONTRACT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_D22_DEFERRED_FIRST_PASS_20260917.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_FOLLOWUP_SUPERVISOR.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_GUARD_COUNT_SITES.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_OWNER_SITTING_20260915.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PROVIDER_COMMENT_OBSERVATION_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PROVIDER_ISSUE_OBSERVATION_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_PROVIDER_TERMINAL_HISTORY_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_RECORDED_CREATE_RECOVERY_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_RECOVERY_PROCEDURE.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_RETIREMENT_SWITCH_PREPARATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_RUNNER_SETTLED_WORLD_PROPOSAL.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_SESSION_C_20260916.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_STORAGE_CUSTODY_HANDOVER.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_EXIT_WORLD_LITERAL_SWEEP_20260916.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LINEAR_MEDIA_RESCUE.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/LIVE_DIVERGENCE_REGISTER.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_CLIENT_PROVISIONING.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_INTAKE_COMPLETION.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/NATIVE_INTAKE_NAMED_APPEND.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_NOTIFICATIONS.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/NATIVE_URGENT_HANDOFF.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/NATIVE_URGENT_N8N_DRAFT.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/PHASE4_CLEANUP_CHECKLIST.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/PUBLIC_SUBMIT_LINK.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/ops/SYNCVIEW_RETIREMENT_RUNBOOK.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/TRACK_B_BACKUP.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` — Source inventory, retained recovery/asset contract, isolated preparation, or explicit non-operative evidence; not a claim that staff still use Linear.
+- `docs/plans/2026-09-21-modularization-plan.md` — Post-cutoff byte-preserving split plan; retained historical references do not restore Linear.
+- `docs/retrospectives/2026-09-20-linear-exit-retrospective.md` — Already records the 2026-09-20 cutoff as history; body stays unchanged.
+- `docs/syncview-design/CONTINUATION.md` — Explicitly frozen prototype/design evidence; no current external Linear authority or session requirement.
+- `docs/syncview-design/HANDOFF.md` — Explicitly frozen prototype/design evidence; no current external Linear authority or session requirement.
+- `docs/syncview-design/PARITY-LOOP.md` — Explicitly frozen prototype/design evidence; no current external Linear authority or session requirement.
+- `docs/syncview-design/PARITY.md` — Explicitly frozen prototype/design evidence; no current external Linear authority or session requirement.
+- `docs/syncview-design/linear-design-tokens.md` — Explicitly frozen prototype/design evidence; no current external Linear authority or session requirement.
+- `docs/syncview-design/tests/README.md` — Mocked authority and guard test contracts remain relevant with Linear retired.
+- `docs/testing/HEADLESS-TESTING-GUIDE.md` — Mock/guard or visual-parity coverage; retaining Linear-related tests does not claim a live work surface.
+- `docs/testing/PRODUCTION_POLISH_AUTOMATION.md` — Mock/guard or visual-parity coverage; retaining Linear-related tests does not claim a live work surface.
+- `docs/truth/README.md` — Documentation-maintenance contract; Linear mentions are examples/provenance, not runtime authority.
+- `docs/vision/IMPROVEMENT_PASS_2026-07-20.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.
+- `docs/vision/STEP_BACK_2026-07-18.md` — No Linear authority/work-surface/mirror claim in either keyword or semantic-phrase sweep; unrelated contract retained.

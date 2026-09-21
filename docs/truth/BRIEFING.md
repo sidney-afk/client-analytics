@@ -1,5 +1,7 @@
 # Session briefing — read this first
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-08-25 @ 61a1d5f6 — a LIVE re-read of this document's current-state claims
 > (runtime flags, deployed Edge Function versions, roster membership, index.html size, which teams
 > are writable). FOUR DRIFTS FOUND AND CORRECTED IN PLACE, one in the dangerous direction: the
@@ -47,6 +49,8 @@ You are working on **SyncView**, the internal production app for a social-media 
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
 
 ## What the system is (60 seconds)
+
+**Corrected 2026-09-21:** Linear is no longer the team’s issue tracker or a live two-way mirror. SMMs work in Content Calendar and creatives in Sync; native receipts, not Linear delivery, establish completion. The remaining inbound webhook and STEP 7 are covered in the cutoff record.
 
 - **The entire app is `index.html`** — a single-file SPA (~70.4k lines as of 2026-08-25; it was ~45.8k at the original checkpoint), served by GitHub Pages
   from `main` at `syncview.synchrosocial.com`. **Merging to `main` deploys immediately.**

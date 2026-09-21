@@ -1,5 +1,7 @@
 # n8n — current truth
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-09-10 Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` — created 2026-09-09, DM copy
 > corrected and published 2026-09-10 (see below) +
@@ -40,6 +42,8 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 `docs/audits/2026-07-05-n8n.md`.
 
 ## Known state (spot-verify before relying — n8n changes outside git)
+
+**Corrected 2026-09-21:** Linear-related schedules and write targets below must be read against the executed cutoff, not treated as instructions to restore them. Outbound and parity are off; only the inbound webhook and STEP 7 credential decision remain in the retirement boundary. Other n8n services are outside this correction.
 
 - Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` (`SyncView — Urgent Kasper Review → Slack`) is
   active at version **`fddb0d5a-790b-4e3e-85f7-8c357f7b3969`** (published 2026-09-10). Created

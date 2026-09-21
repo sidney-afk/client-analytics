@@ -1,5 +1,7 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier live-state and rollback rows retain pre-cutoff procedures. Re-enabling parity, outbound draining or Linear authority would reverse the cutoff and requires a deliberate owner-approved recovery; it is not the normal response to a native UI defect. Preserve the frozen tokenless writers. See [cutoff record](docs/ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

@@ -1,5 +1,7 @@
 # B7 — capture the Linear label catalog before it is gone
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The catalog capture remains retained evidence; the old September 15 access deadline and instructions premised on a live staff Linear catalog are historical. Native labels are used for ongoing work; no recapture or credential action is authorized here. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 > **✅ STATUS, 2026-09-18: TAKEN, ATTESTED AND LIVE.** The capture was run by
 > the owner, staged, and the capability is `native` on version `f55a7dd2` as of
 > 20:02:56Z. The status line below is kept because the rest of this file is

@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Data-assumption sweep — unverified data-reality assumptions in the Track B spec (2026-07-06)
 
 Triggered by the B1 clients-FK near-miss (85 operational issues under client slugs absent from

@@ -36,6 +36,8 @@ record it is marked as such rather than stated flatly.
 
 ## 1. Progress log
 
+### 2026-09-21 — Legacy Workload parent rows retired (Storage, reversible write, `public.workload_issues` only): the 28 active rows outside VID/GRA (15 CON, 13 STR; all parents, 0 children) set `active=false` in one transaction, row count 28 verified before commit, so the "some teams still use the legacy Workload source" banner condition is gone. Verified after: the same read-only selection returns 0 rows and `jsonb_array_length(workload_native_snapshot_v1()->'legacy_teams')` returns 0. Rollback is `update public.workload_issues set active = true where id = any(<saved ids>)`; the id list lives in the private folder `D:/Sidney/Codex/2026-09-21-workload-legacy-retire/`, outside the repo. No other table, flag or workflow touched
+
 ### 2026-09-20 — Frozen mirror_outbox backlog marked terminal (authorized live write, owner decision), clearing the pending-age alarm. Before: 45 rows in (`pending`,`failed`,`shadow_ok`) — 17 real `failed` (`test_only=false`), 28 test `failed` (`test_only=true`), 0 `pending`, 0 `shadow_ok`. In one transaction, updated exactly those 45 rows to `status='skipped'`, `last_error='frozen at cutoff 2026-09-20 by owner decision; Linear retired, not sent'`; row count matched before commit. After: 0 rows in (`pending`,`failed`,`shadow_ok`); 45 `skipped` rows carry the freeze note. `linear-outbound-drain.yml` dispatched once (run 35534292911, succeeded): `mode` `off`, `backlog` **0**, `alerts.oldest_pending_age` **false** — alarm cleared as expected
 
 ### 2026-09-20 — Execution-map update: five capability rows closed or measured on today's slice, plus the outbound cutoff's own row

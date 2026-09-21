@@ -27435,3 +27435,29 @@ row (read-only elsewhere), then write the two native steps into the runbooks wit
 exact readback command each, and remove the struck Linear text to `docs/archive/`.
 Until then, the supervisor session runs the readback before a new client's first real
 card or a new hire's first assignment.
+
+## 228. B1 deletions: the truth docs name symbols, so each deletion must sweep them
+
+Opened 2026-09-21 by the supervisor while executing B1-1 (the orphan Samples
+Linear re-assert cluster).
+
+`node test/truth-sync.js` failed on the first phase-B deletion, not because
+the deletion was wrong but because `docs/truth/APP.md` asserted that
+`_sxrReassertLinearStatus()` EXISTS in the code while documenting that it is
+never called. The gate proves the truth docs and the code agree in both
+directions, so every symbol a B1 PR removes has to be swept out of the
+current-state truth docs in the same commit.
+
+This is not a defect in the gate; it is the gate doing its job. It is
+recorded here because the remaining B1 PRs (the 200/060 Submit chain, the
+080/160/270 anchors, the 120/140 and 280/290 transport legs) name far more
+symbols than this one did, and each will hit the same wall.
+
+Standing instruction for every later B1 PR: after deleting, run
+`grep -rn '<symbol>' docs/ --include=*.md`, correct the CURRENT-state docs
+(`docs/truth/*`, `docs/features/*`, runbooks) in place with a dated note, and
+leave the DATED audits (`docs/audits/2026-07-05-*`, the A2 inventory itself)
+untouched — they are historical records of what was true when written, and
+rewriting them destroys the evidence the deletion rests on.
+
+No live behaviour, flag, database row or credential is involved.

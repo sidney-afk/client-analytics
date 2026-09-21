@@ -27287,7 +27287,7 @@ two-occurrence plan and asserts both occurrences verify on the retry with
 exactly one receipt each. No live run is needed to land this; the next apply
 (a recovery or a re-copy) is the real test.
 
-## 224. [2026-09-21, MEASURED, watch] Cards archived in Linear before the cutoff stayed open in native Workload
+## 224. [2026-09-21, watch -- the reported rows are FIXED, the class is NOT] Cards archived in Linear before the cutoff stayed open in native Workload
 
 **Reported by the video editor on 2026-09-18** ("my workload is bugged": 14
 overdue cards, one phantom in-progress card). **Measured 2026-09-20:** 13 of
@@ -27342,6 +27342,77 @@ The watch above also stands: the inbound webhook stays enabled until the STEP 7 
 so a NEW late archive can still arrive. Item 229 hides such a row from the board on
 arrival, so the watch is about data correctness, no longer about anyone seeing
 phantom work.
+
+**The four rows were CANCELED 2026-09-21 on the owner's explicit word, and this
+half of the item is now closed.** Before the write, two further proofs were taken
+rather than relying on the archive mark alone. Both parent posts had been replaced
+almost immediately: the first by a larger post created the SAME DAY, the second by
+a much larger one two days later, both still active. And inside the two abandoned
+posts somebody had ALREADY closed out the sibling cards by hand -- one thumbnail
+marked `duplicate`, three marked `canceled` on 2026-08-31 -- leaving only the video
+rows behind. So this was never an open question about whether the work was
+abandoned; it was a cleanup that stopped halfway.
+
+`canceled` was chosen over Backlog deliberately: it is what those rows' own
+siblings in the same posts already say, and it records what happened (the work was
+replaced) rather than implying it is still coming.
+
+The write: one statement over four ids, guarded on `status = 'todo'` so it could
+not touch a row somebody had since corrected, with `returning` proving the row
+count was exactly 4 and all four came back `canceled`. No other table, flag or
+workflow was touched, and no Linear call was made.
+
+**Rollback, and why it takes two steps per row.** `track_b_deliverable_touch_timestamps`
+(`migrations/2026-07-06-b1-linear-data-model.sql`) stamps `status_at := now()` on
+any UPDATE where `status is distinct from old.status`, so simply setting the status
+back would destroy the original timestamps rather than restore them, and the UI
+derives status age from that column. The status must be restored first, then
+`status_at` restored in a second UPDATE that does NOT change `status`, so the
+trigger's `elsif` branch never fires. `updated_at` is stamped `now()` either way
+and cannot be restored; that is correct, because the rows genuinely were updated.
+
+REHEARSED 2026-09-21 on one test-client row (`sidneylaruel`, VID-13587) end to end:
+status changed, status changed back, timestamp restored by the second UPDATE,
+verified equal to the saved value, and the rehearsal row left exactly as found.
+This is the runnable form:
+
+```sql
+begin;
+update public.deliverables set status = 'todo'
+ where id in ('del_260d390c-cf52-441d-abcb-aaaece5c7a97',
+              'del_1cd907f8-b6bf-4b61-9fd7-fede83dc7102',
+              'del_1bfce2e5-d683-41c0-afb7-b6e388b9e173',
+              'del_101eaf72-bb7f-41f8-b6ba-044c349817d4')
+   and status = 'canceled';
+update public.deliverables set status_at = v.ts
+  from (values
+    ('del_260d390c-cf52-441d-abcb-aaaece5c7a97', timestamptz '2026-08-20 17:09:03.337+00'),
+    ('del_1cd907f8-b6bf-4b61-9fd7-fede83dc7102', timestamptz '2026-08-27 12:55:52.59+00'),
+    ('del_1bfce2e5-d683-41c0-afb7-b6e388b9e173', timestamptz '2026-08-27 12:58:25.38+00'),
+    ('del_101eaf72-bb7f-41f8-b6ba-044c349817d4', timestamptz '2026-08-27 12:58:30.976+00')
+  ) as v(id, ts)
+ where public.deliverables.id = v.id
+   and public.deliverables.status = 'todo';
+commit;
+```
+
+Check the row count is 4 on each statement before committing.
+
+Re-measured immediately after: 0 of the four read `todo`. The wider class of
+archived-in-Linear rows still in an open status, excluding the test client, now
+reads 123. Those are not this item's -- they were never reported, never measured
+against a specific person's board, and item 229 keeps every one of them off the
+Workload board. A future sweep may close them; this item does not own them.
+
+**This entry is NOT `FIXED`, and the header says `watch` for that reason.** The
+four rows the video editor actually reported are corrected and that half is done.
+The completion condition written above is unchanged and unmet: the inbound webhook
+stays enabled until the STEP 7 revoke, so a NEW late archive can still land a stale
+native row, and the rule for closing this item is still "re-measure with the same
+query after the revoke; if 0, mark FIXED-by-retirement". An earlier version of this
+paragraph marked the whole entry FIXED, which would have hidden that outstanding
+check from any status-based read of this register. Caught by the Codex review on
+#1488.
 
 ## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
 

@@ -121,6 +121,8 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 | ~2707 `_linearOutboxEnqueue` | RETAIN | Still wired local debt/lease/source-save/quarantine/replay machinery. Browser-local outstanding debt was not measured; do not discard it or its native recovery. Remove only the separately listed network branches. | 33393, 35529, 35555, 73524, 73530 |
 | ~2581 `_calLinearSubs` | AFTER-STEP-7 | Dedicated Linear import selection state; reader cluster remains until Step 7. | 33267, 37051, 37160, 37207, 37210, 37236, 37237, 37238, 37239, 37243, 37244 |
 | ~2584 `_calSubDragIdx` | AFTER-STEP-7 | Dedicated Linear import drag state; remove with its reader UI. | 33270, 37213, 37219, 37228, 37234, 37235 |
+| ~2582 `_calLinearParent` | AFTER-STEP-7 | Dedicated Linear import parent state; remove with the 150 reader/UI cluster. | 33268, 37158, 37210, 37239 |
+| ~2583 `_calLinearGraphicParent` | AFTER-STEP-7 | Dedicated Linear import parent state; remove with the 150 reader/UI cluster. | 33269, 37159, 37171, 37210, 37239 |
 
 
 ### `src/index/140-calendar-legacy-outbox.js.part`
@@ -264,6 +266,18 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 | ~1213 `_submitLinearFormLegacy` | DELETE-NOW | Orphan legacy webhook submission chain: submitLinearForm calls _submitLinearFormRoutedOnce, which holds instead of calling this chain. _submitLinearFormLegacy has no executable caller. Remove internal network chain; preserve active hold/receipt recovery. | 51663, 52296 |
 | ~1438 `_linearResumeSubmissionHold` | RETAIN | Active hold/recovery compatibility; retired discovery now reports a visible hold rather than querying Linear. Do not silently remove pending-job handling. | 51888, 68287, 74639, 74640 |
 | ~1849 `_writeLinearVideoCardsToCalendar` | RETAIN | Active hold/recovery compatibility; retired discovery now reports a visible hold rather than querying Linear. Do not silently remove pending-job handling. | 15190, 15195, 51625, 52299, 52421 |
+| ~719 `_linearConfirmedCreate` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51169, 51351 |
+| ~734 `_linearConfirmedReceived` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51184, 51352 |
+| ~714 `_linearResponseParentId` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51164, 51175, 51205, 51359 |
+| ~746 `_linearSafeReceiptRef` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51196, 51211, 51318, 51360, 51540, 51548, 51579 |
+| ~759 `_linearReceiptFailure` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51209, 51345, 51347, 51354, 51366 |
+| ~766 `_linearCreateError` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51216, 51354 |
+| ~783 `_linearPrepareReceipts` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51233, 51453 |
+| ~923 `_linearApplyReceiptOutcomes` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51373, 51584 |
+| ~698 `_linearSelectedTeams` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51148, 51435 |
+| ~705 `_linearReceiptKey` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51155, 51256, 51296 |
+| ~776 `_linearRecoveryIdText` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51226, 51587, 51603, 51650 |
+
 
 ### `src/index/260-production-refresh-boot.js.part`
 
@@ -333,14 +347,14 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 | `100-onboarding-staff-controls.js.part` | 2 | 3 | 0 |
 | `110-time-off-reports.js.part` | 0 | 0 | 0 |
 | `120-calendar-flags-write-repair.js.part` | 1 | 0 | 10 |
-| `130-calendar-model-cache.js.part` | 0 | 2 | 7 |
+| `130-calendar-model-cache.js.part` | 0 | 4 | 7 |
 | `140-calendar-legacy-outbox.js.part` | 7 | 8 | 53 |
 | `150-calendar-hydration-import.js.part` | 0 | 35 | 0 |
 | `160-calendar-organize-ui.js.part` | 2 | 1 | 0 |
 | `170-calendar-links-status.js.part` | 1 | 0 | 1 |
 | `180-calendar-native-post-media.js.part` | 0 | 0 | 0 |
 | `190-calendar-approval-comments.js.part` | 0 | 0 | 0 |
-| `200-intake-data-startup.js.part` | 4 | 0 | 4 |
+| `200-intake-data-startup.js.part` | 15 | 0 | 4 |
 | `210-production-state-writes.js.part` | 0 | 0 | 0 |
 | `220-production-attribution-views.js.part` | 0 | 0 | 0 |
 | `230-production-create-comments.js.part` | 0 | 0 | 0 |
@@ -356,7 +370,7 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 | `330-kasper-review-history.js.part` | 0 | 0 | 0 |
 | `340-editors-date-picker.js.part` | 0 | 0 | 0 |
 | `350-footer.html.part` | 0 | 0 | 0 |
-| **Total: 37 fragments** | **31** | **68** | **97** |
+| **Total: 37 fragments** | **42** | **70** | **97** |
 
 ## Suggested B1 PR order — smallest and safest first
 
@@ -369,4 +383,4 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 
 Every B1 PR must grep removed symbols in the assembled page, run `npm run check:index`, `node test/run-all.js` and the browser gate, record page bytes before/after, and receive Codex review. This audit changes no code and establishes no live deletion/credential/merge authorization.
 
-Token usage: exact API token telemetry unavailable; final session report gives an approximate usage estimate, not a measured bill.
+Token usage: this runtime exposes no session token counter; exact usage and a reliable total estimate are unavailable.
